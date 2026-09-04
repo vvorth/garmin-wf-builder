@@ -1,0 +1,247 @@
+"""Stage 1 validation: the JSON Schema, reported against the YAML source.
+
+``jsonschema`` reports failures against an instance path.  The YAML document
+carries spans for every node, so the two are joined here and the author sees a
+file/line/column pointing at their own text (ADR 0002), never at an internal
+representation.
+
+``oneOf`` over the element types would otherwise produce one useless error per
+branch.  :func:`_narrow` picks the branch the author clearly meant -- the one
+whose ``type`` discriminator matched -- and reports only its errors.
+"""
+
+from __future__ import annotations
+
+import json
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Iterable
+
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+
+from . import SUPPORTED_FORMATS
+from .diagnostics import Bag
+from .yamlsrc import YamlDocument
+
+SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"
+SCHEMA_PATH = SCHEMA_DIR / "wfb-face-1.schema.json"
+
+
+@lru_cache(maxsize=None)
+def load_schema(path: Path = SCHEMA_PATH) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def check_format_version(doc: YamlDocument, bag: Bag) -> bool:
+    """ADR 0009: refuse an unknown format outright rather than parsing part of it."""
+    if not isinstance(doc.data, dict):
+        bag.error("schema", "the document must be a mapping", doc.span(doc.data))
+        return False
+    if "format" not in doc.data:
+        bag.error(
+            "schema",
+            "the document has no 'format:' key",
+            doc.span(doc.data),
+            notes=[f"add 'format: {SUPPORTED_FORMATS[-1]}' at the top of the file"],
+        )
+        return False
+    declared = doc.data["format"]
+    if declared not in SUPPORTED_FORMATS:
+        supported = ", ".join(str(v) for v in SUPPORTED_FORMATS)
+        bag.error(
+            "format-version",
+            f"this file declares format {declared!r}, which this compiler does not understand",
+            doc.span(doc.data, "format"),
+            notes=[f"supported format versions: {supported}"],
+        )
+        return False
+    return True
+
+
+def validate(doc: YamlDocument, bag: Bag) -> bool:
+    """Run the schema.  Returns ``True`` when the document is structurally sound."""
+    if not check_format_version(doc, bag):
+        return False
+
+    before = len(bag.errors)
+
+    # An unknown element `type:` makes every oneOf branch fail for the same
+    # uninformative reason, so it is caught first and named directly.
+    bad_types = _check_element_types(doc, bag)
+
+    validator = Draft202012Validator(load_schema())
+    errors = sorted(validator.iter_errors(doc.data), key=lambda e: list(e.absolute_path))
+    for error in errors:
+        if any(_under(list(error.absolute_path), prefix) for prefix in bad_types):
+            continue
+        for narrowed in _narrow(error):
+            _report(doc, bag, narrowed)
+    return len(bag.errors) == before
+
+
+#: The element types this format version understands.
+ELEMENT_TYPES = ("group", "shape", "text", "progress", "icon")
+
+
+def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
+    """Report unknown element types, returning the paths already accounted for."""
+    bad: list[list] = []
+
+    def visit(elements, path: list) -> None:
+        if not isinstance(elements, list):
+            return
+        for index, element in enumerate(elements):
+            if not isinstance(element, dict):
+                continue
+            here = path + [index]
+            kind = element.get("type")
+            if isinstance(kind, str) and kind not in ELEMENT_TYPES:
+                bag.error(
+                    "schema",
+                    f"unknown element type {kind!r}",
+                    doc.span(element, "type"),
+                    notes=["this format version has: " + ", ".join(ELEMENT_TYPES),
+                           "hand-written Monkey C goes in a `raw` element, which is not "
+                           "implemented yet (ADR 0007)"],
+                )
+                bad.append(here)
+            visit(element.get("children"), here + ["children"])
+
+    visit(doc.data.get("elements"), ["elements"])
+    return bad
+
+
+def _under(path: list, prefix: list) -> bool:
+    return path[: len(prefix)] == prefix
+
+
+def _narrow(error: ValidationError) -> Iterable[ValidationError]:
+    """Collapse a ``oneOf`` failure to the branch the author meant.
+
+    An element with ``type: text`` that is missing ``value`` should produce one
+    error about ``value``, not five about not being a group, a shape, a progress
+    or an icon either.  ``jsonschema`` flattens every branch's errors into one
+    ``context`` list, tagged with the branch index in ``schema_path[0]``, so the
+    branches are regrouped here and the ones whose ``type`` discriminator did not
+    match are dropped.
+    """
+    if error.validator not in ("oneOf", "anyOf") or not error.context:
+        yield error
+        return
+
+    branches: dict[object, list[ValidationError]] = {}
+    for sub in error.context:
+        path = list(sub.schema_path)
+        branches.setdefault(path[0] if path else 0, []).append(sub)
+
+    candidates = {
+        index: errors
+        for index, errors in branches.items()
+        if not any(_is_discriminator(sub) for sub in errors)
+    }
+    if not candidates or len(candidates) == len(branches):
+        # Nothing discriminated: report whichever branch got furthest.
+        best = min(error.context, key=lambda e: (-len(list(e.absolute_path)), len(e.message)))
+        yield from _narrow(best)
+        return
+
+    for errors in candidates.values():
+        required = [e for e in errors if e.validator == "required"]
+        nested = [e for e in errors if e.validator in ("oneOf", "anyOf") and e.context]
+        if nested and not required:
+            for sub in nested:
+                yield _merge_alternatives(sub)
+            continue
+        for sub in errors:
+            if _is_discriminator(sub):
+                continue
+            yield from _narrow(sub)
+
+
+def _is_discriminator(sub: ValidationError) -> bool:
+    """Did this sub-error come from a branch's ``type`` const not matching?"""
+    path = list(sub.schema_path)
+    return sub.validator == "const" and path[-2:] == ["type", "const"]
+
+
+def _merge_alternatives(error: ValidationError) -> ValidationError:
+    """Turn "must match one of [needs a, needs b]" into "needs a or b"."""
+    missing = [
+        sub.message.split("'")[1]
+        for sub in (error.context or [])
+        if sub.validator == "required"
+    ]
+    if len(missing) < 2:
+        return error
+    joined = " or ".join(f"{name!r}" for name in missing)
+    error.message = f"needs one of {joined}"
+    error.validator = "required-one-of"
+    return error
+
+
+def _report(doc: YamlDocument, bag: Bag, error: ValidationError) -> None:
+    path = list(error.absolute_path)
+    span = doc.span_for_path(path)
+    where = _describe(path)
+    message, notes = _humanise(error)
+    bag.error("schema", f"{where}{message}" if where else message, span, notes=notes)
+
+
+def _describe(path: list) -> str:
+    if not path:
+        return ""
+    parts: list[str] = []
+    for part in path:
+        if isinstance(part, int):
+            parts.append(f"[{part}]")
+        elif parts:
+            parts.append(f".{part}")
+        else:
+            parts.append(str(part))
+    return "".join(parts) + ": "
+
+
+def _humanise(error: ValidationError) -> tuple[str, list[str]]:
+    """Turn jsonschema's wording into something an author can act on."""
+    notes: list[str] = []
+    description = (error.schema or {}).get("description") if isinstance(error.schema, dict) else None
+
+    if error.validator == "required-one-of":
+        message = error.message
+    elif error.validator == "required":
+        missing = error.message.split("'")[1]
+        message = f"missing required key {missing!r}"
+    elif error.validator == "additionalProperties":
+        message = error.message.replace(
+            "Additional properties are not allowed", "unknown key"
+        )
+        notes.append(
+            "unknown keys are an error, not a warning -- a misspelled key is how a "
+            "design silently loses an element (ADR 0009)"
+        )
+        allowed = (error.schema or {}).get("properties")
+        if allowed:
+            notes.append("keys allowed here: " + ", ".join(sorted(allowed)))
+    elif error.validator == "enum":
+        message = f"{error.instance!r} is not valid here"
+        notes.append("allowed: " + ", ".join(repr(v) for v in error.validator_value))
+    elif error.validator == "const":
+        message = f"expected {error.validator_value!r}, got {error.instance!r}"
+    elif error.validator == "pattern":
+        message = f"{error.instance!r} has the wrong shape"
+    elif error.validator == "type":
+        message = f"expected {error.validator_value}, got {_type_name(error.instance)}"
+    else:
+        message = error.message
+
+    if description and error.validator in ("pattern", "enum", "required", "anyOf", "type"):
+        notes.append(description)
+    return message, notes
+
+
+def _type_name(value: Any) -> str:
+    return {
+        bool: "boolean", int: "integer", float: "number",
+        str: "string", list: "array", dict: "object", type(None): "null",
+    }.get(type(value), type(value).__name__)

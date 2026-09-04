@@ -102,18 +102,48 @@ else
     echo "  export PATH=\$PATH:${SDK_ROOT}/bin"
 fi
 
+# --------------------------------------------------------- python -----------
+say "python environment"
+VENV="${REPO_ROOT}/.venv"
+if [ -x "${VENV}/bin/python" ]; then
+    echo "already present at ${VENV}"
+else
+    if command -v uv >/dev/null 2>&1; then
+        uv venv "${VENV}" >/dev/null
+    else
+        # Debian/Ubuntu split ensurepip out of the stdlib package.
+        python3 -m venv "${VENV}" 2>/dev/null || {
+            echo "python3-venv is missing; install it with:" >&2
+            echo "  sudo apt-get install -y python3-venv" >&2
+            exit 1
+        }
+    fi
+    echo "created ${VENV}"
+fi
+if command -v uv >/dev/null 2>&1; then
+    VIRTUAL_ENV="${VENV}" uv pip install -q -r "${REPO_ROOT}/requirements-dev.txt"
+else
+    "${VENV}/bin/pip" install -q --upgrade pip
+    "${VENV}/bin/pip" install -q -r "${REPO_ROOT}/requirements-dev.txt"
+fi
+echo "installed host dependencies"
+
 # ---------------------------------------------------------- verify ----------
 say "verify"
 "${SDK_ROOT}/bin/monkeyc" --version 2>&1 | grep -v JAVA_TOOL_OPTIONS || true
 echo "devices: $(ls "${DEVICES_DEST}" | tr '\n' ' ')"
 
+"${VENV}/bin/python" -c "import ruamel.yaml, jsonschema, PIL, fontTools; print('host deps ok')"
+
 cat <<EOF
 
-Setup complete. Smoke-test against the known-good reference face:
+Setup complete. Build the Phase 2 slice end to end:
 
-  cd ~/claude/garmin-watchface-protomolecule
-  \$CIQ_SDK/bin/monkeyc -f monkey.jungle -d fenix8solar47mm \\
-      -o /tmp/dash.prg -y ${KEY_DER} -w
+  ./.venv/bin/python wfb.py build examples/slice/face.yaml
 
-Expected: two pre-existing Data.mc warnings, then BUILD SUCCESSFUL.
+Expected: three signed .prg files and a measured memory figure per device, with
+no warnings. Then:
+
+  ./.venv/bin/python wfb.py preview examples/slice/face.yaml   # PNG, no toolchain
+  ./.venv/bin/python -m pytest                                 # the test suite
 EOF

@@ -27,11 +27,13 @@ part of the deliverable, not scaffolding.
 |---|---|
 | **Phase 0** — research | **Complete.** `docs/research/00`–`05`. Reviewed by the user. |
 | **Phase 1** — ADRs | **Complete.** `docs/adr/0001`–`0009`. Reviewed by the user. |
-| **Phase 2** — thin vertical slice | **Not started.** This is the next work. |
-| Phase 3 — breadth | Not started. |
+| **Phase 2** — thin vertical slice | **Complete.** Builds end to end for all three targets. Awaiting the user's review of the generated Monkey C. |
+| Phase 3 — breadth | **Not started.** This is the next work. |
 
-**No framework code exists yet.** Only research instrumentation in
-`tools/research/`.
+The compiler lives in `wfb/`, the support barrel in `runtime-lib/`, the published
+schema in `schema/`, and the example face in `examples/slice/`. `docs/format.md`
+is the format reference; `docs/limitations.md` records what the platform and the
+linter will not do.
 
 ---
 
@@ -52,6 +54,10 @@ device definitions. What it sets up, and why each part matters:
 | Developer key | `~/ciq/developer_key.der` | Plain OpenSSL RSA → PKCS#8 DER. No Garmin tooling needed. |
 | **Device definitions** | `~/.Garmin/ConnectIQ/Devices/` | **Cannot be downloaded.** See below. |
 | Env vars | `/etc/sandbox-persistent.sh` | `CIQ_SDK`, and SDK `bin/` on `PATH`. |
+| Python venv | `.venv/` | `ruamel.yaml`, `jsonschema`, `pillow`, `fonttools`, `pytest`. |
+
+On Debian/Ubuntu, `python3 -m venv` needs `python3-venv` installed separately;
+the script says so and falls back to `uv venv` when `uv` is available.
 
 ### The one thing that is genuinely gated: device definitions
 
@@ -212,49 +218,108 @@ index and the through-line.
 
 ---
 
-## 6. What to do next — Phase 2
+## 6. Where Phase 2 landed, and what Phase 3 needs
 
-The brief's instruction, unchanged:
+### The slice works
 
-> Before any breadth, ship an end-to-end path for **one** device and a minimal
-> face: `example.yaml` (background + digital time in a custom font + one arc
-> bound to step goal + one icon) → validate → generate Monkey C + resources +
-> jungle → `monkeyc` build → launch in simulator → screenshot. **One command.
-> Fully tested. Do not proceed until this works, and show me the generated
-> Monkey C — the user wants to review its quality and readability.**
+```sh
+./.venv/bin/python wfb.py build examples/slice/face.yaml
+# -> three signed .prg files, no warnings, memory measured per device
+```
 
-Suggested order:
+The brief asked for one command taking `example.yaml` (background + digital time
+in a custom font + one arc bound to the step goal + one icon) through validate →
+generate → `monkeyc`. That works, for all three targets rather than one.
 
-1. `schema/` — JSON Schema + YAML loader carrying **source spans** (line/col) for
-   diagnostics. ADR 0002 requires errors to point at the YAML.
-2. `devices/` — device database built from `~/.Garmin/ConnectIQ/Devices/*/`
-   (`compiler.json`, `simulator.json`, `<id>.api.debug.xml`). **Not** from the
-   Phase 0 doc-scraped data in `docs/research/data/`, which was superseded.
-3. `compiler/` — IR, layout resolver (relative → absolute px per device), Monkey C
-   emitter, resource/jungle/manifest emitter.
-4. `cli/` — `wfb build` first; `validate`, `preview`, `simulate`, `screenshot`,
-   `install`, `package` later.
-5. Golden-file tests over generated Monkey C — these run with **no Garmin
-   toolchain**, which matters for CI.
+**Generated Monkey C is in `tests/golden/` and rebuilt into `build/slice/`.** It
+is the thing the user asked to review.
 
-**Generated Monkey C must be readable** — the user will review it. Stable symbol
-names from element ids, a header citing source + generator version, comments
-tying blocks back to YAML elements, named layout constants (no bare numbers).
+### Pipeline, and where each piece lives
 
-Target `-l 3` (strict typecheck) and `-O z` (optimise code space) cleanly.
+| Stage | Module | Needs the toolchain? |
+|---|---|---|
+| YAML load, with source spans | `wfb/yamlsrc.py` | no |
+| JSON Schema, reported against the author's lines | `wfb/validate.py` | no |
+| Semantic pass: sources, types, null policy, tiers | `wfb/ir.py`, `wfb/catalog.py`, `wfb/expr.py` | no |
+| Per-device layout resolve | `wfb/layout.py` | device files only |
+| Lint | `wfb/lint.py` | device files only |
+| Font baking (TTF → BMFont, subsetted) | `wfb/fonts/` | no |
+| Codegen: Monkey C, resources, manifest, jungle | `wfb/emit/` | no |
+| `monkeyc`, and the measured memory check | `wfb/build.py` | **yes** |
+| Host-side preview | `wfb/preview.py` | no |
+
+181 tests. Only the ones marked `slow` invoke `monkeyc`.
+
+### Findings from Phase 2 that were not in the research
+
+These cost real time to discover; do not rediscover them.
+
+1. **`-O z` alone is not enough.** It leaves `Rez.Styles` in the build and warns.
+   `-O 3z` (or any level ≥ 2) enables the compiler's `constant-folding` and
+   `lexical-only-constants` passes, which is what removes it. The generated
+   jungle sets `project.optimization = 3z`; the build command must **not** also
+   pass `-O`, or monkeyc warns that one specification is ignored.
+2. **An empty `<iq:languages/>` costs about 12 KB of foreground data.** Declaring
+   `eng` drops it. This is by far the largest single memory win found.
+3. **`--no-gen-styles`** removes the `Rez.Styles` module a generated face never uses.
+4. **Launcher icons must match `compiler.json`'s `launcherIcon` size per device**
+   or every build warns. The generator draws them at the right size.
+5. **The BMFont path works with a plain 8-bit grayscale PNG** and a text `.fnt`.
+   No AngelCode BMFont tool is needed; Pillow is enough.
+6. **`resourcePath` must not be set in the jungle.** The default jungle already
+   puts `resources/` and `resources-<device>/` on every device's path; naming
+   them again adds every file twice and warns.
+7. **Per-device directories are keyed by device id, not `deviceFamily`.**
+   `fenix8solar47mm` and `fr955` are both `round-260x260` but have different
+   system-font metrics and different API levels, so their resolved `Layout`
+   modules genuinely differ. ADR 0004 §3b is still right that `deviceFamily` is
+   the resource-qualifier name — it is just not unique enough to key layout on.
+8. **Module members take no access modifier.** `hidden` and `private` are
+   class-member keywords; the compiler rejects them inside a `module`.
+9. **The simulator will not run in this container.** It links against
+   `libwebkit2gtk-4.0` and `libsoup-2.4`, which current distributions no longer
+   ship, and even with those supplied it segfaults on app load under Xvfb with
+   software OpenGL — reproduced with an **unmodified SDK sample `.prg`**, so it is
+   the environment, not generated output. `wfb preview` covers the gap; see
+   `docs/limitations.md` §2.
+
+### Phase 3 — breadth
+
+`docs/limitations.md` §2 is the authoritative list of what is missing. In rough
+dependency order:
+
+1. **Per-device `overrides`** (ADR 0004 §4). Already parsed and validated, not yet
+   applied. Doing this first keeps the element work below from being redone.
+2. **The `raw` escape hatch** (ADR 0007). The seam most likely to break as codegen
+   evolves, so it wants golden tests from day one.
+3. **Remaining elements**: `image`, `complication_slot`, `segments` and `scale`
+   progress styles.
+4. **Configuration** (ADR 0006): the `config:` block, `<watchface-config>`,
+   `settings.xml`/`properties.xml`, and the four-axis build-time checks.
+5. **Interactivity** (ADR 0006 §6): tap where available, hold on fr955, from one
+   declaration — and the compiler must **reject** `on_hold: launch` combined with
+   hold-to-cycle on fr955 rather than silently preferring one.
+6. **Complications and the `slow`/`event` refresh tiers**, with the TTL cache in
+   the barrel.
+7. **Generate the data-source catalogue from the SDK** (ADR 0005 §1). It is
+   hand-written today; a drifted catalogue would silently mis-declare permissions.
+8. The GUI (ADR 0002), last, once the schema has stabilised.
+
+Use the sibling Dashboard face as the forcing function: **"can the schema express
+Dashboard?"** is the right question to drive Phase 3 scope.
 
 ### Known-good reference
 
 `~/claude/garmin-watchface-protomolecule/` is a **working, dense, real** watch
 face for the same targets. It builds. Use it as:
 
-- a **validation target** — "can the schema express Dashboard?" is an excellent
-  forcing function;
+- a **validation target** — "can the schema express Dashboard?";
 - a source of proven idioms — `source/Data.mc` (refresh tiers, `has` guards),
   `source/Arcs.mc` (pen-width arcs), `source/Icons.mc` (drawn primitives),
   `tools/preview.py` (a 694-line MIP preview renderer worth partially porting).
 
-Treat it as **read-only**. The user asked for it to be left untouched.
+Treat it as **read-only**. The user asked for it to be left untouched. Note it is
+not present in a fresh sandbox — it lives on the user's host.
 
 ---
 
@@ -279,10 +344,15 @@ Prose is part of the deliverable. When a change makes any of these stale, update
 it **in the same commit**: `docs/research/*`, `docs/adr/*`, this file, and
 (once they exist) `README.md`, `docs/limitations.md`, and the format reference.
 
-`docs/limitations.md` is a required Phase 3 deliverable and does not exist yet.
-It must record at minimum: no filled arc; the four-axis / four-configuration
-on-device config cap; the fr955 exclusions; single-colour bitmap fonts; no alpha
-blending; and what the linter does *not* check.
+`docs/limitations.md` exists and is current. It records: no filled arc; the
+four-axis / four-configuration on-device config cap; the fr955 exclusions;
+single-colour bitmap fonts; no alpha blending; the 64-colour palette rule; what
+is not implemented yet; and — separately — **what the linter does not check**,
+including the two checks (memory and the partial-update budget) that are
+deliberately not allowed to sound exact.
+
+`docs/format.md` is the author-facing format reference. Keep it and the JSON
+Schema in step: the schema is normative, the prose explains why.
 
 ---
 

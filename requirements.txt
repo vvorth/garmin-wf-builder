@@ -1,0 +1,6 @@
+# Host-side dependencies.  The Connect IQ SDK and the device definitions are
+# installed separately by ./tools/setup-env.sh.
+ruamel.yaml>=0.18     # round-trip YAML with source spans (ADR 0002)
+jsonschema>=4.20      # the published JSON Schema
+pillow>=10            # font rasterisation, launcher icons, the preview renderer
+fonttools>=4.50       # font face names and, later, glyph-set validation

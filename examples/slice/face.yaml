@@ -1,0 +1,85 @@
+# The Phase 2 vertical slice: a background, the time in a custom font, one arc
+# bound to the step goal, and one icon.  Deliberately minimal -- it exists to
+# prove the whole path from YAML to a sideloadable .prg, not to be a good design.
+#
+# Build it with:  ./wfb.py build examples/slice/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Slice
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour is one the 64-colour MIP panel can show without dithering:
+# each channel is 0x00, 0x55, 0xAA or 0xFF.  The linter checks this.
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+  accent: "#FF5500"
+  track: "#555555"
+
+fonts:
+  clock:
+    source: assets/OpenSans-Regular.ttf
+    # Rasterised at this many pixels on the smallest target and scaled up for
+    # the 280x280 fenix 8 Solar 51 mm, so one declaration is right on both.
+    size: 68
+    # 'glyphs' is omitted on purpose: the compiler derives the set from the
+    # format specs below, so the sheet carries eleven glyphs, not a charset.
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # setPenWidth + drawArc.  Garmin has no filled-sector primitive, so this is a
+  # stroked ring: 'thickness' is a pen width, and there is no inner/outer radius.
+  - id: step_ring
+    type: progress
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    at: { anchor: center }
+    radius: 90%r          # 90% of the screen's minor radius
+    thickness: 10px
+    start_angle: 180deg     # 6 o'clock, measured clockwise from 12
+    sweep: 340deg           # clockwise, stopping just short of a full circle
+    color: palette.accent
+    track_color: palette.track
+    when_absent: hide       # required: both bindings are nullable
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"      # %h follows the watch's own 12/24-hour setting
+    font: font.clock
+    at: { anchor: center, dy: -4% }
+    color: palette.text
+
+  - id: steps_icon
+    type: icon
+    icon: steps
+    at: { anchor: center, dy: 16% }
+    size: 30px
+    color: palette.accent
+
+  - id: steps_value
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 30% }
+    color: palette.text
+    when_absent: placeholder
+    placeholder: "--"
