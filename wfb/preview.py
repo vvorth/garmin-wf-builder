@@ -23,7 +23,7 @@ from PIL import Image, ImageDraw
 
 from . import catalog, expr, formatting, icons
 from .catalog import Type
-from .fonts import BakedFont
+from .fonts import BakedFont, fallback
 from .ir import IconElement, Progress, Shape, Text
 from .layout import (
     PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
@@ -275,27 +275,28 @@ class _Renderer:
             pen += glyph.xadvance * s
 
     def _approximate_text(self, text: str, placed: PlacedText, color) -> None:
-        """System fonts are not on the host; draw a labelled block instead.
+        """Draw system-font text with the same stand-in `wfb.layout` measured.
 
-        Showing a grey block rather than a substituted typeface keeps the preview
-        honest: the *extent* is what the compiler knows, and the glyph shapes are
-        the device's, not ours.
+        The real device faces are not available anywhere (see
+        :mod:`wfb.fonts.fallback`), so the glyph shapes here are not the ones the
+        watch will draw.  The *position* is exact, and the extent is the same
+        estimate the compiler recorded -- because both come from this one face at
+        this one size, they cannot disagree.
         """
         s = self.scale
-        box = self._rect(placed.box)
-        # A dim outline, not the element's own colour: this box is preview
-        # scaffolding marking the extent the compiler computed, and it should
-        # not be mistaken for something the face draws.
-        self.draw.rectangle(box, outline=(64, 64, 64), width=1)
-        try:
-            from PIL import ImageFont
+        face = fallback.font_for_height(placed.font_px * s)
+        if face is None:
+            # No scalable face at all: fall back to marking the extent, which is
+            # more honest than drawing text at the wrong size.
+            self.draw.rectangle(self._rect(placed.box), outline=(64, 64, 64), width=1)
+            return
 
-            size = max(8, int(placed.font_px * s * 0.7))
-            face = ImageFont.load_default(size=size)
-            self.draw.text(((box[0] + box[2]) / 2, (box[1] + box[3]) / 2), text,
-                           fill=color, font=face, anchor="mm")
-        except Exception:
-            pass
+        x = placed.anchor_point[0] * s
+        y = placed.anchor_point[1] * s
+        element = placed.element
+        anchor_x = {"left": "l", "center": "m", "right": "r"}[element.align]
+        anchor_y = "m" if element.vertical_align == "center" else "a"
+        self.draw.text((x, y), text, fill=color, font=face, anchor=anchor_x + anchor_y)
 
     # -- shared -----------------------------------------------------------
 

@@ -156,9 +156,41 @@ def test_a_literal_colour_is_allowed_but_noted(write_design, bag):
     assert any(d.code == "raw-color" for d in bag.items)
 
 
-def test_permissions_are_derived_from_bindings(write_design, bag):
+def test_permissions_are_derived_from_bindings(write_design, bag, monkeypatch):
     """The strongest single justification for the project: a missing permission
     fails silently on device, so it must not be hand-maintained."""
+    from wfb import catalog
+
+    # Positioning is one a watch face may actually hold; weather will be the
+    # first real source to need it.
+    monkeypatch.setitem(
+        catalog.CATALOG,
+        "weather.temperature",
+        catalog.Source(
+            path="weather.temperature", type=catalog.Type.NUMBER, reader="settings",
+            field_name="temperature", nullable=True, tier=catalog.Tier.FRAME,
+            permissions=("Positioning",),
+        ),
+    )
+    face = load(write_design(design("""
+  - id: temp
+    type: text
+    value: weather.temperature
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+""")), bag)
+    assert bag.ok(), bag.render()
+    assert face.requirements().permissions == {"Positioning"}
+
+
+def test_reading_heart_rate_implies_no_permission(write_design, bag):
+    """It is read off Activity.getActivityInfo(), which needs none.
+
+    The obvious-looking alternative -- Toybox.Sensor -- needs a permission that a
+    watch face may not declare at all, so the manifest would be rejected.
+    """
     face = load(write_design(design("""
   - id: hr
     type: text
@@ -169,9 +201,35 @@ def test_permissions_are_derived_from_bindings(write_design, bag):
     when_absent: hide
 """)), bag)
     assert bag.ok(), bag.render()
-    assert face.requirements().permissions == {"Sensor"}
+    assert face.requirements().permissions == set()
 
 
 def test_no_binding_means_no_permissions(write_design, bag, minimal):
     face = load(write_design(minimal), bag)
     assert face.requirements().permissions == set()
+
+
+def test_a_nullable_reader_is_narrowed_before_its_field_is_read(write_design, bag, db):
+    """`Activity.getActivityInfo()` returns null when there is no activity.
+
+    Guarding only the *field* would dereference the null reader one line earlier,
+    which fails the strict typecheck rather than failing on the wrist.
+    """
+    from wfb.emit import generate
+    from wfb.emit.resources import bake_fonts
+
+    face = load(write_design(design("""
+  - id: hr
+    type: text
+    value: heart_rate.current
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+""")), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    project = generate(face, [device], write_design("").parent / "build", baked)
+    view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
+    assert "(activityInfo != null) ? activityInfo.currentHeartRate : null" in view

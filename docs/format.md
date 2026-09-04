@@ -1,15 +1,46 @@
 # The wfb design format — reference (format 1)
 
 The normative definition is [`schema/wfb-face-1.schema.json`](../schema/wfb-face-1.schema.json).
-Point a YAML language server at it and you get autocomplete and inline
-validation while authoring:
-
-```yaml
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
-```
-
 This page explains the parts the schema cannot: *why* a key exists, and what the
 platform does with it.
+
+## Before you write anything
+
+**Start from a template rather than a blank file:**
+
+```sh
+wfb new "My Face"                 # the dashboard template
+wfb new "My Face" -t minimal      # just a background and the time
+wfb new --list                    # what else there is
+```
+
+**Turn on editor autocomplete.** The schema is a shipped artefact, so a YAML
+language server will complete keys, document them on hover, and flag mistakes as
+you type. Either add a modeline to the file:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+```
+
+…or map it once in your editor. VS Code, with the `redhat.vscode-yaml`
+extension — this repository already ships [`.vscode/settings.json`](../.vscode/settings.json)
+with it configured:
+
+```json
+{ "yaml.schemas": { "./schema/wfb-face-1.schema.json": ["*.face.yaml"] } }
+```
+
+`wfb schema --path` prints the schema's location if you need to point something
+else at it.
+
+**Keep a preview open while you edit:**
+
+```sh
+wfb preview my-face.yaml --watch
+```
+
+It re-renders whenever the file — or a font it uses — changes, so the loop is
+edit and look rather than edit, run, look.
 
 ---
 

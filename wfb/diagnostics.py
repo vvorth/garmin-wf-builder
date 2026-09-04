@@ -61,7 +61,11 @@ class Diagnostic:
                 out.append(f"{gutter}{text}")
                 out.append(" " * len(gutter) + " " * (self.span.col - 1) + "^")
         for note in self.notes:
-            out.append(f"      note: {note}")
+            first, *rest = note.splitlines() or [""]
+            out.append(f"      note: {first}")
+            # Continuation lines line up under the note's text, so a multi-line
+            # note -- a suggested snippet, usually -- reads as one block.
+            out.extend(f"            {line}" for line in rest)
         if self.confidence:
             out.append(f"      confidence: {self.confidence}")
         return "\n".join(out)

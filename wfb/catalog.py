@@ -190,11 +190,34 @@ CATALOG: dict[str, Source] = {
            source_ref="Toybox/ActivityMonitor/Info.html"),
         # -- heart rate ----------------------------------------------------
         # Toybox/Activity/Info.html.  getActivityInfo() itself may return null.
+        # No permission: Toybox.Activity does not appear in the permission table
+        # at all (Core_Topics/Manifest_and_Permissions.html).  Reading heart rate
+        # through Toybox.Sensor *would* need one -- and that permission is not
+        # available to watch faces, which is why this source reads it off
+        # Activity.getActivityInfo() instead.
         _s("heart_rate.current", Type.NUMBER, "activity_info", "currentHeartRate", True,
-           Tier.FRAME, permissions=("Sensor",), unit="bpm",
+           Tier.FRAME, unit="bpm",
            doc="current heart rate", source_ref="Toybox/Activity/Info.html"),
     ]
 }
+
+
+#: Permissions a **watch face** may declare.
+#:
+#: From the SDK's own table in ``Core_Topics/Manifest_and_Permissions.html``:
+#: the "Watch Face" column is blank for ``Sensor``, ``SensorHistory``, ``Ant``,
+#: ``BluetoothLowEnergy``, ``Fit``, ``PersistedContent``, ``ComplicationProvider``
+#: and ``Data Field Alert``.  Declaring one of those is not a subtle mistake --
+#: ``monkeyc`` rejects the manifest outright -- but it is far better caught
+#: against the source that implied it than as a manifest error with no
+#: indication of which binding is responsible.
+WATCHFACE_PERMISSIONS: frozenset[str] = frozenset({
+    "Background",
+    "Communications",
+    "ComplicationSubscriber",
+    "Positioning",
+    "UserProfile",
+})
 
 
 def get(path: str) -> Source | None:

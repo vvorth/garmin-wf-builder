@@ -83,6 +83,38 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
 #: The element types this format version understands.
 ELEMENT_TYPES = ("group", "shape", "text", "progress", "icon")
 
+#: Names authors reach for that belong to a discriminated pair, or to another
+#: format entirely.  Mapping them beats listing the five valid types and leaving
+#: the author to work out which one a rectangle is.
+ELEMENT_ALIASES: dict[str, str] = {
+    "rectangle": "type: shape\n    shape: rectangle",
+    "rounded_rectangle": "type: shape\n    shape: rounded_rectangle",
+    "circle": "type: shape\n    shape: circle",
+    "line": "type: shape\n    shape: line",
+    "ellipse": "type: shape\n    shape: circle",
+    "arc": "type: progress\n    style: arc",
+    "ring": "type: progress\n    style: arc",
+    "bar": "type: progress\n    style: bar",
+    "progress_bar": "type: progress\n    style: bar",
+    "gauge": "type: progress\n    style: arc",
+    "label": "type: text",
+    "string": "type: text",
+    "digital_clock": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
+    "clock": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
+    "time": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
+}
+
+#: Element types this format does not have *yet*, so the message can say so
+#: rather than implying the author misspelled something.
+ELEMENT_NOT_YET = {
+    "image": "images are not implemented yet",
+    "bitmap": "images are not implemented yet",
+    "complication_slot": "complication slots are not implemented yet",
+    "complication": "complication slots are not implemented yet",
+    "raw": "the `raw` escape hatch is not implemented yet (ADR 0007)",
+    "analog_clock": "analog hands are not implemented yet -- build them from `shape: line`",
+}
+
 
 def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
     """Report unknown element types, returning the paths already accounted for."""
@@ -97,13 +129,19 @@ def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
             here = path + [index]
             kind = element.get("type")
             if isinstance(kind, str) and kind not in ELEMENT_TYPES:
+                notes = []
+                alias = ELEMENT_ALIASES.get(kind)
+                pending = ELEMENT_NOT_YET.get(kind)
+                if alias:
+                    notes.append(f"write it as:\n    {alias}")
+                elif pending:
+                    notes.append(pending)
+                notes.append("this format version has: " + ", ".join(ELEMENT_TYPES))
                 bag.error(
                     "schema",
                     f"unknown element type {kind!r}",
                     doc.span(element, "type"),
-                    notes=["this format version has: " + ", ".join(ELEMENT_TYPES),
-                           "hand-written Monkey C goes in a `raw` element, which is not "
-                           "implemented yet (ADR 0007)"],
+                    notes=notes,
                 )
                 bad.append(here)
             visit(element.get("children"), here + ["children"])
@@ -216,6 +254,15 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
         message = error.message.replace(
             "Additional properties are not allowed", "unknown key"
         )
+        offending = set(_unexpected_keys(error))
+        if offending & {"x", "y", "dx", "dy", "width", "height", "cx", "cy"}:
+            notes.append(
+                "positions go in `at:` and sizes in `size:` -- this format has no "
+                "top-level x/y/width/height, because a position is relative to an "
+                "anchor rather than absolute:\n"
+                "    at: {anchor: center, dy: -18%}\n"
+                "    size: {width: 60%, height: 12%}"
+            )
         notes.append(
             "unknown keys are an error, not a warning -- a misspelled key is how a "
             "design silently loses an element (ADR 0009)"
@@ -238,6 +285,15 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
     if description and error.validator in ("pattern", "enum", "required", "anyOf", "type"):
         notes.append(description)
     return message, notes
+
+
+def _unexpected_keys(error: ValidationError) -> list[str]:
+    """The key names an additionalProperties failure is complaining about."""
+    allowed = set((error.schema or {}).get("properties") or ())
+    instance = error.instance
+    if not isinstance(instance, dict):
+        return []
+    return [k for k in instance if k not in allowed]
 
 
 def _type_name(value: Any) -> str:

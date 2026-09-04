@@ -1,0 +1,14 @@
+{
+  "//": "Point the YAML language server at the published schema, so designs get autocomplete, hover documentation and inline validation while being edited. Install the 'YAML' extension (redhat.vscode-yaml).",
+  "yaml.schemas": {
+    "./schema/wfb-face-1.schema.json": [
+      "examples/**/*.yaml",
+      "designs/**/*.yaml",
+      "*.face.yaml"
+    ]
+  },
+  "yaml.format.enable": false,
+  "files.associations": {
+    "*.face.yaml": "yaml"
+  }
+}

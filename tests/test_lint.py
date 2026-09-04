@@ -226,3 +226,62 @@ def test_memory_over_the_limit_is_an_error(device, bag):
 def test_unparseable_build_output_returns_nothing_rather_than_guessing(device, bag):
     assert lint.check_memory(device, "BUILD SUCCESSFUL", bag) is None
     assert not bag.items
+
+
+# -- permissions ------------------------------------------------------------
+
+
+def test_a_permission_a_watch_face_cannot_hold_is_an_error(write_design, bag, monkeypatch):
+    """`monkeyc` rejects the manifest, but never names the binding responsible.
+
+    Since this compiler *derives* the permission set, the author has no line to
+    look at unless the check points at the source that implied it.
+    """
+    from wfb import catalog
+
+    monkeypatch.setitem(
+        catalog.CATALOG,
+        "hr.raw",
+        catalog.Source(
+            path="hr.raw", type=catalog.Type.NUMBER, reader="activity_info",
+            field_name="currentHeartRate", nullable=True, tier=catalog.Tier.FRAME,
+            permissions=("Sensor",),
+        ),
+    )
+    face = load(write_design(BASE.format(
+        palette='  bg: "#000000"\n  fg: "#FFFFFF"',
+        extra="""
+  - id: hr
+    type: text
+    value: hr.raw
+    format: "{:d}"
+    at: {anchor: center}
+    color: palette.fg
+    when_absent: hide
+""")), bag)
+    assert face is not None, bag.render()
+    lint.check_permissions(face, bag)
+    diag = next(d for d in bag.errors if d.code == "permission")
+    assert "Sensor" in diag.message
+    assert "hr" in diag.message
+    assert "exact" in diag.confidence
+
+
+def test_the_permissions_a_watch_face_may_hold_match_the_sdk_table(bag):
+    from wfb import catalog
+
+    assert catalog.WATCHFACE_PERMISSIONS == {
+        "Background", "Communications", "ComplicationSubscriber",
+        "Positioning", "UserProfile",
+    }
+
+
+def test_heart_rate_needs_no_permission():
+    """Read off Activity.getActivityInfo(), which is absent from the table.
+
+    Toybox.Sensor would need a permission a watch face may not declare -- which
+    is exactly why the catalogue does not route heart rate through it.
+    """
+    from wfb import catalog
+
+    assert catalog.get("heart_rate.current").permissions == ()

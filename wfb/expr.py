@@ -14,6 +14,7 @@ formats become unmaintainable.
 
 from __future__ import annotations
 
+import difflib
 import re
 from dataclasses import dataclass, field
 
@@ -326,13 +327,27 @@ def check(node: Node, scope: Scope) -> Value:
             from . import catalog
 
             notes = []
-            near = catalog.suggest(node.path)
+            # Prefer suggestions from the same namespace: a mistyped palette
+            # entry wants the palette listed, not the data-source catalogue.
+            namespace = node.path.split(".", 1)[0] if "." in node.path else ""
+            siblings = sorted(
+                name for name in scope.bindings if name.startswith(f"{namespace}.")
+            )
+            near = difflib.get_close_matches(node.path, siblings, n=3, cutoff=0.4)
             if near:
                 notes.append("did you mean: " + ", ".join(near) + "?")
+            elif siblings:
+                notes.append(f"{namespace} has: " + ", ".join(siblings))
             else:
-                notes.append(
-                    "known namespaces: " + ", ".join(sorted(catalog.namespaces())) + ", palette, config"
-                )
+                catalogued = catalog.suggest(node.path)
+                if catalogued:
+                    notes.append("did you mean: " + ", ".join(catalogued) + "?")
+                else:
+                    notes.append(
+                        "known namespaces: "
+                        + ", ".join(sorted(catalog.namespaces()))
+                        + ", palette"
+                    )
             raise ExprError(f"unknown data source {node.path!r}", node.offset, notes)
         return binding.value
 

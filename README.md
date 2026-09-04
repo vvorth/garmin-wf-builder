@@ -69,12 +69,21 @@ are the user's own licensed copy). See `CLAUDE.md` §2.
 ## Commands
 
 ```sh
+wfb new       "My Face" [-t minimal|dashboard]   # start from a known-good template
 wfb build     design.yaml [-d DEVICE] [-o DIR] [--no-compile]
 wfb validate  design.yaml          # everything except codegen; no toolchain needed
-wfb preview   design.yaml          # render to PNG on the host; no toolchain, no simulator
+wfb preview   design.yaml [--watch]  # render to PNG; no toolchain, no simulator
 wfb simulate  design.yaml          # launch the simulator and push the built face
 wfb devices                        # installed device definitions and their limits
 wfb sources                        # the data-source catalogue
+wfb schema    [--path]             # the JSON Schema, for editor setup
+```
+
+The quickest start:
+
+```sh
+wfb new "My Face"
+wfb preview my-face.yaml --watch   # leave this running while you edit
 ```
 
 `wfb preview` renders from the **same resolved geometry** the generated Monkey C

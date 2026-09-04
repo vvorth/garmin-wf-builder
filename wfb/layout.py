@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from . import catalog, formatting
 from .devices import Device
-from .fonts import BakedFont
+from .fonts import BakedFont, fallback
 from .ir import (
     Element, Face, Group, IconElement, Position, Progress, Shape, Size, Text,
 )
@@ -195,8 +195,12 @@ class Resolver:
             width, line_height = baked.measure(widest)
             estimated = False
         else:
-            # No real metrics for this font on this device: estimate, and say so.
-            width = round(len(widest) * font_px * 0.55)
+            # A system font: the device publishes its pixel height but not its
+            # glyph advances, and the real typeface is not available anywhere.
+            # Measure a stand-in scaled to that height instead of assuming a flat
+            # width per character -- '88888' and 'WWWWW' are not the same width.
+            # Still an estimate, and still labelled as one.
+            width, _ = fallback.measure(widest, font_px)
             line_height = font_px
             estimated = True
 

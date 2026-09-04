@@ -1,0 +1,100 @@
+# A denser starting point: the time, a goal ring, two data clusters and battery.
+#
+# Offsets are in %r -- percentages of the screen's minor radius -- so the design
+# keeps its proportions on both the 260x260 and 280x280 families rather than
+# drifting. Use %r for anything you think of as "this far out from the middle".
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: __UUID__
+  name: __NAME__
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+  dim: "#AAAAAA"
+  accent: "#00AAFF"
+  hot: "#FF5500"
+  track: "#555555"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+
+  # A stroked ring, open at the bottom. There is no filled-sector primitive in
+  # Connect IQ, so `thickness` is a pen width and there is no inner radius.
+  - id: step_ring
+    type: progress
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    at: {anchor: center}
+    radius: 88%r
+    thickness: 9px
+    start_angle: 215deg      # measured clockwise from 12 o'clock
+    sweep: 290deg
+    color: palette.accent
+    track_color: palette.track
+    when_absent: hide        # required: both bindings can be absent
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: FONT_NUMBER_HOT
+    at: {anchor: center, dy: -12%r}
+    color: palette.text
+
+  - id: hr_icon
+    type: icon
+    icon: heart
+    size: 11%r
+    at: {anchor: center, dx: -40%r, dy: 30%r}
+    color: palette.hot
+
+  - id: hr_value
+    type: text
+    value: heart_rate.current
+    format: "{:d}"
+    font: FONT_SMALL
+    at: {anchor: center, dx: -17%r, dy: 30%r}
+    color: palette.text
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: steps_icon
+    type: icon
+    icon: steps
+    size: 11%r
+    at: {anchor: center, dx: 13%r, dy: 30%r}
+    color: palette.accent
+
+  - id: steps_value
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    font: FONT_SMALL
+    at: {anchor: center, dx: 38%r, dy: 30%r}
+    color: palette.text
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: battery
+    type: progress
+    style: bar
+    value: system.battery
+    max: 100
+    at: {anchor: center, dy: 62%r}
+    size: {width: 40%r, height: 5%r}
+    color: palette.text
+    track_color: palette.track

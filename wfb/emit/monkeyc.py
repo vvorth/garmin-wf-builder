@@ -629,7 +629,16 @@ class ReadPlan:
             source = catalog.CATALOG[path]
             if source.field_name is None:
                 continue
-            out.append((local_name(path), source.read_expr))
+            reader = READERS[source.reader]
+            read = source.read_expr
+            if reader.nullable:
+                # The reader itself can be absent -- Activity.getActivityInfo()
+                # returns null when there is no activity -- so the field cannot
+                # be dereferenced unconditionally.  Narrowing here keeps the
+                # element's own `when_absent` guard below unchanged: an absent
+                # reader and an absent field are the same thing to the design.
+                read = f"({reader.name} != null) ? {read} : null"
+            out.append((local_name(path), read))
         return out
 
     def _readers_used_by(self, placed) -> list[str]:

@@ -112,6 +112,8 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
     from .emit.resources import bake_fonts
     from .layout import resolve
 
+    lint.check_permissions(face, bag)
+
     reference_minor = min(d.minor_radius for d in devices)
     resolved: dict[str, ResolvedFace] = {}
     baked: dict[str, dict[str, BakedFont]] = {}

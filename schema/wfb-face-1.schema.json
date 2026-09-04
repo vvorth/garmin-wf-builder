@@ -73,6 +73,14 @@
       ]
     },
 
+    "expression": {
+      "description": "An expression over data sources, palette entries and literals. A bare number is accepted for the common case of a literal bound (max: 10000) and needs no quoting.",
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "number" }
+      ]
+    },
+
     "colorExpression": {
       "description": "A palette reference, a literal colour, or an expression yielding one.",
       "type": "string",
@@ -281,7 +289,7 @@
           "enum": ["hide", "placeholder", "fallback"]
         },
         "placeholder": { "type": "string" },
-        "fallback": { "type": "string" },
+        "fallback": { "$ref": "#/$defs/expression" },
         "at": { "$ref": "#/$defs/position" },
         "modes": { "$ref": "#/$defs/modes" },
         "z": { "type": "integer" },
@@ -302,8 +310,8 @@
           "description": "arc is setPenWidth + drawArc. Garmin has no filled-sector primitive anywhere in the API, so thickness is a pen width and inner/outer radii are deliberately not offered.",
           "enum": ["arc", "bar"]
         },
-        "value": { "type": "string" },
-        "max": { "type": "string" },
+        "value": { "$ref": "#/$defs/expression" },
+        "max": { "$ref": "#/$defs/expression" },
         "at": { "$ref": "#/$defs/position" },
         "radius": { "$ref": "#/$defs/length" },
         "thickness": { "$ref": "#/$defs/length" },
@@ -313,7 +321,7 @@
         "color": { "$ref": "#/$defs/colorExpression" },
         "track_color": { "$ref": "#/$defs/colorExpression" },
         "when_absent": { "enum": ["hide", "placeholder", "fallback"] },
-        "fallback": { "type": "string" },
+        "fallback": { "$ref": "#/$defs/expression" },
         "modes": { "$ref": "#/$defs/modes" },
         "z": { "type": "integer" },
         "lint": { "$ref": "#/$defs/lint" },

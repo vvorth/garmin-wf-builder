@@ -1,0 +1,54 @@
+# The smallest face worth building: a background and the time.
+#
+# Everything here uses a system font, so this design needs no asset files at all.
+# To use your own typeface, add a `fonts:` block and point an element at it:
+#
+#   fonts:
+#     clock:
+#       source: assets/YourFont.ttf
+#       size: 68            # em pixels on the smallest target; scaled per device
+#
+#   ...then `font: font.clock` on the text element.
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: __UUID__
+  name: __NAME__
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+# Every channel is 0x00, 0x55, 0xAA or 0xFF -- the only values a 64-colour MIP
+# panel shows without dithering. The linter checks this.
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+  dim: "#AAAAAA"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+
+  - id: clock
+    type: text
+    value: time.clock
+    # %h follows the watch's own 12/24-hour setting, which %H and %I do not.
+    format: "{:%h:%M}"
+    font: FONT_NUMBER_HOT
+    at: {anchor: center}
+    color: palette.text
+
+  - id: seconds
+    type: text
+    value: time.second
+    format: "{:02d}"
+    font: FONT_SMALL
+    at: {anchor: center, dy: 30%r}
+    color: palette.dim

@@ -56,6 +56,42 @@ def _emit(bag: Bag, placed, diag: Diagnostic) -> None:
     bag.add(diag)
 
 
+# -- permissions ------------------------------------------------------------
+
+
+def check_permissions(face: Face, bag: Bag) -> None:
+    """Every permission a binding implies must be legal for a watch face.
+
+    Device-independent, so this runs once rather than per target.  ``monkeyc``
+    would reject the manifest anyway, but it reports the permission without
+    naming the binding that produced it -- and since this compiler *derives* the
+    permission set, the author has no line to look at.  Here the diagnostic can
+    point straight at the source responsible.
+    """
+    for element in face.walk():
+        for expression in element.expressions():
+            for path in expression.sources:
+                source = catalog.get(path)
+                if source is None:
+                    continue
+                for permission in source.permissions:
+                    if permission in catalog.WATCHFACE_PERMISSIONS:
+                        continue
+                    bag.error(
+                        "permission",
+                        f"{element.id}: {path!r} needs the {permission!r} permission, "
+                        f"which a watch face may not declare",
+                        expression.span or element.span,
+                        notes=[
+                            "the SDK's permission table leaves the Watch Face column "
+                            "blank for this one (Core_Topics/Manifest_and_Permissions)",
+                            "legal for a watch face: "
+                            + ", ".join(sorted(catalog.WATCHFACE_PERMISSIONS)),
+                        ],
+                        confidence="exact -- the SDK's own permission table",
+                    )
+
+
 # -- check 3: palette legality ---------------------------------------------
 
 
@@ -145,7 +181,8 @@ def check_text_fit(resolved: ResolvedFace, bag: Bag) -> None:
         if placed.font_px == 0:
             continue
         confidence = (
-            "approximate -- no real font metrics, extent estimated at 0.55 em per character"
+            "approximate -- the device's own typeface is not available, so the extent "
+            "is measured from a stand-in scaled to the published pixel height"
             if placed.width_is_estimated
             else "exact -- measured from the baked font's own glyph advances"
         )

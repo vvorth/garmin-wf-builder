@@ -68,6 +68,10 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--scale", type=int, default=2)
     preview.add_argument("--no-quantise", action="store_true",
                          help="skip snapping colours to the device palette")
+    preview.add_argument("-w", "--watch", action="store_true",
+                         help="re-render whenever the design or a font it uses changes")
+    preview.add_argument("--interval", type=float, default=0.4,
+                         help="seconds between checks while watching (default: 0.4)")
     preview.add_argument("--devices-dir")
     preview.set_defaults(handler=_preview)
 
@@ -84,9 +88,25 @@ def _parser() -> argparse.ArgumentParser:
     simulate.add_argument("--devices-dir")
     simulate.set_defaults(handler=_simulate)
 
+    new = sub.add_parser("new", help="start a design from a known-good template")
+    new.add_argument("name", nargs="?", help="the face's name, e.g. \"My Face\"")
+    new.add_argument("-t", "--template", default="dashboard",
+                     help="which template to start from (default: dashboard)")
+    new.add_argument("-o", "--output", type=Path,
+                     help="where to write it (default: <name>.yaml in the current directory)")
+    new.add_argument("--list", action="store_true", dest="list_templates",
+                     help="list the available templates and exit")
+    new.set_defaults(handler=_new)
+
     devices = sub.add_parser("devices", help="list installed device definitions")
     devices.add_argument("--devices-dir")
     devices.set_defaults(handler=_devices)
+
+    schema = sub.add_parser(
+        "schema", help="print the JSON Schema, or where it lives, for editor setup")
+    schema.add_argument("--path", action="store_true",
+                        help="print the schema's path instead of its contents")
+    schema.set_defaults(handler=_schema)
 
     sources = sub.add_parser("sources", help="list the data-source catalogue")
     sources.set_defaults(handler=_sources)
@@ -149,33 +169,73 @@ def _validate(args) -> int:
     return 0
 
 
-def _preview(args) -> int:
+def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
+    """Render once.  Returns the exit code and the design's dependencies."""
     from .preview import PreviewOptions, write as write_preview
 
     bag = Bag()
     face = load(args.design, bag)
     if face is None:
         bag.print()
-        return 1
-    db = DeviceDatabase.discover(args.devices_dir)
+        return 1, [args.design]
+    # Font sources are watched too: re-baking on a font change is the whole point
+    # of watching, and the design file alone would not notice.
+    watched = [args.design] + [spec.source for spec in face.fonts.values()]
+
     devices = select_devices(face, db, bag, args.devices)
     if not devices:
         bag.print()
-        return 1
+        return 1, watched
     resolved, _ = resolve_all(face, devices, bag)
     bag.print()
     if not bag.ok():
-        return 1
+        return 1, watched
+
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise)
-    print()
     for device_id, result in resolved.items():
         path = write_preview(result, args.output / f"{device_id}.png", options)
         print(f"preview    {path}  ({result.device.width}x{result.device.height} "
-              f"at {args.scale}x)")
-    print("\nRendered from the same resolved geometry the generated code uses, so the")
-    print("two cannot disagree about position.  Glyph rendering and arc caps are")
-    print("approximations -- the simulator is authoritative for those.")
-    return 0
+              f"at {args.scale}x)", flush=True)
+    if not quiet:
+        print("\nRendered from the same resolved geometry the generated code uses, so the")
+        print("two cannot disagree about position.  Glyph rendering and arc caps are")
+        print("approximations -- the simulator is authoritative for those.")
+    return 0, watched
+
+
+def _preview(args) -> int:
+    db = DeviceDatabase.discover(args.devices_dir)
+    if not args.watch:
+        print()
+        return _render_preview(args, db)[0]
+
+    import time
+
+    def stamps(paths: list[Path]) -> dict[Path, float]:
+        out = {}
+        for path in paths:
+            try:
+                out[path] = path.stat().st_mtime
+            except OSError:
+                out[path] = 0.0
+        return out
+
+    print(f"watching {args.design} -- press Ctrl-C to stop\n", flush=True)
+    code, watched = _render_preview(args, db, quiet=True)
+    seen = stamps(watched)
+    try:
+        while True:
+            time.sleep(args.interval)
+            current = stamps(watched)
+            if current == seen:
+                continue
+            seen = current
+            print(f"\n--- {time.strftime('%H:%M:%S')} ---", flush=True)
+            code, watched = _render_preview(args, db, quiet=True)
+            seen.update(stamps(watched))
+    except KeyboardInterrupt:
+        print("\nstopped watching")
+    return code
 
 
 def _simulate(args) -> int:
@@ -218,6 +278,72 @@ def _simulate(args) -> int:
         except SimulatorError as exc:
             print(f"screenshot failed: {exc}", file=sys.stderr)
             return 1
+    return 0
+
+
+TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+
+TEMPLATE_BLURB = {
+    "minimal": "a background and the time -- the smallest face worth building",
+    "dashboard": "time, a goal ring, two data clusters and a battery bar",
+}
+
+
+def _new(args) -> int:
+    import re
+    import uuid
+
+    templates = sorted(p.stem for p in TEMPLATE_DIR.glob("*.yaml"))
+    if args.list_templates:
+        for name in templates:
+            print(f"  {name:<12} {TEMPLATE_BLURB.get(name, '')}")
+        return 0
+
+    if not args.name:
+        print("error: a face name is required", file=sys.stderr)
+        print(f"       usage: wfb new \"My Face\" [--template {'|'.join(templates)}]",
+              file=sys.stderr)
+        return 1
+
+    source = TEMPLATE_DIR / f"{args.template}.yaml"
+    if not source.exists():
+        print(f"error: no template {args.template!r}", file=sys.stderr)
+        print(f"       available: {', '.join(templates)}", file=sys.stderr)
+        return 1
+
+    slug = re.sub(r"-+", "-", "".join(
+        c.lower() if c.isalnum() else "-" for c in args.name
+    )).strip("-") or "face"
+    destination = args.output or Path(f"{slug}.yaml")
+    if destination.exists():
+        print(f"error: {destination} already exists", file=sys.stderr)
+        return 1
+
+    # A fresh UUID every time: two faces sharing one id are the same app to the
+    # watch, so installing the second replaces the first.
+    text = (
+        source.read_text(encoding="utf-8")
+        .replace("__UUID__", str(uuid.uuid4()))
+        .replace("__NAME__", args.name)
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(text, encoding="utf-8")
+
+    print(f"created {destination}  (from the {args.template!r} template)")
+    print()
+    print("next:")
+    print(f"  wfb preview {destination} --watch     # render as you edit")
+    print(f"  wfb build   {destination}             # compile it")
+    return 0
+
+
+def _schema(args) -> int:
+    from .validate import SCHEMA_PATH
+
+    if args.path:
+        print(SCHEMA_PATH)
+        return 0
+    print(SCHEMA_PATH.read_text(encoding="utf-8"), end="")
     return 0
 
 
