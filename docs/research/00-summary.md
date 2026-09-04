@@ -16,6 +16,7 @@ Detail lives in:
 | `03-toolchain.md` | SDK acquisition, `monkeyc`, jungles, simulator, testing, CI |
 | `04-prior-art.md` | WFF, Facer/WFS, Fitbit/Pebble/Asteroid/Zepp, Garmin attempts |
 | **`05-device-files.md`** | **measured facts once device files landed — read this after 00** |
+| `06-authoring-ergonomics.md` | *(post-Phase 2)* how a design gets written: GUI vs an LLM skill vs the alternatives |
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
 | `data/capability-matrix.json` | feature × device support, machine-readable |
 

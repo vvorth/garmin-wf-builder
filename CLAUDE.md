@@ -27,7 +27,7 @@ part of the deliverable, not scaffolding.
 |---|---|
 | **Phase 0** — research | **Complete.** `docs/research/00`–`05`. Reviewed by the user. |
 | **Phase 1** — ADRs | **Complete.** `docs/adr/0001`–`0009`. Reviewed by the user. |
-| **Phase 2** — thin vertical slice | **Complete.** Builds end to end for all three targets. Awaiting the user's review of the generated Monkey C. |
+| **Phase 2** — thin vertical slice | **Complete.** Builds end to end for all three targets; the `.prg` is confirmed running in the simulator on the user's host. |
 | Phase 3 — breadth | **Not started.** This is the next work. |
 
 The compiler lives in `wfb/`, the support barrel in `runtime-lib/`, the published
@@ -291,6 +291,33 @@ These cost real time to discover; do not rediscover them.
    software OpenGL — reproduced with an **unmodified SDK sample `.prg`**, so it is
    the environment, not generated output. `wfb preview` covers the gap; see
    `docs/limitations.md` §2.
+
+### Authoring ergonomics — researched, decision pending
+
+`docs/research/06-authoring-ergonomics.md` evaluates the two options the user
+raised (a visual GUI builder, and an LLM skill that works from a sketch) plus
+seven alternatives, against four experiments run on the real toolchain.
+
+The finding that drives it: **the project already owns a fast, honest feedback
+loop** — `wfb validate` (413 ms) and `wfb preview` (615 ms), both needing no
+Garmin toolchain, with diagnostics that name the fix. A deliberately naive design
+was corrected to valid in **four rounds using only the compiler's own error
+messages**.
+
+Recommendation: **cheap frictions first, then the skill; defer the GUI.** Two
+measured reasons the GUI is not yet right:
+
+- **Unit round-tripping.** A drag produces pixels, but the format's value is
+  proportional. `-80.6px`, `-31%` and `-62%r` are identical on the 47 mm and
+  differ on the 51 mm — a GUI that writes px back silently destroys the
+  cross-device correctness ADR 0004 exists to provide.
+- **Schema churn.** Phase 3 grows the element vocabulary 50 % (6 → 9) and adds
+  config, overrides and interactivity. A property panel is per-property work.
+  ADR 0002 already put the GUI last; the measurement confirms that ordering.
+
+When the GUI is built, build it as a **thin client over `preview.py`** — an HTML
+canvas reimplementation would create a *third* renderer and forfeit ADR 0004's
+anti-drift guarantee.
 
 ### Phase 3 — breadth
 
