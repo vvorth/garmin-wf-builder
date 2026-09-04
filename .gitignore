@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+__pycache__/
+*.pyc
+.venv/
+*.prg
+*.iq
+developer_key.*
+
+# Garmin device definitions: the user's own licensed copy, vendored so the
+# build works offline (they cannot be downloaded -- api.gcs.garmin.com is 401).
+# Deliberately NOT committed: redistributing Garmin's device files is a
+# licensing question we have not cleared. tools/setup-env.sh reads them here.
+vendor/devices/
+
+# transfer artefact, not source
+*.bundle
