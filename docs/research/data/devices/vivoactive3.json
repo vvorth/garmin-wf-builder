@@ -1,0 +1,274 @@
+{
+  "id": "vivoactive3",
+  "source": "doc/docs/Device_Reference/vivoactive3.html",
+  "name": "vívoactive® 3",
+  "attributes": {
+    "Id": "vivoactive3",
+    "Screen Shape": "round",
+    "Screen Size": "240 x 240",
+    "Display Colors": "64",
+    "Touch": "True",
+    "Buttons": "enter",
+    "Launcher Icon Size": "40 x 33"
+  },
+  "app_types": {
+    "Background": {
+      "memory_limit_bytes": 32768,
+      "notes": "Requires Permission"
+    },
+    "Data Field": {
+      "memory_limit_bytes": 32768,
+      "notes": ""
+    },
+    "Watch App": {
+      "memory_limit_bytes": 131072,
+      "notes": ""
+    },
+    "Watch Face": {
+      "memory_limit_bytes": 98304,
+      "notes": ""
+    },
+    "Widget": {
+      "memory_limit_bytes": 65536,
+      "notes": ""
+    }
+  },
+  "fonts": {
+    "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_22",
+          "size_px": 22
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_22",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_22",
+          "size_px": 22
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_22",
+          "size_px": 22
+        }
+      },
+      "scalable": {}
+    }
+  },
+  "data_field_layouts": {
+    "1 Field Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "240",
+        "Height": "240",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "2 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "240",
+        "Height": "120",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "122",
+        "Width": "240",
+        "Height": "119",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields A Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "240",
+        "Height": "77",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "80",
+        "Width": "240",
+        "Height": "77",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "160",
+        "Width": "240",
+        "Height": "78",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields B Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "51",
+        "Width": "240",
+        "Height": "140",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      }
+    ],
+    "4 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "50",
+        "Width": "240",
+        "Height": "69",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "120",
+        "Width": "240",
+        "Height": "69",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      }
+    ]
+  },
+  "normalized": {
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter"
+    ],
+    "watchface_memory_bytes": 98304
+  }
+}

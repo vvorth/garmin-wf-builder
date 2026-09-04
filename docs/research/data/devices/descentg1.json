@@ -1,0 +1,345 @@
+{
+  "id": "descentg1",
+  "source": "doc/docs/Device_Reference/descentg1.html",
+  "name": "Descent™ G1 / G1 Solar",
+  "attributes": {
+    "Id": "descentg1",
+    "Screen Shape": "semi-octagon",
+    "Screen Size": "176 x 176",
+    "Display Colors": "2",
+    "Touch": "False",
+    "Buttons": "enter, up, menu, down, esc",
+    "Launcher Icon Size": "62 x 62"
+  },
+  "app_types": {
+    "Background": {
+      "memory_limit_bytes": 32768,
+      "notes": "Requires Permission"
+    },
+    "Data Field": {
+      "memory_limit_bytes": 32768,
+      "notes": ""
+    },
+    "Glance": {
+      "memory_limit_bytes": 32768,
+      "notes": "Build as Widget"
+    },
+    "Watch App": {
+      "memory_limit_bytes": 98304,
+      "notes": ""
+    },
+    "Watch Face": {
+      "memory_limit_bytes": 65536,
+      "notes": ""
+    },
+    "Widget": {
+      "memory_limit_bytes": 65536,
+      "notes": ""
+    }
+  },
+  "fonts": {
+    "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_20",
+          "size_px": 20
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_20",
+          "size_px": 20
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_VIET_23B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388800_0000_GARMIN_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388800_0000_GARMIN_32",
+          "size_px": 43
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388800_0000_GARMIN_30",
+          "size_px": 47
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388800_0000_GARMIN_41",
+          "size_px": 59
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        }
+      },
+      "scalable": {}
+    }
+  },
+  "data_field_layouts": {
+    "2 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "176",
+        "Height": "176",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "113",
+        "Top": "1",
+        "Width": "62",
+        "Height": "62",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "108",
+        "Height": "71",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "72",
+        "Width": "176",
+        "Height": "104",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "113",
+        "Top": "1",
+        "Width": "62",
+        "Height": "62",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields A Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "108",
+        "Height": "55",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "56",
+        "Width": "176",
+        "Height": "65",
+        "Obscurity Flags": "0",
+        "Obscure Left": "False",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "122",
+        "Width": "176",
+        "Height": "54",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "113",
+        "Top": "1",
+        "Width": "62",
+        "Height": "62",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields B Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "108",
+        "Height": "71",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "72",
+        "Width": "87",
+        "Height": "104",
+        "Obscurity Flags": "9",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "88",
+        "Top": "72",
+        "Width": "88",
+        "Height": "104",
+        "Obscurity Flags": "12",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "113",
+        "Top": "1",
+        "Width": "62",
+        "Height": "62",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "5 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "108",
+        "Height": "71",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "72",
+        "Width": "87",
+        "Height": "76",
+        "Obscurity Flags": "9",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "88",
+        "Top": "72",
+        "Width": "88",
+        "Height": "76",
+        "Obscurity Flags": "12",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "27",
+        "Top": "149",
+        "Width": "110",
+        "Height": "27",
+        "Obscurity Flags": "0",
+        "Obscure Left": "False",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 5",
+        "Left": "113",
+        "Top": "1",
+        "Width": "62",
+        "Height": "62",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ]
+  },
+  "normalized": {
+    "screen_shape": "semi-octagon",
+    "screen_width": 176,
+    "screen_height": 176,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  }
+}

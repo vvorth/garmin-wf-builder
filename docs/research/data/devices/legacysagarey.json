@@ -1,0 +1,290 @@
+{
+  "id": "legacysagarey",
+  "source": "doc/docs/Device_Reference/legacysagarey.html",
+  "name": "Rey™",
+  "attributes": {
+    "Id": "legacysagarey",
+    "Screen Shape": "round",
+    "Screen Size": "218 x 218",
+    "Display Colors": "64",
+    "Touch": "True",
+    "Buttons": "enter, menu, esc",
+    "Launcher Icon Size": "30 x 30"
+  },
+  "app_types": {
+    "Audio Content Provider": {
+      "memory_limit_bytes": 524288,
+      "notes": ""
+    },
+    "Background": {
+      "memory_limit_bytes": 65536,
+      "notes": "Requires Permission"
+    },
+    "Data Field": {
+      "memory_limit_bytes": 32768,
+      "notes": ""
+    },
+    "Watch App": {
+      "memory_limit_bytes": 1048576,
+      "notes": ""
+    },
+    "Watch Face": {
+      "memory_limit_bytes": 524288,
+      "notes": ""
+    },
+    "Widget": {
+      "memory_limit_bytes": 524288,
+      "notes": ""
+    }
+  },
+  "fonts": {
+    "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_17",
+          "size_px": 17
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_23",
+          "size_px": 23
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_26",
+          "size_px": 26
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_30",
+          "size_px": 30
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_34",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Condensed",
+          "font": "VIVOACTIVE4S_REGULAR_NUMBER_FONT_1",
+          "size_px": 41
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "VIVOACTIVE4S_REGULAR_NUMBER_FONT_2",
+          "size_px": 47
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "VIVOACTIVE4S_BOLD_NUMBER_FONT_5",
+          "size_px": 72
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "VIVOACTIVE4S_BOLD_NUMBER_FONT_6",
+          "size_px": 81
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_17",
+          "size_px": 17
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_23",
+          "size_px": 23
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_26",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Roboto Condensed",
+          "font": "VIVOACTIVE4S_REGULAR_NUMBER_FONT_1",
+          "size_px": 41
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "VIVOACTIVE4S_REGULAR_NUMBER_FONT_2",
+          "size_px": 47
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "VIVOACTIVE4S_BOLD_NUMBER_FONT_5",
+          "size_px": 72
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "VIVOACTIVE4S_BOLD_NUMBER_FONT_6",
+          "size_px": 81
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_17",
+          "size_px": 17
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_VIET_17",
+          "size_px": 17
+        }
+      },
+      "scalable": {}
+    }
+  },
+  "data_field_layouts": {
+    "1 Field Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "218",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "2 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "108",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "110",
+        "Width": "218",
+        "Height": "108",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "71",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "73",
+        "Width": "218",
+        "Height": "71",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "146",
+        "Width": "218",
+        "Height": "72",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "71",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "73",
+        "Width": "108",
+        "Height": "71",
+        "Obscurity Flags": "1",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "110",
+        "Top": "73",
+        "Width": "108",
+        "Height": "71",
+        "Obscurity Flags": "4",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "0",
+        "Top": "146",
+        "Width": "218",
+        "Height": "72",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ]
+  },
+  "normalized": {
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  }
+}

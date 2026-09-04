@@ -1,0 +1,559 @@
+{
+  "id": "fr255s",
+  "source": "doc/docs/Device_Reference/fr255s.html",
+  "name": "Forerunner® 255s",
+  "attributes": {
+    "Id": "fr255s",
+    "Screen Shape": "round",
+    "Screen Size": "218 x 218",
+    "Display Colors": "64",
+    "Touch": "False",
+    "Buttons": "enter, up, menu, down, esc",
+    "Launcher Icon Size": "40 x 40"
+  },
+  "app_types": {
+    "Background": {
+      "memory_limit_bytes": 65536,
+      "notes": "Requires Permission"
+    },
+    "Data Field": {
+      "memory_limit_bytes": 262144,
+      "notes": ""
+    },
+    "Glance": {
+      "memory_limit_bytes": 65536,
+      "notes": "Build as Watch App or Widget"
+    },
+    "Watch App": {
+      "memory_limit_bytes": 524288,
+      "notes": ""
+    },
+    "Watch Face": {
+      "memory_limit_bytes": 131072,
+      "notes": ""
+    },
+    "Widget": {
+      "memory_limit_bytes": 524288,
+      "notes": "Requires 4.x SDK"
+    }
+  },
+  "fonts": {
+    "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_19B",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_22B",
+          "size_px": 22
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_32B",
+          "size_px": 32
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_32B",
+          "size_px": 32
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Condensed",
+          "font": "006B399100_ROBOTO_BC_NUMBER_FONT_25",
+          "size_px": 40
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B399100_ROBOTO_BC_NUMBER_FONT_32",
+          "size_px": 53
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B399100_ROBOTO_BLACK_NUMBER_FONT_41",
+          "size_px": 74
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B399100_ROBOTO_BLACK_NUMBER_FONT_48",
+          "size_px": 86
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_22B",
+          "size_px": 22
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B399100_CDPG_ROBOTO_15B",
+          "size_px": 23
+        }
+      },
+      "scalable": {}
+    }
+  },
+  "data_field_layouts": {
+    "1 Field Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "218",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "2 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "108",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "110",
+        "Width": "218",
+        "Height": "108",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields A Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "76",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "76",
+        "Width": "218",
+        "Height": "62",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "138",
+        "Width": "218",
+        "Height": "80",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields B Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "70",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "72",
+        "Width": "218",
+        "Height": "75",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "149",
+        "Width": "218",
+        "Height": "69",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields C Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "108",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "110",
+        "Width": "108",
+        "Height": "108",
+        "Obscurity Flags": "9",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "110",
+        "Top": "110",
+        "Width": "108",
+        "Height": "108",
+        "Obscurity Flags": "12",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields A Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "77",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "79",
+        "Width": "108",
+        "Height": "65",
+        "Obscurity Flags": "1",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "110",
+        "Top": "79",
+        "Width": "108",
+        "Height": "65",
+        "Obscurity Flags": "4",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "0",
+        "Top": "146",
+        "Width": "218",
+        "Height": "72",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields B Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "108",
+        "Height": "108",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "110",
+        "Top": "0",
+        "Width": "108",
+        "Height": "108",
+        "Obscurity Flags": "6",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "110",
+        "Width": "108",
+        "Height": "108",
+        "Obscurity Flags": "9",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "110",
+        "Top": "110",
+        "Width": "108",
+        "Height": "108",
+        "Obscurity Flags": "12",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields C Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "54",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "56",
+        "Width": "218",
+        "Height": "52",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "110",
+        "Width": "218",
+        "Height": "53",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "0",
+        "Top": "165",
+        "Width": "218",
+        "Height": "53",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "5 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "54",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "56",
+        "Width": "218",
+        "Height": "52",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "110",
+        "Width": "108",
+        "Height": "53",
+        "Obscurity Flags": "1",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "110",
+        "Top": "110",
+        "Width": "108",
+        "Height": "53",
+        "Obscurity Flags": "4",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 5",
+        "Left": "0",
+        "Top": "165",
+        "Width": "218",
+        "Height": "53",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "6 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "218",
+        "Height": "54",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "56",
+        "Width": "108",
+        "Height": "52",
+        "Obscurity Flags": "1",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "110",
+        "Top": "56",
+        "Width": "108",
+        "Height": "52",
+        "Obscurity Flags": "4",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "0",
+        "Top": "110",
+        "Width": "108",
+        "Height": "53",
+        "Obscurity Flags": "1",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 5",
+        "Left": "110",
+        "Top": "110",
+        "Width": "108",
+        "Height": "53",
+        "Obscurity Flags": "4",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 6",
+        "Left": "0",
+        "Top": "165",
+        "Width": "218",
+        "Height": "53",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ]
+  },
+  "normalized": {
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  }
+}

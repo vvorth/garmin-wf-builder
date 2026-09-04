@@ -1,0 +1,2693 @@
+[
+  {
+    "id": "approachs50",
+    "name": "Approach® S50",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "approachs60",
+    "name": "Approach® S60",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "approachs62",
+    "name": "Approach® S62",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 135168
+  },
+  {
+    "id": "approachs7042mm",
+    "name": "Approach® S70 42mm",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "approachs7047mm",
+    "name": "Approach® S70 47mm",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "bounce2",
+    "name": "Bounce™ 2",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "esc",
+      "menu"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "d2air",
+    "name": "D2™ Air",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "d2airx10",
+    "name": "D2™ Air X10",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "d2bravo",
+    "name": "D2™ Bravo",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 14,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "d2bravo_titanium",
+    "name": "D2™ Bravo Titanium",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 14,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "d2charlie",
+    "name": "D2™ Charlie",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "d2delta",
+    "name": "D2™ Delta",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "d2deltapx",
+    "name": "D2™ Delta PX",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "d2deltas",
+    "name": "D2™ Delta S",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "d2mach1",
+    "name": "D2™ Mach 1",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "d2mach2",
+    "name": "D2™ Mach 2",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "d2mach2pro",
+    "name": "D2™ Mach 2 Pro",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "descentg1",
+    "name": "Descent™ G1 / G1 Solar",
+    "screen_shape": "semi-octagon",
+    "screen_width": 176,
+    "screen_height": 176,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "descentg2",
+    "name": "Descent™ G2",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "descentmk1",
+    "name": "Descent™ Mk1",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "descentmk2",
+    "name": "Descent™ Mk2 / Mk2i",
+    "screen_shape": "round",
+    "screen_width": 280,
+    "screen_height": 280,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "descentmk2s",
+    "name": "Descent™ Mk2 S",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "descentmk343mm",
+    "name": "Descent™ Mk3 43mm / Mk3i 43mm",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "descentmk351mm",
+    "name": "Descent™ Mk3i 51mm",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "edge1030",
+    "name": "Edge® 1030",
+    "screen_shape": "rectangle",
+    "screen_width": 282,
+    "screen_height": 470,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "start",
+      "lap",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge1030bontrager",
+    "name": "Edge® 1030 / Bontrager",
+    "screen_shape": "rectangle",
+    "screen_width": 282,
+    "screen_height": 470,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "start",
+      "lap",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge1030plus",
+    "name": "Edge® 1030 Plus",
+    "screen_shape": "rectangle",
+    "screen_width": 282,
+    "screen_height": 470,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "start",
+      "lap",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge1040",
+    "name": "Edge® 1040 / 1040 Solar",
+    "screen_shape": "rectangle",
+    "screen_width": 282,
+    "screen_height": 470,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "start",
+      "lap"
+    ]
+  },
+  {
+    "id": "edge1050",
+    "name": "Edge® 1050",
+    "screen_shape": "rectangle",
+    "screen_width": 480,
+    "screen_height": 800,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "start",
+      "lap"
+    ]
+  },
+  {
+    "id": "edge130",
+    "name": "Edge® 130",
+    "screen_shape": "rectangle",
+    "screen_width": 230,
+    "screen_height": 303,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "menu",
+      "down"
+    ]
+  },
+  {
+    "id": "edge130plus",
+    "name": "Edge® 130 Plus",
+    "screen_shape": "rectangle",
+    "screen_width": 230,
+    "screen_height": 303,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "menu",
+      "down"
+    ]
+  },
+  {
+    "id": "edge520plus",
+    "name": "Edge® 520 Plus",
+    "screen_shape": "rectangle",
+    "screen_width": 200,
+    "screen_height": 265,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "down",
+      "enter",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge530",
+    "name": "Edge® 530",
+    "screen_shape": "rectangle",
+    "screen_width": 246,
+    "screen_height": 322,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "down",
+      "enter",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge540",
+    "name": "Edge® 540 / 540 Solar",
+    "screen_shape": "rectangle",
+    "screen_width": 246,
+    "screen_height": 322,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "down",
+      "enter",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge550",
+    "name": "Edge® 550",
+    "screen_shape": "rectangle",
+    "screen_width": 420,
+    "screen_height": 600,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "down",
+      "enter",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge820",
+    "name": "Edge® 820 / Explore",
+    "screen_shape": "rectangle",
+    "screen_width": 200,
+    "screen_height": 265,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "lap",
+      "start",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge830",
+    "name": "Edge® 830",
+    "screen_shape": "rectangle",
+    "screen_width": 246,
+    "screen_height": 322,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "lap",
+      "start",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge840",
+    "name": "Edge® 840 / 840 Solar",
+    "screen_shape": "rectangle",
+    "screen_width": 246,
+    "screen_height": 322,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "down",
+      "enter",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge850",
+    "name": "Edge® 850",
+    "screen_shape": "rectangle",
+    "screen_width": 420,
+    "screen_height": 600,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "down",
+      "enter",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge_1000",
+    "name": "Edge® 1000 / Explore",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "start",
+      "lap",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edge_520",
+    "name": "Edge® 520",
+    "screen_shape": "rectangle",
+    "screen_width": 200,
+    "screen_height": 265,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "down",
+      "enter",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edgeexplore",
+    "name": "Edge® Explore",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "start",
+      "lap",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "edgeexplore2",
+    "name": "Edge® Explore 2",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "start",
+      "lap"
+    ]
+  },
+  {
+    "id": "edgemtb",
+    "name": "Edge® MTB",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 320,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "lap",
+      "start",
+      "up",
+      "down",
+      "enter",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "enduro",
+    "name": "Enduro™",
+    "screen_shape": "round",
+    "screen_width": 280,
+    "screen_height": 280,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 114688
+  },
+  {
+    "id": "enduro3",
+    "name": "Enduro™ 3",
+    "screen_shape": "round",
+    "screen_width": 280,
+    "screen_height": 280,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "epix",
+    "name": "epix™",
+    "screen_shape": "rectangle",
+    "screen_width": 205,
+    "screen_height": 148,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "esc",
+      "up",
+      "menu",
+      "down"
+    ],
+    "watchface_memory_bytes": 1048576
+  },
+  {
+    "id": "epix2",
+    "name": "epix™ (Gen 2) / quatix® 7 Sapphire",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "epix2pro42mm",
+    "name": "epix™ Pro (Gen 2) 42mm",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "epix2pro47mm",
+    "name": "epix™ Pro (Gen 2) 47mm / quatix® 7 Pro",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "epix2pro51mm",
+    "name": "epix™ Pro (Gen 2) 51mm / D2™ Mach 1 Pro / tactix® 7 – AMOLED Edition",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "etrextouch",
+    "name": "eTrex® Touch",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": []
+  },
+  {
+    "id": "fenix3",
+    "name": "fēnix® 3 / tactix® Bravo / quatix® 3",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 14,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "fenix3_hr",
+    "name": "fēnix® 3 HR",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 14,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "fenix5",
+    "name": "fēnix® 5 / quatix® 5",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenix5plus",
+    "name": "fēnix® 5 Plus",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenix5s",
+    "name": "fēnix® 5S",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenix5splus",
+    "name": "fēnix® 5S Plus",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenix5x",
+    "name": "fēnix® 5X / tactix® Charlie",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenix5xplus",
+    "name": "fēnix® 5X Plus",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenix6",
+    "name": "fēnix® 6 / 6 Solar / 6 Dual Power",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 114688
+  },
+  {
+    "id": "fenix6pro",
+    "name": "fēnix® 6 Pro / 6 Sapphire / 6 Pro Solar / 6 Pro Dual Power / quatix® 6",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 114688
+  },
+  {
+    "id": "fenix6s",
+    "name": "fēnix® 6S / 6S Solar / 6S Dual Power",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenix6spro",
+    "name": "fēnix® 6S Pro / 6S Sapphire / 6S Pro Solar / 6S Pro Dual Power",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenix6xpro",
+    "name": "fēnix® 6X Pro / 6X Sapphire / 6X Pro Solar / tactix® Delta Sapphire / Delta Solar / Delta Solar - Ballistics Edition / quatix® 6X / 6X Solar / 6X Dual Power",
+    "screen_shape": "round",
+    "screen_width": 280,
+    "screen_height": 280,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix7",
+    "name": "fēnix® 7 / quatix® 7",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix7pro",
+    "name": "fēnix® 7 Pro",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix7pronowifi",
+    "name": "fēnix® 7 Pro - Solar Edition (no Wi-Fi)",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix7s",
+    "name": "fēnix® 7S",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix7spro",
+    "name": "fēnix® 7S Pro",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix7x",
+    "name": "fēnix® 7X / tactix® 7 / quatix® 7X Solar / Enduro™ 2",
+    "screen_shape": "round",
+    "screen_width": 280,
+    "screen_height": 280,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix7xpro",
+    "name": "fēnix® 7X Pro",
+    "screen_shape": "round",
+    "screen_width": 280,
+    "screen_height": 280,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix7xpronowifi",
+    "name": "fēnix® 7X Pro - Solar Edition (no Wi-Fi)",
+    "screen_shape": "round",
+    "screen_width": 280,
+    "screen_height": 280,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix843mm",
+    "name": "fēnix® 8 43mm",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix847mm",
+    "name": "fēnix® 8 47mm / 51mm / tactix® 8 47mm / 51mm / quatix® 8 47mm / 51mm",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix8pro47mm",
+    "name": "fēnix® 8 Pro 47mm / 51mm / MicroLED / quatix® 8 Pro 47mm / 51mm",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix8solar47mm",
+    "name": "fēnix® 8 Solar 47mm",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenix8solar51mm",
+    "name": "fēnix® 8 Solar 51mm / tactix® 8 Solar 51mm",
+    "screen_shape": "round",
+    "screen_width": 280,
+    "screen_height": 280,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fenixchronos",
+    "name": "fēnix® Chronos",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fenixe",
+    "name": "fēnix® E",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr165",
+    "name": "Forerunner® 165",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr165m",
+    "name": "Forerunner® 165 Music",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr230",
+    "name": "Forerunner® 230",
+    "screen_shape": "semi-round",
+    "screen_width": 215,
+    "screen_height": 180,
+    "display_colors": 14,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "down",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "fr235",
+    "name": "Forerunner® 235",
+    "screen_shape": "semi-round",
+    "screen_width": 215,
+    "screen_height": 180,
+    "display_colors": 14,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "fr245",
+    "name": "Forerunner® 245",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr245m",
+    "name": "Forerunner® 245 Music",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr255",
+    "name": "Forerunner® 255",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr255m",
+    "name": "Forerunner® 255 Music",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr255s",
+    "name": "Forerunner® 255s",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr255sm",
+    "name": "Forerunner® 255s Music",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr265",
+    "name": "Forerunner® 265",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr265s",
+    "name": "Forerunner® 265s",
+    "screen_shape": "round",
+    "screen_width": 360,
+    "screen_height": 360,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr45",
+    "name": "Forerunner® 45",
+    "screen_shape": "round",
+    "screen_width": 208,
+    "screen_height": 208,
+    "display_colors": 8,
+    "touch": false,
+    "buttons": [],
+    "watchface_memory_bytes": 49152
+  },
+  {
+    "id": "fr55",
+    "name": "Forerunner® 55",
+    "screen_shape": "round",
+    "screen_width": 208,
+    "screen_height": 208,
+    "display_colors": 8,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr57042mm",
+    "name": "Forerunner® 570 42mm",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr57047mm",
+    "name": "Forerunner® 570 47mm",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr630",
+    "name": "Forerunner® 630",
+    "screen_shape": "semi-round",
+    "screen_width": 215,
+    "screen_height": 180,
+    "display_colors": 14,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "lap",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "fr645",
+    "name": "Forerunner® 645",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr645m",
+    "name": "Forerunner® 645 Music",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr735xt",
+    "name": "Forerunner® 735xt",
+    "screen_shape": "semi-round",
+    "screen_width": 215,
+    "screen_height": 180,
+    "display_colors": 14,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "fr745",
+    "name": "Forerunner® 745",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr920xt",
+    "name": "Forerunner® 920XT",
+    "screen_shape": "rectangle",
+    "screen_width": 205,
+    "screen_height": 148,
+    "display_colors": 14,
+    "touch": false,
+    "buttons": [
+      "menu",
+      "enter",
+      "esc",
+      "up",
+      "down",
+      "mode"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "fr935",
+    "name": "Forerunner® 935",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr945",
+    "name": "Forerunner® 945",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr945lte",
+    "name": "Forerunner® 945 LTE",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "fr955",
+    "name": "Forerunner® 955 / Solar",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr965",
+    "name": "Forerunner® 965",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "fr970",
+    "name": "Forerunner® 970",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "garminswim2",
+    "name": "Garmin Swim™ 2",
+    "screen_shape": "round",
+    "screen_width": 208,
+    "screen_height": 208,
+    "display_colors": 8,
+    "touch": false,
+    "buttons": [],
+    "watchface_memory_bytes": 49152
+  },
+  {
+    "id": "gpsmap66",
+    "name": "GPSMAP® 66s / 66i / 66sr / 66st",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "upLeft",
+      "up",
+      "upRight",
+      "left",
+      "right",
+      "downLeft",
+      "down",
+      "downRight",
+      "zin",
+      "zout",
+      "find",
+      "page",
+      "menu",
+      "esc",
+      "enter"
+    ]
+  },
+  {
+    "id": "gpsmap67",
+    "name": "GPSMAP® 67 / 67i",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "upLeft",
+      "up",
+      "upRight",
+      "left",
+      "right",
+      "downLeft",
+      "down",
+      "downRight",
+      "zin",
+      "zout",
+      "find",
+      "page",
+      "menu",
+      "esc",
+      "enter"
+    ]
+  },
+  {
+    "id": "gpsmap86",
+    "name": "GPSMAP® 86s / 86sc / 86i / 86sci",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "upLeft",
+      "up",
+      "upRight",
+      "left",
+      "right",
+      "downLeft",
+      "down",
+      "downRight",
+      "zin",
+      "zout",
+      "find",
+      "page",
+      "menu",
+      "esc",
+      "enter"
+    ]
+  },
+  {
+    "id": "gpsmaph1",
+    "name": "GPSMAP® H1 / H1i Plus",
+    "screen_shape": "rectangle",
+    "screen_width": 282,
+    "screen_height": 470,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "upLeft",
+      "up",
+      "upRight",
+      "left",
+      "right",
+      "downLeft",
+      "down",
+      "downRight",
+      "zin",
+      "zout",
+      "find",
+      "page",
+      "menu",
+      "esc",
+      "enter"
+    ]
+  },
+  {
+    "id": "instinct2",
+    "name": "Instinct® 2 / Solar / Dual Power / dēzl Edition",
+    "screen_shape": "semi-octagon",
+    "screen_width": 176,
+    "screen_height": 176,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "instinct2s",
+    "name": "Instinct® 2S / Solar / Dual Power",
+    "screen_shape": "semi-octagon",
+    "screen_width": 163,
+    "screen_height": 156,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "instinct2x",
+    "name": "Instinct® 2X Solar",
+    "screen_shape": "semi-octagon",
+    "screen_width": 176,
+    "screen_height": 176,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "instinct3amoled45mm",
+    "name": "Instinct® 3 AMOLED 45mm",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "instinct3amoled50mm",
+    "name": "Instinct® 3 AMOLED 50mm",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "instinct3solar45mm",
+    "name": "Instinct® 3 Solar 45mm / 50mm",
+    "screen_shape": "semi-octagon",
+    "screen_width": 176,
+    "screen_height": 176,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "instinctcrossover",
+    "name": "Instinct® Crossover",
+    "screen_shape": "semi-octagon",
+    "screen_width": 176,
+    "screen_height": 176,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "instinctcrossoveramoled",
+    "name": "Instinct® Crossover AMOLED",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "instincte40mm",
+    "name": "Instinct® E 40mm",
+    "screen_shape": "semi-octagon",
+    "screen_width": 166,
+    "screen_height": 166,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "instincte45mm",
+    "name": "Instinct® E 45mm",
+    "screen_shape": "semi-octagon",
+    "screen_width": 176,
+    "screen_height": 176,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "legacyherocaptainmarvel",
+    "name": "Captain Marvel",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "legacyherofirstavenger",
+    "name": "First Avenger",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "legacysagadarthvader",
+    "name": "Darth Vader™",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "legacysagarey",
+    "name": "Rey™",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "marq2",
+    "name": "MARQ® (Gen 2) Athlete / Adventurer / Captain / Golfer / Carbon Edition / Commander - Carbon Edition",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "marq2aviator",
+    "name": "MARQ® (Gen 2) Aviator",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "marqadventurer",
+    "name": "MARQ® Adventurer",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "marqathlete",
+    "name": "MARQ® Athlete",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "marqaviator",
+    "name": "MARQ® Aviator",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "marqcaptain",
+    "name": "MARQ® Captain / MARQ® Captain: American Magic Edition",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "marqcommander",
+    "name": "MARQ® Commander",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "marqdriver",
+    "name": "MARQ® Driver",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "marqexpedition",
+    "name": "MARQ® Expedition",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "marqgolfer",
+    "name": "MARQ® Golfer",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "montana7xx",
+    "name": "Montana® 7 Series",
+    "screen_shape": "rectangle",
+    "screen_width": 480,
+    "screen_height": 800,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "menu",
+      "esc",
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "oregon7xx",
+    "name": "Oregon® 7 Series",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "rino7xx",
+    "name": "Rino® 7 Series",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 400,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "menu",
+      "esc"
+    ]
+  },
+  {
+    "id": "venu",
+    "name": "Venu®",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "venu2",
+    "name": "Venu® 2",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venu2plus",
+    "name": "Venu® 2 Plus",
+    "screen_shape": "round",
+    "screen_width": 416,
+    "screen_height": 416,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venu2s",
+    "name": "Venu® 2S",
+    "screen_shape": "round",
+    "screen_width": 360,
+    "screen_height": 360,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venu3",
+    "name": "Venu® 3",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venu3s",
+    "name": "Venu® 3S",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venu441mm",
+    "name": "Venu® 4 41mm",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venu445mm",
+    "name": "Venu® 4 45mm / D2™ Air X15",
+    "screen_shape": "round",
+    "screen_width": 454,
+    "screen_height": 454,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venud",
+    "name": "Venu® Mercedes-Benz® Collection",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "venusq",
+    "name": "Venu® Sq",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "venusq2",
+    "name": "Venu® Sq 2",
+    "screen_shape": "rectangle",
+    "screen_width": 320,
+    "screen_height": 360,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venusq2m",
+    "name": "Venu® Sq 2 Music",
+    "screen_shape": "rectangle",
+    "screen_width": 320,
+    "screen_height": 360,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "venusqm",
+    "name": "Venu® Sq. Music Edition",
+    "screen_shape": "rectangle",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "venux1",
+    "name": "Venu® X1",
+    "screen_shape": "rectangle",
+    "screen_width": 448,
+    "screen_height": 486,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "vivoactive",
+    "name": "vívoactive®",
+    "screen_shape": "rectangle",
+    "screen_width": 205,
+    "screen_height": 148,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "menu",
+      "enter",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  },
+  {
+    "id": "vivoactive3",
+    "name": "vívoactive® 3",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "vivoactive3d",
+    "name": "vívoactive® 3 Mercedes-Benz® Collection",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "vivoactive3m",
+    "name": "vívoactive® 3 Music",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "vivoactive3mlte",
+    "name": "vívoactive® 3 Music LTE",
+    "screen_shape": "round",
+    "screen_width": 240,
+    "screen_height": 240,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter"
+    ],
+    "watchface_memory_bytes": 98304
+  },
+  {
+    "id": "vivoactive4",
+    "name": "vívoactive® 4",
+    "screen_shape": "round",
+    "screen_width": 260,
+    "screen_height": 260,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "vivoactive4s",
+    "name": "vívoactive® 4S",
+    "screen_shape": "round",
+    "screen_width": 218,
+    "screen_height": 218,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 524288
+  },
+  {
+    "id": "vivoactive5",
+    "name": "vívoactive® 5",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "vivoactive6",
+    "name": "vívoactive® 6",
+    "screen_shape": "round",
+    "screen_width": 390,
+    "screen_height": 390,
+    "display_colors": 65536,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "esc"
+    ],
+    "watchface_memory_bytes": 131072
+  },
+  {
+    "id": "vivoactive_hr",
+    "name": "vívoactive® HR",
+    "screen_shape": "rectangle",
+    "screen_width": 148,
+    "screen_height": 205,
+    "display_colors": 64,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  }
+]

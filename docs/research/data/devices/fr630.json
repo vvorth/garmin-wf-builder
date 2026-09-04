@@ -1,0 +1,228 @@
+{
+  "id": "fr630",
+  "source": "doc/docs/Device_Reference/fr630.html",
+  "name": "Forerunner® 630",
+  "attributes": {
+    "Id": "fr630",
+    "Screen Shape": "semi-round",
+    "Screen Size": "215 x 180",
+    "Display Colors": "14",
+    "Touch": "True",
+    "Buttons": "enter, lap, menu, esc",
+    "Launcher Icon Size": "40 x 40"
+  },
+  "app_types": {
+    "Data Field": {
+      "memory_limit_bytes": 16384,
+      "notes": ""
+    },
+    "Watch App": {
+      "memory_limit_bytes": 65536,
+      "notes": ""
+    },
+    "Watch Face": {
+      "memory_limit_bytes": 65536,
+      "notes": ""
+    },
+    "Widget": {
+      "memory_limit_bytes": 65536,
+      "notes": ""
+    }
+  },
+  "fonts": {
+    "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Source Han Sans JP Bold",
+          "font": "SOURCE_HAN_SANS_JP_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_TINY": {
+          "face": "Source Han Sans JP Bold",
+          "font": "SOURCE_HAN_SANS_JP_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_SMALL": {
+          "face": "Source Han Sans JP Bold",
+          "font": "SOURCE_HAN_SANS_JP_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_MEDIUM": {
+          "face": "Source Han Sans JP Bold",
+          "font": "SOURCE_HAN_SANS_JP_BOLD_21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Source Han Sans JP Bold",
+          "font": "SOURCE_HAN_SANS_JP_BOLD_26",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "BEBAS_NEUE_20B",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "BEBAS_NEUE_32B",
+          "size_px": 47
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "BEBAS_NEUE_40B",
+          "size_px": 59
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "BEBAS_NEUE_72B",
+          "size_px": 104
+        }
+      },
+      "scalable": {}
+    }
+  },
+  "data_field_layouts": {
+    "1 Field Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "215",
+        "Height": "180",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "2 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "215",
+        "Height": "89",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "91",
+        "Width": "215",
+        "Height": "89",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "215",
+        "Height": "55",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "57",
+        "Width": "215",
+        "Height": "66",
+        "Obscurity Flags": "5",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "125",
+        "Width": "215",
+        "Height": "55",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "215",
+        "Height": "55",
+        "Obscurity Flags": "7",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "57",
+        "Width": "107",
+        "Height": "66",
+        "Obscurity Flags": "1",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "109",
+        "Top": "57",
+        "Width": "107",
+        "Height": "66",
+        "Obscurity Flags": "4",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "0",
+        "Top": "125",
+        "Width": "215",
+        "Height": "55",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      }
+    ]
+  },
+  "normalized": {
+    "screen_shape": "semi-round",
+    "screen_width": 215,
+    "screen_height": 180,
+    "display_colors": 14,
+    "touch": true,
+    "buttons": [
+      "enter",
+      "lap",
+      "menu",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  }
+}

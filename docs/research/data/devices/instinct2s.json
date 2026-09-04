@@ -1,0 +1,390 @@
+{
+  "id": "instinct2s",
+  "source": "doc/docs/Device_Reference/instinct2s.html",
+  "name": "Instinct® 2S / Solar / Dual Power",
+  "attributes": {
+    "Id": "instinct2s",
+    "Screen Shape": "semi-octagon",
+    "Screen Size": "163 x 156",
+    "Display Colors": "2",
+    "Touch": "False",
+    "Buttons": "enter, up, menu, down, esc",
+    "Launcher Icon Size": "54 x 54"
+  },
+  "app_types": {
+    "Background": {
+      "memory_limit_bytes": 32768,
+      "notes": "Requires Permission"
+    },
+    "Data Field": {
+      "memory_limit_bytes": 32768,
+      "notes": ""
+    },
+    "Glance": {
+      "memory_limit_bytes": 32768,
+      "notes": "Build as Widget"
+    },
+    "Watch App": {
+      "memory_limit_bytes": 98304,
+      "notes": ""
+    },
+    "Watch Face": {
+      "memory_limit_bytes": 65536,
+      "notes": ""
+    },
+    "Widget": {
+      "memory_limit_bytes": 65536,
+      "notes": ""
+    }
+  },
+  "fonts": {
+    "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_18",
+          "size_px": 18
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_20",
+          "size_px": 20
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_VIET_23B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388900_0000_GARMIN_20",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388900_0000_GARMIN_32",
+          "size_px": 37
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388900_0000_GARMIN_30",
+          "size_px": 41
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388900_0000_GARMIN_41",
+          "size_px": 51
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_18",
+          "size_px": 18
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_20",
+          "size_px": 20
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_VIET_23B",
+          "size_px": 23
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388900_0000_GARMIN_20",
+          "size_px": 33
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388900_0000_GARMIN_32",
+          "size_px": 37
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388900_0000_GARMIN_30",
+          "size_px": 41
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B388900_0000_GARMIN_41",
+          "size_px": 51
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_MEDIUM_VIET_16",
+          "size_px": 16
+        }
+      },
+      "scalable": {}
+    }
+  },
+  "data_field_layouts": {
+    "2 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "156",
+        "Height": "156",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "109",
+        "Top": "0",
+        "Width": "54",
+        "Height": "54",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "3 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "93",
+        "Height": "64",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "64",
+        "Width": "156",
+        "Height": "92",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "109",
+        "Top": "0",
+        "Width": "54",
+        "Height": "54",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields A Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "93",
+        "Height": "49",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "50",
+        "Width": "156",
+        "Height": "57",
+        "Obscurity Flags": "0",
+        "Obscure Left": "False",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "0",
+        "Top": "108",
+        "Width": "156",
+        "Height": "48",
+        "Obscurity Flags": "13",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "109",
+        "Top": "0",
+        "Width": "54",
+        "Height": "54",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "4 Fields B Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "93",
+        "Height": "64",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "64",
+        "Width": "78",
+        "Height": "92",
+        "Obscurity Flags": "9",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "78",
+        "Top": "64",
+        "Width": "78",
+        "Height": "92",
+        "Obscurity Flags": "12",
+        "Obscure Left": "False",
+        "Obscure Right": "True",
+        "Obscure Top": "False",
+        "Obscure Bottom": "True"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "109",
+        "Top": "0",
+        "Width": "54",
+        "Height": "54",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ],
+    "5 Fields Layout": [
+      {
+        "Name": "Field 1",
+        "Left": "0",
+        "Top": "0",
+        "Width": "93",
+        "Height": "64",
+        "Obscurity Flags": "3",
+        "Obscure Left": "True",
+        "Obscure Right": "False",
+        "Obscure Top": "True",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 2",
+        "Left": "0",
+        "Top": "65",
+        "Width": "78",
+        "Height": "66",
+        "Obscurity Flags": "0",
+        "Obscure Left": "False",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 3",
+        "Left": "78",
+        "Top": "65",
+        "Width": "78",
+        "Height": "66",
+        "Obscurity Flags": "0",
+        "Obscure Left": "False",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 4",
+        "Left": "30",
+        "Top": "131",
+        "Width": "96",
+        "Height": "24",
+        "Obscurity Flags": "0",
+        "Obscure Left": "False",
+        "Obscure Right": "False",
+        "Obscure Top": "False",
+        "Obscure Bottom": "False"
+      },
+      {
+        "Name": "Field 5",
+        "Left": "109",
+        "Top": "0",
+        "Width": "54",
+        "Height": "54",
+        "Obscurity Flags": "15",
+        "Obscure Left": "True",
+        "Obscure Right": "True",
+        "Obscure Top": "True",
+        "Obscure Bottom": "True"
+      }
+    ]
+  },
+  "normalized": {
+    "screen_shape": "semi-octagon",
+    "screen_width": 163,
+    "screen_height": 156,
+    "display_colors": 2,
+    "touch": false,
+    "buttons": [
+      "enter",
+      "up",
+      "menu",
+      "down",
+      "esc"
+    ],
+    "watchface_memory_bytes": 65536
+  }
+}

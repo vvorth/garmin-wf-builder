@@ -1,0 +1,81 @@
+{
+  "id": "fr45",
+  "source": "doc/docs/Device_Reference/fr45.html",
+  "name": "Forerunner® 45",
+  "attributes": {
+    "Id": "fr45",
+    "Screen Shape": "round",
+    "Screen Size": "208 x 208",
+    "Display Colors": "8",
+    "Touch": "False",
+    "Buttons": "",
+    "Launcher Icon Size": "65 x 65"
+  },
+  "app_types": {
+    "Watch Face": {
+      "memory_limit_bytes": 49152,
+      "notes": ""
+    }
+  },
+  "fonts": {
+    "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_19",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_19",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_19",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_27",
+          "size_px": 27
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_34",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        }
+      },
+      "scalable": {}
+    }
+  },
+  "normalized": {
+    "screen_shape": "round",
+    "screen_width": 208,
+    "screen_height": 208,
+    "display_colors": 8,
+    "touch": false,
+    "buttons": [],
+    "watchface_memory_bytes": 49152
+  }
+}
