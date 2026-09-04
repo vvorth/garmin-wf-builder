@@ -86,6 +86,21 @@ wfb new "My Face"
 wfb preview my-face.yaml --watch   # leave this running while you edit
 ```
 
+## From a picture
+
+`.claude/skills/watchface-from-image/` is a skill that turns an image — a photo,
+a mockup, or a crude hand drawing — into a design. In Claude Code, share a
+picture and ask for a watch face like it.
+
+It works because the compiler is a good feedback loop, not because the model
+guesses well: it interviews you about what each element means, reads positions
+off the image as fractions of the dial, then iterates against `wfb validate` and
+`wfb preview` until the render matches the picture. The skill is plain markdown
+and names only real commands, so any reasonably capable model can follow it.
+
+The reasoning behind that design — and why a visual GUI builder is deferred —
+is in [`docs/research/06-authoring-ergonomics.md`](docs/research/06-authoring-ergonomics.md).
+
 `wfb preview` renders from the **same resolved geometry** the generated Monkey C
 uses, so the two cannot disagree about position — which is what makes it a useful
 check and not a second implementation.

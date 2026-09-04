@@ -80,6 +80,15 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
     return len(bag.errors) == before
 
 
+#: Keys that only make sense for one `progress` style.  Supplying one set while
+#: declaring the other style is a much commoner mistake than omitting a key, and
+#: "missing required key 'size'" does not begin to explain it.
+PROGRESS_STYLE_KEYS = {
+    "arc": ("radius", "thickness", "start_angle", "sweep"),
+    "bar": ("size",),
+}
+
+
 #: The element types this format version understands.
 ELEMENT_TYPES = ("group", "shape", "text", "progress", "icon")
 
@@ -127,6 +136,9 @@ def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
             if not isinstance(element, dict):
                 continue
             here = path + [index]
+            if _check_progress_style(doc, bag, element):
+                bad.append(here)
+                continue
             kind = element.get("type")
             if isinstance(kind, str) and kind not in ELEMENT_TYPES:
                 notes = []
@@ -148,6 +160,36 @@ def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
 
     visit(doc.data.get("elements"), ["elements"])
     return bad
+
+
+def _check_progress_style(doc: YamlDocument, bag: Bag, element: dict) -> bool:
+    """Catch a `progress` whose keys belong to the other style."""
+    if element.get("type") != "progress":
+        return False
+    style = element.get("style")
+    if style not in PROGRESS_STYLE_KEYS:
+        return False
+    other = "bar" if style == "arc" else "arc"
+    wrong = [key for key in PROGRESS_STYLE_KEYS[other] if key in element]
+    if not wrong:
+        return False
+    missing = [key for key in PROGRESS_STYLE_KEYS[style] if key not in element]
+    if not missing:
+        return False
+    plural = "s" if len(wrong) > 1 else ""
+    bag.error(
+        "schema",
+        f"this progress element is 'style: {style}' but carries "
+        f"{other}-only key{plural}: {', '.join(repr(k) for k in wrong)}",
+        doc.span(element, "style"),
+        notes=[
+            f"either set 'style: {other}', or replace those with "
+            f"{', '.join(repr(k) for k in PROGRESS_STYLE_KEYS[style])}",
+            "'arc' is a stroked ring -- radius, thickness, start_angle, sweep; "
+            "'bar' is a rectangle -- size",
+        ],
+    )
+    return True
 
 
 def _under(path: list, prefix: list) -> bool:
