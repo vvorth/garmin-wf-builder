@@ -152,7 +152,18 @@ def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None 
 
     build_dir = (output / _slug(face.name)).resolve()
     project = generate(face, devices, build_dir, baked)
-    write_project(project, clean=clean)
+    try:
+        write_project(project, clean=clean)
+    except OSError as exc:
+        bag.error(
+            "io",
+            f"cannot write the build directory {build_dir}: {exc.strerror or exc}",
+            notes=[
+                "the directory may be left over from a build run as a different user; "
+                "remove it and try again",
+            ],
+        )
+        return None
 
     result = BuildResult(face=face, project=project, devices=devices, output_dir=build_dir)
 

@@ -33,14 +33,30 @@ with no warnings.
 | to take over this project | **`CLAUDE.md`** — full handoff context |
 | to write a design | [`docs/format.md`](docs/format.md), and the schema in [`schema/`](schema/) |
 | what the platform will not do | [`docs/limitations.md`](docs/limitations.md) |
+| to run it without installing anything | [`docs/container.md`](docs/container.md) |
 | the decisions and why | [`docs/adr/README.md`](docs/adr/README.md), then `0001`–`0009` |
 | the platform research | [`docs/research/00-summary.md`](docs/research/00-summary.md), then `01`–`05` |
 
 ## Setup
 
+Either install locally:
+
 ```sh
 ./tools/setup-env.sh
 ```
+
+…or use the container, which needs nothing on the host but Docker and your own
+copy of the device definitions:
+
+```sh
+docker build -t garmin-wf-builder .
+docker run --rm -v "$PWD:/work" \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
+  -v wfb-keys:/keys \
+  garmin-wf-builder build examples/slice/face.yaml
+```
+
+See [`docs/container.md`](docs/container.md). The local install:
 
 Installs the Connect IQ SDK 9.2.0, generates a developer key, installs the device
 definitions, and creates `.venv` with the host dependencies.

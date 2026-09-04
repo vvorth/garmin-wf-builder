@@ -1,0 +1,18 @@
+# Keep the build context small and reproducible.  Everything the image needs is
+# listed explicitly in the Dockerfile's COPY lines.
+.git/
+.venv/
+build/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Garmin's device definitions are the user's own licensed copy and are mounted
+# at run time, never baked in.  See docs/container.md.
+vendor/
+
+# Large artefacts and generated output
+*.prg
+*.iq
+*.bundle

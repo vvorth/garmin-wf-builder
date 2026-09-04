@@ -33,7 +33,8 @@ part of the deliverable, not scaffolding.
 The compiler lives in `wfb/`, the support barrel in `runtime-lib/`, the published
 schema in `schema/`, and the example face in `examples/slice/`. `docs/format.md`
 is the format reference; `docs/limitations.md` records what the platform and the
-linter will not do.
+linter will not do; `docs/container.md` covers the Docker image, which builds
+faces with nothing installed on the host but Docker and the device definitions.
 
 ---
 
@@ -276,7 +277,15 @@ These cost real time to discover; do not rediscover them.
    the resource-qualifier name — it is just not unique enough to key layout on.
 8. **Module members take no access modifier.** `hidden` and `private` are
    class-member keywords; the compiler rejects them inside a `module`.
-9. **The simulator will not run in this container.** It links against
+9. **`monkeyc` finds device definitions through Java's `user.home`**, which comes
+   from the *passwd entry* of the running uid, not from `$HOME`. Exporting `HOME`
+   has no effect. The symptom is `Invalid device id specified`, which looks
+   exactly like a missing device directory. Pass `-Duser.home=` via
+   `JAVA_TOOL_OPTIONS` when the running uid has no usable passwd home.
+10. **`monkeyc` regenerates `$CIQ_SDK/bin/default.jungle` on every invocation**
+   and *replaces* the file, so the SDK's `bin/` directory must be writable — a
+   read-only SDK fails with `Unable to generate default.jungle: Permission denied`.
+11. **The simulator will not run in this container.** It links against
    `libwebkit2gtk-4.0` and `libsoup-2.4`, which current distributions no longer
    ship, and even with those supplied it segfaults on app load under Xvfb with
    software OpenGL — reproduced with an **unmodified SDK sample `.prg`**, so it is
