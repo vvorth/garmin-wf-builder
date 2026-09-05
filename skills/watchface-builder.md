@@ -1,0 +1,394 @@
+# Build a Garmin watch face
+
+Instructions for an AI assistant with two capabilities: **reading files** and
+**running shell commands**. Following them produces a compiled, sideloadable
+Garmin Connect IQ watch face (`.prg`) from a picture or a description.
+
+Nothing here is specific to any model or harness. Where a step needs a
+capability you may not have — seeing an image, for instance — it says so and
+gives you the alternative.
+
+---
+
+## What you are doing
+
+A watch face is declared in a YAML file and compiled by a tool called `wfb`.
+You will:
+
+1. find the tool and check the environment;
+2. work out what the person wants, and ask about what you cannot infer;
+3. write the YAML;
+4. loop on `wfb validate` until it passes;
+5. loop on `wfb preview` until the render matches the intent;
+6. compile with `wfb build`.
+
+**Steps 4 and 5 are the point.** Do not try to be right in one shot. The
+compiler's errors name the fix, and the preview shows what you actually built —
+between them they will get you there in a handful of rounds. Iterating is the
+method, not a sign that something has gone wrong.
+
+---
+
+## 1. Find the tool and check the environment
+
+The tool may be installed in several ways. Try these in order and use whichever
+answers:
+
+```sh
+wfb doctor                                  # if it is on PATH
+python3 /path/to/garmin-wf-builder/wfb.py doctor    # from a checked-out copy
+docker run --rm -v "$PWD:/work" \
+  -v "$DEVICES_DIR:/devices:ro" garmin-wf-builder doctor   # containerised
+```
+
+If you do not know where the project is, look for it — checking the current
+directory and its parents as well as the home directory, since a checkout is
+often neither:
+
+```sh
+find . ~ /opt /srv /workspace -maxdepth 6 -name wfb.py 2>/dev/null | head
+```
+
+If that finds nothing, ask the person where the project is rather than guessing.
+
+**Whatever works, use that exact invocation for every command below.** This
+document writes `wfb`; substitute yours. The file entry point re-executes itself
+under the project's own environment, so any `python3` will do.
+
+`wfb doctor` prints what is present and what is missing, and each missing item
+names the command that fixes it. Read its output before doing anything else:
+
+- **`ready`** — everything works.
+- **`partial`** — you can design, validate and preview, but not compile. Say so
+  now, and continue: everything up to step 6 still works.
+- **`not ready`** — stop and report what it says. In particular, **the Garmin
+  device definitions cannot be downloaded** (Garmin's endpoint requires an
+  interactive login), so if those are missing only the person can supply them.
+  Do not attempt to work around this.
+
+Then learn the actual vocabulary rather than trusting your memory of it:
+
+```sh
+wfb sources     # every data source you may bind, with its type
+wfb devices     # the watches you may target
+wfb new --list  # the templates you may start from
+```
+
+> **Never bind a data source that is not listed by `wfb sources`.** A plausible
+> invented path — `activity.heartrate`, `weather.temp` — is the one class of
+> error the tools cannot catch for you, because it will simply fail to exist.
+
+---
+
+## 2. Work out what to build
+
+### If you were given an image
+
+**If you can see images**, look at it and inventory every visible element. For
+each: what it is (text, a ring, a bar, an icon, a plain shape), where it sits as
+a *fraction of the way from the centre to the edge*, roughly how big, and what it
+appears to show. For arcs, note where the sweep starts, which way it goes, and
+whether it closes.
+
+Do not think in pixels. A drawing has no pixels worth having.
+
+**If you cannot see images**, say so plainly and ask the person to describe the
+layout instead. Do not guess at a picture you cannot see, and do not pretend to
+have looked at it.
+
+### If you were given a description
+
+Work from that directly. The same questions below still apply.
+
+### Then ask — once, and specifically
+
+Show your interpretation and ask the person to correct it. **One message, a
+numbered list**, so it is easy to answer. Propose a sensible default for each
+point so they can simply agree.
+
+These cannot be inferred from any picture or short description, and each one
+changes the design:
+
+| Ask | Why |
+|---|---|
+| What each data element shows | "72" could be heart rate, a countdown, or a temperature |
+| The goal behind every ring or bar | A ring draws a *fraction*, so it needs a maximum |
+| What to draw when a value is missing | Every fitness reading can be absent, and the format requires an answer |
+| Colours | A sketch is not a colour scheme; watch faces are usually dark |
+| Which watches | The design is compiled per device |
+| 12- or 24-hour | Or `%h`, which follows the watch's own setting — usually the right answer |
+
+Reasonable defaults to propose: a dark background, `%h` for the hour, `hide` for
+a missing value inside a cluster, and `--` where a gap would look broken.
+
+**If the person says to skip the questions and use your judgement, do that** —
+but state the assumptions you made, so the preview can be judged against them.
+
+---
+
+## 3. Write the design
+
+Start from a template. It is already correct, so you are editing rather than
+inventing:
+
+```sh
+wfb new "Their Face Name"             # time, a goal ring, two clusters, a battery bar
+wfb new "Their Face Name" -t minimal  # just a background and the time
+```
+
+That writes `their-face-name.yaml` with a fresh id. Edit it to match. The
+reference at the end of this document has the syntax for every element.
+
+### Reading positions off an image or a description
+
+Treat the dial as a circle of radius **100%** and write every offset in **`%r`**
+— percent of the screen's minor radius:
+
+```
+halfway out from the centre, below      ->  at: {anchor: center, dy: 50%r}
+near the left edge, level with centre   ->  at: {anchor: center, dx: -80%r}
+a ring just inside the bezel            ->  radius: 88%r
+```
+
+This works because a drawing is *proportional*, and it is the only way the design
+stays correct on more than one watch.
+
+> **Never write a bare pixel offset.** `dy: 40` and `dy: 30%r` are identical on
+> one watch and different on every other, and nothing will warn you — both are
+> legal. Use `%r` for anything you would describe as "this far out from the
+> middle".
+
+Angles run **clockwise from 12 o'clock**: `0deg` is the top, `90deg` is 3
+o'clock, `180deg` is the bottom. A ring with a gap at the bottom usually starts
+near `210deg` and sweeps about `300deg`.
+
+### Six rules that will otherwise cost you a round
+
+1. **Every fitness reading can be absent**, so any binding to one needs
+   `when_absent:` — `hide`, `placeholder` (with `placeholder: "--"`), or
+   `fallback`. Sensors are genuinely missing on some watches; the format refuses
+   to guess what should appear instead.
+2. **Colours must be palette-legal.** Each channel must be `00`, `55`, `AA` or
+   `FF`, so `#FF5500` is fine and `#FF6600` is dithered and looks grainy. Declare
+   colours in `palette:` and reference them by name.
+3. **Time needs a time format**: `format: "{:%h:%M}"`.
+4. **`style: arc` and `style: bar` take different keys.** An arc needs `radius`,
+   `thickness`, `start_angle` and `sweep`; a bar needs `size`. Mixing them is the
+   commonest slip.
+5. **An arc is a stroked ring, not a filled wedge.** This platform has no
+   filled-arc primitive: `thickness` is a pen width, and there is no inner
+   radius, gradient or cap style.
+6. **Stay inside the visible circle.** The frame buffer is square but the panel
+   is round, so a corner that fits the buffer can still sit under the bezel.
+
+---
+
+## 4. Validate — do not skip this
+
+```sh
+wfb validate their-face-name.yaml
+```
+
+**Fix only what it reports, then run it again.** The messages name the file, the
+line, the column and the fix:
+
+```
+did you mean: activity.steps?
+choose one of: hide | placeholder (with 'placeholder:') | fallback
+nearest legal colour: #FF5500
+write it as:
+    type: shape
+    shape: rectangle
+```
+
+Do not go reading documentation while errors remain — the message is almost
+always sufficient. **Three or four rounds from a first draft is normal.**
+
+Fix the warnings too. `safe-area` and `text-overflow` mean something will be
+clipped on a real watch, and `text-overflow` in particular measures the *widest*
+value a binding can produce, not the one you happen to be picturing: a clock
+showing `7:05` still has to fit `23:59`.
+
+Repeat until it prints `ok`.
+
+---
+
+## 5. Preview and compare — do not skip this either
+
+```sh
+wfb preview their-face-name.yaml -d <device> --scale 3
+```
+
+That writes a PNG. **If you can see images, open it and compare it with what the
+person asked for.** This catches everything the compiler cannot: an element in
+the wrong place, text too large, a ring sweeping the wrong way, two things
+overlapping.
+
+Check: is each element where it should be? Do the proportions match — is the time
+as dominant as intended? Does anything overlap or run off the edge? Does the arc
+start and sweep correctly?
+
+Adjust the `%r` values and preview again. **Two or three passes is normal.**
+
+**If you cannot see images**, say so, and instead show the person the preview's
+path and ask them to look. Do not claim a design matches a picture you have not
+compared.
+
+Positions and sizes in the preview are exactly what the watch will use. Glyph
+shapes for built-in fonts are not — the real typefaces are not available
+off-device — so judge layout and proportion, not letterforms.
+
+---
+
+## 6. Compile
+
+```sh
+wfb build their-face-name.yaml
+```
+
+This produces one signed `.prg` per target and reports memory against the 128 KB
+watch-face limit. Report the result, including any warnings.
+
+To install: the `.prg` files are copied to the watch's `GARMIN/APPS` directory
+over USB.
+
+**You are done when** `wfb build` succeeds, the preview matches what was asked
+for, and you have told the person where the files are and what the memory figures
+were. If anything was left unresolved — a question they never answered, a
+compromise you made — say so rather than letting it pass silently.
+
+---
+
+## Reference
+
+```yaml
+format: 1
+face:
+  id: <uuid>            # `wfb new` generates one; never copy another face's
+  name: My Face
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:                # each channel must be 00, 55, AA or FF
+  bg: "#000000"
+  text: "#FFFFFF"
+  accent: "#00AAFF"
+  hot: "#FF5500"
+  track: "#555555"
+
+fonts:                  # optional -- omit to use built-in fonts only
+  clock:
+    source: assets/YourFont.ttf
+    size: 68            # em pixels on the smallest target, scaled per device
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle              # rectangle | rounded_rectangle | circle | line
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+
+  - id: steps_value               # text bound to data
+    type: text
+    value: activity.steps         # must appear in `wfb sources`
+    format: "{:d}"                # {:d} {:02d} {:.1f} {} or a time format
+    font: FONT_SMALL              # or font.clock for a declared custom font
+    at: {anchor: center, dy: 30%r}
+    color: palette.text
+    align: center                 # left | center | right
+    when_absent: placeholder      # hide | placeholder | fallback
+    placeholder: "--"
+
+  - id: label                     # fixed text
+    type: text
+    text: "STEPS"
+    font: FONT_XTINY
+    at: {anchor: center, dy: 40%r}
+    color: palette.text
+
+  - id: step_ring                 # a goal ring
+    type: progress
+    style: arc                    # arc | bar
+    value: activity.steps
+    max: activity.step_goal       # a source, or a number such as 10000
+    at: {anchor: center}
+    radius: 88%r
+    thickness: 9px
+    start_angle: 210deg           # clockwise from 12 o'clock
+    sweep: 300deg
+    color: palette.accent
+    track_color: palette.track    # optional unfilled remainder
+    when_absent: hide
+
+  - id: battery                   # a bar
+    type: progress
+    style: bar
+    value: system.battery
+    max: 100
+    at: {anchor: center, dy: 62%r}
+    size: {width: 40%r, height: 5%r}
+    color: palette.text
+
+  - id: hr_icon                   # a drawn icon: no memory cost, takes a colour
+    type: icon
+    icon: heart                   # heart | steps | flame
+    size: 11%r
+    at: {anchor: center, dx: -40%r, dy: 30%r}
+    color: palette.hot
+```
+
+**Anchors** — `center`, `top`, `bottom`, `left`, `right`, `top_left`,
+`top_right`, `bottom_left`, `bottom_right`. Offsets are measured from the anchor.
+
+**Lengths** — `%r` (of the screen's minor radius; prefer this), `%` (of the
+parent box), `px` (avoid), `pt` (multiples of the element's font height).
+
+**Time formats** — `%h` hour following the watch's setting · `%H` 24-hour ·
+`%I` 12-hour · `%M` minute · `%S` second · `%p` AM/PM.
+
+**Built-in fonts**, with pixel heights on a 260 px watch. They differ per device,
+which is why you never hard-code a size:
+
+| Font | px | Good for |
+|---|---|---|
+| `FONT_XTINY` | 28 | labels beside a value |
+| `FONT_TINY` | 38 | secondary text |
+| `FONT_SMALL` | 42 | data values, the date |
+| `FONT_MEDIUM` / `FONT_LARGE` | 51 / 53 | a prominent value |
+| `FONT_NUMBER_MILD` / `FONT_NUMBER_MEDIUM` | 58 / 65 | a centred clock |
+| `FONT_NUMBER_HOT` | 99 | a clock that fills the dial |
+
+`FONT_NUMBER_HOT` renders `23:59` about 210 px wide, nearly the full screen. If
+the clock is not centred, drop to `FONT_NUMBER_MEDIUM`.
+
+For anything not covered here, `wfb schema` prints the normative definition, and
+the project's `docs/format.md` explains the reasoning.
+
+---
+
+## Errors you will meet, and what they mean
+
+| Message | What to do |
+|---|---|
+| `unknown element type 'rectangle'` | The note gives the exact spelling — use it |
+| `unknown key ('x', 'y' were unexpected)` | Positions go in `at:`, sizes in `size:`. There are no absolute coordinates |
+| `'style: bar' but carries arc-only keys` | Choose one: `arc` takes radius/thickness/start_angle/sweep, `bar` takes size |
+| `'activity.steps' can be absent, so 'when_absent:' is required` | Add `when_absent: hide`, or a placeholder |
+| `unknown data source 'steps'` | The note suggests the real path. Never invent one — check `wfb sources` |
+| `a time value needs a strftime-style format` | `format: "{:%h:%M}"` |
+| `will be dithered` | Use the nearest legal colour the warning names |
+| `reaches outside the visible area` | Reduce the `%r` offset; it is under the bezel |
+| `the widest rendering … does not fit` | The value gets wider than today's. Smaller font, or move it inward |
+| `Invalid device id specified` | The device definitions are missing — run `wfb doctor` |
+| Preview looks nothing like the request | Re-check the proportions. Are the offsets in `%r`? Is the arc sweeping the right way? |
+
+## What this format cannot do
+
+Say so plainly if the design needs one of these, rather than approximating in
+silence:
+
+- **filled wedges or gradient arcs** — rings are strokes only;
+- **transparency or blending** — these panels have no alpha channel;
+- **animation**;
+- **images and complication slots** — not implemented yet;
+- **multi-coloured text** — a bitmap font carries a single colour.

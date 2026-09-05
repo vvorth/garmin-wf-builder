@@ -304,11 +304,19 @@ Garmin toolchain, with diagnostics that name the fix. A deliberately naive desig
 was corrected to valid in **four rounds using only the compiler's own error
 messages**.
 
-**Both were done** (commits after Phase 2): the frictions, then the skill at
-`.claude/skills/watchface-from-image/`. `tests/test_skill.py` keeps the skill
-honest — it checks that the reference card is a valid design, that every font,
-icon, template and command it names exists, and that it still insists on the
-validate/preview loop.
+**Both were done** (commits after Phase 2): the frictions, then the skill.
+
+The skill is **model-agnostic and lives at `skills/watchface-builder.md`** — one
+self-contained document for any assistant with file access and a shell.
+`.claude/skills/watchface-from-image/SKILL.md` is a thin adapter that delegates to
+it, so the two cannot drift; `tests/test_skill.py` enforces that the adapter
+stays thin and that every font, icon, template and command the document names
+actually exists.
+
+Two supporting changes make it portable: `wfb doctor` reports what is installed
+and what to do about what is not, and `wfb.py` re-executes itself under the
+project's virtualenv so `python3 /path/to/wfb.py` works from any directory with
+any interpreter.
 
 Original recommendation: **cheap frictions first, then the skill; defer the GUI.** Two
 measured reasons the GUI is not yet right:

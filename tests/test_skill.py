@@ -20,7 +20,11 @@ from wfb.emit.resources import bake_fonts
 from wfb.ir import SYSTEM_FONTS
 from wfb.layout import resolve
 
-SKILL = Path(__file__).resolve().parent.parent / ".claude/skills/watchface-from-image/SKILL.md"
+ROOT = Path(__file__).resolve().parent.parent
+#: The canonical, model-agnostic instructions.
+SKILL = ROOT / "skills" / "watchface-builder.md"
+#: A thin Claude Code adapter that points at them.
+ADAPTER = ROOT / ".claude/skills/watchface-from-image/SKILL.md"
 
 
 @pytest.fixture(scope="module")
@@ -30,18 +34,53 @@ def text() -> str:
     return SKILL.read_text(encoding="utf-8")
 
 
+@pytest.fixture(scope="module")
+def adapter() -> str:
+    if not ADAPTER.exists():
+        pytest.skip("the Claude Code adapter is not installed")
+    return ADAPTER.read_text(encoding="utf-8")
+
+
 def yaml_blocks(text: str) -> list[str]:
     return re.findall(r"```yaml\n(.*?)```", text, re.S)
 
 
-def test_frontmatter_is_present_and_describes_when_to_use(text):
-    assert text.startswith("---\n")
-    front = text.split("---", 2)[1]
+def test_the_skill_needs_no_frontmatter(text):
+    """It has to be usable by a model with no harness conventions at all.
+
+    Anything that only works because a particular runner parses a header is a
+    portability bug, not a feature.
+    """
+    assert not text.startswith("---\n")
+
+
+def test_the_adapter_points_at_the_canonical_instructions(adapter):
+    """Two copies of a procedure drift.  The adapter must delegate, not restate."""
+    assert "skills/watchface-builder.md" in adapter
+    # If it starts restating the procedure, it has begun to drift.
+    assert len(adapter.splitlines()) < 60, "the adapter is growing its own copy"
+
+
+def test_the_adapter_declares_when_to_use_it(adapter):
+    assert adapter.startswith("---\n")
+    front = adapter.split("---", 2)[1]
     assert "name: watchface-from-image" in front
-    # The description is what a model matches against, so it has to name the
+    # The description is what a model matches against, so it must name the
     # situation rather than the mechanism.
-    assert "description:" in front
-    assert "watch face" in front.lower()
+    assert "description:" in front and "watch face" in front.lower()
+
+
+def test_it_bootstraps_the_environment_before_anything_else(text):
+    """A portable skill cannot assume it starts anywhere in particular."""
+    assert "wfb doctor" in text
+    # doctor's three verdicts each need an instruction attached.
+    for verdict in ("ready", "partial", "not ready"):
+        assert verdict in text
+
+
+def test_it_handles_a_model_that_cannot_see_images(text):
+    """Not every model has vision, and one that lacks it must not pretend."""
+    assert "cannot see images" in text
 
 
 def test_the_reference_card_is_a_valid_design(text, tmp_path, bag, db):
@@ -82,13 +121,13 @@ def test_templates_it_tells_you_to_use_exist(text):
 
 
 def test_commands_it_names_are_real(text):
-    """A skill that tells a model to run a command that does not exist wastes a
-    round and teaches it to distrust the instructions."""
+    """A skill that names a command that does not exist wastes a round and
+    teaches the model to distrust the rest of the instructions."""
     from wfb.cli import _parser
 
     known = set(_parser()._subparsers._group_actions[0].choices)
     used = set(re.findall(r"(?:^|\s)wfb (\w+)", text))
-    unknown = used - known - {"schema"}
+    unknown = used - known
     assert not unknown, f"the skill names commands that do not exist: {unknown}"
 
 
@@ -97,18 +136,24 @@ def test_it_insists_on_the_feedback_loop(text):
 
     If these steps ever become optional the skill produces designs that look
     right and are not, which is the failure this whole approach exists to avoid.
+    Matched loosely on purpose -- the wording may change, the insistence may not.
     """
     assert "wfb validate" in text
     assert "wfb preview" in text
-    assert "not optional" in text.lower()
+    assert re.search(r"(do not skip|not optional|mandatory)", text, re.I), (
+        "nothing in the skill makes validate and preview non-negotiable"
+    )
 
 
 def test_it_warns_against_pixel_offsets(text):
-    """The one mistake the compiler cannot catch: px is legal and wrong."""
+    """The one mistake the tools cannot catch: px is legal, and silently wrong
+    on every device but the one it was written for."""
     assert "%r" in text
-    assert re.search(r"[Nn]ever write a bare pixel offset", text)
+    assert re.search(r"never write a bare pixel offset", text, re.I)
 
 
 def test_it_tells_the_model_not_to_invent_data_sources(text):
+    """The other error the tools cannot catch: a real path bound to the wrong
+    thing, or a plausible path that does not exist."""
     assert "wfb sources" in text
-    assert re.search(r"[Nn]ever bind a data source that is not in", text)
+    assert re.search(r"never bind a data source that is not", text, re.I)

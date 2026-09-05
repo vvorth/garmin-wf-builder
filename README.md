@@ -77,6 +77,7 @@ wfb simulate  design.yaml          # launch the simulator and push the built fac
 wfb devices                        # installed device definitions and their limits
 wfb sources                        # the data-source catalogue
 wfb schema    [--path]             # the JSON Schema, for editor setup
+wfb doctor                         # what is installed, what is missing, what to do
 ```
 
 The quickest start:
@@ -86,20 +87,29 @@ wfb new "My Face"
 wfb preview my-face.yaml --watch   # leave this running while you edit
 ```
 
-## From a picture
+## Building a face with an AI assistant
 
-`.claude/skills/watchface-from-image/` is a skill that turns an image — a photo,
-a mockup, or a crude hand drawing — into a design. In Claude Code, share a
-picture and ask for a watch face like it.
+[`skills/watchface-builder.md`](skills/watchface-builder.md) is a single
+self-contained document that lets **any** assistant with file access and a shell
+build a watch face — from a picture, a sketch, or a description. Point a model at
+it:
+
+> Read `skills/watchface-builder.md` and follow it to build me this watch face.
+> [attach an image, or describe what you want]
 
 It works because the compiler is a good feedback loop, not because the model
-guesses well: it interviews you about what each element means, reads positions
-off the image as fractions of the dial, then iterates against `wfb validate` and
-`wfb preview` until the render matches the picture. The skill is plain markdown
-and names only real commands, so any reasonably capable model can follow it.
+guesses well. The procedure interviews you about what a picture cannot say, reads
+positions off the image as fractions of the dial, then iterates against
+`wfb validate` and `wfb preview` until the render matches. It names only real
+commands, assumes no particular working directory, and starts with `wfb doctor`
+so a half-configured environment is reported rather than blundered into.
 
-The reasoning behind that design — and why a visual GUI builder is deferred —
-is in [`docs/research/06-authoring-ergonomics.md`](docs/research/06-authoring-ergonomics.md).
+In Claude Code the skill is registered under `.claude/skills/` and triggers on
+its own — share a picture and say *"build me this watch face"*. That file is a
+thin adapter over the same document, so the two cannot drift.
+
+The reasoning behind this — and why a visual GUI builder is deferred — is in
+[`docs/research/06-authoring-ergonomics.md`](docs/research/06-authoring-ergonomics.md).
 
 `wfb preview` renders from the **same resolved geometry** the generated Monkey C
 uses, so the two cannot disagree about position — which is what makes it a useful
@@ -145,6 +155,7 @@ is guarded with the `when_absent:` policy that produced the guard.
 ## Layout
 
 ```
+skills/               model-agnostic instructions for building a face with an LLM
 wfb/                  the compiler
   yamlsrc.py            YAML loading that keeps source spans
   validate.py           JSON Schema, reported against the author's lines

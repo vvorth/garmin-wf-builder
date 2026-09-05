@@ -7,6 +7,7 @@ compiled ``.prg`` out, with everything in between reported against the YAML.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -101,6 +102,11 @@ def _parser() -> argparse.ArgumentParser:
     devices = sub.add_parser("devices", help="list installed device definitions")
     devices.add_argument("--devices-dir")
     devices.set_defaults(handler=_devices)
+
+    doctor = sub.add_parser(
+        "doctor", help="check the environment and say what is missing")
+    doctor.add_argument("--devices-dir")
+    doctor.set_defaults(handler=_doctor)
 
     schema = sub.add_parser(
         "schema", help="print the JSON Schema, or where it lives, for editor setup")
@@ -335,6 +341,103 @@ def _new(args) -> int:
     print(f"  wfb preview {destination} --watch     # render as you edit")
     print(f"  wfb build   {destination}             # compile it")
     return 0
+
+
+def _doctor(args) -> int:
+    """Report what is present, what is missing, and what to do about it.
+
+    Written for someone -- or something -- arriving with no context: each failure
+    names the command that fixes it, and the exit code says whether a build is
+    possible at all.  Everything except the last two checks is needed only to
+    *compile*; validation and preview work without them.
+    """
+    from . import __version__
+    from .build import Toolchain
+    from .validate import SCHEMA_PATH
+
+    ok = "  ok "
+    missing = "MISSING"
+    problems: list[str] = []
+    blocking = 0
+
+    print(f"wfb {__version__}")
+    print(f"  python           {sys.version.split()[0]}  ({sys.executable})")
+
+    # -- host dependencies ------------------------------------------------
+    for module, package in (("ruamel.yaml", "ruamel.yaml"), ("jsonschema", "jsonschema"),
+                            ("PIL", "pillow"), ("fontTools", "fonttools")):
+        try:
+            __import__(module)
+            print(f"{ok} {package}")
+        except ImportError:
+            print(f"{missing} {package}")
+            problems.append(f"pip install {package}")
+            blocking += 1
+
+    print(f"{ok if SCHEMA_PATH.exists() else missing} schema           {SCHEMA_PATH}")
+
+    # -- device definitions -----------------------------------------------
+    try:
+        db = DeviceDatabase.discover(args.devices_dir)
+        ids = db.ids()
+        print(f"{ok} devices          {len(ids)} installed: {', '.join(ids[:4])}"
+              f"{' ...' if len(ids) > 4 else ''}")
+        print(f"                   {db.root}")
+    except DeviceError:
+        print(f"{missing} devices")
+        print("                   they cannot be downloaded -- api.gcs.garmin.com "
+              "returns HTTP 401.")
+        print("                   copy them from a machine where the Connect IQ SDK")
+        print("                   Manager has installed them:")
+        print("                     macOS  ~/Library/Application Support/Garmin/"
+              "ConnectIQ/Devices")
+        print("                     Linux  ~/.Garmin/ConnectIQ/Devices")
+        print("                   then set WFB_DEVICES to that directory.")
+        problems.append("install the device definitions")
+        blocking += 1
+
+    # -- the Garmin toolchain ---------------------------------------------
+    toolchain = Toolchain.discover()
+    if toolchain is None:
+        print(f"{missing} Connect IQ SDK")
+        print("                   set CIQ_SDK, or run tools/setup-env.sh")
+        problems.append("install the Connect IQ SDK")
+    else:
+        print(f"{ok} Connect IQ SDK   {toolchain.version}  ({toolchain.sdk})")
+        key_dir = toolchain.key.parent
+        if toolchain.key.exists():
+            print(f"{ok} developer key    {toolchain.key}")
+        elif os.access(key_dir, os.W_OK):
+            # Reporting this as missing would be misleading: the key is created
+            # on the first build that needs one, and a build is what a caller is
+            # usually about to run.
+            print(f"{ok} developer key    will be generated at {toolchain.key}")
+        else:
+            print(f"{missing} developer key    expected at {toolchain.key},")
+            print(f"                   and {key_dir} is not writable.  Create one with:")
+            print("                     openssl genpkey -algorithm RSA "
+                  "-pkeyopt rsa_keygen_bits:4096 \\")
+            print("                       -out key.pem")
+            print("                     openssl pkcs8 -topk8 -inform PEM -outform DER \\")
+            print(f"                       -in key.pem -out {toolchain.key} -nocrypt")
+            problems.append("generate a developer key")
+
+    # -- verdict -----------------------------------------------------------
+    print()
+    can_compile = (
+        toolchain is not None
+        and blocking == 0
+        and (toolchain.key.exists() or os.access(toolchain.key.parent, os.W_OK))
+    )
+    if blocking == 0 and can_compile:
+        print("ready: validate, preview and build all work.")
+        return 0
+    if blocking == 0:
+        print("partial: validate and preview work; `wfb build` cannot compile yet.")
+        print("         fix: " + "; ".join(problems))
+        return 0
+    print("not ready: " + "; ".join(problems))
+    return 1
 
 
 def _schema(args) -> int:
