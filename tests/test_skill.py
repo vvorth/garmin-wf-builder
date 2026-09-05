@@ -109,10 +109,16 @@ def test_every_font_the_card_names_exists(text):
 
 
 def test_every_icon_the_card_names_exists(text):
+    """The reference card's `icon: heart # a | b | c` comment lists the whole
+    catalogue.  If a name drifts from wfb/icons.py, this line rots silently."""
     line = next(l for l in text.splitlines() if "icon: heart" in l)
-    named = re.findall(r"\b(heart|steps|flame)\b", line)
+    listed = line.split("#", 1)[1]
+    named = set(re.findall(r"[a-z_]+", listed))
     for name in named:
-        assert icons.get(name) is not None
+        assert icons.get(name) is not None, f"{name!r} in the skill's icon list is not in the catalogue"
+    assert named == set(icons.names()), (
+        f"the skill's icon comment ({named}) has drifted from the catalogue ({set(icons.names())})"
+    )
 
 
 def test_templates_it_tells_you_to_use_exist(text):

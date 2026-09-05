@@ -26,6 +26,10 @@ CATALOG: dict[str, Icon] = {
         Icon("steps", "WfbIcons.drawSteps", "two offset footprints"),
         Icon("heart", "WfbIcons.drawHeart", "a heart outline, for heart rate"),
         Icon("flame", "WfbIcons.drawFlame", "a flame, for calories"),
+        Icon("alarm", "WfbIcons.drawAlarm", "an alarm clock, for an alarm indicator"),
+        Icon("dnd", "WfbIcons.drawDnd", "a bell with a slash, for do-not-disturb"),
+        Icon("notification", "WfbIcons.drawNotification",
+             "a speech-bubble badge; draw a count on top of it"),
     ]
 }
 

@@ -220,7 +220,7 @@ semantics are identical across styles and only the rendering differs.
 ```yaml
 - id: steps_icon
   type: icon
-  icon: steps               # steps | heart | flame
+  icon: steps               # steps | heart | flame | alarm | dnd | notification
   size: 30px
   color: palette.accent
 ```

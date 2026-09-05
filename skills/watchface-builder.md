@@ -162,7 +162,7 @@ Angles run **clockwise from 12 o'clock**: `0deg` is the top, `90deg` is 3
 o'clock, `180deg` is the bottom. A ring with a gap at the bottom usually starts
 near `210deg` and sweeps about `300deg`.
 
-### Six rules that will otherwise cost you a round
+### Seven rules that will otherwise cost you a round
 
 1. **Every fitness reading can be absent**, so any binding to one needs
    `when_absent:` — `hide`, `placeholder` (with `placeholder: "--"`), or
@@ -180,6 +180,14 @@ near `210deg` and sweeps about `300deg`.
    radius, gradient or cap style.
 6. **Stay inside the visible circle.** The frame buffer is square but the panel
    is round, so a corner that fits the buffer can still sit under the bezel.
+7. **Never press an icon into service for something it does not mean.** The
+   catalogue has `heart`, `steps`, `flame`, `alarm`, `dnd` and `notification` —
+   six specific shapes, not six interchangeable dots. A heart icon next to a
+   do-not-disturb indicator reads as a heart-rate alert, not as "notifications
+   are silenced": the viewer trusts the shape, and a mismatched one is actively
+   misleading rather than merely generic. If the picture needs an icon the
+   catalogue does not have, say so and draw a plain shape or a labelled number
+   instead of borrowing the nearest wrong one.
 
 ---
 
@@ -331,7 +339,7 @@ elements:
 
   - id: hr_icon                   # a drawn icon: no memory cost, takes a colour
     type: icon
-    icon: heart                   # heart | steps | flame
+    icon: heart                   # heart | steps | flame | alarm | dnd | notification
     size: 11%r
     at: {anchor: center, dx: -40%r, dy: 30%r}
     color: palette.hot

@@ -241,6 +241,43 @@ class _Renderer:
             self.draw.polygon([(cx, top), (cx + half, cy - size * 0.02),
                                (cx + half * 0.7, bottom), (cx - half * 0.7, bottom),
                                (cx - half, cy - size * 0.02)], fill=color)
+        elif element.icon == "alarm":
+            r = size / 2.0
+            stroke = max(1, round(r * 0.18))
+            face_y = cy + r * 0.1
+            self.draw.ellipse([cx - r * 0.66, face_y - r * 0.66, cx + r * 0.66, face_y + r * 0.66],
+                              outline=color, width=stroke)
+            self.draw.line([cx - r * 0.72, cy - r * 0.44, cx - r * 0.40, cy - r * 0.72],
+                           fill=color, width=stroke)
+            self.draw.line([cx + r * 0.72, cy - r * 0.44, cx + r * 0.40, cy - r * 0.72],
+                           fill=color, width=stroke)
+            self.draw.line([cx, face_y, cx, cy - r * 0.30], fill=color, width=stroke)
+            self.draw.line([cx, face_y, cx + r * 0.34, cy + r * 0.24], fill=color, width=stroke)
+        elif element.icon == "dnd":
+            r = size / 2.0
+            stroke = max(1, round(r * 0.16))
+            dome_y = cy - r * 0.14
+            self.draw.ellipse([cx - r * 0.44, dome_y - r * 0.44, cx + r * 0.44, dome_y + r * 0.44],
+                              outline=color, width=stroke)
+            left, right = cx - r * 0.68, cx + r * 0.68
+            shoulder_l, shoulder_r = cx - r * 0.44, cx + r * 0.44
+            shoulder_y, foot_y = cy + r * 0.14, cy + r * 0.42
+            self.draw.line([left, foot_y, shoulder_l, shoulder_y], fill=color, width=stroke)
+            self.draw.line([shoulder_l, shoulder_y, shoulder_r, shoulder_y], fill=color, width=stroke)
+            self.draw.line([shoulder_r, shoulder_y, right, foot_y], fill=color, width=stroke)
+            self.draw.ellipse([cx - r * 0.11, cy - r * 0.68 - r * 0.11,
+                               cx + r * 0.11, cy - r * 0.68 + r * 0.11], fill=color)
+            self.draw.ellipse([cx - r * 0.13, cy + r * 0.60 - r * 0.13,
+                               cx + r * 0.13, cy + r * 0.60 + r * 0.13], fill=color)
+            self.draw.line([cx - r * 0.86, cy + r * 0.86, cx + r * 0.86, cy - r * 0.86],
+                           fill=color, width=stroke)
+        elif element.icon == "notification":
+            r = size / 2.0
+            self.draw.rounded_rectangle(
+                [cx - r * 0.85, cy - r * 0.75, cx + r * 0.85, cy + r * 0.45],
+                radius=r * 0.30, fill=color)
+            self.draw.polygon([(cx - r * 0.24, cy + r * 0.40), (cx + r * 0.24, cy + r * 0.40),
+                               (cx - r * 0.04, cy + r * 0.85)], fill=color)
 
     # -- text helpers -----------------------------------------------------
 

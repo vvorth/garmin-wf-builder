@@ -371,6 +371,19 @@ Building it also surfaced that **element overlap is not checked** — a separato
 drawn through a row of text validates cleanly and only the preview shows it.
 That gap is invisible on a sparse face and constant on a dense one.
 
+**A second, distinct lesson from the same build, worth keeping separate:** the
+first pass reused the only icons that existed at the time (`heart`, `steps`,
+`flame`) for do-not-disturb and alarm, because that is what the catalogue had.
+The result validated and compiled cleanly and was actively misleading — a heart
+icon next to a do-not-disturb state reads as a heart-rate alert. This is a
+content bug, not a layout bug, and nothing in the tool catches it: an icon
+means what its shape says, and there is no substitute for having the right
+shape. The catalogue now has `alarm`, `dnd` and `notification` as well
+(`wfb/icons.py`, `runtime-lib/WfbIcons.mc`, mirrored in `wfb/preview.py`), and
+`skills/watchface-builder.md` §"rules" now warns against this directly. Growing
+the icon catalogue as real designs need specific things is expected Phase 3
+work, not a one-off fix.
+
 ### Known-good reference
 
 `~/claude/garmin-watchface-protomolecule/` is a **working, dense, real** watch

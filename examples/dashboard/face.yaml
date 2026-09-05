@@ -91,33 +91,60 @@ elements:
 
   # -- row 2: a secondary data row ------------------------------------------
   # The reference puts weather here. Weather is not in the catalogue yet, so
-  # this row shows three real readings instead, laid out the same way.
+  # this row shows three real readings instead -- but every one of them still
+  # carries an icon or a unit, the way the reference's temperature-percent-
+  # condition-high-low row does. A bare number with nothing to say what it is
+  # is the thing worth avoiding; it reads as a placeholder, not as data.
+  # Spacing below is sized against a *realistic* ceiling for each value (three
+  # digits of heart rate, four of daily calories), not the catalogue's worst-
+  # case digit count -- fitting five icon-and-number clusters against a 99999
+  # kcal reading would crush the row to be unreadable for every plausible one.
+  # Element overlap is not a build-time check (docs/limitations.md), so this
+  # is a judgement call made once, here, rather than a gap left implicit.
+  - id: hr_icon
+    type: icon
+    icon: heart
+    size: 8%r
+    at: {anchor: top, dx: -37%, dy: 28.5%}
+    color: palette.dim
+
   - id: hr_value
     type: text
     value: heart_rate.current
     format: "{:d}"
     font: FONT_XTINY
-    at: {anchor: top, dx: -25%, dy: 28.5%}
+    at: {anchor: top, dx: -32%, dy: 28.5%}
+    align: left
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
+
+  - id: calories_icon
+    type: icon
+    icon: flame
+    size: 8%r
+    at: {anchor: top, dx: -12%, dy: 28.5%}
+    color: palette.dim
 
   - id: calories_value
     type: text
     value: activity.calories
     format: "{:d}"
     font: FONT_XTINY
-    at: {anchor: top, dy: 28.5%}
+    at: {anchor: top, dx: -7%, dy: 28.5%}
+    align: left
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
 
-  - id: floors_value
+  # No icon for distance -- a unit suffix is enough on its own, the same way
+  # the reference's temperature readings need only a "°" to be unambiguous.
+  - id: distance_value
     type: text
-    value: activity.floors_climbed
-    format: "{:d}"
+    value: "activity.distance / 100000.0"   # centimetres -> kilometres
+    format: "{:.0f}km"
     font: FONT_XTINY
-    at: {anchor: top, dx: 25%, dy: 28.5%}
+    at: {anchor: top, dx: 27%, dy: 28.5%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
@@ -174,13 +201,18 @@ elements:
         would make the separators compete with the data"
 
   # -- row 4: status ---------------------------------------------------------
-  # The two icons take their colour from an expression, so state is visible
+  # Two named icons -- not the heart/flame from row 2 pressed into service for
+  # something they do not mean. A heart icon next to "do not disturb" reads as
+  # a heart-rate alert; the two states need their own shapes to be legible at
+  # all, which is why `dnd` and `alarm` exist in the icon catalogue.
+  #
+  # Both take their colour from an expression, so the on/off state is visible
   # without a second element: the compiler folds this into a Monkey C ternary
   # over the value it has already read.
-  - id: steps_value
+  - id: floors_value
     type: text
-    value: "activity.steps / 1000.0"
-    format: "{:.1f}k"           # always one decimal, so the width holds still
+    value: activity.floors_climbed
+    format: "{:d}fl"
     font: FONT_XTINY
     at: {anchor: top, dx: -25%, dy: 73.5%}
     color: palette.dim
@@ -189,22 +221,22 @@ elements:
 
   - id: dnd_icon
     type: icon
-    icon: flame
-    size: 8%r
+    icon: dnd
+    size: 9%r
     at: {anchor: top, dx: -9%, dy: 73.5%}
     color: "device.do_not_disturb ? palette.dnd_on : palette.off"
 
   - id: alarm_icon
     type: icon
-    icon: heart
-    size: 8%r
+    icon: alarm
+    size: 9%r
     at: {anchor: top, dx: 9%, dy: 73.5%}
     color: "device.alarm_count > 0 ? palette.alarm_on : palette.off"
 
-  - id: hr_status
+  - id: steps_value
     type: text
-    value: heart_rate.current
-    format: "{:d}"
+    value: "activity.steps / 1000.0"
+    format: "{:.1f}k"           # always one decimal, so the width holds still
     font: FONT_XTINY
     at: {anchor: top, dx: 25%, dy: 73.5%}
     color: palette.dim
@@ -224,21 +256,33 @@ elements:
         would make the separators compete with the data"
 
   # -- row 5: battery and notifications -------------------------------------
+  # The reference grows this badge to fill the whole gap between the
+  # separator above and the arc below, calling it out in a comment as "the
+  # biggest thing on the row" -- a notification is the one thing here worth
+  # noticing without reading. Sized to match: a badge drawn at the same
+  # small size as the DND/alarm icons above reads as a smudge, not a bubble.
+  #
+  # The badge body sits centred on the row, but its speech-bubble tail hangs
+  # below that centre -- so the text baseline for the whole row (the count,
+  # and the two flanking readouts, so all three line up) sits a little above
+  # the row's nominal position, on the badge body's own centre line.
   - id: battery_days
     type: text
     value: system.battery_in_days
     format: "{:.0f}d"
     font: FONT_XTINY
-    at: {anchor: top, dx: -15%, dy: 85.5%}
+    at: {anchor: top, dx: -15%, dy: 84.8%}
     color: palette.dim
 
-  # The badge is a filled circle with the count drawn on top of it. Both take
-  # their colour from the same condition, so an empty badge reads as inactive.
+  # A speech-bubble badge, not a bare circle -- a circle with a number in it
+  # reads as a clock face or a button, not as "you have notifications". Both
+  # the bubble and the count take their colour from the same condition, so an
+  # idle badge shows an empty grey bubble rather than a stray "0".
   - id: notification_badge
-    type: shape
-    shape: circle
+    type: icon
+    icon: notification
+    size: 20%r
     at: {anchor: top, dy: 85.5%}
-    radius: 6%r
     color: "device.notification_count > 0 ? palette.notify_on : palette.off"
 
   - id: notification_count
@@ -246,7 +290,7 @@ elements:
     value: device.notification_count
     format: "{:d}"
     font: FONT_XTINY
-    at: {anchor: top, dy: 85.5%}
+    at: {anchor: top, dy: 84.8%}
     color: "device.notification_count > 0 ? palette.notify_text : palette.bg"
 
   - id: battery_percent
@@ -254,7 +298,7 @@ elements:
     value: system.battery
     format: "{:.0f}%"
     font: FONT_XTINY
-    at: {anchor: top, dx: 15%, dy: 85.5%}
+    at: {anchor: top, dx: 15%, dy: 84.8%}
     color: palette.dim
 
   # -- the arcs --------------------------------------------------------------

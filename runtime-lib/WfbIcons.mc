@@ -74,4 +74,73 @@ module WfbIcons {
             [cx - half, cy - (s * 0.02).toNumber()] as Point2D
         ] as Array<Point2D>);
     }
+
+    //! An alarm clock: a circle face, two "feet" ticks, and two hands.
+    //!
+    //! Pure outline, drawn with `drawCircle`/`drawLine` rather than a fill, so
+    //! it reads correctly against any background colour.
+    function drawAlarm(dc as Graphics.Dc, cx as Number, cy as Number, size as Number) as Void {
+        var r = size.toFloat() / 2.0;
+        var stroke = (r * 0.18).toNumber();
+        if (stroke < 1) { stroke = 1; }
+        dc.setPenWidth(stroke);
+
+        var faceY = cy + (r * 0.1).toNumber();
+        dc.drawCircle(cx, faceY, (r * 0.66).toNumber());
+        dc.drawLine(cx - (r * 0.72).toNumber(), cy - (r * 0.44).toNumber(),
+                    cx - (r * 0.40).toNumber(), cy - (r * 0.72).toNumber());
+        dc.drawLine(cx + (r * 0.72).toNumber(), cy - (r * 0.44).toNumber(),
+                    cx + (r * 0.40).toNumber(), cy - (r * 0.72).toNumber());
+        dc.drawLine(cx, faceY, cx, cy - (r * 0.30).toNumber());
+        dc.drawLine(cx, faceY, cx + (r * 0.34).toNumber(), cy + (r * 0.24).toNumber());
+        dc.setPenWidth(1);
+    }
+
+    //! A bell with a diagonal slash through it, for "do not disturb".
+    //!
+    //! Drawn as outline strokes throughout, rather than a solid bell with a
+    //! background-coloured gap punched through the slash: that trick (the
+    //! reference face this catalogue was modelled on uses it) only reads
+    //! correctly over the one background colour it was punched with. An
+    //! outline bell needs no background colour at all, so it is correct behind
+    //! anything the author draws underneath it.
+    function drawDnd(dc as Graphics.Dc, cx as Number, cy as Number, size as Number) as Void {
+        var r = size.toFloat() / 2.0;
+        var stroke = (r * 0.16).toNumber();
+        if (stroke < 1) { stroke = 1; }
+        dc.setPenWidth(stroke);
+
+        dc.drawCircle(cx, cy - (r * 0.14).toNumber(), (r * 0.44).toNumber());
+        var left = cx - (r * 0.68).toNumber();
+        var shoulderL = cx - (r * 0.44).toNumber();
+        var shoulderR = cx + (r * 0.44).toNumber();
+        var right = cx + (r * 0.68).toNumber();
+        var shoulderY = cy + (r * 0.14).toNumber();
+        var footY = cy + (r * 0.42).toNumber();
+        dc.drawLine(left, footY, shoulderL, shoulderY);
+        dc.drawLine(shoulderL, shoulderY, shoulderR, shoulderY);
+        dc.drawLine(shoulderR, shoulderY, right, footY);
+        dc.fillCircle(cx, cy - (r * 0.68).toNumber(), (r * 0.11).toNumber());
+        dc.fillCircle(cx, cy + (r * 0.60).toNumber(), (r * 0.13).toNumber());
+        dc.drawLine(cx - (r * 0.86).toNumber(), cy + (r * 0.86).toNumber(),
+                    cx + (r * 0.86).toNumber(), cy - (r * 0.86).toNumber());
+        dc.setPenWidth(1);
+    }
+
+    //! A speech-bubble badge.
+    //!
+    //! Solid fill only, so unlike `drawDnd` this one has no background
+    //! dependency to avoid. The caller draws a count on top and colours it to
+    //! match the background when the count is zero, so an idle badge shows an
+    //! empty bubble rather than a stray "0".
+    function drawNotification(dc as Graphics.Dc, cx as Number, cy as Number, size as Number) as Void {
+        var r = size.toFloat() / 2.0;
+        dc.fillRoundedRectangle(cx - (r * 0.85).toNumber(), cy - (r * 0.75).toNumber(),
+                                (r * 1.7).toNumber(), (r * 1.2).toNumber(), (r * 0.30).toNumber());
+        dc.fillPolygon([
+            [cx - (r * 0.24).toNumber(), cy + (r * 0.40).toNumber()] as Point2D,
+            [cx + (r * 0.24).toNumber(), cy + (r * 0.40).toNumber()] as Point2D,
+            [cx - (r * 0.04).toNumber(), cy + (r * 0.85).toNumber()] as Point2D
+        ] as Array<Point2D>);
+    }
 }
