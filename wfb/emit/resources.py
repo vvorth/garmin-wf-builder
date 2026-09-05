@@ -55,7 +55,8 @@ def glyph_set(face: Face) -> dict[str, str]:
         if element.value is None:
             continue
         source = catalog.get(element.value.sources[0]) if element.value.sources else None
-        bucket |= formatting.glyphs(element.format or "{}", source, element.value.value.type)
+        bucket |= formatting.glyphs(element.format or "{}", source,
+                                    element.value.value.type, element.value.scale)
         if element.placeholder:
             bucket |= set(element.placeholder)
     out: dict[str, str] = {}

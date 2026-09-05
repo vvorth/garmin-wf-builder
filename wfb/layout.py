@@ -297,7 +297,8 @@ class Resolver:
             return ""
         source = catalog.get(element.value.sources[0]) if element.value.sources else None
         spec = element.format or "{}"
-        widest = formatting.widest(spec, source, element.value.value.type)
+        widest = formatting.widest(spec, source, element.value.value.type,
+                                   element.value.scale)
         if element.when_absent == "placeholder" and element.placeholder:
             if len(element.placeholder) > len(widest):
                 widest = element.placeholder

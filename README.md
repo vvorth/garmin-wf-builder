@@ -170,7 +170,9 @@ wfb/                  the compiler
   build.py, cli.py      the pipeline and `wfb`
 runtime-lib/          the hand-written support barrel the generated code calls
 schema/               the published JSON Schema (a shipped artefact)
-examples/slice/       the Phase 2 example face
+examples/slice/       the Phase 2 example face -- the smallest end-to-end path
+examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
+                      conditional colours, a badge and three arcs
 tests/                181 tests; only the `slow` ones need the Garmin toolchain
 docs/                 format reference, limitations, ADRs, Phase 0 research
 ```

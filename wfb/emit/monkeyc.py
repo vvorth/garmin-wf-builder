@@ -567,10 +567,16 @@ class ReadPlan:
             # even though the format string names no source.
             element = placed.element
             format_paths: list[str] = []
-            if isinstance(element, Text) and element.format and "%" in element.format:
-                format_paths.append("time.clock")
-                if "%h" in element.format:
-                    format_paths.append("device.is_24_hour")
+            if (isinstance(element, Text) and element.format
+                    and formatting.is_time_spec(element.format)):
+                # A date format reads the calendar; a time format reads the clock,
+                # and %h additionally reads the 12/24-hour setting.
+                if element.value is not None and element.value.value.type is Type.DATE:
+                    format_paths.append("date.today")
+                else:
+                    format_paths.append("time.clock")
+                    if "%h" in element.format:
+                        format_paths.append("device.is_24_hour")
             self._bound[placed.id] = list(paths)
             paths = paths + [p for p in format_paths if p not in paths]
             self._per_element[placed.id] = paths

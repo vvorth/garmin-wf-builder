@@ -6,6 +6,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .. import formatting
 from ..devices import Device
 from ..fonts import BakedFont
 from ..ir import Face
@@ -121,6 +122,12 @@ def write(project: GeneratedProject, *, clean: bool = True) -> list[Path]:
     return written
 
 
+def _is_time_value(element) -> bool:
+    from ..catalog import Type
+
+    return element.value is not None and element.value.value.type is Type.TIME
+
+
 def _features(face: Face) -> set[str]:
     """Which API-gated features this design uses.  Drives ``minApiLevel``."""
     return set()  # complications, on-device config and tap arrive in Phase 3
@@ -139,6 +146,9 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
             needed.add("WfbIcons.mc")
         elif kind == "text":
             element = placed.element
-            if getattr(element, "format", None) and "%" in element.format:
+            spec = getattr(element, "format", None)
+            # Only a *time* format needs the clock helpers; a date format reads
+            # Gregorian fields directly and a literal % is just punctuation.
+            if spec and formatting.is_time_spec(spec) and _is_time_value(element):
                 needed.add("WfbTime.mc")
     return sorted(needed)

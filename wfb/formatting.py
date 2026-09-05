@@ -47,6 +47,23 @@ class TimePart:
     text: str = ""
 
 
+#: strftime codes for a **date**, with the widest string each can produce.
+#:
+#: The widths assume English: the weekday and month arrive from the firmware as
+#: localised strings, so a longer language makes these under-estimates and the
+#: overflow lint correspondingly optimistic.  Three characters is what
+#: ``FORMAT_MEDIUM`` yields in English, which is the common case.
+DATE_CODES: dict[str, tuple[str, str]] = {
+    "a": ("abbreviated weekday, e.g. Thu", "Wed"),
+    "d": ("day of the month, zero-padded", "30"),
+    "e": ("day of the month, unpadded", "30"),
+    "b": ("abbreviated month, e.g. Sep", "Sep"),
+    "m": ("month number, zero-padded", "12"),
+    "Y": ("four-digit year", "2026"),
+    "y": ("two-digit year", "26"),
+    "%": ("a literal percent sign", "%"),
+}
+
 #: strftime codes we implement, with the widest string each can produce.
 TIME_CODES: dict[str, tuple[str, str]] = {
     "H": ("hour, 24-hour, zero-padded", "23"),
@@ -76,8 +93,10 @@ def parse(spec: str) -> list:
     return parts
 
 
-def parse_time(spec: str) -> list[TimePart]:
+def parse_time(spec: str, codes: dict[str, tuple[str, str]] | None = None) -> list[TimePart]:
     """Split a strftime-style field spec into codes and literal text."""
+    codes = TIME_CODES if codes is None else codes
+    what = "date" if codes is DATE_CODES else "time"
     parts: list[TimePart] = []
     buffer = ""
     index = 0
@@ -85,9 +104,9 @@ def parse_time(spec: str) -> list[TimePart]:
         char = spec[index]
         if char == "%" and index + 1 < len(spec):
             code = spec[index + 1]
-            if code not in TIME_CODES:
-                known = ", ".join(f"%{c}" for c in TIME_CODES)
-                raise FormatError(f"unknown time code %{code} -- supported: {known}")
+            if code not in codes:
+                known = ", ".join(f"%{c}" for c in codes)
+                raise FormatError(f"unknown {what} code %{code} -- supported: {known}")
             if buffer:
                 parts.append(TimePart(None, buffer))
                 buffer = ""
@@ -105,7 +124,17 @@ def parse_time(spec: str) -> list[TimePart]:
 
 
 def is_time_spec(spec: str) -> bool:
-    return "%" in spec
+    """Does this format use strftime codes?
+
+    Only the *field* is inspected.  A percent sign in the surrounding literal
+    text is ordinary punctuation -- ``{:.0f}%`` renders a battery percentage and
+    has nothing to do with strftime.
+    """
+    try:
+        parts = parse(spec)
+    except FormatError:
+        return False
+    return any(isinstance(part, Field) and "%" in part.spec for part in parts)
 
 
 # --------------------------------------------------------------------------
@@ -113,8 +142,10 @@ def is_time_spec(spec: str) -> bool:
 
 
 def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
-         settings: str = "settings") -> str:
+         settings: str = "settings", date: str = "date") -> str:
     """Compile a format spec to a Monkey C String expression."""
+    if value_type is Type.DATE:
+        return _emit_date(spec, date=date)
     if is_time_spec(spec):
         return _emit_time(spec, clock=clock, settings=settings)
 
@@ -171,6 +202,33 @@ def _emit_time(spec: str, *, clock: str, settings: str) -> str:
     return " + ".join(pieces) if pieces else '""'
 
 
+def _emit_date(spec: str, *, date: str) -> str:
+    """Compile a date spec.
+
+    ``day_of_week`` and ``month`` are already Strings under ``FORMAT_MEDIUM``, so
+    they need no conversion; the numeric fields do.
+    """
+    pieces: list[str] = []
+    for part in parse_time(_strip_braces(spec), DATE_CODES):
+        if part.code is None:
+            pieces.append(_quote(part.text))
+        elif part.code == "a":
+            pieces.append(f"{date}.day_of_week")
+        elif part.code == "d":
+            pieces.append(f'{date}.day.format("%02d")')
+        elif part.code == "e":
+            pieces.append(f'{date}.day.format("%d")')
+        elif part.code == "b":
+            pieces.append(f"{date}.month")
+        elif part.code == "m":
+            pieces.append(f'{date}.month.format("%02d")')
+        elif part.code == "Y":
+            pieces.append(f'{date}.year.format("%04d")')
+        elif part.code == "y":
+            pieces.append(f"({date}.year % 100).format(\"%02d\")")
+    return " + ".join(pieces) if pieces else '""'
+
+
 def _strip_braces(spec: str) -> str:
     parts = parse(spec)
     for part in parts:
@@ -188,7 +246,8 @@ def _quote(text: str) -> str:
 # static analysis: widest rendering, and the glyph set
 
 
-def widest(spec: str, source: Source | None, value_type: Type) -> str:
+def widest(spec: str, source: Source | None, value_type: Type,
+           scale: float = 1.0) -> str:
     """The widest string this binding can plausibly render.
 
     Used by the text-overflow lint and to derive a font's glyph set.  Digit
@@ -196,6 +255,12 @@ def widest(spec: str, source: Source | None, value_type: Type) -> str:
     to a stated assumption otherwise -- an over-estimate here costs a spurious
     warning, an under-estimate costs a clipped face on the wrist.
     """
+    if value_type is Type.DATE:
+        out = ""
+        for part in parse_time(_strip_braces(spec), DATE_CODES):
+            out += part.text if part.code is None else DATE_CODES[part.code][1]
+        return out
+
     if is_time_spec(spec):
         out = ""
         for part in parse_time(_strip_braces(spec)):
@@ -208,10 +273,12 @@ def widest(spec: str, source: Source | None, value_type: Type) -> str:
             out += part.text
             continue
         m = _NUMERIC_SPEC_RE.match(part.spec) if part.spec else None
-        digits = _max_digits(source)
+        digits = _max_digits(source, scale)
         if m and m.group("kind") == "f":
             precision = int(m.group("precision") or 1)
-            out += "8" * digits + "." + "8" * precision
+            # A zero precision prints no decimal point at all, so counting one
+            # here over-estimates the width by a character.
+            out += "8" * digits + ("." + "8" * precision if precision else "")
         else:
             width = int(m.group("width")) if m and m.group("width") else 0
             out += "8" * max(digits, width)
@@ -243,19 +310,37 @@ _SOURCE_DIGITS: dict[str, int] = {
 DEFAULT_DIGITS = 5
 
 
-def _max_digits(source: Source | None) -> int:
-    if source is None:
-        return DEFAULT_DIGITS
-    return _SOURCE_DIGITS.get(source.path, DEFAULT_DIGITS)
+def _max_digits(source: Source | None, scale: float = 1.0) -> int:
+    """Digits before the decimal point, after any constant scaling.
+
+    ``activity.steps / 1000.0`` cannot reach five digits, and treating it as if
+    it could makes the overflow lint warn about text that will never appear.
+    """
+    digits = DEFAULT_DIGITS if source is None else _SOURCE_DIGITS.get(source.path, DEFAULT_DIGITS)
+    if scale and scale != 1.0:
+        import math
+
+        digits = max(1, digits - max(0, round(math.log10(1.0 / scale))))
+    return digits
 
 
 def digits_are_known(source: Source | None) -> bool:
     return source is not None and source.path in _SOURCE_DIGITS
 
 
-def glyphs(spec: str, source: Source | None, value_type: Type) -> set[str]:
+def glyphs(spec: str, source: Source | None, value_type: Type,
+           scale: float = 1.0) -> set[str]:
     """Every character this binding can render -- the font's required subset."""
-    out = set(widest(spec, source, value_type))
+    out = set(widest(spec, source, value_type, scale))
+    if value_type is Type.DATE:
+        # The weekday and month are localised strings chosen by the firmware, so
+        # the full alphabet has to be present -- a custom font subset that
+        # carried only "Wed" and "Sep" would drop glyphs on most days of the year.
+        out |= set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        out |= set("abcdefghijklmnopqrstuvwxyz")
+        out |= set("0123456789 ")
+        return out
+
     if is_time_spec(spec):
         out |= set("0123456789")
         if "%p" in spec:

@@ -1,0 +1,306 @@
+# Dashboard -- a dense, multi-row face.
+#
+# A worked example of the techniques a complex design needs, modelled on the
+# reference face in `garmin-watchface-protomolecule`: stacked rows separated by
+# hairlines, a two-tone clock, values whose colour depends on their own state,
+# icon-and-number clusters, and progress arcs hugging the bezel.
+#
+# Build it:  wfb build examples/dashboard/face.yaml
+#
+# ---------------------------------------------------------------------------
+# Two things to notice about how this is written.
+#
+# **Rows are positioned from the top, not the centre.** `anchor: top` with a `%`
+# offset reads as "this far down the screen", which is how a row-based design is
+# actually designed, and it matches the fractions the reference measured off its
+# own rendering. Percentages resolve against the parent box, so a row at
+# `dy: 6.6%` sits 6.6% of the screen height below the top edge on every device.
+#
+# **The separators are drawn in polar coordinates.** Each hairline is a chord of
+# a circle just inside the bezel, so both ends are placed by angle and radius
+# rather than by x and y -- which is what keeps them touching the rim on a
+# 260 px and a 280 px screen alike.
+#
+# What the reference has and this does not: a weather row, a Body Battery
+# history graph, and a daylight arc. Those need data sources the format does not
+# expose yet -- see docs/limitations.md. The rows below use real sources so the
+# example builds and runs; swap them out as the catalogue grows.
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: c47a1f36-8b25-4e09-a3d7-5f81904bc2e6
+  name: Dashboard
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+# Every channel is 00, 55, AA or FF -- the only values a 64-colour MIP panel
+# renders without dithering. `wfb validate` checks this and names the nearest
+# legal colour when it is wrong.
+palette:
+  bg: "#000000"
+  date: "#00FF00"
+  hours: "#FFFFFF"
+  minutes: "#00FFFF"
+  text: "#FFFFFF"
+  dim: "#AAAAAA"
+  separator: "#555555"
+  off: "#555555"
+  dnd_on: "#FF0000"
+  alarm_on: "#FFFF00"
+  notify_on: "#FFAA00"
+  notify_text: "#000000"
+  arc_steps: "#00FF00"
+  arc_battery: "#00FFFF"
+  arc_move: "#FFFF00"
+  track: "#555555"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+
+  # -- row 1: the date -------------------------------------------------------
+  - id: date
+    type: text
+    value: date.today
+    format: "{:%a %e %b}"       # "Thu 3 Sep" -- %a and %b come back localised
+    font: FONT_XTINY
+    at: {anchor: top, dy: 13.8%}
+    color: palette.date
+
+  # A separator is a chord of a circle just inside the bezel. Both ends are
+  # polar, so the line reaches the rim on any screen size.
+  - id: sep_1
+    type: shape
+    shape: line
+    at: {anchor: center, angle: -52.2deg, radius: 94%r}
+    to: {anchor: center, angle: 52.2deg, radius: 94%r}
+    thickness: 1px
+    color: palette.separator
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  # -- row 2: a secondary data row ------------------------------------------
+  # The reference puts weather here. Weather is not in the catalogue yet, so
+  # this row shows three real readings instead, laid out the same way.
+  - id: hr_value
+    type: text
+    value: heart_rate.current
+    format: "{:d}"
+    font: FONT_XTINY
+    at: {anchor: top, dx: -25%, dy: 28.5%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: calories_value
+    type: text
+    value: activity.calories
+    format: "{:d}"
+    font: FONT_XTINY
+    at: {anchor: top, dy: 28.5%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: floors_value
+    type: text
+    value: activity.floors_climbed
+    format: "{:d}"
+    font: FONT_XTINY
+    at: {anchor: top, dx: 25%, dy: 28.5%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: sep_2
+    type: shape
+    shape: line
+    at: {anchor: center, angle: -72.4deg, radius: 94%r}
+    to: {anchor: center, angle: 72.4deg, radius: 94%r}
+    thickness: 1px
+    color: palette.separator
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  # -- row 3: the clock, in two colours -------------------------------------
+  # Hours and minutes are separate elements so each can take its own colour --
+  # a single text element draws in exactly one colour, because a bitmap font
+  # carries one channel.
+  #
+  # FONT_NUMBER_MEDIUM rather than FONT_NUMBER_HOT: at 99px the larger face
+  # leaves no room for five rows and four rules on a 260px screen. A face that
+  # wants a clock that dominates the dial declares a custom font cut to size --
+  # see `fonts:` in docs/format.md -- which is how the reference does it.
+  - id: hours
+    type: text
+    value: time.hour
+    format: "{:02d}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center, dx: -1%, dy: 0.8%}
+    align: right
+    color: palette.hours
+
+  - id: minutes
+    type: text
+    value: time.minute
+    format: "{:02d}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center, dx: 1%, dy: 0.8%}
+    align: left
+    color: palette.minutes
+
+  - id: sep_3
+    type: shape
+    shape: line
+    at: {anchor: center, angle: 109.9deg, radius: 94%r}
+    to: {anchor: center, angle: -109.9deg, radius: 94%r}
+    thickness: 1px
+    color: palette.separator
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  # -- row 4: status ---------------------------------------------------------
+  # The two icons take their colour from an expression, so state is visible
+  # without a second element: the compiler folds this into a Monkey C ternary
+  # over the value it has already read.
+  - id: steps_value
+    type: text
+    value: "activity.steps / 1000.0"
+    format: "{:.1f}k"           # always one decimal, so the width holds still
+    font: FONT_XTINY
+    at: {anchor: top, dx: -25%, dy: 73.5%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: dnd_icon
+    type: icon
+    icon: flame
+    size: 8%r
+    at: {anchor: top, dx: -9%, dy: 73.5%}
+    color: "device.do_not_disturb ? palette.dnd_on : palette.off"
+
+  - id: alarm_icon
+    type: icon
+    icon: heart
+    size: 8%r
+    at: {anchor: top, dx: 9%, dy: 73.5%}
+    color: "device.alarm_count > 0 ? palette.alarm_on : palette.off"
+
+  - id: hr_status
+    type: text
+    value: heart_rate.current
+    format: "{:d}"
+    font: FONT_XTINY
+    at: {anchor: top, dx: 25%, dy: 73.5%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "--"
+
+  - id: sep_4
+    type: shape
+    shape: line
+    at: {anchor: center, angle: 128.4deg, radius: 94%r}
+    to: {anchor: center, angle: -128.4deg, radius: 94%r}
+    thickness: 1px
+    color: palette.separator
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  # -- row 5: battery and notifications -------------------------------------
+  - id: battery_days
+    type: text
+    value: system.battery_in_days
+    format: "{:.0f}d"
+    font: FONT_XTINY
+    at: {anchor: top, dx: -15%, dy: 85.5%}
+    color: palette.dim
+
+  # The badge is a filled circle with the count drawn on top of it. Both take
+  # their colour from the same condition, so an empty badge reads as inactive.
+  - id: notification_badge
+    type: shape
+    shape: circle
+    at: {anchor: top, dy: 85.5%}
+    radius: 6%r
+    color: "device.notification_count > 0 ? palette.notify_on : palette.off"
+
+  - id: notification_count
+    type: text
+    value: device.notification_count
+    format: "{:d}"
+    font: FONT_XTINY
+    at: {anchor: top, dy: 85.5%}
+    color: "device.notification_count > 0 ? palette.notify_text : palette.bg"
+
+  - id: battery_percent
+    type: text
+    value: system.battery
+    format: "{:.0f}%"
+    font: FONT_XTINY
+    at: {anchor: top, dx: 15%, dy: 85.5%}
+    color: palette.dim
+
+  # -- the arcs --------------------------------------------------------------
+  # Three short arcs along the bottom rim. Each is a stroked ring: there is no
+  # filled-sector primitive on this platform, so `thickness` is a pen width.
+  # `track_color` draws the full length in grey first, so a partial fill can be
+  # read against how long the track is.
+  #
+  # Angles are clockwise from 12 o'clock, so 180deg is the bottom of the screen.
+  - id: arc_steps
+    type: progress
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    at: {anchor: center}
+    radius: 96%r
+    thickness: 4px
+    start_angle: 215deg         # lower left, growing anticlockwise towards 9 o'clock
+    sweep: -33deg
+    color: palette.arc_steps
+    track_color: palette.track
+    when_absent: hide
+
+  - id: arc_battery
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    at: {anchor: center}
+    radius: 96%r
+    thickness: 4px
+    start_angle: 166deg         # just left of 6 o'clock, growing clockwise
+    sweep: 28deg
+    color: palette.arc_battery
+    track_color: palette.track
+
+  - id: arc_move
+    type: progress
+    style: arc
+    value: activity.move_bar_level
+    max: 5
+    at: {anchor: center}
+    radius: 96%r
+    thickness: 4px
+    start_angle: 145deg         # lower right, growing anticlockwise towards 3 o'clock
+    sweep: -33deg
+    color: palette.arc_move
+    track_color: palette.track
+    when_absent: hide

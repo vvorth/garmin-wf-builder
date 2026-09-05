@@ -299,6 +299,22 @@ Python-style specs, familiar and unambiguous.
 | `{:.1f}` | a float |
 | `{:d} steps` | literal text around the field |
 
+Date values (`date.today`) use their own codes — separate from the time codes
+below, because `%M` means minute and `%m` means month, and silently rendering one
+where the other belongs is exactly the confusion the split prevents:
+
+| Code | Renders |
+|---|---|
+| `%a` | abbreviated weekday, e.g. `Thu` |
+| `%b` | abbreviated month, e.g. `Sep` |
+| `%e` / `%d` | day of the month, unpadded / zero-padded |
+| `%m` | month number, zero-padded |
+| `%Y` / `%y` | four- / two-digit year |
+
+`format: "{:%a %e %b}"` renders `Thu 3 Sep`. The weekday and month come back from
+the firmware already localised, so a custom font bound to a date is subsetted
+with the whole alphabet rather than with the glyphs of one particular day.
+
 Time values use strftime codes, plus one addition:
 
 | Code | Meaning |

@@ -358,6 +358,19 @@ dependency order:
 Use the sibling Dashboard face as the forcing function: **"can the schema express
 Dashboard?"** is the right question to drive Phase 3 scope.
 
+**That question has now been asked once**, in `examples/dashboard/` — a
+deliberate reproduction of the reference face. It gets the row structure, the
+polar separators, the two-tone clock, conditional colours, the notification badge
+and the arcs. What it cannot express is **all data, not layout**: weather, Body
+Battery, sunrise/sunset, and the history graph. Three of those are catalogue
+entries; the graph additionally wants a series element, and is the strongest
+argument in the codebase for building `raw` (ADR 0007) rather than growing the
+schema. `docs/limitations.md` §2 records the detail.
+
+Building it also surfaced that **element overlap is not checked** — a separator
+drawn through a row of text validates cleanly and only the preview shows it.
+That gap is invisible on a sparse face and constant on a dense one.
+
 ### Known-good reference
 
 `~/claude/garmin-watchface-protomolecule/` is a **working, dense, real** watch

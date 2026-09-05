@@ -233,3 +233,57 @@ def test_a_nullable_reader_is_narrowed_before_its_field_is_read(write_design, ba
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
     assert "(activityInfo != null) ? activityInfo.currentHeartRate : null" in view
+
+
+def test_a_constant_divisor_is_recovered_from_the_expression(write_design, bag):
+    """The overflow lint sizes the rendered result, so it needs the scale."""
+    face = load(write_design(design("""
+  - id: steps
+    type: text
+    value: "activity.steps / 1000.0"
+    format: "{:.1f}k"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+""")), bag)
+    assert face is not None, bag.render()
+    steps = next(e for e in face.walk() if e.id == "steps")
+    assert steps.value.scale == pytest.approx(0.001)
+
+
+def test_an_unscaled_expression_reports_a_scale_of_one(write_design, bag):
+    face = load(write_design(design("""
+  - id: steps
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+""")), bag)
+    steps = next(e for e in face.walk() if e.id == "steps")
+    assert steps.value.scale == 1.0
+
+
+def test_a_date_value_rejects_a_time_format(write_design, bag):
+    load(write_design(design("""
+  - id: date
+    type: text
+    value: date.today
+    format: "{:%H:%M}"
+    color: palette.fg
+    at: {anchor: center}
+""")), bag)
+    assert any(d.code == "format" for d in bag.errors)
+    assert "%a" in bag.errors[0].message
+
+
+def test_a_date_value_needs_a_format(write_design, bag):
+    load(write_design(design("""
+  - id: date
+    type: text
+    value: date.today
+    color: palette.fg
+    at: {anchor: center}
+""")), bag)
+    assert any("%a %e %b" in d.message for d in bag.errors)

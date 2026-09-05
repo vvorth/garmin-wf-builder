@@ -108,6 +108,26 @@ explicitly or an on-watch change silently does not take effect.
 
 Phase 2 shipped a vertical slice. Present in the ADRs, absent from the code:
 
+### Measured against a real face
+
+`examples/dashboard/` is a deliberate attempt to reproduce the reference face in
+`garmin-watchface-protomolecule` — the "can the schema express Dashboard?"
+question ADR 0004 poses. It gets the row structure, the separators, the two-tone
+clock, the conditional colours, the badge and the arcs. **Four things it cannot
+express**, all for want of data sources rather than element types:
+
+| Dashboard has | Blocked on |
+|---|---|
+| A weather row — temperature, precipitation chance, condition, high, low | no `weather.*` sources |
+| Body Battery, on the status row and the left arc | no `SensorHistory` sources |
+| A configurable history graph — HR, Body Battery, stress, pressure, elevation | no graph element **and** no history sources |
+| A daylight arc that drains between sunrise and sunset | no sunrise/sunset sources |
+
+The first, second and fourth are catalogue work. The third additionally needs an
+element type that plots a series, which is the strongest argument in the codebase
+for the `raw` escape hatch: a sparkline is exactly the sort of thing that should
+drop to hand-written Monkey C rather than growing the schema.
+
 | Missing | Where it is specified |
 |---|---|
 | `image` and `complication_slot` elements | ADR 0004 |
@@ -167,7 +187,14 @@ coverage of a subsetted font; refresh tiers; contrast arithmetic.
 ### Not checked at all
 
 * **Element overlap.** Two elements may be placed on top of each other with no
-  complaint.
+  complaint. Building `examples/dashboard/` ran into this repeatedly: a
+  separator drawn through a row of text validates cleanly, and only the preview
+  shows it. A dense design is where this gap is felt.
+* **The rendered width of a computed value.** The overflow check knows the digit
+  range of a bound *source* and now accounts for a constant scale factor
+  (`activity.steps / 1000`), but not for arithmetic in general. A value derived
+  by anything more involved is sized from its source's full range, which
+  over-estimates.
 * **Visual quality.** Nothing judges whether a design is legible or attractive.
 * **AMOLED pixel and luminance ratios** (ADR 0008 check 8). Not implemented; the
   simulator's heat map is authoritative anyway.

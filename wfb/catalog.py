@@ -32,12 +32,19 @@ class Type(str, Enum):
     STRING = "string"
     #: A clock reading; only ``format`` specs with ``%`` codes apply to it.
     TIME = "time"
+    #: A calendar reading.  Separate from TIME because the codes differ -- ``%M``
+    #: means minute and has no meaning on a date, and ``%b`` the reverse.
+    DATE = "date"
     #: A palette or config colour.  Numeric on device, but not interchangeable
     #: with Number: arithmetic on a colour is almost always a mistake.
     COLOR = "color"
 
     def is_numeric(self) -> bool:
         return self in (Type.NUMBER, Type.FLOAT)
+
+    def is_formatted(self) -> bool:
+        """Types whose ``format`` uses strftime-style codes rather than {:d}."""
+        return self in (Type.TIME, Type.DATE)
 
 
 class Tier(str, Enum):
@@ -71,6 +78,12 @@ READERS: dict[str, Reader] = {
         "settings", "System.getDeviceSettings()", "System.DeviceSettings", "Toybox.System"
     ),
     "stats": Reader("stats", "System.getSystemStats()", "System.Stats", "Toybox.System"),
+    "date": Reader(
+        "date",
+        "Gregorian.info(Time.now(), Time.FORMAT_MEDIUM)",
+        "Gregorian.Info",
+        "Toybox.Time.Gregorian",
+    ),
     "activity": Reader(
         "activity",
         "ActivityMonitor.getInfo()",
@@ -138,6 +151,17 @@ CATALOG: dict[str, Source] = {
            doc="minute, 0-59", source_ref="Toybox/System/ClockTime.html"),
         _s("time.second", Type.NUMBER, "clock", "sec", False, Tier.FRAME,
            doc="second, 0-59", source_ref="Toybox/System/ClockTime.html"),
+        # -- date ---------------------------------------------------------
+        # Toybox/Time/Gregorian/Info.html.  Under FORMAT_MEDIUM the weekday and
+        # month come back as localised strings, which is what a date row wants;
+        # the day and year are Numbers either way.
+        _s("date.today", Type.DATE, "date", None, False, Tier.FRAME,
+           doc="today's date", source_ref="Toybox/Time/Gregorian/Info.html"),
+        _s("date.day", Type.NUMBER, "date", "day", False, Tier.FRAME,
+           doc="day of the month, 1-31", source_ref="Toybox/Time/Gregorian/Info.html"),
+        _s("date.year", Type.NUMBER, "date", "year", False, Tier.FRAME,
+           doc="the year", source_ref="Toybox/Time/Gregorian/Info.html"),
+
         # -- device settings ----------------------------------------------
         # Toybox/System/DeviceSettings.html
         _s("device.is_24_hour", Type.BOOLEAN, "settings", "is24Hour", False, Tier.FRAME,

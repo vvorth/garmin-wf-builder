@@ -87,3 +87,40 @@ def test_template_compiles(tmp_path, bag, db, name):
     assert result is not None, bag.render()
     assert bag.ok(), bag.render()
     assert result.products, "nothing was compiled"
+
+
+# -- the worked examples ----------------------------------------------------
+
+EXAMPLES = sorted((Path(__file__).resolve().parent.parent / "examples").glob("*/face.yaml"))
+
+
+@pytest.mark.parametrize("design", EXAMPLES, ids=lambda p: p.parent.name)
+def test_example_is_clean_on_every_target(design, bag, db):
+    """An example is copied verbatim, so a warning in one teaches the warning."""
+    from wfb import lint
+
+    face = load(design, bag)
+    assert face is not None, bag.render()
+    lint.check_permissions(face, bag)
+    for device_id in face.targets:
+        if device_id not in db.ids():
+            continue
+        device = db.get(device_id)
+        resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+        lint.run(resolved, bag)
+    noisy = [d for d in bag.items if d.severity.value in ("error", "warning")]
+    assert not noisy, bag.render()
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("design", EXAMPLES, ids=lambda p: p.parent.name)
+def test_example_compiles(design, tmp_path, bag, db):
+    from wfb.build import Toolchain, build
+
+    toolchain = Toolchain.discover()
+    if toolchain is None or not toolchain.key.exists():
+        pytest.skip("no Connect IQ SDK or developer key")
+    result = build(design, output=tmp_path, bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    assert len(result.products) == len(result.devices)

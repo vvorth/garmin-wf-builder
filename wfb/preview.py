@@ -33,6 +33,12 @@ from .palette import MIP64_LEVELS, Color
 #: Plausible readings, so a preview shows a face mid-life rather than at zero.
 SAMPLE: dict[str, object] = {
     "time.clock": 0,
+    "date.today": 0,
+    "date.weekday": "Wed",
+    "date.day": 3,
+    "date.month": "Sep",
+    "date.month_number": 9,
+    "date.year": 2026,
     "time.hour": 10,
     "time.minute": 9,
     "time.second": 42,
@@ -73,6 +79,13 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     values = dict(SAMPLE)
     if options.sample:
         values.update(options.sample)
+
+    # Palette entries are ordinary references inside an expression, so a
+    # conditional colour cannot be evaluated without them.  Seeding them here is
+    # what makes `cond ? palette.a : palette.b` render as the design intends
+    # rather than silently falling back to white.
+    for name, color in resolved.face.palette.items():
+        values.setdefault(f"palette.{name}", color.value)
 
     device = resolved.device
     scale = max(1, options.scale)
@@ -173,12 +186,18 @@ class _Renderer:
             # Pillow's arc runs clockwise from 3 o'clock; the author's angles run
             # clockwise from 12 o'clock, so shift by 90 degrees.
             start = placed.start_angle - 90.0
+
+            def span(sweep: float) -> tuple[float, float]:
+                """Order the endpoints so Pillow takes the short way round."""
+                end = start + sweep
+                return (start, end) if sweep >= 0 else (end, start)
+
             if element.track_color is not None:
-                self.draw.arc(box, start, start + placed.sweep,
-                              fill=self._color(element.track_color), width=width)
+                a, b = span(placed.sweep)
+                self.draw.arc(box, a, b, fill=self._color(element.track_color), width=width)
             if fraction > 0:
-                self.draw.arc(box, start, start + placed.sweep * fraction,
-                              fill=self._color(element.color), width=width)
+                a, b = span(placed.sweep * fraction)
+                self.draw.arc(box, a, b, fill=self._color(element.color), width=width)
             return
 
         box = self._rect(placed.box)
@@ -234,6 +253,8 @@ class _Renderer:
         spec = element.format or "{}"
         if element.value.value.type is Type.TIME:
             return _render_time(spec, self.values)
+        if element.value.value.type is Type.DATE:
+            return _render_date(spec, self.values)
         value = expr.evaluate(element.value.ast, self.values) if element.value.ast else None
         if value is None:
             if element.when_absent == "placeholder":
@@ -339,6 +360,28 @@ def _render_time(spec: str, values: dict) -> str:
             out += f"{second:02d}"
         elif part.code == "p":
             out += "AM" if hour < 12 else "PM"
+    return out
+
+
+def _render_date(spec: str, values: dict) -> str:
+    out = ""
+    for part in formatting.parse_time(formatting._strip_braces(spec), formatting.DATE_CODES):
+        if part.code is None:
+            out += part.text
+        elif part.code == "a":
+            out += str(values.get("date.weekday", "Wed"))
+        elif part.code == "d":
+            out += f"{int(values.get('date.day', 3)):02d}"
+        elif part.code == "e":
+            out += f"{int(values.get('date.day', 3))}"
+        elif part.code == "b":
+            out += str(values.get("date.month", "Sep"))
+        elif part.code == "m":
+            out += f"{int(values.get('date.month_number', 9)):02d}"
+        elif part.code == "Y":
+            out += f"{int(values.get('date.year', 2026)):04d}"
+        elif part.code == "y":
+            out += f"{int(values.get('date.year', 2026)) % 100:02d}"
     return out
 
 

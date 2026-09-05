@@ -78,6 +78,28 @@ class Expression:
         return self.value.nullable
 
     @property
+    def scale(self) -> float:
+        """The constant factor this expression applies to its source, if any.
+
+        Recognises the `source / 1000` idiom -- steps to thousands, centimetres
+        to kilometres -- so the overflow lint sizes the *result* rather than the
+        raw reading.  Anything more involved returns 1.0, which is the
+        conservative answer.
+        """
+        node = self.ast
+        if not isinstance(node, expr.Binary) or node.op not in ("/", "*"):
+            return 1.0
+        if not isinstance(node.right, expr.Literal):
+            return 1.0
+        try:
+            factor = float(node.right.value)
+        except (TypeError, ValueError):
+            return 1.0
+        if factor == 0:
+            return 1.0
+        return (1.0 / factor) if node.op == "/" else factor
+
+    @property
     def is_constant(self) -> bool:
         return self.constant is not None
 
@@ -548,22 +570,39 @@ class Builder:
     def _check_format(self, node: dict, bound: Expression, spec: str | None) -> None:
         span = self.doc.span(node, "format")
         if spec is None:
-            if bound.value.type is Type.TIME:
+            if bound.value.type.is_formatted():
+                example = "{:%a %e %b}" if bound.value.type is Type.DATE else "{:%H:%M}"
                 self.bag.error(
                     "format",
-                    "a time value needs a 'format:', e.g. '{:%H:%M}'",
+                    f"a {bound.value.type.value} value needs a 'format:', e.g. '{example}'",
                     self.doc.span(node, "value"),
                 )
             return
-        is_time_spec = "%" in spec
-        if is_time_spec and bound.value.type is not Type.TIME:
+        from . import formatting
+
+        coded = formatting.is_time_spec(spec)
+        if coded and not bound.value.type.is_formatted():
             self.bag.error(
-                "format", f"strftime-style format {spec!r} needs a time value, got {bound.value}", span
+                "format",
+                f"strftime-style format {spec!r} needs a time or date value, got {bound.value}",
+                span,
             )
-        elif not is_time_spec and bound.value.type is Type.TIME:
+        elif not coded and bound.value.type.is_formatted():
+            example = "{:%a %e %b}" if bound.value.type is Type.DATE else "{:%H:%M}"
             self.bag.error(
-                "format", f"a time value needs a strftime-style format such as '{{:%H:%M}}'", span
+                "format",
+                f"a {bound.value.type.value} value needs a strftime-style format "
+                f"such as '{example}'",
+                span,
             )
+        elif coded:
+            # Catch a date spec on a clock value and the reverse: both parse, and
+            # the wrong one silently renders nonsense (%M is minute, not month).
+            codes = formatting.DATE_CODES if bound.value.type is Type.DATE else formatting.TIME_CODES
+            try:
+                formatting.parse_time(formatting._strip_braces(spec), codes)
+            except formatting.FormatError as exc:
+                self.bag.error("format", str(exc), span)
 
     def _check_tiers(self, element: Element) -> None:
         """ADR 0005 5 / lint check 12: low-power draws may read only frame-tier sources.
