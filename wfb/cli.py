@@ -477,7 +477,8 @@ def _sources(args) -> int:
             if source.tier.value != "frame":
                 flags.append(f"{source.tier.value} tier")
             suffix = f"  [{', '.join(flags)}]" if flags else ""
-            print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}")
+            ref = f"  ({source.source_ref})" if source.source_ref else ""
+            print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}{ref}")
     print(f"\nicons: {', '.join(icons.names())}")
     return 0
 

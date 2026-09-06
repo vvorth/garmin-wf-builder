@@ -184,9 +184,31 @@ Z-order is document order, with an optional `z:` override. Every element takes
   font: font.clock
   at: { anchor: center, dy: -4% }
   color: palette.text
-  align: center             # left | center | right
+  align: center             # left | center | right    (horizontal)
+  vertical_align: center    # top | center | baseline  (vertical)
   when_absent: hide
 ```
+
+**`align`/`vertical_align` say which part of the text's own box lands on `at`'s
+resolved point** -- `at`/`anchor`/`dx`/`dy` only ever compute *one point*; these
+two say what of the element is centred, started, or ended there, independently
+per axis. Both default to `center`, which is why `at: {anchor: top, dy: 7%}`
+by itself puts the *centre* of the text at 7% down from the top, not its edge.
+
+To anchor the text's own **bottom** edge to a point instead (so growing text
+extends upward from a fixed baseline, for instance) -- the case that is not
+obvious from `align` alone -- set `vertical_align: baseline`:
+
+```yaml
+at: { anchor: top, dy: 7% }
+vertical_align: baseline   # the box's bottom edge sits at dy: 7%, not its centre
+```
+
+`top` puts the box's top edge at the point instead. Note `baseline` here means
+the bottom of the full line box (ascent + descent), not the typographic
+baseline glyphs actually sit on (which excludes a descender like the tail of a
+"g" or "y") -- close enough for short labels and digits, but not a true
+baseline-align.
 
 ### `progress`
 
@@ -284,14 +306,53 @@ box, not the screen.
 ## Data binding
 
 Sources are addressed by dotted path and carry a type, a nullability, a
-permission and a refresh tier. `wfb sources` lists the catalogue.
+permission and a refresh tier.
 
 ```yaml
 value: activity.steps
-value: heart_rate.current       # requires the Sensor permission -- derived, not declared
+value: heart_rate.current
 value: system.battery
 value: time.clock
 ```
+
+**`wfb sources` is the authoritative, always-current list** -- run it rather
+than trusting a copy pasted into prose, which goes stale the moment the
+catalogue grows. For each path it prints the type, whether it is nullable,
+any non-`frame` refresh tier, any permission it implies, and the SDK page it
+was taken from:
+
+```
+$ wfb sources
+activity
+  activity.steps                     number   steps today  [nullable]  (Toybox/ActivityMonitor/Info.html)
+  ...
+heart_rate
+  heart_rate.current                 number   current heart rate  [nullable]  (Toybox/Activity/Info.html)
+  ...
+```
+
+As of this writing the catalogue covers `time.*`, `date.*`, `device.*`
+(notification/alarm counts, do-not-disturb, phone-connected, 24-hour setting),
+`system.*` (battery, charging), `activity.*` (steps, calories, distance,
+floors, move bar, intensity minutes) and `heart_rate.current`. **Body Battery
+and live weather are not bindable yet** -- not an oversight, but a real
+platform constraint each: Body Battery is exposed only through
+`Toybox.SensorHistory` or a Complication (`COMPLICATION_TYPE_BODY_BATTERY`),
+and `SensorHistory` is a permission **watch faces are not allowed to declare
+at all** (`Core_Topics/Manifest_and_Permissions.html`'s permission table has a
+blank Watch Face column for it) -- so a Complication, on the `event` refresh
+tier, is the only path, and that tier is not implemented yet. Weather
+(`Toybox.Weather`) needs its own wiring for the same reason: it is a `slow`
+tier (TTL-cached) source, not a `frame` one, and nothing has built that path
+yet. See `docs/limitations.md` §2 for the current state of both.
+
+If a value you want is missing and it is not one of those two, check the
+underlying Garmin API page: `Toybox/ActivityMonitor/Info.html`,
+`Toybox/System/Stats.html`, `Toybox/System/DeviceSettings.html` and
+`Toybox/Activity/Info.html` are where the current catalogue draws from, and
+each has more fields than are exposed today -- adding one is a `wfb/catalog.py`
+entry (path, type, nullability, tier, permission, the SDK field it reads), not
+a schema change.
 
 **The compiler derives `manifest.xml` permissions from the bindings.** A missing
 permission does not fail loudly on a Garmin device: the API returns null and the

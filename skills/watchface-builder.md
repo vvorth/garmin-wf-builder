@@ -311,7 +311,8 @@ elements:
     font: FONT_SMALL              # or font.clock for a declared custom font
     at: {anchor: center, dy: 30%r}
     color: palette.text
-    align: center                 # left | center | right
+    align: center                 # left | center | right    (horizontal part of the box at `at`)
+    vertical_align: center        # top | center | baseline  (vertical part of the box at `at`)
     when_absent: placeholder      # hide | placeholder | fallback
     placeholder: "--"
 
