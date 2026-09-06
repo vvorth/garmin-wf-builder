@@ -82,28 +82,42 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     size: two icons declared at the same `size:` do not necessarily need the
     same *nominal* font size to look the same height, because the font's
     aggregated icon sets pad their glyphs inside the em-square differently
-    (see `wfb.icons.bake_size`). Each key's char set is therefore always
-    exactly one codepoint.
+    (see `wfb.icons.bake_size`). Each *static* icon's key's char set is
+    therefore exactly one codepoint.
+
+    A *dynamic* icon (`icon_for:`) is the one exception: its glyph is chosen
+    on-device at runtime (`WfbWeather.mc`), so its font must contain every
+    glyph that choice could land on (`wfb.icons.WEATHER_GLYPH_SET`) rather
+    than one -- `bake_size` is measured against a single representative glyph
+    of that set (`wfb.icons.WEATHER_BAKE_REFERENCE_GLYPH`) for lack of a
+    nominal size that fits all of them equally (see that constant's own
+    docstring for why one does not exist).
     """
-    by_key: dict[str, tuple[object, str]] = {}
+    by_key: dict[str, tuple[object, str, str]] = {}  # key -> (size, glyphs, bake_reference)
     for element in face.walk():
         if not isinstance(element, IconElement):
             continue
-        key = icons.font_key(element.size, element.codepoint)
-        by_key[key] = (element.size, element.codepoint)
+        if element.is_dynamic:
+            glyph_key = icons.DYNAMIC_WEATHER_TAG
+            glyphs = icons.WEATHER_GLYPH_SET
+            reference = icons.WEATHER_BAKE_REFERENCE_GLYPH
+        else:
+            glyph_key = glyphs = reference = element.codepoint
+        key = icons.font_key(element.size, glyph_key)
+        by_key[key] = (element.size, glyphs, reference)
     return {
         key: FontSpec(
             name=key,
             source=icons.FONT_PATH,
             size=float(icons.bake_size(
-                codepoint, icons.pixel_size(length, device.minor_radius),
+                reference, icons.pixel_size(length, device.minor_radius),
             )),
-            glyphs=codepoint,
+            glyphs=glyphs,
             antialias=False,
             scale=False,  # already resolved to this device's final pixel size
             span=None,
         )
-        for key, (length, codepoint) in by_key.items()
+        for key, (length, glyphs, reference) in by_key.items()
     }
 
 

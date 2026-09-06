@@ -70,6 +70,16 @@ class Reader:
     monkeyc_type: str  # its declared type, for -l 3 strict typechecking
     module: str  # the module to import
     nullable: bool = False  # whether the call itself can return null
+    #: Every source reading this reader must agree with this tier -- checked in
+    #: tests/test_catalog.py, since the cache (or lack of one) is generated
+    #: once per *reader*, not per source.
+    tier: Tier = Tier.FRAME
+    #: Only meaningful when ``tier`` is ``SLOW``: how long a cached read stays
+    #: fresh before the generated code calls this reader again. Chosen once,
+    #: globally, rather than per-source -- there is no basis yet for a finer
+    #: default, and an author can always override it (`wfb/emit/monkeyc.py`'s
+    #: `ReadPlan` is where this would be threaded through if that need arises).
+    ttl_seconds: int = 900
 
 
 READERS: dict[str, Reader] = {
@@ -97,6 +107,28 @@ READERS: dict[str, Reader] = {
         "Toybox.Activity",
         nullable=True,
     ),
+    # Toybox/Weather.html: "get the most recently cached weather conditions" --
+    # cheap on Garmin's side, but still a call plus (for the daily forecast) an
+    # array walk, and the tier design's whole point is not to pay that on every
+    # single redraw. No permission needed: Toybox.Weather does not appear in
+    # the manifest permission table at all (Core_Topics/Manifest_and_Permissions
+    # .html), the same situation as Toybox.Activity.
+    "weather_current": Reader(
+        "weatherCurrent",
+        "Weather.getCurrentConditions()",
+        "Weather.CurrentConditions?",
+        "Toybox.Weather",
+        nullable=True,
+        tier=Tier.SLOW,
+    ),
+    "weather_daily": Reader(
+        "weatherDaily",
+        "Weather.getDailyForecast()",
+        "Lang.Array<Weather.DailyForecast>?",
+        "Toybox.Weather",
+        nullable=True,
+        tier=Tier.SLOW,
+    ),
 }
 
 
@@ -119,14 +151,30 @@ class Source:
     doc: str = ""
     #: The SDK page this entry was taken from.
     source_ref: str = ""
+    #: Set when the reader's value is an Array and this source reads one
+    #: element's field rather than the reader object's own field directly --
+    #: `weather.condition_today`/`_tomorrow` read `DailyForecast[0]`/`[1]`.
+    array_index: int | None = None
 
     @property
     def read_expr(self) -> str:
         """The Monkey C expression reading this value off its reader local."""
         reader = READERS[self.reader]
+        base = reader.name if self.array_index is None else f"{reader.name}[{self.array_index}]"
         if self.field_name is None:
-            return reader.name
-        return f"{reader.name}.{self.field_name}"
+            return base
+        return f"{base}.{self.field_name}"
+
+    @property
+    def array_guard(self) -> str | None:
+        """The extra null/bounds check `array_index` needs, beyond the reader's
+        own nullability -- an Array being non-null does not mean it has an
+        element at this index (a forecast provider can return fewer days than
+        asked for)."""
+        if self.array_index is None:
+            return None
+        reader = READERS[self.reader]
+        return f"{reader.name}.size() > {self.array_index}"
 
     @property
     def guard_needed(self) -> bool:
@@ -222,8 +270,36 @@ CATALOG: dict[str, Source] = {
         _s("heart_rate.current", Type.NUMBER, "activity_info", "currentHeartRate", True,
            Tier.FRAME, unit="bpm",
            doc="current heart rate", source_ref="Toybox/Activity/Info.html"),
+        # -- weather ---------------------------------------------------------
+        # Toybox/Weather/CurrentConditions.html, Toybox/Weather/DailyForecast.html.
+        # `condition` is one of the 54 `Weather.CONDITION_*` values (0-53) --
+        # see wfb/icons.py's GARMIN_WEATHER_CONDITION_ICON for the full table
+        # and `icon_for:` (wfb/ir.py) for turning one of these into a drawn
+        # icon. All three are Tier.SLOW: see the `weather_current`/
+        # `weather_daily` readers above for why, and wfb/emit/monkeyc.py's
+        # ReadPlan for how a SLOW reader's value gets cached rather than
+        # re-read every frame.
+        _s("weather.condition", Type.NUMBER, "weather_current", "condition", True,
+           Tier.SLOW, doc="the current weather condition (Weather.CONDITION_*)",
+           source_ref="Toybox/Weather/CurrentConditions.html"),
+        _s("weather.condition_today", Type.NUMBER, "weather_daily", "condition", True,
+           Tier.SLOW, array_index=0,
+           doc="today's overall forecast condition (Weather.CONDITION_*)",
+           source_ref="Toybox/Weather/DailyForecast.html"),
+        _s("weather.condition_tomorrow", Type.NUMBER, "weather_daily", "condition", True,
+           Tier.SLOW, array_index=1,
+           doc="tomorrow's forecast condition (Weather.CONDITION_*)",
+           source_ref="Toybox/Weather/DailyForecast.html"),
     ]
 }
+
+#: The only sources `icon_for:` may bind to (wfb/ir.py) -- a Weather.CONDITION_*
+#: value is meaningless without the specific glyph-mapping WfbWeather.mc and
+#: wfb.icons.weather_icon_for_condition() both provide, so this is deliberately
+#: not a generic "bind any Number source" mechanism.
+WEATHER_CONDITION_SOURCES: frozenset[str] = frozenset({
+    "weather.condition", "weather.condition_today", "weather.condition_tomorrow",
+})
 
 
 #: Permissions a **watch face** may declare.

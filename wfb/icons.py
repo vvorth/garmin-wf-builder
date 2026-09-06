@@ -246,7 +246,13 @@ def bake_size(codepoint: str, target_px: int) -> int:
 _UNIT_WORD = {"%r": "pctr", "%": "pct", "px": "px", "pt": "pt"}
 
 
-def font_key(length: Length | None, codepoint: str) -> str:
+#: The tag `font_key`/`wfb.emit.resources.icon_font_specs` use in place of a
+#: single codepoint for a dynamic (`icon_for:`) icon's shared, multi-glyph
+#: font -- see the "Weather icons" section below.
+DYNAMIC_WEATHER_TAG = "weather"
+
+
+def font_key(length: Length | None, glyph_key: str) -> str:
     """The synthetic font name for every icon declared at this `size:` and glyph.
 
     Keyed by the *declared* length, not the pixel size it resolves to --
@@ -261,12 +267,18 @@ def font_key(length: Length | None, codepoint: str) -> str:
     compile error on every device but the one the view happened to be
     generated from.
 
-    Also keyed by `codepoint`: two icons declared at the same `size:` do not
+    Also keyed by `glyph_key`: two icons declared at the same `size:` do not
     necessarily bake at the same nominal font size any more (see `bake_size`),
     so they cannot always share one font resource the way they could when
     `size:` and nominal size were the same number. Safe for the same
-    device-independence reason as the length itself -- a codepoint does not
-    vary per device, only the resolved pixel value fed into `bake_size` does.
+    device-independence reason as the length itself -- neither a codepoint
+    nor `DYNAMIC_WEATHER_TAG` varies per device, only the resolved pixel value
+    fed into `bake_size` does.
+
+    `glyph_key` is either a single character (a static icon's own codepoint)
+    or `DYNAMIC_WEATHER_TAG` (a dynamic icon's shared, multi-glyph font) --
+    never an arbitrary string, so there is no collision to guard against
+    between the two forms.
     """
     if length is None:
         unit_value = "default"
@@ -274,7 +286,8 @@ def font_key(length: Length | None, codepoint: str) -> str:
         unit = _UNIT_WORD[length.unit]
         value = f"{length.value:g}".replace(".", "p").replace("-", "neg")
         unit_value = f"{value}{unit}"
-    return f"icon_{unit_value}_u{ord(codepoint):x}"
+    glyph_id = f"u{ord(glyph_key):x}" if len(glyph_key) == 1 else glyph_key
+    return f"icon_{unit_value}_{glyph_id}"
 
 
 # ============================================================================
@@ -337,6 +350,28 @@ _WEATHER_GLYPH: dict[str, str] = {
     "volcano": "",  # weather-volcano
     "unknown": "",  # weather-na
 }
+
+#: Every glyph a *dynamic* weather icon's font must contain (`icon_for:`,
+#: `wfb.emit.resources.icon_font_specs`) -- the whole set, since the actual
+#: glyph is chosen on-device at runtime (`WfbWeather.mc`) and the font has to
+#: already have all of them baked in before that choice is made. A static
+#: `icon: weather_rain` keeps baking only the one glyph it names.
+WEATHER_GLYPH_SET: str = "".join(sorted(set(_WEATHER_GLYPH.values())))
+
+#: Which glyph `bake_size` is measured against for a dynamic weather icon's
+#: one shared nominal font size. The font's 29 weather glyphs are not drawn
+#: at a consistent fraction of their em-square -- checked directly, ink height
+#: ranges from 40% ("unknown") to 100% ("volcano") of the nominal size across
+#: the set -- so no single nominal size makes all of them match a declared
+#: `size:` exactly, the same tension `bake_size` exists to solve for a single
+#: glyph but genuinely cannot solve for 28 sharing one font. "rain" sits in
+#: the largest tight cluster (12 of 29 glyphs land within a few percent of it
+#: -- rain, snow, thunderstorm, hail, sleet, lightning, volcano and more), so
+#: baking against it puts the common conditions close to the declared size
+#: and leaves the rarer ones (dust, sandstorm, unknown, ...) smaller rather
+#: than larger -- a legible-but-smaller rare glyph beats a common one that
+#: overflows its box.
+WEATHER_BAKE_REFERENCE_GLYPH: str = _WEATHER_GLYPH["rain"]
 
 #: Night variants, for glyph names where the font has a specifically-drawn
 #: one. A name not listed here has no distinct night glyph in this font and

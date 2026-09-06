@@ -96,6 +96,35 @@ def test_low_power_may_not_read_a_slow_tier_source(write_design, bag, monkeypatc
     assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
 
 
+def test_low_power_may_not_read_the_real_weather_condition_source(write_design, bag):
+    """Same check, against a real slow-tier source rather than a fabricated
+    one -- weather.* is the first real one this project has."""
+    load(write_design(design("""
+  - id: temp
+    type: text
+    value: weather.condition
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+    modes: [active, low_power]
+    when_absent: hide
+""")), bag)
+    assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+
+
+def test_low_power_may_not_bind_a_dynamic_weather_icon(write_design, bag):
+    load(write_design(design("""
+  - id: wicon
+    type: icon
+    icon_for: weather.condition
+    size: 20%r
+    color: palette.fg
+    at: {anchor: center}
+    modes: [active, low_power]
+""")), bag)
+    assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+
+
 def test_a_time_value_needs_a_time_format(write_design, bag):
     load(write_design(design("""
   - id: clock
@@ -119,6 +148,69 @@ def test_unknown_icon_lists_the_catalogue(write_design, bag):
 """)), bag)
     assert any(d.code == "icon" for d in bag.errors)
     assert "steps" in " ".join(bag.errors[0].notes)
+
+
+def test_icon_for_resolves_a_dynamic_glyph(write_design, bag):
+    face = load(write_design(design("""
+  - id: wicon
+    type: icon
+    icon_for: weather.condition
+    size: 20%r
+    color: palette.fg
+    at: {anchor: center}
+""")), bag)
+    assert face is not None, bag.render()
+    element = face.elements[0]
+    assert element.is_dynamic
+    assert element.icon is None
+    assert element.value_for.text == "weather.condition"
+
+
+@pytest.mark.parametrize("body", [
+    "icon: heart\n    icon_for: weather.condition",  # both
+    "",  # neither
+])
+def test_icon_needs_exactly_one_of_icon_or_icon_for(write_design, bag, body):
+    face = load(write_design(design(f"""
+  - id: wicon
+    type: icon
+    {body}
+    size: 20%r
+    color: palette.fg
+    at: {{anchor: center}}
+""")), bag)
+    assert face is None
+    assert any(d.code in ("icon", "schema") for d in bag.errors), bag.render()
+
+
+@pytest.mark.parametrize("source", ["weather.condition_today", "weather.condition_tomorrow"])
+def test_icon_for_accepts_every_weather_condition_source(write_design, bag, source):
+    face = load(write_design(design(f"""
+  - id: wicon
+    type: icon
+    icon_for: {source}
+    size: 20%r
+    color: palette.fg
+    at: {{anchor: center}}
+""")), bag)
+    assert face is not None, bag.render()
+
+
+@pytest.mark.parametrize("source", ["weather.condition + 1", "activity.steps"])
+def test_icon_for_rejects_arithmetic_and_non_weather_sources(write_design, bag, source):
+    """A raw Weather.CONDITION_* value is what `WfbWeather.iconGlyph` expects --
+    arithmetic on it, or a source that is not a condition at all, would break
+    that lookup silently rather than draw the wrong thing loudly."""
+    face = load(write_design(design(f"""
+  - id: wicon
+    type: icon
+    icon_for: "{source}"
+    size: 20%r
+    color: palette.fg
+    at: {{anchor: center}}
+""")), bag)
+    assert face is None
+    assert any(d.code == "icon" for d in bag.errors)
 
 
 def test_unknown_font_lists_the_declared_ones(write_design, bag):

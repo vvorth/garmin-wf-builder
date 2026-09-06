@@ -139,15 +139,20 @@ express**, all for want of data sources rather than element types:
 
 | Dashboard has | Blocked on |
 |---|---|
-| A weather row — temperature, precipitation chance, condition, high, low | no `weather.*` sources |
+| A weather row's *condition icon* | nothing -- `weather.condition`/`icon_for:` now express this |
+| A weather row's temperature, precipitation chance, high/low | no source for these fields yet (the `slow` tier and `Weather.CurrentConditions`/`DailyForecast` reader both exist -- adding a field is a `wfb/catalog.py` entry, not new plumbing) |
 | Body Battery, on the status row and the left arc | no `SensorHistory` sources |
 | A configurable history graph — HR, Body Battery, stress, pressure, elevation | no graph element **and** no history sources |
 | A daylight arc that drains between sunrise and sunset | no sunrise/sunset sources |
 
-The first, second and fourth are catalogue work. The third additionally needs an
-element type that plots a series, which is the strongest argument in the codebase
-for the `raw` escape hatch: a sparkline is exactly the sort of thing that should
-drop to hand-written Monkey C rather than growing the schema.
+Weather's condition icon shipped (`icon_for: weather.condition`, resolved
+on-device through `WfbWeather.mc`, mirroring `wfb.icons.
+weather_icon_for_condition()`) -- see `docs/format.md`'s `icon_for` section.
+The other weather fields, Body Battery and the daylight arc are all catalogue
+work; the history graph additionally needs an element type that plots a
+series, which is the strongest argument in the codebase for the `raw` escape
+hatch: a sparkline is exactly the sort of thing that should drop to
+hand-written Monkey C rather than growing the schema.
 
 | Missing | Where it is specified |
 |---|---|
@@ -158,9 +163,12 @@ drop to hand-written Monkey C rather than growing the schema.
 | Tap / hold interactivity | ADR 0006 §6 |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Complications, and the `event` refresh tier | ADR 0005 |
-| The `slow` refresh tier and its TTL cache | ADR 0005 §5 |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
+
+The `slow` refresh tier and its TTL cache (ADR 0005 §5) **shipped** --
+`weather.*` is its first real source; see `docs/format.md`'s "Data binding"
+section and `WfbCache.mc`.
 
 ### Screen shapes
 

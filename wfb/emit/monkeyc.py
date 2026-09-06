@@ -235,6 +235,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     )
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
+        _emit_cache_fields(w, plan)
         _emit_initialize(w, face)
         _emit_on_layout(w, resolved)
         _emit_on_update(w, resolved, plan)
@@ -257,6 +258,19 @@ def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
           "onLayout rather than per frame.")
     for name in loaded:
         w.line(f"private var _{_field(name)} as FontResource?;")
+    w.blank()
+
+
+def _emit_cache_fields(w: Writer, plan: "ReadPlan") -> None:
+    slow = plan.slow_readers()
+    if not slow:
+        return
+    w.doc("`slow`-tier reads, cached here instead of re-read every frame --\n"
+          "see WfbCache.mc and ReadPlan.emit_reads.")
+    for name in slow:
+        reader = READERS[name]
+        w.line(f"private var _{reader.name}Cache as {reader.monkeyc_type};")
+        w.line(f"private var _{reader.name}CacheTime as Number?;")
     w.blank()
 
 
@@ -522,17 +536,31 @@ def _emit_progress(w: Writer, placed: PlacedProgress) -> None:
 def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     """A `drawText` call against the icon's baked glyph -- see `wfb.icons`:
     an icon is a one-character string drawn with a bitmap font, the same
-    mechanism any other bound text uses, not a hand-drawn shape."""
+    mechanism any other bound text uses, not a hand-drawn shape.
+
+    A *dynamic* icon (`icon_for:`) draws the same way, except the glyph
+    string comes from `WfbWeather.iconGlyph` at runtime instead of a literal
+    baked in at build time -- the font still has every glyph that call could
+    return, baked in ahead of time (`wfb.emit.resources.icon_font_specs`).
+    """
     element = placed.element
     prefix = _const_prefix(placed.id)
     w.line(f"var font = _{_field(placed.font_key)};")
     with w.block("if (font == null)"):
         w.line("return;  // the icon font resource failed to load")
     w.blank()
-    w.comment(f"{element.icon!r}")
+    if element.is_dynamic:
+        from ..ir import local_name
+
+        condition_local = local_name(element.value_for.sources[0])
+        w.comment(f"{element.value_for.text!r}, through WfbWeather.iconGlyph")
+        glyph_expr = f"WfbWeather.iconGlyph({condition_local})"
+    else:
+        w.comment(f"{element.icon!r}")
+        glyph_expr = f'"{element.codepoint}"'
     w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
     w.line(f"dc.drawText(Layout.{prefix}_CX, Layout.{prefix}_CY, font,")
-    w.line(f'            "{element.codepoint}",')
+    w.line(f"            {glyph_expr},")
     w.line("            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);")
 
 
@@ -563,6 +591,8 @@ class ReadPlan:
         self._bound: dict[str, list[str]] = {}
         self._readers_for_mode: dict[str, list[str]] = {}
         self._analyse()
+        if self.slow_readers():
+            self.modules.add("Toybox.Time")  # Time.now(), for WfbCache.stale()
 
     def _analyse(self) -> None:
         for placed in self.resolved.items:
@@ -605,6 +635,18 @@ class ReadPlan:
 
     # -- emission ---------------------------------------------------------
 
+    def slow_readers(self) -> list[str]:
+        """Reader names on `Tier.SLOW` this design actually reads.
+
+        Always found under ``active`` mode only: `wfb.ir`'s `_check_tiers`
+        rejects binding a non-frame-tier source from a `low_power` or
+        `always_on` element, so there is nothing to check here -- a slow
+        reader appearing under any other mode would be an IR bug, not a
+        design mistake, and `emit_reads` below is written on that assumption.
+        """
+        return sorted({name for name in self._readers_for_mode.get("active", [])
+                       if READERS[name].tier is not Tier.FRAME})
+
     def emit_reads(self, w: Writer, mode: str) -> None:
         readers = self._readers_for_mode.get(mode) or []
         if not readers:
@@ -613,7 +655,17 @@ class ReadPlan:
         w.comment(tier_note)
         for name in readers:
             reader = READERS[name]
-            w.line(f"var {reader.name} = {reader.call};")
+            if reader.tier is Tier.FRAME:
+                w.line(f"var {reader.name} = {reader.call};")
+                continue
+            # A `slow`-tier reader is cached in a view field instead of called
+            # fresh every frame -- see WfbCache.mc and `_emit_cache_fields`.
+            cache = f"_{reader.name}Cache"
+            cache_time = f"_{reader.name}CacheTime"
+            with w.block(f"if (WfbCache.stale({cache_time}, {reader.ttl_seconds}))"):
+                w.line(f"{cache} = {reader.call};")
+                w.line(f"{cache_time} = Time.now().value();")
+            w.line(f"var {reader.name} = {cache};")
 
     def parameters(self, placed) -> str:
         params = []
@@ -646,13 +698,22 @@ class ReadPlan:
                 continue
             reader = READERS[source.reader]
             read = source.read_expr
+            guard_parts = []
             if reader.nullable:
                 # The reader itself can be absent -- Activity.getActivityInfo()
                 # returns null when there is no activity -- so the field cannot
                 # be dereferenced unconditionally.  Narrowing here keeps the
                 # element's own `when_absent` guard below unchanged: an absent
                 # reader and an absent field are the same thing to the design.
-                read = f"({reader.name} != null) ? {read} : null"
+                guard_parts.append(f"{reader.name} != null")
+            if source.array_guard is not None:
+                # An Array being non-null does not mean it has an element at
+                # this index -- a forecast provider can return fewer days than
+                # asked for. Short-circuit `&&` means the null check above (if
+                # any) always runs first, so `.size()` never hits a null array.
+                guard_parts.append(source.array_guard)
+            if guard_parts:
+                read = f"({' && '.join(guard_parts)}) ? {read} : null"
             out.append((local_name(path), read))
         return out
 
@@ -724,6 +785,8 @@ def _describe(placed) -> str:
     if isinstance(element, Progress):
         return _article(f"{element.style} progress indicator")
     if isinstance(element, IconElement):
+        if element.is_dynamic:
+            return f"an icon chosen at runtime from {element.value_for.text!r}"
         return f"the {element.icon!r} icon"
     return element.kind
 

@@ -21,10 +21,14 @@
 # rather than by x and y -- which is what keeps them touching the rim on a
 # 260 px and a 280 px screen alike.
 #
-# What the reference has and this does not: a weather row, a Body Battery
-# history graph, and a daylight arc. Those need data sources the format does not
-# expose yet -- see docs/limitations.md. The rows below use real sources so the
-# example builds and runs; swap them out as the catalogue grows.
+# What the reference has and this does not: a weather row with real readings,
+# a Body Battery history graph, and a daylight arc. Weather's *condition*
+# icon is real now (`icon_for: weather.condition`, row 2 below); its
+# temperature, precipitation chance and high/low still need data sources the
+# format does not expose yet, and Body Battery and the daylight arc are the
+# same story -- see docs/limitations.md. The rows below use real sources so
+# the example builds and runs; swap the remaining placeholders out as the
+# catalogue grows.
 #
 # yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
 
@@ -99,11 +103,13 @@ elements:
         would make the separators compete with the data"
 
   # -- row 2: a secondary data row ------------------------------------------
-  # The reference puts weather here. Weather is not in the catalogue yet, so
-  # this row shows three real readings instead -- but every one of them still
-  # carries an icon or a unit, the way the reference's temperature-percent-
-  # condition-high-low row does. A bare number with nothing to say what it is
-  # is the thing worth avoiding; it reads as a placeholder, not as data.
+  # The reference's row is temperature-percent-condition-high-low; only the
+  # condition icon is real here (weather.condition, resolved on-device
+  # through WfbWeather.mc -- see docs/format.md's `icon_for` section), so this
+  # row pairs it with three other real readings rather than leaving the rest
+  # of the row a placeholder. Every value still carries an icon or a unit, the
+  # way the reference's row does -- a bare number with nothing to say what it
+  # is reads as a placeholder, not as data.
   # Spacing below is sized against a *realistic* ceiling for each value (three
   # digits of heart rate, four of daily calories), not the catalogue's worst-
   # case digit count -- fitting five icon-and-number clusters against a 99999
@@ -153,10 +159,20 @@ elements:
     value: "activity.distance / 100000.0"   # centimetres -> kilometres
     format: "{:.0f}km"
     font: FONT_XTINY
-    at: {anchor: top, dx: 27%, dy: 28.5%}
+    at: {anchor: top, dx: 21%, dy: 28.5%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
+
+  # The reference's row has a condition icon here; this is the real one, not a
+  # stand-in -- it does not draw at all until Weather has cached a reading
+  # (`icon_for:`'s hide-when-absent default, docs/format.md).
+  - id: weather_icon
+    type: icon
+    icon_for: weather.condition
+    size: 8%r
+    at: {anchor: top, dx: 40%, dy: 28.5%}
+    color: palette.dim
 
   - id: sep_2
     type: shape

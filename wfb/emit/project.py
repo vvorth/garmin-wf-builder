@@ -21,6 +21,8 @@ BARREL_FILES = {
     "WfbMath.mc": "expression functions",
     "WfbTime.mc": "12/24-hour clock handling",
     "WfbArc.mc": "progress arcs",
+    "WfbCache.mc": "slow-tier read caching",
+    "WfbWeather.mc": "weather-condition icon glyphs",
 }
 
 
@@ -136,6 +138,8 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
     needed: set[str] = set()
     if face.barrel_functions():
         needed.add("WfbMath.mc")
+    if monkeyc.ReadPlan(resolved).slow_readers():
+        needed.add("WfbCache.mc")
     for placed in resolved.items:
         kind = placed.kind
         if kind == "progress":
@@ -148,4 +152,6 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
             # Gregorian fields directly and a literal % is just punctuation.
             if spec and formatting.is_time_spec(spec) and _is_time_value(element):
                 needed.add("WfbTime.mc")
+        elif kind == "icon" and placed.element.is_dynamic:
+            needed.add("WfbWeather.mc")
     return sorted(needed)

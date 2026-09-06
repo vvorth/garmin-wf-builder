@@ -80,14 +80,17 @@ class PlacedProgress(Placed):
 
 @dataclass
 class PlacedIcon(Placed):
-    #: The requested pixel size (the font this icon was baked into is exactly
-    #: this size -- there is no separate "natural" glyph size to distinguish
-    #: it from).
+    #: The requested *visual* pixel size -- not the font's own nominal size it
+    #: was baked at, which `wfb.icons.bake_size` may inflate to compensate for
+    #: how much the vendored font's icon sets pad a glyph inside its em-square.
     size: int = 0
     #: The synthetic font resource this icon draws from (see `wfb.icons.font_key`).
     font_key: str = ""
-    #: The glyph itself, resolved from `element.icon` (a catalogue name or a
-    #: literal character) at IR-build time.
+    #: For a static icon, the glyph itself, resolved from `element.icon` (a
+    #: catalogue name or a literal character) at IR-build time. For a dynamic
+    #: icon (`element.is_dynamic`), the *representative* glyph measurement and
+    #: preview use -- `wfb.icons.WEATHER_BAKE_REFERENCE_GLYPH` -- never what
+    #: codegen actually draws, which it resolves on-device instead.
     codepoint: str = "?"
     anchor_point: tuple[int, int] = (0, 0)
 
@@ -266,16 +269,24 @@ class Resolver:
         # before any box in the tree is resolved, so its size cannot depend on
         # one (ADR-equivalent reasoning in wfb.icons.pixel_size).
         px = icons.pixel_size(element.size, self.device.minor_radius)
-        key = icons.font_key(element.size, element.codepoint)
+        if element.is_dynamic:
+            # The real glyph is chosen on-device at runtime (WfbWeather.mc);
+            # measure and preview against the same representative glyph
+            # `bake_size` used, which is guaranteed to be in this font.
+            glyph_key = icons.DYNAMIC_WEATHER_TAG
+            measure_codepoint = icons.WEATHER_BAKE_REFERENCE_GLYPH
+        else:
+            glyph_key = measure_codepoint = element.codepoint
+        key = icons.font_key(element.size, glyph_key)
         font = self.fonts.get(key)
         if font is not None:
-            width, height = font.measure(element.codepoint)
+            width, height = font.measure(measure_codepoint)
         else:
             width = height = px  # the font failed to bake; keep a plausible box
         box = Box(cx - width / 2, cy - height / 2, width, height)
         return PlacedIcon(
             element, box.rounded(), (round(cx), round(cy)), depth,
-            size=px, font_key=key, codepoint=element.codepoint,
+            size=px, font_key=key, codepoint=measure_codepoint,
             anchor_point=(round(cx), round(cy)),
         )
 

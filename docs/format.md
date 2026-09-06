@@ -296,6 +296,37 @@ how to find a codepoint, and its licensing (the font aggregates several
 separately-licensed icon sets under Nerd Fonts' MIT patcher; the ones the named
 catalogue draws from are attributed there).
 
+#### A dynamic icon: `icon_for`
+
+`icon:` names a fixed glyph, chosen at build time. `icon_for:` instead chooses
+the glyph on-device, at runtime, from a bound value — mutually exclusive with
+`icon:`:
+
+```yaml
+- id: weather_now
+  type: icon
+  icon_for: weather.condition   # or weather.condition_today / .condition_tomorrow
+  size: 20%r
+  color: palette.text
+```
+
+This currently accepts only a bare `weather.condition*` source (see `wfb
+sources`) — not an expression over one (`weather.condition + 1` is rejected;
+the lookup needs the raw `Weather.CONDITION_*` value). The generated code
+resolves the glyph through `WfbWeather.iconGlyph()`, a hand-written barrel
+function mirroring `wfb.icons.weather_icon_for_condition()` glyph-for-glyph
+(day glyphs only for now — there is no sunrise/sunset source yet to pick the
+night variant on-device). Because the actual glyph is not known until
+runtime, its font bakes *every* glyph the lookup could return rather than
+one — still cheap: baking is still a small per-glyph bitmap, just several of
+them sharing one font instead of one glyph having its own.
+
+When the bound value is absent (no cached weather data yet), the icon simply
+does not draw — the same `hide`-by-default behaviour any other nullable
+binding without an explicit `when_absent:` has, deliberately: a placeholder
+"unknown" glyph on first launch, before Weather has ever synced, would read
+as a real (if odd) forecast rather than as "not ready yet".
+
 ### `group`
 
 A container with `children:`. Percentages inside it resolve against the group's
@@ -334,25 +365,37 @@ heart_rate
 As of this writing the catalogue covers `time.*`, `date.*`, `device.*`
 (notification/alarm counts, do-not-disturb, phone-connected, 24-hour setting),
 `system.*` (battery, charging), `activity.*` (steps, calories, distance,
-floors, move bar, intensity minutes) and `heart_rate.current`. **Body Battery
-and live weather are not bindable yet** -- not an oversight, but a real
-platform constraint each: Body Battery is exposed only through
-`Toybox.SensorHistory` or a Complication (`COMPLICATION_TYPE_BODY_BATTERY`),
-and `SensorHistory` is a permission **watch faces are not allowed to declare
-at all** (`Core_Topics/Manifest_and_Permissions.html`'s permission table has a
-blank Watch Face column for it) -- so a Complication, on the `event` refresh
-tier, is the only path, and that tier is not implemented yet. Weather
-(`Toybox.Weather`) needs its own wiring for the same reason: it is a `slow`
-tier (TTL-cached) source, not a `frame` one, and nothing has built that path
-yet. See `docs/limitations.md` §2 for the current state of both.
+floors, move bar, intensity minutes), `heart_rate.current` and `weather.*`
+(current condition, today's and tomorrow's forecast condition — see `icon_for:`
+above for turning one into a drawn icon). **Body Battery is not bindable
+yet** — not an oversight, but a real platform constraint: it is exposed only
+through `Toybox.SensorHistory` or a Complication
+(`COMPLICATION_TYPE_BODY_BATTERY`), and `SensorHistory` is a permission
+**watch faces are not allowed to declare at all**
+(`Core_Topics/Manifest_and_Permissions.html`'s permission table has a blank
+Watch Face column for it) — so a Complication, on the `event` refresh tier, is
+the only path, and that tier is not implemented yet. See `docs/limitations.md`
+§2 for the current state.
 
-If a value you want is missing and it is not one of those two, check the
+A `slow`-tier source (`weather.*` today) is not re-read every frame the way a
+`frame`-tier one is: the generated view caches the last read in a field and a
+UTC-seconds timestamp, and only calls the API again once that reading is older
+than a fixed TTL (`WfbCache.mc`, `wfb/emit/monkeyc.py`'s `ReadPlan`). Two
+elements bound to the same underlying reader — `weather.condition_today` and
+`weather.condition_tomorrow` both read one `getDailyForecast()` call, for
+instance — share one cache and one read, not one each. A `slow` (or, once it
+exists, `event`) tier source may not be bound from a `low_power`-mode
+element: `onPartialUpdate` runs under a strict power budget that only
+frame-tier reads are cheap enough for, and the compiler rejects the design
+outright rather than silently reading something wrong.
+
+If a value you want is missing and it is not Body Battery, check the
 underlying Garmin API page: `Toybox/ActivityMonitor/Info.html`,
-`Toybox/System/Stats.html`, `Toybox/System/DeviceSettings.html` and
-`Toybox/Activity/Info.html` are where the current catalogue draws from, and
-each has more fields than are exposed today -- adding one is a `wfb/catalog.py`
-entry (path, type, nullability, tier, permission, the SDK field it reads), not
-a schema change.
+`Toybox/System/Stats.html`, `Toybox/System/DeviceSettings.html`,
+`Toybox/Activity/Info.html` and `Toybox/Weather/*.html` are where the current
+catalogue draws from, and each has more fields than are exposed today --
+adding one is a `wfb/catalog.py` entry (path, type, nullability, tier,
+permission, the SDK field it reads), not a schema change.
 
 **The compiler derives `manifest.xml` permissions from the bindings.** A missing
 permission does not fail loudly on a Garmin device: the API returns null and the

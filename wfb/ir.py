@@ -210,16 +210,27 @@ class Progress(Element):
 
 @dataclass
 class IconElement(Element):
-    icon: str = "steps"
+    icon: str | None = "steps"
     #: The glyph :func:`wfb.icons.resolve_codepoint` resolved ``icon`` to --
     #: what actually gets drawn.  ``icon`` stays around for diagnostics and for
     #: the generated code's comments; this is what baking and codegen use.
+    #: Unused when `value_for` is set -- the glyph is chosen on-device instead.
     codepoint: str = "?"
+    #: Set instead of `icon`/`codepoint` for a glyph chosen at runtime from a
+    #: bound value -- currently only `wfb.catalog.WEATHER_CONDITION_SOURCES`
+    #: (`icon_for: weather.condition`, e.g.), resolved through
+    #: `WfbWeather.mc`'s lookup, the on-device twin of
+    #: `wfb.icons.weather_icon_for_condition`.
+    value_for: Expression | None = None
     size: Length | None = None
     color: Expression | None = None
 
+    @property
+    def is_dynamic(self) -> bool:
+        return self.value_for is not None
+
     def expressions(self) -> list[Expression]:
-        return [e for e in (self.color,) if e]
+        return [e for e in (self.color, self.value_for) if e]
 
 
 @dataclass
@@ -517,8 +528,58 @@ class Builder:
         return element
 
     def _build_icon(self, node: dict, common: dict, path: tuple) -> Element:
-        name = node["icon"]
-        codepoint = icons.resolve_codepoint(name)
+        name = node.get("icon")
+        has_icon_for = "icon_for" in node
+        if (name is None) == (not has_icon_for):
+            self.bag.error(
+                "icon",
+                "an icon element needs exactly one of 'icon' or 'icon_for'",
+                self.doc.span(node),
+                notes=["'icon' names a fixed glyph; 'icon_for' chooses one at "
+                       "runtime from a bound value -- see "
+                       "wfb.catalog.WEATHER_CONDITION_SOURCES for what it "
+                       "currently accepts"],
+            )
+
+        size = self._length(node, "size")
+        if size is not None and size.unit not in icons.SIZE_UNITS:
+            self.bag.error(
+                "icon",
+                f"icon size must be px or %r, not {size.unit}",
+                self.doc.span(node, "size"),
+                notes=["an icon's font is baked once, before layout runs, so its size "
+                       "cannot depend on a parent box (%) or an element's own font (pt)"],
+            )
+            size = None
+
+        if has_icon_for:
+            value_for = self._expression(node, "icon_for")
+            if value_for is not None and (
+                not isinstance(value_for.ast, expr.Ref)
+                or len(value_for.sources) != 1
+                or value_for.sources[0] not in catalog.WEATHER_CONDITION_SOURCES
+            ):
+                self.bag.error(
+                    "icon",
+                    f"icon_for must be exactly one of: "
+                    f"{', '.join(sorted(catalog.WEATHER_CONDITION_SOURCES))} "
+                    f"-- not {value_for.text!r}",
+                    self.doc.span(node, "icon_for"),
+                    notes=["arithmetic or a conditional would break the "
+                           "condition-to-glyph lookup, which needs the raw "
+                           "Weather.CONDITION_* value"],
+                )
+                value_for = None
+            return IconElement(
+                **common,
+                icon=None,
+                codepoint=icons.FALLBACK_CODEPOINT,
+                value_for=value_for,
+                size=size,
+                color=self._color_expression(node, "color"),
+            )
+
+        codepoint = icons.resolve_codepoint(name) if name is not None else None
         if codepoint is None:
             self.bag.error(
                 "icon",
@@ -531,17 +592,6 @@ class Builder:
                 ],
             )
             codepoint = icons.FALLBACK_CODEPOINT
-
-        size = self._length(node, "size")
-        if size is not None and size.unit not in icons.SIZE_UNITS:
-            self.bag.error(
-                "icon",
-                f"icon size must be px or %r, not {size.unit}",
-                self.doc.span(node, "size"),
-                notes=["an icon's font is baked once, before layout runs, so its size "
-                       "cannot depend on a parent box (%) or an element's own font (pt)"],
-            )
-            size = None
 
         return IconElement(
             **common,

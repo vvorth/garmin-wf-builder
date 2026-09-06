@@ -341,13 +341,17 @@
 
     "iconElement": {
       "type": "object",
-      "required": ["id", "type", "icon"],
+      "required": ["id", "type"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/$defs/identifier" },
         "type": { "const": "icon" },
         "icon": {
-          "description": "A name from the built-in icon catalogue. Icons are drawn from primitives rather than shipped as bitmaps, so they cost no resource memory and take a colour at runtime.",
+          "description": "A name from the built-in icon catalogue, or any single glyph from the vendored icon font. Mutually exclusive with icon_for. A bitmap-font glyph, drawn with drawText -- not a hand-drawn primitive.",
+          "type": "string"
+        },
+        "icon_for": {
+          "description": "Choose the glyph at runtime from a bound value, instead of a fixed icon: name. Currently accepts only a weather.condition* source (see wfb sources) -- the glyph is resolved on-device through a generated lookup covering all of Weather.CONDITION_*, mirroring wfb.icons.weather_icon_for_condition(). Mutually exclusive with icon.",
           "type": "string"
         },
         "size": { "$ref": "#/$defs/length" },
@@ -357,7 +361,8 @@
         "z": { "type": "integer" },
         "lint": { "$ref": "#/$defs/lint" },
         "overrides": { "type": "object", "additionalProperties": { "type": "object" } }
-      }
+      },
+      "oneOf": [{ "required": ["icon"] }, { "required": ["icon_for"] }]
     }
   }
 }

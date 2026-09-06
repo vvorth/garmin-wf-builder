@@ -360,6 +360,23 @@ sources (`activity.steps` → `steps`, `heart_rate.current` → `heart`, and so 
 useful as a default when a design binds a source and needs an icon to go with
 it, not a constraint the compiler enforces.
 
+**A dynamic icon** chooses its glyph on-device at runtime instead of at build
+time -- `icon_for:` instead of `icon:`, mutually exclusive with it, and
+currently only accepting a bare `weather.condition` / `weather.condition_today`
+/ `weather.condition_tomorrow` source (never an expression over one -- the
+on-device lookup needs the raw `Weather.CONDITION_*` value):
+
+```yaml
+  - id: weather_icon
+    type: icon
+    icon_for: weather.condition
+    size: 18%r
+    color: palette.text
+```
+
+No `when_absent:` for this -- it just does not draw while the value is
+absent, same as any other binding defaulting to `hide`.
+
 **Anchors** — `center`, `top`, `bottom`, `left`, `right`, `top_left`,
 `top_right`, `bottom_left`, `bottom_right`. Offsets are measured from the anchor.
 

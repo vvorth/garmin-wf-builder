@@ -349,8 +349,10 @@ dependency order:
 5. **Interactivity** (ADR 0006 §6): tap where available, hold on fr955, from one
    declaration — and the compiler must **reject** `on_hold: launch` combined with
    hold-to-cycle on fr955 rather than silently preferring one.
-6. **Complications and the `slow`/`event` refresh tiers**, with the TTL cache in
-   the barrel.
+6. **Complications and the `event` refresh tier.** The `slow` tier and its TTL
+   cache shipped (`WfbCache.mc`) — see the session note below — with
+   `weather.*` as its first real source; `event` (a subscription callback, for
+   Complications) is still unbuilt.
 7. **Generate the data-source catalogue from the SDK** (ADR 0005 §1). It is
    hand-written today; a drifted catalogue would silently mis-declare permissions.
 8. The GUI (ADR 0002), last, once the schema has stabilised.
@@ -498,6 +500,87 @@ against the 128 KB budget. Golden files updated accordingly
 close to filling its em-square) now bakes 2px larger than its declared `20%r`
 to hit the same ink height it always rendered at, which is the fix working
 correctly, not a drift.
+
+**The same session asked for a dynamic weather-condition icon (now/today's
+overall/tomorrow), and it landed as the first real `slow`-tier source** —
+bringing forward roadmap item 6 above rather than leaving it for later,
+because the user explicitly chose the "build the general mechanism first"
+option over a narrower weather-only shortcut when asked. Verified against
+the real SDK docs before writing anything: `Toybox.Weather` is supported on
+all three targets, needs **no permission at all** (it does not appear in
+`Core_Topics/Manifest_and_Permissions.html`'s table, the same situation as
+`Toybox.Activity`), and its 54-value `Condition` enum already matched the
+`GARMIN_WEATHER_CONDITION_ICON` table from the icon-catalogue session.
+
+What actually shipped, in dependency order:
+
+1. **`Reader` gained `tier` and `ttl_seconds`** (`wfb/catalog.py`) — every
+   source sharing a reader must agree with the reader's own tier, checked in
+   `tests/test_catalog.py`, since caching is generated once per *reader*, not
+   per source (`ActivityMonitor.getInfo()`-style hoisting, reused for
+   staleness).
+2. **`Source` gained `array_index`** (and a paired `array_guard`), because
+   `weather.condition_today`/`_tomorrow` read `DailyForecast[0]`/`[1]` off one
+   shared `getDailyForecast()` array, not a field directly off a reader
+   object — the first source shape this project has needed that isn't
+   "one call, read a field."
+3. **`WfbCache.mc`** (new barrel file): one function, `stale(lastRefresh,
+   ttlSeconds)`, comparing UTC-second timestamps rather than `Moment` objects
+   so the generated code has nothing to null-check beyond the timestamp
+   field itself. `wfb/emit/monkeyc.py`'s `ReadPlan.emit_reads` branches per
+   reader tier: a `frame` reader is still called fresh every time; a `slow`
+   one is read into a private view field only when `WfbCache.stale(...)`
+   says so, exactly the "generated code is reviewed by a human" bar ADR 0003
+   sets — nothing about this reads as generated-and-forgotten.
+4. **`icon_for:`** (`wfb/ir.py`'s `IconElement`, schema): mutually exclusive
+   with `icon:`, chooses the glyph on-device at runtime instead of at build
+   time. Deliberately narrow — it accepts only a bare
+   `wfb.catalog.WEATHER_CONDITION_SOURCES` reference (checked via the parsed
+   AST being a plain `expr.Ref`, not any expression that merely *mentions*
+   one of those paths), because arithmetic on a condition enum would silently
+   break the glyph lookup rather than fail loudly. Reuses the *existing*
+   expression-compiler path (`self._expression(node, "icon_for")`) rather
+   than inventing a second one, which is also what made every other piece —
+   permission derivation, reader hoisting, null-guard generation — apply to
+   an icon's bound value for free, with zero new code in `ReadPlan`.
+5. **The font for a dynamic icon bakes every weather glyph, not one**
+   (`wfb.icons.WEATHER_GLYPH_SET`, 29 glyphs) — the real glyph is not known
+   until runtime. `bake_size` (from the ink-height session above) cannot
+   normalize all 29 to one nominal size at once: their ink-height ratios
+   span 40–100% of the em-square (measured directly, not assumed), so
+   `wfb.icons.WEATHER_BAKE_REFERENCE_GLYPH` picks `"rain"`, the centre of the
+   largest tight cluster (12 of 29 glyphs land within a few percent of it),
+   deliberately trading a smaller rendering for the rarer conditions
+   (dust, sandstorm, "unknown") for a correctly-sized one for the common
+   ones. `font_key` gained a second, non-codepoint form
+   (`icons.DYNAMIC_WEATHER_TAG`) for this shared, multi-glyph font, alongside
+   its existing per-codepoint form.
+6. **`WfbWeather.mc`** (new barrel file): `iconGlyph(condition)`, a 54-case
+   `switch` mirroring `wfb.icons.weather_icon_for_condition()` glyph-for-glyph
+   (day glyphs only — there is no sunrise/sunset source yet to pick the night
+   variant on-device). Hand-written rather than generated, matching
+   `WfbArc.mc`/`WfbTime.mc`'s reasoning: the mapping is fixed and shared
+   across every design, so generating it per-project would just be
+   re-deriving the same file. Every codepoint was written via a Python script
+   emitting real characters (`chr(codepoint)`), the same discipline as
+   `wfb/icons.py` itself, and `tests/test_weather_barrel.py` parses the real
+   file and checks all 54 cases against `wfb.icons` directly, so the two
+   cannot silently drift apart.
+
+One real, separate bug surfaced and was fixed *while building this*, not
+introduced by it: `wfb/ir.py` already had a `_check_tiers` check rejecting a
+`slow`/`event`-tier binding from a `low_power`-mode element, written and
+wired in before any real `slow`-tier source existed to test it against (its
+existing test used a `monkeypatch`-fabricated one). `weather.condition` is
+the first real source to exercise it, and it did — confirmed firing, with no
+changes needed, before writing a second, real-source-backed test alongside
+the fabricated one.
+
+Cost, measured on `examples/dashboard/` (which gained a `weather.condition`
+icon in row 2, replacing what had been a real-source stand-in row):
+6,054 B on `fenix8solar47mm`, still 4.6% of the 128 KB budget. Verified with
+real `monkeyc` builds (`BUILD SUCCESSFUL`, all three targets, including a
+design binding all three `weather.*` sources at once) and in `wfb preview`.
 
 ### Known-good reference
 
