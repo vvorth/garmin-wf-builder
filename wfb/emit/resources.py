@@ -142,16 +142,38 @@ def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> Res
         lines = [f"<fonts {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">"]
         for name, font in baked.items():
             spec = specs[name]
-            chars = escape(sets.get(name, spec.glyphs or ""), {'"': "&quot;"})
+            raw_chars = sets.get(name, spec.glyphs or "")
             lines.append(
                 f'    <!-- {name}: {spec.source.name} at {font.size}px, '
                 f"{len(font.glyphs)} glyphs -->"
             )
-            lines.append(
-                # filename is relative to this XML file, which sits beside the sheet.
-                f'    <font id="{spec.resource_id}" filename="{font.fnt_name}" '
-                f'filter="{chars}" antialias="{str(spec.antialias).lower()}" />'
-            )
+            if any(ord(c) >= 0x10000 for c in raw_chars):
+                # The resource compiler's `filter` attribute is parsed as Java
+                # UTF-16 code units, so a codepoint above the Basic
+                # Multilingual Plane (Material Design Icons and Weather Icons,
+                # both used by wfb.icons, live entirely up there) splits into
+                # two surrogate halves that match no real glyph and the build
+                # fails with "does not have characters in the given filter" --
+                # confirmed against a real build, not assumed. The .fnt this
+                # font resource points at is already subsetted to exactly
+                # these glyphs by wfb's own baking, so filter is redundant
+                # protection here, not the only thing keeping the sheet small;
+                # omitting it is safe.
+                lines.append(
+                    f"    <!-- filter omitted: {name} needs a glyph above U+FFFF, "
+                    "which the resource compiler's filter parsing cannot represent -->"
+                )
+                lines.append(
+                    f'    <font id="{spec.resource_id}" filename="{font.fnt_name}" '
+                    f'antialias="{str(spec.antialias).lower()}" />'
+                )
+            else:
+                chars = escape(raw_chars, {'"': "&quot;"})
+                lines.append(
+                    # filename is relative to this XML file, which sits beside the sheet.
+                    f'    <font id="{spec.resource_id}" filename="{font.fnt_name}" '
+                    f'filter="{chars}" antialias="{str(spec.antialias).lower()}" />'
+                )
         lines.append("</fonts>")
         bundle.files["fonts/fonts.xml"] = "\n".join(lines) + "\n"
         bundle.fonts = baked

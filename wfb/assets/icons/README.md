@@ -13,15 +13,26 @@ only the glyphs a design actually uses ever reach the `.prg` — see
 
 The Nerd Fonts patching and aggregation is MIT-licensed
 (`LICENSE-nerd-fonts.txt`). Nerd Fonts aggregates several separately-licensed
-icon sets; the two this project's catalogue draws from are:
+icon sets; the ones this project's catalogue draws from are:
 
-| Icon set | Used for | Upstream | Version | License |
-|---|---|---|---|---|
-| Font Awesome Free | `heart`, `steps`, `alarm`, `notification` | github.com/FortAwesome/Font-Awesome | 6.5.1 | CC BY 4.0 |
-| Codicons | `flame`, `dnd` | github.com/microsoft/vscode-codicons | 0.0.45 | CC BY 4.0 |
+| Icon set | Used for | Upstream | License |
+|---|---|---|---|
+| Material Design Icons | `heart`, `flame`, `alarm`, `dnd`, `notification`, `battery`, `floors`, `distance`, `phone` | github.com/Templarian/MaterialDesign (Pictogrammers) | Apache License 2.0 |
+| Font Awesome Free | `steps` | github.com/FortAwesome/Font-Awesome | CC BY 4.0 |
+| Weather Icons | `weather_*` | github.com/erikflowers/weather-icons | SIL OFL 1.1 |
 
-CC BY 4.0 requires attribution, which this file provides: Font Awesome Free
-icons by Fonticons, Inc.; Codicons by Microsoft.
+Material Design Icons is preferred for a new catalogue entry whenever a glyph
+reads at least as well as an alternative -- it is the largest, most
+consistently-drawn set in this font. `steps` is the deliberate exception (see
+`wfb/icons.py`'s module docstring for why), and weather icons come from the
+dedicated Weather Icons set rather than MDI's own `weather_*` glyphs, because
+it has more distinct conditions and day/night pairs -- and, unusually for this
+font, its codepoints fit in the Basic Multilingual Plane (see "Codepoints
+above U+FFFF" below).
+
+CC BY 4.0 and Apache 2.0 both require attribution, which this file provides:
+Font Awesome Free icons by Fonticons, Inc.; Material Design Icons by the
+Pictogrammers project; Weather Icons by Erik Flowers, SIL OFL 1.1.
 
 ## Adding an icon to the catalogue
 
@@ -30,7 +41,42 @@ at all -- `icon:` accepts a single literal character, checked against this
 font's own character map at build time, in addition to the maintained names in
 `wfb/icons.py`. Adding a *name* for one (so `wfb sources`/`wfb new` document
 it, and so an author does not have to go hunting for a codepoint) means adding
-one line to `wfb/icons.py`'s `CATALOG`.
+one line to `wfb/icons.py`'s `CATALOG` (or, for a weather condition, to its
+`_WEATHER_GLYPH` table and `GARMIN_WEATHER_CONDITION_ICON` mapping).
 
-To find a codepoint: extract this font with `fonttools ttx -l` or a font
-inspector, or browse https://www.nerdfonts.com/cheat-sheet.
+Every codepoint in `wfb/icons.py` is written as a Python `\uXXXX`/`\U000XXXXX`
+escape, not a pasted character -- the glyph is invisible in most editors and
+terminals, so the escape is what stays readable and safe to hand-edit. Look
+codepoints up against the font's own cmap (`fontTools.ttLib.TTFont(...).
+getBestCmap()`) rather than typing them from memory or a website table, the
+same "never invent an API" rule CLAUDE.md applies to Monkey C symbols.
+
+To find a codepoint by browsing rather than by name: extract this font with
+`fonttools ttx -l` or a font inspector, or browse
+https://www.nerdfonts.com/cheat-sheet.
+
+## Codepoints above U+FFFF
+
+Material Design Icons' glyphs (and MDI's own `weather_*` glyphs, though this
+catalogue does not use those -- see above) live entirely above the Basic
+Multilingual Plane, needing a Python `\U000XXXXX` escape (8 hex digits) rather
+than `\uXXXX` (4). `monkeyc` compiles a string literal containing one without
+complaint. The one real problem was in the *resource compiler*: a generated
+`<font filter="...">` attribute is parsed as Java UTF-16 code units, so such a
+codepoint splits into a surrogate pair that matches no real glyph, and the
+build fails with "does not have characters in the given filter".
+`wfb/emit/resources.py` fixes this by omitting `filter` for any font that
+needs such a glyph -- the `.fnt` file itself, already subsetted to the right
+glyphs by this project's own baking, does not need it. Confirmed against a
+real build and in `wfb preview`, not just compiled.
+
+## Proportional, not monospaced
+
+This is the "Regular" (proportional) build, not "Mono" -- confirmed via
+`font["post"].isFixedPitch == 0`. That is not a problem for this project: an
+icon element draws exactly one glyph, independently positioned by the layout
+engine from its own declared size, never packed edge-to-edge against another
+character the way a row of monospaced text would be. Advance-width vs. ink
+bounding-box overhang was checked across every catalogue glyph at several
+sizes and stays under 2% either side, so there is no overlap risk even if a
+future feature ever drew two icons close together.

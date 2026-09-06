@@ -220,7 +220,12 @@ semantics are identical across styles and only the rendering differs.
 ```yaml
 - id: steps_icon
   type: icon
-  icon: steps               # steps | heart | flame | alarm | dnd | notification
+  icon: steps               # alarm | battery | distance | dnd | flame | floors | heart |
+                             # notification | phone | steps | weather_clear | weather_cloudy |
+                             # weather_dust | weather_fog | weather_hurricane |
+                             # weather_partly_cloudy | weather_rain | weather_snow |
+                             # weather_thunderstorm | weather_tornado | weather_windy |
+                             # weather_wintry_mix -- see wfb/icons.py for the full list
   size: 30px                # px or %r only -- see below
   color: palette.accent
 ```
@@ -239,16 +244,35 @@ be baked once, before layout runs, so its size cannot depend on a parent box
 has already happened. `%r` is recommended, for the same reason it is
 recommended everywhere else: it means the same thing regardless of screen size.
 
-**Beyond the six named icons**, the vendored font has on the order of ten
-thousand glyphs. `icon:` accepts any single character from it directly —
+**The catalogue prefers Material Design Icons** (`nf-md`, the vendored font's
+largest and most consistent set) whenever a glyph reads at least as well as an
+alternative — the one deliberate exception is `steps`, which keeps a Font
+Awesome glyph because MDI's walking/running figures read as "activity" rather
+than "step count" at a glance. Weather icons (`weather_*`) come from the font's
+dedicated Weather Icons set instead, because it covers more distinct conditions
+and day/night pairs than MDI's own `weather_*` glyphs and — unlike them — its
+codepoints fit in the Basic Multilingual Plane (see `wfb/icons.py`'s module
+docstring). `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` maps every
+`Toybox.Weather.CONDITION_*` value (0–53) to one of these, and
+`wfb.icons.METRIC_ICON` maps common data-source paths (`activity.steps`,
+`heart_rate.current`, and so on) to their conventional icon, for a design or
+tool that wants a sensible default rather than the compiler enforcing one.
+
+**Beyond the named icons**, the vendored font has on the order of ten thousand
+glyphs, including codepoints above the Basic Multilingual Plane (all of MDI's
+own icons live there). `icon:` accepts any single character from it directly —
 ```yaml
 icon: ""    # a literal glyph, e.g. from https://www.nerdfonts.com/cheat-sheet
 ```
 — checked against the font's own character map at build time, the same way a
-custom font's glyph coverage is checked. See `wfb/assets/icons/README.md` for
+custom font's glyph coverage is checked. A codepoint above the Basic
+Multilingual Plane builds and renders correctly; the generated `<font>`
+resource simply omits its `filter` attribute, because the resource compiler
+parses that attribute as UTF-16 code units and a surrogate pair would not
+survive it (see `wfb/emit/resources.py`). See `wfb/assets/icons/README.md` for
 how to find a codepoint, and its licensing (the font aggregates several
 separately-licensed icon sets under Nerd Fonts' MIT patcher; the ones the named
-catalogue draws from are CC BY 4.0 and are attributed there).
+catalogue draws from are attributed there).
 
 ### `group`
 

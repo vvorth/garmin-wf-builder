@@ -347,12 +347,17 @@ elements:
 
   - id: hr_icon                   # a glyph from the vendored icon font; small
     type: icon                    # resource cost, takes a colour at runtime
-    icon: heart                   # heart | steps | flame | alarm | dnd | notification
+    icon: heart                   # alarm | battery | distance | dnd | flame | floors | heart | notification | phone | steps | weather_clear | weather_cloudy | weather_dust | weather_fog | weather_hurricane | weather_partly_cloudy | weather_rain | weather_snow | weather_thunderstorm | weather_tornado | weather_windy | weather_wintry_mix
                                    # -- or any single glyph pasted directly, e.g. icon: ""
     size: 11%r                    # px or %r only -- never % or pt (rule 8)
     at: {anchor: center, dx: -40%r, dy: 30%r}
     color: palette.hot
 ```
+
+`wfb.icons.METRIC_ICON` also lists the conventional icon for many catalogue data
+sources (`activity.steps` → `steps`, `heart_rate.current` → `heart`, and so on) --
+useful as a default when a design binds a source and needs an icon to go with
+it, not a constraint the compiler enforces.
 
 **Anchors** — `center`, `top`, `bottom`, `left`, `right`, `top_left`,
 `top_right`, `bottom_left`, `bottom_right`. Offsets are measured from the anchor.

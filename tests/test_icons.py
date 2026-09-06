@@ -155,6 +155,67 @@ elements:
     assert (255, 255, 255) in colors, f"icon {name!r} drew nothing in the preview"
 
 
+# -- weather-condition and data-source-alias tables -------------------------
+
+
+def test_every_condition_value_zero_to_fifty_three_is_covered():
+    """`Toybox.Weather.CONDITION_*` is 0-53 -- a gap here would be a silent
+    "unknown" for a real, documented condition."""
+    assert set(icons.GARMIN_WEATHER_CONDITION_ICON) == set(range(54))
+
+
+def test_every_condition_maps_to_a_real_weather_glyph_name():
+    for condition, name in icons.GARMIN_WEATHER_CONDITION_ICON.items():
+        assert name in icons._WEATHER_GLYPH, f"condition {condition} -> unknown glyph {name!r}"
+
+
+def test_every_weather_glyph_is_a_real_font_character():
+    for name, ch in icons._WEATHER_GLYPH.items():
+        assert ch in icons._available_glyphs(), f"{name!r} names U+{ord(ch):04X}, not in the font"
+    for name, ch in icons._WEATHER_GLYPH_NIGHT.items():
+        assert name in icons._WEATHER_GLYPH, f"night variant {name!r} has no day entry"
+        assert ch in icons._available_glyphs(), f"{name!r} (night) names U+{ord(ch):04X}, not in the font"
+
+
+def test_weather_icon_for_condition_resolves_day_and_night():
+    day = icons.weather_icon_for_condition(3)  # CONDITION_RAIN
+    night = icons.weather_icon_for_condition(3, night=True)
+    assert day == icons._WEATHER_GLYPH["rain"]
+    assert night == icons._WEATHER_GLYPH_NIGHT["rain"]
+    assert day != night
+
+
+def test_weather_icon_for_condition_falls_back_for_no_night_variant():
+    """`strong_wind` has no night glyph -- night=True should still resolve,
+    to the day glyph, not raise."""
+    assert icons.weather_icon_for_condition(36, night=True) == icons._WEATHER_GLYPH["strong_wind"]
+
+
+def test_weather_icon_for_condition_handles_unknown_and_none():
+    unknown = icons._WEATHER_GLYPH["unknown"]
+    assert icons.weather_icon_for_condition(53) == unknown  # CONDITION_UNKNOWN
+    assert icons.weather_icon_for_condition(None) == unknown
+
+
+def test_weather_named_catalogue_entries_match_the_glyph_table():
+    for catalog_name, glyph_name in icons._WEATHER_NAMED.items():
+        assert icons.CATALOG[catalog_name].codepoint == icons._WEATHER_GLYPH[glyph_name]
+
+
+def test_metric_icon_values_all_resolve_in_the_catalogue():
+    for source, name in icons.METRIC_ICON.items():
+        assert icons.get(name) is not None, f"METRIC_ICON[{source!r}] names {name!r}, not in CATALOG"
+
+
+def test_icon_for_source_returns_the_aliased_icon():
+    assert icons.icon_for_source("activity.steps") is icons.CATALOG["steps"]
+    assert icons.icon_for_source("heart_rate.current") is icons.CATALOG["heart"]
+
+
+def test_icon_for_source_returns_none_for_an_unaliased_source():
+    assert icons.icon_for_source("activity.step_goal") is None
+
+
 def test_an_unknown_icon_name_is_a_build_error_not_a_silent_blank(write_design, bag, db):
     from tests.test_diagnostics import load
 

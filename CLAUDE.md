@@ -411,6 +411,63 @@ functions. Growing the *named* catalogue as real designs need specific common
 concepts is still worthwhile (so `wfb sources`/`wfb new` can document them),
 but it is no longer the only way forward — the raw-glyph escape hatch is.
 
+**A follow-up session hit exactly the ceiling that raw-glyph escape hatch was
+meant to remove, and found a real bug underneath it.** Pasting a raw Material
+Design Icons glyph (`nf-md` — the font's largest, most consistent set, ~7,000
+glyphs) failed `wfb build` with `error[monkeyc]: Font 'Symbols Nerd Font' does
+not have characters in the given filter`, even though the generated `.fnt`
+genuinely contained that glyph. Root cause: **every MDI glyph in this font
+lives above the Basic Multilingual Plane**, and the generated
+`<font filter="...">` resource attribute is parsed by the (Java) resource
+compiler as UTF-16 code units — a surrogate pair splits into two halves that
+match no real glyph. Not a Monkey C limitation (`monkeyc` compiles such a
+character in a string literal without complaint) — a narrow resource-compiler
+parsing bug. Fixed in `wfb/emit/resources.py`'s `build_bundle` by omitting
+`filter` for any font that needs such a glyph; the `.fnt` file it points at is
+already correctly subsetted by this project's own baking, so `filter` was
+redundant protection for that font anyway. Verified against a real
+`BUILD SUCCESSFUL` and in `wfb preview`, not just compiled.
+
+With that fixed, the catalogue was rebuilt to actually prefer `nf-md`: `heart`,
+`flame`, `alarm`, `dnd` and `notification` moved from Font Awesome/Codicons to
+Material Design Icons, and four new entries were added (`battery`, `floors`,
+`distance`, `phone`). `steps` deliberately did not move — MDI's walking/running
+figures read as "activity", not "step count" — see `wfb/icons.py`'s module
+docstring for the full reasoning, checked at several sizes before deciding.
+A large weather-icon table was added at the same time:
+`GARMIN_WEATHER_CONDITION_ICON` maps every one of the 54 documented
+`Toybox.Weather.CONDITION_*` values (`doc/Toybox/Weather.html`, API 3.2.0) to a
+glyph, deliberately drawn from the font's separate, entirely-BMP "Weather
+Icons" set rather than MDI's own `weather_*` glyphs (which are themselves all
+supplementary-plane, and cover fewer distinct conditions). `weather_icon_for_condition()`
+resolves a condition to a codepoint, with a day/night split for the glyphs
+that have one. `weather.*` still has no live data source (`docs/limitations.md`
+§2), so none of this is wired to anything yet — it is deliberately just the
+mapping, ready for the day a source lands. `METRIC_ICON` and
+`icon_for_source()` add the reverse direction: the conventional icon for a
+`wfb/catalog.py` data-source path (`activity.steps` → `steps`, and so on), a
+default rather than something the compiler enforces.
+
+One authoring lesson from writing this catalogue, worth keeping: **every
+codepoint in `wfb/icons.py` must be a `\uXXXX`/`\U000XXXXX` Python escape, never
+a pasted literal character.** The glyph is invisible in most tools, which is
+also why an escape silently becoming an *empty string* is easy to miss — it
+still parses as valid Python, and the failure only surfaces later as a blank
+tile or a missing-glyph assertion. Every codepoint the catalogue and the
+weather table use was looked up directly against the font's own cmap
+(`fontTools.ttLib.TTFont(...).getBestCmap()`), not typed from memory or copied
+from a cheat-sheet, for the same reason CLAUDE.md already asks this of Monkey C
+symbols: a name is a claim about what exists, and it should be checked, not
+assumed.
+
+Last question from that session, answered and worth recording: the vendored
+font is the **proportional** "Regular" build, not "Mono" (`font["post"].
+isFixedPitch == 0`). This is not a defect here — an icon element draws exactly
+one independently-positioned glyph, never packed edge-to-edge against another
+character the way monospaced text would be — and advance-width vs. ink-bbox
+overhang was checked across every catalogue glyph at several sizes, staying
+under 2% either side. See `wfb/assets/icons/README.md` for the detail.
+
 ### Known-good reference
 
 `~/claude/garmin-watchface-protomolecule/` is a **working, dense, real** watch
