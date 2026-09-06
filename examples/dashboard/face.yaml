@@ -58,6 +58,15 @@ palette:
   arc_move: "#FFFF00"
   track: "#555555"
 
+fonts:
+  clock:
+    source: assets/OpenSans-Regular.ttf
+    # Rasterised at this many pixels on the smallest target and scaled up for
+    # the 280x280 fenix 8 Solar 51 mm, so one declaration is right on both.
+    size: 68
+    # 'glyphs' is omitted on purpose: the compiler derives the set from the
+    # 
+
 elements:
   - id: background
     type: shape
@@ -174,7 +183,7 @@ elements:
     type: text
     value: time.hour
     format: "{:02d}"
-    font: FONT_NUMBER_MEDIUM
+    font: font.clock
     at: {anchor: center, dx: -1%, dy: 0.8%}
     align: right
     color: palette.hours
@@ -183,7 +192,7 @@ elements:
     type: text
     value: time.minute
     format: "{:02d}"
-    font: FONT_NUMBER_MEDIUM
+    font: font.clock
     at: {anchor: center, dx: 1%, dy: 0.8%}
     align: left
     color: palette.minutes
