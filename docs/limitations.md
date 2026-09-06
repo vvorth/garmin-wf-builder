@@ -57,7 +57,22 @@ AMOLED-class** and need the `always_on` path instead.
 
 A custom font's PNG is a single-channel grayscale image, so a glyph has exactly
 one colour, applied at draw time. Two-colour lettering requires two fonts drawn
-on top of each other.
+on top of each other. Icons inherit this too: an icon element is a glyph from a
+baked bitmap font (`wfb/icons.py`), so a two-tone icon is not possible without
+splitting it into two overlaid glyphs, the same as two-colour text.
+
+### Icon glyphs beyond the Basic Multilingual Plane are untested
+
+`icon:` accepts any single character from the vendored Nerd Font directly, not
+only the named catalogue entries — but that escape hatch is restricted to
+codepoints below U+10000. Several of the font's larger icon sets (Material
+Design Icons, Weather Icons) live above it, in a range that needs a UTF-16
+surrogate pair to represent in some contexts. `monkeyc` accepted such a
+character in a source file in an isolated test, but nothing here has confirmed
+it *renders* correctly on device — the simulator does not run in this
+environment (below), so the render step of that test could not be completed.
+Until it is, those codepoints are excluded, and every catalogue entry uses one
+below U+10000.
 
 ### No alpha blending
 

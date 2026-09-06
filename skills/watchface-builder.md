@@ -162,7 +162,7 @@ Angles run **clockwise from 12 o'clock**: `0deg` is the top, `90deg` is 3
 o'clock, `180deg` is the bottom. A ring with a gap at the bottom usually starts
 near `210deg` and sweeps about `300deg`.
 
-### Seven rules that will otherwise cost you a round
+### Eight rules that will otherwise cost you a round
 
 1. **Every fitness reading can be absent**, so any binding to one needs
    `when_absent:` — `hide`, `placeholder` (with `placeholder: "--"`), or
@@ -181,13 +181,21 @@ near `210deg` and sweeps about `300deg`.
 6. **Stay inside the visible circle.** The frame buffer is square but the panel
    is round, so a corner that fits the buffer can still sit under the bezel.
 7. **Never press an icon into service for something it does not mean.** The
-   catalogue has `heart`, `steps`, `flame`, `alarm`, `dnd` and `notification` —
-   six specific shapes, not six interchangeable dots. A heart icon next to a
+   named catalogue (`heart`, `steps`, `flame`, `alarm`, `dnd`, `notification`)
+   is six specific shapes, not six interchangeable dots. A heart icon next to a
    do-not-disturb indicator reads as a heart-rate alert, not as "notifications
    are silenced": the viewer trusts the shape, and a mismatched one is actively
-   misleading rather than merely generic. If the picture needs an icon the
-   catalogue does not have, say so and draw a plain shape or a labelled number
-   instead of borrowing the nearest wrong one.
+   misleading rather than merely generic. **This is rarely forced on you**: an
+   icon is a glyph from a large vendored icon font, and `icon:` accepts any
+   single character from it directly, not only the six named entries — paste
+   the actual character rather than the nearest wrong catalogue name. Look for
+   one at https://www.nerdfonts.com/cheat-sheet (search by concept — "alarm",
+   "umbrella", "bluetooth" — copy the glyph, paste it as the `icon:` value).
+   Only fall back to a plain shape or a labelled number if nothing in that font
+   fits at all.
+8. **An icon's `size:` is `px` or `%r` only** — never `%` or `pt`. Its font has
+   to be baked before layout runs, so its size cannot depend on a parent box or
+   another element's own font, both of which are only known afterwards.
 
 ---
 
@@ -337,10 +345,11 @@ elements:
     size: {width: 40%r, height: 5%r}
     color: palette.text
 
-  - id: hr_icon                   # a drawn icon: no memory cost, takes a colour
-    type: icon
+  - id: hr_icon                   # a glyph from the vendored icon font; small
+    type: icon                    # resource cost, takes a colour at runtime
     icon: heart                   # heart | steps | flame | alarm | dnd | notification
-    size: 11%r
+                                   # -- or any single glyph pasted directly, e.g. icon: ""
+    size: 11%r                    # px or %r only -- never % or pt (rule 8)
     at: {anchor: center, dx: -40%r, dy: 30%r}
     color: palette.hot
 ```

@@ -101,11 +101,16 @@ def test_an_arcs_box_covers_its_pen_width(resolved_for):
     assert ring.box.width >= 2 * (ring.radius + ring.thickness // 2)
 
 
-def test_icon_is_square_and_centred(resolved_for):
+def test_icon_is_sized_to_its_own_glyph_and_centred(resolved_for):
+    """An icon's box comes from measuring its actual baked glyph, not from
+    forcing a `size x size` square -- a footprints glyph is wider than tall,
+    and pretending otherwise would make the safe-area/overflow lints check
+    the wrong box."""
     badge = find(resolved_for("fenix8solar47mm"), "badge")
     assert badge.size == 20
-    assert badge.box.width == badge.box.height == 20
+    assert badge.box.width > 0 and badge.box.height > 0
     assert badge.center == (130, 195)
+    assert badge.font_key and badge.codepoint
 
 
 def test_full_bleed_is_recognised(resolved_for, db):

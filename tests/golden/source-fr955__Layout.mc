@@ -40,7 +40,6 @@ module Layout {
     //! `steps_icon` -- the 'steps' icon
     const STEPS_ICON_CX as Number = 130;
     const STEPS_ICON_CY as Number = 172;
-    const STEPS_ICON_SIZE as Number = 30;
 
     //! `steps_value` -- text
     const STEPS_VALUE_X as Number = 130;

@@ -21,10 +21,10 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from . import catalog, expr, formatting, icons
+from . import catalog, expr, formatting
 from .catalog import Type
 from .fonts import BakedFont, fallback
-from .ir import IconElement, Progress, Shape, Text
+from .ir import Progress, Shape, Text
 from .layout import (
     PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
@@ -209,75 +209,18 @@ class _Renderer:
                                 fill=self._color(element.color))
 
     def _icon(self, placed: PlacedIcon) -> None:
-        """Mirror ``runtime-lib/WfbIcons.mc`` -- same primitives, same proportions."""
-        element = placed.element
-        color = self._color(element.color)
+        """One glyph from the baked icon font -- the same mechanism a
+        custom-font text element uses to draw, not a hand-drawn shape.  See
+        ``wfb.icons``: this is what makes preview and device agree on an icon's
+        appearance without a second, hand-maintained drawing implementation."""
+        font = self.resolved.fonts.get(placed.font_key)
+        sheet = getattr(font, "sheet_image", None) if font else None
+        glyph = font.glyphs.get(placed.codepoint) if font else None
+        if sheet is None or glyph is None:
+            return  # the font failed to bake, or the glyph is missing from it
         s = self.scale
-        cx, cy = placed.center[0] * s, placed.center[1] * s
-        size = placed.size * s
-
-        if element.icon == "steps":
-            sole_w, sole_h = size * 0.15, size * 0.26
-            gap, lift = size * 0.24, size * 0.10
-            toe_w, toe_h = size * 0.30, size * 0.10
-            for dx, dy in ((-gap, lift), (gap, -lift)):
-                self.draw.ellipse(
-                    [cx + dx - sole_w, cy + dy - sole_h, cx + dx + sole_w, cy + dy + sole_h],
-                    fill=color)
-                top = cy + dy - sole_h - toe_h - 1
-                self.draw.rounded_rectangle(
-                    [cx + dx - toe_w / 2, top, cx + dx + toe_w / 2, top + toe_h],
-                    radius=toe_h / 2, fill=color)
-        elif element.icon == "heart":
-            lobe, spread = size * 0.26, size * 0.22
-            lobe_y = cy - size * 0.14
-            for dx in (-spread, spread):
-                self.draw.ellipse([cx + dx - lobe, lobe_y - lobe, cx + dx + lobe, lobe_y + lobe],
-                                  fill=color)
-            self.draw.polygon([(cx - spread - lobe, lobe_y), (cx + spread + lobe, lobe_y),
-                               (cx, cy + size * 0.46)], fill=color)
-        elif element.icon == "flame":
-            top, bottom, half = cy - size * 0.48, cy + size * 0.42, size * 0.30
-            self.draw.polygon([(cx, top), (cx + half, cy - size * 0.02),
-                               (cx + half * 0.7, bottom), (cx - half * 0.7, bottom),
-                               (cx - half, cy - size * 0.02)], fill=color)
-        elif element.icon == "alarm":
-            r = size / 2.0
-            stroke = max(1, round(r * 0.18))
-            face_y = cy + r * 0.1
-            self.draw.ellipse([cx - r * 0.66, face_y - r * 0.66, cx + r * 0.66, face_y + r * 0.66],
-                              outline=color, width=stroke)
-            self.draw.line([cx - r * 0.72, cy - r * 0.44, cx - r * 0.40, cy - r * 0.72],
-                           fill=color, width=stroke)
-            self.draw.line([cx + r * 0.72, cy - r * 0.44, cx + r * 0.40, cy - r * 0.72],
-                           fill=color, width=stroke)
-            self.draw.line([cx, face_y, cx, cy - r * 0.30], fill=color, width=stroke)
-            self.draw.line([cx, face_y, cx + r * 0.34, cy + r * 0.24], fill=color, width=stroke)
-        elif element.icon == "dnd":
-            r = size / 2.0
-            stroke = max(1, round(r * 0.16))
-            dome_y = cy - r * 0.14
-            self.draw.ellipse([cx - r * 0.44, dome_y - r * 0.44, cx + r * 0.44, dome_y + r * 0.44],
-                              outline=color, width=stroke)
-            left, right = cx - r * 0.68, cx + r * 0.68
-            shoulder_l, shoulder_r = cx - r * 0.44, cx + r * 0.44
-            shoulder_y, foot_y = cy + r * 0.14, cy + r * 0.42
-            self.draw.line([left, foot_y, shoulder_l, shoulder_y], fill=color, width=stroke)
-            self.draw.line([shoulder_l, shoulder_y, shoulder_r, shoulder_y], fill=color, width=stroke)
-            self.draw.line([shoulder_r, shoulder_y, right, foot_y], fill=color, width=stroke)
-            self.draw.ellipse([cx - r * 0.11, cy - r * 0.68 - r * 0.11,
-                               cx + r * 0.11, cy - r * 0.68 + r * 0.11], fill=color)
-            self.draw.ellipse([cx - r * 0.13, cy + r * 0.60 - r * 0.13,
-                               cx + r * 0.13, cy + r * 0.60 + r * 0.13], fill=color)
-            self.draw.line([cx - r * 0.86, cy + r * 0.86, cx + r * 0.86, cy - r * 0.86],
-                           fill=color, width=stroke)
-        elif element.icon == "notification":
-            r = size / 2.0
-            self.draw.rounded_rectangle(
-                [cx - r * 0.85, cy - r * 0.75, cx + r * 0.85, cy + r * 0.45],
-                radius=r * 0.30, fill=color)
-            self.draw.polygon([(cx - r * 0.24, cy + r * 0.40), (cx + r * 0.24, cy + r * 0.40),
-                               (cx - r * 0.04, cy + r * 0.85)], fill=color)
+        color = self._color(placed.element.color)
+        self._paste_glyph(sheet, glyph, placed.box.x * s, placed.box.y * s, color)
 
     # -- text helpers -----------------------------------------------------
 
@@ -318,19 +261,30 @@ class _Renderer:
         if sheet is None:
             self._approximate_text(text, placed, color)
             return
-        tint = Image.new("RGB", self.image.size, color)
         pen = left
         for char in text:
             glyph = font.glyphs.get(char)
             if glyph is None:
                 continue
-            if glyph.width and glyph.height:
-                tile = sheet.crop((glyph.x, glyph.y, glyph.x + glyph.width, glyph.y + glyph.height))
-                if s != 1:
-                    tile = tile.resize((glyph.width * s, glyph.height * s), Image.NEAREST)
-                position = (int(pen + glyph.xoffset * s), int(top + glyph.yoffset * s))
-                self.image.paste(tint.crop((0, 0, tile.width, tile.height)), position, tile)
+            self._paste_glyph(sheet, glyph, pen, top, color)
             pen += glyph.xadvance * s
+
+    def _paste_glyph(self, sheet: Image.Image, glyph, x: float, y: float,
+                     color: tuple[int, int, int]) -> None:
+        """Crop one glyph tile off a baked sheet, tint it, and paste it at
+        ``(x, y)`` -- the point ``xoffset``/``yoffset`` are measured from, i.e.
+        the top-left of the text (or icon)'s own box, already scaled.  Shared
+        by text and icons: both are bitmap-font glyphs once baked, and this is
+        the one place either gets drawn from a sheet."""
+        if not (glyph.width and glyph.height):
+            return
+        s = self.scale
+        tile = sheet.crop((glyph.x, glyph.y, glyph.x + glyph.width, glyph.y + glyph.height))
+        if s != 1:
+            tile = tile.resize((glyph.width * s, glyph.height * s), Image.NEAREST)
+        tint = Image.new("RGB", tile.size, color)
+        position = (int(x + glyph.xoffset * s), int(y + glyph.yoffset * s))
+        self.image.paste(tint, position, tile)
 
     def _approximate_text(self, text: str, placed: PlacedText, color) -> None:
         """Draw system-font text with the same stand-in `wfb.layout` measured.

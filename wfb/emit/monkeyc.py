@@ -19,9 +19,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .. import __version__, catalog, formatting, icons
+from .. import __version__, catalog, formatting
 from ..catalog import READERS, Tier, Type
-from ..ir import Expression, Face, IconElement, Progress, Shape, Text
+from ..ir import Expression, Face, IconElement, Progress, Shape, Text, font_resource_id
 from ..layout import (
     PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
@@ -207,7 +207,6 @@ def _layout_constants(placed) -> list[tuple[str, float, str]]:
     elif isinstance(placed, PlacedIcon):
         out.append((f"{prefix}_CX", placed.center[0], ""))
         out.append((f"{prefix}_CY", placed.center[1], ""))
-        out.append((f"{prefix}_SIZE", placed.size, ""))
     return out
 
 
@@ -251,11 +250,12 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
 
 
 def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
-    custom = _custom_fonts(resolved)
-    if not custom:
+    loaded = _loaded_fonts(resolved)
+    if not loaded:
         return
-    w.doc("Custom fonts, loaded once in onLayout rather than per frame.")
-    for name in custom:
+    w.doc("Bitmap fonts -- custom text and icon glyphs alike -- loaded once in\n"
+          "onLayout rather than per frame.")
+    for name in loaded:
         w.line(f"private var _{_field(name)} as FontResource?;")
     w.blank()
 
@@ -267,13 +267,13 @@ def _emit_initialize(w: Writer, face: Face) -> None:
 
 
 def _emit_on_layout(w: Writer, resolved: ResolvedFace) -> None:
-    custom = _custom_fonts(resolved)
+    loaded = _loaded_fonts(resolved)
     w.doc("Load resources once.  Loading is expensive and must not happen per frame.")
     with w.block("function onLayout(dc as Dc) as Void"):
-        if not custom:
-            w.line("// No resources to load: this face draws entirely from primitives.")
-        for name in custom:
-            resource = resolved.face.fonts[name].resource_id
+        if not loaded:
+            w.line("// No resources to load: this face draws entirely from system fonts.")
+        for name in loaded:
+            resource = font_resource_id(name)
             w.line(
                 f"_{_field(name)} = WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
             )
@@ -520,11 +520,20 @@ def _emit_progress(w: Writer, placed: PlacedProgress) -> None:
 
 
 def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
+    """A `drawText` call against the icon's baked glyph -- see `wfb.icons`:
+    an icon is a one-character string drawn with a bitmap font, the same
+    mechanism any other bound text uses, not a hand-drawn shape."""
     element = placed.element
     prefix = _const_prefix(placed.id)
-    icon = icons.CATALOG[element.icon]
+    w.line(f"var font = _{_field(placed.font_key)};")
+    with w.block("if (font == null)"):
+        w.line("return;  // the icon font resource failed to load")
+    w.blank()
+    w.comment(f"{element.icon!r}")
     w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"{icon.function}(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_SIZE);")
+    w.line(f"dc.drawText(Layout.{prefix}_CX, Layout.{prefix}_CY, font,")
+    w.line(f'            "{element.codepoint}",')
+    w.line("            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);")
 
 
 def _fraction(element: Progress) -> str:
@@ -688,12 +697,21 @@ def _color(expression: Expression | None) -> str:
     return expression.code
 
 
-def _custom_fonts(resolved: ResolvedFace) -> list[str]:
+def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
+    """Every font resource this view loads once in `onLayout`.
+
+    Covers both an author's declared custom text fonts and the synthetic
+    per-size icon fonts (`wfb.icons.font_key`) -- both are bitmap fonts loaded
+    the same way, so one list and one loop serves both.
+    """
     out: list[str] = []
     for placed in resolved.items:
         if isinstance(placed, PlacedText) and placed.font_is_custom:
             if placed.font_reference not in out:
                 out.append(placed.font_reference)
+        elif isinstance(placed, PlacedIcon):
+            if placed.font_key not in out:
+                out.append(placed.font_key)
     return out
 
 

@@ -1,4 +1,6 @@
 <fonts xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
     <!-- clock: OpenSans-Regular.ttf at 68px, 11 glyphs -->
     <font id="FontClock" filename="clock.fnt" filter="0123456789:" antialias="false" />
+    <!-- icon_30px: SymbolsNerdFont-Regular.ttf at 30px, 1 glyphs -->
+    <font id="FontIcon30px" filename="icon_30px.fnt" filter="" antialias="false" />
 </fonts>

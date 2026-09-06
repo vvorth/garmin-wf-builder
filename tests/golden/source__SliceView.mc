@@ -17,8 +17,10 @@ import Toybox.WatchUi;
 //! the element's `id:` in the source YAML, so a change on screen leads back to
 //! a line in the design file.
 class SliceView extends WatchUi.WatchFace {
-    //! Custom fonts, loaded once in onLayout rather than per frame.
+    //! Bitmap fonts -- custom text and icon glyphs alike -- loaded once in
+    //! onLayout rather than per frame.
     private var _fontClock as FontResource?;
+    private var _fontIcon30px as FontResource?;
 
     function initialize() {
         WatchFace.initialize();
@@ -27,6 +29,7 @@ class SliceView extends WatchUi.WatchFace {
     //! Load resources once.  Loading is expensive and must not happen per frame.
     function onLayout(dc as Dc) as Void {
         _fontClock = WatchUi.loadResource(Rez.Fonts.FontClock) as FontResource;
+        _fontIcon30px = WatchUi.loadResource(Rez.Fonts.FontIcon30px) as FontResource;
     }
 
     //! Draw the full face.
@@ -111,8 +114,16 @@ class SliceView extends WatchUi.WatchFace {
     //! `steps_icon` -- the 'steps' icon.
     //! Drawn in: active.
     private function drawStepsIcon(dc as Dc) as Void {
+        var font = _fontIcon30px;
+        if (font == null) {
+            return;  // the icon font resource failed to load
+        }
+
+        // 'steps'
         dc.setColor(Palette.ACCENT, Graphics.COLOR_TRANSPARENT);
-        WfbIcons.drawSteps(dc, Layout.STEPS_ICON_CX, Layout.STEPS_ICON_CY, Layout.STEPS_ICON_SIZE);
+        dc.drawText(Layout.STEPS_ICON_CX, Layout.STEPS_ICON_CY, font,
+                    "",
+                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
     //! `steps_value` -- text.

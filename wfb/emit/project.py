@@ -21,7 +21,6 @@ BARREL_FILES = {
     "WfbMath.mc": "expression functions",
     "WfbTime.mc": "12/24-hour clock handling",
     "WfbArc.mc": "progress arcs",
-    "WfbIcons.mc": "the icon catalogue",
 }
 
 
@@ -142,8 +141,6 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
         if kind == "progress":
             needed.add("WfbArc.mc")
             needed.add("WfbMath.mc")  # the fill fraction goes through percent()
-        elif kind == "icon":
-            needed.add("WfbIcons.mc")
         elif kind == "text":
             element = placed.element
             spec = getattr(element, "format", None)

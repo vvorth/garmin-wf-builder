@@ -122,7 +122,7 @@ elements:
   - id: calories_icon
     type: icon
     icon: flame
-    size: 8%r
+    size: 9%r
     at: {anchor: top, dx: -12%, dy: 28.5%}
     color: palette.dim
 

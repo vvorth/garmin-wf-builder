@@ -116,7 +116,7 @@ class FontSpec:
 
     @property
     def resource_id(self) -> str:
-        return f"Font{_pascal(self.name)}"
+        return font_resource_id(self.name)
 
 
 # --------------------------------------------------------------------------
@@ -211,6 +211,10 @@ class Progress(Element):
 @dataclass
 class IconElement(Element):
     icon: str = "steps"
+    #: The glyph :func:`wfb.icons.resolve_codepoint` resolved ``icon`` to --
+    #: what actually gets drawn.  ``icon`` stays around for diagnostics and for
+    #: the generated code's comments; this is what baking and codegen use.
+    codepoint: str = "?"
     size: Length | None = None
     color: Expression | None = None
 
@@ -514,17 +518,36 @@ class Builder:
 
     def _build_icon(self, node: dict, common: dict, path: tuple) -> Element:
         name = node["icon"]
-        if icons.get(name) is None:
+        codepoint = icons.resolve_codepoint(name)
+        if codepoint is None:
             self.bag.error(
                 "icon",
                 f"unknown icon {name!r}",
                 self.doc.span(node, "icon"),
-                notes=["the catalogue has: " + ", ".join(icons.names())],
+                notes=[
+                    "the catalogue has: " + ", ".join(icons.names()),
+                    "or use any single character from the vendored icon font "
+                    "directly -- see wfb/assets/icons/README.md",
+                ],
             )
+            codepoint = icons.FALLBACK_CODEPOINT
+
+        size = self._length(node, "size")
+        if size is not None and size.unit not in icons.SIZE_UNITS:
+            self.bag.error(
+                "icon",
+                f"icon size must be px or %r, not {size.unit}",
+                self.doc.span(node, "size"),
+                notes=["an icon's font is baked once, before layout runs, so its size "
+                       "cannot depend on a parent box (%) or an element's own font (pt)"],
+            )
+            size = None
+
         return IconElement(
             **common,
             icon=name,
-            size=self._length(node, "size"),
+            codepoint=codepoint,
+            size=size,
             color=self._color_expression(node, "color"),
         )
 
@@ -795,6 +818,16 @@ def local_name(source_path: str) -> str:
 def _pascal(text: str) -> str:
     cleaned = "".join(c if c.isalnum() else " " for c in text)
     return "".join(word[:1].upper() + word[1:] for word in cleaned.split())
+
+
+def font_resource_id(name: str) -> str:
+    """The Monkey C resource id a font named ``name`` is emitted under.
+
+    Shared between author-declared custom fonts (:class:`FontSpec`) and the
+    synthetic per-size icon fonts (:mod:`wfb.icons`), so both are addressed the
+    same way in generated code without either needing to know the other exists.
+    """
+    return f"Font{_pascal(name)}"
 
 
 def _offset_span(span: Span | None, text: str, offset: int) -> Span | None:

@@ -221,13 +221,34 @@ semantics are identical across styles and only the rendering differs.
 - id: steps_icon
   type: icon
   icon: steps               # steps | heart | flame | alarm | dnd | notification
-  size: 30px
+  size: 30px                # px or %r only -- see below
   color: palette.accent
 ```
 
-Icons are drawn from `Dc` primitives by the support barrel, not shipped as
-bitmaps: no resource memory, no per-screen-size asset, and the colour is set at
-runtime.
+An icon is a single glyph from a vendored icon font
+([Nerd Fonts](https://www.nerdfonts.com)' "Symbols Only" build), baked into a
+bitmap font sheet at build time — the same pipeline that bakes a `fonts:`
+entry, subsetted to exactly the glyphs a design uses. Drawing an icon is
+drawing text: one `drawText` call against that baked font. No image ships in
+the `.prg`; the resource cost is the same small per-glyph bitmap a custom text
+font pays.
+
+**`size:` accepts only `px` and `%r`, not `%` or `pt`.** The icon's font has to
+be baked once, before layout runs, so its size cannot depend on a parent box
+(`%`) or another element's own font (`pt`) — both are only known once layout
+has already happened. `%r` is recommended, for the same reason it is
+recommended everywhere else: it means the same thing regardless of screen size.
+
+**Beyond the six named icons**, the vendored font has on the order of ten
+thousand glyphs. `icon:` accepts any single character from it directly —
+```yaml
+icon: ""    # a literal glyph, e.g. from https://www.nerdfonts.com/cheat-sheet
+```
+— checked against the font's own character map at build time, the same way a
+custom font's glyph coverage is checked. See `wfb/assets/icons/README.md` for
+how to find a codepoint, and its licensing (the font aggregates several
+separately-licensed icon sets under Nerd Fonts' MIT patcher; the ones the named
+catalogue draws from are CC BY 4.0 and are attributed there).
 
 ### `group`
 

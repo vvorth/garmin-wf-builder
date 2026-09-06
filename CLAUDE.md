@@ -378,11 +378,38 @@ The result validated and compiled cleanly and was actively misleading — a hear
 icon next to a do-not-disturb state reads as a heart-rate alert. This is a
 content bug, not a layout bug, and nothing in the tool catches it: an icon
 means what its shape says, and there is no substitute for having the right
-shape. The catalogue now has `alarm`, `dnd` and `notification` as well
-(`wfb/icons.py`, `runtime-lib/WfbIcons.mc`, mirrored in `wfb/preview.py`), and
-`skills/watchface-builder.md` §"rules" now warns against this directly. Growing
-the icon catalogue as real designs need specific things is expected Phase 3
-work, not a one-off fix.
+shape. `skills/watchface-builder.md` §"rules" now warns against this directly.
+
+**That in turn led to a bigger change than a three-icon fix.** Hand-drawing
+each icon from `Dc` primitives capped the vocabulary at whatever anyone had
+drawn, which is exactly what produced the misuse above — there was nowhere
+correct to reach for. `wfb/icons.py` now sources every icon from a vendored
+Nerd Fonts "Symbols Only" build (`wfb/assets/icons/`, MIT-licensed, aggregating
+several CC BY 4.0 icon sets — attributed in that directory's README), baked
+into a per-size bitmap font at build time by the *same* pipeline that bakes an
+author's own custom text font. An icon element is a `drawText` call against a
+baked glyph, not a hand-written drawing function, so `runtime-lib/WfbIcons.mc`
+is gone — deleted, not deprecated — and the six catalogue names are not the
+ceiling: `icon:` also accepts any single character from the font's ~10,000
+glyphs directly, checked against its cmap at build time the same way a custom
+font's coverage is checked. Verified end to end through the real toolchain,
+including that `monkeyc` accepts a raw UTF-8 Nerd Font character in a Monkey C
+string literal with no escaping. One real bug surfaced and was fixed while
+building this: an icon's baked-font *identifier* must be keyed by its
+**declared** size (`8%r`), not the pixel size that resolves to per device,
+because the generated view class is shared across every target device and a
+device-resolved key produced a different `Rez.Fonts.*` symbol per screen size
+— an `Undefined symbol` compile error on every device but the one the view was
+generated from. `wfb/icons.py`'s `font_key` docstring explains this in full;
+it is the same stable-name/per-device-content relationship a declared custom
+font already has, applied to something that previously had no declared name at
+all. Net effect on the dashboard example: better, correctly-labelled icons
+(a real alarm clock and bell-slash instead of a borrowed heart and flame) in a
+**smaller** compiled `.prg` (4.0 KB vs. 5.6 KB), because one `drawText` call
+against a two-glyph font is cheaper than several hand-written primitive-drawing
+functions. Growing the *named* catalogue as real designs need specific common
+concepts is still worthwhile (so `wfb sources`/`wfb new` can document them),
+but it is no longer the only way forward — the raw-glyph escape hatch is.
 
 ### Known-good reference
 

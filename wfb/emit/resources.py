@@ -19,11 +19,11 @@ from xml.sax.saxutils import escape
 
 from PIL import Image, ImageDraw
 
-from .. import catalog, formatting
+from .. import catalog, formatting, icons
 from ..devices import Device
 from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
-from ..ir import Face, Text
+from ..ir import Face, FontSpec, IconElement, Text
 from ..layout import font_pixel_size
 from ..palette import Color
 
@@ -66,8 +66,42 @@ def glyph_set(face: Face) -> dict[str, str]:
     return out
 
 
+def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
+    """One synthetic :class:`FontSpec` per distinct resolved icon pixel size.
+
+    A bitmap font is rasterised at one size, so continuous `size:` scaling on
+    an `icon` element is offered by baking whichever sizes a design actually
+    uses -- exactly as if the author had declared several custom fonts at
+    different sizes, except automatic and drawn from the vendored icon font
+    rather than one the author supplies.  Independent of :func:`bake_fonts`'s
+    caller order: this is a pure function of the design and the device, so it
+    can run again in :func:`build_bundle` without needing to be threaded
+    through as an argument.
+    """
+    by_key: dict[str, tuple[object, set[str]]] = {}
+    for element in face.walk():
+        if not isinstance(element, IconElement):
+            continue
+        key = icons.font_key(element.size)
+        _, chars = by_key.setdefault(key, (element.size, set()))
+        chars.add(element.codepoint)
+    return {
+        key: FontSpec(
+            name=key,
+            source=icons.FONT_PATH,
+            size=float(icons.pixel_size(length, device.minor_radius)),
+            glyphs="".join(sorted(chars)),
+            antialias=False,
+            scale=False,  # already resolved to this device's final pixel size
+            span=None,
+        )
+        for key, (length, chars) in by_key.items()
+    }
+
+
 def bake_fonts(face: Face, device: Device, reference_minor: float) -> dict[str, BakedFont]:
-    """Rasterise every declared font at this device's size."""
+    """Rasterise every declared font, plus every icon font this design needs,
+    at this device's size."""
     sets = glyph_set(face)
     baked: dict[str, BakedFont] = {}
     for name, spec in face.fonts.items():
@@ -85,18 +119,30 @@ def bake_fonts(face: Face, device: Device, reference_minor: float) -> dict[str, 
         )
         baked[name] = font
         font.sheet_image = sheet  # type: ignore[attr-defined]
+
+    for name, spec in icon_font_specs(face, device).items():
+        font, sheet = bake(
+            spec.source, name=name, size=round(spec.size), glyphs=spec.glyphs,
+            antialias=spec.antialias,
+        )
+        baked[name] = font
+        font.sheet_image = sheet  # type: ignore[attr-defined]
     return baked
 
 
 def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> ResourceBundle:
     bundle = ResourceBundle(device_id=device.id, directory=f"resources-{device.id}")
     sets = glyph_set(face)
+    # Icon fonts are not in face.fonts (nothing in the YAML declares them --
+    # they are synthesised from whichever `icon:` elements the design has), so
+    # the lookup below needs both merged.
+    specs: dict[str, FontSpec] = {**face.fonts, **icon_font_specs(face, device)}
 
     if baked:
         lines = [f"<fonts {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">"]
         for name, font in baked.items():
-            spec = face.fonts[name]
-            chars = escape(sets[name], {'"': "&quot;"})
+            spec = specs[name]
+            chars = escape(sets.get(name, spec.glyphs or ""), {'"': "&quot;"})
             lines.append(
                 f'    <!-- {name}: {spec.source.name} at {font.size}px, '
                 f"{len(font.glyphs)} glyphs -->"

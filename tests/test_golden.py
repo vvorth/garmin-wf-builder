@@ -98,7 +98,7 @@ def test_layout_constants_are_named_not_inlined(generated):
     view = generated.files()["source/SliceView.mc"]
     for line in view.splitlines():
         stripped = line.strip()
-        if not stripped.startswith(("dc.fill", "dc.draw", "WfbArc.", "WfbIcons.")):
+        if not stripped.startswith(("dc.fill", "dc.draw", "WfbArc.")):
             continue
         # Format strings and justify flags are fine; positional integers are not.
         without_strings = re.sub(r'"[^"]*"', '""', stripped)
@@ -129,7 +129,10 @@ def test_each_device_gets_its_own_resolved_layout(generated):
 
 
 def test_only_the_barrel_files_the_face_uses_are_copied(generated):
-    assert set(generated.barrel) == {"WfbArc.mc", "WfbIcons.mc", "WfbMath.mc", "WfbTime.mc"}
+    assert set(generated.barrel) == {"WfbArc.mc", "WfbMath.mc", "WfbTime.mc"}
+    # Not WfbIcons.mc: an icon draws its baked glyph via dc.drawText, the same
+    # mechanism any other bound text uses, so there is no barrel function for
+    # it to pull in (see wfb/icons.py).
 
 
 def test_the_generated_header_cites_the_source(generated):
