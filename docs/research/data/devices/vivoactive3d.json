@@ -34,7 +34,577 @@
     }
   },
   "fonts": {
+    "ara,ces,dan,deu,dut,eng,fin,fre,gre,heb,hrv,hun,ind,ita,nob,pol,por,rus,slo,slv,spa,swe,tur,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_16PX",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_16PX",
+          "size_px": 16
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_16PX",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_16PX",
+          "size_px": 16
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "eng": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_16PX",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_16PX",
+          "size_px": 16
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_22PX",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_25PX",
+          "size_px": 25
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "zhs": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_22",
+          "size_px": 22
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_22",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_22",
+          "size_px": 22
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_22",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans CJK TC Regular",
+          "font": "NOTO_SANS_CJK_TC_REGULAR_CHN_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans CJK TC Medium",
+          "font": "NOTO_SANS_CJK_TC_MEDIUM_CHN_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK JP Regular",
+          "font": "NOTO_SANS_CJK_JP_REGULAR_22",
+          "size_px": 22
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK JP Regular",
+          "font": "NOTO_SANS_CJK_JP_REGULAR_30",
+          "size_px": 30
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK JP Regular",
+          "font": "NOTO_SANS_CJK_JP_REGULAR_30",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK JP Medium",
+          "font": "NOTO_SANS_CJK_JP_MEDIUM_34",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK JP Medium",
+          "font": "NOTO_SANS_CJK_JP_MEDIUM_34",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans CJK JP Regular",
+          "font": "NOTO_SANS_CJK_JP_REGULAR_22",
+          "size_px": 22
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans CJK JP Regular",
+          "font": "NOTO_SANS_CJK_JP_REGULAR_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans CJK JP Regular",
+          "font": "NOTO_SANS_CJK_JP_REGULAR_30",
+          "size_px": 30
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans CJK JP Medium",
+          "font": "NOTO_SANS_CJK_JP_MEDIUM_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans CJK JP Medium",
+          "font": "NOTO_SANS_CJK_JP_MEDIUM_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_48PX",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_76PX",
+          "size_px": 76
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Noto Sans",
+          "font": "NOTO_SANS_BOLD_NMBR_94PX",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Noto Sans CJK KR Regular",

@@ -34,7 +34,307 @@
     }
   },
   "fonts": {
+    "ces,dan,deu,dut,eng,fin,fre,gre,heb,hrv,hun,ind,ita,nob,pol,por,rus,slo,slv,spa,swe,vie,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 21
+        },
+        "FONT_TINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 28
+        },
+        "FONT_SMALL": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 33
+        },
+        "FONT_MEDIUM": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 38
+        },
+        "FONT_LARGE": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 61
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 71
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 82
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 109
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 136
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 37
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 43
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 21
+        },
+        "FONT_TINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 28
+        },
+        "FONT_SMALL": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 33
+        },
+        "FONT_MEDIUM": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 38
+        },
+        "FONT_LARGE": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DejaVuSans_Cd_SemiBold_WGL4",
+          "size_px": 61
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 71
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 82
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 109
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 136
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 37
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 43
+        }
+      },
+      "scalable": {}
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-Edge",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-Edge",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-Edge",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-Edge",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-Edge",
+          "size_px": 35
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin Robo Units",
+          "font": "006B444000_NUMBER_MILD",
+          "size_px": 43
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 64
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "006B444000_NUMBER_THAI_HOT",
+          "size_px": 81
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 37
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 43
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-Edge",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-Edge",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-Edge",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-Edge",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-Edge",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin Robo Units",
+          "font": "006B444000_NUMBER_MILD",
+          "size_px": 43
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 64
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "006B444000_NUMBER_THAI_HOT",
+          "size_px": 81
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 37
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 43
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold-Edge",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold-Edge",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold-Edge",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold-Edge",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold-Edge",
+          "size_px": 35
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin Robo Units",
+          "font": "006B444000_NUMBER_MILD",
+          "size_px": 43
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "Garmin_Roboto_Bold",
+          "size_px": 64
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin Robo Units",
+          "font": "006B444000_NUMBER_THAI_HOT",
+          "size_px": 81
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 37
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Medium",
+          "size_px": 43
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Pridi",

@@ -42,7 +42,472 @@
     }
   },
   "fonts": {
+    "ara,bul,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ind,ita,lav,lit,nob,pol,por,ron,rus,slo,slv,spa,swe,tur,ukr,vie,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 35
+        },
+        "FONT_TINY": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 45
+        },
+        "FONT_SMALL": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 50
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 58
+        },
+        "FONT_LARGE": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 67
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 89
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 116
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 169
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 197
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 45
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 45
+        }
+      },
+      "scalable": {
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiRegular": {
+          "face": "Pridi",
+          "font": "Pridi-Regular"
+        },
+        "RobotoRegular": {
+          "face": "Roboto",
+          "font": "Roboto-Regular"
+        },
+        "YantramanavRegular": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular"
+        }
+      }
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 35
+        },
+        "FONT_TINY": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 45
+        },
+        "FONT_SMALL": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 50
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 58
+        },
+        "FONT_LARGE": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 67
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 89
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 116
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 169
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 197
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 45
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 45
+        }
+      },
+      "scalable": {
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiRegular": {
+          "face": "Pridi",
+          "font": "Pridi-Regular"
+        },
+        "RobotoRegular": {
+          "face": "Roboto",
+          "font": "Roboto-Regular"
+        },
+        "YantramanavRegular": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular"
+        }
+      }
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 47
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 61
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 69
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 79
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 91
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 89
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 116
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 169
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 197
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 61
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 61
+        }
+      },
+      "scalable": {
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiRegular": {
+          "face": "Pridi",
+          "font": "Pridi-Regular"
+        },
+        "RobotoRegular": {
+          "face": "Roboto",
+          "font": "Roboto-Regular"
+        },
+        "YantramanavRegular": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular"
+        }
+      }
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 31
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 41
+        },
+        "FONT_SMALL": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 47
+        },
+        "FONT_MEDIUM": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 53
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 62
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 89
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 116
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 169
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 197
+        },
+        "FONT_GLANCE": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 41
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 41
+        }
+      },
+      "scalable": {
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiRegular": {
+          "face": "Pridi",
+          "font": "Pridi-Regular"
+        },
+        "RobotoRegular": {
+          "face": "Roboto",
+          "font": "Roboto-Regular"
+        },
+        "YantramanavRegular": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular"
+        }
+      }
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 36
+        },
+        "FONT_TINY": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 47
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 54
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 61
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 71
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 89
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 116
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 169
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular",
+          "size_px": 197
+        },
+        "FONT_GLANCE": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 47
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 47
+        }
+      },
+      "scalable": {
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiRegular": {
+          "face": "Pridi",
+          "font": "Pridi-Regular"
+        },
+        "RobotoRegular": {
+          "face": "Roboto",
+          "font": "Roboto-Regular"
+        },
+        "YantramanavRegular": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular"
+        }
+      }
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Pridi",

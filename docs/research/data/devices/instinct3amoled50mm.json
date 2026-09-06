@@ -38,7 +38,332 @@
     }
   },
   "fonts": {
+    "ara,bul,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ind,ita,lav,lit,nob,pol,por,ron,rus,slo,slv,spa,swe,tur,ukr,vie,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_16",
+          "size_px": 28
+        },
+        "FONT_TINY": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_20",
+          "size_px": 35
+        },
+        "FONT_SMALL": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_24",
+          "size_px": 42
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_29",
+          "size_px": 51
+        },
+        "FONT_LARGE": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_33",
+          "size_px": 59
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_39",
+          "size_px": 83
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_52",
+          "size_px": 112
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_22",
+          "size_px": 39
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_29",
+          "size_px": 62
+        },
+        "FONT_AUX1": {
+          "face": "Roboto Medium",
+          "font": "006B458700_ROBOTO_22M",
+          "size_px": 39
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_16",
+          "size_px": 28
+        },
+        "FONT_TINY": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_20",
+          "size_px": 35
+        },
+        "FONT_SMALL": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_24",
+          "size_px": 42
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_29",
+          "size_px": 51
+        },
+        "FONT_LARGE": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_33",
+          "size_px": 59
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_39",
+          "size_px": 83
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_52",
+          "size_px": 112
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "006B458700_ROBOTO_22",
+          "size_px": 39
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_29",
+          "size_px": 62
+        },
+        "FONT_AUX1": {
+          "face": "Roboto Medium",
+          "font": "006B458700_ROBOTO_22M",
+          "size_px": 39
+        }
+      },
+      "scalable": {}
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458700_NOTO_SANS_SC_MEDIUM-94_24",
+          "size_px": 24
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458700_NOTO_SANS_SC_MEDIUM-94_30",
+          "size_px": 30
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458700_NOTO_SANS_SC_MEDIUM-94_36",
+          "size_px": 36
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458700_NOTO_SANS_SC_MEDIUM-94_44",
+          "size_px": 44
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458700_NOTO_SANS_SC_MEDIUM-94_50",
+          "size_px": 50
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_39",
+          "size_px": 83
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_52",
+          "size_px": 112
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458700_NOTO_SANS_SC_MEDIUM-94_33",
+          "size_px": 33
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_29",
+          "size_px": 62
+        },
+        "FONT_AUX1": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458700_NOTO_SANS_SC_MEDIUM-94_24",
+          "size_px": 24
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458700_KOSUGI_REGULAR-94_JPN_24",
+          "size_px": 24
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458700_KOSUGI_REGULAR-94_JPN_30",
+          "size_px": 30
+        },
+        "FONT_SMALL": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458700_KOSUGI_REGULAR-94_JPN_36",
+          "size_px": 36
+        },
+        "FONT_MEDIUM": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458700_KOSUGI_REGULAR-94_JPN_44",
+          "size_px": 44
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458700_KOSUGI_REGULAR-94_JPN_50",
+          "size_px": 50
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_39",
+          "size_px": 83
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_52",
+          "size_px": 112
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_GLANCE": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458700_KOSUGI_REGULAR-94_JPN_33",
+          "size_px": 33
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_29",
+          "size_px": 62
+        },
+        "FONT_AUX1": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458700_KOSUGI_REGULAR-94_JPN_24",
+          "size_px": 24
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "006B458700_NANUM_GOTHIC_BOLD_KOR_24",
+          "size_px": 24
+        },
+        "FONT_TINY": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "006B458700_NANUM_GOTHIC_BOLD_KOR_30",
+          "size_px": 30
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "006B458700_NANUM_GOTHIC_BOLD_KOR_36",
+          "size_px": 36
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "006B458700_NANUM_GOTHIC_BOLD_KOR_44",
+          "size_px": 44
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "006B458700_NANUM_GOTHIC_BOLD_KOR_50",
+          "size_px": 50
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_39",
+          "size_px": 83
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_52",
+          "size_px": 112
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_69",
+          "size_px": 150
+        },
+        "FONT_GLANCE": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "006B458700_NANUM_GOTHIC_BOLD_KOR_33",
+          "size_px": 33
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Oswald Light",
+          "font": "006B458700_OSWALD_29",
+          "size_px": 62
+        },
+        "FONT_AUX1": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "006B458700_NANUM_GOTHIC_BOLD_KOR_24",
+          "size_px": 24
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Vera Sans",

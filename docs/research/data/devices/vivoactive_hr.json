@@ -34,7 +34,307 @@
     }
   },
   "fonts": {
+    "ces,dan,deu,dut,eng,fin,fre,gre,hrv,hun,ita,nob,pol,por,rus,slo,slv,spa,swe": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_14",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_15_5",
+          "size_px": 25
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_18",
+          "size_px": 28
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_20BT",
+          "size_px": 31
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_32BT",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_36BT",
+          "size_px": 54
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_48BT",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_14",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_15_5",
+          "size_px": 25
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_18",
+          "size_px": 28
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_20BT",
+          "size_px": 31
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_32BT",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_36BT",
+          "size_px": 54
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_48BT",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "eng,ind,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_14",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_15_5",
+          "size_px": 25
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_18",
+          "size_px": 28
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_20BT",
+          "size_px": 31
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_32BT",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_36BT",
+          "size_px": 54
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_48BT",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_19",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_19",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_22",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_24",
+          "size_px": 24
+        },
+        "FONT_LARGE": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_27",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_20BT",
+          "size_px": 31
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_32BT",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_36BT",
+          "size_px": 54
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_48BT",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_19",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_19",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_22",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_24",
+          "size_px": 24
+        },
+        "FONT_LARGE": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_27",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_20BT",
+          "size_px": 31
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_32BT",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_36BT",
+          "size_px": 54
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_48BT",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK KR Thin",
+          "font": "NOTO_SANS_CJK_KR_THIN_19",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK KR Thin",
+          "font": "NOTO_SANS_CJK_KR_THIN_19",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK KR Regular",
+          "font": "NOTO_SANS_CJK_KR_REGULAR_22",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK KR Regular",
+          "font": "NOTO_SANS_CJK_KR_REGULAR_25",
+          "size_px": 25
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK KR Medium",
+          "font": "NOTO_SANS_CJK_KR_MEDIUM_28",
+          "size_px": 28
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_20BT",
+          "size_px": 31
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_32BT",
+          "size_px": 48
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_36BT",
+          "size_px": 54
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue ttf",
+          "font": "BEBAS_NEUE_48BT",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Vera Sans",

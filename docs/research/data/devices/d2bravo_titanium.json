@@ -30,6 +30,56 @@
     }
   },
   "fonts": {
+    "ces,dan,deu,dut,eng,fin,fre,gre,hrv,hun,ita,nob,pol,por,rus,slo,slv,spa,swe": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_11B",
+          "size_px": 18
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_14B",
+          "size_px": 22
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_16",
+          "size_px": 26
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_19",
+          "size_px": 29
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_24B",
+          "size_px": 38
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Steelfish Rg",
+          "font": "STEELFISH_22",
+          "size_px": 32
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Steelfish Rg",
+          "font": "STEELFISH_40",
+          "size_px": 60
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Steelfish Rg",
+          "font": "STEELFISH_54",
+          "size_px": 83
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Steelfish Rg",
+          "font": "STEELFISH_75",
+          "size_px": 116
+        }
+      },
+      "scalable": {}
+    },
     "default": {
       "fixed": {
         "FONT_XTINY": {

@@ -30,7 +30,307 @@
     }
   },
   "fonts": {
+    "ces,dan,deu,dut,eng,fin,fre,gre,hrv,hun,ita,nob,pol,por,rus,slo,slv,spa,swe": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_9",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_12",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_14",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_16",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_26",
+          "size_px": 36
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_24",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_28",
+          "size_px": 39
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_36",
+          "size_px": 50
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_40",
+          "size_px": 56
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_9",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_12",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_14",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_16",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_26",
+          "size_px": 36
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_24",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_28",
+          "size_px": 39
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_36",
+          "size_px": 50
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_40",
+          "size_px": 56
+        }
+      },
+      "scalable": {}
+    },
+    "eng": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_9",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_12",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_14",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_16",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "DEJAVU_SANS_26",
+          "size_px": 36
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_24",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_28",
+          "size_px": 39
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_36",
+          "size_px": 50
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_40",
+          "size_px": 56
+        }
+      },
+      "scalable": {}
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DFHeiW5-A",
+          "font": "DFHEI_12",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "DFHeiW5-A",
+          "font": "DFHEI_17",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "DFHeiW5-A",
+          "font": "DFHEI_19",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "DFHeiW5-A",
+          "font": "DFHEI_22",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "DFHeiW5-A",
+          "font": "DFHEI_36",
+          "size_px": 36
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_26",
+          "size_px": 36
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_30",
+          "size_px": 42
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_40",
+          "size_px": 56
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_50",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DFKGothic-Md",
+          "font": "DFKGOTHIC_12",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "DFKGothic-Md",
+          "font": "DFKGOTHIC_17",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "DFKGothic-Md",
+          "font": "DFKGOTHIC_19",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "DFKGothic-Md",
+          "font": "DFKGOTHIC_22",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "DFKGothic-Md",
+          "font": "DFKGOTHIC_36",
+          "size_px": 36
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_26",
+          "size_px": 36
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_30",
+          "size_px": 42
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_40",
+          "size_px": 56
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "DEJAVU_FITNESS_50",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_MEDIUM": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 27",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Phelant",
+          "font": "PHELANT_20B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Phelant",
+          "font": "PHELANT_32B",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_38B",
+          "size_px": 42
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_62B",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
       "fixed": {
         "FONT_XTINY": {
           "face": "DFPHSGothic-W3",

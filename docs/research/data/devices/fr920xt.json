@@ -30,7 +30,257 @@
     }
   },
   "fonts": {
+    "ces,dan,deu,dut,eng,fin,fre,gre,hrv,hun,ita,nob,pol,por,rus,slo,slv,spa,swe": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_TINY": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_SMALL": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_MEDIUM": {
+          "face": "Digi",
+          "font": "DIGI_17",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Digi",
+          "font": "DIGI_20",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Digi Narrow",
+          "font": "DIGI_20N",
+          "size_px": 24
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Digi",
+          "font": "DIGI_32",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Digi",
+          "font": "DIGI_38",
+          "size_px": 43
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Digi",
+          "font": "DIGI_62",
+          "size_px": 67
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_TINY": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_SMALL": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_MEDIUM": {
+          "face": "Digi",
+          "font": "DIGI_17",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Digi",
+          "font": "DIGI_20",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Digi Narrow",
+          "font": "DIGI_20N",
+          "size_px": 24
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Digi",
+          "font": "DIGI_32",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Digi",
+          "font": "DIGI_38",
+          "size_px": 43
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Digi",
+          "font": "DIGI_62",
+          "size_px": 67
+        }
+      },
+      "scalable": {}
+    },
+    "eng": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_TINY": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_SMALL": {
+          "face": "Digi",
+          "font": "DIGI_12",
+          "size_px": 15
+        },
+        "FONT_MEDIUM": {
+          "face": "Digi",
+          "font": "DIGI_17",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Digi",
+          "font": "DIGI_20",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Digi Narrow",
+          "font": "DIGI_20N",
+          "size_px": 24
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Digi",
+          "font": "DIGI_32",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Digi",
+          "font": "DIGI_38",
+          "size_px": 43
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Digi",
+          "font": "DIGI_62",
+          "size_px": 67
+        }
+      },
+      "scalable": {}
+    },
+    "zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Source Han Sans TWHK Bold",
+          "font": "SOURCE_HAN_SANS_TWHK_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_TINY": {
+          "face": "Source Han Sans TWHK Bold",
+          "font": "SOURCE_HAN_SANS_TWHK_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_SMALL": {
+          "face": "Source Han Sans TWHK Bold",
+          "font": "SOURCE_HAN_SANS_TWHK_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_MEDIUM": {
+          "face": "Source Han Sans TWHK Bold",
+          "font": "SOURCE_HAN_SANS_TWHK_BOLD_21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Source Han Sans TWHK Bold",
+          "font": "SOURCE_HAN_SANS_TWHK_BOLD_26",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Digi Narrow",
+          "font": "DIGI_20N",
+          "size_px": 24
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Digi",
+          "font": "DIGI_32",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Digi",
+          "font": "DIGI_38",
+          "size_px": 43
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Digi",
+          "font": "DIGI_62",
+          "size_px": 67
+        }
+      },
+      "scalable": {}
+    },
+    "zhs": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Source Han Sans CN Bold",
+          "font": "SOURCE_HAN_SANS_CN_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_TINY": {
+          "face": "Source Han Sans CN Bold",
+          "font": "SOURCE_HAN_SANS_CN_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_SMALL": {
+          "face": "Source Han Sans CN Bold",
+          "font": "SOURCE_HAN_SANS_CN_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_MEDIUM": {
+          "face": "Source Han Sans CN Bold",
+          "font": "SOURCE_HAN_SANS_CN_BOLD_21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Source Han Sans CN Bold",
+          "font": "SOURCE_HAN_SANS_CN_BOLD_26",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Digi Narrow",
+          "font": "DIGI_20N",
+          "size_px": 24
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Digi",
+          "font": "DIGI_32",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Digi",
+          "font": "DIGI_38",
+          "size_px": 43
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Digi",
+          "font": "DIGI_62",
+          "size_px": 67
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Source Han Sans JP Bold",

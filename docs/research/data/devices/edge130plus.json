@@ -22,7 +22,487 @@
     }
   },
   "fonts": {
+    "ces,dan,deu,dut,eng,fin,fre,gre,heb,hrv,hun,ita,nob,pol,rus,slo,slv,spa,swe": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_17",
+          "size_px": 27
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_18",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_18",
+          "size_px": 30
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_21",
+          "size_px": 35
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_32",
+          "size_px": 52
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_35",
+          "size_px": 57
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_51",
+          "size_px": 84
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_64",
+          "size_px": 106
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_17",
+          "size_px": 27
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_18",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_18",
+          "size_px": 30
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_21",
+          "size_px": 35
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_32",
+          "size_px": 52
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_35",
+          "size_px": 57
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_51",
+          "size_px": 84
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_64",
+          "size_px": 106
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        }
+      },
+      "scalable": {}
+    },
+    "eng,ind,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_17",
+          "size_px": 27
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_18",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_18",
+          "size_px": 30
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_BOLD_21",
+          "size_px": 35
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_32",
+          "size_px": 52
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_35",
+          "size_px": 57
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_51",
+          "size_px": 84
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_64",
+          "size_px": 106
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "EDGE130_ROBOTO_CONDENSED_17",
+          "size_px": 27
+        }
+      },
+      "scalable": {}
+    },
+    "zhs": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_CHN_27",
+          "size_px": 27
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_CHN_27",
+          "size_px": 27
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_CHN_30",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_CHN_30",
+          "size_px": 30
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_CHN_35",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_32",
+          "size_px": 52
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_35",
+          "size_px": 57
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_51",
+          "size_px": 84
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_64",
+          "size_px": 106
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_CHN_27",
+          "size_px": 27
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_CHN_27",
+          "size_px": 27
+        }
+      },
+      "scalable": {}
+    },
+    "zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_TWN_27",
+          "size_px": 27
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_TWN_27",
+          "size_px": 27
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_TWN_30",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_TWN_30",
+          "size_px": 30
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_TWN_35",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_32",
+          "size_px": 52
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_35",
+          "size_px": 57
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_51",
+          "size_px": 84
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_64",
+          "size_px": 106
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_TWN_27",
+          "size_px": 27
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_TWN_27",
+          "size_px": 27
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_JP_BOLD_27",
+          "size_px": 27
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_JP_BOLD_27",
+          "size_px": 27
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_JP_BOLD_30",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_JP_BOLD_30",
+          "size_px": 30
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_JP_BOLD_35",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_32",
+          "size_px": 52
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_35",
+          "size_px": 57
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_51",
+          "size_px": 84
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_64",
+          "size_px": 106
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_JP_BOLD_27",
+          "size_px": 27
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_JP_BOLD_27",
+          "size_px": 27
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_KOR_27",
+          "size_px": 27
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_KOR_27",
+          "size_px": 27
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_KOR_30",
+          "size_px": 30
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_KOR_30",
+          "size_px": 30
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_KOR_35",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_32",
+          "size_px": 52
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_35",
+          "size_px": 57
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_51",
+          "size_px": 84
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_64",
+          "size_px": 106
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_KOR_27",
+          "size_px": 27
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK TC Bold",
+          "font": "EDGE130_NOTO_SANS_CJK_TC_BOLD_KOR_27",
+          "size_px": 27
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_MEDIUM": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 27",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_32",
+          "size_px": 52
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_35",
+          "size_px": 57
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_51",
+          "size_px": 84
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold",
+          "font": "EDGE130_BEBAS_NEUE_BOLD_64",
+          "size_px": 106
+        },
+        "FONT_GLANCE": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        }
+      },
+      "scalable": {}
+    },
+    "vie": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Roboto Condensed",

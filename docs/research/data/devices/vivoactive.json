@@ -30,7 +30,257 @@
     }
   },
   "fonts": {
+    "ces,dan,deu,dut,eng,fin,fre,gre,hrv,hun,ita,nob,pol,por,rus,slo,slv,spa,swe": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_17",
+          "size_px": 27
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_20",
+          "size_px": 32
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Phelant",
+          "font": "PHELANT_20B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Phelant",
+          "font": "PHELANT_32B",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_38B",
+          "size_px": 42
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_62B",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_17",
+          "size_px": 27
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_20",
+          "size_px": 32
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Phelant",
+          "font": "PHELANT_20B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Phelant",
+          "font": "PHELANT_32B",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_38B",
+          "size_px": 42
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_62B",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "eng,ind,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_12",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_17",
+          "size_px": 27
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_20",
+          "size_px": 32
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Phelant",
+          "font": "PHELANT_20B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Phelant",
+          "font": "PHELANT_32B",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_38B",
+          "size_px": 42
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_62B",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_16",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_16",
+          "size_px": 16
+        },
+        "FONT_MEDIUM": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Source Han Sans CN Light",
+          "font": "SOURCE_HAN_SANS_CN_LIGHT_27",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Phelant",
+          "font": "PHELANT_20B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Phelant",
+          "font": "PHELANT_32B",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_38B",
+          "size_px": 42
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_62B",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_16",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_16",
+          "size_px": 16
+        },
+        "FONT_MEDIUM": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Source Han Sans JP Light",
+          "font": "SOURCE_HAN_SANS_JP_LIGHT_27",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Phelant",
+          "font": "PHELANT_20B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Phelant",
+          "font": "PHELANT_32B",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_38B",
+          "size_px": 42
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Phelant",
+          "font": "PHELANT_62B",
+          "size_px": 70
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Vera Sans",

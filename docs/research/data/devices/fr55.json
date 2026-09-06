@@ -38,7 +38,487 @@
     }
   },
   "fonts": {
+    "ara,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ita,lav,lit,nob,pol,ron,rus,slo,slv,spa,swe,tur": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_15B",
+          "size_px": 25
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_17B",
+          "size_px": 27
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_20B",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_20B",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_15B",
+          "size_px": 25
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_17B",
+          "size_px": 27
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_20B",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_20B",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        }
+      },
+      "scalable": {}
+    },
+    "eng,ind,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_15B",
+          "size_px": 25
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_17B",
+          "size_px": 27
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_20B",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_20B",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B386900_CDPG_ROBOTO_13B",
+          "size_px": 22
+        }
+      },
+      "scalable": {}
+    },
+    "vie": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_19B",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_19B",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_22B",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_32B",
+          "size_px": 32
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_19B",
+          "size_px": 19
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "ROBOTO_CONDENSED_BOLD_19B",
+          "size_px": 19
+        }
+      },
+      "scalable": {}
+    },
+    "zhs": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_18",
+          "size_px": 18
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_22",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_26",
+          "size_px": 26
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_26",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_16",
+          "size_px": 16
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_16",
+          "size_px": 16
+        }
+      },
+      "scalable": {}
+    },
+    "zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_18",
+          "size_px": 18
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_22",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_26",
+          "size_px": 26
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_26",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_16",
+          "size_px": 16
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "NOTO_SANS_SC_BOLD_94_CHN_16",
+          "size_px": 16
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_16B",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_18B",
+          "size_px": 18
+        },
+        "FONT_SMALL": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_22B",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_26B",
+          "size_px": 26
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_26B",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_GLANCE": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_16B",
+          "size_px": 16
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_16B",
+          "size_px": 16
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "NANUM_GOTHIC_BOLD_KOR_16B",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "NANUM_GOTHIC_BOLD_KOR_18B",
+          "size_px": 18
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "NANUM_GOTHIC_BOLD_KOR_22B",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "NANUM_GOTHIC_BOLD_KOR_26B",
+          "size_px": 26
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "NANUM_GOTHIC_BOLD_KOR_26B",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_20",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_44",
+          "size_px": 79
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto Black",
+          "font": "006B386900_ROBOTO_BLACK_NUMBER_FONT_50",
+          "size_px": 90
+        },
+        "FONT_GLANCE": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "NANUM_GOTHIC_BOLD_KOR_16B",
+          "size_px": 16
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "NanumGothicExtraBold-94",
+          "font": "NANUM_GOTHIC_BOLD_KOR_16B",
+          "size_px": 16
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Roboto Condensed",

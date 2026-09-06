@@ -42,6 +42,75 @@
     }
   },
   "fonts": {
+    "ara,bul,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ind,ita,lav,lit,nob,pol,por,ron,rus,slo,slv,spa,swe,tur,ukr,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 30
+        },
+        "FONT_TINY": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 35
+        },
+        "FONT_SMALL": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 45
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 53
+        },
+        "FONT_LARGE": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 61
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 79
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 106
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 120
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 146
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 35
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Regular",
+          "size_px": 45
+        }
+      },
+      "scalable": {
+        "RobotoRegular": {
+          "face": "Roboto",
+          "font": "Roboto-Regular"
+        },
+        "YantramanavRegular": {
+          "face": "Yantramanav",
+          "font": "Yantramanav-Regular"
+        }
+      }
+    },
     "default": {
       "fixed": {
         "FONT_XTINY": {

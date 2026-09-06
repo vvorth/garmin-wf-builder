@@ -42,7 +42,307 @@
     }
   },
   "fonts": {
+    "ara,bul,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ind,ita,lav,lit,nob,pol,por,ron,rus,slo,slv,spa,swe,tur,ukr,vie,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto",
+          "font": "006B442500_TINY",
+          "size_px": 32
+        },
+        "FONT_TINY": {
+          "face": "Roboto",
+          "font": "006B442500_SMALL",
+          "size_px": 41
+        },
+        "FONT_SMALL": {
+          "face": "Roboto",
+          "font": "006B442500_MEDIUM",
+          "size_px": 48
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto",
+          "font": "006B442500_LARGE",
+          "size_px": 54
+        },
+        "FONT_LARGE": {
+          "face": "Roboto",
+          "font": "006B442500_XLARGE",
+          "size_px": 63
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XSMALL",
+          "size_px": 74
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_SMALL",
+          "size_px": 99
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_LARGE",
+          "size_px": 144
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XLARGE",
+          "size_px": 169
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "006B442500_SMALL",
+          "size_px": 41
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "006B442500_SMALL",
+          "size_px": 41
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto",
+          "font": "006B442500_TINY",
+          "size_px": 32
+        },
+        "FONT_TINY": {
+          "face": "Roboto",
+          "font": "006B442500_SMALL",
+          "size_px": 41
+        },
+        "FONT_SMALL": {
+          "face": "Roboto",
+          "font": "006B442500_MEDIUM",
+          "size_px": 48
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto",
+          "font": "006B442500_LARGE",
+          "size_px": 54
+        },
+        "FONT_LARGE": {
+          "face": "Roboto",
+          "font": "006B442500_XLARGE",
+          "size_px": 63
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XSMALL",
+          "size_px": 74
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_SMALL",
+          "size_px": 99
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_LARGE",
+          "size_px": 144
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XLARGE",
+          "size_px": 169
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "006B442500_SMALL",
+          "size_px": 41
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "006B442500_SMALL",
+          "size_px": 41
+        }
+      },
+      "scalable": {}
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "NOTO_SANS_SC_MEDIUM-94_25",
+          "size_px": 25
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "NOTO_SANS_SC_MEDIUM-94_35",
+          "size_px": 35
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "NOTO_SANS_SC_MEDIUM-94_40",
+          "size_px": 40
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "NOTO_SANS_SC_MEDIUM-94_46",
+          "size_px": 46
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "NOTO_SANS_SC_MEDIUM-94_54",
+          "size_px": 54
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XSMALL",
+          "size_px": 74
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_SMALL",
+          "size_px": 99
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_LARGE",
+          "size_px": 144
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XLARGE",
+          "size_px": 169
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "NOTO_SANS_SC_MEDIUM-94_35",
+          "size_px": 35
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "NOTO_SANS_SC_MEDIUM-94_35",
+          "size_px": 35
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_25",
+          "size_px": 25
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_35",
+          "size_px": 35
+        },
+        "FONT_SMALL": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_40",
+          "size_px": 40
+        },
+        "FONT_MEDIUM": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_46",
+          "size_px": 46
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_54",
+          "size_px": 54
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XSMALL",
+          "size_px": 74
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_SMALL",
+          "size_px": 99
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_LARGE",
+          "size_px": 144
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XLARGE",
+          "size_px": 169
+        },
+        "FONT_GLANCE": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_35",
+          "size_px": 35
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "MotoyaLCedar-94",
+          "font": "KOSUGI_REGULAR-94_JPN_35",
+          "size_px": 35
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_25",
+          "size_px": 25
+        },
+        "FONT_TINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_35",
+          "size_px": 35
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_40",
+          "size_px": 40
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_46",
+          "size_px": 46
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_54",
+          "size_px": 54
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XSMALL",
+          "size_px": 74
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_SMALL",
+          "size_px": 99
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_LARGE",
+          "size_px": 144
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B442500_NUMBER_XLARGE",
+          "size_px": 169
+        },
+        "FONT_GLANCE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_35",
+          "size_px": 35
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_35",
+          "size_px": 35
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Vera Sans",

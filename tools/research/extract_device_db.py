@@ -96,14 +96,31 @@ def parse_device(path: Path) -> dict[str, Any]:
     field_layouts: dict[str, Any] = {}
     pending_langs: list[str] = []
 
-    # Language lists appear as a bare paragraph between Fonts tables.
+    # Language lists appear as a bare paragraph between Fonts tables. The label
+    # is wrapped in <em>, not <strong>, in the actual doc HTML -- matching only
+    # <strong> here (as an earlier version of this script did) makes this find
+    # zero blocks, silently. When it finds zero, every Fonts table below falls
+    # through to the `else "default"` branch, so all of a device's per-language
+    # font tables collide onto one "default" key and whichever table is parsed
+    # *last* silently wins -- normally the block for whatever language sorts
+    # last in the doc (often Thai or Korean), not English. Confirmed against
+    # fenix8solar47mm: the real English `FONT_XTINY` is 21px (Roboto Condensed);
+    # the "default" key this bug produced was 28px (Pridi, the Thai block).
     lang_blocks = re.findall(
-        r"<p[^>]*>\s*<strong[^>]*>\s*Languages\s*</strong>\s*</p>(.*?)(?=<p[^>]*>\s*<strong)",
+        r"<p[^>]*>\s*<(?:strong|em)[^>]*>\s*Languages\s*</(?:strong|em)>\s*</p>(.*?)"
+        r"(?=<p[^>]*>\s*<(?:strong|em)[^>]*>)",
         html,
         re.S,
     )
+    # Language codes are comma-separated in one paragraph ("ara, bul, ..., zsm").
+    # Splitting on whitespace instead of comma (as an earlier version did) left
+    # a trailing comma on every token but the last, so `re.fullmatch(r"[a-z]{3}",
+    # t)` only ever matched that final code -- a second, independent bug that
+    # happened to be masked by the first: with lang_blocks always empty, this
+    # line never ran on real data until the regex above was fixed.
     lang_queue = [
-        [t for t in text(b).split() if re.fullmatch(r"[a-z]{3}", t)] for b in lang_blocks
+        [t.strip() for t in text(b).split(",") if re.fullmatch(r"[a-z]{3}", t.strip())]
+        for b in lang_blocks
     ]
 
     for label, tbl in split_sections(html):
@@ -146,6 +163,13 @@ def parse_device(path: Path) -> dict[str, Any]:
                     entry["fixed"][symbol] = {**rec, "size_px": as_int(size)}
             key = ",".join(langs) if langs else "default"
             fonts_by_lang[key] = entry
+            if "eng" in langs:
+                # `wfb.devices.Device.system_fonts` reads exactly this key; see
+                # its docstring ("these come from the SDK's device reference
+                # pages... for the default language"). Keeping the full
+                # language-code key around too, rather than renaming it,
+                # preserves the per-language data for any future use.
+                fonts_by_lang["default"] = entry
 
     if fonts_by_lang:
         dev["fonts"] = fonts_by_lang

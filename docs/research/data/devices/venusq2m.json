@@ -42,7 +42,532 @@
     }
   },
   "fonts": {
+    "ara,bul,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ind,ita,lav,lit,nob,pol,por,ron,rus,slo,slv,spa,swe,tur,ukr,vie,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_XSMALL",
+          "size_px": 32
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_MEDIUM",
+          "size_px": 42
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_LARGE",
+          "size_px": 48
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_XLARGE",
+          "size_px": 56
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_XSMALL",
+          "size_px": 32
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_MEDIUM",
+          "size_px": 42
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_LARGE",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_XLARGE",
+          "size_px": 56
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_XSMALL",
+          "size_px": 32
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_MEDIUM",
+          "size_px": 42
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_LARGE",
+          "size_px": 48
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_XLARGE",
+          "size_px": 56
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_XSMALL",
+          "size_px": 32
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_MEDIUM",
+          "size_px": 42
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_LARGE",
+          "size_px": 48
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_XLARGE",
+          "size_px": 56
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        }
+      },
+      "scalable": {}
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_34",
+          "size_px": 34
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_37",
+          "size_px": 37
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_42",
+          "size_px": 42
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_50",
+          "size_px": 50
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_57",
+          "size_px": 57
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_37",
+          "size_px": 37
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_42",
+          "size_px": 42
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_50",
+          "size_px": 50
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_57",
+          "size_px": 57
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B411500_NOTO_SANS_SC_MEDIUM-94_37",
+          "size_px": 37
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_34",
+          "size_px": 34
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_37",
+          "size_px": 37
+        },
+        "FONT_SMALL": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_42",
+          "size_px": 42
+        },
+        "FONT_MEDIUM": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_50",
+          "size_px": 50
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_58",
+          "size_px": 58
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_37",
+          "size_px": 37
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_42",
+          "size_px": 42
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_50",
+          "size_px": 50
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_58",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_GLANCE": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B411500_KOSUGI_REGULAR-94_37",
+          "size_px": 37
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_34",
+          "size_px": 34
+        },
+        "FONT_TINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_37",
+          "size_px": 37
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_42",
+          "size_px": 42
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_50",
+          "size_px": 50
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_57",
+          "size_px": 57
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_34",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_37",
+          "size_px": 37
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_42",
+          "size_px": 42
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_50",
+          "size_px": 50
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_57",
+          "size_px": 57
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XSMALL",
+          "size_px": 63
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_SMALL",
+          "size_px": 81
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_LARGE",
+          "size_px": 119
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Yantramanav",
+          "font": "006B411500_YANTRAMANAV_NUMBER_XLARGE",
+          "size_px": 139
+        },
+        "FONT_GLANCE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B411500_NANUM_GOTHIC_BOLD-94_37",
+          "size_px": 37
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "006B411500_ROBOTO_CONDENSED_SMALL",
+          "size_px": 36
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Vera Sans",

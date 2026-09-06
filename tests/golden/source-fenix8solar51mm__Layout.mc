@@ -44,5 +44,5 @@ module Layout {
     //! `steps_value` -- text
     const STEPS_VALUE_X as Number = 140;
     const STEPS_VALUE_Y as Number = 224;
-    const STEPS_VALUE_WIDTH as Number = 110;  // widest rendering "88888" is 110 px (estimated)
+    const STEPS_VALUE_WIDTH as Number = 80;  // widest rendering "88888" is 80 px (estimated)
 }

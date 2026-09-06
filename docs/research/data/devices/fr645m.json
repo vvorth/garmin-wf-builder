@@ -38,7 +38,847 @@
     }
   },
   "fonts": {
+    "ara,ces,dan,deu,dut,eng,fin,fre,gre,heb,hrv,hun,ind,ita,nob,pol,por,rus,slo,slv,spa,swe,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_26PX",
+          "size_px": 26
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_34PX",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_37PX",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_34PX",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_37PX",
+          "size_px": 37
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_26PX",
+          "size_px": 26
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_34PX",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_37PX",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_34PX",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_37PX",
+          "size_px": 37
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        }
+      },
+      "scalable": {}
+    },
+    "eng,ind,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_26PX",
+          "size_px": 26
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_34PX",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_37PX",
+          "size_px": 37
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_29PX",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_34PX",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDBOLD_37PX",
+          "size_px": 37
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "FENIX5_ROBOTOCONDENSEDREGULAR_26PX",
+          "size_px": 26
+        }
+      },
+      "scalable": {}
+    },
+    "zhs": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_26B",
+          "size_px": 26
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_26B",
+          "size_px": 26
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_29B",
+          "size_px": 29
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_34B",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_34B",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_26B",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_26B",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_29B",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_34B",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_34B",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_26B",
+          "size_px": 26
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_CHN_26B",
+          "size_px": 26
+        }
+      },
+      "scalable": {}
+    },
+    "zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_26B",
+          "size_px": 26
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_26B",
+          "size_px": 26
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_29B",
+          "size_px": 29
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_34B",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_34B",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_26B",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_26B",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_29B",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_34B",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_34B",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_26B",
+          "size_px": 26
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK SC Bold",
+          "font": "NOTO_SANS_CJK_SC_BOLD_TWN_26B",
+          "size_px": 26
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_29B",
+          "size_px": 29
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_34B",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_34B",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_29B",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_34B",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_34B",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK JP Bold",
+          "font": "NOTO_SANS_CJK_JP_BOLD_26B",
+          "size_px": 26
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_29B",
+          "size_px": 29
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_34B",
+          "size_px": 34
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_34B",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_29B",
+          "size_px": 29
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_34B",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_34B",
+          "size_px": 34
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_26B",
+          "size_px": 26
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans CJK KR Bold",
+          "font": "NOTO_SANS_CJK_KR_BOLD_26B",
+          "size_px": 26
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_MEDIUM": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 27",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 21",
+          "size_px": 21
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 27",
+          "size_px": 27
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_26PX",
+          "size_px": 26
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_36PX",
+          "size_px": 36
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_52PX",
+          "size_px": 52
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Chronos",
+          "font": "FENIX5_CHRONOSSEMIBOLDCONDENSED_58PX",
+          "size_px": 58
+        },
+        "FONT_GLANCE": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        }
+      },
+      "scalable": {}
+    },
+    "vie": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Roboto Condensed",

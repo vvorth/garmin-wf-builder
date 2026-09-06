@@ -30,6 +30,75 @@
     }
   },
   "fonts": {
+    "ces,dan,deu,dut,eng,fin,fre,gre,heb,hrv,hun,ind,ita,jpn,kor,nob,pol,por,rus,slo,slv,spa,swe,tha,vie,zhs,zht,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 14
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 18
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 24
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 29
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "DejaVuGarmin_Rec_with_bionic_numbers",
+          "size_px": 35
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "DejaVuGarmin_Rec_with_bionic_numbers",
+          "size_px": 52
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "DejaVuGarmin_Rec_with_bionic_numbers",
+          "size_px": 70
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "DejaVuGarmin_Rec_with_bionic_numbers",
+          "size_px": 99
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 24
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 24
+        }
+      },
+      "scalable": {
+        "DejaVuGarmin_Rec_with_bionic_numbers": {
+          "face": "Garmin",
+          "font": "DejaVuGarmin_Rec_with_bionic_numbers"
+        },
+        "RobotoCondensed-Bold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        }
+      }
+    },
     "default": {
       "fixed": {
         "FONT_XTINY": {

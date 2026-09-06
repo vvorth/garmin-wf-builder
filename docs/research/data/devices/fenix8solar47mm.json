@@ -42,7 +42,709 @@
     }
   },
   "fonts": {
+    "ara,bul,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ind,ita,lav,lit,nob,pol,por,ron,rus,slo,slv,spa,swe,tur,ukr,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 21
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 29
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 32
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 39
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 40
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 58
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 65
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 99
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 121
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 24
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 32
+        }
+      },
+      "scalable": {
+        "BionicSemiBold": {
+          "face": "Bionic",
+          "font": "Bionic_semibold"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicExtraBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold"
+        },
+        "NotoNaskhArabicBold": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansArmenianBold": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Bold"
+        },
+        "NotoSansArmenianRegular": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Regular"
+        },
+        "NotoSansHebrewBold": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Bold"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiSemiBoldGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-SemiBold_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "RobotoCondensedRegularItalic": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-RegularItalic"
+        }
+      }
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 21
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 29
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 32
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 39
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 40
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 58
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 65
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 99
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 121
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 24
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold",
+          "size_px": 32
+        }
+      },
+      "scalable": {
+        "BionicSemiBold": {
+          "face": "Bionic",
+          "font": "Bionic_semibold"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicExtraBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold"
+        },
+        "NotoNaskhArabicBold": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansArmenianBold": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Bold"
+        },
+        "NotoSansArmenianRegular": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Regular"
+        },
+        "NotoSansHebrewBold": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Bold"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiSemiBoldGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-SemiBold_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "RobotoCondensedRegularItalic": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-RegularItalic"
+        }
+      }
+    },
+    "vie": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto",
+          "font": "Roboto-Condensed_0",
+          "size_px": 21
+        },
+        "FONT_TINY": {
+          "face": "Roboto",
+          "font": "Roboto-Condensed_0",
+          "size_px": 29
+        },
+        "FONT_SMALL": {
+          "face": "Roboto",
+          "font": "Roboto-Condensed_0",
+          "size_px": 32
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto",
+          "font": "Roboto-Condensed_0",
+          "size_px": 39
+        },
+        "FONT_LARGE": {
+          "face": "Roboto",
+          "font": "Roboto-Condensed_0",
+          "size_px": 40
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 58
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 65
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 99
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 121
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto",
+          "font": "Roboto-Condensed_0",
+          "size_px": 24
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Roboto",
+          "font": "Roboto-Condensed_0",
+          "size_px": 32
+        }
+      },
+      "scalable": {
+        "BionicSemiBold": {
+          "face": "Bionic",
+          "font": "Bionic_semibold"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicExtraBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold"
+        },
+        "NotoNaskhArabicBold": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansArmenianBold": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Bold"
+        },
+        "NotoSansArmenianRegular": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Regular"
+        },
+        "NotoSansHebrewBold": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Bold"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiSemiBoldGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-SemiBold_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "RobotoCondensedRegularItalic": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-RegularItalic"
+        }
+      }
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 27
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 36
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 41
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 49
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 51
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 58
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 65
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 99
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 121
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 30
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium",
+          "size_px": 41
+        }
+      },
+      "scalable": {
+        "BionicSemiBold": {
+          "face": "Bionic",
+          "font": "Bionic_semibold"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicExtraBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold"
+        },
+        "NotoNaskhArabicBold": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansArmenianBold": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Bold"
+        },
+        "NotoSansArmenianRegular": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Regular"
+        },
+        "NotoSansHebrewBold": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Bold"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiSemiBoldGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-SemiBold_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "RobotoCondensedRegularItalic": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-RegularItalic"
+        }
+      }
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 18
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 25
+        },
+        "FONT_SMALL": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 27
+        },
+        "FONT_MEDIUM": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 33
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 34
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 58
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 65
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 99
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 121
+        },
+        "FONT_GLANCE": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 21
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular",
+          "size_px": 27
+        }
+      },
+      "scalable": {
+        "BionicSemiBold": {
+          "face": "Bionic",
+          "font": "Bionic_semibold"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicExtraBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold"
+        },
+        "NotoNaskhArabicBold": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansArmenianBold": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Bold"
+        },
+        "NotoSansArmenianRegular": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Regular"
+        },
+        "NotoSansHebrewBold": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Bold"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiSemiBoldGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-SemiBold_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "RobotoCondensedRegularItalic": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-RegularItalic"
+        }
+      }
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 21
+        },
+        "FONT_TINY": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 28
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 31
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 38
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 39
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 58
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 65
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 99
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "Bionic_semibold",
+          "size_px": 121
+        },
+        "FONT_GLANCE": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 24
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Bold",
+          "size_px": 31
+        }
+      },
+      "scalable": {
+        "BionicSemiBold": {
+          "face": "Bionic",
+          "font": "Bionic_semibold"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-2"
+        },
+        "NanumGothicExtraBold": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-ExtraBold"
+        },
+        "NotoNaskhArabicBold": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Bold"
+        },
+        "NotoNaskhArabicRegular": {
+          "face": "Noto Naskh Arabic",
+          "font": "NotoNaskhArabic-Regular"
+        },
+        "NotoSansArmenianBold": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Bold"
+        },
+        "NotoSansArmenianRegular": {
+          "face": "Noto Sans Armenian",
+          "font": "NotoSansArmenian-Regular"
+        },
+        "NotoSansHebrewBold": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Bold"
+        },
+        "NotoSansHebrewRegular": {
+          "face": "Noto Sans Hebrew",
+          "font": "NotoSansHebrew-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-2"
+        },
+        "PridiSemiBoldGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-SemiBold_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "RobotoCondensedRegularItalic": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-RegularItalic"
+        }
+      }
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Pridi",

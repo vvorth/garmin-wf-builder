@@ -30,7 +30,307 @@
     }
   },
   "fonts": {
+    "ara,bul,dan,deu,dut,eng,fin,fre,gre,heb,hrv,hun,ita,nob,pol,por,rus,slo,slv,spa,swe,tur": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_9",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_12",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_14",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_16",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_27",
+          "size_px": 43
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_22",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_32",
+          "size_px": 46
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_45",
+          "size_px": 65
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_66",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_9",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_12",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_14",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_16",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_27",
+          "size_px": 43
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_22",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_32",
+          "size_px": 46
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_45",
+          "size_px": 65
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_66",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "eng,ind,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_9",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_12",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_14",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_16",
+          "size_px": 22
+        },
+        "FONT_LARGE": {
+          "face": "DejaVu Sans Medium Condensed B",
+          "font": "GPSMAP66_DEJAVU_SANS_27",
+          "size_px": 43
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_22",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_32",
+          "size_px": 46
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_45",
+          "size_px": 65
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_66",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "zhs": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC Medium",
+          "font": "GPSMAP67_NOTO_SANS_SC_MEDIUM_12",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC Medium",
+          "font": "GPSMAP67_NOTO_SANS_SC_MEDIUM_15",
+          "size_px": 15
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC Medium",
+          "font": "GPSMAP67_NOTO_SANS_SC_MEDIUM_19",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC Medium",
+          "font": "GPSMAP67_NOTO_SANS_SC_MEDIUM_21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC Medium",
+          "font": "GPSMAP67_NOTO_SANS_SC_MEDIUM_38",
+          "size_px": 38
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_22",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_32",
+          "size_px": 46
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_45",
+          "size_px": 65
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_66",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothic",
+          "font": "GPSMAP67_NANUM_GOTHIC_BOLD_12",
+          "size_px": 12
+        },
+        "FONT_TINY": {
+          "face": "NanumGothic",
+          "font": "GPSMAP67_NANUM_GOTHIC_BOLD_15",
+          "size_px": 15
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothic",
+          "font": "GPSMAP67_NANUM_GOTHIC_BOLD_19",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothic",
+          "font": "GPSMAP67_NANUM_GOTHIC_BOLD_21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothic",
+          "font": "GPSMAP67_NANUM_GOTHIC_BOLD_38",
+          "size_px": 38
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_22",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_32",
+          "size_px": 46
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_45",
+          "size_px": 65
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_66",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_TINY": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_SMALL": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 16",
+          "size_px": 16
+        },
+        "FONT_MEDIUM": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 21",
+          "size_px": 21
+        },
+        "FONT_LARGE": {
+          "face": "Vera Sans",
+          "font": "bitstreamVeraSans 27",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_22",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_32",
+          "size_px": 46
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_45",
+          "size_px": 65
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Garmin",
+          "font": "GPSMAP66_DEJAVU_REC_66",
+          "size_px": 94
+        }
+      },
+      "scalable": {}
+    },
+    "vie": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Roboto Cn",

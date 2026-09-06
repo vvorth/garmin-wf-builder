@@ -38,7 +38,367 @@
     }
   },
   "fonts": {
+    "ara,bul,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ind,ita,lav,lit,nob,pol,por,ron,rus,slo,slv,spa,swe,tur,ukr,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_15M",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_15M",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_18M",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_20M",
+          "size_px": 23
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_23B",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_20",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_32",
+          "size_px": 37
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_30",
+          "size_px": 41
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_41",
+          "size_px": 51
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_18M",
+          "size_px": 22
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_16",
+          "size_px": 23
+        }
+      },
+      "scalable": {}
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_15M",
+          "size_px": 19
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_15M",
+          "size_px": 19
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_18M",
+          "size_px": 22
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_20M",
+          "size_px": 23
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_23B",
+          "size_px": 27
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_20",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_32",
+          "size_px": 37
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_30",
+          "size_px": 41
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_41",
+          "size_px": 51
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_CDPG_ROBOTO_18M",
+          "size_px": 22
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_16",
+          "size_px": 23
+        }
+      },
+      "scalable": {}
+    },
+    "vie": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_ROBOTO_CONDENSED_VIET_15M",
+          "size_px": 17
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_ROBOTO_CONDENSED_VIET_15M",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_ROBOTO_CONDENSED_VIET_18M",
+          "size_px": 18
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_ROBOTO_CONDENSED_VIET_20M",
+          "size_px": 20
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_ROBOTO_CONDENSED_VIET_23B",
+          "size_px": 23
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_20",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_32",
+          "size_px": 37
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_30",
+          "size_px": 41
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_41",
+          "size_px": 51
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B458300_ROBOTO_CONDENSED_VIET_18M",
+          "size_px": 18
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_16",
+          "size_px": 23
+        }
+      },
+      "scalable": {}
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458300_NOTO_SANS_SC_MEDIUM_94_CHN_15M",
+          "size_px": 18
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B458300_NOTO_SANS_SC_MEDIUM_94_CHN_15M",
+          "size_px": 18
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK SC Medium",
+          "font": "006B458300_NOTO_SANS_CJK_SC_MED_CHN_18M",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK SC Medium",
+          "font": "006B458300_NOTO_SANS_CJK_SC_MED_CHN_20M",
+          "size_px": 20
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC Bold-94",
+          "font": "006B458300_NOTO_SANS_SC_BOLD_94_CHN_23B",
+          "size_px": 24
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_20",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_32",
+          "size_px": 37
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_30",
+          "size_px": 41
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_41",
+          "size_px": 51
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK SC Medium",
+          "font": "006B458300_NOTO_SANS_CJK_SC_MED_CHN_18M",
+          "size_px": 19
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_16",
+          "size_px": 23
+        }
+      },
+      "scalable": {}
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458300_MOTOYAL_CEDAR_94_JPN_15M",
+          "size_px": 18
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458300_MOTOYAL_CEDAR_94_JPN_15M",
+          "size_px": 18
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans CJK JP Medium",
+          "font": "006B458300_NOTO_SANS_CJK_MED_JPN_18M",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans CJK JP Medium",
+          "font": "006B458300_NOTO_SANS_CJK_MED_JPN_20M",
+          "size_px": 20
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B458300_MOTOYAL_CEDAR_94_JPN_23B",
+          "size_px": 24
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_20",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_32",
+          "size_px": 37
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_30",
+          "size_px": 41
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_41",
+          "size_px": 51
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans CJK JP Medium",
+          "font": "006B458300_NOTO_SANS_CJK_MED_JPN_18M",
+          "size_px": 19
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_16",
+          "size_px": 23
+        }
+      },
+      "scalable": {}
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_17",
+          "size_px": 17
+        },
+        "FONT_TINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_17",
+          "size_px": 17
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_19",
+          "size_px": 19
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_20",
+          "size_px": 20
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_22",
+          "size_px": 22
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_20",
+          "size_px": 33
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_32",
+          "size_px": 37
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_30",
+          "size_px": 41
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_41",
+          "size_px": 51
+        },
+        "FONT_GLANCE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "NANUM_GOTHIC_BOLD-94_KOR_19",
+          "size_px": 19
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bebas Neue Bold DJV Glyph ttf",
+          "font": "006B458300_0000_GARMIN_16",
+          "size_px": 23
+        }
+      },
+      "scalable": {}
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Vera Sans",

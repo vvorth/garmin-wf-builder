@@ -42,7 +42,642 @@
     }
   },
   "fonts": {
+    "ara,bul,ces,dan,deu,dut,eng,est,fin,fre,gre,heb,hrv,hun,ind,ita,lav,lit,nob,pol,por,ron,rus,slo,slv,spa,swe,tur,ukr,vie,zsm": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_19B",
+          "size_px": 28
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_25B",
+          "size_px": 39
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_27B",
+          "size_px": 43
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_32B",
+          "size_px": 51
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_35B",
+          "size_px": 55
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_COND_SEMI_BOLD_NUMBER_42",
+          "size_px": 82
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_COND_SEMI_BOLD_NUMBER_51",
+          "size_px": 100
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_69",
+          "size_px": 137
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_80",
+          "size_px": 156
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_19B",
+          "size_px": 28
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_25B",
+          "size_px": 39
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_27B",
+          "size_px": 43
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_32B",
+          "size_px": 51
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_35B",
+          "size_px": 55
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_COND_SEMI_BOLD_NUMBER_42",
+          "size_px": 82
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_COND_SEMI_BOLD_NUMBER_51",
+          "size_px": 100
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_69",
+          "size_px": 137
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_80",
+          "size_px": 156
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_21B",
+          "size_px": 33
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_28",
+          "size_px": 55
+        },
+        "FONT_AUX1": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_19B",
+          "size_px": 28
+        },
+        "FONT_AUX2": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_19B",
+          "size_px": 28
+        }
+      },
+      "scalable": {
+        "BionicBold": {
+          "face": "Bionic",
+          "font": "Bionic_Bold_Number_Only"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-3"
+        },
+        "NanumGothicRegular": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-3"
+        },
+        "PridiRegularGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-Regular_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "SakkalMajallaBold": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_bold"
+        },
+        "SakkalMajallaRoman": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_roman"
+        },
+        "Swiss721Bold": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_bd"
+        },
+        "Swiss721Regular": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_reg"
+        }
+      }
+    },
     "default": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_19B",
+          "size_px": 28
+        },
+        "FONT_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_25B",
+          "size_px": 39
+        },
+        "FONT_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_27B",
+          "size_px": 43
+        },
+        "FONT_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_32B",
+          "size_px": 51
+        },
+        "FONT_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_35B",
+          "size_px": 55
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_COND_SEMI_BOLD_NUMBER_42",
+          "size_px": 82
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_COND_SEMI_BOLD_NUMBER_51",
+          "size_px": 100
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_69",
+          "size_px": 137
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_80",
+          "size_px": 156
+        },
+        "FONT_SYSTEM_XTINY": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_19B",
+          "size_px": 28
+        },
+        "FONT_SYSTEM_TINY": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_25B",
+          "size_px": 39
+        },
+        "FONT_SYSTEM_SMALL": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_27B",
+          "size_px": 43
+        },
+        "FONT_SYSTEM_MEDIUM": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_32B",
+          "size_px": 51
+        },
+        "FONT_SYSTEM_LARGE": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_35B",
+          "size_px": 55
+        },
+        "FONT_SYSTEM_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_COND_SEMI_BOLD_NUMBER_42",
+          "size_px": 82
+        },
+        "FONT_SYSTEM_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_COND_SEMI_BOLD_NUMBER_51",
+          "size_px": 100
+        },
+        "FONT_SYSTEM_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_69",
+          "size_px": 137
+        },
+        "FONT_SYSTEM_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_80",
+          "size_px": 156
+        },
+        "FONT_GLANCE": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_21B",
+          "size_px": 33
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bionic",
+          "font": "006B431200_BIONIC_SEMI_BOLD_NUMBER_28",
+          "size_px": 55
+        },
+        "FONT_AUX1": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_19B",
+          "size_px": 28
+        },
+        "FONT_AUX2": {
+          "face": "Roboto Condensed",
+          "font": "006B431200_CDPG_ROBOTO_19B",
+          "size_px": 28
+        }
+      },
+      "scalable": {
+        "BionicBold": {
+          "face": "Bionic",
+          "font": "Bionic_Bold_Number_Only"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-3"
+        },
+        "NanumGothicRegular": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-3"
+        },
+        "PridiRegularGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-Regular_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "SakkalMajallaBold": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_bold"
+        },
+        "SakkalMajallaRoman": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_roman"
+        },
+        "Swiss721Bold": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_bd"
+        },
+        "Swiss721Regular": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_reg"
+        }
+      }
+    },
+    "zhs,zht": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B410500_NOTO_SANS_SC_MEDIUM-94_24",
+          "size_px": 24
+        },
+        "FONT_TINY": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B410500_NOTO_SANS_SC_MEDIUM-94_33",
+          "size_px": 33
+        },
+        "FONT_SMALL": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B410500_NOTO_SANS_SC_MEDIUM-94_37",
+          "size_px": 37
+        },
+        "FONT_MEDIUM": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B410500_NOTO_SANS_SC_MEDIUM-94_42",
+          "size_px": 42
+        },
+        "FONT_LARGE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B410500_NOTO_SANS_SC_MEDIUM-94_46",
+          "size_px": 46
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_COND_SEMI_BOLD_NUMBER_42",
+          "size_px": 82
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_COND_SEMI_BOLD_NUMBER_51",
+          "size_px": 100
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_69",
+          "size_px": 137
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_80",
+          "size_px": 156
+        },
+        "FONT_GLANCE": {
+          "face": "Noto Sans SC Medium-94",
+          "font": "006B410500_NOTO_SANS_SC_MEDIUM-94_28",
+          "size_px": 28
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_28",
+          "size_px": 55
+        }
+      },
+      "scalable": {
+        "BionicBold": {
+          "face": "Bionic",
+          "font": "Bionic_Bold_Number_Only"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-3"
+        },
+        "NanumGothicRegular": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-3"
+        },
+        "PridiRegularGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-Regular_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "SakkalMajallaBold": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_bold"
+        },
+        "SakkalMajallaRoman": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_roman"
+        },
+        "Swiss721Bold": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_bd"
+        },
+        "Swiss721Regular": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_reg"
+        }
+      }
+    },
+    "jpn": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B410500_KOSUGI-REGULAR-94_24",
+          "size_px": 24
+        },
+        "FONT_TINY": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B410500_KOSUGI-REGULAR-94_33",
+          "size_px": 33
+        },
+        "FONT_SMALL": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B410500_KOSUGI-REGULAR-94_37",
+          "size_px": 37
+        },
+        "FONT_MEDIUM": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B410500_KOSUGI-REGULAR-94_42",
+          "size_px": 42
+        },
+        "FONT_LARGE": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B410500_KOSUGI-REGULAR-94_46",
+          "size_px": 46
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_COND_SEMI_BOLD_NUMBER_42",
+          "size_px": 82
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_COND_SEMI_BOLD_NUMBER_51",
+          "size_px": 100
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_69",
+          "size_px": 137
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_80",
+          "size_px": 156
+        },
+        "FONT_GLANCE": {
+          "face": "MotoyaLCedar-94",
+          "font": "006B410500_KOSUGI-REGULAR-94_28",
+          "size_px": 28
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_28",
+          "size_px": 55
+        }
+      },
+      "scalable": {
+        "BionicBold": {
+          "face": "Bionic",
+          "font": "Bionic_Bold_Number_Only"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-3"
+        },
+        "NanumGothicRegular": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-3"
+        },
+        "PridiRegularGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-Regular_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "SakkalMajallaBold": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_bold"
+        },
+        "SakkalMajallaRoman": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_roman"
+        },
+        "Swiss721Bold": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_bd"
+        },
+        "Swiss721Regular": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_reg"
+        }
+      }
+    },
+    "kor": {
+      "fixed": {
+        "FONT_XTINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B410500_NANUM_GOTHIC_BOLD-94_24",
+          "size_px": 24
+        },
+        "FONT_TINY": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B410500_NANUM_GOTHIC_BOLD-94_33",
+          "size_px": 33
+        },
+        "FONT_SMALL": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B410500_NANUM_GOTHIC_BOLD-94_37",
+          "size_px": 37
+        },
+        "FONT_MEDIUM": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B410500_NANUM_GOTHIC_BOLD-94_42",
+          "size_px": 42
+        },
+        "FONT_LARGE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B410500_NANUM_GOTHIC_BOLD-94_46",
+          "size_px": 46
+        },
+        "FONT_NUMBER_MILD": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_COND_SEMI_BOLD_NUMBER_42",
+          "size_px": 82
+        },
+        "FONT_NUMBER_MEDIUM": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_COND_SEMI_BOLD_NUMBER_51",
+          "size_px": 100
+        },
+        "FONT_NUMBER_HOT": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_69",
+          "size_px": 137
+        },
+        "FONT_NUMBER_THAI_HOT": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_80",
+          "size_px": 156
+        },
+        "FONT_GLANCE": {
+          "face": "NanumGothic-Bold-94",
+          "font": "006B410500_NANUM_GOTHIC_BOLD-94_28",
+          "size_px": 28
+        },
+        "FONT_GLANCE_NUMBER": {
+          "face": "Bionic",
+          "font": "006B410500_BIONIC_SEMI_BOLD_NUMBER_28",
+          "size_px": 55
+        }
+      },
+      "scalable": {
+        "BionicBold": {
+          "face": "Bionic",
+          "font": "Bionic_Bold_Number_Only"
+        },
+        "KosugiRegular": {
+          "face": "MotoyaLCedar",
+          "font": "Kosugi-Regular-3"
+        },
+        "NanumGothicRegular": {
+          "face": "NanumGothic",
+          "font": "NanumGothic-Regular"
+        },
+        "NotoSansSCMedium": {
+          "face": "Noto Sans SC",
+          "font": "NotoSansSC-Medium-3"
+        },
+        "PridiRegularGarmin": {
+          "face": "Pridi",
+          "font": "Pridi-Regular_Garmin"
+        },
+        "RobotoCondensedBold": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Bold"
+        },
+        "RobotoCondensedRegular": {
+          "face": "Roboto Condensed",
+          "font": "RobotoCondensed-Regular"
+        },
+        "SakkalMajallaBold": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_bold"
+        },
+        "SakkalMajallaRoman": {
+          "face": "Sakkal Majalla Unicode",
+          "font": "sakkal_majalla_roman"
+        },
+        "Swiss721Bold": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_bd"
+        },
+        "Swiss721Regular": {
+          "face": "Swis721Hebrew BT",
+          "font": "swiss_721_reg"
+        }
+      }
+    },
+    "tha": {
       "fixed": {
         "FONT_XTINY": {
           "face": "Vera Sans",

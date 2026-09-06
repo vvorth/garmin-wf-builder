@@ -79,3 +79,35 @@ def test_system_font_metrics_are_per_device(db):
     large = db.get("fenix8solar51mm").system_fonts.get("FONT_NUMBER_HOT")
     if small and large:
         assert large.size_px > small.size_px
+
+
+def test_default_font_metrics_are_the_english_language_block(repo_root):
+    """Regression test for a real bug: `tools/research/extract_device_db.py`'s
+    "Languages" paragraph used to be matched only as `<strong>...</strong>`,
+    but the actual doc HTML wraps it in `<em>` -- so the regex matched zero
+    blocks, every device's per-language font tables collided onto one
+    "default" key, and whichever language table was parsed *last* (often Thai
+    or Korean, not English) silently won. Confirmed against the real SDK doc:
+    `fenix8solar47mm`'s `FONT_XTINY` is 21px (Roboto Condensed) for English,
+    but the bug reported it as 28px (Pridi, the Thai block).
+
+    This checks the invariant directly against the JSON rather than hardcoding
+    a pixel number, so it does not rot if Garmin changes a device's font in a
+    future SDK release -- what must stay true is that "default" is *the block
+    whose language list contains "eng"*, not merely *some* block.
+    """
+    import json
+
+    for device_id in ("fenix8solar47mm", "fenix8solar51mm", "fr955"):
+        path = repo_root / "docs" / "research" / "data" / "devices" / f"{device_id}.json"
+        if not path.exists():
+            pytest.skip(f"no scraped data for {device_id}")
+        fonts = json.loads(path.read_text()).get("fonts", {})
+        if "default" not in fonts:
+            pytest.skip(f"{device_id} has no default font table")
+        english_keys = [k for k in fonts if "eng" in k.split(",")]
+        assert english_keys, f"{device_id}: no language block lists 'eng' at all"
+        assert fonts["default"] == fonts[english_keys[0]], (
+            f"{device_id}: 'default' font table does not match the English "
+            f"language block ({english_keys[0]!r})"
+        )
