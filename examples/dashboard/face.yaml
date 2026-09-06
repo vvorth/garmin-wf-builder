@@ -67,7 +67,7 @@ fonts:
     source: assets/OpenSans-Regular.ttf
     # Rasterised at this many pixels on the smallest target and scaled up for
     # the 280x280 fenix 8 Solar 51 mm, so one declaration is right on both.
-    size: 68
+    size: 99
     # 'glyphs' is omitted on purpose: the compiler derives the set from the
     # 
 
@@ -85,7 +85,7 @@ elements:
     value: date.today
     format: "{:%a %e %b}"       # "Thu 3 Sep" -- %a and %b come back localised
     font: FONT_XTINY
-    at: {anchor: top, dy: 13.8%}
+    at: {anchor: top, dy: 7%}
     color: palette.date
 
   # A separator is a chord of a circle just inside the bezel. Both ends are
@@ -93,8 +93,8 @@ elements:
   - id: sep_1
     type: shape
     shape: line
-    at: {anchor: center, angle: -52.2deg, radius: 94%r}
-    to: {anchor: center, angle: 52.2deg, radius: 94%r}
+    at: {anchor: top, dy: 12%, dx: 25% }
+    to: {anchor: top, dy: 12%, dx: -25% }
     thickness: 1px
     color: palette.separator
     lint:
@@ -119,8 +119,8 @@ elements:
   - id: hr_icon
     type: icon
     icon: heart
-    size: 8%r
-    at: {anchor: top, dx: -37%, dy: 28.5%}
+    size: 11%r
+    at: {anchor: top, dx: -30%, dy: 18%}
     color: palette.dim
 
   - id: hr_value
@@ -128,7 +128,7 @@ elements:
     value: heart_rate.current
     format: "{:d}"
     font: FONT_XTINY
-    at: {anchor: top, dx: -32%, dy: 28.5%}
+    at: {anchor: top, dx: -26%, dy: 18%}
     align: left
     color: palette.dim
     when_absent: placeholder
@@ -137,8 +137,8 @@ elements:
   - id: calories_icon
     type: icon
     icon: flame
-    size: 9%r
-    at: {anchor: top, dx: -12%, dy: 28.5%}
+    size: 11%r
+    at: {anchor: top, dx: -8%, dy: 18%}
     color: palette.dim
 
   - id: calories_value
@@ -146,7 +146,7 @@ elements:
     value: activity.calories
     format: "{:d}"
     font: FONT_XTINY
-    at: {anchor: top, dx: -7%, dy: 28.5%}
+    at: {anchor: top, dx: -4%, dy: 18%}
     align: left
     color: palette.dim
     when_absent: placeholder
@@ -159,7 +159,7 @@ elements:
     value: "activity.distance / 100000.0"   # centimetres -> kilometres
     format: "{:.0f}km"
     font: FONT_XTINY
-    at: {anchor: top, dx: 21%, dy: 28.5%}
+    at: {anchor: top, dx: 27%, dy: 18%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
@@ -177,8 +177,8 @@ elements:
   - id: sep_2
     type: shape
     shape: line
-    at: {anchor: center, angle: -72.4deg, radius: 94%r}
-    to: {anchor: center, angle: 72.4deg, radius: 94%r}
+    at: {anchor: top, dy: 23%, dx: 36% }
+    to: {anchor: top, dy: 23%, dx: -36% }
     thickness: 1px
     color: palette.separator
     lint:
@@ -216,8 +216,8 @@ elements:
   - id: sep_3
     type: shape
     shape: line
-    at: {anchor: center, angle: 109.9deg, radius: 94%r}
-    to: {anchor: center, angle: -109.9deg, radius: 94%r}
+    at: {anchor: bottom, dy: -32%, dx: 40% }
+    to: {anchor: bottom, dy: -32%, dx: -40% }
     thickness: 1px
     color: palette.separator
     lint:
@@ -271,8 +271,8 @@ elements:
   - id: sep_4
     type: shape
     shape: line
-    at: {anchor: center, angle: 128.4deg, radius: 94%r}
-    to: {anchor: center, angle: -128.4deg, radius: 94%r}
+    at: {anchor: bottom, dy: -20%, dx: 32% }
+    to: {anchor: bottom, dy: -20%, dx: -32% }
     thickness: 1px
     color: palette.separator
     lint:
@@ -296,7 +296,7 @@ elements:
     value: system.battery_in_days
     format: "{:.0f}d"
     font: FONT_XTINY
-    at: {anchor: top, dx: -15%, dy: 84.8%}
+    at: {anchor: top, dx: -15%, dy: 88%}
     color: palette.dim
 
   # A speech-bubble badge, not a bare circle -- a circle with a number in it
@@ -306,16 +306,16 @@ elements:
   - id: notification_badge
     type: icon
     icon: notification
-    size: 20%r
-    at: {anchor: top, dy: 85.5%}
+    size: 25%r
+    at: {anchor: top, dy: 90%}
     color: "device.notification_count > 0 ? palette.notify_on : palette.off"
 
   - id: notification_count
     type: text
     value: device.notification_count
     format: "{:d}"
-    font: FONT_XTINY
-    at: {anchor: top, dy: 84.8%}
+    font: FONT_TINY
+    at: {anchor: top, dy: 88%}
     color: "device.notification_count > 0 ? palette.notify_text : palette.bg"
 
   - id: battery_percent
@@ -323,7 +323,7 @@ elements:
     value: system.battery
     format: "{:.0f}%"
     font: FONT_XTINY
-    at: {anchor: top, dx: 15%, dy: 84.8%}
+    at: {anchor: top, dx: 15%, dy: 88%}
     color: palette.dim
 
   # -- the arcs --------------------------------------------------------------
@@ -341,13 +341,13 @@ elements:
     at: {anchor: center}
     radius: 96%r
     thickness: 4px
-    start_angle: 215deg         # lower left, growing anticlockwise towards 9 o'clock
-    sweep: -33deg
+    start_angle: 212deg         # lower left, growing anticlockwise towards 9 o'clock
+    sweep: 32deg
     color: palette.arc_steps
     track_color: palette.track
     when_absent: hide
 
-  - id: arc_battery
+  - id: arc_battery_l
     type: progress
     style: arc
     value: system.battery
@@ -355,7 +355,20 @@ elements:
     at: {anchor: center}
     radius: 96%r
     thickness: 4px
-    start_angle: 166deg         # just left of 6 o'clock, growing clockwise
+    start_angle: 180deg         # just left of 6 o'clock, growing clockwise
+    sweep: -28deg
+    color: palette.arc_battery
+    track_color: palette.track
+
+  - id: arc_battery_r
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    at: {anchor: center}
+    radius: 96%r
+    thickness: 4px
+    start_angle: 180deg         # just left of 6 o'clock, growing clockwise
     sweep: 28deg
     color: palette.arc_battery
     track_color: palette.track
@@ -368,8 +381,8 @@ elements:
     at: {anchor: center}
     radius: 96%r
     thickness: 4px
-    start_angle: 145deg         # lower right, growing anticlockwise towards 3 o'clock
-    sweep: -33deg
+    start_angle: 148deg         # lower right, growing anticlockwise towards 3 o'clock
+    sweep: -32deg
     color: palette.arc_move
     track_color: palette.track
     when_absent: hide
