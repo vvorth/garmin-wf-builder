@@ -155,12 +155,16 @@ SIZE_UNITS = ("px", "%r")
 
 
 def pixel_size(length: Length | None, minor_radius: float, default: float = 24.0) -> int:
-    """Resolve an icon's `size:` to device pixels.
+    """Resolve an icon's `size:` to its target *visual* height, in device pixels.
 
     Deliberately independent of any parent box -- callable before layout, so
     the icon font can be baked once per distinct size before the elements that
     use it are placed.  This is why `size:` is restricted to `px`/`%r`
     (enforced in `wfb.ir`): both resolve from `minor_radius` alone.
+
+    This is the height the glyph should visibly draw at, not necessarily the
+    font's own nominal em-square size it gets baked at -- see `bake_size`,
+    which turns this target into the actual size passed to the font rasteriser.
     """
     if length is None:
         return round(default)
@@ -170,12 +174,80 @@ def pixel_size(length: Length | None, minor_radius: float, default: float = 24.0
 _UNUSED_BOX = Box(0.0, 0.0, 0.0, 0.0)
 
 
+def _ink_height(codepoint: str, nominal_size: int) -> int:
+    """The rendered glyph's own ink-bbox height, baked at `nominal_size` -- the
+    font's raw em-square size, exactly what `wfb.fonts.bmfont.bake` passes to
+    `PIL.ImageFont.truetype`. Used by `bake_size` to find the nominal size
+    that makes a glyph's *visual* height match a declared `size:`.
+    """
+    from PIL import ImageFont
+
+    font = ImageFont.truetype(str(FONT_PATH), max(1, nominal_size))
+    bbox = font.getbbox(codepoint)
+    if bbox is None:
+        return 0
+    _, top, _, bottom = bbox
+    return max(0, bottom - top)
+
+
+@lru_cache(maxsize=None)
+def bake_size(codepoint: str, target_px: int) -> int:
+    """The font nominal size to bake `codepoint` at so its own ink-bbox height
+    ends up as close as possible to `target_px`.
+
+    Needed because the vendored font aggregates icon sets with very different
+    internal padding conventions inside their em-square: at the same nominal
+    font size, a Material Design Icons glyph's ink is noticeably shorter than
+    a Font Awesome or Codicons one was (confirmed by measurement: MDI glyphs
+    typically fill 77-90% of the nominal size vertically, the older Font
+    Awesome/Codicons choices 81-94%). Baking every icon at its declared size
+    as a literal font size, as an earlier version of this module did, made
+    `size:` mean a different *visual* size depending on which icon set
+    happened to supply a name's glyph -- an author moving `heart` from a
+    Font Awesome glyph to a Material Design one saw it shrink by ~15-20% at
+    the same declared `size:`, with no way to tell why from the YAML alone.
+    Compensating here makes `size:` honest: the same declared value produces
+    the same rendered height regardless of which of the font's ~10 aggregated
+    icon sets contributed the glyph.
+
+    The compensated size is *searched*, not computed from a single measured
+    ratio, because FreeType's hinting rounds glyph outlines differently at
+    the very small sizes (single-digit to low-teens pixels) real designs
+    actually bake icons at -- a ratio measured at a large reference size does
+    not reliably predict the exact best integer nominal size down there. The
+    search window is small: no glyph in this font is lopsided enough to need
+    it any wider, and this only runs once per distinct (codepoint, size:) pair
+    per build, cached for the process.
+    """
+    if target_px <= 0:
+        return 1
+    reference = 512
+    ink_at_reference = _ink_height(codepoint, reference)
+    ratio = ink_at_reference / reference if ink_at_reference else 1.0
+    guess = max(1, round(target_px / ratio))
+
+    best_size, best_ink = guess, _ink_height(codepoint, guess)
+    best_diff = abs(best_ink - target_px)
+    for candidate in range(max(1, guess - 4), guess + 9):
+        if candidate == guess:
+            continue
+        ink = _ink_height(codepoint, candidate)
+        diff = abs(ink - target_px)
+        # On a tie, prefer the candidate that does not undershoot: rendering
+        # a hair too big is a much smaller authoring surprise than the "too
+        # small" report that motivated this function in the first place.
+        better = diff < best_diff or (diff == best_diff and ink >= target_px > best_ink)
+        if better:
+            best_size, best_ink, best_diff = candidate, ink, diff
+    return best_size
+
+
 #: Maps a Length's unit to a fragment safe inside a Monkey C identifier.
 _UNIT_WORD = {"%r": "pctr", "%": "pct", "px": "px", "pt": "pt"}
 
 
-def font_key(length: Length | None) -> str:
-    """The synthetic font name for every icon declared at this `size:`.
+def font_key(length: Length | None, codepoint: str) -> str:
+    """The synthetic font name for every icon declared at this `size:` and glyph.
 
     Keyed by the *declared* length, not the pixel size it resolves to --
     deliberately, because the generated view class is shared across every
@@ -188,12 +260,21 @@ def font_key(length: Length | None) -> str:
     generated code treats as one font field -- an ``Undefined symbol``
     compile error on every device but the one the view happened to be
     generated from.
+
+    Also keyed by `codepoint`: two icons declared at the same `size:` do not
+    necessarily bake at the same nominal font size any more (see `bake_size`),
+    so they cannot always share one font resource the way they could when
+    `size:` and nominal size were the same number. Safe for the same
+    device-independence reason as the length itself -- a codepoint does not
+    vary per device, only the resolved pixel value fed into `bake_size` does.
     """
     if length is None:
-        return "icon_default"
-    unit = _UNIT_WORD[length.unit]
-    value = f"{length.value:g}".replace(".", "p").replace("-", "neg")
-    return f"icon_{value}{unit}"
+        unit_value = "default"
+    else:
+        unit = _UNIT_WORD[length.unit]
+        value = f"{length.value:g}".replace(".", "p").replace("-", "neg")
+        unit_value = f"{value}{unit}"
+    return f"icon_{unit_value}_u{ord(codepoint):x}"
 
 
 # ============================================================================

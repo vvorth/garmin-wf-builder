@@ -85,6 +85,35 @@ def test_pixel_size_has_a_default_for_an_unset_size():
     assert icons.pixel_size(None, 130.0) == 24
 
 
+# -- ink-height compensation across icon sets --------------------------------
+
+
+def test_bake_size_normalizes_ink_height_across_icon_sets():
+    """The whole point of `bake_size`: two icons from differently-padded icon
+    sets (Material Design Icons vs. Font Awesome) declared at the same `size:`
+    must end up visually the same height, even though they need different
+    nominal font sizes to get there."""
+    target = 12
+    heart = icons.CATALOG["heart"].codepoint  # Material Design Icons
+    steps = icons.CATALOG["steps"].codepoint  # Font Awesome
+    heart_size = icons.bake_size(heart, target)
+    steps_size = icons.bake_size(steps, target)
+    assert icons._ink_height(heart, heart_size) == pytest.approx(target, abs=1)
+    assert icons._ink_height(steps, steps_size) == pytest.approx(target, abs=1)
+
+
+def test_bake_size_is_not_always_the_declared_size():
+    """Material Design Icons pads more inside its em-square than Font Awesome
+    did, so hitting the same visual height needs a *larger* nominal font size
+    -- this is the direction of the original "icons are too small" report."""
+    heart = icons.CATALOG["heart"].codepoint
+    assert icons.bake_size(heart, 12) > 12
+
+
+def test_bake_size_handles_a_non_positive_target():
+    assert icons.bake_size(icons.CATALOG["heart"].codepoint, 0) == 1
+
+
 def test_font_key_is_stable_across_devices():
     """The generated view class is shared across every target device, so an
     icon's font *identifier* must not depend on the device -- only the pixel
@@ -92,16 +121,29 @@ def test_font_key_is_stable_across_devices():
     value instead reproduces exactly this bug: two screen sizes resolve `8%r`
     to two different pixel counts, so the shared view would reference a font
     symbol that exists on only one device's resource bundle."""
-    a = icons.font_key(Length.parse("8%r"))
-    b = icons.font_key(Length.parse("8%r"))
+    heart = icons.CATALOG["heart"].codepoint
+    a = icons.font_key(Length.parse("8%r"), heart)
+    b = icons.font_key(Length.parse("8%r"), heart)
     assert a == b
-    assert a != icons.font_key(Length.parse("9%r"))
-    assert a != icons.font_key(Length.parse("8px"))  # same number, different unit
+    assert a != icons.font_key(Length.parse("9%r"), heart)
+    assert a != icons.font_key(Length.parse("8px"), heart)  # same number, different unit
+
+
+def test_font_key_also_depends_on_the_glyph():
+    """Two icons declared at the same `size:` do not necessarily bake at the
+    same nominal font size any more (`bake_size` compensates per glyph), so
+    they cannot always share one font resource the way they could when
+    `size:` and nominal size were the same number."""
+    length = Length.parse("9%r")
+    assert (
+        icons.font_key(length, icons.CATALOG["heart"].codepoint)
+        != icons.font_key(length, icons.CATALOG["flame"].codepoint)
+    )
 
 
 def test_font_key_is_a_valid_monkey_c_identifier_fragment():
     for spec in ("8%r", "24px", "0.5%r", "-3px"):
-        key = icons.font_key(Length.parse(spec))
+        key = icons.font_key(Length.parse(spec), icons.CATALOG["heart"].codepoint)
         assert re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", key), key
 
 
@@ -144,9 +186,9 @@ elements:
     baked = bake_fonts(face, device, device.minor_radius)
 
     # The IR element carries `size` (a Length) and `codepoint`; `font_key` is a
-    # pure function of the former, so this is the same lookup the resolver does.
+    # pure function of both, so this is the same lookup the resolver does.
     probe = next(e for e in face.walk() if e.id == "probe")
-    font = baked[icons.font_key(probe.size)]
+    font = baked[icons.font_key(probe.size, probe.codepoint)]
     assert probe.codepoint in font.glyphs, f"{name!r}'s glyph is missing from its own baked font"
 
     resolved = resolve(face, device, baked)

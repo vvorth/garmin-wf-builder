@@ -67,7 +67,7 @@ def glyph_set(face: Face) -> dict[str, str]:
 
 
 def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
-    """One synthetic :class:`FontSpec` per distinct resolved icon pixel size.
+    """One synthetic :class:`FontSpec` per distinct (declared size, glyph) pair.
 
     A bitmap font is rasterised at one size, so continuous `size:` scaling on
     an `icon` element is offered by baking whichever sizes a design actually
@@ -77,25 +77,33 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     caller order: this is a pure function of the design and the device, so it
     can run again in :func:`build_bundle` without needing to be threaded
     through as an argument.
+
+    Keyed by glyph as well as declared size (`wfb.icons.font_key`), not just
+    size: two icons declared at the same `size:` do not necessarily need the
+    same *nominal* font size to look the same height, because the font's
+    aggregated icon sets pad their glyphs inside the em-square differently
+    (see `wfb.icons.bake_size`). Each key's char set is therefore always
+    exactly one codepoint.
     """
-    by_key: dict[str, tuple[object, set[str]]] = {}
+    by_key: dict[str, tuple[object, str]] = {}
     for element in face.walk():
         if not isinstance(element, IconElement):
             continue
-        key = icons.font_key(element.size)
-        _, chars = by_key.setdefault(key, (element.size, set()))
-        chars.add(element.codepoint)
+        key = icons.font_key(element.size, element.codepoint)
+        by_key[key] = (element.size, element.codepoint)
     return {
         key: FontSpec(
             name=key,
             source=icons.FONT_PATH,
-            size=float(icons.pixel_size(length, device.minor_radius)),
-            glyphs="".join(sorted(chars)),
+            size=float(icons.bake_size(
+                codepoint, icons.pixel_size(length, device.minor_radius),
+            )),
+            glyphs=codepoint,
             antialias=False,
             scale=False,  # already resolved to this device's final pixel size
             span=None,
         )
-        for key, (length, chars) in by_key.items()
+        for key, (length, codepoint) in by_key.items()
     }
 
 

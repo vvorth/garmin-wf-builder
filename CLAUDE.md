@@ -468,6 +468,37 @@ character the way monospaced text would be — and advance-width vs. ink-bbox
 overhang was checked across every catalogue glyph at several sizes, staying
 under 2% either side. See `wfb/assets/icons/README.md` for the detail.
 
+**The user built the pushed change and reported the icons looked too small —
+a second, real regression from the same nf-md switch, underneath the one
+already fixed.** Measured directly: baking `heart` (now Material Design
+Icons) and the old Font Awesome glyph it replaced at the *same* nominal font
+size produced ink heights of 8px vs. 9-10px at the sizes this dashboard
+actually uses (9-12px) — MDI pads its glyphs inside their em-square more
+generously than Font Awesome/Codicons did, a real, systematic convention
+difference between icon sets, not a one-off badly-chosen glyph. `size:` on an
+`icon` element was, until this fix, literally the font's raw nominal size
+handed to the rasteriser (`wfb/layout.py`'s `PlacedIcon.size` docstring said
+so directly) — meaning it silently meant a different *visual* height
+depending on which of the font's ~10 aggregated icon sets happened to supply
+a name's glyph. Fixed by having `wfb/icons.py`'s new `bake_size(codepoint,
+target_px)` search (not estimate from one ratio — FreeType hinting rounds
+differently at the single-digit-to-low-teens pixel sizes real icons are baked
+at) for the nominal font size whose own measured ink-bbox height lands
+closest to the declared target, per glyph. Because different icons sharing
+one declared `size:` no longer necessarily share one nominal bake size,
+`font_key` now also incorporates the codepoint (`wfb/icons.py`, `wfb/layout.py`,
+`wfb/emit/resources.py`) — still device-independent for the same reason the
+length already was: a codepoint does not vary per device, only the resolved
+pixel value fed into `bake_size` does. Cost, measured on `examples/dashboard/`:
++112 B across all three targets (4,110 B -> 4,222 B on `fenix8solar47mm`) for
+five separate tiny font resources instead of a few shared ones — negligible
+against the 128 KB budget. Golden files updated accordingly
+(`tests/golden/resources-fenix8solar47mm__fonts__fonts.xml`,
+`tests/golden/source__SliceView.mc`) — the `steps` icon (Font Awesome, already
+close to filling its em-square) now bakes 2px larger than its declared `20%r`
+to hit the same ink height it always rendered at, which is the fix working
+correctly, not a drift.
+
 ### Known-good reference
 
 `~/claude/garmin-watchface-protomolecule/` is a **working, dense, real** watch

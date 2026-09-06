@@ -20,7 +20,7 @@ class SliceView extends WatchUi.WatchFace {
     //! Bitmap fonts -- custom text and icon glyphs alike -- loaded once in
     //! onLayout rather than per frame.
     private var _fontClock as FontResource?;
-    private var _fontIcon30px as FontResource?;
+    private var _fontIcon30pxUee14 as FontResource?;
 
     function initialize() {
         WatchFace.initialize();
@@ -29,7 +29,7 @@ class SliceView extends WatchUi.WatchFace {
     //! Load resources once.  Loading is expensive and must not happen per frame.
     function onLayout(dc as Dc) as Void {
         _fontClock = WatchUi.loadResource(Rez.Fonts.FontClock) as FontResource;
-        _fontIcon30px = WatchUi.loadResource(Rez.Fonts.FontIcon30px) as FontResource;
+        _fontIcon30pxUee14 = WatchUi.loadResource(Rez.Fonts.FontIcon30pxUee14) as FontResource;
     }
 
     //! Draw the full face.
@@ -114,7 +114,7 @@ class SliceView extends WatchUi.WatchFace {
     //! `steps_icon` -- the 'steps' icon.
     //! Drawn in: active.
     private function drawStepsIcon(dc as Dc) as Void {
-        var font = _fontIcon30px;
+        var font = _fontIcon30pxUee14;
         if (font == null) {
             return;  // the icon font resource failed to load
         }

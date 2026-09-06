@@ -266,7 +266,7 @@ class Resolver:
         # before any box in the tree is resolved, so its size cannot depend on
         # one (ADR-equivalent reasoning in wfb.icons.pixel_size).
         px = icons.pixel_size(element.size, self.device.minor_radius)
-        key = icons.font_key(element.size)
+        key = icons.font_key(element.size, element.codepoint)
         font = self.fonts.get(key)
         if font is not None:
             width, height = font.measure(element.codepoint)
