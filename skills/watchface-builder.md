@@ -78,6 +78,11 @@ wfb new --list  # the templates you may start from
 > invented path — `activity.heartrate`, `weather.temp` — is the one class of
 > error the tools cannot catch for you, because it will simply fail to exist.
 
+For any command's full flags and behaviour beyond what this document covers,
+ask the tool itself rather than guessing: `wfb help <command>` (equivalently
+`wfb <command> help` or `wfb <command> --help`) prints it, sourced from that
+command's own docstring, so it cannot drift from what the tool actually does.
+
 ---
 
 ## 2. Work out what to build

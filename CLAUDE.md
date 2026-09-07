@@ -28,7 +28,7 @@ part of the deliverable, not scaffolding.
 | **Phase 0** — research | **Complete.** `docs/research/00`–`05`. Reviewed by the user. |
 | **Phase 1** — ADRs | **Complete.** `docs/adr/0001`–`0009`. Reviewed by the user. |
 | **Phase 2** — thin vertical slice | **Complete.** Builds end to end for all three targets; the `.prg` is confirmed running in the simulator on the user's host. |
-| Phase 3 — breadth | **Not started.** This is the next work. |
+| Phase 3 — breadth | **In progress.** See "Phase 3 — breadth" in §6 for the numbered, kept-current checklist of what has shipped and what remains. |
 
 The compiler lives in `wfb/`, the support barrel in `runtime-lib/`, the published
 schema in `schema/`, and the example face in `examples/slice/`. `docs/format.md`
@@ -91,6 +91,32 @@ If they are ever missing, ask the user to run on their **host**:
 cp -R ~/Library/Application\ Support/Garmin/ConnectIQ/Devices \
       ~/claude/garmin-watchface-protomolecule/.devices-import
 ```
+
+### A filesystem quirk: tracked files can transiently vanish, harmlessly
+
+Observed twice in one session, on different files each time (`wfb/
+icon_catalog.py` once; `runtime-lib/WfbCache.mc` and `runtime-lib/
+WfbWeather.mc` together another time; `tests/test_weather_barrel.py` and
+`tests/test_weather_codegen.py` together a third): a file `git` correctly
+tracks and has committed becomes briefly unreadable — `open()` on the exact
+path raises `FileNotFoundError`, `os.listdir()` on its parent directory does
+not list it, `import` of it fails — with `git status` then reporting it as
+"deleted" even though nothing deleted it and no commit changed it. This is a
+transient directory-entry/host-mount coherence issue in the sandbox, not
+data loss: `git fsck` finds every affected object present and healthy every
+time this happened, and the fix is always the same one-liner:
+
+```sh
+git checkout HEAD -- <path>
+```
+
+**Do this before assuming a file is genuinely gone or a commit is broken.**
+It has never once actually been gone. If `git status` shows a file deleted
+that you did not delete and have no reason to believe was deleted, restore
+it this way and move on — do not investigate further, do not treat it as
+evidence of a bad commit or a corrupted checkout, and do not skip a step
+that depends on the file being there just because one check caught it mid-
+glitch.
 
 ---
 
@@ -316,7 +342,10 @@ actually exists.
 Two supporting changes make it portable: `wfb doctor` reports what is installed
 and what to do about what is not, and `wfb.py` re-executes itself under the
 project's virtualenv so `python3 /path/to/wfb.py` works from any directory with
-any interpreter.
+any interpreter. A third, added later, makes the tool self-describing:
+`wfb help`, `wfb help <command>` and `wfb <command> help` all print that
+command's own docstring (`wfb/cli.py`'s `_command()`), so an unfamiliar
+caller never has to fall back to a markdown doc to learn what a flag does.
 
 Original recommendation: **cheap frictions first, then the skill; defer the GUI.** Two
 measured reasons the GUI is not yet right:
@@ -353,7 +382,7 @@ dependency order:
    tiers ADR 0005 describes now exist: `slow` with its TTL cache
    (`WfbCache.mc`, `weather.*` as its first source) and `event` with a
    subscription callback (`WfbComplications.mc`, `body_battery.current` and
-   seven other complication-backed sources) — see the session notes below.
+   eight other complication-backed sources) — see the session notes below.
 7. **Generate the data-source catalogue from the SDK** (ADR 0005 §1). It is
    hand-written today; a drifted catalogue would silently mis-declare permissions.
 8. The GUI (ADR 0002), last, once the schema has stabilised.
@@ -790,6 +819,34 @@ across all three targets: `BUILD SUCCESSFUL`, `minApiLevel="4.2.0"` and
 generated manifest exactly when a complication is bound and absent
 otherwise, and `WfbComplications.mc` pulled into the barrel only then too --
 not just `wfb validate`.
+
+**That session also went sideways on git** (interactive rebase, aborted, a
+partial manual commit, `main` briefly regressed 8 commits behind where it
+should have been) and was recovered by resetting `main` back onto the correct
+tip and re-committing the Complications work from scratch on top of it, in
+three commits (implementation, tests, docs) rather than one -- the history is
+clean now, and there is nothing left to do about it; it is recorded only
+because the recovery surfaced the filesystem quirk noted in §2.
+
+**A follow-up session made `wfb` self-describing: `wfb help`, `wfb help
+<command>` and `wfb <command> help` all now work, and are one command's
+docstring away from drifting out of sync with `--help` itself, which they
+cannot do because they do not duplicate it.** `_command()`
+(`wfb/cli.py`) reads each handler function's docstring once -- the first
+line becomes the short summary `wfb --help`'s command table shows, the
+whole docstring becomes what `wfb <command> --help` prints -- and
+`_rewrite_trailing_help()` turns a trailing `help` into `--help` before
+argparse ever sees it, so all three spellings produce byte-identical output
+(a test pins this down: `tests/test_cli.py::
+test_every_command_help_is_sourced_from_its_own_docstring` fails if anyone
+ever reintroduces a hand-written `help=`/`description=` string that could
+diverge from the docstring it now always matches). The module docstring at
+the top of `wfb/cli.py` is `wfb --help`'s own top-level description for the
+same reason. `wfb doctor`, `wfb sources` and `wfb devices` were already the
+answer to "what can I bind, what can I target, is my environment ready" --
+this closes the last gap, "what does this command actually do," so an
+unfamiliar caller (human or model) never has to fall back to a markdown doc
+to find out.
 
 ### Known-good reference
 
