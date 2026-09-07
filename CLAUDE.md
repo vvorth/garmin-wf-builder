@@ -275,7 +275,7 @@ is the thing the user asked to review.
 | `monkeyc`, and the measured memory check | `wfb/build.py` | **yes** |
 | Host-side preview | `wfb/preview.py` | no |
 
-456 tests. Only the ones marked `slow` invoke `monkeyc`.
+458 tests. Only the ones marked `slow` invoke `monkeyc`.
 
 ### Findings from Phase 2 that were not in the research
 
@@ -375,9 +375,19 @@ dependency order:
    progress styles.
 4. **Configuration** (ADR 0006): the `config:` block, `<watchface-config>`,
    `settings.xml`/`properties.xml`, and the four-axis build-time checks.
-5. **Interactivity** (ADR 0006 §6): tap where available, hold on fr955, from one
-   declaration — and the compiler must **reject** `on_hold: launch` combined with
-   hold-to-cycle on fr955 rather than silently preferring one.
+5. **Interactivity** (ADR 0006 §6) — **partially shipped.** `on_tap:` exists on
+   every element and is exactly this: tap where available, hold on fr955, from
+   one declaration, resolved per device against its own symbol table rather than
+   an API level. What has **not** shipped is the rest of §6's vision: a
+   `complication_slot` element that **cycles** through several complications
+   (`cycle: [...]`, `on_activate: cycle`), and `on_hold: launch` as a *second*,
+   independent gesture alongside cycling — which is exactly where the ADR's own
+   warning applies (`on_hold: launch` and hold-to-cycle **conflict on fr955**,
+   where hold is the only gesture available, and the compiler must reject that
+   combination there rather than silently preferring one). `on_tap:` today is a
+   single fixed target per element with no cycling and no second gesture, so
+   this conflict cannot yet arise — it will, the moment `complication_slot` is
+   built. Do not read "Interactivity shipped" as this being done.
 6. ~~Complications and the `event` refresh tier.~~ **Shipped.** Both refresh
    tiers ADR 0005 describes now exist: `slow` with its TTL cache
    (`WfbCache.mc`, `weather.*` as its first source) and `event` with a
@@ -1027,6 +1037,19 @@ Advances and line metrics deliberately stay at the target size, so this changes
 how a glyph looks and never where it sits: no golden file moved, and text
 improved as much as icons (`'0'` in Open Sans at 20px went from 44.4%
 asymmetric to 0.0%).
+
+### `examples/dashboard/face.yaml` is the user's own playground
+
+The user edits this file directly between sessions and has said explicitly:
+**it is a playground, leave it alone.** Do not proactively "fix" its lint
+warnings, geometry or content — even a broken `wfb validate` or a failing
+`test_example_is_clean_on_every_target[dashboard]` is not, by itself, a defect
+to correct unless asked. Two sessions have now found this test red on `main`
+at the start of work; in one, fixing it was explicitly in scope (a review
+task) and the geometry fix was welcomed, in the other the user later edited
+the file further and the instruction was to leave it be going forward. When in
+doubt here, ask rather than assume — this is the one file in the repo where
+"the test suite is red" is not automatically a bug report.
 
 ### Known-good reference
 

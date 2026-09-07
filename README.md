@@ -183,7 +183,7 @@ schema/               the published JSON Schema (a shipped artefact)
 examples/slice/       the Phase 2 example face -- the smallest end-to-end path
 examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
                       conditional colours, a badge and three arcs
-tests/                456 tests; only the `slow` ones need the Garmin toolchain
+tests/                458 tests; only the `slow` ones need the Garmin toolchain
 docs/                 format reference, limitations, ADRs, Phase 0 research
 ```
 
