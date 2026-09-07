@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Launchable:
-    """One ``COMPLICATION_TYPE_*`` an ``on_tap:`` may name."""
+    """One ``COMPLICATION_TYPE_*`` an ``on_hold:`` may name."""
 
     #: The spelling used in a design file: the constant, lowercased.
     name: str

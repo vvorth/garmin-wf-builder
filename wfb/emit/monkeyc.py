@@ -22,11 +22,12 @@ from dataclasses import dataclass
 from .. import __version__, catalog, complications, formatting, icons
 from ..catalog import READERS, Tier, Type
 from ..ir import (
-    Expression, Face, IconElement, Progress, Shape, Text,
-    element_const_prefix, element_method_name, font_resource_id,
+    Carousel, Expression, Face, IconElement, Progress, Shape, Text,
+    carousel_index_field, carousel_slide_done_method, carousel_slide_field,
+    carousel_step_method, element_const_prefix, element_method_name, font_resource_id,
 )
 from ..layout import (
-    PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedCarousel, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
 from ..units import IntBox
 from .writer import Writer
@@ -79,7 +80,7 @@ def header(face: Face, extra: str = "") -> str:
 
 
 def emit_app(face: Face) -> SourceFile:
-    interactive = bool(tap_targets(face))
+    interactive = bool(hold_targets(face))
     w = Writer()
     w.doc(header(face)).blank()
     w.lines("import Toybox.Application;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank()
@@ -92,11 +93,13 @@ def emit_app(face: Face) -> SourceFile:
             if not interactive:
                 w.line(f"return [ new {face.entry}View() ];")
             else:
+                w.line(f"var view = new {face.entry}View();")
                 w.comment("the `has` guard is the SDK's own idiom (samples/Analog): a watch")
-                w.comment("without WatchFaceDelegate still gets the face, just not the taps")
+                w.comment("without WatchFaceDelegate still gets the face, just not the holds")
                 with w.block("if (WatchUi has :WatchFaceDelegate)"):
-                    w.line(f"return [ new {face.entry}View(), new {face.entry}Delegate() ];")
-                w.line(f"return [ new {face.entry}View() ];")
+                    w.comment("the delegate holds the view so a hold can move a carousel")
+                    w.line(f"return [ view, new {face.entry}Delegate(view) ];")
+                w.line("return [ view ];")
     return SourceFile(f"source/{face.entry}App.mc", w.render())
 
 
@@ -160,34 +163,70 @@ def emit_icon_glyphs(face: Face) -> SourceFile:
     return SourceFile("source/IconGlyphs.mc", w.render())
 
 
-def tap_targets(face: Face) -> list:
-    """Elements with an `on_tap:`, in draw order.  Empty for a passive face."""
-    return [e for e in face.walk() if e.on_tap is not None]
+def hold_targets(face: Face) -> list:
+    """Elements a hold does something with, in draw order.
+
+    Both kinds: an `on_hold:` on any element, and every `carousel`, which is
+    interactive by construction.  Empty means a passive face, and the whole
+    delegate is then omitted.
+    """
+    return [e for e in face.walk()
+            if e.on_hold is not None or isinstance(e, Carousel)]
+
+
+def carousels(face: Face) -> list:
+    """Every `carousel` element, in draw order."""
+    return [e for e in face.walk() if isinstance(e, Carousel)]
+
+
+def launches_a_glance(face: Face) -> bool:
+    """Does anything in this design actually emit `Complications.exitTo`?
+
+    Not the same question as :func:`hold_targets`: a carousel is interactive
+    (it rotates) without necessarily opening anything, and it would be wrong to
+    make such a face declare `ComplicationSubscriber` or raise its
+    `minApiLevel` to 4.2.0 for a call it never makes.
+    """
+    for element in face.walk():
+        if element.on_hold is not None:
+            return True
+        if isinstance(element, Carousel) and any(
+                item.launch is not None for item in element.items):
+            return True
+    return False
 
 
 def emit_delegate(resolved: ResolvedFace) -> SourceFile:
-    """`source/<Face>Delegate.mc`: turn a touch into a glance.
+    """`source/<Face>Delegate.mc`: turn a touch and hold into a glance.
 
-    One delegate, shared by every target, defining **both** `onTap` and
-    `onPress`.  That is not belt-and-braces: `WatchFaceDelegate.onTap` is
-    documented since API 5.1.0 but is genuinely absent on some watches above
-    that level -- `fr955` is API 5.2.0 and has `onPress` only (resolved
-    against its own `api.debug.xml`, not its API level; see CLAUDE.md's
-    constraint 6).  Defining a method the parent class does not declare is
-    harmless there -- verified with a real `-l 3` build on `fr955`, which the
-    system simply never calls -- so one file serves every device and the
-    author writes one `on_tap:`.  Where tap is missing, the same declaration
-    is reached by touch and hold, which is the behaviour ADR 0006 §6 chose.
+    **`onPress` only, on every device.**  `WatchFaceDelegate.onTap` exists on
+    the fēnix 8 targets, but the SDK documents it "Only available in WatchFace
+    config mode" -- it is how the *on-device editor* learns which complication
+    slot the user picked (`samples/ConfigurableWatchFace`), and it never fires
+    on a face that is merely being looked at.  Touch and hold is the whole
+    input surface a live watch face gets; there is no swipe, and the physical
+    keys belong to the system.  See `docs/research/07-carousel-interaction.md`
+    §1, which corrects the earlier "tap where available, hold on fr955"
+    reading of ADR 0006 §6.
 
-    `Complications.exitTo` is the whole mechanism: a watch face cannot launch
-    an arbitrary app, only the one that owns a complication type.
+    `Complications.exitTo` is the whole mechanism on the other side: a watch
+    face cannot launch an arbitrary app, only the one that owns a
+    complication type.
+
+    A `carousel` uses the *same* one gesture for three things, told apart by
+    where the finger landed within its own box -- left third, right third,
+    middle.  That is the whole reason ADR 0006 §6's "hold-to-cycle and
+    hold-to-launch conflict" is no longer a conflict: geometry separates them,
+    so the compiler lays out zones rather than rejecting the combination.
     """
     face = resolved.face
-    targets = tap_targets(face)
+    targets = hold_targets(face)
     w = Writer()
     w.doc(header(face)).blank()
-    w.lines("import Toybox.Complications;", "import Toybox.Lang;",
-            "import Toybox.WatchUi;").blank()
+    imports = ["import Toybox.Lang;", "import Toybox.WatchUi;"]
+    if launches_a_glance(face):
+        imports.insert(0, "import Toybox.Complications;")
+    w.lines(*imports).blank()
     w.doc(
         f"Touch handling for {face.name}.\n"
         "\n"
@@ -195,44 +234,81 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
         "the Layout module, so what the finger must hit is what the eye sees."
     )
     with w.block(f"class {face.entry}Delegate extends WatchUi.WatchFaceDelegate"):
-        with w.block("function initialize()"):
+        w.doc("The view, so a carousel's selection can be moved and read back.\n"
+              "\n"
+              "Held even by a face with no carousel: one delegate shape is easier to\n"
+              "read than two, and an unused field costs nothing measurable.")
+        w.line(f"private var _view as {face.entry}View;")
+        w.blank()
+        with w.block(f"function initialize(view as {face.entry}View)"):
             w.line("WatchFaceDelegate.initialize();")
+            w.line("_view = view;")
         w.blank()
-        w.doc("A tap. Absent on some watches even above its documented API level,\n"
-              "which is why onPress below exists too.")
-        with w.block("function onTap(clickEvent as ClickEvent) as Boolean"):
-            w.line("return handleClick(clickEvent);")
-        w.blank()
-        w.doc("A touch and hold -- the same declaration, reached the other way on a\n"
-              "watch with no onTap.")
-        with w.block("function onPress(clickEvent as ClickEvent) as Boolean"):
-            w.line("return handleClick(clickEvent);")
-        w.blank()
-        w.doc("Find the region the touch landed in and open its complication.\n"
+        w.doc("A touch and hold -- the only gesture a live watch face receives.\n"
+              "\n"
+              "There is deliberately no onTap here: it is documented \"Only available in\n"
+              "WatchFace config mode\" and never fires during normal display, on any\n"
+              "device.\n"
               "\n"
               "Returns true when the touch was consumed, so the system does not also\n"
               "act on it.")
-        with w.block("private function handleClick(clickEvent as ClickEvent) as Boolean"):
+        with w.block("function onPress(clickEvent as ClickEvent) as Boolean"):
             w.line("var where = clickEvent.getCoordinates();")
             w.line("var x = where[0];")
             w.line("var y = where[1];")
             for element in targets:
                 prefix = _const_prefix(element.id)
-                launch = complications.LAUNCHABLE[element.on_tap]
                 w.blank()
-                w.comment(f"`{element.id}` -> {element.on_tap}")
-                with w.block(
-                    f"if (x >= Layout.{prefix}_TAP_X && "
-                    f"x < Layout.{prefix}_TAP_X + Layout.{prefix}_TAP_WIDTH\n"
-                    f"        && y >= Layout.{prefix}_TAP_Y && "
-                    f"y < Layout.{prefix}_TAP_Y + Layout.{prefix}_TAP_HEIGHT)"
-                ):
+                condition = (
+                    f"if (x >= Layout.{prefix}_HOLD_X && "
+                    f"x < Layout.{prefix}_HOLD_X + Layout.{prefix}_HOLD_WIDTH\n"
+                    f"        && y >= Layout.{prefix}_HOLD_Y && "
+                    f"y < Layout.{prefix}_HOLD_Y + Layout.{prefix}_HOLD_HEIGHT)"
+                )
+                if isinstance(element, Carousel):
+                    w.comment(f"carousel `{element.id}`: previous | open | next, by zone")
+                    with w.block(condition):
+                        _emit_carousel_zones(w, element, prefix)
+                    continue
+                launch = complications.LAUNCHABLE[element.on_hold]
+                w.comment(f"`{element.id}` -> {element.on_hold}")
+                with w.block(condition):
                     w.line(f"Complications.exitTo(new Complications.Id("
                            f"Complications.{launch.constant}));")
                     w.line("return true;")
             w.blank()
             w.line("return false;")
     return SourceFile(f"source/{face.entry}Delegate.mc", w.render())
+
+
+def _emit_carousel_zones(w: Writer, element: Carousel, prefix: str) -> None:
+    """The three zones inside one carousel's box.
+
+    Every branch returns true, including the one that opens nothing: the hold
+    landed on the carousel, so passing it back to the system would let a stray
+    finger on the middle zone do something else entirely.
+    """
+    step = carousel_step_method(element.id)
+    with w.block(f"if (x < Layout.{prefix}_PREV_EDGE)"):
+        w.line(f"_view.{step}(-1);")
+        w.line("return true;")
+    with w.block(f"if (x >= Layout.{prefix}_NEXT_EDGE)"):
+        w.line(f"_view.{step}(1);")
+        w.line("return true;")
+    w.blank()
+    launchable = [(index, item) for index, item in enumerate(element.items)
+                  if item.launch is not None]
+    if launchable:
+        w.comment("the middle: open whatever owns the selected item's reading")
+        with w.block(f"switch (_view.{carousel_index_field(element.id)})"):
+            for index, item in launchable:
+                constant = complications.LAUNCHABLE[item.launch].constant
+                w.line(f"// item {index}: {item.icon}")
+                w.line(f"case {index}: Complications.exitTo("
+                       f"new Complications.Id(Complications.{constant})); break;")
+    else:
+        w.comment("no item declares a `launch:`, so the middle zone opens nothing")
+    w.line("return true;")
 
 
 # --------------------------------------------------------------------------
@@ -263,7 +339,7 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
         w.line(f"const SCREEN_WIDTH as Number = {device.width};")
         w.line(f"const SCREEN_HEIGHT as Number = {device.height};")
         for placed in resolved.items:
-            constants = _layout_constants(placed) + _tap_constants(placed)
+            constants = _layout_constants(placed) + _hold_constants(placed)
             if not constants:
                 continue
             w.blank()
@@ -289,8 +365,8 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
     return SourceFile(f"source-{device.id}/Layout.mc", w.render())
 
 
-def _tap_constants(placed) -> list[tuple[str, float, str]]:
-    """The hit rectangle for an `on_tap:` element.
+def _hold_constants(placed) -> list[tuple[str, float, str]]:
+    """The hit rectangle for an `on_hold:` element.
 
     Deliberately the element's own resolved box, not an inflated one: the
     region a finger must hit is then exactly the thing the eye sees, which is
@@ -299,15 +375,18 @@ def _tap_constants(placed) -> list[tuple[str, float, str]]:
     silently overlap neighbouring targets on a dense face.  An author who
     wants a bigger target puts the element in a `group` and taps that.
     """
-    if placed.element.on_tap is None:
+    # A carousel is interactive by construction -- its three zones are the
+    # whole point of the element -- so it gets a hit region without asking,
+    # where every other element opts in with `on_hold:`.
+    if placed.element.on_hold is None and not isinstance(placed, PlacedCarousel):
         return []
     prefix = _const_prefix(placed.id)
     box = placed.box
     return [
-        (f"{prefix}_TAP_X", box.x, "hit region: the element's own drawn box"),
-        (f"{prefix}_TAP_Y", box.y, ""),
-        (f"{prefix}_TAP_WIDTH", box.width, ""),
-        (f"{prefix}_TAP_HEIGHT", box.height, ""),
+        (f"{prefix}_HOLD_X", box.x, "hit region: the element's own drawn box"),
+        (f"{prefix}_HOLD_Y", box.y, ""),
+        (f"{prefix}_HOLD_WIDTH", box.width, ""),
+        (f"{prefix}_HOLD_HEIGHT", box.height, ""),
     ]
 
 
@@ -356,6 +435,17 @@ def _layout_constants(placed) -> list[tuple[str, float, str]]:
     elif isinstance(placed, PlacedIcon):
         out.append((f"{prefix}_CX", placed.center[0], ""))
         out.append((f"{prefix}_CY", placed.center[1], ""))
+    elif isinstance(placed, PlacedCarousel):
+        out.append((f"{prefix}_CX", placed.row_center[0], "centre of the icon row"))
+        out.append((f"{prefix}_CY", placed.row_center[1], ""))
+        out.append((f"{prefix}_PITCH", placed.pitch, "centre-to-centre slot spacing"))
+        out.append((f"{prefix}_VALUE_X", placed.value_anchor[0],
+                    "where the selected item's reading is drawn"))
+        out.append((f"{prefix}_VALUE_Y", placed.value_anchor[1], ""))
+        out.append((f"{prefix}_PREV_EDGE", placed.prev_edge,
+                    "a hold left of this is 'previous'"))
+        out.append((f"{prefix}_NEXT_EDGE", placed.next_edge,
+                    "a hold at or right of this is 'next'; between them opens the glance"))
     return out
 
 
@@ -383,31 +473,112 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         "a line in the design file."
     )
     always_on = bool(resolved.in_mode("always_on"))
+    rings = [p for p in resolved.items if isinstance(p, PlacedCarousel)]
+    animated = [p for p in rings if p.element.animate > 0]
+    # A carousel needs the sleep flag whether or not the design uses
+    # `always_on`: WatchUi.animate crashes the app in low power mode, so the
+    # slide has to know (research 07 3).
+    sleep_flag = always_on or bool(animated)
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
         _emit_cache_fields(w, plan)
-        if always_on:
-            w.doc(
-                "Whether the watch is currently asleep.  Set by onEnterSleep/\n"
-                "onExitSleep below, and read by onUpdate to choose which element set "
-                "to draw -- 'always_on' elements while asleep, 'active' ones while awake."
-            )
+        _emit_carousel_fields(w, rings)
+        if sleep_flag:
+            w.doc(_sleep_flag_doc(always_on, bool(animated)))
             w.line("private var _sleeping as Boolean = false;")
             w.blank()
-        _emit_initialize(w, face)
+        _emit_initialize(w, face, rings)
         _emit_on_layout(w, resolved, plan)
         _emit_on_update(w, resolved, plan, always_on)
         if resolved.in_mode("low_power") and device.supports_partial_update:
             _emit_on_partial_update(w, resolved, plan)
-        _emit_sleep_hooks(w, resolved, always_on)
+        _emit_sleep_hooks(w, resolved, always_on, sleep_flag)
         if plan.event_readers():
             _emit_complication_callback(w, plan)
+        for placed in rings:
+            _emit_carousel_step(w, placed, sleep_flag)
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
             w.blank()
             _emit_element_method(w, resolved, placed, plan)
     return SourceFile(f"source/{face.entry}View.mc", w.render())
+
+
+def _sleep_flag_doc(always_on: bool, animated: bool) -> str:
+    reasons = []
+    if always_on:
+        reasons.append(
+            "onUpdate reads it to choose which element set to draw: the 'always_on'\n"
+            "elements while asleep, the 'active' ones while awake."
+        )
+    if animated:
+        reasons.append(
+            "A carousel's slide reads it because WatchUi.animate is documented to\n"
+            "*crash the app* if called from a watch face in low power mode, so a\n"
+            "rotation while asleep is instant instead of animated."
+        )
+    return ("Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep "
+            "below.\n\n" + "\n\n".join(reasons))
+
+
+def _emit_carousel_fields(w: Writer, rings: list) -> None:
+    """One selection field per carousel, and one slide offset per animated one."""
+    if not rings:
+        return
+    for placed in rings:
+        element = placed.element
+        w.doc(f"`{element.id}`: which of its {len(element.items)} items is centred."
+              + ("  Persisted in Application.Storage, so the wearer's choice survives "
+                 "a restart." if element.persist else "  Not persisted: the design "
+                 "declares `persist: false`, so it starts at item 0 every launch."))
+        w.line(f"public var {carousel_index_field(element.id)} as Number = 0;")
+        if element.animate > 0:
+            w.doc(f"`{element.id}`: the slide offset, in pixels, while it rotates.\n"
+                  "\n"
+                  "Public because WatchUi.animate takes a Symbol and looks the property\n"
+                  "up indirectly -- a private member is not found that way, and monkeyc\n"
+                  "warns about exactly that.")
+            w.line(f"public var {carousel_slide_field(element.id)} as Number = 0;")
+    w.blank()
+
+
+def _emit_carousel_step(w: Writer, placed, sleep_flag: bool) -> None:
+    """`step<Id>(direction)` -- the one thing a hold on an outer zone does."""
+    element = placed.element
+    count = len(element.items)
+    index = carousel_index_field(element.id)
+    w.blank()
+    w.doc(f"Move `{element.id}` one slot.  Called from the delegate's zone test.\n"
+          "\n"
+          "-1 is the item to the left, +1 the item to the right; both wrap.")
+    with w.block(f"public function {carousel_step_method(element.id)}"
+                 "(direction as Number) as Void"):
+        w.line(f"{index} = WfbCarousel.step({index}, direction, {count});")
+        if element.persist:
+            w.line(f'WfbCarousel.remember("{element.id}", {index});')
+        if element.animate > 0:
+            slide = carousel_slide_field(element.id)
+            prefix = _const_prefix(element.id)
+            w.blank()
+            w.comment("cancel first: a second press mid-slide must not stack animations")
+            w.line("WatchUi.cancelAllAnimations();")
+            w.line(f"{slide} = 0;")
+            with w.block("if (!_sleeping)" if sleep_flag else "if (true)"):
+                w.comment("the new item starts off-centre and slides into place; asleep,")
+                w.comment("animate() would crash the app, so the change is instant instead")
+                w.line(f"{slide} = direction * Layout.{prefix}_PITCH;")
+                w.line(f"WatchUi.animate(self, :{slide}, WatchUi.ANIM_TYPE_EASE_OUT,")
+                w.line(f"                direction * Layout.{prefix}_PITCH, 0, "
+                       f"{element.animate}f,")
+                w.line(f"                method(:{carousel_slide_done_method(element.id)}));")
+        w.line("WatchUi.requestUpdate();")
+    if element.animate > 0:
+        w.blank()
+        w.doc(f"`{element.id}` finished sliding.  One more frame draws it at rest.")
+        with w.block(f"public function {carousel_slide_done_method(element.id)}() as Void"):
+            w.line(f"{carousel_slide_field(element.id)} = 0;")
+            w.line("WatchUi.requestUpdate();")
 
 
 def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
@@ -443,9 +614,17 @@ def _emit_cache_fields(w: Writer, plan: "ReadPlan") -> None:
         w.blank()
 
 
-def _emit_initialize(w: Writer, face: Face) -> None:
+def _emit_initialize(w: Writer, face: Face, rings: list) -> None:
     with w.block("function initialize()"):
         w.line("WatchFace.initialize();")
+        restored = [p for p in rings if p.element.persist]
+        if restored:
+            w.blank()
+            w.comment("carousel selections, as the wearer last left them")
+            for placed in restored:
+                element = placed.element
+                w.line(f"{carousel_index_field(element.id)} = "
+                       f'WfbCarousel.restore("{element.id}", {len(element.items)});')
     w.blank()
 
 
@@ -543,10 +722,12 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan")
     w.blank()
 
 
-def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, always_on: bool) -> None:
+def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, always_on: bool,
+                      sleep_flag: bool = False) -> None:
+    sleep_flag = sleep_flag or always_on
     w.doc("Awake: full-power updates resume.")
     with w.block("function onExitSleep() as Void"):
-        if always_on:
+        if sleep_flag:
             w.line("_sleeping = false;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
@@ -556,7 +737,7 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, always_on: bool) -> Non
         "Asleep: the next onUpdate draws the low-power layout."
     )
     with w.block("function onEnterSleep() as Void"):
-        if always_on:
+        if sleep_flag:
             w.line("_sleeping = true;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
@@ -635,6 +816,14 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             for name, read in declarations:
                 w.line(f"var {name} = {read};")
             w.blank()
+        if isinstance(placed, PlacedCarousel):
+            # Deliberately no element-level guard.  Every other element hides
+            # as a whole when a binding is absent, but a carousel's bindings
+            # belong to *items*: one absent reading blanks one slot's text and
+            # leaves the row, its icons and its hold zones exactly where they
+            # were.  Each item's own policy is applied inside the switch below.
+            _emit_carousel(w, placed, plan)
+            return
         value_guards = plan.value_guards(placed)
         if substitutes_value:
             other_guards = plan.other_guards(placed)
@@ -654,6 +843,8 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             _emit_progress(w, placed, value_guards)
         elif isinstance(placed, PlacedIcon):
             _emit_icon(w, placed)
+        elif isinstance(placed, PlacedCarousel):
+            _emit_carousel(w, placed, plan)
 
 
 def _method_doc(placed) -> str:
@@ -868,6 +1059,122 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     w.line(f"dc.drawText(Layout.{prefix}_CX, Layout.{prefix}_CY, font,")
     w.line(f"            {glyph_expr},")
     w.line("            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);")
+
+
+def _emit_carousel(w: Writer, placed: PlacedCarousel, plan: "ReadPlan") -> None:
+    """The icon row, then the selected item's reading.
+
+    The row is a loop over *slots* with a switch on the item that lands in
+    each, rather than a loop over items: which item sits in which slot changes
+    every time the wearer moves the carousel, and the slide offset applies to
+    the slot, not the item.
+    """
+    element = placed.element
+    prefix = _const_prefix(placed.id)
+    index = carousel_index_field(element.id)
+    count = len(element.items)
+    slide = (carousel_slide_field(element.id) if element.animate > 0 else None)
+    active = _color(element.color)
+    inactive = _color(element.inactive_color) if element.inactive_color is not None else active
+
+    if element.slots > 1:
+        reach = element.slots // 2
+        w.comment(f"the icon row: {element.slots} slots, the centred one selected")
+        with w.block(f"for (var slot = -{reach}; slot <= {reach}; slot += 1)"):
+            w.line(f"var item = ({index} + slot + {count}) % {count};")
+            offset = f" - {slide}" if slide else ""
+            w.line(f"var x = Layout.{prefix}_CX + slot * Layout.{prefix}_PITCH{offset};")
+            if inactive != active:
+                w.line(f"dc.setColor(slot == 0 ? {active} : {inactive}, "
+                       "Graphics.COLOR_TRANSPARENT);")
+            else:
+                w.line(f"dc.setColor({active}, Graphics.COLOR_TRANSPARENT);")
+            _emit_carousel_glyph_switch(w, placed, "item", "x")
+    else:
+        w.comment("one slot: only the selected item is drawn")
+        w.line(f"dc.setColor({active}, Graphics.COLOR_TRANSPARENT);")
+        _emit_carousel_glyph_switch(w, placed, index, f"Layout.{prefix}_CX")
+    w.blank()
+
+    w.comment("the selected item's reading")
+    w.line('var text = "";')
+    with w.block(f"switch ({index})"):
+        for item_placed, item in zip(placed.items, element.items):
+            w.line(f"// item {item_placed.index}: {item.icon}"
+                   + (f" -- {item.value.text}" if item.value is not None else ""))
+            with w.block(f"case {item_placed.index}:"):
+                _emit_carousel_item_text(w, item, plan)
+                w.line("break;")
+    w.blank()
+    if placed.value_font_is_custom:
+        w.line(f"var valueFont = _{_field(placed.value_font_reference)};")
+        with w.block("if (valueFont == null)"):
+            w.line("return;  // the font resource failed to load")
+        w.blank()
+        font_expr = "valueFont"
+    else:
+        font_expr = f"Graphics.{placed.value_font_reference}"
+    value_color = (_color(element.value_color) if element.value_color is not None else active)
+    w.line(f"dc.setColor({value_color}, Graphics.COLOR_TRANSPARENT);")
+    w.line(f"dc.drawText(Layout.{prefix}_VALUE_X, Layout.{prefix}_VALUE_Y, {font_expr}, text,")
+    w.line("            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);")
+
+
+def _emit_carousel_glyph_switch(w: Writer, placed: PlacedCarousel,
+                                selector: str, x_expr: str) -> None:
+    """Draw whichever item's glyph belongs at `x_expr`.
+
+    Each item gets its own font resource because `wfb.icons.bake_size` picks a
+    nominal size per glyph -- the vendored font's aggregated icon sets pad
+    their glyphs differently inside the em-square, so one nominal size does not
+    give them all the same ink height.
+    """
+    prefix = _const_prefix(placed.id)
+    with w.block(f"switch ({selector})"):
+        for item_placed, item in zip(placed.items, placed.element.items):
+            w.line(f"// item {item_placed.index}: {item.icon}")
+            with w.block(f"case {item_placed.index}:"):
+                field = f"_{_field(item_placed.font_key)}"
+                w.line(f"var glyphFont = {field};")
+                with w.block("if (glyphFont != null)"):
+                    w.line(f"dc.drawText({x_expr}, Layout.{prefix}_CY, glyphFont,")
+                    w.line(f'            "{item_placed.codepoint}",')
+                    w.line("            Graphics.TEXT_JUSTIFY_CENTER "
+                           "| Graphics.TEXT_JUSTIFY_VCENTER);")
+                w.line("break;")
+
+
+def _emit_carousel_item_text(w: Writer, item, plan: "ReadPlan") -> None:
+    """One item's reading, with that item's own `when_absent:` policy.
+
+    Scoped to the item on purpose: this is the whole reason a carousel skips
+    the element-level guard every other element gets.
+    """
+    from ..ir import local_name
+
+    if item.value is None:
+        w.line('text = "";')
+        return
+    value_code = formatting.emit(item.format or "{}", item.value.code,
+                                item.value.value.type)
+    guards = [local_name(path) for path in item.value.sources
+              if catalog.CATALOG[path].guard_needed]
+    if not guards:
+        w.line(f"text = {value_code};")
+        return
+    available = " && ".join(f"{name} != null" for name in guards)
+    if item.when_absent == "placeholder":
+        w.comment("when_absent: placeholder")
+        w.line(f'text = "{item.placeholder}";')
+    elif item.when_absent == "fallback":
+        w.comment("when_absent: fallback")
+        w.line("text = " + formatting.emit(item.format or "{}", item.fallback.code,
+                                           item.fallback.value.type) + ";")
+    else:
+        w.comment("when_absent: hide -- this slot's reading is blank, the icon stays")
+        w.line('text = "";')
+    with w.block(f"if ({available})"):
+        w.line(f"text = {value_code};")
 
 
 def _fallback_fraction(element: Progress) -> str:
@@ -1091,6 +1398,13 @@ class ReadPlan:
             return (element.value,) if element.value is not None else ()
         if isinstance(element, Progress):
             return tuple(e for e in (element.value, element.maximum) if e is not None)
+        if isinstance(element, Carousel):
+            # Every item's reading, so none of them lands in `_other_bound` and
+            # gets an element-level "hide the whole row" guard.  `_emit_carousel`
+            # skips that guard outright and applies each item's own policy
+            # inside its `case`, which is the only scope that makes sense here:
+            # one absent reading is one blank slot.
+            return tuple(e for item in element.items for e in item.expressions())
         return ()
 
     def declarations(self, placed) -> list[tuple[str, str]]:
@@ -1204,6 +1518,14 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
         elif isinstance(placed, PlacedIcon):
             if placed.font_key not in out:
                 out.append(placed.font_key)
+        elif isinstance(placed, PlacedCarousel):
+            # One icon font per item (each glyph bakes at its own nominal size),
+            # plus the reading's font when it is a declared custom one.
+            for item in placed.items:
+                if item.font_key not in out:
+                    out.append(item.font_key)
+            if placed.value_font_is_custom and placed.value_font_reference not in out:
+                out.append(placed.value_font_reference)
     return out
 
 
@@ -1219,6 +1541,9 @@ def _describe(placed) -> str:
         if element.is_dynamic:
             return f"an icon chosen at runtime from {element.value_for.text!r}"
         return f"the {element.icon!r} icon"
+    if isinstance(element, Carousel):
+        return (f"a carousel of {len(element.items)} items, "
+                f"{element.slots} shown at a time")
     return element.kind
 
 

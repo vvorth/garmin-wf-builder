@@ -103,6 +103,33 @@ devices is configurable on the wrist on two of them. This is a consequence of th
 chosen scope (native editor plus phone settings, no generated on-device menu),
 not a defect — but it must never be a surprise.
 
+### A live watch face receives exactly one gesture: touch and hold
+
+Not one gesture *per device* — one gesture, full stop. `WatchFaceDelegate`
+declares no swipe, the physical keys belong to the system on the watch-face
+screen, and `WatchUi.configureTouchEvents` is documented "only allowed for
+Watch Apps and Audio Content Providers". `WatchFaceDelegate.onTap` does exist
+on the fēnix 8 targets, but the SDK documents it **"Only available in WatchFace
+config mode"**: it is how the on-device editor learns which complication slot
+the user picked, and it never fires on a face that is merely being looked at.
+
+So `onPress` is the whole input surface, `ClickEvent.getCoordinates()` is the
+only way to give one hold more than one meaning, and anything modelled on a
+stock Garmin face's tap behaviour is modelled on native firmware this API does
+not expose. `docs/research/07-carousel-interaction.md` §1 has the evidence.
+
+This project's `on_hold:` was called `on_tap:` until that was established.
+
+### Animation exists, but only while the watch is awake
+
+`WatchUi.animate()` **crashes the app** if called "from watch face while in low
+power mode", and a watch face has access to timers and animations only during
+the roughly ten seconds of high power mode that follow a gesture or a return
+from another app (`doc/Toybox/WatchUi/WatchFace.html`). Since a touch is itself
+one of the things that keeps the face awake, an animation driven by user input
+is workable — but it must be guarded on the sleep state and degrade to an
+instant change, never assumed.
+
 ### API level does not determine availability
 
 `fr955` runs API **5.2.0**, above `onTap`'s documented "since" of **5.1.0**, and
@@ -160,7 +187,7 @@ drop to hand-written Monkey C rather than growing the schema.
 
 | Missing | Where it is specified |
 |---|---|
-| `image` and `complication_slot` elements | ADR 0004 |
+| `image` and `complication_slot` elements | ADR 0004. `complication_slot`'s "cycle through several readings" half shipped as `carousel`; what is missing is a slot whose *type* the wearer picks in the on-device editor, which needs the `config:` block below |
 | `shape: ellipse` and `shape: polygon` | ADR 0004 §1 lists both as renderable via `fillEllipse`/`fillPolygon`; the schema's `shape:` enum has only `rectangle`, `rounded_rectangle`, `circle`, `line` -- confirmed by reading the schema, not previously tracked here |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
@@ -170,7 +197,7 @@ drop to hand-written Monkey C rather than growing the schema.
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
-| ADR 0008's check 2, **unsupported API for a targeted device**, for anything other than `on_tap:` | `on_tap:` resolves `WatchFaceDelegate.onTap`/`onPress` against each device's own symbol table, so the machinery is live — but `catalog.Source.requires` still consults nothing; §3 below has the detail |
+| ADR 0008's check 2, **unsupported API for a targeted device**, for anything other than `on_hold:` | `on_hold:` resolves `WatchFaceDelegate.onPress` against each device's own symbol table, so the machinery is live — but `catalog.Source.requires` still consults nothing; §3 below has the detail |
 | `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
 
 The `slow` refresh tier and its TTL cache (ADR 0005 §5) **shipped** --
@@ -220,11 +247,20 @@ Data-source spelling; palette legality; geometry against the framebuffer and the
 visible area (round and rectangle only); glyph coverage of a subsetted font;
 refresh tiers; contrast arithmetic.
 
-**Per-device API availability is checked for exactly one thing: `on_tap:`.**
-`check_tap_targets` resolves `WatchFaceDelegate.onTap` and `onPress` against
-each target's own `<id>.api.debug.xml` — which is the only honest way to answer
-it, since `onTap` is documented "since 5.1.0" and is genuinely absent on `fr955`
-at 5.2.0. Everything else ADR 0008's check 2 covers is still unchecked:
+A `carousel` is the one element checked against its **drawn** extent rather
+than its box, because its box is deliberately larger — it is the touch target.
+Whether that target is *usable* is a separate check (`carousel-zone`), listed
+below because half of it rests on a judgement.
+
+**Per-device API availability is checked for exactly one thing: `on_hold:`.**
+`check_hold_targets` resolves `WatchFaceDelegate.onPress` against each target's
+own `<id>.api.debug.xml` — which is the only honest way to answer it: an API
+level settles nothing here, as the sibling symbol `onTap` demonstrates, being
+documented "since 5.1.0" and genuinely absent on `fr955` at 5.2.0. (`onTap` is
+deliberately *not* consulted: it is documented "Only available in WatchFace
+config mode" and never fires on a live face, so checking for it would report a
+capability the author can never reach — see `docs/research/07-carousel-interaction.md`
+§1.) Everything else ADR 0008's check 2 covers is still unchecked:
 `Device.has_symbol` is correct and proven (`tests/test_devices.py` runs it
 against the real device files), and no *data source* consults it. See "Device
 gating for a source is not enforced" below, the same gap from the catalogue's
@@ -238,6 +274,7 @@ side.
 | **Partial-update power budget** | **A heuristic.** Garmin does not publish the numeric budget; the docs say only "strict limits". The check flags relative cost — clip area and operation count — and is labelled a heuristic until measured empirically against `onPowerBudgetExceeded`. |
 | **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is **always an estimate** — Garmin publishes each `FONT_*` symbol's pixel *height* per device and language, but not its per-glyph advances, and the real typefaces (Pridi, Roboto Condensed, Bionic, ...) are not available on the host or in the SDK. The estimate scales a real scalable stand-in face to the device's published height and measures per character (`wfb/fonts/fallback.py`), which is why it needs that per-device height to be correct in the first place — a flat 0.55 em/character coefficient is a last-resort fallback used only if even that stand-in face fails to load. Every system-font measurement is labelled `(estimated)` in the generated code regardless. |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
+| **`carousel-zone`, narrow-zone half** | Splitting the box into thirds is exact; the **40px minimum** each third is measured against is not a Garmin number — Garmin publishes no minimum touch size — so it is this compiler's judgement and the message says so. The other half of the check, whether a zone reaches under a round screen's bezel, *is* exact resolved geometry. |
 
 ### Suppression, and what it can reach
 
@@ -256,6 +293,9 @@ them rather than to an arbitrary one:
 * **`partial-update-budget`** is about the whole face's clip rectangle, so the
   allow is honoured on any element drawn in `low_power` mode — the elements that
   the clip is computed from and that pay its cost.
+
+`carousel-zone` and the two `hold-*` codes are ordinary element-scoped
+diagnostics, so `lint:` on the element itself reaches them.
 
 A code in `allow:` that this compiler does not emit, or that is deliberately not
 suppressible, is now an **error** naming which of the two it is. Before that, both
@@ -283,8 +323,8 @@ check that refuses suppression on purpose.
 * **Whether a device's firmware actually behaves as its files describe.** The
   device files are the best available ground truth, not a guarantee.
 * **Device gating for a source is not enforced** — ADR 0008's check 2, the
-  other half of "per-device API availability" above. (`on_tap:` *is* now
-  checked this way — `check_tap_targets` resolves `WatchFaceDelegate.onTap`
+  other half of "per-device API availability" above. (`on_hold:` *is* now
+  checked this way — `check_hold_targets` resolves `WatchFaceDelegate.onPress`
   against each target's own `api.debug.xml` — so the machinery is proven; it
   is data *sources* that still go unchecked.) `catalog.Source.requires`
   (`Parent.name` symbols a binding needs on the target device) exists and is

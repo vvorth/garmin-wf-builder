@@ -185,6 +185,19 @@ These are the findings that shaped every decision. Full detail and citations in
    `<id>.api.debug.xml`, keyed by fully-qualified parent. (`fr955` *does* have
    `InputDelegate.onTap` — a different symbol. Do not be fooled by a bare grep.)
 
+   **6b. And a symbol being present is NOT sufficient either — read its prose.**
+   `WatchFaceDelegate.onTap` *is* on both fēnix 8 targets, and it still never
+   fires on a face the user is looking at: the SDK entry says "Only available
+   in WatchFace config mode". A whole shipped feature was designed around the
+   symbol table alone and got this wrong (see the carousel session below).
+   `has_symbol` answers "can I call it", never "will it be called".
+
+6c. **A live watch face receives one gesture: touch and hold (`onPress`).**
+   No tap, no swipe, no keys. `ClickEvent.getCoordinates()` is the only way to
+   give one hold more than one meaning. Anything modelled on a *stock* Garmin
+   face's tap behaviour is modelled on native firmware this API does not
+   expose.
+
 7. **A missing permission fails silently.** The API returns null and the element
    never appears, with no diagnostic. The compiler deriving `manifest.xml`
    permissions from bindings is one of the framework's strongest justifications.
@@ -375,19 +388,35 @@ dependency order:
    progress styles.
 4. **Configuration** (ADR 0006): the `config:` block, `<watchface-config>`,
    `settings.xml`/`properties.xml`, and the four-axis build-time checks.
-5. **Interactivity** (ADR 0006 §6) — **partially shipped.** `on_tap:` exists on
-   every element and is exactly this: tap where available, hold on fr955, from
-   one declaration, resolved per device against its own symbol table rather than
-   an API level. What has **not** shipped is the rest of §6's vision: a
-   `complication_slot` element that **cycles** through several complications
-   (`cycle: [...]`, `on_activate: cycle`), and `on_hold: launch` as a *second*,
-   independent gesture alongside cycling — which is exactly where the ADR's own
-   warning applies (`on_hold: launch` and hold-to-cycle **conflict on fr955**,
-   where hold is the only gesture available, and the compiler must reject that
-   combination there rather than silently preferring one). `on_tap:` today is a
-   single fixed target per element with no cycling and no second gesture, so
-   this conflict cannot yet arise — it will, the moment `complication_slot` is
-   built. Do not read "Interactivity shipped" as this being done.
+5. **Interactivity** (ADR 0006 §6) — **partially shipped.** `on_hold:` exists on
+   every element: touch and hold it, and `Complications.exitTo` opens that
+   complication's glance. One target per element, resolved per device against
+   its own symbol table rather than an API level.
+
+   **This is not "tap where available, hold on fr955" — that premise was
+   false, and both ADR 0006 §6 and this file used to repeat it.** A live watch
+   face receives exactly one gesture on every device: touch and hold.
+   `WatchFaceDelegate.onTap` is documented "Only available in WatchFace config
+   mode" and fires solely inside the on-device editor. The key was renamed
+   `on_tap:` → `on_hold:` and the dead `onTap` handler deleted; see
+   `docs/research/07-carousel-interaction.md` §1 and §6.
+
+   ~~What has not shipped is the rest of §6's vision: an element that
+   **cycles** through several complications.~~ **That shipped too, as
+   `type: carousel`** — a row of readings the wearer picks between, the
+   centred one showing its value. The ADR's "hold-to-cycle and hold-to-launch
+   conflict on fr955" warning turned out to be obsolete *and* dissolvable: the
+   conflict is universal now that tap is gone, and it is resolved by
+   **geometry** rather than by rejecting the combination — the element's box is
+   cut into thirds, so hold-left = previous, hold-right = next, hold-centre =
+   `exitTo`, all off `ClickEvent.getCoordinates()`. Nothing needs rejecting;
+   the compiler lays out zones and lints their reachability. See the session
+   note below, `docs/format.md`'s `carousel` section, and
+   `examples/carousel/`.
+
+   Still missing from §6: the *other* half of `complication_slot` — a slot
+   whose **type** the wearer changes in the on-device editor, which needs the
+   `config:` block (item 4 above), not this.
 6. ~~Complications and the `event` refresh tier.~~ **Shipped.** Both refresh
    tiers ADR 0005 describes now exist: `slow` with its TTL cache
    (`WfbCache.mc`, `weather.*` as its first source) and `event` with a
@@ -954,8 +983,8 @@ edit files, never run git commands that touch the working tree.** Disjoint
 file ownership is what makes the parallelism safe, and a `git stash` ignores
 ownership entirely.
 
-**A later session added `glyph:`, `on_tap:`, and a rewritten glyph
-rasteriser.** All three came from the user; the research behind each is below,
+**A later session added `glyph:`, `on_tap:` (since renamed `on_hold:`), and a
+rewritten glyph rasteriser.** All three came from the user; the research behind each is below,
 because in two of the three the obvious approach was wrong.
 
 **1. `glyph: "U+F0BC"` — a codepoint the catalogue does not name.** `icon:`
@@ -978,6 +1007,18 @@ watch opens whichever glance owns it. `wfb/complications.py` lists all 42,
 generated by reading the SDK's own `COMPLICATION_TYPE_*` table rather than
 typed out; `wfb complications` prints them.
 
+> **Superseded, and the correction is worth reading in full: see the carousel
+> session below.** This session concluded "tap where available, hold on fr955",
+> emitted both handlers, and named the key `on_tap:`. All of that rested on
+> missing one sentence in `WatchFaceDelegate.onTap`'s own SDK entry — *"Only
+> available in WatchFace config mode"*. There is no tap on a live watch face,
+> on any device. The key is now `on_hold:`, the `onTap` handler is gone, and
+> `check_tap_targets` is `check_hold_targets`. The paragraphs immediately below
+> are left as written because the mistake is instructive: every individual fact
+> in them was checked against the device symbol tables, and the conclusion was
+> still wrong, because the symbol being present was taken as proof the callback
+> fires.
+
 Three things were checked against the device symbol tables rather than assumed,
 and two of them contradicted the API levels:
 
@@ -985,7 +1026,8 @@ and two of them contradicted the API levels:
   fr955**, which is 5.2.0 — CLAUDE.md constraint 6, confirmed again.
 * `onPress` (touch and hold) is documented at the same 5.1.0 and **is** present
   on fr955. So "tap where available, hold on fr955" is exactly implementable,
-  which is what ADR 0006 §6 chose.
+  which is what ADR 0006 §6 chose. *(Wrong: `onTap` being present says nothing
+  about it being called.)*
 * A single shared delegate defining **both** handlers compiles cleanly on
   fr955 under `-l 3` — verified with a real standalone build before relying on
   it, since defining a method the parent class does not declare could have been
@@ -998,12 +1040,11 @@ touches, and nothing emitted references `onTap` in a way the compiler must
 resolve. The hit region is deliberately the element's own drawn box — inflating
 to a minimum touch size would invent a number Garmin does not publish and would
 silently overlap neighbours on a dense face; an author who wants a bigger
-target taps a `group`.
+target holds a `group`.
 
 This is also **the first thing in the compiler to use `Device.has_symbol`**,
-closing part of the gap `docs/limitations.md` §3 records: `check_tap_targets`
-resolves both handlers against each target's own `api.debug.xml` and reports
-which of tap or hold that watch will actually give you. `catalog.Source.requires`
+closing part of the gap `docs/limitations.md` §3 records; it now resolves
+`onPress` against each target's own `api.debug.xml`. `catalog.Source.requires`
 still consults nothing, so ADR 0008's check 2 is only partly built.
 
 **3. The glyph rasteriser was measurably broken, and the obvious fix was the
@@ -1037,6 +1078,121 @@ Advances and line metrics deliberately stay at the target size, so this changes
 how a glyph looks and never where it sits: no golden file moved, and text
 improved as much as icons (`'0'` in Open Sans at 20px went from 44.4%
 asymmetric to 0.0%).
+
+**A session asked whether the fr955 stock face's data carousel could be
+reproduced, and the research overturned a shipped feature.**
+`docs/research/07-carousel-interaction.md` is the document; the probe that
+backs it is `docs/research/probes/carousel/`. Read §1 before touching anything
+interactive.
+
+The headline: **`WatchFaceDelegate.onTap` never fires on a live watch face, on
+any device.** Its SDK entry carries the sentence "Only available in WatchFace
+config mode" — the same sentence that marks `getComplicationDrawable` and
+`onWatchFaceConfigEdited`, both unambiguously editor-only. The SDK's only
+sample implementing it (`samples/ConfigurableWatchFace`) uses it solely to call
+`setSelectedComplication`, i.e. to tell the *editor* which slot the user
+picked. Garmin's forums say the same thing plainly. So touch and hold
+(`onPress`) is the entire input surface a watch face gets: no swipe (that is
+`BehaviorDelegate`, which a face never installs), no keys, and
+`configureTouchEvents` is watch-apps-only.
+
+**This invalidated ADR 0006 §6's premise and the `on_tap:` feature built on
+it.** Fixed in this session, not deferred: the key is renamed **`on_hold:`**
+(the old spelling is now an error naming its replacement, `on-tap-renamed`),
+the dead `onTap` handler is deleted from the emitter, `check_tap_targets` is
+`check_hold_targets` and resolves only `onPress`, and the `tap-unsupported`
+note — which said fr955's targets "are reached by touch and hold instead", true
+and actively misleading, since it implied the fēnix 8s got taps — is gone
+entirely. ADR 0006 §6 carries an amendment rather than a rewrite; `docs/
+format.md`, `docs/limitations.md` and constraint 6 above are corrected.
+
+**The instructive part is *how* the original was wrong.** Every individual fact
+in it was checked against the device symbol tables, exactly as this file
+demands. The error was treating "the symbol is present" as "the callback
+fires". Hence new constraint 6b: `has_symbol` answers *can I call it*, never
+*will it be called* — read the method's own prose too.
+
+**One thing the correction improved rather than only cost.** ADR 0006 §6 said
+hold-to-cycle and hold-to-launch "conflict on fr955" and that the compiler must
+reject the combination. With tap gone the conflict is universal — and also no
+longer a conflict, because `ClickEvent.getCoordinates()` separates the two
+meanings by *geometry*: hold-left = previous, hold-right = next, hold-centre =
+`exitTo`. Nothing needs rejecting; the compiler lays out zones.
+
+**On the carousel itself: buildable on all three targets, and cheap.** A
+hand-written probe exercising `WatchUi.animate()` on a `WatchFace` subclass,
+`cancelAllAnimations`, `Application.Storage` for the index, `onPress` with
+three coordinate zones, and `Complications.exitTo` builds `BUILD SUCCESSFUL`
+under `-l 3` on all three at **597 B data + 785 B code** — about 1% of budget.
+Two things came out of that build a doc page would not have given: the
+animated property **must be public or protected** (`animate()` looks it up
+indirectly through a `Symbol`; `private` builds but warns that the lookup will
+fail), and animation is legal **only while the face is awake** — `animate()` is
+documented to *crash the app* in low power mode, so generated code must guard
+on the existing `_sleeping` field and degrade to an instant jump. The
+interaction and the animation window coincide, since a touch is one of the
+things that keeps the face in high power mode, so this works — but it is a
+guard, not an assumption. `docs/research/07-carousel-interaction.md` §7
+proposes the format.
+
+**The element was then built, in the same session, as `type: carousel`.**
+`examples/carousel/` is the worked example; it compiles on all three targets
+at **2,887 B (2.2% of budget)** for a whole face — the carousel itself is
+about 1.4 KB of that, matching the probe. `wfb preview` renders it.
+
+What it does: a row of icons, the centred item drawn in `color:` with its
+reading at `value_offset:`, its neighbours in `inactive_color:`, moved by a
+hold and remembered in `Application.Storage`. The pieces, and why each is
+where it is:
+
+* **`size:` is the touch target, not the drawn extent** — the one element in
+  the format where those differ. It is split into equal thirds, so being
+  generous with it costs nothing and makes the zones hittable. This forced a
+  real distinction in `wfb/layout.py`: `PlacedCarousel.content_box` is what the
+  element paints, and `inside_visible_area_for` reads *that* rather than `box`,
+  because otherwise every reasonably-sized carousel warns `safe-area` for a
+  touch region that was deliberately large. Reachability is then its own
+  check, `check_carousel_zones`, which is the honest place for it: it warns
+  when a third is under 40px (a judgement, labelled as one — Garmin publishes
+  no minimum touch size) and when a zone reaches under a round screen's bezel
+  (exact geometry).
+* **`when_absent:` is per *item*, and a carousel is the only element that skips
+  the element-level null guard entirely.** Every other element hides as a whole
+  when a binding is absent; here that would make the row collapse and the zones
+  move under the wearer's finger. Each item's policy is applied inside its own
+  `case` instead — `hide` blanks that item's reading and leaves its icon drawn.
+  The consequence, made an error rather than left implicit: **a carousel's own
+  colours may not be nullable**, since there is no `when_absent:` for the row's
+  appearance. `ReadPlan._value_expressions` returns every item's expressions so
+  none of them lands in `_other_bound` and re-acquires an element-level guard
+  by the back door.
+* **Icons are inferred from the data source** where `wfb.icons.METRIC_ICON` has
+  a convention, which is the first real use of that table — a row of nine
+  readings is exactly where naming nine icons by hand is worst.
+* **Each item gets its own single-glyph icon font**, for the same
+  per-codepoint `bake_size` reason a standalone icon does. Measured cost on
+  the example: four tiny font resources rather than one shared.
+* **`launch:` is optional per item**, and `launches_a_glance(face)` is now
+  separate from `hold_targets(face)`: a carousel is interactive without
+  necessarily opening anything, so a design where no item declares a `launch:`
+  gets no `ComplicationSubscriber` permission, no `minApiLevel="4.2.0"`, and no
+  `import Toybox.Complications` in the delegate. Confirmed by test, not assumed.
+* **The delegate now holds the view** (`new <Face>Delegate(view)`), because a
+  zone hit has to call `stepData(-1)` on it. Unconditionally, including for a
+  face with no carousel — one delegate shape reads better than two.
+* **`_sleeping` is emitted for a carousel too**, not only for `always_on`,
+  because the slide has to check it. `WatchUi.animate` crashing the app in low
+  power mode is documented, not defensive.
+* **`WfbCarousel.mc`** is the new barrel file, and deliberately tiny: wrapping
+  an index (`+ count` before the modulo, because Monkey C's `%` keeps the sign
+  of its left operand) and clamping a restored one (a rebuild with fewer items
+  leaves a stored index past the end). Everything else is generated, because
+  everything else is per-device.
+
+One ergonomics fix found while writing the example: `slots:` defaults to
+`min(3, len(items))`, not a flat 3, so a two-item carousel is not an error for
+taking the default. Asking for more slots than items is still an error — a
+wider row would draw one item twice, which reads as a rendering bug.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 

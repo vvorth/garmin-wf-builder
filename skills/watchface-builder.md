@@ -390,6 +390,73 @@ on-device lookup needs the raw `Weather.CONDITION_*` value):
 No `when_absent:` for this -- it just does not draw while the value is
 absent, same as any other binding defaulting to `hide`.
 
+**`on_hold:`** makes any single element open a glance. A live watch face
+receives exactly one gesture -- touch and hold -- and `Complications.exitTo` is
+the only exit the platform offers, so the value names a *complication type*
+(run `wfb complications` for the ~42 names) and the watch opens whatever owns
+it:
+
+```yaml
+  - id: hr_icon
+    type: icon
+    icon: heart
+    size: 11%r
+    at: {anchor: center, dy: -20%}
+    color: palette.hot
+    on_hold: heart_rate           # touch and hold -> the heart-rate glance
+```
+
+The hit region is the element's own drawn box, so put several elements in a
+`group` and hold that when you want a bigger target. There is no `on_tap:` --
+it was renamed, because no device delivers a tap to a live watch face.
+
+**A carousel** is a row of readings the *wearer* picks between -- the stock
+Forerunner face's data row. Use it when a design wants several readings in one
+place and there is no room for all of them, or when the wearer should choose:
+
+```yaml
+  - id: data
+    type: carousel
+    at: {anchor: center, dy: 20%}
+    size: {width: 62%, height: 22%}   # the TOUCH target: split into thirds
+    pitch: 22%r                       # centre-to-centre slot spacing
+    icon_size: 9%r
+    color: palette.accent             # the selected item
+    inactive_color: palette.track     # its neighbours
+    value_font: FONT_SMALL
+    value_color: palette.text
+    value_offset: {anchor: center, dy: 34%}
+    items:
+      - value: heart_rate.current     # icon inferred from the source
+        format: "{:d}"
+        when_absent: placeholder
+        placeholder: "--"
+        launch: heart_rate            # centre-hold opens this glance
+      - value: activity.steps
+        format: "{:d}"
+        when_absent: hide
+      - icon: battery                 # or name one
+        value: system.battery
+        format: "{:.0f}%"
+```
+
+Three things to get right, all of which the linter will otherwise tell you:
+
+* **`size:` is the touch target, not the drawn extent.** It is cut into equal
+  thirds -- previous, open the glance, next -- because a live watch face gets
+  exactly one gesture (touch and hold) and coordinates are the only way to give
+  it three meanings. Be generous; a third under 40px warns, and so does a third
+  that lands under a round screen's bezel.
+* **`when_absent:` goes on the item, not the element**, and `hide` blanks that
+  item's reading while leaving its icon drawn -- the row does not collapse.
+* **The carousel's own colours may not be nullable.** There is no
+  `when_absent:` for the row's appearance; guard a conditional colour inside
+  the expression instead.
+
+`animate:` (seconds, default 0.3) and `persist:` (default true) are usually
+right as they stand. The slide only runs while the watch is awake -- generated
+code guards it, because `WatchUi.animate` crashes the app in low power mode.
+
 **Anchors** — `center`, `top`, `bottom`, `left`, `right`, `top_left`,
 `top_right`, `bottom_left`, `bottom_right`. Offsets are measured from the anchor.
 
@@ -442,6 +509,13 @@ silence:
 
 - **filled wedges or gradient arcs** — rings are strokes only;
 - **transparency or blending** — these panels have no alpha channel;
-- **animation**;
+- **animation, except a `carousel`'s slide** — a watch face has timers and
+  animations only during the ~10s of high power mode after a gesture, and
+  `WatchUi.animate` crashes the app if called outside it;
+- **tap, swipe or button input** — a live watch face receives *only* touch and
+  hold (`onPress`). `WatchFaceDelegate.onTap` exists on some watches and fires
+  solely inside the on-device config editor, never on a face being looked at.
+  Anything modelled on a stock face's tap behaviour is modelled on native
+  firmware this API does not expose;
 - **images and complication slots** — not implemented yet;
 - **multi-coloured text** — a bitmap font carries a single colour.

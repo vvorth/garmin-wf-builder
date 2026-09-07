@@ -19,7 +19,8 @@ from .devices import Device
 from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
-    Element, Expression, Face, Group, IconElement, Position, Progress, Shape, Size, Text,
+    Carousel, Element, Expression, Face, Group, IconElement, Position, Progress, Shape,
+    Size, Text,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
 
@@ -97,6 +98,54 @@ class PlacedIcon(Placed):
 
 
 @dataclass
+class PlacedCarouselItem:
+    """One slot's resolved drawing data.  Index is its position in `items:`."""
+
+    index: int
+    #: The synthetic icon font this item's glyph draws from (`wfb.icons.font_key`).
+    font_key: str
+    codepoint: str
+    #: The widest reading this item can render, for the value font's glyph set
+    #: and for the overflow check.
+    widest: str = ""
+
+
+@dataclass
+class PlacedCarousel(Placed):
+    """A carousel, resolved: the icon row, the reading, and the three zones.
+
+    The zone edges are resolved here rather than in the emitter for the same
+    reason every other coordinate is (ADR 0004): the device does no layout
+    arithmetic, and `wfb preview` can draw the same boundaries the delegate
+    tests against.
+    """
+
+    items: list[PlacedCarouselItem] = field(default_factory=list)
+    #: Centre of the icon row.
+    row_center: tuple[int, int] = (0, 0)
+    pitch: int = 0
+    icon_px: int = 0
+    #: Where the selected item's reading is drawn.
+    value_anchor: tuple[int, int] = (0, 0)
+    value_font_reference: str = "FONT_SMALL"
+    value_font_is_custom: bool = False
+    value_font_px: int = 0
+    value_widest: str = ""
+    value_measured_width: int = 0
+    value_width_is_estimated: bool = False
+    #: x < this is "previous"; x >= `next_edge` is "next"; between them is
+    #: "open this item's glance".
+    prev_edge: int = 0
+    next_edge: int = 0
+    #: What the element actually *paints* -- the icon row plus the reading --
+    #: which is narrower than `box`.  `box` is the touch target, and an author
+    #: sizing that generously is not a layout mistake, so the visible-area
+    #: check reads this instead (see `wfb.lint.check_geometry`); reachability
+    #: of the zones is its own question, asked by `check_carousel_zones`.
+    content_box: IntBox | None = None
+
+
+@dataclass
 class ResolvedFace:
     face: Face
     device: Device
@@ -166,6 +215,8 @@ class Resolver:
                 self.items.append(self._resolve_progress(element, parent, depth))
             elif isinstance(element, IconElement):
                 self.items.append(self._resolve_icon(element, parent, depth))
+            elif isinstance(element, Carousel):
+                self.items.append(self._resolve_carousel(element, parent, depth))
 
     # -- per-kind ---------------------------------------------------------
 
@@ -291,6 +342,95 @@ class Resolver:
             anchor_point=(round(cx), round(cy)),
         )
 
+    def _resolve_carousel(self, element: Carousel, parent: Box, depth: int) -> Placed:
+        """Resolve the icon row, the reading, and the three hold zones.
+
+        The element's own box is the hit region *and* the drawn extent, so it
+        is taken from `size:` rather than derived from the icons -- an author
+        sizing the touch target is doing something the compiler cannot infer,
+        and a box that stops at the icons would make the outer zones
+        unreachably narrow.
+        """
+        width = self._len(element.size.width, parent, Axis.X, parent.width)
+        height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        cx, cy = self._point(element.at, parent)
+        box = Box(cx - width / 2, cy - height / 2, width, height)
+
+        icon_px = icons.pixel_size(element.icon_size, self.device.minor_radius)
+        pitch = round(self._len(element.pitch, box, Axis.X,
+                                width / max(1, element.slots)))
+
+        placed_items: list[PlacedCarouselItem] = []
+        for index, item in enumerate(element.items):
+            key = icons.font_key(element.icon_size, item.codepoint)
+            placed_items.append(PlacedCarouselItem(
+                index=index, font_key=key, codepoint=item.codepoint,
+                widest=_carousel_item_widest(item),
+            ))
+
+        font_px, reference, is_custom, baked = self._carousel_value_font(element)
+        widest = max((i.widest for i in placed_items), key=len, default="")
+        if baked is not None:
+            value_width, _ = baked.measure(widest)
+            estimated = False
+        else:
+            value_width, _ = fallback.measure(widest, font_px)
+            estimated = True
+
+        offset = element.value_offset or Position(anchor="center", dy=None)
+        vx, vy = self._point(offset, box)
+
+        # Three equal zones across the box.  Equal because the alternative --
+        # sizing the outer zones to the neighbouring icons -- would make them
+        # shrink exactly when the row is dense and a miss costs most.
+        third = width / 3.0
+        # The drawn extent: the icon row, plus the reading where there is one.
+        # Deliberately not `box`, which is the touch target -- see
+        # PlacedCarousel.content_box.
+        reach = element.slots // 2
+        content_half = reach * pitch + max(icon_px, 1) / 2.0
+        left, right = cx - content_half, cx + content_half
+        top, bottom = cy - icon_px / 2.0, cy + icon_px / 2.0
+        if widest:
+            value_height = max(font_px, 1)
+            left = min(left, vx - value_width / 2.0)
+            right = max(right, vx + value_width / 2.0)
+            top = min(top, vy - value_height / 2.0)
+            bottom = max(bottom, vy + value_height / 2.0)
+        content = Box(left, top, right - left, bottom - top)
+        return PlacedCarousel(
+            element, box.rounded(), (round(cx), round(cy)), depth,
+            items=placed_items,
+            row_center=(round(cx), round(cy)),
+            pitch=pitch,
+            icon_px=icon_px,
+            value_anchor=(round(vx), round(vy)),
+            value_font_reference=reference,
+            value_font_is_custom=is_custom,
+            value_font_px=font_px,
+            value_widest=widest,
+            value_measured_width=round(value_width),
+            value_width_is_estimated=estimated,
+            prev_edge=round(box.x + third),
+            next_edge=round(box.x + 2 * third),
+            content_box=content.rounded(),
+        )
+
+    def _carousel_value_font(self, element: Carousel) -> tuple[int, str, bool, BakedFont | None]:
+        if element.value_font_is_custom:
+            baked = self.fonts.get(element.value_font)
+            spec = self.face.fonts[element.value_font]
+            return ((baked.size if baked else round(spec.size)),
+                    element.value_font, True, baked)
+        metric = self.device.system_fonts.get(element.value_font)
+        if metric is None:
+            self.warnings.append(
+                f"{element.id}: no pixel metrics for {element.value_font} on "
+                f"{self.device.id}; the reading's extent is not checked"
+            )
+            return 0, element.value_font, False, None
+        return metric.size_px, element.value_font, False, None
+
     # -- helpers ----------------------------------------------------------
 
     def _point(self, at: Position, parent: Box) -> tuple[float, float]:
@@ -361,6 +501,29 @@ class Resolver:
         return tuple(out)
 
 
+def _carousel_item_widest(item) -> str:
+    """The widest reading one carousel item can draw.
+
+    Same reasoning as :meth:`Resolver._widest_text` -- the substitute a
+    `placeholder:`/`fallback:` policy supplies is drawn through the same
+    format spec as the real value, so it has to be considered when sizing the
+    row and when subsetting the value font.
+    """
+    if item.value is None:
+        return ""
+    source = catalog.get(item.value.sources[0]) if item.value.sources else None
+    spec = item.format or "{}"
+    widest = formatting.widest(spec, source, item.value.value.type, item.value.scale)
+    if item.when_absent == "placeholder" and item.placeholder:
+        if len(item.placeholder) > len(widest):
+            widest = item.placeholder
+    if item.when_absent == "fallback" and item.fallback is not None:
+        substitute = _fallback_widest(item.fallback, spec)
+        if len(substitute) > len(widest):
+            widest = substitute
+    return widest
+
+
 def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
     """The widest string a `fallback:` expression could render, through the
     same format spec the bound value uses (see Bug 1's `_emit_text`).
@@ -423,7 +586,17 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
 
 
 def inside_visible_area_for(placed: "Placed", device: Device) -> bool | None:
-    """Visibility test that respects the element's actual shape."""
+    """Visibility test that respects the element's actual shape.
+
+    A carousel is the one element whose `box` is deliberately larger than what
+    it paints -- the box is its touch target, and sizing that generously is a
+    choice, not a mistake -- so it is checked against `content_box` instead.
+    Whether the *zones* inside that generous box are actually reachable is a
+    different question, and `wfb.lint.check_carousel_zones` asks it.
+    """
+    content = getattr(placed, "content_box", None)
+    if content is not None:
+        return inside_visible_area(content, device)
     circle = circular_extent(placed)
     if circle is None:
         return inside_visible_area(placed.box, device)
@@ -479,6 +652,7 @@ def safe_area(device: Device) -> Box | None:
 
 __all__ = [
     "Placed", "PlacedShape", "PlacedText", "PlacedProgress", "PlacedIcon",
+    "PlacedCarousel", "PlacedCarouselItem",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
     "inside_visible_area_for", "circular_extent",
     "is_full_bleed", "font_pixel_size",

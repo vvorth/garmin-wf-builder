@@ -24,6 +24,7 @@ BARREL_FILES = {
     "WfbCache.mc": "slow-tier read caching",
     "WfbWeather.mc": "weather-condition icon glyphs",
     "WfbComplications.mc": "safe complication subscription",
+    "WfbCarousel.mc": "carousel selection and persistence",
 }
 
 
@@ -87,7 +88,7 @@ def generate(face: Face, devices: list[Device], root: Path,
     if any(placed.kind == "icon" and placed.element.is_dynamic for placed in first.items):
         project.sources.append(monkeyc.emit_icon_glyphs(face))
     project.sources.append(monkeyc.emit_view(first))
-    if monkeyc.tap_targets(face):
+    if monkeyc.hold_targets(face):
         # Shared across devices like the view: the hit regions it references
         # are Layout constants, which are already per-device.
         project.sources.append(monkeyc.emit_delegate(first))
@@ -143,12 +144,14 @@ def _features(face: Face) -> set[str]:
     features: set[str] = set()
     if any(READERS[name].complication_type for name in face.requirements().readers):
         features.add("complications")
-    if monkeyc.tap_targets(face):
-        # `Complications.exitTo` is what an `on_tap:` compiles to, and it is
-        # API 4.2.0 -- the same floor a complication *reader* needs, for the
-        # same module. Deliberately not onTap's own 5.1.0: the face works
-        # below that, it simply is not tappable, and nothing the generator
-        # emits references onTap in a way the compiler must resolve.
+    if monkeyc.launches_a_glance(face):
+        # `Complications.exitTo` is what an `on_hold:`, and a carousel item's
+        # `launch:`, compiles to -- API 4.2.0, the same floor a complication
+        # *reader* needs, for the same module. Deliberately not onTap's own
+        # 5.1.0: nothing the generator emits references onTap at all, because
+        # onTap never fires outside the on-device config editor (research 07
+        # 1a). And deliberately not every interactive element: a carousel that
+        # opens nothing rotates perfectly well below 4.2.0.
         features.add("complications")
     return features  # on-device config arrives in Phase 3
 
@@ -176,4 +179,6 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
                 needed.add("WfbTime.mc")
         elif kind == "icon" and placed.element.is_dynamic:
             needed.add("WfbWeather.mc")
+        elif kind == "carousel":
+            needed.add("WfbCarousel.mc")
     return sorted(needed)

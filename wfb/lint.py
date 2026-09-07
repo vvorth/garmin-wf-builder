@@ -22,16 +22,18 @@ from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import Element, Face, Text
 from .layout import (
-    PlacedText, ResolvedFace, inside_screen, inside_visible_area_for, is_full_bleed,
+    PlacedCarousel, PlacedText, ResolvedFace, inside_screen, inside_visible_area,
+    inside_visible_area_for, is_full_bleed,
 )
 from .palette import Color
+from .units import IntBox
 
 #: Checks an author may silence with ``lint: {allow: [...], reason: "..."}``.
 #: The hard-platform-limit errors are deliberately absent: suppressing one
 #: produces a face that does not work.
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
-    "tap-unsupported", "tap-overlap",
+    "hold-unsupported", "hold-overlap", "carousel-zone",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -43,12 +45,13 @@ SUPPRESSIBLE = frozenset({
 #: day this set drifts from what the compiler actually emits, so it cannot rot
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
-    "color", "contrast", "devices", "duplicate-id", "element", "expression",
+    "carousel", "color", "contrast", "devices", "duplicate-id", "element", "expression",
     "font", "format", "format-version", "icon", "io", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
+    "carousel-zone", "hold-overlap", "hold-unsupported",
     "palette-dither", "partial-update", "partial-update-budget", "permission",
-    "on-tap", "raw-color", "refresh-tier", "safe-area", "schema",
-    "tap-overlap", "tap-unsupported", "target",
+    "on-hold", "on-tap-renamed", "raw-color", "refresh-tier", "safe-area", "schema",
+    "target",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
 
@@ -61,7 +64,8 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_glyphs(resolved, bag)
     check_contrast(resolved, bag)
     check_partial_update_budget(resolved, bag)
-    check_tap_targets(resolved, bag)
+    check_hold_targets(resolved, bag)
+    check_carousel_zones(resolved, bag)
     check_alpha(resolved, bag)
     for warning in resolved.warnings:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
@@ -440,86 +444,148 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
         )
 
 
-# -- tap targets ------------------------------------------------------------
-
-#: The two ways a watch face can be told about a touch.  Both are documented
-#: "since API level 5.1.0" and neither can be inferred from an API level:
-#: `fr955` is 5.2.0 and has only the second (CLAUDE.md constraint 6).
-_TAP_SYMBOLS = {
-    "tap": "Toybox.WatchUi.WatchFaceDelegate.onTap",
-    "touch and hold": "Toybox.WatchUi.WatchFaceDelegate.onPress",
-}
+# -- carousel zones ---------------------------------------------------------
 
 
-def check_tap_targets(resolved: ResolvedFace, bag: Bag) -> None:
-    """Will this device actually deliver the touches an `on_tap:` asks for?
+#: Below this many pixels wide, a hold zone is hard to hit reliably.  Garmin
+#: publishes no minimum touch size, so this is a judgement rather than a
+#: platform fact, and the diagnostic says so in its own confidence line.
+MIN_ZONE_WIDTH = 40
+
+
+def check_carousel_zones(resolved: ResolvedFace, bag: Bag) -> None:
+    """Can the wearer actually reach all three of a carousel's zones?
+
+    A carousel's box is its touch target, and it is checked here rather than
+    by :func:`check_geometry`, which deliberately looks at the *drawn* extent
+    instead (`PlacedCarousel.content_box`).  Two ways a generous-looking box
+    is not generous in practice: it is narrow enough that a third of it is a
+    sliver, or it is so wide that the outer thirds sit under the bezel of a
+    round screen -- where a finger cannot land at all.
+    """
+    device = resolved.device
+    for placed in resolved.items:
+        if not isinstance(placed, PlacedCarousel):
+            continue
+        zone_width = placed.box.width / 3.0
+        if zone_width < MIN_ZONE_WIDTH:
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "carousel-zone",
+                f"{placed.id}: each hold zone is only {zone_width:.0f}px wide on "
+                f"{device.id}",
+                placed.element.span,
+                notes=["the box is split into thirds -- previous, open, next -- so a "
+                       f"box under {MIN_ZONE_WIDTH * 3}px wide makes them hard to hit "
+                       "apart",
+                       "widen 'size:'; it is the touch target, and it does not have to "
+                       "match what the row paints"],
+                confidence="approximate -- Garmin publishes no minimum touch size, so "
+                           f"{MIN_ZONE_WIDTH}px is this compiler's judgement",
+            ))
+            continue
+        outer = _outer_zones(placed)
+        unreachable = [name for name, box in outer
+                       if inside_visible_area(box, device) is False]
+        if unreachable:
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "carousel-zone",
+                f"{placed.id}: the {' and '.join(unreachable)} "
+                f"zone{'s' if len(unreachable) > 1 else ''} "
+                f"{'reach' if len(unreachable) > 1 else 'reaches'} under "
+                f"{device.id}'s bezel",
+                placed.element.span,
+                notes=["a hold can only land on the part of the panel the wearer can "
+                       "see and touch, so part of that zone is dead",
+                       "narrow 'size:', or move the carousel toward the centre"],
+                confidence="exact for round and rectangle screens",
+            ))
+
+
+def _outer_zones(placed: PlacedCarousel) -> list[tuple[str, IntBox]]:
+    """The previous/next zones, as boxes.  The middle one is never the problem:
+    it is by construction the part of the row closest to the screen centre."""
+    box = placed.box
+    return [
+        ("previous", IntBox(box.x, box.y, placed.prev_edge - box.x, box.height)),
+        ("next", IntBox(placed.next_edge, box.y,
+                        box.right - placed.next_edge, box.height)),
+    ]
+
+
+# -- hold targets -----------------------------------------------------------
+
+#: The one way a live watch face can be told about a touch.
+#:
+#: `WatchFaceDelegate.onTap` is deliberately absent from this table even though
+#: two of the three targets have the symbol: the SDK documents it "Only
+#: available in WatchFace config mode", so it fires inside the on-device editor
+#: and nowhere else (`docs/research/07-carousel-interaction.md` 1a).  Checking
+#: for it would report a capability the author can never reach.
+_HOLD_SYMBOL = "Toybox.WatchUi.WatchFaceDelegate.onPress"
+
+
+def check_hold_targets(resolved: ResolvedFace, bag: Bag) -> None:
+    """Will this device actually deliver the holds an `on_hold:` asks for?
 
     Resolved against the device's **own** ``api.debug.xml``, which is the only
     honest way to answer it -- ADR 0008's check 2, and the first thing in this
-    compiler to use `Device.has_symbol` for real.  `WatchFaceDelegate.onTap`
-    is documented since 5.1.0 and is still missing on `fr955` at 5.2.0, so an
-    API-level comparison here would confidently report the opposite of the
-    truth.
+    compiler to use `Device.has_symbol` for real.  An API-level comparison is
+    not a substitute: `onPress` is documented since 4.2.0, and the sibling
+    symbol `onTap` is documented since 5.1.0 yet missing on `fr955` at 5.2.0
+    (CLAUDE.md constraint 6), so a level says nothing dependable here.
     """
-    tapped = [p for p in resolved.items if p.element.on_tap is not None]
-    if not tapped:
+    held = [p for p in resolved.items if p.element.on_hold is not None]
+    if not held:
         return
     device = resolved.device
     try:
-        available = {label: device.has_symbol(symbol)
-                     for label, symbol in _TAP_SYMBOLS.items()}
+        available = device.has_symbol(_HOLD_SYMBOL)
     except Exception:
         bag.note(
-            "tap-unsupported",
+            "hold-unsupported",
             f"{device.id}: no symbol table, so touch support is not checked",
             confidence="not checked -- the device's api.debug.xml is unavailable",
         )
         return
 
-    if not any(available.values()):
-        for placed in tapped:
+    if not available:
+        for placed in held:
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
-                "tap-unsupported",
-                f"{placed.id}: {device.id} has neither onTap nor onPress, so this "
-                f"tap target can never fire there",
+                "hold-unsupported",
+                f"{placed.id}: {device.id} has no WatchFaceDelegate.onPress, so this "
+                f"hold target can never fire there",
                 placed.element.span,
                 notes=["the face still works; it is simply not interactive on this "
-                       "device, and the element draws as usual"],
+                       "device, and the element draws as usual",
+                       "onPress is the only gesture a live watch face receives; there "
+                       "is no tap to fall back to"],
                 confidence="exact -- the device's own api.debug.xml",
             ))
         return
 
-    if not available["tap"]:
-        bag.note(
-            "tap-unsupported",
-            f"{device.id} has no WatchFaceDelegate.onTap, so its "
-            f"{len(tapped)} tap target(s) are reached by touch and hold instead",
-            notes=["one 'on_tap:' declaration, two behaviours -- the difference is the "
-                   "device's, not the design's (ADR 0006 6)"],
-            confidence="exact -- the device's own api.debug.xml",
-        )
-
-    for first, second in _overlapping(tapped):
+    for first, second in _overlapping(held):
         _emit(bag, second, Diagnostic(
             Severity.WARNING,
-            "tap-overlap",
-            f"{second.id}'s tap region overlaps {first.id}'s on {device.id}, so a "
-            f"touch in the shared area always opens {first.element.on_tap!r}",
+            "hold-overlap",
+            f"{second.id}'s hold region overlaps {first.id}'s on {device.id}, so a "
+            f"touch in the shared area always opens {first.element.on_hold!r}",
             second.element.span,
             notes=["regions are tested in draw order and the first match wins, so the "
                    "second target is unreachable where they overlap",
-                   "a tap region is the element's own drawn box; move them apart, or "
-                   "drop one of the two 'on_tap:' declarations"],
+                   "a hold region is the element's own drawn box; move them apart, or "
+                   "drop one of the two 'on_hold:' declarations"],
             confidence="exact -- resolved geometry",
         ))
 
 
-def _overlapping(tapped: list) -> list[tuple]:
+def _overlapping(held: list) -> list[tuple]:
     """Pairs whose hit rectangles intersect, earlier element first."""
     out = []
-    for index, later in enumerate(tapped):
-        for earlier in tapped[:index]:
+    for index, later in enumerate(held):
+        for earlier in held[:index]:
             a, b = earlier.box, later.box
             if a.x < b.right and b.x < a.right and a.y < b.bottom and b.y < a.bottom:
                 out.append((earlier, later))

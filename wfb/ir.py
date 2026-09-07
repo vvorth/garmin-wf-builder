@@ -134,11 +134,13 @@ class Element:
     lint_allow: frozenset[str] = frozenset()
     lint_reason: str | None = None
     overrides: dict = field(default_factory=dict)
-    #: A `wfb.complications` name this element launches when tapped (ADR 0006
-    #: §6).  The platform offers exactly one door out of a watch face --
-    #: `Complications.exitTo` -- so an interactive element names a complication
-    #: type and the watch opens whatever glance owns it.
-    on_tap: str | None = None
+    #: A `wfb.complications` name this element launches on touch and hold
+    #: (ADR 0006 §6).  The platform offers exactly one door out of a watch face
+    #: -- `Complications.exitTo` -- so an interactive element names a
+    #: complication type and the watch opens whatever glance owns it.  Hold is
+    #: also the only gesture there is: `WatchFaceDelegate.onTap` fires solely
+    #: inside the on-device config editor, on every device that has it.
+    on_hold: str | None = None
 
     @property
     def symbol(self) -> str:
@@ -236,6 +238,75 @@ class IconElement(Element):
 
     def expressions(self) -> list[Expression]:
         return [e for e in (self.color, self.value_for) if e]
+
+
+@dataclass
+class CarouselItem:
+    """One slot in a :class:`Carousel` -- an icon, a reading, and a way out.
+
+    Deliberately not an `Element`: an item has no `at:` of its own.  The
+    carousel positions every item from one `pitch:`, which is the whole point
+    of it being one element rather than a group of hand-placed ones, and it is
+    also what makes the rotation animation a single offset rather than N.
+    """
+
+    #: The glyph drawn in this slot, already resolved from `icon:`/`glyph:`.
+    codepoint: str
+    #: What the author wrote, kept for diagnostics and generated comments.
+    icon: str | None
+    value: Expression | None = None
+    format: str | None = None
+    when_absent: str | None = None
+    placeholder: str | None = None
+    fallback: Expression | None = None
+    #: A `wfb.complications` name, opened by a hold on the centre zone.  None
+    #: means this item simply consumes the hold and does nothing, which is a
+    #: legitimate choice for a reading no glance owns.
+    launch: str | None = None
+    span: Span | None = None
+
+    def expressions(self) -> list[Expression]:
+        return [e for e in (self.value, self.fallback) if e]
+
+
+@dataclass
+class Carousel(Element):
+    """A row of data items, the centred one showing its reading.
+
+    Modelled on the stock Forerunner face.  The gesture story is the whole
+    reason this is one element: a live watch face receives **only** touch and
+    hold (`docs/research/07-carousel-interaction.md` §1), so previous, next and
+    "open the glance" have to be told apart by *where* the hold landed.  The
+    compiler already knows the resolved box, so it cuts it into three zones and
+    the author never writes a coordinate.
+    """
+
+    items: list[CarouselItem] = field(default_factory=list)
+    size: Size = field(default_factory=Size)
+    #: Centre-to-centre spacing between slots.
+    pitch: Length | None = None
+    #: How many slots are drawn: 1 (no neighbours), 3, or 5.
+    slots: int = 3
+    icon_size: Length | None = None
+    color: Expression | None = None
+    #: The neighbouring slots' colour.  Falls back to `color` when unset, which
+    #: draws the row flat -- legible, just less obviously a carousel.
+    inactive_color: Expression | None = None
+    value_font: str = "FONT_SMALL"
+    value_font_is_custom: bool = False
+    value_color: Expression | None = None
+    value_offset: Position | None = None
+    #: Seconds the slide animation runs.  0 disables it; it is skipped while
+    #: asleep either way, because `WatchUi.animate` crashes the app in low
+    #: power mode (`docs/research/07-carousel-interaction.md` §3).
+    animate: float = 0.3
+    persist: bool = True
+
+    def expressions(self) -> list[Expression]:
+        out = [e for e in (self.color, self.inactive_color, self.value_color) if e]
+        for item in self.items:
+            out.extend(item.expressions())
+        return out
 
 
 @dataclass
@@ -436,7 +507,7 @@ class Builder:
             lint_allow=frozenset((node.get("lint") or {}).get("allow", ())),
             lint_reason=(node.get("lint") or {}).get("reason"),
             overrides=dict(node.get("overrides") or {}),
-            on_tap=self._tap_target(node),
+            on_hold=self._hold_target(node),
         )
 
         builders = {
@@ -445,6 +516,7 @@ class Builder:
             "text": self._build_text,
             "progress": self._build_progress,
             "icon": self._build_icon,
+            "carousel": self._build_carousel,
         }
         builder = builders.get(node["type"])
         if builder is None:  # unreachable once the schema has run
@@ -495,8 +567,8 @@ class Builder:
         return True
         return ok
 
-    def _tap_target(self, node: dict) -> str | None:
-        """Validate `on_tap:` against the launchable complication table.
+    def _hold_target(self, node: dict) -> str | None:
+        """Validate `on_hold:` against the launchable complication table.
 
         A watch face cannot open an arbitrary app; `Complications.exitTo` is
         the only exit the platform offers, so the value here names a
@@ -505,8 +577,26 @@ class Builder:
         `COMPLICATION_TYPE_*` table -- an invented name would compile to an
         undefined symbol, so catching it here points at the author's line
         instead of a generated one.
+
+        `on_tap:` was this key's name until the gesture was researched
+        properly (`docs/research/07-carousel-interaction.md` 1a): a live watch
+        face never receives a tap, because `WatchFaceDelegate.onTap` fires
+        only inside the on-device config editor.  The old spelling is still
+        accepted by the schema purely so the rename can be reported here,
+        against the author's own line.
         """
-        raw = node.get("on_tap")
+        if "on_tap" in node:
+            self.bag.error(
+                "on-tap-renamed",
+                "'on_tap:' has been renamed to 'on_hold:'",
+                self.doc.span(node, "on_tap"),
+                notes=["a live watch face never receives a tap -- "
+                       "WatchFaceDelegate.onTap fires only in the on-device config "
+                       "editor, so this was always delivered by touch and hold",
+                       "the value is unchanged; only the key name moves"],
+            )
+            return None
+        raw = node.get("on_hold")
         if raw is None:
             return None
         name = str(raw)
@@ -519,9 +609,9 @@ class Builder:
         notes.append("run `wfb complications` for the full list of "
                      f"{len(complications.LAUNCHABLE)} launch targets")
         self.bag.error(
-            "on-tap",
-            f"unknown tap target {name!r}",
-            self.doc.span(node, "on_tap"),
+            "on-hold",
+            f"unknown hold target {name!r}",
+            self.doc.span(node, "on_hold"),
             notes=notes,
         )
         return None
@@ -754,6 +844,246 @@ class Builder:
             size=size,
             color=self._color_expression(node, "color"),
         )
+
+    def _build_carousel(self, node: dict, common: dict, path: tuple) -> Element:
+        """`type: carousel` -- a row of readings, one of them selected.
+
+        ADR 0006 §6 as amended: the item list is fixed by the design, the
+        *selection* belongs to the wearer, and a hold moves it.  Everything an
+        item needs is validated here rather than in the emitter, because the
+        generated `switch` over items has no natural place to report an error
+        against the author's own line.
+        """
+        icon_size = self._length(node, "icon_size")
+        if icon_size is not None and icon_size.unit not in icons.SIZE_UNITS:
+            self.bag.error(
+                "carousel",
+                f"icon_size must be px or %r, not {icon_size.unit}",
+                self.doc.span(node, "icon_size"),
+                notes=["an icon's font is baked once, before layout runs, so its size "
+                       "cannot depend on a parent box (%) or an element's own font (pt)"],
+            )
+            icon_size = None
+
+        raw_items = node.get("items") or []
+        # Three by default -- the selected item plus a neighbour either side --
+        # but never more than there are items, so a two-item carousel is not an
+        # error just for taking the default.
+        slots = int(node.get("slots", min(3, max(1, len(raw_items)))))
+        items = [self._carousel_item(raw, index, node)
+                 for index, raw in enumerate(raw_items)]
+
+        element = Carousel(
+            **common,
+            items=items,
+            size=self._size(node.get("size")),
+            pitch=self._length(node, "pitch"),
+            slots=slots,
+            icon_size=icon_size,
+            color=self._color_expression(node, "color"),
+            inactive_color=self._color_expression(node, "inactive_color"),
+            value_color=self._color_expression(node, "value_color"),
+            value_offset=(self._position(node.get("value_offset"), node, "value_offset")
+                          if "value_offset" in node else None),
+            animate=float(node.get("animate", 0.3)),
+            persist=bool(node.get("persist", True)),
+        )
+        self._resolve_carousel_font(node, element)
+
+        if len(items) < 2:
+            self.bag.error(
+                "carousel",
+                f"{element.id}: a carousel needs at least two items, got {len(items)}",
+                self.doc.span(node, "items"),
+                notes=["with one item there is nothing to rotate to -- use an 'icon' "
+                       "plus a 'text' element instead, which costs less"],
+            )
+        if slots > len(items):
+            # Drawing more slots than there are items would show the same item
+            # twice in one row, which reads as a rendering bug rather than a
+            # short list.
+            self.bag.error(
+                "carousel",
+                f"{element.id}: slots ({slots}) exceeds the number of items ({len(items)})",
+                self.doc.span(node, "slots"),
+                notes=[f"with {len(items)} items, at most {len(items)} slots can show "
+                       "distinct readings; a wider row would repeat one"],
+            )
+        for key, bound in (("color", element.color),
+                           ("inactive_color", element.inactive_color),
+                           ("value_color", element.value_color)):
+            if bound is not None and bound.nullable:
+                self.bag.error(
+                    "carousel",
+                    f"{element.id}: {key!r} reads {bound.text!r}, which can be absent",
+                    self.doc.span(node, key),
+                    notes=["a carousel colour has no 'when_absent:' of its own -- an "
+                           "item's policy governs that item's reading, not the whole "
+                           "row's appearance",
+                           "guard it in the expression instead, e.g. "
+                           "\"x != null and x > 100 ? palette.hot : palette.fg\""],
+                )
+        return element
+
+    def _carousel_item(self, raw: dict, index: int, parent: dict) -> CarouselItem:
+        span = self.doc.span(raw)
+        chosen = [k for k in ("icon", "glyph") if k in raw]
+        if len(chosen) > 1:
+            self.bag.error(
+                "carousel",
+                f"item {index}: 'icon' and 'glyph' are mutually exclusive",
+                span,
+            )
+        codepoint = icons.FALLBACK_CODEPOINT
+        label: str | None = None
+        if "glyph" in raw:
+            label = str(raw["glyph"]).upper()
+            parsed = icons.parse_codepoint(str(raw["glyph"]))
+            if parsed is None or not icons.font_has(parsed):
+                self.bag.error(
+                    "carousel",
+                    f"item {index}: no glyph at {label}",
+                    self.doc.span(raw, "glyph"),
+                    notes=["write it 'U+XXXX'; checked against the vendored font's own "
+                           "character map"],
+                )
+            else:
+                codepoint = parsed
+        elif "icon" in raw:
+            label = str(raw["icon"])
+            resolved = icons.resolve_codepoint(label)
+            if resolved is None:
+                self.bag.error(
+                    "carousel",
+                    f"item {index}: unknown icon {label!r}",
+                    self.doc.span(raw, "icon"),
+                    notes=["run `wfb sources` for the catalogue, or use 'glyph: \"U+XXXX\"'"],
+                )
+            else:
+                codepoint = resolved
+
+        value = self._expression(raw, "value") if "value" in raw else None
+        if label is None and value is not None and value.sources:
+            # No icon named: fall back to the conventional one for the source
+            # (`wfb.icons.icon_for_source`), which is the whole reason that
+            # table exists.  A carousel row is exactly the place an author
+            # should not have to name nine icons by hand.
+            suggested = icons.METRIC_ICON.get(value.sources[0])
+            if suggested is not None:
+                label = suggested
+                codepoint = icons.resolve_codepoint(suggested) or codepoint
+        if label is None:
+            self.bag.error(
+                "carousel",
+                f"item {index}: needs an 'icon:' or 'glyph:'",
+                span,
+                notes=["the icon is only inferred from 'value:' when the catalogue has "
+                       "a conventional one for that source"],
+            )
+
+        launch = raw.get("launch")
+        if launch is not None and complications.get(str(launch)) is None:
+            near = complications.suggest(str(launch))
+            self.bag.error(
+                "carousel",
+                f"item {index}: unknown launch target {str(launch)!r}",
+                self.doc.span(raw, "launch"),
+                notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
+                + [f"run `wfb complications` for the full list of "
+                   f"{len(complications.LAUNCHABLE)} launch targets"],
+            )
+            launch = None
+
+        item = CarouselItem(
+            codepoint=codepoint,
+            icon=label,
+            value=value,
+            format=raw.get("format"),
+            when_absent=raw.get("when_absent"),
+            placeholder=raw.get("placeholder"),
+            fallback=self._expression(raw, "fallback") if "fallback" in raw else None,
+            launch=str(launch) if launch is not None else None,
+            span=span,
+        )
+        if value is not None:
+            self._check_item_absence(raw, index, item, value)
+            self._check_format(raw, value, item.format)
+        return item
+
+    def _check_item_absence(self, raw: dict, index: int, item: CarouselItem,
+                            bound: Expression) -> None:
+        """ADR 0005 §3, scoped to one carousel item.
+
+        Deliberately not :meth:`_check_absence`: that one reasons about *the
+        element's* other bindings ("this policy still does work because the
+        colour is nullable too"), which is the wrong scope here.  An item's
+        policy governs an item's reading and nothing else -- a carousel colour
+        is rejected outright if it is nullable, precisely so this stays a
+        per-item question.
+        """
+        if not bound.nullable:
+            if item.when_absent is not None:
+                self.bag.note(
+                    "when-absent",
+                    f"item {index}: 'when_absent' has no effect -- "
+                    f"{bound.text} is never absent",
+                    self.doc.span(raw, "when_absent"),
+                )
+            return
+        if item.when_absent is None:
+            self.bag.error(
+                "when-absent",
+                f"item {index}: {bound.text!r} can be absent, so 'when_absent:' is required",
+                self.doc.span(raw, "value"),
+                notes=[
+                    "every ActivityMonitor field is nullable and sensors are simply "
+                    "missing on some devices, so absence is the normal case",
+                    "on a carousel item, 'hide' leaves the slot's icon drawn and its "
+                    "reading blank -- the row does not collapse",
+                    "choose one of: hide | placeholder (with 'placeholder:') | fallback "
+                    "(with 'fallback:')",
+                ],
+            )
+            return
+        if item.when_absent == "placeholder" and item.placeholder is None:
+            self._require(raw, "placeholder",
+                          "when_absent: placeholder needs a 'placeholder:' string")
+        if item.when_absent == "fallback" and item.fallback is None:
+            self._require(raw, "fallback",
+                          "when_absent: fallback needs a 'fallback:' expression")
+        if item.when_absent == "fallback" and item.fallback is not None \
+                and item.fallback.nullable:
+            self.bag.error(
+                "when-absent",
+                f"item {index}: the fallback expression can itself be absent",
+                self.doc.span(raw, "fallback"),
+                notes=["a fallback must always produce a value"],
+            )
+
+    def _resolve_carousel_font(self, node: dict, element: Carousel) -> None:
+        """`value_font:` -- the same name resolution `text`'s `font:` uses."""
+        raw = node.get("value_font")
+        if raw is None:
+            return
+        name = str(raw)
+        span = self.doc.span(node, "value_font")
+        if name.startswith("font."):
+            key = name[len("font."):]
+            if key not in self.fonts:
+                known = ", ".join(f"font.{n}" for n in sorted(self.fonts)) or "(none declared)"
+                self.bag.error("font", f"unknown font {name!r}", span,
+                               notes=[f"declared fonts: {known}"])
+                return
+            element.value_font, element.value_font_is_custom = key, True
+            return
+        if name not in SYSTEM_FONTS:
+            self.bag.error(
+                "font", f"unknown font {name!r}", span,
+                notes=["use 'font.<name>' for a custom font, or a system font: "
+                       + ", ".join(SYSTEM_FONTS)],
+            )
+            return
+        element.value_font, element.value_font_is_custom = name, False
 
     # -- shared checks ----------------------------------------------------
 
@@ -1173,8 +1503,48 @@ def element_const_prefix(element_id: str) -> str:
 
 def element_method_name(element_id: str) -> str:
     """The private draw method codegen derives from an element id (``drawTempLow``)."""
+    return "draw" + _element_suffix(element_id)
+
+
+def carousel_step_method(element_id: str) -> str:
+    """The public method the delegate calls to move a carousel (``stepTempLow``).
+
+    Public, unlike every draw method, because it is called from the delegate.
+    Derived here rather than in the emitter for the same reason the others are:
+    :meth:`Builder._check_symbol_collision` has to be able to see every symbol
+    an id produces, in one place.
+    """
+    return "step" + _element_suffix(element_id)
+
+
+def carousel_index_field(element_id: str) -> str:
+    """The view field holding a carousel's selected index (``tempLowIndex``)."""
+    return _lower_first(_element_suffix(element_id)) + "Index"
+
+
+def carousel_slide_field(element_id: str) -> str:
+    """The view field holding a carousel's slide offset (``tempLowSlide``).
+
+    Public on the view, which is not a style choice: ``WatchUi.animate`` takes
+    a ``Symbol`` and looks the property up indirectly, and a ``private`` member
+    is not found that way -- monkeyc warns about exactly this, verified on a
+    real build (`docs/research/07-carousel-interaction.md` §5).
+    """
+    return _lower_first(_element_suffix(element_id)) + "Slide"
+
+
+def carousel_slide_done_method(element_id: str) -> str:
+    """The animation-complete callback for a carousel (``onTempLowSlideDone``)."""
+    return "on" + _element_suffix(element_id) + "SlideDone"
+
+
+def _element_suffix(element_id: str) -> str:
     parts = [p for p in element_id.replace("-", "_").split("_") if p]
-    return "draw" + "".join(p[:1].upper() + p[1:] for p in parts)
+    return "".join(p[:1].upper() + p[1:] for p in parts)
+
+
+def _lower_first(text: str) -> str:
+    return text[:1].lower() + text[1:]
 
 
 def _pascal(text: str) -> str:

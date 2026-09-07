@@ -371,7 +371,7 @@ as a real (if odd) forecast rather than as "not ready yet".
   type: group
   size: {width: 60%, height: 20%}
   at: {anchor: center, dy: -20%}
-  on_tap: heart_rate       # optional -- see "Interactivity" below
+  on_hold: heart_rate      # optional -- see "Interactivity" below
   children:
     - id: hr_icon
       type: icon
@@ -394,13 +394,94 @@ positionable and resizable as one unit: move or resize the group, and every
 child's relative position follows without being restated.
 
 A group draws nothing of its own — no fill, no border — it is purely a
-coordinate frame and, when it carries `on_tap:`, a hit region. Use a `shape`
+coordinate frame and, when it carries `on_hold:`, a hit region. Use a `shape`
 underneath it for a visible background.
 
-**`on_tap:` on a group covers the group's whole box**, not just one child — the
+**`on_hold:` on a group covers the group's whole box**, not just one child — the
 natural way to make a multi-element cluster (an icon next to its value, as
-above) act as a single tap target instead of naming `on_tap:` on each piece
+above) act as a single touch target instead of naming `on_hold:` on each piece
 separately. See "Interactivity" below.
+
+### `carousel`
+
+```yaml
+- id: data
+  type: carousel
+  at: { anchor: center, dy: 20% }
+  size: { width: 62%, height: 22% }   # the TOUCH target, not the drawn extent
+  pitch: 22%r                         # centre-to-centre slot spacing
+  slots: 3                            # 1 | 3 | 5; defaults to min(3, items)
+  icon_size: 9%r
+  color: palette.accent               # the selected item
+  inactive_color: palette.dim         # its neighbours
+  value_font: FONT_SMALL
+  value_color: palette.fg
+  value_offset: { anchor: center, dy: 34% }
+  animate: 0.3                        # seconds; 0 disables the slide
+  persist: true                       # remember the selection across restarts
+  items:
+    - value: heart_rate.current       # icon inferred from the source
+      format: "{:d}"
+      when_absent: placeholder
+      placeholder: "--"
+      launch: heart_rate              # centre-hold opens this glance
+    - value: activity.steps
+      format: "{:d}"
+      when_absent: fallback
+      fallback: "0"
+      launch: steps
+    - icon: battery                   # or name one explicitly
+      value: system.battery
+      format: "{:.0f}%"               # no launch: centre-hold opens nothing
+```
+
+A row of readings the **wearer** picks between, modelled on the stock
+Forerunner face. The centred item is drawn in `color:` with its reading below
+(or wherever `value_offset:` puts it); its neighbours are drawn in
+`inactive_color:`. A hold moves the selection, which slides into place and is
+remembered across restarts.
+
+**One gesture, three meanings, told apart by geometry.** A live watch face
+receives only touch and hold — see "Interactivity" below — so the element's own
+box is cut into equal thirds:
+
+```
+        +---------------+---------------+---------------+
+hold →  |   previous    |  open glance  |     next      |
+        +---------------+---------------+---------------+
+```
+
+That is why `size:` is the **touch target rather than the drawn extent**: the
+row paints only its icons and the reading, and sizing the box generously costs
+nothing but makes the zones easier to hit. `wfb validate` checks both halves of
+that — `carousel-zone` warns when a third is under 40px wide (a judgement, not
+a Garmin number, and the message says so) and when a zone reaches under a round
+screen's bezel, where a finger cannot land at all.
+
+**Icons are inferred where the catalogue has a convention.** Omit `icon:` and
+the item uses the conventional glyph for its data source (`activity.steps` →
+`steps`, and so on). Name one explicitly with `icon:`, or reach for any
+codepoint with `glyph: "U+XXXX"`, exactly as on an `icon` element.
+
+**`when_absent:` is per item, and it does not hide the row.** One absent
+reading blanks *that item's* reading and leaves its icon drawn — the row does
+not collapse and the zones do not move, which is the only behaviour that makes
+sense for something the wearer is navigating. The carousel's own colours may
+therefore **not** be nullable: there is no `when_absent:` for the row's
+appearance, so guard a conditional colour inside the expression instead.
+
+**`launch:` is optional per item.** With it, a centre-hold opens that
+complication's glance (`wfb complications` lists the names). Without it, the
+hold is consumed and nothing opens, which is the honest outcome for a reading
+no glance owns. A carousel where no item declares one needs no
+`ComplicationSubscriber` permission and no raised `minApiLevel`.
+
+**The slide only runs while the watch is awake.** `WatchUi.animate` is
+documented to *crash the app* if called from a watch face in low power mode, so
+the generated code guards on the sleep state and rotates instantly while
+asleep. Since a touch is one of the things that keeps the face awake, the
+animation window and the interaction coincide in practice — but it is a guard,
+not an assumption. `animate: 0` opts out entirely.
 
 ---
 
@@ -656,22 +737,22 @@ lifecycle.
 
 ---
 
-## Interactivity: `on_tap:`
+## Interactivity: `on_hold:`
 
-Any element can open a glance when it is touched:
+Any element can open a glance when it is **touched and held**:
 
 ```yaml
 - id: hr_icon
   type: icon
   icon: heart
   at: {anchor: center, dy: -20%}
-  on_tap: heart_rate        # run `wfb complications` for the 42 names
+  on_hold: heart_rate       # run `wfb complications` for the 42 names
 ```
 
 **A watch face cannot launch an arbitrary app.** The platform offers exactly
 one exit — `Complications.exitTo`, documented as "launches the app associated
 with the complication" — so an interactive element names a **complication
-type** and the watch opens whichever glance or app owns it. `on_tap:
+type** and the watch opens whichever glance or app owns it. `on_hold:
 heart_rate` opens the heart-rate glance whether or not the design displays a
 heart rate.
 
@@ -680,33 +761,46 @@ and the API level that type was introduced at. The list is generated from the
 SDK's own `COMPLICATION_TYPE_*` table, so it cannot drift from what the
 platform actually offers.
 
-**One declaration, two behaviours.** `WatchFaceDelegate.onTap` is documented
-since API level 5.1.0 and is *still absent* on some watches above it — `fr955`
-is 5.2.0 and has only `onPress`. The compiler emits both handlers, so the same
-`on_tap:` is a tap where tap exists and a touch-and-hold where it does not,
-and `wfb validate` says which you are getting on each target, resolved against
-that device's own symbol table rather than its API level:
+**Touch and hold is the only gesture there is — on every device.** This is not
+a limitation of the compiler or of one watch. `WatchFaceDelegate.onPress` is
+the whole input surface a live watch face receives: there is no swipe on a
+watch face, the physical keys belong to the system, and
+`WatchFaceDelegate.onTap` — which does exist on the fēnix 8 targets — is
+documented **"Only available in WatchFace config mode"**. It is how the
+*on-device editor* learns which complication slot you picked; it never fires on
+a face you are merely looking at. The compiler therefore emits `onPress` alone.
+`docs/research/07-carousel-interaction.md` §1 has the evidence, including the
+SDK's own sample.
 
-```
-note[tap-unsupported]: fr955 has no WatchFaceDelegate.onTap, so its 2 tap
-target(s) are reached by touch and hold instead
-```
+`wfb validate` warns (`hold-unsupported`) if a target has no `onPress` at all —
+resolved against that device's own symbol table rather than its API level,
+because an API level does not settle it. All three of this project's targets
+have it, `fr955` included.
+
+> `on_tap:` was this key's name until that was researched properly. The old
+> spelling is now an error that names its replacement; the value is unchanged.
 
 **The hit region is the element's own drawn box** — what the finger must hit is
 what the eye sees, which is checkable in `wfb preview`. Nothing is inflated to
 a minimum touch size: Garmin publishes no such number, and inventing one would
 silently overlap neighbours on a dense face. For a bigger target, or to make
-several elements act as one, put them in a `group` (above) and put `on_tap:`
+several elements act as one, put them in a `group` (above) and put `on_hold:`
 on the group instead of each child.
 
 Regions are tested in draw order and the first match wins, so two overlapping
-tap regions make the second unreachable. That is a warning (`tap-overlap`),
-not something you have to notice on the wrist.
+regions make the second unreachable. That is a warning (`hold-overlap`), not
+something you have to notice on the wrist.
 
-Binding `on_tap:` adds the `ComplicationSubscriber` permission and raises
-`minApiLevel` to 4.2.0 automatically — `exitTo`'s own level, not `onTap`'s
-5.1.0, because a watch below 5.1.0 still runs the face perfectly well; it just
-does not deliver touches.
+**One hold can still mean more than one thing, by landing somewhere else.**
+`ClickEvent.getCoordinates()` is the only degree of freedom the platform
+offers, and `carousel` (above) uses it: three zones across one element's box,
+so previous, next and "open the glance" all come off the same gesture. ADR 0006
+§6 originally expected these to conflict; separating them by geometry is what
+dissolved that.
+
+Binding `on_hold:` adds the `ComplicationSubscriber` permission and raises
+`minApiLevel` to 4.2.0 automatically — `exitTo`'s own level. Nothing emitted
+references `onTap`, so its 5.1.0 never enters into it.
 
 ---
 
@@ -744,3 +838,7 @@ Present in the ADRs, absent from format 1: `image` and `complication_slot`
 elements, the `raw` escape hatch (ADR 0007), per-device `overrides` (parsed but
 not yet applied), the `config:` block and on-device configuration (ADR 0006), and
 `segments`/`scale` progress styles. See [`docs/limitations.md`](limitations.md).
+
+(`complication_slot`'s "cycle through several readings" half now exists as
+`carousel`, above. What is still missing is the other half: a slot whose *type*
+the wearer picks in the on-device editor, which needs the `config:` block.)

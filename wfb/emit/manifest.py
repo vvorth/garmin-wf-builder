@@ -34,7 +34,6 @@ BASE_API_LEVEL = "3.2.0"
 FEATURE_API_LEVELS: dict[str, str] = {
     "watchface_config": "5.1.0",
     "complications": "4.2.0",
-    "on_tap": "5.1.0",
 }
 
 
@@ -46,16 +45,21 @@ def api_level(face: Face, features: set[str] = frozenset()) -> str:
 def permissions(face: Face) -> list[str]:
     """The permissions implied by the design's bindings, in a stable order.
 
-    Bindings are not the only thing that implies one: an `on_tap:` compiles to
+    Bindings are not the only thing that implies one: an `on_hold:` compiles to
     `Complications.exitTo`, and `Toybox.Complications` is gated by
     `ComplicationSubscriber` (the SDK's own permission table marks it
     available to a Watch Face -- checked, not assumed). A design can therefore
     need that permission while reading no complication value at all.
+
+    A `carousel` item's `launch:` is the same call reached a different way --
+    a hold on the centre zone rather than on the element -- so it implies the
+    same permission.
     """
     from .. import complications as launchable
+    from .monkeyc import launches_a_glance
 
     needed = set(face.requirements().permissions)
-    if any(element.on_tap is not None for element in face.walk()):
+    if launches_a_glance(face):
         needed.add(launchable.EXIT_TO_PERMISSION)
     return sorted(needed)
 

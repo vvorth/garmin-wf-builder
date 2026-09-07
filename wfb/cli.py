@@ -622,12 +622,12 @@ def _sources(args) -> int:
             ref = f"  ({source.source_ref})" if source.source_ref else ""
             print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}{ref}")
     print(f"\nicons: {', '.join(icons.names())}")
-    print("\nrun `wfb complications` for what an element's `on_tap:` may launch")
+    print("\nrun `wfb complications` for what an element's `on_hold:` may launch")
     return 0
 
 
 def _complications(args) -> int:
-    """list what an element's `on_tap:` may launch
+    """list what an element's `on_hold:` may launch
 
     A watch face cannot open an arbitrary app. The platform offers exactly
     one exit -- `Complications.exitTo`, "launches the app associated with
@@ -652,8 +652,8 @@ def _complications(args) -> int:
         since = "" if entry.since == complications.EXIT_TO_API_LEVEL else f"  (since {entry.since})"
         print(f"  {name:<{width}}  Complications.{entry.constant}{since}")
     print(f"\n{len(complications.LAUNCHABLE)} launch targets. "
-          f"Use one as `on_tap:` on any element:")
-    print("    - id: hr\n      type: icon\n      icon: heart\n      on_tap: heart_rate")
+          f"Use one as `on_hold:` on any element:")
+    print("    - id: hr\n      type: icon\n      icon: heart\n      on_hold: heart_rate")
     return 0
 
 

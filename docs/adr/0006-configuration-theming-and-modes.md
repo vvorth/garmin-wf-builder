@@ -27,6 +27,10 @@ settings only**. No generated on-device settings menu.
 **User decision (2026-09-04):** interaction is **tap where available, hold on
 fr955** — the compiler generates both paths from one declaration.
 
+> The premise of that decision turned out to be false: no device delivers a tap
+> to a live watch face. It is hold everywhere, which needs one path, not two.
+> See the amendment in §6.
+
 ## Decision
 
 ### 1. Three declared config surfaces, one declaration
@@ -149,6 +153,45 @@ The compiler derives from this:
 
 ### 6. Interactivity
 
+> **Amended after `docs/research/07-carousel-interaction.md`.** The original
+> text below the rule is kept because it is what was decided and built; it
+> rested on a wrong reading of the SDK and the correction is substantial.
+
+**What was wrong.** This section assumed two gestures — tap on the newer
+watches, hold on `fr955` — and shaped the whole design around choosing between
+them. There is only one. `WatchFaceDelegate.onTap` is documented **"Only
+available in WatchFace config mode"**: it exists on the fēnix 8 targets and
+fires solely inside the on-device editor, telling it which complication slot
+the user picked (`samples/ConfigurableWatchFace`). A face that is merely being
+looked at never receives a tap, on any device. `onPress` — touch and hold — is
+the entire input surface, and all three targets have it.
+
+**Consequences of the correction.**
+
+- "Tap where available, hold on fr955" is not a real distinction. It is **hold,
+  everywhere**. The per-device symbol resolution is still right and still
+  necessary — `onPress` is absent on the many products with no touchscreen —
+  it just no longer chooses between two mechanisms.
+- The shipped key `on_tap:` is renamed **`on_hold:`**; the old spelling is an
+  error naming its replacement.
+- The compiler emits `onPress` only. An `onTap` handler would be dead code that
+  also tells its reader something untrue.
+- `minApiLevel` comes from `exitTo`'s 4.2.0, never `onTap`'s 5.1.0.
+
+**The conflict rule below is obsolete, and in a useful direction.** It said
+`on_hold: launch` and hold-to-cycle conflict on `fr955` and that the compiler
+"must reject that combination". With tap gone the conflict is universal rather
+than device-specific — but it is also no longer a conflict, because
+`ClickEvent.getCoordinates()` separates the two meanings by **geometry**
+instead of by gesture. A cycling element partitions its own box: hold the left
+third for previous, the right third for next, the middle for `exitTo`. The
+compiler lays out zones and warns when one is too small to hit; it rejects
+nothing. See research 07 §2.
+
+---
+
+*Original text, superseded above:*
+
 Declared per element, compiled to whichever mechanism the target supports:
 
 ```yaml
@@ -177,7 +220,9 @@ both map to `onPress`, rather than silently preferring one.
 
 - One declaration drives up to three generated artefacts; they cannot drift.
 - Several genuine platform limits become build errors instead of wrist
-  surprises — the four-axis cap, the API-level gate, the hold-gesture conflict.
+  surprises — the four-axis cap, and the per-device symbol gate. (The
+  hold-gesture conflict this originally listed turned out not to exist; see the
+  amendment in §6.)
 - `docs/limitations.md` must state the four-axis cap, the four-configuration
   cap, and the fr955 exclusion.
 

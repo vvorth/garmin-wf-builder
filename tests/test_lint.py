@@ -510,27 +510,132 @@ def test_all_codes_registry_matches_every_code_the_compiler_actually_emits(repo_
     )
 
 
-def test_a_device_without_ontap_is_reported_from_its_own_symbol_table(write_design, bag, db):
-    """ADR 0008's check 2, finally used for something.
+def test_every_target_delivers_a_hold_so_nothing_is_reported(write_design, bag, db):
+    """The regression this pins down is a *removed* diagnostic.
 
-    `WatchFaceDelegate.onTap` is documented since API 5.1.0, and `fr955` is
-    5.2.0 and still does not have it -- so an API-level comparison here would
-    confidently report the opposite of the truth. The answer comes from the
-    device's own api.debug.xml.
+    Until `docs/research/07-carousel-interaction.md`, `fr955` drew a note
+    saying its targets "are reached by touch and hold instead" -- true, and
+    actively misleading, because it implied the fēnix 8s got taps. They do
+    not: `WatchFaceDelegate.onTap` is documented "Only available in WatchFace
+    config mode" and never fires during normal display, on any device. Hold is
+    the only gesture, all three targets have `onPress`, so a design with an
+    `on_hold:` is uniformly fine and the linter should now say nothing at all.
     """
-    from tests.test_semantics import TAPPED, design
+    from tests.test_semantics import HELD, design
     from wfb.diagnostics import Bag
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
 
-    face = load(write_design(design(TAPPED)), bag)
+    face = load(write_design(design(HELD)), bag)
     assert face is not None, bag.render()
-    fr955 = db.get("fr955")
-    lint.run(resolve(face, fr955, bake_fonts(face, fr955, fr955.minor_radius)), bag)
-    assert any(d.code == "tap-unsupported" and "touch and hold" in d.message
-               for d in bag.items), bag.render()
+    for device_id in ("fenix8solar47mm", "fenix8solar51mm", "fr955"):
+        device = db.get(device_id)
+        quiet = Bag()
+        lint.run(resolve(face, device, bake_fonts(face, device, device.minor_radius)), quiet)
+        assert not [d for d in quiet.items
+                    if d.code in ("hold-unsupported", "hold-overlap")], quiet.render()
 
-    quiet = Bag()
-    fenix = db.get("fenix8solar47mm")
-    lint.run(resolve(face, fenix, bake_fonts(face, fenix, fenix.minor_radius)), quiet)
-    assert not [d for d in quiet.items if d.code == "tap-unsupported"], quiet.render()
+
+def test_a_device_without_onpress_is_reported_from_its_own_symbol_table(
+        write_design, bag, db, monkeypatch):
+    """ADR 0008's check 2, still the one place it is used for real.
+
+    No device this project vendors lacks `onPress` -- but 100-odd Connect IQ
+    products have no touchscreen at all, and for those an `on_hold:` can never
+    fire. The answer has to come from the device's own api.debug.xml rather
+    than an API level: `onPress` is documented since 4.2.0, and its sibling
+    `onTap` is documented since 5.1.0 yet absent on `fr955` at 5.2.0, so a
+    level comparison proves nothing here.
+    """
+    from tests.test_semantics import HELD, design
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = load(write_design(design(HELD)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    baked = bake_fonts(face, device, device.minor_radius)
+    resolved = resolve(face, device, baked)
+    monkeypatch.setattr(type(device), "has_symbol", lambda self, symbol: False)
+    lint.check_hold_targets(resolved, bag)
+    hits = [d for d in bag.items if d.code == "hold-unsupported"]
+    assert hits, bag.render()
+    assert "onPress" in hits[0].message
+    assert any("no tap to fall back to" in note for note in hits[0].notes), hits[0].notes
+
+
+# -- carousel zones ---------------------------------------------------------
+
+
+CAROUSEL_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: data
+    type: carousel
+    at: {anchor: center, dy: DY}
+    size: {width: WIDTH, height: 22%}
+    pitch: 22%r
+    icon_size: 9%r
+    color: palette.fg
+    items:
+      - value: activity.steps
+        format: "{:d}"
+        when_absent: hide
+      - icon: battery
+        value: system.battery
+        format: "{:.0f}%"
+      - icon: flame
+        value: activity.calories
+        format: "{:d}"
+        when_absent: hide
+"""
+
+
+def _carousel(write_design, bag, db, width: str, dy: str = "0%"):
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    src = CAROUSEL_DESIGN.replace("WIDTH", width).replace("DY", dy)
+    face = load(write_design(src), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    return resolve(face, device, bake_fonts(face, device, device.minor_radius))
+
+
+def test_a_generous_carousel_box_is_not_a_safe_area_warning(write_design, bag, db):
+    """A carousel's box is its *touch target*, deliberately larger than what it
+    paints, so `check_geometry` reads `content_box` instead.  Sizing the target
+    generously must not read as a layout mistake -- the reachability question
+    is asked separately, by `check_carousel_zones`."""
+    resolved = _carousel(write_design, bag, db, "62%")
+    lint.run(resolved, bag)
+    assert not [d for d in bag.items if d.code in ("safe-area", "carousel-zone")], \
+        bag.render()
+
+
+def test_a_narrow_carousel_warns_that_its_zones_are_hard_to_hit(write_design, bag, db):
+    """The box is split into thirds, so a narrow one gives three slivers."""
+    resolved = _carousel(write_design, bag, db, "30%")
+    lint.check_carousel_zones(resolved, bag)
+    hits = [d for d in bag.items if d.code == "carousel-zone"]
+    assert hits, bag.render()
+    assert "hold zone" in hits[0].message
+    assert "judgement" in (hits[0].confidence or ""), hits[0].confidence
+
+
+def test_a_carousel_whose_outer_zones_are_under_the_bezel_warns(write_design, bag, db):
+    """A hold can only land where the wearer can see and touch, so a zone past
+    the bezel of a round screen is dead however wide it measures."""
+    resolved = _carousel(write_design, bag, db, "96%", dy="30%")
+    lint.check_carousel_zones(resolved, bag)
+    hits = [d for d in bag.items if d.code == "carousel-zone"]
+    assert hits, bag.render()
+    assert "bezel" in hits[0].message
+    assert hits[0].confidence.startswith("exact"), hits[0].confidence

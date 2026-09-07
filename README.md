@@ -76,7 +76,7 @@ wfb preview   design.yaml [--watch]  # render to PNG; no toolchain, no simulator
 wfb simulate  design.yaml          # launch the simulator and push the built face
 wfb devices                        # installed device definitions and their limits
 wfb sources                        # the data-source catalogue, and the icon names
-wfb complications                  # what an element's `on_tap:` may launch
+wfb complications                  # what an element's `on_hold:` may launch
 wfb schema    [--path]             # the JSON Schema, for editor setup
 wfb doctor                         # what is installed, what is missing, what to do
 wfb help      [command]            # every command's own help, from its own docstring
@@ -183,7 +183,9 @@ schema/               the published JSON Schema (a shipped artefact)
 examples/slice/       the Phase 2 example face -- the smallest end-to-end path
 examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
                       conditional colours, a badge and three arcs
-tests/                458 tests; only the `slow` ones need the Garmin toolchain
+examples/carousel/    a data carousel -- a row of readings the wearer moves
+                      through by touch and hold, one of three zones per press
+tests/                ? tests; only the `slow` ones need the Garmin toolchain
 docs/                 format reference, limitations, ADRs, Phase 0 research
 ```
 
@@ -216,6 +218,8 @@ only a generator can exploit. The reasoning is in [`docs/adr/`](docs/adr/).
 ## What is next
 
 Phase 3 — breadth: the remaining element types, per-device overrides, the `raw`
-escape hatch, configuration surfaces, complications and interactivity. See
+escape hatch, and configuration surfaces. Complications and interactivity have
+landed — `on_hold:` on any element, and `type: carousel` for a row of readings
+the wearer moves between. See
 [`docs/limitations.md`](docs/limitations.md) §2 for the full list and `CLAUDE.md`
 §6 for the ordering.
