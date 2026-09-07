@@ -216,22 +216,22 @@ elements:
   - id: temp_high
     type: text
     value: weather.high_temperature_today
-    format: "H:{:d}°"
+    format: "{:d}°"
     font: FONT_XTINY
     at: {anchor: top, dy: 30%, dx: 15%}
     color: palette.dim
     when_absent: placeholder
-    placeholder: "H:--°"
+    placeholder: "--°"
 
   - id: temp_low
     type: text
     value: weather.low_temperature_today
-    format: "L:{:d}°"
+    format: "{:d}°"
     font: FONT_XTINY
     at: {anchor: top, dy: 30%, dx: 32%}
     color: palette.dim
     when_absent: placeholder
-    placeholder: "L:--°"
+    placeholder: "--°"
 
 
   - id: sep_3
