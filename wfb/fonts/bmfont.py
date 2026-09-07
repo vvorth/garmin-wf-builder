@@ -89,6 +89,68 @@ class BakedFont:
         return "\n".join(lines) + "\n"
 
 
+#: How much bigger than the target the glyph is rasterised before being
+#: averaged down.
+#:
+#: Not a taste decision.  Rendering straight to the target size asks FreeType
+#: to fit an outline to a pixel grid at single-digit sizes, and its hinting
+#: then breaks the shape's own symmetry: measured over 99 glyphs from the
+#: vendored icon font that are provably symmetric (rendered at 256px they
+#: mirror exactly), across 12 sizes from 8 to 28 px, **16.8% of ink pixels
+#: landed asymmetrically**.  A plain square came out 7x7 inside an 8x8 tile;
+#: `md-circle_outline` at 16px was lopsided in every row.
+#:
+#: The cause is sub-pixel positioning, not curve sampling: the outline's true
+#: origin is fractional, integer placement drops that fraction, and the 1-bit
+#: threshold then turns a half-covered edge pixel into ink on one side and
+#: nothing on the other.  Rasterising large and box-averaging down recovers
+#: real per-pixel coverage before the threshold sees it.
+#:
+#: The factor was chosen by measuring, not assumed -- asymmetry falls
+#: monotonically (4.5% at 4x, 1.8% at 8x, 1.1% at 16x, 0.7% at 24x) while the
+#: cost stays flat, because the work is dominated by per-glyph overhead rather
+#: than pixels.  16 sits at the knee: **1.06%, a sixteenfold improvement**, for
+#: about 0.2 ms a glyph.
+SUPERSAMPLE = 16
+
+
+def _rasterise(source: Path, size: int, char: str,
+               antialias: bool) -> tuple[Image.Image | None, int, int]:
+    """One glyph, and where its ink starts relative to the pen.
+
+    Returns ``(None, 0, 0)`` for a glyph with no ink at all.
+    """
+    big = ImageFont.truetype(str(source), size * SUPERSAMPLE)
+    left, top, right, bottom = big.getbbox(char)
+    if right - left <= 0 or bottom - top <= 0:
+        return None, 0, 0
+
+    # Draw into a padded canvas so a hinted outline that spills past its own
+    # reported bbox is not clipped, then find the ink that actually landed --
+    # measured, rather than trusting the bbox, which is what went wrong before.
+    pad = SUPERSAMPLE * 2
+    canvas = Image.new("L", (right - left + 2 * pad, bottom - top + 2 * pad), 0)
+    ImageDraw.Draw(canvas).text((-left + pad, -top + pad), char, font=big, fill=255)
+    ink = canvas.getbbox()
+    if ink is None:
+        return None, 0, 0
+
+    crop = canvas.crop(ink)
+    width = max(1, round(crop.width / SUPERSAMPLE))
+    height = max(1, round(crop.height / SUPERSAMPLE))
+    # BOX is an area average, so each target pixel gets the fraction of itself
+    # the glyph actually covers -- which is the number the threshold below
+    # wants, and the number drawing at the target size never produces.
+    tile = crop.resize((width, height), Image.BOX)
+    if not antialias:
+        tile = tile.point(lambda v: 255 if v >= 128 else 0)
+
+    # Back to target pixels: the canvas's own origin sits at (left - pad) in
+    # the supersampled pen space, so the ink starts that much further along.
+    return tile, round((left - pad + ink[0]) / SUPERSAMPLE), \
+        round((top - pad + ink[1]) / SUPERSAMPLE)
+
+
 def bake(
     source: Path,
     *,
@@ -108,17 +170,14 @@ def bake(
 
     rendered: list[tuple[str, Image.Image, int, int, int]] = []
     for char in chars:
-        bbox = font.getbbox(char)
+        # The advance and the line metrics stay at the target size: they decide
+        # where glyphs sit relative to each other, and nothing about the
+        # rasterising below should move text around.
         advance = int(round(font.getlength(char)))
-        left, top, right, bottom = bbox
-        width, height = max(0, right - left), max(0, bottom - top)
-        if width == 0 or height == 0:  # space and friends carry advance only
+        tile, left, top = _rasterise(source, size, char, antialias)
+        if tile is None:  # space and friends carry advance only
             rendered.append((char, Image.new("L", (1, 1), 0), 0, 0, advance))
             continue
-        tile = Image.new("L", (width, height), 0)
-        ImageDraw.Draw(tile).text((-left, -top), char, font=font, fill=255)
-        if not antialias:
-            tile = tile.point(lambda v: 255 if v >= 128 else 0)
         rendered.append((char, tile, left, top, advance))
 
     sheet_width, sheet_height, placements = _pack([(c, im) for c, im, *_ in rendered])

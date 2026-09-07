@@ -75,7 +75,8 @@ wfb validate  design.yaml          # everything except codegen; no toolchain nee
 wfb preview   design.yaml [--watch]  # render to PNG; no toolchain, no simulator
 wfb simulate  design.yaml          # launch the simulator and push the built face
 wfb devices                        # installed device definitions and their limits
-wfb sources                        # the data-source catalogue
+wfb sources                        # the data-source catalogue, and the icon names
+wfb complications                  # what an element's `on_tap:` may launch
 wfb schema    [--path]             # the JSON Schema, for editor setup
 wfb doctor                         # what is installed, what is missing, what to do
 wfb help      [command]            # every command's own help, from its own docstring
@@ -182,7 +183,7 @@ schema/               the published JSON Schema (a shipped artefact)
 examples/slice/       the Phase 2 example face -- the smallest end-to-end path
 examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
                       conditional colours, a badge and three arcs
-tests/                414 tests; only the `slow` ones need the Garmin toolchain
+tests/                456 tests; only the `slow` ones need the Garmin toolchain
 docs/                 format reference, limitations, ADRs, Phase 0 research
 ```
 

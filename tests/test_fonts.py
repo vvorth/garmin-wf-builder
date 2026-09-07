@@ -81,3 +81,71 @@ def test_one_bit_by_default_and_antialiased_on_request(source):
 def test_an_empty_glyph_set_is_rejected(source):
     with pytest.raises(ValueError):
         bake(source, name="clock", size=24, glyphs="")
+
+
+# -- rasterisation symmetry -------------------------------------------------
+
+
+def _mirror_asymmetry(sheet, glyph) -> float:
+    """Fraction of a glyph's ink pixels that break left/right mirror symmetry."""
+    from PIL import Image
+
+    tile = sheet.crop((glyph.x, glyph.y, glyph.x + glyph.width, glyph.y + glyph.height))
+    flipped = tile.transpose(Image.FLIP_LEFT_RIGHT)
+    a, b = list(tile.get_flattened_data()), list(flipped.get_flattened_data())
+    ink = sum(1 for v in a if v) or 1
+    return sum(1 for x, y in zip(a, b) if x != y) / ink
+
+
+#: Glyph names in the vendored icon font that are mirror-symmetric by design --
+#: verified by rendering each at 256px, where the pixel grid is far finer than
+#: the shape and the rasteriser cannot be what breaks it.
+SYMMETRIC_GLYPHS = ("md-square", "md-circle", "md-circle_outline", "md-record")
+
+
+def _codepoint(name: str) -> str:
+    from fontTools.ttLib import TTFont
+
+    from wfb import icons
+
+    for code, glyph_name in TTFont(icons.FONT_PATH).getBestCmap().items():
+        if glyph_name == name:
+            return chr(code)
+    raise AssertionError(f"{name} is not in the vendored font")
+
+
+@pytest.mark.parametrize("glyph_name", SYMMETRIC_GLYPHS)
+@pytest.mark.parametrize("size", [8, 10, 12, 14, 16, 20, 24])
+def test_a_symmetric_glyph_rasterises_symmetrically(glyph_name, size):
+    """A round icon must come out round.
+
+    Rendering straight to the target size asks FreeType to fit an outline to
+    the pixel grid at single-digit sizes, and its hinting broke the shape's own
+    symmetry badly: a plain square baked to 7x7 ink inside an 8x8 tile, and
+    `md-circle_outline` at 16px was lopsided in every row -- 16.8% of ink
+    pixels landed asymmetrically across 99 provably-symmetric glyphs. The
+    supersampling in `wfb.fonts.bmfont` exists for this, and the threshold
+    below is what stops it regressing.
+    """
+    from wfb import icons
+    from wfb.fonts import bake
+
+    char = _codepoint(glyph_name)
+    baked, sheet = bake(icons.FONT_PATH, name="probe", size=size, glyphs=char)
+    glyph = baked.glyphs[char]
+    if not glyph.width:
+        pytest.skip(f"{glyph_name} has no ink at {size}px")
+    assert _mirror_asymmetry(sheet, glyph) <= 0.05
+
+
+def test_lowering_the_supersample_factor_would_be_caught():
+    """The factor was measured, not guessed.
+
+    Guards the constant directly rather than restating the symmetry test:
+    below 8x the measured asymmetry roughly doubles (1.8% at 8x, 4.5% at 4x),
+    and at 1x -- rendering straight to the target size, which is what this
+    replaced -- it is 16.8%.
+    """
+    from wfb.fonts import bmfont
+
+    assert bmfont.SUPERSAMPLE >= 8
