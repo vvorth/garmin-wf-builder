@@ -87,6 +87,10 @@ def generate(face: Face, devices: list[Device], root: Path,
     if any(placed.kind == "icon" and placed.element.is_dynamic for placed in first.items):
         project.sources.append(monkeyc.emit_icon_glyphs(face))
     project.sources.append(monkeyc.emit_view(first))
+    if monkeyc.tap_targets(face):
+        # Shared across devices like the view: the hit regions it references
+        # are Layout constants, which are already per-device.
+        project.sources.append(monkeyc.emit_delegate(first))
     project.barrel = _barrel_for(face, first)
     return project
 
@@ -139,7 +143,14 @@ def _features(face: Face) -> set[str]:
     features: set[str] = set()
     if any(READERS[name].complication_type for name in face.requirements().readers):
         features.add("complications")
-    return features  # on-device config and tap arrive in Phase 3
+    if monkeyc.tap_targets(face):
+        # `Complications.exitTo` is what an `on_tap:` compiles to, and it is
+        # API 4.2.0 -- the same floor a complication *reader* needs, for the
+        # same module. Deliberately not onTap's own 5.1.0: the face works
+        # below that, it simply is not tappable, and nothing the generator
+        # emits references onTap in a way the compiler must resolve.
+        features.add("complications")
+    return features  # on-device config arrives in Phase 3
 
 
 def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:

@@ -44,8 +44,20 @@ def api_level(face: Face, features: set[str] = frozenset()) -> str:
 
 
 def permissions(face: Face) -> list[str]:
-    """The permissions implied by the design's bindings, in a stable order."""
-    return sorted(face.requirements().permissions)
+    """The permissions implied by the design's bindings, in a stable order.
+
+    Bindings are not the only thing that implies one: an `on_tap:` compiles to
+    `Complications.exitTo`, and `Toybox.Complications` is gated by
+    `ComplicationSubscriber` (the SDK's own permission table marks it
+    available to a Watch Face -- checked, not assumed). A design can therefore
+    need that permission while reading no complication value at all.
+    """
+    from .. import complications as launchable
+
+    needed = set(face.requirements().permissions)
+    if any(element.on_tap is not None for element in face.walk()):
+        needed.add(launchable.EXIT_TO_PERMISSION)
+    return sorted(needed)
 
 
 def languages(devices: list[Device]) -> list[str]:

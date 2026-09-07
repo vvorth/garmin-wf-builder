@@ -415,18 +415,26 @@ def test_an_unknown_lint_code_is_reported_with_a_suggestion(write_design, bag):
     assert any("safe-area" in note for note in diag.notes)
 
 
-def test_an_unknown_lint_code_with_no_close_match_gets_no_false_suggestion(write_design, bag):
-    """'overlap' names a check this project has never built (docs/limitations.md
-    records the gap) -- it must be reported as unknown outright, not offered a
-    near-miss real code just because a few letters happen to line up (an
-    earlier draft of this check suggested 'text-overflow' for it at a looser
-    cutoff, which would have been actively misleading).
+def test_an_unknown_lint_code_is_never_offered_a_misleading_suggestion(write_design, bag):
+    """A near-miss suggestion has to be *right*, not merely close.
+
+    'overlap' is the case that pins this down. An earlier draft of the check
+    suggested 'text-overflow' for it at a looser cutoff, which is a different
+    check entirely and would have sent the author somewhere useless. Since
+    then `tap-overlap` has been built, so a suggestion *is* now available and
+    is a genuinely good one -- what must never come back is a suggestion that
+    is not a real code, or the misleading 'text-overflow' match.
     """
     face = _face_allowing(write_design, bag, "overlap")
     lint.check_lint_allow(face, bag)
     diag = next(d for d in bag.errors if d.code == "lint-allow")
     assert "'overlap'" in diag.message
-    assert not any("did you mean" in note for note in diag.notes)
+    suggestions = [n for n in diag.notes if "did you mean" in n]
+    assert not any("text-overflow" in n for n in suggestions), suggestions
+    for note in suggestions:
+        named = note.split("did you mean")[-1].strip().rstrip("?").lstrip(":").strip()
+        for part in named.split(","):
+            assert part.strip().strip("'\"") in lint.ALL_CODES, note
 
 
 def test_a_real_but_unsuppressible_code_is_reported_with_the_reason(write_design, bag):
@@ -500,3 +508,29 @@ def test_all_codes_registry_matches_every_code_the_compiler_actually_emits(repo_
         f"missing from ALL_CODES: {found - lint.ALL_CODES}; "
         f"registered but never emitted: {lint.ALL_CODES - found}"
     )
+
+
+def test_a_device_without_ontap_is_reported_from_its_own_symbol_table(write_design, bag, db):
+    """ADR 0008's check 2, finally used for something.
+
+    `WatchFaceDelegate.onTap` is documented since API 5.1.0, and `fr955` is
+    5.2.0 and still does not have it -- so an API-level comparison here would
+    confidently report the opposite of the truth. The answer comes from the
+    device's own api.debug.xml.
+    """
+    from tests.test_semantics import TAPPED, design
+    from wfb.diagnostics import Bag
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = load(write_design(design(TAPPED)), bag)
+    assert face is not None, bag.render()
+    fr955 = db.get("fr955")
+    lint.run(resolve(face, fr955, bake_fonts(face, fr955, fr955.minor_radius)), bag)
+    assert any(d.code == "tap-unsupported" and "touch and hold" in d.message
+               for d in bag.items), bag.render()
+
+    quiet = Bag()
+    fenix = db.get("fenix8solar47mm")
+    lint.run(resolve(face, fenix, bake_fonts(face, fenix, fenix.minor_radius)), quiet)
+    assert not [d for d in quiet.items if d.code == "tap-unsupported"], quiet.render()

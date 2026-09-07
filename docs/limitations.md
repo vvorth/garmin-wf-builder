@@ -165,13 +165,12 @@ drop to hand-written Monkey C rather than growing the schema.
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
 | The `config:` block, on-device config, phone settings | ADR 0006 |
-| Tap / hold interactivity | ADR 0006 §6 |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
-| ADR 0008's check 2, **unsupported API for a targeted device** | ADR 0008 lists it as exact and it is not implemented at all. `Device.has_symbol` and `catalog.Source.requires` are both in place and unused; §3 below has the detail |
+| ADR 0008's check 2, **unsupported API for a targeted device**, for anything other than `on_tap:` | `on_tap:` resolves `WatchFaceDelegate.onTap`/`onPress` against each device's own symbol table, so the machinery is live — but `catalog.Source.requires` still consults nothing; §3 below has the detail |
 | `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
 
 The `slow` refresh tier and its TTL cache (ADR 0005 §5) **shipped** --
@@ -221,14 +220,15 @@ Data-source spelling; palette legality; geometry against the framebuffer and the
 visible area (round and rectangle only); glyph coverage of a subsetted font;
 refresh tiers; contrast arithmetic.
 
-**Per-device API availability is not among them**, despite ADR 0008 listing it as
-check 2 and as exact. The machinery exists and is correct — `Device.has_symbol`
-resolves a `Parent.name` against the device's own `<id>.api.debug.xml`, keyed by
-fully-qualified parent so `InputDelegate.onTap` cannot be mistaken for
-`WatchFaceDelegate.onTap`, and `tests/test_devices.py` proves it on the real
-device files — but **nothing in the compiler pipeline calls it**. See "Device
-gating for a source is not enforced" below, which is the same gap seen from the
-catalogue's side.
+**Per-device API availability is checked for exactly one thing: `on_tap:`.**
+`check_tap_targets` resolves `WatchFaceDelegate.onTap` and `onPress` against
+each target's own `<id>.api.debug.xml` — which is the only honest way to answer
+it, since `onTap` is documented "since 5.1.0" and is genuinely absent on `fr955`
+at 5.2.0. Everything else ADR 0008's check 2 covers is still unchecked:
+`Device.has_symbol` is correct and proven (`tests/test_devices.py` runs it
+against the real device files), and no *data source* consults it. See "Device
+gating for a source is not enforced" below, the same gap from the catalogue's
+side.
 
 ### Checks that are explicitly weaker, and say so in their own output
 
@@ -283,7 +283,10 @@ check that refuses suppression on purpose.
 * **Whether a device's firmware actually behaves as its files describe.** The
   device files are the best available ground truth, not a guarantee.
 * **Device gating for a source is not enforced** — ADR 0008's check 2, the
-  other half of "per-device API availability" above. `catalog.Source.requires`
+  other half of "per-device API availability" above. (`on_tap:` *is* now
+  checked this way — `check_tap_targets` resolves `WatchFaceDelegate.onTap`
+  against each target's own `api.debug.xml` — so the machinery is proven; it
+  is data *sources* that still go unchecked.) `catalog.Source.requires`
   (`Parent.name` symbols a binding needs on the target device) exists and is
   set on one source (`device.do_not_disturb`), but nothing in `wfb/lint.py`
   or `wfb/ir.py` ever reads it, and nothing calls `Device.has_symbol` -- found while adding `activity.sleep_score`

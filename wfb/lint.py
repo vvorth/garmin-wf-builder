@@ -31,6 +31,7 @@ from .palette import Color
 #: produces a face that does not work.
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
+    "tap-unsupported", "tap-overlap",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -46,7 +47,8 @@ ALL_CODES = frozenset({
     "font", "format", "format-version", "icon", "io", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "palette-dither", "partial-update", "partial-update-budget", "permission",
-    "raw-color", "refresh-tier", "safe-area", "schema", "target",
+    "on-tap", "raw-color", "refresh-tier", "safe-area", "schema",
+    "tap-overlap", "tap-unsupported", "target",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
 
@@ -59,6 +61,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_glyphs(resolved, bag)
     check_contrast(resolved, bag)
     check_partial_update_budget(resolved, bag)
+    check_tap_targets(resolved, bag)
     check_alpha(resolved, bag)
     for warning in resolved.warnings:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
@@ -435,6 +438,92 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
             confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
                        "flags relative cost, not a measured overrun",
         )
+
+
+# -- tap targets ------------------------------------------------------------
+
+#: The two ways a watch face can be told about a touch.  Both are documented
+#: "since API level 5.1.0" and neither can be inferred from an API level:
+#: `fr955` is 5.2.0 and has only the second (CLAUDE.md constraint 6).
+_TAP_SYMBOLS = {
+    "tap": "Toybox.WatchUi.WatchFaceDelegate.onTap",
+    "touch and hold": "Toybox.WatchUi.WatchFaceDelegate.onPress",
+}
+
+
+def check_tap_targets(resolved: ResolvedFace, bag: Bag) -> None:
+    """Will this device actually deliver the touches an `on_tap:` asks for?
+
+    Resolved against the device's **own** ``api.debug.xml``, which is the only
+    honest way to answer it -- ADR 0008's check 2, and the first thing in this
+    compiler to use `Device.has_symbol` for real.  `WatchFaceDelegate.onTap`
+    is documented since 5.1.0 and is still missing on `fr955` at 5.2.0, so an
+    API-level comparison here would confidently report the opposite of the
+    truth.
+    """
+    tapped = [p for p in resolved.items if p.element.on_tap is not None]
+    if not tapped:
+        return
+    device = resolved.device
+    try:
+        available = {label: device.has_symbol(symbol)
+                     for label, symbol in _TAP_SYMBOLS.items()}
+    except Exception:
+        bag.note(
+            "tap-unsupported",
+            f"{device.id}: no symbol table, so touch support is not checked",
+            confidence="not checked -- the device's api.debug.xml is unavailable",
+        )
+        return
+
+    if not any(available.values()):
+        for placed in tapped:
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "tap-unsupported",
+                f"{placed.id}: {device.id} has neither onTap nor onPress, so this "
+                f"tap target can never fire there",
+                placed.element.span,
+                notes=["the face still works; it is simply not interactive on this "
+                       "device, and the element draws as usual"],
+                confidence="exact -- the device's own api.debug.xml",
+            ))
+        return
+
+    if not available["tap"]:
+        bag.note(
+            "tap-unsupported",
+            f"{device.id} has no WatchFaceDelegate.onTap, so its "
+            f"{len(tapped)} tap target(s) are reached by touch and hold instead",
+            notes=["one 'on_tap:' declaration, two behaviours -- the difference is the "
+                   "device's, not the design's (ADR 0006 6)"],
+            confidence="exact -- the device's own api.debug.xml",
+        )
+
+    for first, second in _overlapping(tapped):
+        _emit(bag, second, Diagnostic(
+            Severity.WARNING,
+            "tap-overlap",
+            f"{second.id}'s tap region overlaps {first.id}'s on {device.id}, so a "
+            f"touch in the shared area always opens {first.element.on_tap!r}",
+            second.element.span,
+            notes=["regions are tested in draw order and the first match wins, so the "
+                   "second target is unreachable where they overlap",
+                   "a tap region is the element's own drawn box; move them apart, or "
+                   "drop one of the two 'on_tap:' declarations"],
+            confidence="exact -- resolved geometry",
+        ))
+
+
+def _overlapping(tapped: list) -> list[tuple]:
+    """Pairs whose hit rectangles intersect, earlier element first."""
+    out = []
+    for index, later in enumerate(tapped):
+        for earlier in tapped[:index]:
+            a, b = earlier.box, later.box
+            if a.x < b.right and b.x < a.right and a.y < b.bottom and b.y < a.bottom:
+                out.append((earlier, later))
+    return out
 
 
 # -- alpha ------------------------------------------------------------------

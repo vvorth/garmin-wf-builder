@@ -816,3 +816,148 @@ def test_when_absent_is_not_called_pointless_when_a_colour_needs_it(write_design
     color: "heart_rate.current > 100 ? palette.fg : palette.bg"
 """)), bag)
     assert not [d for d in bag.items if "has no effect" in d.message], bag.render()
+
+
+# --------------------------------------------------------------------------
+# `glyph:` -- a codepoint the icon catalogue does not name
+
+
+def test_a_glyph_codepoint_resolves_to_the_character(write_design, bag):
+    """The point of `glyph:` is that the YAML stays readable: `U+F09B` is
+    greppable and survives a diff, where the character itself is invisible in
+    most editors -- the same hazard wfb/icon_catalog.py warns about for this
+    project's own source."""
+    face = load(write_design(design("""
+  - id: gh
+    type: icon
+    glyph: "U+F09B"
+    size: 14%r
+    at: {anchor: center}
+    color: palette.fg
+""")), bag)
+    assert face is not None, bag.render()
+    icon = face.walk()[0]
+    assert icon.codepoint == ""
+
+
+def test_a_glyph_outside_the_font_is_rejected(write_design, bag):
+    """Checked against the font's own cmap, the same way a custom text font's
+    coverage is -- otherwise it bakes to a blank tile and only shows up on the
+    wrist."""
+    load(write_design(design("""
+  - id: gh
+    type: icon
+    glyph: "U+FFFFF"
+    size: 14%r
+    at: {anchor: center}
+    color: palette.fg
+""")), bag)
+    assert any(d.code == "icon" and "no glyph at" in d.message for d in bag.errors), bag.render()
+
+
+def test_a_glyph_that_duplicates_a_catalogue_name_says_so(write_design, bag):
+    """A name keeps meaning if the catalogue moves that icon to a different
+    codepoint, which it has done before (Font Awesome -> Material Design
+    Icons); a raw codepoint does not."""
+    from wfb import icons
+
+    codepoint = "U+%04X" % ord(icons.CATALOG["heart"].codepoint)
+    load(write_design(design(f"""
+  - id: h
+    type: icon
+    glyph: "{codepoint}"
+    size: 14%r
+    at: {{anchor: center}}
+    color: palette.fg
+""")), bag)
+    assert any("in the catalogue as 'heart'" in d.message for d in bag.items), bag.render()
+
+
+def test_icon_and_glyph_are_mutually_exclusive(write_design, bag):
+    load(write_design(design("""
+  - id: h
+    type: icon
+    icon: heart
+    glyph: "U+F09B"
+    size: 14%r
+    at: {anchor: center}
+    color: palette.fg
+""")), bag)
+    assert not bag.ok(), "expected exactly-one-of to be enforced"
+
+
+# --------------------------------------------------------------------------
+# `on_tap:` -- the one exit a watch face has (ADR 0006 6)
+
+
+TAPPED = """
+  - id: hr
+    type: icon
+    icon: heart
+    size: 14%r
+    at: {anchor: center, dy: -20%}
+    color: palette.fg
+    on_tap: heart_rate
+"""
+
+
+def test_on_tap_must_name_a_real_complication_type(write_design, bag):
+    """An invented name would compile to an undefined Monkey C symbol, so it
+    is caught here, against the author's line, rather than deep in monkeyc."""
+    load(write_design(design(TAPPED.replace("heart_rate", "hart_rate"))), bag)
+    hits = [d for d in bag.errors if d.code == "on-tap"]
+    assert hits, bag.render()
+    assert any("heart_rate" in n for n in hits[0].notes), hits[0].notes
+
+
+def test_on_tap_compiles_to_exit_to(write_design, bag, db):
+    """`Complications.exitTo` is the entire mechanism: a watch face cannot
+    launch an arbitrary app, only the one owning a complication type."""
+    from wfb.emit import generate
+    from wfb.emit.resources import bake_fonts
+
+    path = write_design(design(TAPPED))
+    face = load(path, bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    files = generate(face, [device], path.parent / "b", baked).files()
+    delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
+    assert "Complications.exitTo(new Complications.Id(" \
+           "Complications.COMPLICATION_TYPE_HEART_RATE))" in delegate
+    # both entry points, because onTap is absent on some watches that have onPress
+    assert "function onTap(" in delegate and "function onPress(" in delegate
+    app = next(v for k, v in files.items() if k.endswith("App.mc"))
+    assert "WatchUi has :WatchFaceDelegate" in app
+
+
+def test_a_passive_face_gets_no_delegate_and_no_permission(write_design, bag, db):
+    """Nothing is emitted for a design that asks for nothing -- the delegate,
+    the permission and the raised minApiLevel all follow from the declaration."""
+    from wfb.emit import generate
+    from wfb.emit.resources import bake_fonts
+
+    path = write_design(design(TAPPED.replace("    on_tap: heart_rate\n", "")))
+    face = load(path, bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    files = generate(face, [device], path.parent / "b", baked).files()
+    assert not [k for k in files if k.endswith("Delegate.mc")]
+    assert "ComplicationSubscriber" not in files["manifest.xml"]
+
+
+def test_on_tap_derives_the_permission_and_api_level(write_design, bag, db):
+    """`exitTo` lives in Toybox.Complications, which is gated by
+    ComplicationSubscriber -- so a design that reads no complication value at
+    all still needs it as soon as it launches one."""
+    from wfb.emit import generate
+    from wfb.emit.resources import bake_fonts
+
+    path = write_design(design(TAPPED))
+    face = load(path, bag)
+    device = db.get("fenix8solar47mm")
+    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    manifest = generate(face, [device], path.parent / "b", baked).files()["manifest.xml"]
+    assert 'uses-permission id="ComplicationSubscriber"' in manifest
+    assert 'minApiLevel="4.2.0"' in manifest

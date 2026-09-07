@@ -184,6 +184,7 @@ def _parser() -> argparse.ArgumentParser:
                         help="print the schema's path instead of its contents")
 
     _command(sub, "sources", _sources)
+    _command(sub, "complications", _complications)
 
     help_cmd = _command(sub, "help", _help)
     help_cmd.add_argument("topic", nargs="?", help="a command name, e.g. `wfb help build`")
@@ -621,6 +622,38 @@ def _sources(args) -> int:
             ref = f"  ({source.source_ref})" if source.source_ref else ""
             print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}{ref}")
     print(f"\nicons: {', '.join(icons.names())}")
+    print("\nrun `wfb complications` for what an element's `on_tap:` may launch")
+    return 0
+
+
+def _complications(args) -> int:
+    """list what an element's `on_tap:` may launch
+
+    A watch face cannot open an arbitrary app. The platform offers exactly
+    one exit -- `Complications.exitTo`, "launches the app associated with
+    the complication" -- so an interactive element names a complication
+    type and the watch opens whichever glance or app owns it.
+
+    Printed for each: the name a design writes, the Monkey C constant it
+    compiles to, and the API level that type was introduced at. An API
+    level is not a promise the watch has it; a tap on a type the watch
+    does not know simply does nothing, which is why `wfb validate` also
+    checks each target's own symbol table.
+
+    Binding one of these adds the ComplicationSubscriber permission and
+    raises minApiLevel to 4.2.0 automatically, the same way a data binding
+    derives its own requirements.
+    """
+    from . import complications
+
+    width = max(len(name) for name in complications.names())
+    for name in complications.names():
+        entry = complications.LAUNCHABLE[name]
+        since = "" if entry.since == complications.EXIT_TO_API_LEVEL else f"  (since {entry.since})"
+        print(f"  {name:<{width}}  Complications.{entry.constant}{since}")
+    print(f"\n{len(complications.LAUNCHABLE)} launch targets. "
+          f"Use one as `on_tap:` on any element:")
+    print("    - id: hr\n      type: icon\n      icon: heart\n      on_tap: heart_rate")
     return 0
 
 

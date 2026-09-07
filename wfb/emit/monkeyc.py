@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .. import __version__, catalog, formatting, icons
+from .. import __version__, catalog, complications, formatting, icons
 from ..catalog import READERS, Tier, Type
 from ..ir import (
     Expression, Face, IconElement, Progress, Shape, Text,
@@ -79,6 +79,7 @@ def header(face: Face, extra: str = "") -> str:
 
 
 def emit_app(face: Face) -> SourceFile:
+    interactive = bool(tap_targets(face))
     w = Writer()
     w.doc(header(face)).blank()
     w.lines("import Toybox.Application;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank()
@@ -88,7 +89,14 @@ def emit_app(face: Face) -> SourceFile:
             w.line("AppBase.initialize();")
         w.blank()
         with w.block("function getInitialView() as [Views] or [Views, InputDelegates]"):
-            w.line(f"return [ new {face.entry}View() ];")
+            if not interactive:
+                w.line(f"return [ new {face.entry}View() ];")
+            else:
+                w.comment("the `has` guard is the SDK's own idiom (samples/Analog): a watch")
+                w.comment("without WatchFaceDelegate still gets the face, just not the taps")
+                with w.block("if (WatchUi has :WatchFaceDelegate)"):
+                    w.line(f"return [ new {face.entry}View(), new {face.entry}Delegate() ];")
+                w.line(f"return [ new {face.entry}View() ];")
     return SourceFile(f"source/{face.entry}App.mc", w.render())
 
 
@@ -152,6 +160,81 @@ def emit_icon_glyphs(face: Face) -> SourceFile:
     return SourceFile("source/IconGlyphs.mc", w.render())
 
 
+def tap_targets(face: Face) -> list:
+    """Elements with an `on_tap:`, in draw order.  Empty for a passive face."""
+    return [e for e in face.walk() if e.on_tap is not None]
+
+
+def emit_delegate(resolved: ResolvedFace) -> SourceFile:
+    """`source/<Face>Delegate.mc`: turn a touch into a glance.
+
+    One delegate, shared by every target, defining **both** `onTap` and
+    `onPress`.  That is not belt-and-braces: `WatchFaceDelegate.onTap` is
+    documented since API 5.1.0 but is genuinely absent on some watches above
+    that level -- `fr955` is API 5.2.0 and has `onPress` only (resolved
+    against its own `api.debug.xml`, not its API level; see CLAUDE.md's
+    constraint 6).  Defining a method the parent class does not declare is
+    harmless there -- verified with a real `-l 3` build on `fr955`, which the
+    system simply never calls -- so one file serves every device and the
+    author writes one `on_tap:`.  Where tap is missing, the same declaration
+    is reached by touch and hold, which is the behaviour ADR 0006 §6 chose.
+
+    `Complications.exitTo` is the whole mechanism: a watch face cannot launch
+    an arbitrary app, only the one that owns a complication type.
+    """
+    face = resolved.face
+    targets = tap_targets(face)
+    w = Writer()
+    w.doc(header(face)).blank()
+    w.lines("import Toybox.Complications;", "import Toybox.Lang;",
+            "import Toybox.WatchUi;").blank()
+    w.doc(
+        f"Touch handling for {face.name}.\n"
+        "\n"
+        "Each region below is one element's own drawn box, resolved per device in\n"
+        "the Layout module, so what the finger must hit is what the eye sees."
+    )
+    with w.block(f"class {face.entry}Delegate extends WatchUi.WatchFaceDelegate"):
+        with w.block("function initialize()"):
+            w.line("WatchFaceDelegate.initialize();")
+        w.blank()
+        w.doc("A tap. Absent on some watches even above its documented API level,\n"
+              "which is why onPress below exists too.")
+        with w.block("function onTap(clickEvent as ClickEvent) as Boolean"):
+            w.line("return handleClick(clickEvent);")
+        w.blank()
+        w.doc("A touch and hold -- the same declaration, reached the other way on a\n"
+              "watch with no onTap.")
+        with w.block("function onPress(clickEvent as ClickEvent) as Boolean"):
+            w.line("return handleClick(clickEvent);")
+        w.blank()
+        w.doc("Find the region the touch landed in and open its complication.\n"
+              "\n"
+              "Returns true when the touch was consumed, so the system does not also\n"
+              "act on it.")
+        with w.block("private function handleClick(clickEvent as ClickEvent) as Boolean"):
+            w.line("var where = clickEvent.getCoordinates();")
+            w.line("var x = where[0];")
+            w.line("var y = where[1];")
+            for element in targets:
+                prefix = _const_prefix(element.id)
+                launch = complications.LAUNCHABLE[element.on_tap]
+                w.blank()
+                w.comment(f"`{element.id}` -> {element.on_tap}")
+                with w.block(
+                    f"if (x >= Layout.{prefix}_TAP_X && "
+                    f"x < Layout.{prefix}_TAP_X + Layout.{prefix}_TAP_WIDTH\n"
+                    f"        && y >= Layout.{prefix}_TAP_Y && "
+                    f"y < Layout.{prefix}_TAP_Y + Layout.{prefix}_TAP_HEIGHT)"
+                ):
+                    w.line(f"Complications.exitTo(new Complications.Id("
+                           f"Complications.{launch.constant}));")
+                    w.line("return true;")
+            w.blank()
+            w.line("return false;")
+    return SourceFile(f"source/{face.entry}Delegate.mc", w.render())
+
+
 # --------------------------------------------------------------------------
 # per-device layout constants
 
@@ -180,7 +263,7 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
         w.line(f"const SCREEN_WIDTH as Number = {device.width};")
         w.line(f"const SCREEN_HEIGHT as Number = {device.height};")
         for placed in resolved.items:
-            constants = _layout_constants(placed)
+            constants = _layout_constants(placed) + _tap_constants(placed)
             if not constants:
                 continue
             w.blank()
@@ -204,6 +287,28 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
             w.line(f"const LOW_POWER_CLIP_WIDTH as Number = {clip.width};")
             w.line(f"const LOW_POWER_CLIP_HEIGHT as Number = {clip.height};")
     return SourceFile(f"source-{device.id}/Layout.mc", w.render())
+
+
+def _tap_constants(placed) -> list[tuple[str, float, str]]:
+    """The hit rectangle for an `on_tap:` element.
+
+    Deliberately the element's own resolved box, not an inflated one: the
+    region a finger must hit is then exactly the thing the eye sees, which is
+    predictable and reviewable in `wfb preview`.  Inflating to some minimum
+    touch size would be inventing a number Garmin does not publish, and would
+    silently overlap neighbouring targets on a dense face.  An author who
+    wants a bigger target puts the element in a `group` and taps that.
+    """
+    if placed.element.on_tap is None:
+        return []
+    prefix = _const_prefix(placed.id)
+    box = placed.box
+    return [
+        (f"{prefix}_TAP_X", box.x, "hit region: the element's own drawn box"),
+        (f"{prefix}_TAP_Y", box.y, ""),
+        (f"{prefix}_TAP_WIDTH", box.width, ""),
+        (f"{prefix}_TAP_HEIGHT", box.height, ""),
+    ]
 
 
 def _layout_constants(placed) -> list[tuple[str, float, str]]:
