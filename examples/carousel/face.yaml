@@ -1,0 +1,92 @@
+# A data carousel, modelled on the stock Forerunner face: a row of readings,
+# the centred one showing its value, moved by touch and hold.
+#
+# Build it with:  ./wfb.py build examples/carousel/face.yaml
+#
+# The gesture story is the whole reason this is one element rather than four
+# icons and a text. A live watch face receives *only* touch and hold -- no tap,
+# no swipe, no buttons -- so previous, next and "open the glance" have to be
+# told apart by *where* the hold landed. The compiler cuts the element's own
+# box into three zones and warns if any of them is hard to reach. See
+# docs/research/07-carousel-interaction.md.
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 11111111-2222-3333-4444-555555555555
+  name: Ring
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#555555"
+  accent: "#FF5500"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: -22% }
+    color: palette.fg
+
+  - id: data
+    type: carousel
+    at: { anchor: center, dy: 20% }
+    # 'size:' is the touch target, not the drawn extent -- it is split into
+    # thirds, so it wants to be generous. The linter checks both that each
+    # third is wide enough to hit and that none of them lands under the bezel.
+    size: { width: 62%, height: 22% }
+    pitch: 22%r             # centre-to-centre spacing between slots
+    slots: 3                # the selected item plus one neighbour either side
+    icon_size: 9%r
+    color: palette.accent   # the selected item
+    inactive_color: palette.dim
+    value_font: FONT_SMALL
+    value_color: palette.fg
+    value_offset: { anchor: center, dy: 34% }
+    animate: 0.3            # seconds; skipped while asleep, where animate() would crash
+    items:
+      # No 'icon:' on the first three: the conventional icon for the data
+      # source is used, from wfb/icons.py's METRIC_ICON table.
+      - value: heart_rate.current
+        format: "{:d}"
+        when_absent: placeholder
+        placeholder: "--"
+        launch: heart_rate    # a hold on the centre zone opens this glance
+
+      - value: activity.steps
+        format: "{:d}"
+        when_absent: fallback
+        fallback: "0"
+        launch: steps
+
+      - value: activity.calories
+        format: "{:d}"
+        # 'hide' on a carousel item blanks *this item's reading* and leaves its
+        # icon drawn -- the row does not collapse, and the zones do not move.
+        when_absent: hide
+        launch: calories
+
+      # No 'launch:': a hold on the centre zone while this item is selected
+      # consumes the touch and opens nothing, which is the honest outcome for
+      # a reading no glance owns.
+      - icon: battery
+        value: system.battery
+        format: "{:.0f}%"
