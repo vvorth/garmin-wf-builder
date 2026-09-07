@@ -582,6 +582,53 @@ icon in row 2, replacing what had been a real-source stand-in row):
 real `monkeyc` builds (`BUILD SUCCESSFUL`, all three targets, including a
 design binding all three `weather.*` sources at once) and in `wfb preview`.
 
+**A follow-up session found the weather-icon work above had not actually
+finished unifying the catalogue** — the 29 day and 14 night weather glyphs
+still lived in their own `_WEATHER_GLYPH`/`_WEATHER_GLYPH_NIGHT`/
+`_WEATHER_NAMED` dicts, reachable only through a curated 12-name subset, and
+worse, their codepoints were pasted as raw characters rather than the
+`\uXXXX`/`\U000XXXXX` escapes every other entry used — exactly the mistake
+this catalogue's own docstring already warned against. Fixed by folding every
+weather glyph into `CATALOG` directly, as `weather_<condition>` and
+`weather_<condition>_night` entries (53 total, up from 22) — an author can
+now write `icon: weather_rain_night` directly, not just reach it through
+`icon_for:`. Every codepoint was regenerated via a script writing real
+characters through `chr(codepoint)`, re-verified against the font's cmap, and
+each entry gained a `# preview: <char> (<font glyph name>)` trailing comment
+purely for a maintainer's editor to render — invisible to Python, which is
+exactly why it does not risk becoming another silent empty-string bug.
+Considered and rejected moving the catalogue to a separate YAML/JSON/CSV
+resource file for easier maintenance: `wfb/catalog.py`'s data-source
+catalogue is the same shape of problem and already solves it as a plain
+Python list with inline prose, and a non-Python file would have nowhere to
+put the reasoning behind specific choices (why `steps` stayed Font Awesome,
+why `rain` is the bake-size reference) without an awkward side-channel.
+
+**A second follow-up caught that the unification above still was not
+complete on the device side.** `runtime-lib/WfbWeather.mc`'s `iconGlyph()`
+took a condition and returned a raw glyph character directly, baked into its
+switch statement by a one-off generation script — a second, parallel,
+weather-only glyph table on the Monkey C side, the exact same mistake in a
+different language. Fixed by splitting the two concerns the way
+`wfb.icons` already split them on the Python side: `WfbWeather.mc` was cut
+down to `chooseIcon(condition) as String`, returning only ASCII catalogue
+*names* (`"weather_rain"`), never a character — genuinely just the on-device
+twin of `GARMIN_WEATHER_CONDITION_ICON` now, nothing else. A new generated
+(not hand-written) module, `source/IconGlyphs.mc`, provides
+`glyph(name as String) as String`, built by `wfb/emit/monkeyc.py`'s
+`emit_icon_glyphs` directly from the catalogue every build, covering every
+name a dynamic icon in the design could select — the one and only place a
+catalogue name becomes a drawn character on-device, for any icon, not a
+weather-specific one. `_emit_icon`'s dynamic path now reads
+`IconGlyphs.glyph(WfbWeather.chooseIcon(weatherCondition))`. Confirmed
+`switch` on a `String` case label compiles cleanly under `-l 3` (strict
+typecheck) with a standalone test before relying on it. The catalogue *data*
+also moved to its own file, `wfb/icon_catalog.py` — `wfb/icons.py` keeps only
+logic (sizing, resolution, the weather-condition table) and imports `CATALOG`
+from it, so "add or change an icon" touches exactly one small, data-only
+file. Verified with a real `monkeyc` build and in `wfb preview`, and on
+`examples/dashboard/`'s real `weather.condition` icon.
+
 ### Known-good reference
 
 `~/claude/garmin-watchface-protomolecule/` is a **working, dense, real** watch

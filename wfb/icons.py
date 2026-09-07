@@ -1,58 +1,44 @@
-r"""The icon catalogue.
+r"""Icon sizing, resolution and the weather-condition lookup.
 
-An icon is a single glyph from a vendored icon font
-(``wfb/assets/icons/SymbolsNerdFont-Regular.ttf`` -- see the README there for
-what it is and its licensing), baked into a BMFont sheet at build time by the
-same pipeline that bakes an author's own custom text font
-(:mod:`wfb.fonts.bmfont`).  Drawing an icon is therefore drawing text: one
-``drawText`` call against a baked bitmap font, exactly like any other bound
-text element.  Nothing is drawn from primitives (no ``fillCircle`` /
-``fillPolygon`` calls hand-written per icon), which is what earlier versions of
-this catalogue did -- see git history and CLAUDE.md for why that was replaced:
-it capped the vocabulary at whatever anyone had hand-drawn, and nothing stopped
-an icon meaning the wrong thing (a heart drawn for "do not disturb").
+The catalogue *data* -- every name, its codepoint, its description -- lives in
+:mod:`wfb.icon_catalog`, imported here as :data:`CATALOG`. This module is
+everything you do *with* that data: resolving a name (or a raw pasted glyph)
+to a codepoint, baking it at the right size, keying the generated font
+resource, and mapping a `Toybox.Weather.CONDITION_*` value to a catalogue
+name. See :mod:`wfb.icon_catalog`'s own docstring for why the two are split
+and for the `\uXXXX` escape convention every codepoint in this project follows.
 
-**One catalogue, no exceptions.** Every icon this module knows about -- the
-general-purpose ones and every weather condition glyph, day and night alike --
-lives in the single :data:`CATALOG` dict, addressed by one name, the same way.
-An earlier version kept weather glyphs in a separate, parallel dict (``_WEATHER_GLYPH``) reachable only through a curated subset of names; that
-split was removed because it was not buying anything -- a weather condition's
-glyph is exactly as much an icon as a heart or a flame is, and a second table
-just meant a second place to keep in sync. A design-time author reaches any of
-them through :func:`resolve_codepoint`; :func:`weather_icon_for_condition`
-(and the on-device ``WfbWeather.mc`` it mirrors) reach them by name too, just
-computed from a ``Toybox.Weather.CONDITION_*`` value instead of typed directly.
+**Weather is an icon, not a special case, except for the one piece of logic
+that has to be.** Turning a raw `Weather.CONDITION_*` value into a drawn glyph
+is two independent steps, kept independent on both sides of the build:
 
-A name in :data:`CATALOG` is the documented, common-case way to reach a glyph.
-It is not the only way: :func:`resolve_codepoint` also accepts a single literal
-character, checked against the font's own character map -- the same relationship
-``color:`` has between a named palette entry and a literal hex value.
+1. **Which name?** :data:`GARMIN_WEATHER_CONDITION_ICON` maps the 54 raw
+   values to a :data:`wfb.icon_catalog.CATALOG` name -- pure lookup, no font
+   knowledge at all. Its on-device twin is `WfbWeather.mc`'s `chooseIcon()`,
+   a hand-written barrel function (the mapping is fixed and shared across
+   every design, the same reasoning that keeps `WfbArc.mc`/`WfbTime.mc`
+   hand-written) that returns a *name*, never a glyph.
+2. **Which glyph for that name?** :func:`weather_icon_for_condition` (here)
+   and `source/IconGlyphs.mc`'s `glyph()` (generated per project by
+   :mod:`wfb.emit.monkeyc` directly from :data:`wfb.icon_catalog.CATALOG`, not
+   hand-written) both just index the one catalogue by name.
 
-Every codepoint below is written as ``\uXXXX``/``\U000XXXXX`` rather than
-pasted as a raw character, and *only* that way -- no exceptions, including the
-weather glyphs an earlier version of this catalogue pasted literally. The actual
-glyph is invisible in most editors and terminals (that is the whole reason it
-needs an icon font), so a literal escape is what stays readable, greppable, and
-safe to move between files without silent corruption -- a raw character that
-fails to paste correctly still parses as valid Python (an empty string), so the
-mistake only surfaces later as a blank tile or a missing-glyph assertion, which
-is exactly what happened here once already. Every entry also carries the actual
-character in a trailing comment, `# preview: <char> (<font glyph name>)` -- not
-for this module to use, but so a maintainer's editor (most can render it, even
-though the escape is what Python actually evaluates) shows what the code is
-supposed to produce right next to the codepoint that produces it. Every
-codepoint was looked up directly against the vendored font's own cmap
-(fontTools ``getBestCmap()``), not typed from memory -- the same "never invent
-an API" discipline CLAUDE.md asks for Monkey C symbols applies just as much to
-which glyph a name actually points at.
+An earlier version collapsed both steps into `WfbWeather.mc` itself, which
+meant a raw glyph character embedded directly in that hand-written switch --
+a second, parallel table on the Monkey C side that only `wfb.icon_catalog`
+was supposed to be the one copy of. Splitting "which name" from "which glyph"
+on the device, the same way the Python side already split them, removed it:
+`WfbWeather.mc` now only ever deals in ASCII catalogue *names*, and every
+actual glyph character in the whole project -- static icon or weather
+condition alike -- is written exactly once, in `wfb/icon_catalog.py`.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from .icon_catalog import CATALOG, Icon
 from .units import Axis, Box, Length
 
 #: The vendored font every icon glyph comes from.
@@ -64,153 +50,6 @@ FONT_PATH = Path(__file__).resolve().parent / "assets" / "icons" / "SymbolsNerdF
 FALLBACK_CODEPOINT = "\uf128"  # preview:  (fa-question)
 
 
-@dataclass(frozen=True)
-class Icon:
-    name: str
-    codepoint: str  # a single character
-    description: str
-
-
-# Preference, per user direction: prefer a Material Design Icons glyph
-# (nf-md, prefix "md-") over other icon sets when one exists and reads at
-# least as well at small size -- MDI is the largest, most consistently drawn
-# set in the vendored font (7,000+ glyphs, one design language) and, once
-# `wfb.emit.resources` stopped putting a `filter=` attribute on any font that
-# needs one (see `_available_glyphs` below), there is no longer a reason to
-# avoid it.
-#
-# `steps` is the deliberate exception: MDI's closest equivalents (a walking or
-# running figure) read as "activity" or "exercise", not specifically "step"
-# count", and are less clear at a glance than Font Awesome's two-offset-
-# footprints glyph, which was drawn for exactly this. Compared side by side at
-# 12-20px before deciding, the same way the original six icons were chosen.
-#
-# Weather glyphs (day and night both) come from the font's dedicated Weather
-# Icons set (prefix "weather-"), not Material Design Icons' own `md-weather_*`
-# glyphs -- every `md-weather_*` glyph lives above the Basic Multilingual Plane,
-# while every `weather-*` glyph here does not (confirmed against the font's
-# cmap), and the dedicated set also simply has more distinct conditions and
-# day/night pairs to choose from. This is the one place "prefer nf-md" loses to
-# a better-fitting alternative set, by design.
-CATALOG: dict[str, Icon] = {
-    icon.name: icon
-    for icon in [
-        Icon("heart", "\U000f02d1",
-             'a heart, for heart rate (Material Design md-heart)'),  # preview: 󰋑
-        Icon("steps", "\uee14",
-             'two offset footprints, for step count (Font Awesome fa-shoe_prints -- kept over MDI\'s walking/running figures, which read as "activity" rather than "steps" at a glance)'),  # preview: 
-        Icon("flame", "\U000f0238",
-             'a flame, for calories (Material Design md-fire)'),  # preview: 󰈸
-        Icon("alarm", "\U000f0020",
-             'an alarm clock with bells, for an alarm indicator (Material Design md-alarm)'),  # preview: 󰀠
-        Icon("dnd", "\U000f009b",
-             'a solid bell with a slash, for do-not-disturb (Material Design md-bell_off -- a solid glyph reads more reliably than an outline one at the small sizes a status row uses)'),  # preview: 󰂛
-        Icon("notification", "\U000f017a",
-             'a speech bubble; draw a count on top of it (Material Design md-comment)'),  # preview: 󰅺
-        Icon("battery", "\U000f0079",
-             'a battery outline (Material Design md-battery)'),  # preview: 󰁹
-        Icon("floors", "\U000f04cd",
-             'a flight of stairs, for floors climbed (Material Design md-stairs)'),  # preview: 󰓍
-        Icon("distance", "\U000f08f0",
-             'a map pin with a distance mark (Material Design md-map_marker_distance)'),  # preview: 󰣰
-        Icon("phone", "\U000f011c",
-             'a phone, for phone-connected status (Material Design md-cellphone)'),  # preview: 󰄜
-
-        # -- weather, day glyphs -----------------------------------------------
-        Icon("weather_sunny", "\ue30d",
-             'weather: sunny (Weather Icons weather-day_sunny)'),  # preview: 
-        Icon("weather_sunny_overcast", "\ue30c",
-             'weather: sunny overcast (Weather Icons weather-day_sunny_overcast)'),  # preview: 
-        Icon("weather_cloudy_light", "\ue302",
-             'weather: cloudy light (Weather Icons weather-day_cloudy)'),  # preview: 
-        Icon("weather_cloudy", "\ue312",
-             'weather: cloudy (Weather Icons weather-cloudy)'),  # preview: 
-        Icon("weather_cloudy_heavy", "\ue376",
-             'weather: cloudy heavy (Weather Icons weather-day_cloudy_high)'),  # preview: 
-        Icon("weather_fog", "\ue303",
-             'weather: fog (Weather Icons weather-day_fog)'),  # preview: 
-        Icon("weather_haze", "\ue3ae",
-             'weather: haze (Weather Icons weather-day_haze)'),  # preview: 
-        Icon("weather_smoke", "\ue35c",
-             'weather: smoke (Weather Icons weather-smoke)'),  # preview: 
-        Icon("weather_dust", "\ue35d",
-             'weather: dust (Weather Icons weather-dust)'),  # preview: 
-        Icon("weather_sandstorm", "\ue37a",
-             'weather: sandstorm (Weather Icons weather-sandstorm)'),  # preview: 
-        Icon("weather_rain_light", "\ue30b",
-             'weather: rain light (Weather Icons weather-day_sprinkle)'),  # preview: 
-        Icon("weather_rain", "\ue308",
-             'weather: rain (Weather Icons weather-day_rain)'),  # preview: 
-        Icon("weather_rain_heavy", "\ue309",
-             'weather: rain heavy (Weather Icons weather-day_showers)'),  # preview: 
-        Icon("weather_snow", "\ue30a",
-             'weather: snow (Weather Icons weather-day_snow)'),  # preview: 
-        Icon("weather_snow_heavy", "\ue35f",
-             'weather: snow heavy (Weather Icons weather-day_snow_wind)'),  # preview: 
-        Icon("weather_ice", "\ue36f",
-             'weather: ice (Weather Icons weather-snowflake_cold)'),  # preview: 
-        Icon("weather_wintry_mix", "\ue306",
-             'weather: wintry mix (Weather Icons weather-day_rain_mix)'),  # preview: 
-        Icon("weather_sleet", "\ue3aa",
-             'weather: sleet (Weather Icons weather-day_sleet)'),  # preview: 
-        Icon("weather_hail", "\ue304",
-             'weather: hail (Weather Icons weather-day_hail)'),  # preview: 
-        Icon("weather_thunderstorm", "\ue30f",
-             'weather: thunderstorm (Weather Icons weather-day_thunderstorm)'),  # preview: 
-        Icon("weather_thunderstorm_showers", "\ue30e",
-             'weather: thunderstorm showers (Weather Icons weather-day_storm_showers)'),  # preview: 
-        Icon("weather_lightning", "\ue305",
-             'weather: lightning (Weather Icons weather-day_lightning)'),  # preview: 
-        Icon("weather_windy", "\ue37d",
-             'weather: windy (Weather Icons weather-day_windy)'),  # preview: 
-        Icon("weather_strong_wind", "\ue34b",
-             'weather: strong wind (Weather Icons weather-strong_wind)'),  # preview: 
-        Icon("weather_tornado", "\ue351",
-             'weather: tornado (Weather Icons weather-tornado)'),  # preview: 
-        Icon("weather_hurricane", "\ue36c",
-             'weather: hurricane (Weather Icons weather-hurricane)'),  # preview: 
-        Icon("weather_hurricane_warning", "\ue3c7",
-             'weather: hurricane warning (Weather Icons weather-hurricane_warning)'),  # preview: 
-        Icon("weather_volcano", "\ue3c0",
-             'weather: volcano (Weather Icons weather-volcano)'),  # preview: 
-        Icon("weather_unknown", "\ue374",
-             'weather: unknown (Weather Icons weather-na)'),  # preview: 
-
-        # -- weather, night variants ---------------------------------------------
-        # Only for conditions the font actually draws a distinct night glyph for --
-        # dust, a tornado, and the like do not read differently after dark, so they
-        # have no `_night` entry and fall back to the day glyph (see
-        # `weather_icon_for_condition`).
-        Icon("weather_sunny_night", "\ue32b",
-             'weather: sunny, night (Weather Icons weather-night_clear)'),  # preview: 
-        Icon("weather_cloudy_light_night", "\ue379",
-             'weather: cloudy light, night (Weather Icons weather-night_alt_partly_cloudy)'),  # preview: 
-        Icon("weather_cloudy_night", "\ue37e",
-             'weather: cloudy, night (Weather Icons weather-night_alt_cloudy)'),  # preview: 
-        Icon("weather_fog_night", "\ue346",
-             'weather: fog, night (Weather Icons weather-night_fog)'),  # preview: 
-        Icon("weather_rain_light_night", "\ue328",
-             'weather: rain light, night (Weather Icons weather-night_alt_sprinkle)'),  # preview: 
-        Icon("weather_rain_night", "\ue325",
-             'weather: rain, night (Weather Icons weather-night_alt_rain)'),  # preview: 
-        Icon("weather_rain_heavy_night", "\ue326",
-             'weather: rain heavy, night (Weather Icons weather-night_alt_showers)'),  # preview: 
-        Icon("weather_snow_night", "\ue327",
-             'weather: snow, night (Weather Icons weather-night_alt_snow)'),  # preview: 
-        Icon("weather_snow_heavy_night", "\ue360",
-             'weather: snow heavy, night (Weather Icons weather-night_snow_wind)'),  # preview: 
-        Icon("weather_wintry_mix_night", "\ue323",
-             'weather: wintry mix, night (Weather Icons weather-night_alt_rain_mix)'),  # preview: 
-        Icon("weather_sleet_night", "\ue3ac",
-             'weather: sleet, night (Weather Icons weather-night_alt_sleet)'),  # preview: 
-        Icon("weather_hail_night", "\ue321",
-             'weather: hail, night (Weather Icons weather-night_alt_hail)'),  # preview: 
-        Icon("weather_thunderstorm_night", "\ue32a",
-             'weather: thunderstorm, night (Weather Icons weather-night_alt_thunderstorm)'),  # preview: 
-        Icon("weather_thunderstorm_showers_night", "\ue329",
-             'weather: thunderstorm showers, night (Weather Icons weather-night_alt_storm_showers)'),  # preview: 
-    ]
-}
 
 
 def get(name: str) -> Icon | None:

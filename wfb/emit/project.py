@@ -83,6 +83,8 @@ def generate(face: Face, devices: list[Device], root: Path,
     # The view is shared across devices; generate it from the first resolved
     # device, since only the Layout constants differ between them.
     first = project.resolved[devices[0].id]
+    if any(placed.kind == "icon" and placed.element.is_dynamic for placed in first.items):
+        project.sources.append(monkeyc.emit_icon_glyphs(face))
     project.sources.append(monkeyc.emit_view(first))
     project.barrel = _barrel_for(face, first)
     return project

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .. import __version__, catalog, formatting
+from .. import __version__, catalog, formatting, icons
 from ..catalog import READERS, Tier, Type
 from ..ir import Expression, Face, IconElement, Progress, Shape, Text, font_resource_id
 from ..layout import (
@@ -106,6 +106,47 @@ def emit_palette(face: Face) -> SourceFile:
             w.doc(f"`palette.{name}` = {color}")
             w.line(f"const {name.upper()} as Number = {color.as_monkeyc()};")
     return SourceFile("source/Palette.mc", w.render())
+
+
+def emit_icon_glyphs(face: Face) -> SourceFile:
+    """`source/IconGlyphs.mc`: catalogue name -> drawn glyph, for a dynamic
+    (`icon_for:`) icon.
+
+    A static icon's glyph is already known at build time and gets baked
+    directly into its `drawText` call as a literal (see `_emit_icon` below) --
+    no lookup needed. A dynamic icon's name is only known on-device, so
+    *something* has to resolve it there. This is that something, generated
+    straight from `wfb.icon_catalog.CATALOG` rather than hand-maintained, so
+    it cannot drift from the font this project actually bakes: the
+    weather-selection logic in `WfbWeather.mc` only ever produces a name
+    (`chooseIcon`), and this is the one place, for every icon in the
+    catalogue and not just weather ones, where a name becomes a character.
+
+    Scoped to the names a dynamic icon could actually produce in this design
+    -- every catalogue entry `icon_for:`'s underlying source table
+    (`wfb.icons.GARMIN_WEATHER_CONDITION_ICON`) can select -- not the whole
+    catalogue, so a design with one `icon_for:` element does not bake a
+    lookup table for icons it never draws dynamically.
+    """
+    names = sorted(set(icons.GARMIN_WEATHER_CONDITION_ICON.values()))
+    w = Writer()
+    w.doc(header(face)).blank()
+    w.lines("import Toybox.Lang;").blank()
+    w.doc(
+        "Catalogue name -> drawn glyph, for a dynamic (`icon_for:`) icon.\n"
+        "\n"
+        "Generated directly from wfb.icon_catalog.CATALOG -- see wfb/icons.py's\n"
+        "module docstring for why this table, rather than WfbWeather.mc, is where\n"
+        "a name becomes a character."
+    )
+    with w.block("module IconGlyphs"):
+        with w.block("function glyph(name as String) as String"):
+            with w.block("switch (name)"):
+                for name in names:
+                    codepoint = icons.CATALOG[name].codepoint
+                    w.line(f'case "{name}": return "{codepoint}";')
+                w.line(f'default: return "{icons.FALLBACK_CODEPOINT}";')
+    return SourceFile("source/IconGlyphs.mc", w.render())
 
 
 # --------------------------------------------------------------------------
@@ -539,9 +580,13 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     mechanism any other bound text uses, not a hand-drawn shape.
 
     A *dynamic* icon (`icon_for:`) draws the same way, except the glyph
-    string comes from `WfbWeather.iconGlyph` at runtime instead of a literal
-    baked in at build time -- the font still has every glyph that call could
-    return, baked in ahead of time (`wfb.emit.resources.icon_font_specs`).
+    string is resolved in two steps at runtime instead of being a literal
+    baked in at build time: `WfbWeather.chooseIcon` picks a catalogue *name*
+    from the bound value, and `IconGlyphs.glyph` (generated per project,
+    directly from `wfb.icon_catalog.CATALOG`) turns that name into the actual
+    character -- the same table any static icon's build-time lookup uses, not
+    a second, weather-only one. The font still has every glyph that call
+    could return, baked in ahead of time (`wfb.emit.resources.icon_font_specs`).
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -553,8 +598,8 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
         from ..ir import local_name
 
         condition_local = local_name(element.value_for.sources[0])
-        w.comment(f"{element.value_for.text!r}, through WfbWeather.iconGlyph")
-        glyph_expr = f"WfbWeather.iconGlyph({condition_local})"
+        w.comment(f"{element.value_for.text!r} -> a name (WfbWeather) -> a glyph (IconGlyphs)")
+        glyph_expr = f"IconGlyphs.glyph(WfbWeather.chooseIcon({condition_local}))"
     else:
         w.comment(f"{element.icon!r}")
         glyph_expr = f'"{element.codepoint}"'

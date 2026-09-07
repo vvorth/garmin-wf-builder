@@ -7,7 +7,8 @@ build offline and the icon vocabulary is not limited to a hand-drawn set.
 Icons are baked into a per-size BMFont sheet at build time by the same
 pipeline that bakes an author's custom text font (`wfb/fonts/bmfont.py`), so
 only the glyphs a design actually uses ever reach the `.prg` — see
-`wfb/icons.py`.
+`wfb/icons.py` for the sizing/resolution logic and `wfb/icon_catalog.py` for
+the catalogue data itself (name, codepoint, description).
 
 ## Licensing
 
@@ -24,7 +25,7 @@ icon sets; the ones this project's catalogue draws from are:
 Material Design Icons is preferred for a new catalogue entry whenever a glyph
 reads at least as well as an alternative -- it is the largest, most
 consistently-drawn set in this font. `steps` is the deliberate exception (see
-`wfb/icons.py`'s module docstring for why), and weather icons come from the
+`wfb/icon_catalog.py`'s comment above `CATALOG` for why), and weather icons come from the
 dedicated Weather Icons set rather than MDI's own `weather_*` glyphs, because
 it has more distinct conditions and day/night pairs -- and, unusually for this
 font, its codepoints fit in the Basic Multilingual Plane (see "Codepoints
@@ -39,26 +40,31 @@ Pictogrammers project; Weather Icons by Erik Flowers, SIL OFL 1.1.
 Any glyph in this font can be used directly in a design without a code change
 at all -- `icon:` accepts a single literal character, checked against this
 font's own character map at build time, in addition to the maintained names in
-`wfb/icons.py`. Adding a *name* for one (so `wfb sources`/`wfb new` document
-it, and so an author does not have to go hunting for a codepoint) means adding
-one `Icon(...)` entry to `wfb/icons.py`'s single `CATALOG` -- there is one
-catalogue for every icon, general-purpose and weather alike, not a separate
-table per kind. A new weather condition also needs an entry in
-`GARMIN_WEATHER_CONDITION_ICON` mapping the raw `Weather.CONDITION_*` value to
-that `CATALOG` name.
+`wfb/icon_catalog.py`. Adding a *name* for one (so `wfb sources`/`wfb new`
+document it, and so an author does not have to go hunting for a codepoint)
+means adding one `Icon(...)` entry to `wfb/icon_catalog.py`'s single
+`CATALOG` -- there is one catalogue for every icon, general-purpose and
+weather alike, not a separate table per kind, and not a separate table on the
+Monkey C side either: `source/IconGlyphs.mc` (generated fresh each build, see
+`wfb/emit/monkeyc.py`) is where a catalogue name becomes a drawn character
+on-device, for every icon, so adding a name here is what a dynamic
+(`icon_for:`) lookup sees too. A new weather condition also needs an entry in
+`wfb.icons.GARMIN_WEATHER_CONDITION_ICON` mapping the raw `Weather.CONDITION_*`
+value to that `CATALOG` name, and its on-device twin,
+`runtime-lib/WfbWeather.mc`'s `chooseIcon()`.
 
-Every codepoint in `wfb/icons.py` is written as a Python `\uXXXX`/`\U000XXXXX`
-escape, not a pasted character -- the glyph is invisible in most editors and
-terminals, so the escape is what stays readable and safe to hand-edit; a
-pasted character that fails to paste correctly still parses as valid Python
-(silently becoming an empty string), so the mistake only surfaces later as a
-blank tile. Each entry also carries the real character in a trailing
-`# preview: <char> (<font glyph name>)` comment -- not for the code to use,
-just so an editor that can render the font (most can) shows what the escape
-next to it is supposed to produce. Look codepoints up against the font's own
-cmap (`fontTools.ttLib.TTFont(...).getBestCmap()`) rather than typing them
-from memory or a website table, the same "never invent an API" rule
-CLAUDE.md applies to Monkey C symbols.
+Every codepoint in `wfb/icon_catalog.py` is written as a Python
+`\uXXXX`/`\U000XXXXX` escape, not a pasted character -- the glyph is invisible
+in most editors and terminals, so the escape is what stays readable and safe
+to hand-edit; a pasted character that fails to paste correctly still parses as
+valid Python (silently becoming an empty string), so the mistake only
+surfaces later as a blank tile. Each entry also carries the real character in
+a trailing `# preview: <char> (<font glyph name>)` comment -- not for the code
+to use, just so an editor that can render the font (most can) shows what the
+escape next to it is supposed to produce. Look codepoints up against the
+font's own cmap (`fontTools.ttLib.TTFont(...).getBestCmap()`) rather than
+typing them from memory or a website table, the same "never invent an API"
+rule CLAUDE.md applies to Monkey C symbols.
 
 To find a codepoint by browsing rather than by name: extract this font with
 `fonttools ttx -l` or a font inspector, or browse

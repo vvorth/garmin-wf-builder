@@ -9,6 +9,7 @@ Garmin toolchain, only the device files (for font baking).
 from __future__ import annotations
 
 from tests.test_diagnostics import load
+from wfb import icons
 from wfb.emit.project import generate
 from wfb.emit.resources import bake_fonts
 
@@ -52,13 +53,17 @@ TWO_DAILY_ICONS = """
 """
 
 
-def _view(write_design, bag, db, tmp_path, elements: str) -> str:
+def _project_files(write_design, bag, db, tmp_path, elements: str) -> dict[str, str]:
     face = load(write_design(DESIGN.format(elements=elements)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
     baked = bake_fonts(face, device, device.minor_radius)
     project = generate(face, [device], tmp_path, {device.id: baked})
-    return project.files()["source/TestView.mc"]
+    return project.files()
+
+
+def _view(write_design, bag, db, tmp_path, elements: str) -> str:
+    return _project_files(write_design, bag, db, tmp_path, elements)["source/TestView.mc"]
 
 
 def test_a_slow_reader_is_cached_not_read_every_frame(write_design, bag, db, tmp_path):
@@ -86,11 +91,43 @@ def test_today_and_tomorrow_share_one_daily_forecast_read(write_design, bag, db,
     assert "weatherDaily.size() > 1" in view
 
 
-def test_dynamic_icon_draws_through_wfb_weather(write_design, bag, db, tmp_path):
+def test_dynamic_icon_resolves_name_then_glyph(write_design, bag, db, tmp_path):
+    """Two steps, not one: WfbWeather picks a *name*, IconGlyphs (generated,
+    catalogue-derived) turns that name into a glyph -- not a weather-only
+    shadow table baked directly into WfbWeather.mc."""
     view = _view(write_design, bag, db, tmp_path, ONE_ICON)
-    assert "WfbWeather.iconGlyph(weatherCondition)" in view
+    assert "IconGlyphs.glyph(WfbWeather.chooseIcon(weatherCondition))" in view
     # no literal glyph string baked in for a dynamic icon.
     assert 'dc.drawText(Layout.WICON_CX, Layout.WICON_CY, font,\n            "' not in view
+
+
+def test_icon_glyphs_module_is_generated_from_the_catalogue(write_design, bag, db, tmp_path):
+    files = _project_files(write_design, bag, db, tmp_path, ONE_ICON)
+    assert "source/IconGlyphs.mc" in files
+    glyphs = files["source/IconGlyphs.mc"]
+    assert "module IconGlyphs" in glyphs
+    assert "function glyph(name as String) as String" in glyphs
+    # every name weather.condition* could ever select is covered, and each
+    # one's glyph matches the catalogue exactly.
+    for name in set(icons.GARMIN_WEATHER_CONDITION_ICON.values()):
+        codepoint = icons.CATALOG[name].codepoint
+        assert f'case "{name}": return "{codepoint}";' in glyphs
+
+
+def test_icon_glyphs_module_is_absent_without_a_dynamic_icon(write_design, bag, db, tmp_path):
+    static_icon = """
+  - id: heart
+    type: icon
+    icon: heart
+    size: 20%r
+    at: {anchor: center}
+    color: palette.fg
+"""
+    files = _project_files(write_design, bag, db, tmp_path, static_icon)
+    assert "source/IconGlyphs.mc" not in files
+    # a static icon's glyph is still a literal, resolved at build time.
+    view = files["source/TestView.mc"]
+    assert "IconGlyphs" not in view
 
 
 def test_dynamic_icon_hides_when_condition_is_absent(write_design, bag, db, tmp_path):

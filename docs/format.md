@@ -272,8 +272,8 @@ Awesome glyph because MDI's walking/running figures read as "activity" rather
 than "step count" at a glance. Weather icons (`weather_*`) come from the font's
 dedicated Weather Icons set instead, because it covers more distinct conditions
 and day/night pairs than MDI's own `weather_*` glyphs and — unlike them — its
-codepoints fit in the Basic Multilingual Plane (see `wfb/icons.py`'s module
-docstring). `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` maps every
+codepoints fit in the Basic Multilingual Plane (see the comment above
+`CATALOG` in `wfb/icon_catalog.py`). `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` maps every
 `Toybox.Weather.CONDITION_*` value (0–53) to one of these, and
 `wfb.icons.METRIC_ICON` maps common data-source paths (`activity.steps`,
 `heart_rate.current`, and so on) to their conventional icon, for a design or
@@ -312,13 +312,18 @@ the glyph on-device, at runtime, from a bound value — mutually exclusive with
 This currently accepts only a bare `weather.condition*` source (see `wfb
 sources`) — not an expression over one (`weather.condition + 1` is rejected;
 the lookup needs the raw `Weather.CONDITION_*` value). The generated code
-resolves the glyph through `WfbWeather.iconGlyph()`, a hand-written barrel
-function mirroring `wfb.icons.weather_icon_for_condition()` glyph-for-glyph
-(day glyphs only for now — there is no sunrise/sunset source yet to pick the
-night variant on-device). Because the actual glyph is not known until
-runtime, its font bakes *every* glyph the lookup could return rather than
-one — still cheap: baking is still a small per-glyph bitmap, just several of
-them sharing one font instead of one glyph having its own.
+resolves the glyph in two steps, mirroring `wfb.icons` exactly: `WfbWeather.
+chooseIcon()` (a hand-written barrel function, day glyphs only for now — there
+is no sunrise/sunset source yet to pick the night variant on-device) turns the
+condition into a catalogue *name*, and `IconGlyphs.glyph()` — generated fresh
+each build directly from the icon catalogue, not hand-written — turns that
+name into the actual character. A weather condition is not a special case on
+the device side any more than it is in the catalogue: the same `IconGlyphs`
+table is where any dynamic icon's name becomes a glyph. Because the actual
+glyph is not known until runtime, its font bakes *every* glyph the lookup
+could return rather than one — still cheap: baking is still a small per-glyph
+bitmap, just several of them sharing one font instead of one glyph having its
+own.
 
 When the bound value is absent (no cached weather data yet), the icon simply
 does not draw — the same `hide`-by-default behaviour any other nullable
