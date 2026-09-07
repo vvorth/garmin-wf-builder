@@ -35,6 +35,7 @@ condition alike -- is written exactly once, in `wfb/icon_catalog.py`.
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -58,6 +59,51 @@ def get(name: str) -> Icon | None:
 
 def names() -> list[str]:
     return sorted(CATALOG)
+
+
+#: `glyph:`'s accepted spelling -- the Unicode standard's own notation.
+#: Deliberately strict: `U+F0BC` is greppable, reviewable in a diff, and
+#: survives copy-paste, none of which is true of the bare character `icon:`
+#: also accepts (that one is invisible in most editors, which is the same
+#: hazard `wfb/icon_catalog.py`'s module docstring warns about for this
+#: project's own source).
+_CODEPOINT_RE = re.compile(r"^[Uu]\+([0-9A-Fa-f]{1,6})$")
+
+
+def parse_codepoint(text: str) -> str | None:
+    """``"U+F0BC"`` -> the character, or ``None`` if it is not that notation.
+
+    Returning ``None`` for a non-match rather than raising lets the caller
+    tell "this is not a codepoint spelling" apart from "this codepoint is not
+    in the font", which are different mistakes and deserve different
+    diagnostics.
+    """
+    match = _CODEPOINT_RE.match(text.strip())
+    if match is None:
+        return None
+    try:
+        return chr(int(match.group(1), 16))
+    except (ValueError, OverflowError):
+        return None
+
+
+def name_for_codepoint(character: str) -> str | None:
+    """The catalogue name for a character, if it has one.
+
+    Lets a `glyph:` that duplicates a catalogue entry say so: the name is the
+    better spelling, because it keeps meaning if the catalogue ever moves that
+    icon to a different codepoint (which it has done -- see `wfb/icons.py`'s
+    module docstring on the Font Awesome to Material Design Icons switch).
+    """
+    for name, icon in CATALOG.items():
+        if icon.codepoint == character:
+            return name
+    return None
+
+
+def font_has(character: str) -> bool:
+    """Is this character in the vendored icon font's own character map?"""
+    return character in _available_glyphs()
 
 
 def resolve_codepoint(name: str) -> str | None:

@@ -145,6 +145,15 @@ per device.
 * **`scale: true` scales the sheet with the screen**, so one declaration is right
   on both the 260×260 and the 280×280 family. A sheet baked for one and shipped
   to the other is a real, common drift.
+* **Glyphs are rasterised at 16x and averaged down**, not drawn straight at the
+  target size. At single-digit sizes FreeType's hinting fits the outline to the
+  pixel grid and breaks the shape's own symmetry — measured across 99
+  provably-symmetric glyphs from the icon font, **16.8% of ink pixels landed
+  asymmetrically**: a plain square baked to 7x7 ink inside an 8x8 tile, and a
+  ring came out lopsided in every row. Rasterising large and box-averaging
+  recovers real per-pixel coverage before the 1-bit threshold sees it, which
+  brings that to **1.1%**. Advances and line metrics are untouched, so this
+  changes how a glyph looks, never where it sits.
 * **`antialias` defaults to false.** Bitmap fonts are 1-bit by default because
   anti-aliasing costs runtime RAM.
 
@@ -282,12 +291,35 @@ tool that wants a sensible default rather than the compiler enforcing one.
 
 **Beyond the named icons**, the vendored font has on the order of ten thousand
 glyphs, including codepoints above the Basic Multilingual Plane (all of MDI's
-own icons live there). `icon:` accepts any single character from it directly —
+own icons live there). Reach one with **`glyph:`**, which takes a codepoint in
+Unicode's own notation:
+
 ```yaml
-icon: ""    # a literal glyph, e.g. from https://www.nerdfonts.com/cheat-sheet
+- id: repo
+  type: icon
+  glyph: "U+F09B"     # nf-fa-github; find codepoints at nerdfonts.com/cheat-sheet
+  size: 12%r
+  color: palette.dim
 ```
-— checked against the font's own character map at build time, the same way a
-custom font's glyph coverage is checked. A codepoint above the Basic
+
+`glyph:` is the **recommended** way to use an icon the catalogue does not name.
+`icon:` also accepts a bare character pasted straight into the YAML, and that
+still works, but prefer `glyph:`: `U+F09B` is greppable, reviewable in a diff
+and survives copy-paste, where the character itself renders as a blank box —
+or as nothing at all — in most editors. That is the same hazard
+`wfb/icon_catalog.py` warns about for this project's own source, and it applies
+just as much to a design file.
+
+`icon:`, `glyph:` and `icon_for:` are mutually exclusive — an icon element uses
+exactly one. Writing `glyph:` for a codepoint the catalogue *does* name is
+accepted with a note pointing at the name, which is the better spelling: a name
+keeps meaning if the catalogue moves that icon to a different codepoint, which
+has already happened once (the Font Awesome → Material Design Icons switch).
+
+A codepoint the font does not carry is a build error, checked against the
+font's own character map — the same way a custom font's glyph coverage is
+checked, and for the same reason: the alternative is a blank tile discovered on
+the wrist. A codepoint above the Basic
 Multilingual Plane builds and renders correctly; the generated `<font>`
 resource simply omits its `filter` attribute, because the resource compiler
 parses that attribute as UTF-16 code units and a surrogate pair would not
@@ -588,6 +620,59 @@ clip counts as modified whenever any does.
 and it is not suppressible: exceeding the partial-update budget calls
 `onPowerBudgetExceeded` and disables partial updates for the rest of the app's
 lifecycle.
+
+---
+
+## Interactivity: `on_tap:`
+
+Any element can open a glance when it is touched:
+
+```yaml
+- id: hr_icon
+  type: icon
+  icon: heart
+  at: {anchor: center, dy: -20%}
+  on_tap: heart_rate        # run `wfb complications` for the 42 names
+```
+
+**A watch face cannot launch an arbitrary app.** The platform offers exactly
+one exit — `Complications.exitTo`, documented as "launches the app associated
+with the complication" — so an interactive element names a **complication
+type** and the watch opens whichever glance or app owns it. `on_tap:
+heart_rate` opens the heart-rate glance whether or not the design displays a
+heart rate.
+
+`wfb complications` lists every name, the Monkey C constant it compiles to,
+and the API level that type was introduced at. The list is generated from the
+SDK's own `COMPLICATION_TYPE_*` table, so it cannot drift from what the
+platform actually offers.
+
+**One declaration, two behaviours.** `WatchFaceDelegate.onTap` is documented
+since API level 5.1.0 and is *still absent* on some watches above it — `fr955`
+is 5.2.0 and has only `onPress`. The compiler emits both handlers, so the same
+`on_tap:` is a tap where tap exists and a touch-and-hold where it does not,
+and `wfb validate` says which you are getting on each target, resolved against
+that device's own symbol table rather than its API level:
+
+```
+note[tap-unsupported]: fr955 has no WatchFaceDelegate.onTap, so its 2 tap
+target(s) are reached by touch and hold instead
+```
+
+**The hit region is the element's own drawn box** — what the finger must hit is
+what the eye sees, which is checkable in `wfb preview`. Nothing is inflated to
+a minimum touch size: Garmin publishes no such number, and inventing one would
+silently overlap neighbours on a dense face. For a bigger target, put the
+element in a `group` and put `on_tap:` on the group.
+
+Regions are tested in draw order and the first match wins, so two overlapping
+tap regions make the second unreachable. That is a warning (`tap-overlap`),
+not something you have to notice on the wrist.
+
+Binding `on_tap:` adds the `ComplicationSubscriber` permission and raises
+`minApiLevel` to 4.2.0 automatically — `exitTo`'s own level, not `onTap`'s
+5.1.0, because a watch below 5.1.0 still runs the face perfectly well; it just
+does not deliver touches.
 
 ---
 

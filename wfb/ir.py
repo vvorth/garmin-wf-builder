@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import catalog, expr, icons
+from . import catalog, complications, expr, icons
 from .catalog import Source, Tier, Type
 from .diagnostics import Bag, Span
 from .palette import Color, ColorError
@@ -134,6 +134,11 @@ class Element:
     lint_allow: frozenset[str] = frozenset()
     lint_reason: str | None = None
     overrides: dict = field(default_factory=dict)
+    #: A `wfb.complications` name this element launches when tapped (ADR 0006
+    #: §6).  The platform offers exactly one door out of a watch face --
+    #: `Complications.exitTo` -- so an interactive element names a complication
+    #: type and the watch opens whatever glance owns it.
+    on_tap: str | None = None
 
     @property
     def symbol(self) -> str:
@@ -431,6 +436,7 @@ class Builder:
             lint_allow=frozenset((node.get("lint") or {}).get("allow", ())),
             lint_reason=(node.get("lint") or {}).get("reason"),
             overrides=dict(node.get("overrides") or {}),
+            on_tap=self._tap_target(node),
         )
 
         builders = {
@@ -488,6 +494,37 @@ class Builder:
             self.seen_symbols[symbol] = (element_id, span)
         return True
         return ok
+
+    def _tap_target(self, node: dict) -> str | None:
+        """Validate `on_tap:` against the launchable complication table.
+
+        A watch face cannot open an arbitrary app; `Complications.exitTo` is
+        the only exit the platform offers, so the value here names a
+        complication *type* and the watch opens whatever owns it.  Checked
+        against :mod:`wfb.complications`, which is generated from the SDK's own
+        `COMPLICATION_TYPE_*` table -- an invented name would compile to an
+        undefined symbol, so catching it here points at the author's line
+        instead of a generated one.
+        """
+        raw = node.get("on_tap")
+        if raw is None:
+            return None
+        name = str(raw)
+        if complications.get(name) is not None:
+            return name
+        near = complications.suggest(name)
+        notes = []
+        if near:
+            notes.append("did you mean: " + ", ".join(near) + "?")
+        notes.append("run `wfb complications` for the full list of "
+                     f"{len(complications.LAUNCHABLE)} launch targets")
+        self.bag.error(
+            "on-tap",
+            f"unknown tap target {name!r}",
+            self.doc.span(node, "on_tap"),
+            notes=notes,
+        )
+        return None
 
     def _build_group(self, node: dict, common: dict, path: tuple) -> Element:
         return Group(
@@ -587,15 +624,20 @@ class Builder:
     def _build_icon(self, node: dict, common: dict, path: tuple) -> Element:
         name = node.get("icon")
         has_icon_for = "icon_for" in node
-        if (name is None) == (not has_icon_for):
+        has_glyph = "glyph" in node
+        chosen = [k for k in ("icon", "icon_for", "glyph") if k in node]
+        if len(chosen) != 1:
             self.bag.error(
                 "icon",
-                "an icon element needs exactly one of 'icon' or 'icon_for'",
+                "an icon element needs exactly one of 'icon', 'glyph' or 'icon_for'"
+                + (f" -- got {', '.join(repr(k) for k in chosen)}" if chosen else ""),
                 self.doc.span(node),
-                notes=["'icon' names a fixed glyph; 'icon_for' chooses one at "
-                       "runtime from a bound value -- see "
-                       "wfb.catalog.WEATHER_CONDITION_SOURCES for what it "
-                       "currently accepts"],
+                notes=["'icon' names a glyph from the built-in catalogue (run "
+                       "`wfb sources` for the list)",
+                       "'glyph' is any codepoint in the vendored icon font, written "
+                       "'U+XXXX' -- for the ~10,000 glyphs the catalogue does not name",
+                       "'icon_for' chooses one at runtime from a bound value -- see "
+                       "wfb.catalog.WEATHER_CONDITION_SOURCES for what it accepts"],
             )
 
         size = self._length(node, "size")
@@ -636,6 +678,9 @@ class Builder:
                 color=self._color_expression(node, "color"),
             )
 
+        if has_glyph:
+            return self._build_glyph_icon(node, common, size)
+
         codepoint = icons.resolve_codepoint(name) if name is not None else None
         if codepoint is None:
             self.bag.error(
@@ -654,6 +699,58 @@ class Builder:
             **common,
             icon=name,
             codepoint=codepoint,
+            size=size,
+            color=self._color_expression(node, "color"),
+        )
+
+    def _build_glyph_icon(self, node: dict, common: dict, size) -> Element:
+        """`glyph: "U+F0BC"` -- a codepoint the catalogue does not name.
+
+        The same escape hatch `icon:`'s bare-character form offers, spelled so
+        that it survives a code review: `U+F0BC` is greppable and visible,
+        where the character itself renders as a blank box (or nothing) in most
+        editors and diffs.  Everything downstream -- baking, sizing, the
+        per-codepoint font key -- is identical once it is a character, because
+        this is exactly what a catalogue name resolves to.
+        """
+        raw = str(node.get("glyph"))
+        span = self.doc.span(node, "glyph")
+        character = icons.parse_codepoint(raw)
+        if character is None:
+            self.bag.error(
+                "icon",
+                f"glyph must be a codepoint written 'U+XXXX', not {raw!r}",
+                span,
+                notes=["e.g. glyph: \"U+F0BC\" -- 1 to 6 hex digits, case-insensitive",
+                       "to use a name from the built-in catalogue, write 'icon:' instead"],
+            )
+            character = icons.FALLBACK_CODEPOINT
+        elif not icons.font_has(character):
+            self.bag.error(
+                "icon",
+                f"the icon font has no glyph at {raw.upper()}",
+                span,
+                notes=[
+                    "checked against the vendored font's own character map, the same "
+                    "way a custom text font's coverage is checked",
+                    "https://www.nerdfonts.com/cheat-sheet lists the codepoints this "
+                    "font actually carries",
+                ],
+            )
+            character = icons.FALLBACK_CODEPOINT
+        else:
+            named = icons.name_for_codepoint(character)
+            if named is not None:
+                self.bag.note(
+                    "icon",
+                    f"glyph {raw.upper()} is in the catalogue as {named!r} -- "
+                    f"'icon: {named}' says the same thing and survives a font update",
+                    span,
+                )
+        return IconElement(
+            **common,
+            icon=raw.upper(),
+            codepoint=character,
             size=size,
             color=self._color_expression(node, "color"),
         )

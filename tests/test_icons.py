@@ -313,3 +313,37 @@ elements:
 """), bag)
     assert face is None
     assert any(d.code == "icon" and "%r" in d.message for d in bag.errors)
+
+
+# -- `glyph:`, the explicit codepoint escape hatch --------------------------
+
+
+def test_a_codepoint_parses_in_unicode_notation():
+    from wfb import icons
+
+    assert icons.parse_codepoint("U+F0BC") == ""
+    assert icons.parse_codepoint("u+f0bc") == ""          # case-insensitive
+    assert icons.parse_codepoint("  U+F0BC  ") == ""      # surrounding space
+    assert icons.parse_codepoint("U+F02D1") == "\U000f02d1"     # above the BMP
+
+
+def test_anything_that_is_not_that_notation_is_not_a_codepoint():
+    """`None` means "not this spelling", which the caller reports differently
+    from "this codepoint is not in the font" -- they are different mistakes."""
+    from wfb import icons
+
+    for text in ("F0BC", "0xF0BC", "U+ZZZZ", "U+", "steps", ""):
+        assert icons.parse_codepoint(text) is None, text
+
+
+def test_an_out_of_range_codepoint_is_rejected_rather_than_raising():
+    from wfb import icons
+
+    assert icons.parse_codepoint("U+110000") is None  # past the last code point
+
+
+def test_name_for_codepoint_finds_a_catalogue_duplicate():
+    from wfb import icons
+
+    assert icons.name_for_codepoint(icons.CATALOG["steps"].codepoint) == "steps"
+    assert icons.name_for_codepoint("A") is None
