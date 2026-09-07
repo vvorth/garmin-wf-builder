@@ -164,16 +164,6 @@ elements:
     when_absent: placeholder
     placeholder: "--"
 
-  # The reference's row has a condition icon here; this is the real one, not a
-  # stand-in -- it does not draw at all until Weather has cached a reading
-  # (`icon_for:`'s hide-when-absent default, docs/format.md).
-  - id: weather_icon
-    type: icon
-    icon_for: weather.condition
-    size: 8%r
-    at: {anchor: top, dx: 40%, dy: 28.5%}
-    color: palette.dim
-
   - id: sep_2
     type: shape
     shape: line
@@ -186,7 +176,71 @@ elements:
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
 
-  # -- row 3: the clock, in two colours -------------------------------------
+
+  # -- row 3: weather -------------------------------------
+
+  - id: temp_now
+    type: text
+    value: weather.feels_like_temperature
+    format: "{:d}°"
+    font: FONT_XTINY
+    at: {anchor: top, dy: 30%, dx: -32%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "--°"
+
+  - id: precipitation
+    type: text
+    value: weather.precipitation_chance_today
+    format: "{:d}%"
+    font: FONT_XTINY
+    at: {anchor: top, dy: 30%, dx: -15%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "--%"
+
+  - id: weather_icon
+    type: icon
+    icon_for: weather.condition_today
+    size: 20%r
+    at: {anchor: top, dy: 30%}
+    color: palette.dim
+
+  - id: temp_high
+    type: text
+    value: weather.high_temperature_today
+    format: "H:{:d}°"
+    font: FONT_XTINY
+    at: {anchor: top, dy: 30%, dx: 15%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "H:--°"
+
+  - id: temp_low
+    type: text
+    value: weather.low_temperature_today
+    format: "L:{:d}°"
+    font: FONT_XTINY
+    at: {anchor: top, dy: 30%, dx: 32%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "L:--°"
+
+
+  - id: sep_3
+    type: shape
+    shape: line
+    at: {anchor: top, dy: 36%, dx: 44% }
+    to: {anchor: top, dy: 36%, dx: -44% }
+    thickness: 1px
+    color: palette.separator
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+
+  # -- row center: the clock, in two colours -------------------------------------
   # Hours and minutes are separate elements so each can take its own colour --
   # a single text element draws in exactly one colour, because a bitmap font
   # carries one channel.
@@ -213,11 +267,11 @@ elements:
     align: left
     color: palette.minutes
 
-  - id: sep_3
+  - id: sep_4
     type: shape
     shape: line
-    at: {anchor: bottom, dy: -32%, dx: 40% }
-    to: {anchor: bottom, dy: -32%, dx: -40% }
+    at: {anchor: bottom, dy: -32%, dx:  43% }
+    to: {anchor: bottom, dy: -32%, dx: -43% }
     thickness: 1px
     color: palette.separator
     lint:
@@ -239,7 +293,7 @@ elements:
     value: activity.floors_climbed
     format: "{:d}fl"
     font: FONT_XTINY
-    at: {anchor: top, dx: -25%, dy: 73.5%}
+    at: {anchor: top, dx: -25%, dy: 74%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
@@ -247,15 +301,15 @@ elements:
   - id: dnd_icon
     type: icon
     icon: dnd
-    size: 9%r
-    at: {anchor: top, dx: -9%, dy: 73.5%}
+    size: 12%r
+    at: {anchor: top, dx: -12%, dy: 74%}
     color: "device.do_not_disturb ? palette.dnd_on : palette.off"
 
   - id: alarm_icon
     type: icon
     icon: alarm
-    size: 9%r
-    at: {anchor: top, dx: 9%, dy: 73.5%}
+    size: 12%r
+    at: {anchor: top, dy: 74%}
     color: "device.alarm_count > 0 ? palette.alarm_on : palette.off"
 
   - id: steps_value
@@ -263,12 +317,12 @@ elements:
     value: "activity.steps / 1000.0"
     format: "{:.1f}k"           # always one decimal, so the width holds still
     font: FONT_XTINY
-    at: {anchor: top, dx: 25%, dy: 73.5%}
+    at: {anchor: top, dx: 25%, dy: 74%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
 
-  - id: sep_4
+  - id: sep_5
     type: shape
     shape: line
     at: {anchor: bottom, dy: -20%, dx: 32% }
