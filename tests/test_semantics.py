@@ -961,3 +961,41 @@ def test_on_tap_derives_the_permission_and_api_level(write_design, bag, db):
     manifest = generate(face, [device], path.parent / "b", baked).files()["manifest.xml"]
     assert 'uses-permission id="ComplicationSubscriber"' in manifest
     assert 'minApiLevel="4.2.0"' in manifest
+
+
+def test_on_tap_on_a_group_covers_the_whole_box_not_one_child(write_design, bag, db):
+    """A group draws nothing of its own, but its box is still a real tap
+    region -- the documented way to make a multi-element cluster (an icon
+    next to its reading) act as one target instead of tagging every child."""
+    from wfb.emit import generate
+    from wfb.emit.resources import bake_fonts
+
+    path = write_design(design("""
+  - id: hr_group
+    type: group
+    size: {width: 60%, height: 20%}
+    at: {anchor: center, dy: -20%}
+    on_tap: heart_rate
+    children:
+      - id: hr_icon
+        type: icon
+        icon: heart
+        size: 10%r
+        at: {anchor: center, dx: -15%}
+      - id: hr_value
+        type: text
+        value: heart_rate.current
+        format: "{:d}"
+        when_absent: hide
+        at: {anchor: center, dx: 15%}
+"""))
+    face = load(path, bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    files = generate(face, [device], path.parent / "b", baked).files()
+    delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
+    assert "HR_GROUP_TAP_X" in delegate
+    assert "HR_ICON_TAP_X" not in delegate and "HR_VALUE_TAP_X" not in delegate
+    layout = next(v for k, v in files.items() if k.endswith("Layout.mc"))
+    assert "HR_GROUP_TAP_WIDTH" in layout

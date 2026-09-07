@@ -366,8 +366,41 @@ as a real (if odd) forecast rather than as "not ready yet".
 
 ### `group`
 
-A container with `children:`. Percentages inside it resolve against the group's
-box, not the screen.
+```yaml
+- id: hr_group
+  type: group
+  size: {width: 60%, height: 20%}
+  at: {anchor: center, dy: -20%}
+  on_tap: heart_rate       # optional -- see "Interactivity" below
+  children:
+    - id: hr_icon
+      type: icon
+      icon: heart
+      size: 10%r
+      at: {anchor: center, dx: -15%}
+    - id: hr_value
+      type: text
+      value: heart_rate.current
+      format: "{:d}"
+      when_absent: hide
+      at: {anchor: center, dx: 15%}
+```
+
+A container with `children:` and its own `size:`/`at:`. **Percentages inside a
+group resolve against the group's own box, not the screen** — `dx: -15%` above
+is 15% of the group's 60%-of-screen width, not 15% of the screen. This is what
+makes a cluster of elements (an icon plus its reading, a row of stats)
+positionable and resizable as one unit: move or resize the group, and every
+child's relative position follows without being restated.
+
+A group draws nothing of its own — no fill, no border — it is purely a
+coordinate frame and, when it carries `on_tap:`, a hit region. Use a `shape`
+underneath it for a visible background.
+
+**`on_tap:` on a group covers the group's whole box**, not just one child — the
+natural way to make a multi-element cluster (an icon next to its value, as
+above) act as a single tap target instead of naming `on_tap:` on each piece
+separately. See "Interactivity" below.
 
 ---
 
@@ -662,8 +695,9 @@ target(s) are reached by touch and hold instead
 **The hit region is the element's own drawn box** — what the finger must hit is
 what the eye sees, which is checkable in `wfb preview`. Nothing is inflated to
 a minimum touch size: Garmin publishes no such number, and inventing one would
-silently overlap neighbours on a dense face. For a bigger target, put the
-element in a `group` and put `on_tap:` on the group.
+silently overlap neighbours on a dense face. For a bigger target, or to make
+several elements act as one, put them in a `group` (above) and put `on_tap:`
+on the group instead of each child.
 
 Regions are tested in draw order and the first match wins, so two overlapping
 tap regions make the second unreachable. That is a warning (`tap-overlap`),
