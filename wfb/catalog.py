@@ -80,6 +80,11 @@ class Reader:
     #: default, and an author can always override it (`wfb/emit/monkeyc.py`'s
     #: `ReadPlan` is where this would be threaded through if that need arises).
     ttl_seconds: int = 900
+    #: Only meaningful when ``tier`` is ``EVENT``: the ``Complications.Type``
+    #: constant this reader subscribes to.  ``call`` for one of these readers
+    #: is not an API call at all but the cached field ``onComplicationChanged``
+    #: writes into -- there is nothing to fetch on demand, unlike ``SLOW``.
+    complication_type: str | None = None
 
 
 READERS: dict[str, Reader] = {
@@ -146,6 +151,73 @@ READERS: dict[str, Reader] = {
         "UserProfile.getProfile()",
         "UserProfile.Profile",
         "Toybox.UserProfile",
+    ),
+    # -- complications (Toybox/Complications.html, API 4.2.0) ---------------
+    # An `EVENT`-tier reader is not an API call the generator hoists into
+    # onUpdate at all -- Complications delivers values through a subscription
+    # callback (onComplicationChanged, emitted by wfb/emit/monkeyc.py), and
+    # `call` here names the cached view field that callback writes into.
+    # `ReadPlan.emit_reads` treats that the same way it treats a frame-tier
+    # reader (`var x = call;`), because by the time onUpdate runs the value is
+    # already sitting in the field -- there is no staleness check, unlike
+    # `SLOW`.
+    #
+    # Each complication is its own reader, not grouped: unlike
+    # `ActivityMonitor.getInfo()`, there is no single call that returns several
+    # complications' values together, and `Complications.Type` values only
+    # existed once, so a `Reader` per type is the accurate model, not a
+    # simplification.
+    #
+    # A device may not support a given type -- `subscribeToUpdates` can return
+    # `false` or throw `ComplicationNotFoundException` (Complications.html).
+    # `runtime-lib/WfbComplications.mc`'s `subscribe()` catches both outcomes
+    # uniformly, so an unsupported complication just leaves its cached field
+    # `null` forever, the same "absence is normal" contract every other
+    # nullable source already has -- it does not need per-device gating here.
+    "complication_body_battery": Reader(
+        "bodyBatteryComplication", "_bodyBatteryComplicationCache", "Number?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_BODY_BATTERY",
+    ),
+    "complication_solar_input": Reader(
+        "solarInputComplication", "_solarInputComplicationCache", "Number?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_SOLAR_INPUT",
+    ),
+    "complication_sunrise": Reader(
+        "sunriseComplication", "_sunriseComplicationCache", "Number?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_SUNRISE",
+    ),
+    "complication_sunset": Reader(
+        "sunsetComplication", "_sunsetComplicationCache", "Number?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_SUNSET",
+    ),
+    "complication_training_status": Reader(
+        "trainingStatusComplication", "_trainingStatusComplicationCache", "String?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_TRAINING_STATUS",
+    ),
+    "complication_weekly_run_distance": Reader(
+        "weeklyRunDistanceComplication", "_weeklyRunDistanceComplicationCache", "Float?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE",
+    ),
+    "complication_weekly_bike_distance": Reader(
+        "weeklyBikeDistanceComplication", "_weeklyBikeDistanceComplicationCache", "Float?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_WEEKLY_BIKE_DISTANCE",
+    ),
+    "complication_sleep_score": Reader(
+        "sleepScoreComplication", "_sleepScoreComplicationCache", "Number?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_SLEEP_SCORE",
+    ),
+    "complication_calendar_events": Reader(
+        "calendarEventsComplication", "_calendarEventsComplicationCache", "String?",
+        "Toybox.Complications", tier=Tier.EVENT,
+        complication_type="COMPLICATION_TYPE_CALENDAR_EVENTS",
     ),
 }
 
@@ -306,6 +378,14 @@ CATALOG: dict[str, Source] = {
         _s("heart_rate.current", Type.NUMBER, "activity_info", "currentHeartRate", True,
            Tier.FRAME, unit="bpm",
            doc="current heart rate", source_ref="Toybox/Activity/Info.html"),
+        # -- blood oxygen ----------------------------------------------------
+        # Toybox/Activity/Info.html, same reader and no-permission reasoning as
+        # heart_rate.current above. Confirmed present on all three targets by
+        # reading currentOxygenSaturation's own Supported Devices list (it is
+        # device-gated in the SDK doc, unlike currentHeartRate).
+        _s("pulse_ox.current", Type.NUMBER, "activity_info", "currentOxygenSaturation", True,
+           Tier.FRAME, unit="percent",
+           doc="current blood oxygen saturation", source_ref="Toybox/Activity/Info.html"),
         # -- ambient conditions ---------------------------------------------
         # Toybox/Activity/Info.html, the same reader and the same no-permission
         # reasoning as heart_rate.current above: Toybox.Activity is not in the
@@ -384,6 +464,65 @@ CATALOG: dict[str, Source] = {
            True, Tier.FRAME, unit="bpm", permissions=("UserProfile",),
            doc="average resting heart rate, calculated from historical data",
            source_ref="Toybox/UserProfile/Profile.html"),
+
+        # -- complications (Toybox/Complications.html, API 4.2.0) -----------
+        # Each of these has no other way to reach a watch face: it is not a
+        # field of ActivityMonitor.Info, Activity.Info or UserProfile.Profile.
+        # `field_name` is None for all of them -- like `time.clock`, the
+        # reader *is* the value, not an object with fields to read off it --
+        # and `nullable=True` here (rather than on the Reader, as
+        # `activity_info` does) because the field can genuinely be absent
+        # (never yet delivered by a callback), not because the read itself is
+        # fallible; see wfb/catalog.py's `complication_*` Reader entries.
+        # Every one needs ComplicationSubscriber (already in
+        # WATCHFACE_PERMISSIONS below).
+        _s("body_battery.current", Type.NUMBER, "complication_body_battery", None, True,
+           Tier.EVENT, permissions=("ComplicationSubscriber",),
+           doc="current Body Battery, 0-100",
+           source_ref="Toybox/Complications.html"),
+        _s("system.solar_input", Type.NUMBER, "complication_solar_input", None, True,
+           Tier.EVENT, unit="percent", permissions=("ComplicationSubscriber",),
+           doc="current solar charging input, 0-100",
+           source_ref="Toybox/Complications.html"),
+        _s("weather.sunrise", Type.NUMBER, "complication_sunrise", None, True,
+           Tier.EVENT, unit="seconds since local midnight",
+           permissions=("ComplicationSubscriber",),
+           doc="today's sunrise time, in seconds since local midnight",
+           source_ref="Toybox/Complications.html"),
+        _s("weather.sunset", Type.NUMBER, "complication_sunset", None, True,
+           Tier.EVENT, unit="seconds since local midnight",
+           permissions=("ComplicationSubscriber",),
+           doc="today's sunset time, in seconds since local midnight",
+           source_ref="Toybox/Complications.html"),
+        _s("activity.training_status", Type.STRING, "complication_training_status", None, True,
+           Tier.EVENT, permissions=("ComplicationSubscriber",),
+           doc="current training status (e.g. \"Productive\", \"Peaking\")",
+           source_ref="Toybox/Complications.html"),
+        _s("activity.weekly_run_distance", Type.FLOAT, "complication_weekly_run_distance",
+           None, True, Tier.EVENT, unit="m", permissions=("ComplicationSubscriber",),
+           doc="running distance this week",
+           source_ref="Toybox/Complications.html"),
+        _s("activity.weekly_bike_distance", Type.FLOAT, "complication_weekly_bike_distance",
+           None, True, Tier.EVENT, unit="m", permissions=("ComplicationSubscriber",),
+           doc="cycling distance this week",
+           source_ref="Toybox/Complications.html"),
+        # API Level 6.0.2 -- above fr955's own ConnectIQ ceiling (5.2.0, from
+        # its compiler.json), below the fenix 8 Solar pair's (6.0.2). Left in
+        # rather than dropped: WfbComplications.subscribe's catch-both-outcomes
+        # design (see the `complication_*` Reader comment above) means fr955
+        # simply never receives an update and the field stays null forever --
+        # the ordinary "absence is normal" contract, not a crash -- but a
+        # design that relies on this field will show nothing at all on fr955,
+        # which is worth knowing before binding it there. See docs/limitations.md.
+        _s("activity.sleep_score", Type.NUMBER, "complication_sleep_score", None, True,
+           Tier.EVENT, unit="percent", permissions=("ComplicationSubscriber",),
+           doc="last night's sleep score, 0-100 (unavailable on fr955: needs "
+               "ConnectIQ 6.0.2, above its 5.2.0 ceiling)",
+           source_ref="Toybox/Complications.html"),
+        _s("device.next_calendar_event", Type.STRING, "complication_calendar_events", None,
+           True, Tier.EVENT, permissions=("ComplicationSubscriber",),
+           doc="the time of your next calendar event",
+           source_ref="Toybox/Complications.html"),
     ]
 }
 

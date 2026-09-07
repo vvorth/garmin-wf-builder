@@ -278,11 +278,13 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         _emit_fields(w, resolved)
         _emit_cache_fields(w, plan)
         _emit_initialize(w, face)
-        _emit_on_layout(w, resolved)
+        _emit_on_layout(w, resolved, plan)
         _emit_on_update(w, resolved, plan)
         if resolved.in_mode("low_power") and device.supports_partial_update:
             _emit_on_partial_update(w, resolved, plan)
         _emit_sleep_hooks(w, resolved)
+        if plan.event_readers():
+            _emit_complication_callback(w, plan)
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
@@ -304,15 +306,24 @@ def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
 
 def _emit_cache_fields(w: Writer, plan: "ReadPlan") -> None:
     slow = plan.slow_readers()
-    if not slow:
-        return
-    w.doc("`slow`-tier reads, cached here instead of re-read every frame --\n"
-          "see WfbCache.mc and ReadPlan.emit_reads.")
-    for name in slow:
-        reader = READERS[name]
-        w.line(f"private var _{reader.name}Cache as {reader.monkeyc_type};")
-        w.line(f"private var _{reader.name}CacheTime as Number?;")
-    w.blank()
+    if slow:
+        w.doc("`slow`-tier reads, cached here instead of re-read every frame --\n"
+              "see WfbCache.mc and ReadPlan.emit_reads.")
+        for name in slow:
+            reader = READERS[name]
+            w.line(f"private var _{reader.name}Cache as {reader.monkeyc_type};")
+            w.line(f"private var _{reader.name}CacheTime as Number?;")
+        w.blank()
+
+    event = plan.event_readers()
+    if event:
+        w.doc("`event`-tier reads: complications, filled in by\n"
+              "onComplicationChanged rather than read fresh every frame -- see\n"
+              "_emit_on_layout's subscriptions below.")
+        for name in event:
+            reader = READERS[name]
+            w.line(f"private var {reader.call} as {reader.monkeyc_type};")
+        w.blank()
 
 
 def _emit_initialize(w: Writer, face: Face) -> None:
@@ -321,17 +332,30 @@ def _emit_initialize(w: Writer, face: Face) -> None:
     w.blank()
 
 
-def _emit_on_layout(w: Writer, resolved: ResolvedFace) -> None:
+def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
     loaded = _loaded_fonts(resolved)
+    event = plan.event_readers()
     w.doc("Load resources once.  Loading is expensive and must not happen per frame.")
     with w.block("function onLayout(dc as Dc) as Void"):
-        if not loaded:
+        if not loaded and not event:
             w.line("// No resources to load: this face draws entirely from system fonts.")
         for name in loaded:
             resource = font_resource_id(name)
             w.line(
                 f"_{_field(name)} = WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
             )
+        if event:
+            if loaded:
+                w.blank()
+            w.comment(
+                "complications: one shared callback (below), one subscription per "
+                "type -- WfbComplications.subscribe absorbs a device not supporting "
+                "a given type, so an unsupported one just never updates its cache"
+            )
+            w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
+            for name in event:
+                reader = READERS[name]
+                w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
     w.blank()
 
 
@@ -401,6 +425,35 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace) -> None:
             w.line('System.println("wfb: partial-update power budget exceeded: "')
             w.line('               + powerInfo.executionTimeAverage.format("%.2f") + " ms average");')
         w.blank()
+
+
+def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
+    """`onComplicationChanged`: the one callback every EVENT-tier reader shares.
+
+    Complications delivers only the changed `Id`, not its value
+    (ComplicationChangedCallback as Method(id as Complications.Id) as Void,
+    Toybox/Complications.html) -- `getComplication(id)` fetches it, and the
+    switch dispatches on `id.getType()` to the one cached field that
+    complication backs.
+    """
+    w.doc(
+        "A subscribed complication changed.\n"
+        "\n"
+        "Complications.registerComplicationChangeCallback delivers only the id --\n"
+        "getComplication looks the value back up, and the switch below routes it\n"
+        "to the cached field the changed type backs."
+    )
+    with w.block("function onComplicationChanged(id as Complications.Id) as Void"):
+        w.line("var complication = Complications.getComplication(id);")
+        with w.block("switch (id.getType())"):
+            for name in plan.event_readers():
+                reader = READERS[name]
+                w.line(
+                    f"case Complications.{reader.complication_type}: "
+                    f"{reader.call} = complication.value as {reader.monkeyc_type}; break;"
+                )
+        w.line("WatchUi.requestUpdate();")
+    w.blank()
 
 
 # --------------------------------------------------------------------------
@@ -690,7 +743,14 @@ class ReadPlan:
         design mistake, and `emit_reads` below is written on that assumption.
         """
         return sorted({name for name in self._readers_for_mode.get("active", [])
-                       if READERS[name].tier is not Tier.FRAME})
+                       if READERS[name].tier is Tier.SLOW})
+
+    def event_readers(self) -> list[str]:
+        """Reader names on `Tier.EVENT` this design actually reads -- each one
+        a complication subscription (see the `complication_*` entries in
+        wfb/catalog.py).  Same `active`-only reasoning as `slow_readers`."""
+        return sorted({name for name in self._readers_for_mode.get("active", [])
+                       if READERS[name].tier is Tier.EVENT})
 
     def emit_reads(self, w: Writer, mode: str) -> None:
         readers = self._readers_for_mode.get(mode) or []
@@ -700,17 +760,20 @@ class ReadPlan:
         w.comment(tier_note)
         for name in readers:
             reader = READERS[name]
-            if reader.tier is Tier.FRAME:
+            if reader.tier is Tier.SLOW:
+                # Cached in a view field instead of called fresh every frame --
+                # see WfbCache.mc and `_emit_cache_fields`.
+                cache = f"_{reader.name}Cache"
+                cache_time = f"_{reader.name}CacheTime"
+                with w.block(f"if (WfbCache.stale({cache_time}, {reader.ttl_seconds}))"):
+                    w.line(f"{cache} = {reader.call};")
+                    w.line(f"{cache_time} = Time.now().value();")
+                w.line(f"var {reader.name} = {cache};")
+            else:
+                # FRAME calls the API fresh; EVENT's `call` is the cached field
+                # onComplicationChanged already filled in -- no staleness check,
+                # unlike SLOW, because there is nothing to re-fetch on demand.
                 w.line(f"var {reader.name} = {reader.call};")
-                continue
-            # A `slow`-tier reader is cached in a view field instead of called
-            # fresh every frame -- see WfbCache.mc and `_emit_cache_fields`.
-            cache = f"_{reader.name}Cache"
-            cache_time = f"_{reader.name}CacheTime"
-            with w.block(f"if (WfbCache.stale({cache_time}, {reader.ttl_seconds}))"):
-                w.line(f"{cache} = {reader.call};")
-                w.line(f"{cache_time} = Time.now().value();")
-            w.line(f"var {reader.name} = {cache};")
 
     def parameters(self, placed) -> str:
         params = []
@@ -729,7 +792,7 @@ class ReadPlan:
         names: list[str] = []
         for path in self._bound[placed.id]:
             source = catalog.CATALOG[path]
-            if source.guard_needed and source.field_name is not None:
+            if source.guard_needed:
                 names.append(local_name(path))
         return names
 
@@ -739,7 +802,15 @@ class ReadPlan:
         out: list[tuple[str, str]] = []
         for path in self._bound[placed.id]:
             source = catalog.CATALOG[path]
-            if source.field_name is None:
+            if source.field_name is None and source.type in (Type.TIME, Type.DATE):
+                # time.clock/date.today: formatting.py reads the reader
+                # parameter (`clock`/`date`) directly by name instead of
+                # through a value local, so declaring one here would go
+                # unused. Any other field_name-less source (an EVENT-tier
+                # complication, where the reader *is* the value) still wants
+                # its own named local below, the same as a source with a
+                # field_name -- it is what `guards()` and the compiled
+                # expression both reference by name.
                 continue
             reader = READERS[source.reader]
             read = source.read_expr

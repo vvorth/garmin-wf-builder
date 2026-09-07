@@ -23,6 +23,7 @@ BARREL_FILES = {
     "WfbArc.mc": "progress arcs",
     "WfbCache.mc": "slow-tier read caching",
     "WfbWeather.mc": "weather-condition icon glyphs",
+    "WfbComplications.mc": "safe complication subscription",
 }
 
 
@@ -133,15 +134,23 @@ def _is_time_value(element) -> bool:
 
 def _features(face: Face) -> set[str]:
     """Which API-gated features this design uses.  Drives ``minApiLevel``."""
-    return set()  # complications, on-device config and tap arrive in Phase 3
+    from ..catalog import READERS
+
+    features: set[str] = set()
+    if any(READERS[name].complication_type for name in face.requirements().readers):
+        features.add("complications")
+    return features  # on-device config and tap arrive in Phase 3
 
 
 def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
     needed: set[str] = set()
+    plan = monkeyc.ReadPlan(resolved)
     if face.barrel_functions():
         needed.add("WfbMath.mc")
-    if monkeyc.ReadPlan(resolved).slow_readers():
+    if plan.slow_readers():
         needed.add("WfbCache.mc")
+    if plan.event_readers():
+        needed.add("WfbComplications.mc")
     for placed in resolved.items:
         kind = placed.kind
         if kind == "progress":
