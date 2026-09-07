@@ -7,7 +7,7 @@ Nothing here needs the Garmin toolchain or device files.
 from __future__ import annotations
 
 from wfb import catalog
-from wfb.catalog import CATALOG, READERS, Tier
+from wfb.catalog import CATALOG, READERS, Tier, Type
 
 
 def test_every_source_agrees_with_its_readers_tier():
@@ -75,3 +75,55 @@ def test_read_expr_for_a_plain_field_has_no_array_indexing():
     assert source.array_index is None
     assert source.read_expr == f"{reader.name}.{source.field_name}"
     assert "[" not in source.read_expr
+
+
+# -- the broader catalogue expansion (weather fields, ambient, user profile) -
+
+
+def test_user_profile_sources_declare_the_user_profile_permission():
+    """UserProfile is a real permission, unlike Activity/ActivityMonitor/
+    Weather -- confirmed against Core_Topics/Manifest_and_Permissions.html's
+    own table, which lists a Watch Face as allowed to declare it."""
+    for path, source in CATALOG.items():
+        if path.startswith("user."):
+            assert source.permissions == ("UserProfile",), path
+
+
+def test_ambient_sources_need_no_permission():
+    """Same reasoning as heart_rate.current: both read through
+    Activity.getActivityInfo(), and Toybox.Activity is not in the permission
+    table at all."""
+    for path, source in CATALOG.items():
+        if path.startswith("ambient."):
+            assert source.permissions == (), path
+            assert source.reader == "activity_info"
+
+
+def test_date_month_and_day_of_week_are_strings():
+    """Gregorian.info() under FORMAT_MEDIUM (the `date` reader's own format)
+    returns month/day_of_week as localised strings, not numbers."""
+    assert CATALOG["date.month"].type is Type.STRING
+    assert CATALOG["date.day_of_week"].type is Type.STRING
+
+
+def test_new_weather_fields_share_the_current_conditions_reader():
+    """temperature, feels-like, today's high/low, precipitation chance,
+    humidity and wind speed are all fields of CurrentConditions itself, not
+    DailyForecast[0] -- one shared reader, no extra API call or array index,
+    for every one of them plus weather.condition."""
+    names = [
+        "weather.temperature", "weather.feels_like_temperature",
+        "weather.high_temperature_today", "weather.low_temperature_today",
+        "weather.precipitation_chance_today", "weather.humidity", "weather.wind_speed",
+    ]
+    for name in names:
+        source = CATALOG[name]
+        assert source.reader == "weather_current", name
+        assert source.array_index is None, name
+
+
+def test_weather_readers_have_an_hourly_ttl():
+    """Weather -- current conditions and the forecast -- does not change fast
+    enough to justify the 900s default; both weather readers use an hour."""
+    assert READERS["weather_current"].ttl_seconds == 3600
+    assert READERS["weather_daily"].ttl_seconds == 3600

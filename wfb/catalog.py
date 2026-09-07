@@ -120,6 +120,11 @@ READERS: dict[str, Reader] = {
         "Toybox.Weather",
         nullable=True,
         tier=Tier.SLOW,
+        # An hour, not the 900s default: weather -- current conditions and the
+        # forecast alike -- simply does not change fast enough to justify
+        # reading it every 15 minutes, and the upstream service it is fetched
+        # from does not refresh that often either.
+        ttl_seconds=3600,
     ),
     "weather_daily": Reader(
         "weatherDaily",
@@ -128,6 +133,19 @@ READERS: dict[str, Reader] = {
         "Toybox.Weather",
         nullable=True,
         tier=Tier.SLOW,
+        ttl_seconds=3600,
+    ),
+    # Toybox/UserProfile.html: getProfile() itself never returns null (unlike
+    # the ActivityMonitor/Activity/Weather readers above); the historical
+    # metrics on the Profile it returns can each individually be null instead.
+    # UserProfile is a real permission (unlike Activity/ActivityMonitor/
+    # Weather) but is already allowed for a watch face -- see
+    # WATCHFACE_PERMISSIONS below.
+    "user_profile": Reader(
+        "userProfile",
+        "UserProfile.getProfile()",
+        "UserProfile.Profile",
+        "Toybox.UserProfile",
     ),
 }
 
@@ -209,6 +227,15 @@ CATALOG: dict[str, Source] = {
            doc="day of the month, 1-31", source_ref="Toybox/Time/Gregorian/Info.html"),
         _s("date.year", Type.NUMBER, "date", "year", False, Tier.FRAME,
            doc="the year", source_ref="Toybox/Time/Gregorian/Info.html"),
+        # month/day_of_week come back as localised strings under FORMAT_MEDIUM
+        # (the `date` reader's own format) -- "Sep", "Wed" -- not numbers, so
+        # these are Type.STRING even though the field is `Number or String`.
+        _s("date.month", Type.STRING, "date", "month", False, Tier.FRAME,
+           doc="month, localised (e.g. \"Sep\")",
+           source_ref="Toybox/Time/Gregorian/Info.html"),
+        _s("date.day_of_week", Type.STRING, "date", "day_of_week", False, Tier.FRAME,
+           doc="day of the week, localised (e.g. \"Wed\")",
+           source_ref="Toybox/Time/Gregorian/Info.html"),
 
         # -- device settings ----------------------------------------------
         # Toybox/System/DeviceSettings.html
@@ -260,6 +287,15 @@ CATALOG: dict[str, Source] = {
            "activeMinutesWeekGoal", True, Tier.FRAME, unit="minutes",
            doc="weekly intensity-minutes goal",
            source_ref="Toybox/ActivityMonitor/Info.html"),
+        _s("activity.stress_score", Type.NUMBER, "activity", "stressScore", True, Tier.FRAME,
+           doc="current stress score, from a rolling 30s average",
+           source_ref="Toybox/ActivityMonitor/Info.html"),
+        _s("activity.respiration_rate", Type.NUMBER, "activity", "respirationRate", True,
+           Tier.FRAME, unit="breaths/min", doc="current respiration rate",
+           source_ref="Toybox/ActivityMonitor/Info.html"),
+        _s("activity.time_to_recovery", Type.NUMBER, "activity", "timeToRecovery", True,
+           Tier.FRAME, unit="hours", doc="time to recovery from the last activity",
+           source_ref="Toybox/ActivityMonitor/Info.html"),
         # -- heart rate ----------------------------------------------------
         # Toybox/Activity/Info.html.  getActivityInfo() itself may return null.
         # No permission: Toybox.Activity does not appear in the permission table
@@ -270,6 +306,18 @@ CATALOG: dict[str, Source] = {
         _s("heart_rate.current", Type.NUMBER, "activity_info", "currentHeartRate", True,
            Tier.FRAME, unit="bpm",
            doc="current heart rate", source_ref="Toybox/Activity/Info.html"),
+        # -- ambient conditions ---------------------------------------------
+        # Toybox/Activity/Info.html, the same reader and the same no-permission
+        # reasoning as heart_rate.current above: Toybox.Activity is not in the
+        # permission table at all. "altitude" is unrestricted; "ambientPressure"
+        # is device-gated in the SDK doc but confirmed present on all three
+        # targets by reading their own Supported Devices lists.
+        _s("ambient.altitude", Type.FLOAT, "activity_info", "altitude", True, Tier.FRAME,
+           unit="m", doc="altitude above mean sea level, from barometer or GPS",
+           source_ref="Toybox/Activity/Info.html"),
+        _s("ambient.pressure", Type.FLOAT, "activity_info", "ambientPressure", True,
+           Tier.FRAME, unit="Pa", doc="local barometric pressure",
+           source_ref="Toybox/Activity/Info.html"),
         # -- weather ---------------------------------------------------------
         # Toybox/Weather/CurrentConditions.html, Toybox/Weather/DailyForecast.html.
         # `condition` is one of the 54 `Weather.CONDITION_*` values (0-53) --
@@ -290,6 +338,52 @@ CATALOG: dict[str, Source] = {
            Tier.SLOW, array_index=1,
            doc="tomorrow's forecast condition (Weather.CONDITION_*)",
            source_ref="Toybox/Weather/DailyForecast.html"),
+        # temperature, today's high/low and today's precipitation chance are
+        # all fields of CurrentConditions itself (not DailyForecast[0]) --
+        # simpler than an array read, and it is the object weather.condition
+        # already fetches, so these add no extra reader or API call.
+        _s("weather.temperature", Type.FLOAT, "weather_current", "temperature", True,
+           Tier.SLOW, unit="celsius", doc="current temperature",
+           source_ref="Toybox/Weather/CurrentConditions.html"),
+        _s("weather.feels_like_temperature", Type.FLOAT, "weather_current",
+           "feelsLikeTemperature", True, Tier.SLOW, unit="celsius",
+           doc="wind chill or heat index -- how the temperature actually feels",
+           source_ref="Toybox/Weather/CurrentConditions.html"),
+        _s("weather.high_temperature_today", Type.FLOAT, "weather_current", "highTemperature",
+           True, Tier.SLOW, unit="celsius", doc="today's forecast high temperature",
+           source_ref="Toybox/Weather/CurrentConditions.html"),
+        _s("weather.low_temperature_today", Type.FLOAT, "weather_current", "lowTemperature",
+           True, Tier.SLOW, unit="celsius", doc="today's forecast low temperature",
+           source_ref="Toybox/Weather/CurrentConditions.html"),
+        _s("weather.precipitation_chance_today", Type.NUMBER, "weather_current",
+           "precipitationChance", True, Tier.SLOW, unit="percent",
+           doc="chance of precipitation today, 0-100",
+           source_ref="Toybox/Weather/CurrentConditions.html"),
+        _s("weather.humidity", Type.NUMBER, "weather_current", "relativeHumidity", True,
+           Tier.SLOW, unit="percent", doc="relative humidity, 0-100",
+           source_ref="Toybox/Weather/CurrentConditions.html"),
+        _s("weather.wind_speed", Type.FLOAT, "weather_current", "windSpeed", True,
+           Tier.SLOW, unit="m/s", doc="current wind speed",
+           source_ref="Toybox/Weather/CurrentConditions.html"),
+
+        # -- user profile -----------------------------------------------------
+        # Toybox/UserProfile/Profile.html. getProfile() itself never returns
+        # null (unlike every other reader above); the historical metrics on
+        # the Profile it returns can each be null instead if there is not yet
+        # enough data. Needs the UserProfile permission -- the one source
+        # namespace here that does; see WATCHFACE_PERMISSIONS below.
+        _s("user.vo2max_running", Type.NUMBER, "user_profile", "vo2maxRunning", True,
+           Tier.FRAME, unit="mL/kg/min", permissions=("UserProfile",),
+           doc="running VO2 max, calculated from historical data",
+           source_ref="Toybox/UserProfile/Profile.html"),
+        _s("user.vo2max_cycling", Type.NUMBER, "user_profile", "vo2maxCycling", True,
+           Tier.FRAME, unit="mL/kg/min", permissions=("UserProfile",),
+           doc="cycling VO2 max, calculated from historical data",
+           source_ref="Toybox/UserProfile/Profile.html"),
+        _s("user.resting_heart_rate", Type.NUMBER, "user_profile", "averageRestingHeartRate",
+           True, Tier.FRAME, unit="bpm", permissions=("UserProfile",),
+           doc="average resting heart rate, calculated from historical data",
+           source_ref="Toybox/UserProfile/Profile.html"),
     ]
 }
 

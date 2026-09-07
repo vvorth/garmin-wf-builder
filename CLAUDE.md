@@ -629,6 +629,78 @@ from it, so "add or change an icon" touches exactly one small, data-only
 file. Verified with a real `monkeyc` build and in `wfb preview`, and on
 `examples/dashboard/`'s real `weather.condition` icon.
 
+**The data-source catalogue (ADR 0005) grew from 28 to 45 entries** in one
+pass — a user-supplied list (current/high/low temperature, precipitation
+chance, recovery time, running distance, Body Battery, month, day of week,
+altitude, pressure, VO2 max) plus a research pass over the same SDK pages for
+what else common watchface designs actually show. Nothing was added on
+guesswork: every field's own "Supported Devices" list in the SDK doc was
+checked against all three targets by name first (several fields on a page
+that is otherwise universal turn out to be gated -- `ambientPressure` and
+`vo2maxRunning` needed the check, `altitude` and `restingHeartRate` did not).
+
+What shipped, by reader:
+
+- **`ActivityMonitor.Info` (existing `activity` reader, no new permission)**:
+  `stressScore`, `respirationRate`, and -- directly answering the "recovery
+  time hours" request -- `timeToRecovery`, described in the SDK doc verbatim
+  as "Time to recovery from the last activity, in hours".
+- **`Activity.Info` (existing `activity_info` reader, same no-permission
+  reasoning as `heart_rate.current`)**: `altitude` and `ambientPressure`, as a
+  new `ambient.*` namespace -- these are ambient/environmental readings, not
+  device settings, so they did not belong under the existing `device.*`.
+- **`Gregorian.Info` (existing `date` reader)**: `month` and `day_of_week` --
+  both `Number or String` in the SDK's own type, and under this reader's
+  `FORMAT_MEDIUM` they come back as localised strings ("Sep", "Wed"), not
+  numbers, so both are `Type.STRING` despite the SDK signature's own
+  ambiguity. No new reader needed.
+- **`Weather.CurrentConditions` (existing `weather_current` reader)**:
+  `temperature`, `feelsLikeTemperature`, and -- found while checking the
+  class for the requested fields -- `highTemperature`, `lowTemperature` and
+  `precipitationChance` are *also* directly on `CurrentConditions`, not only
+  on `DailyForecast[0]` as the existing `weather.condition_today` pattern
+  might suggest. Reading them there avoids the array-index/bounds-guard
+  machinery entirely for these five, and they piggyback on the exact same
+  cached read `weather.condition` already pays for. `humidity` and
+  `wind_speed` added from the same object as bonus "commonly shown" fields
+  found during the same pass.
+- **New `user_profile` reader (`UserProfile.getProfile()`)**: `vo2maxRunning`,
+  `vo2maxCycling` and `averageRestingHeartRate` (the historically-calculated
+  average, not the user-configured `restingHeartRate` profile setting --
+  checked both descriptions before choosing), as a new `user.*` namespace.
+  The one namespace here that needs a real permission: `UserProfile` was
+  already sitting in `WATCHFACE_PERMISSIONS`, unused, since an earlier phase
+  -- confirmed it is genuinely allowed for a Watch Face in the SDK's own
+  permission table before relying on that.
+
+**Two requests turned out to be infeasible, and are documented as such rather
+than faked or silently dropped:**
+
+- **Body Battery** -- unchanged from the earlier finding: `SensorHistory`
+  only, which is not a permission a Watch Face may declare, or a
+  Complication, which needs the still-unbuilt `event` tier.
+- **Total running-only distance** -- the platform's closest equivalent is
+  `COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE`, itself a Complication and a
+  *weekly*, not all-time, figure; a true all-time total would need
+  `UserProfile.getUserActivityHistory()` aggregated by hand, which is real
+  computation ADR 0005 deliberately keeps out of the expression language.
+  `activity.distance` (today's ambient distance, every activity type) is the
+  nearest thing actually bindable.
+
+Also bumped `weather_current`/`weather_daily`'s TTL from the 900s default to
+3600s (an hour), per explicit request and because it was already the right
+call independent of that: weather changes, and is refreshed upstream, far
+slower than every 15 minutes. `Reader.ttl_seconds` was already a per-reader
+field (from the slow-tier session above); this is its first real use as
+anything other than the default.
+
+`ReadPlan`'s existing per-reader hoisting meant none of this needed new
+codegen machinery -- verified with a real `monkeyc` build across all three
+targets binding all 17 new sources in one design (including the two new
+`Type.STRING` date fields' `.toString()` calls and the `UserProfile`
+permission actually landing in the generated manifest), not just `wfb
+validate`.
+
 ### Known-good reference
 
 `~/claude/garmin-watchface-protomolecule/` is a **working, dense, real** watch

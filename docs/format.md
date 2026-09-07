@@ -366,20 +366,37 @@ heart_rate
   ...
 ```
 
-As of this writing the catalogue covers `time.*`, `date.*`, `device.*`
-(notification/alarm counts, do-not-disturb, phone-connected, 24-hour setting),
-`system.*` (battery, charging), `activity.*` (steps, calories, distance,
-floors, move bar, intensity minutes), `heart_rate.current` and `weather.*`
-(current condition, today's and tomorrow's forecast condition — see `icon_for:`
-above for turning one into a drawn icon). **Body Battery is not bindable
-yet** — not an oversight, but a real platform constraint: it is exposed only
-through `Toybox.SensorHistory` or a Complication
-(`COMPLICATION_TYPE_BODY_BATTERY`), and `SensorHistory` is a permission
-**watch faces are not allowed to declare at all**
-(`Core_Topics/Manifest_and_Permissions.html`'s permission table has a blank
-Watch Face column for it) — so a Complication, on the `event` refresh tier, is
-the only path, and that tier is not implemented yet. See `docs/limitations.md`
-§2 for the current state.
+As of this writing the catalogue covers `time.*`, `date.*` (including the
+localised month name and weekday), `device.*` (notification/alarm counts,
+do-not-disturb, phone-connected, 24-hour setting), `system.*` (battery,
+charging), `activity.*` (steps, calories, distance, floors, move bar,
+intensity minutes, stress score, respiration rate, time to recovery),
+`heart_rate.current`, `ambient.*` (altitude, barometric pressure), `weather.*`
+(current condition and temperature, feels-like, today's high/low and
+precipitation chance, humidity, wind speed, and today's/tomorrow's forecast
+condition — see `icon_for:` above for turning a condition into a drawn icon)
+and `user.*` (running/cycling VO2 max, resting heart rate, from
+`Toybox.UserProfile`).
+
+**Two commonly-requested values are not bindable, and not for want of
+trying:**
+
+- **Body Battery** is exposed only through `Toybox.SensorHistory` or a
+  Complication (`COMPLICATION_TYPE_BODY_BATTERY`), and `SensorHistory` is a
+  permission **watch faces are not allowed to declare at all**
+  (`Core_Topics/Manifest_and_Permissions.html`'s permission table has a blank
+  Watch Face column for it) — so a Complication, on the `event` refresh tier,
+  is the only path, and that tier is not implemented yet.
+- **A running-only *total* distance** does not exist as a direct field: the
+  closest platform equivalent is `COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE` (a
+  *weekly* total, and again a Complication), or aggregating
+  `UserProfile.getUserActivityHistory()` by hand, which is real computation
+  ADR 0005 deliberately keeps out of the expression language. `activity.distance`
+  (today's ambient distance, every activity type) is the nearest thing
+  actually bindable today.
+
+See `docs/limitations.md` §2 for the current state of Complications and the
+`event` tier.
 
 A `slow`-tier source (`weather.*` today) is not re-read every frame the way a
 `frame`-tier one is: the generated view caches the last read in a field and a
@@ -393,13 +410,18 @@ element: `onPartialUpdate` runs under a strict power budget that only
 frame-tier reads are cheap enough for, and the compiler rejects the design
 outright rather than silently reading something wrong.
 
-If a value you want is missing and it is not Body Battery, check the
+If a value you want is missing and it is not one of the two above, check the
 underlying Garmin API page: `Toybox/ActivityMonitor/Info.html`,
 `Toybox/System/Stats.html`, `Toybox/System/DeviceSettings.html`,
-`Toybox/Activity/Info.html` and `Toybox/Weather/*.html` are where the current
-catalogue draws from, and each has more fields than are exposed today --
-adding one is a `wfb/catalog.py` entry (path, type, nullability, tier,
-permission, the SDK field it reads), not a schema change.
+`Toybox/Activity/Info.html`, `Toybox/Weather/*.html` and
+`Toybox/UserProfile/Profile.html` are where the current catalogue draws from,
+and each has more fields than are exposed today -- adding one is a
+`wfb/catalog.py` entry (path, type, nullability, tier, permission, the SDK
+field it reads), not a schema change. Before adding one, check the field's own
+"Supported Devices" list in the SDK doc against the three targets by name --
+several fields on these pages are gated per device even though the class
+itself is universal (`ambientPressure`, `vo2maxRunning` and others all needed
+this check; `altitude` and `restingHeartRate` turned out not to).
 
 **The compiler derives `manifest.xml` permissions from the bindings.** A missing
 permission does not fail loudly on a Garmin device: the API returns null and the

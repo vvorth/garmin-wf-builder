@@ -134,25 +134,28 @@ Phase 2 shipped a vertical slice. Present in the ADRs, absent from the code:
 `examples/dashboard/` is a deliberate attempt to reproduce the reference face in
 `garmin-watchface-protomolecule` — the "can the schema express Dashboard?"
 question ADR 0004 poses. It gets the row structure, the separators, the two-tone
-clock, the conditional colours, the badge and the arcs. **Four things it cannot
-express**, all for want of data sources rather than element types:
+clock, the conditional colours, the badge and the arcs, and now the weather
+row's icon and every one of its readings. **Two things it still cannot
+express**, both for want of data sources the platform itself does not offer a
+direct field for, not element types:
 
 | Dashboard has | Blocked on |
 |---|---|
-| A weather row's *condition icon* | nothing -- `weather.condition`/`icon_for:` now express this |
-| A weather row's temperature, precipitation chance, high/low | no source for these fields yet (the `slow` tier and `Weather.CurrentConditions`/`DailyForecast` reader both exist -- adding a field is a `wfb/catalog.py` entry, not new plumbing) |
-| Body Battery, on the status row and the left arc | no `SensorHistory` sources |
+| Body Battery, on the status row and the left arc | exposed only through `SensorHistory` (not a permission a Watch Face may declare) or a Complication -- see `docs/format.md`'s "Data binding" section |
 | A configurable history graph — HR, Body Battery, stress, pressure, elevation | no graph element **and** no history sources |
-| A daylight arc that drains between sunrise and sunset | no sunrise/sunset sources |
+| A daylight arc that drains between sunrise and sunset | no sunrise/sunset source yet -- feasible (`Weather.getSunrise`/`getSunset` take a `Position.Location`, and a Watch Face may call `Position.getInfo()` for one without needing `enableLocationEvents()`), just not built |
 
-Weather's condition icon shipped (`icon_for: weather.condition`, resolved
-on-device through `WfbWeather.mc`, mirroring `wfb.icons.
-weather_icon_for_condition()`) -- see `docs/format.md`'s `icon_for` section.
-The other weather fields, Body Battery and the daylight arc are all catalogue
-work; the history graph additionally needs an element type that plots a
-series, which is the strongest argument in the codebase for the `raw` escape
-hatch: a sparkline is exactly the sort of thing that should drop to
-hand-written Monkey C rather than growing the schema.
+Weather's condition icon (`icon_for: weather.condition`, resolved on-device
+through `WfbWeather.mc`, mirroring `wfb.icons.weather_icon_for_condition()`)
+and its full reading set -- temperature, feels-like, today's high/low and
+precipitation chance, humidity, wind speed -- both shipped; see
+`docs/format.md`'s `icon_for` and "Data binding" sections. Body Battery and
+the daylight arc are catalogue/reader work of a kind this project cannot do
+without Complications or a Position-backed reader respectively; the history
+graph additionally needs an element type that plots a series, which is the
+strongest argument in the codebase for the `raw` escape hatch: a sparkline is
+exactly the sort of thing that should drop to hand-written Monkey C rather
+than growing the schema.
 
 | Missing | Where it is specified |
 |---|---|

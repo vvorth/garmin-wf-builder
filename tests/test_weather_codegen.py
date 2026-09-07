@@ -70,7 +70,7 @@ def test_a_slow_reader_is_cached_not_read_every_frame(write_design, bag, db, tmp
     view = _view(write_design, bag, db, tmp_path, ONE_ICON)
     assert "private var _weatherCurrentCache as Weather.CurrentConditions?;" in view
     assert "private var _weatherCurrentCacheTime as Number?;" in view
-    assert "WfbCache.stale(_weatherCurrentCacheTime, 900)" in view
+    assert "WfbCache.stale(_weatherCurrentCacheTime, 3600)" in view
     assert "_weatherCurrentCache = Weather.getCurrentConditions();" in view
     assert "_weatherCurrentCacheTime = Time.now().value();" in view
     # not called unconditionally every frame -- only inside the stale check.
