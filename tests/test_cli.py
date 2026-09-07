@@ -102,3 +102,65 @@ def test_schema_path_points_at_a_real_file():
     result = run("schema", "--path")
     assert result.returncode == 0
     assert Path(result.stdout.strip()).exists()
+
+
+# -- `wfb help` -------------------------------------------------------------
+
+
+def test_bare_help_matches_the_help_flag():
+    """`wfb help` with no topic is another spelling of `wfb --help` -- same
+    text, but exit 0 rather than --help's own exit 0 too (unlike bare `wfb`
+    with no command at all, which is a usage error and exits 2)."""
+    via_help = run("help")
+    via_flag = run("--help")
+    assert via_help.returncode == 0
+    assert via_flag.returncode == 0
+    assert via_help.stdout == via_flag.stdout
+
+
+def test_bare_command_is_still_a_usage_error():
+    result = run()
+    assert result.returncode == 2
+
+
+def test_leading_help_topic_matches_the_commands_own_help_flag():
+    """`wfb help build` == `wfb build --help`."""
+    via_topic = run("help", "build")
+    via_flag = run("build", "--help")
+    assert via_topic.returncode == 0
+    assert via_flag.returncode == 0
+    assert via_topic.stdout == via_flag.stdout
+
+
+def test_trailing_help_word_matches_the_commands_own_help_flag():
+    """`wfb build help` -- help as the trailing word after the command,
+    rewritten to `--help` before argparse ever sees it -- also matches."""
+    via_trailing = run("build", "help")
+    via_flag = run("build", "--help")
+    assert via_trailing.returncode == 0
+    assert via_trailing.stdout == via_flag.stdout
+
+
+def test_help_rejects_an_unknown_topic_and_lists_real_commands():
+    result = run("help", "nope")
+    assert result.returncode == 1
+    assert "no such command 'nope'" in result.stderr
+    assert "build" in result.stderr and "validate" in result.stderr
+
+
+def test_every_command_help_is_sourced_from_its_own_docstring():
+    """The single-source-of-truth guarantee: nothing hand-duplicates a
+    command's help text as a separate string anywhere -- `_command()` reads
+    it straight from the handler's docstring, and this pins that down so a
+    future edit cannot quietly reintroduce a diverging help= string."""
+    import inspect
+
+    from wfb.cli import _parser, _subparsers
+
+    parser = _parser()
+    for name, subparser in _subparsers(parser).items():
+        handler = subparser.get_default("handler")
+        assert handler is not None, name
+        doc = inspect.getdoc(handler)
+        assert doc, f"{name} has no docstring to source help from"
+        assert subparser.description == doc, name

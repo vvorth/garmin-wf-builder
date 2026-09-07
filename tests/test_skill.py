@@ -145,9 +145,9 @@ def test_templates_it_tells_you_to_use_exist(text):
 def test_commands_it_names_are_real(text):
     """A skill that names a command that does not exist wastes a round and
     teaches the model to distrust the rest of the instructions."""
-    from wfb.cli import _parser
+    from wfb.cli import _parser, _subparsers
 
-    known = set(_parser()._subparsers._group_actions[0].choices)
+    known = set(_subparsers(_parser()))
     used = set(re.findall(r"(?:^|\s)wfb (\w+)", text))
     unknown = used - known
     assert not unknown, f"the skill names commands that do not exist: {unknown}"

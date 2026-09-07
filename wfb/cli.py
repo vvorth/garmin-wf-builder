@@ -1,12 +1,22 @@
-"""``wfb`` -- the command line.
+"""wfb -- build a Garmin Connect IQ watch face from a YAML design.
 
-``wfb build`` is the one command the Phase 2 slice promises: design file in,
-compiled ``.prg`` out, with everything in between reported against the YAML.
+    wfb validate design.yaml     # fast feedback: schema + semantic checks, no toolchain
+    wfb preview  design.yaml     # render to a PNG, with no simulator
+    wfb build    design.yaml     # generate Monkey C, resources and manifest, then compile
+
+Run `wfb help` for the full command list, or `wfb help <command>` /
+`wfb <command> help` for one command's own help -- both are read straight
+from that command's handler docstring in this file, which is the one place
+its behaviour is documented; nothing here is duplicated into a markdown doc.
+`wfb doctor` reports what is installed and what to do about anything
+missing; `wfb sources` and `wfb devices` list what a design may bind and
+which watches it may target.
 """
 
 from __future__ import annotations
 
 import argparse
+import inspect
 import os
 import sys
 from pathlib import Path
@@ -21,8 +31,10 @@ DEFAULT_OUTPUT = Path("build")
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw = sys.argv[1:] if argv is None else list(argv)
     parser = _parser()
-    args = parser.parse_args(argv)
+    raw = _rewrite_trailing_help(raw, _subparsers(parser))
+    args = parser.parse_args(raw)
     if not getattr(args, "command", None):
         parser.print_help()
         return 2
@@ -35,15 +47,84 @@ def main(argv: list[str] | None = None) -> int:
         return 130
 
 
+def _subparsers(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
+    """Every registered subcommand parser, by name.
+
+    argparse has no public accessor for this; walking ``_subparsers``'s
+    ``_group_actions`` for the ``_SubParsersAction`` and reading its
+    ``choices`` is the standard, stable way every argparse-introspecting tool
+    does it. Both `_rewrite_trailing_help` (which command names does
+    ``... help`` need to recognise) and `_help` (which subparser to print)
+    need this same dict, so it lives in one place rather than two.
+    """
+    for action in parser._subparsers._group_actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return dict(action.choices)
+    return {}
+
+
+def _rewrite_trailing_help(argv: list[str], commands: dict[str, argparse.ArgumentParser]) -> list[str]:
+    """``wfb <command> help`` -> ``wfb <command> --help``.
+
+    A trailing ``help`` is how most CLIs a person (or an LLM) has already
+    used behave, so it is worth supporting alongside the leading ``wfb help
+    <command>`` form and plain ``-h``/``--help`` -- three spellings of the
+    same request rather than one a caller has to remember exactly.
+    """
+    if len(argv) == 2 and argv[1] == "help" and argv[0] in commands:
+        return [argv[0], "--help"]
+    return argv
+
+
+def _command(sub: argparse._SubParsersAction, name: str, handler) -> argparse.ArgumentParser:
+    """Register one subcommand, with its help text sourced entirely from
+    ``handler``'s docstring: the first line is the short summary ``wfb
+    --help`` lists next to the command name, and the whole docstring is what
+    ``wfb <command> --help`` / ``wfb help <command>`` / ``wfb <command>
+    help`` all print. One docstring, not a hand-written ``help=`` string and
+    a separately maintained description that can drift from it.
+    """
+    doc = inspect.getdoc(handler) or ""
+    summary = doc.splitlines()[0] if doc else ""
+    parser = sub.add_parser(
+        name, help=summary, description=doc,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.set_defaults(handler=handler)
+    return parser
+
+
+def _help(args) -> int:
+    """show help for wfb, or for one command
+
+    ``wfb help`` alone is the same as ``wfb --help``. ``wfb help <command>``
+    -- or, equivalently, ``wfb <command> help`` -- is the same as
+    ``wfb <command> --help``.
+    """
+    parser = _parser()
+    if not args.topic:
+        parser.print_help()
+        return 0
+    commands = _subparsers(parser)
+    target = commands.get(args.topic)
+    if target is None:
+        print(f"error: no such command {args.topic!r}", file=sys.stderr)
+        print(f"       commands: {', '.join(sorted(commands))}", file=sys.stderr)
+        return 1
+    target.print_help()
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="wfb",
-        description="Build a Garmin Connect IQ watch face from a YAML design.",
+        description=inspect.getdoc(sys.modules[__name__]),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"wfb {__version__}")
     sub = parser.add_subparsers(dest="command")
 
-    build = sub.add_parser("build", help="validate, generate and compile a design")
+    build = _command(sub, "build", _build)
     build.add_argument("design", type=Path, help="the .yaml design file")
     build.add_argument("-d", "--device", action="append", dest="devices",
                        help="build only this target (repeatable); defaults to all targets")
@@ -54,15 +135,12 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--sdk", help="Connect IQ SDK root (default: $CIQ_SDK)")
     build.add_argument("--key", help="developer key .der (default: ~/ciq/developer_key.der)")
     build.add_argument("--devices-dir", help="device definitions directory")
-    build.set_defaults(handler=_build)
 
-    check = sub.add_parser("validate", help="validate a design without generating anything")
+    check = _command(sub, "validate", _validate)
     check.add_argument("design", type=Path)
     check.add_argument("--devices-dir")
-    check.set_defaults(handler=_validate)
 
-    preview = sub.add_parser(
-        "preview", help="render the design to a PNG on the host, with no simulator")
+    preview = _command(sub, "preview", _preview)
     preview.add_argument("design", type=Path)
     preview.add_argument("-d", "--device", action="append", dest="devices")
     preview.add_argument("-o", "--output", type=Path, default=Path("build/preview"))
@@ -74,10 +152,8 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--interval", type=float, default=0.4,
                          help="seconds between checks while watching (default: 0.4)")
     preview.add_argument("--devices-dir")
-    preview.set_defaults(handler=_preview)
 
-    simulate = sub.add_parser(
-        "simulate", help="launch the Connect IQ simulator and push a built face to it")
+    simulate = _command(sub, "simulate", _simulate)
     simulate.add_argument("design", type=Path)
     simulate.add_argument("-d", "--device", dest="device",
                           help="which target to run (default: the first)")
@@ -87,9 +163,8 @@ def _parser() -> argparse.ArgumentParser:
     simulate.add_argument("--sdk")
     simulate.add_argument("--key")
     simulate.add_argument("--devices-dir")
-    simulate.set_defaults(handler=_simulate)
 
-    new = sub.add_parser("new", help="start a design from a known-good template")
+    new = _command(sub, "new", _new)
     new.add_argument("name", nargs="?", help="the face's name, e.g. \"My Face\"")
     new.add_argument("-t", "--template", default="dashboard",
                      help="which template to start from (default: dashboard)")
@@ -97,25 +172,21 @@ def _parser() -> argparse.ArgumentParser:
                      help="where to write it (default: <name>.yaml in the current directory)")
     new.add_argument("--list", action="store_true", dest="list_templates",
                      help="list the available templates and exit")
-    new.set_defaults(handler=_new)
 
-    devices = sub.add_parser("devices", help="list installed device definitions")
+    devices = _command(sub, "devices", _devices)
     devices.add_argument("--devices-dir")
-    devices.set_defaults(handler=_devices)
 
-    doctor = sub.add_parser(
-        "doctor", help="check the environment and say what is missing")
+    doctor = _command(sub, "doctor", _doctor)
     doctor.add_argument("--devices-dir")
-    doctor.set_defaults(handler=_doctor)
 
-    schema = sub.add_parser(
-        "schema", help="print the JSON Schema, or where it lives, for editor setup")
+    schema = _command(sub, "schema", _schema)
     schema.add_argument("--path", action="store_true",
                         help="print the schema's path instead of its contents")
-    schema.set_defaults(handler=_schema)
 
-    sources = sub.add_parser("sources", help="list the data-source catalogue")
-    sources.set_defaults(handler=_sources)
+    _command(sub, "sources", _sources)
+
+    help_cmd = _command(sub, "help", _help)
+    help_cmd.add_argument("topic", nargs="?", help="a command name, e.g. `wfb help build`")
     return parser
 
 
@@ -123,6 +194,19 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _build(args) -> int:
+    """validate, generate and compile a design into a sideloadable .prg
+
+    Runs the full pipeline: YAML load -> schema validation -> semantic
+    checks (types, null policy, refresh tiers) -> per-device layout resolve
+    -> lint -> Monkey C + resources + jungle + manifest generation ->
+    `monkeyc`. Every stage's diagnostics are reported against the design
+    file's own lines.
+
+    `--no-compile` stops after generating the project, before invoking
+    `monkeyc` -- useful with no Garmin toolchain installed, or to inspect
+    the generated Monkey C directly. `-d/--device` restricts the build to
+    one or more targets instead of every target the design lists.
+    """
     bag = Bag()
     result = run_build(
         args.design,
@@ -155,6 +239,13 @@ def _build(args) -> int:
 
 
 def _validate(args) -> int:
+    """validate a design without generating or compiling anything
+
+    The cheapest, fastest feedback loop: schema and semantic checks plus a
+    per-device layout resolve and lint, with no font baking, no Monkey C
+    generation, and no Garmin toolchain required. Call this after every
+    edit; reach for `wfb build` only once this is clean.
+    """
     bag = Bag()
     face = load(args.design, bag)
     if face is not None:
@@ -210,6 +301,17 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
 
 
 def _preview(args) -> int:
+    """render the design to a PNG on the host, with no simulator
+
+    Resolves the same per-device geometry `wfb build` would generate code
+    from, then rasterises it directly with Pillow -- so a preview and a
+    compiled face cannot disagree about *position*. Glyph shapes and arc
+    caps are approximations; the Connect IQ simulator is authoritative for
+    those, when it can run at all (see docs/limitations.md).
+
+    `-w/--watch` re-renders whenever the design file or any font it
+    references changes, polling every `--interval` seconds (default 0.4).
+    """
     db = DeviceDatabase.discover(args.devices_dir)
     if not args.watch:
         print()
@@ -245,6 +347,15 @@ def _preview(args) -> int:
 
 
 def _simulate(args) -> int:
+    """launch the Connect IQ simulator and push a built face to it
+
+    Builds the design (like `wfb build`) and pushes the result to a
+    *running* simulator via `monkeydo` -- the simulator itself is not
+    started automatically, and in a sandboxed Linux container usually
+    cannot run at all (see docs/limitations.md); `wfb preview` covers that
+    gap. `--screenshot` captures the simulator window to a PNG once the
+    push succeeds.
+    """
     bag = Bag()
     result = run_build(
         args.design,
@@ -296,6 +407,14 @@ TEMPLATE_BLURB = {
 
 
 def _new(args) -> int:
+    """start a design from a known-good template
+
+    Copies one of the bundled templates (`--list` shows them, with a
+    one-line blurb each) to a new YAML file, substituting a fresh UUID and
+    the given name. Two faces sharing a UUID are the same app to the watch
+    -- installing the second replaces the first -- so every call mints its
+    own.
+    """
     import re
     import uuid
 
@@ -344,7 +463,7 @@ def _new(args) -> int:
 
 
 def _doctor(args) -> int:
-    """Report what is present, what is missing, and what to do about it.
+    """check the environment and say what is missing
 
     Written for someone -- or something -- arriving with no context: each failure
     names the command that fixes it, and the exit code says whether a build is
@@ -441,6 +560,12 @@ def _doctor(args) -> int:
 
 
 def _schema(args) -> int:
+    """print the JSON Schema, or where it lives, for editor setup
+
+    With no flags, prints the schema itself -- for piping into a validator,
+    or reading by eye. `--path` prints only the file's path, for pointing an
+    editor's `yaml-language-server` schema mapping at it.
+    """
     from .validate import SCHEMA_PATH
 
     if args.path:
@@ -451,6 +576,14 @@ def _schema(args) -> int:
 
 
 def _devices(args) -> int:
+    """list installed device definitions
+
+    Reads the device files (`~/.Garmin/ConnectIQ/Devices` by default; see
+    `--devices-dir`/`WFB_DEVICES`) and prints each device's screen, shape,
+    display type, colour count, API level and watch-face memory limit. These
+    files cannot be downloaded unauthenticated -- run `wfb doctor` for how
+    to get them onto this machine.
+    """
     db = DeviceDatabase.discover(args.devices_dir)
     print(f"{'id':<24} {'screen':<12} {'shape':<10} {'display':<8} "
           f"{'colors':<7} {'api':<8} {'watch face':<10} family")
@@ -465,6 +598,14 @@ def _devices(args) -> int:
 
 
 def _sources(args) -> int:
+    """list the data-source catalogue: every value a design may bind
+
+    For each source: its type, whether it is nullable, any permission or
+    non-frame refresh tier binding it implies, and the SDK page it was taken
+    from. This is the authoritative, always-current list -- never bind a
+    path that is not listed here, and never trust a copy of this list
+    pasted into prose, which goes stale the moment the catalogue grows.
+    """
     for namespace, paths in catalog.namespaces().items():
         print(f"\n{namespace}")
         for path in paths:
