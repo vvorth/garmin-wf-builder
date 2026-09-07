@@ -157,14 +157,18 @@ hand-written Monkey C rather than growing the schema.
 | Missing | Where it is specified |
 |---|---|
 | `image` and `complication_slot` elements | ADR 0004 |
+| `shape: ellipse` and `shape: polygon` | ADR 0004 §1 lists both as renderable via `fillEllipse`/`fillPolygon`; the schema's `shape:` enum has only `rectangle`, `rounded_rectangle`, `circle`, `line` -- confirmed by reading the schema, not previously tracked here |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
 | The `config:` block, on-device config, phone settings | ADR 0006 |
 | Tap / hold interactivity | ADR 0006 §6 |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Complications, and the `event` refresh tier | ADR 0005 |
+| Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
+| SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
+| `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
 
 The `slow` refresh tier and its TTL cache (ADR 0005 §5) **shipped** --
 `weather.*` is its first real source; see `docs/format.md`'s "Data binding"

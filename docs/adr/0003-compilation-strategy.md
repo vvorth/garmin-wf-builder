@@ -59,8 +59,12 @@ With one deliberate qualification, which is where the "hybrid" lands:
 genuinely shared, data-independent logic** — arc geometry helpers, tick-scale
 maths, the `SensorHistory` iterator walk, refresh-tier caching. This is a
 *library the generated code calls*, not an interpreter: it contains no dispatch
-on serialised layout data, and anything unused is excluded per-device by
-annotation.
+on serialised layout data, and anything unused is excluded per design by the
+generator, which decides which barrel files to copy into the project at all
+(`wfb/emit/project.py`'s `_barrel_for` — as built: simpler than Monkey C's own
+`excludeAnnotations` mechanism this ADR originally assumed, and it achieves the
+same result: an unused barrel function is not merely dead-stripped at compile
+time, it is never even handed to the compiler).
 
 The distinction that keeps this honest: **generated code decides *what* is
 drawn; the barrel only helps with *how*.** If a barrel function ever needs to
@@ -77,16 +81,33 @@ branch on the design, that branch belongs in the generator.
 - **Golden-file tests over generated output** are the primary compiler test, and
   are runnable with no Garmin toolchain — which matters given device files are
   the scarce resource (`03-toolchain.md` §6).
-- **Build for strictness:** generated code should compile clean at
-  `-l 3` (strict type check) with `-w`, and `-O z` (optimise code space) is the
-  right default for a memory-bound watch face. A generator has no excuse for
-  emitting code that fails strict checking.
+- **Build for strictness:** generated code should compile clean at strict
+  typechecking with `-w`, and optimisation is the right default for a
+  memory-bound watch face. As built: both are set in the generated jungle
+  (`project.typecheck = strict`, `project.optimization = 3z`) rather than
+  passed as `monkeyc` flags — and it is specifically `3z`, not the `z` this
+  ADR originally named: `z` alone leaves the unused `Rez.Styles` module in the
+  build and warns; `3z` is the lowest level at which the compiler's
+  constant-folding and lexical-only-constants passes run, which is what
+  actually removes it. A generator has no excuse for emitting code that fails
+  strict checking.
 - **Per-device specialisation is a first-class output**, not an afterthought:
-  the generator emits the jungle, the per-device resource directories, and the
-  `excludeAnnotations` sets together.
+  the generator emits the jungle together with a separate, fully-resolved
+  `source-<device>/` directory (its own `Layout.mc`) per target device. As
+  built: this is the specialisation mechanism, not Monkey C's own
+  `excludeAnnotations` — keying compiled output by device id via the jungle's
+  own `sourcePath` directives turned out to be simpler than annotating
+  branches for the compiler to strip, and gives the same guarantee (a device's
+  build only ever sees its own resolved geometry). See ADR 0004 §3b for why
+  `deviceFamily` is not a fine enough key for this.
 - **Build time grows with device count** (one `monkeyc` invocation per device,
-  each paying JVM startup). Mitigate with parallel invocation and by defaulting
-  `build` to one device, with `build --all` explicit.
+  each paying JVM startup), not yet mitigated with parallel invocation. As
+  built: `wfb build` defaults to every declared target, with `-d`/`--device`
+  narrowing to specific ones — the opposite of this ADR's original plan
+  (default to one device, `--all` to expand). Building every target by
+  default turned out to matter more in practice: a design that silently fails
+  on only one of three targets is exactly the kind of surprise this project
+  exists to prevent, and that risk is worse than the extra build time.
 
 ## Alternatives rejected
 

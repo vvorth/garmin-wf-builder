@@ -33,12 +33,15 @@ A tree of typed elements, borrowing WFF's shape but mapped onto Garmin's actual
 | `group` | container; applies inherited anchor/visibility/mode, no drawing of its own |
 | `text` | `drawText`, or `drawAngledText`/`drawRadialText` where a vector font is available |
 | `shape` | `fillRectangle`, `fillRoundedRectangle`, `fillCircle`, `fillEllipse`, `fillPolygon`, `drawLine` |
-| `arc` | `setPenWidth` + `drawArc` |
 | `image` | `drawBitmap` / `drawScaledBitmap` |
-| `icon` | drawn primitives from a named catalogue entry (preferred over `image` — see `02-features-feasibility.md` §1) |
-| `progress` | one of four styles; see below |
+| `icon` | a single glyph from a vendored icon font, drawn via `drawText` (preferred over `image` — see `02-features-feasibility.md` §1; superseded the drawn-primitives approach this ADR originally described — see CLAUDE.md's icon-catalogue session notes) |
+| `progress` | one of four styles, `arc` among them; see below — there is no separate standalone `arc` element, despite an earlier draft of this table listing one |
 | `complication_slot` | a bound complication with a hit region |
 | `raw` | escape hatch, see ADR 0007 |
+
+**As built, `shape:` exposes only `rectangle`, `rounded_rectangle`, `circle`
+and `line`** (the schema's actual enum) — `fillEllipse`/`fillPolygon` were
+never implemented; tracked in `docs/limitations.md`.
 
 `progress` is a single element with a `style` discriminator rather than four
 element types, because the *binding* and *range* semantics are identical across
