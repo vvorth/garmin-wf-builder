@@ -112,6 +112,24 @@ def test_low_power_may_not_read_the_real_weather_condition_source(write_design, 
     assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
 
 
+def test_low_power_may_not_read_a_real_complication_source(write_design, bag):
+    """Same check again, against `event`-tier this time -- a complication is
+    just as unreadable under onPartialUpdate's budget as a `slow` read is: the
+    check in wfb/ir.py's `_check_tiers` is `tier is not Tier.FRAME`, not
+    `is Tier.SLOW`, so this must reject EVENT too, not just SLOW."""
+    load(write_design(design("""
+  - id: bb
+    type: text
+    value: body_battery.current
+    format: "{}"
+    color: palette.fg
+    at: {anchor: center}
+    modes: [active, low_power]
+    when_absent: hide
+""")), bag)
+    assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+
+
 def test_low_power_may_not_bind_a_dynamic_weather_icon(write_design, bag):
     load(write_design(design("""
   - id: wicon

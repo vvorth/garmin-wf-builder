@@ -127,3 +127,68 @@ def test_weather_readers_have_an_hourly_ttl():
     enough to justify the 900s default; both weather readers use an hour."""
     assert READERS["weather_current"].ttl_seconds == 3600
     assert READERS["weather_daily"].ttl_seconds == 3600
+
+
+# -- complications (ADR 0005's `event` tier) --------------------------------
+
+
+def test_every_event_tier_reader_names_a_complication_type():
+    """The one thing that distinguishes an EVENT reader from a FRAME/SLOW one
+    is `complication_type` -- catch a reader marked EVENT that forgot to set
+    it (nothing would subscribe to it) or a non-EVENT reader that set it by
+    copy-paste accident (nothing would ever fill its cache)."""
+    for name, reader in READERS.items():
+        if reader.tier is Tier.EVENT:
+            assert reader.complication_type is not None, name
+        else:
+            assert reader.complication_type is None, name
+
+
+def test_complication_backed_sources_have_no_field_name():
+    """Like `time.clock`, the reader *is* the value for a complication -- there
+    is no sub-field to read off it, unlike `activity.steps` off `activity`."""
+    for name, reader in READERS.items():
+        if reader.complication_type is None:
+            continue
+        for source in CATALOG.values():
+            if source.reader == name:
+                assert source.field_name is None, source.path
+
+
+def test_complication_backed_sources_declare_complicationsubscriber():
+    for name, reader in READERS.items():
+        if reader.complication_type is None:
+            continue
+        for source in CATALOG.values():
+            if source.reader == name:
+                assert source.permissions == ("ComplicationSubscriber",), source.path
+
+
+def test_complication_readers_are_not_grouped():
+    """Unlike ActivityMonitor.getInfo(), no single Complications call returns
+    several types at once, so each complication is its own reader -- one
+    source per reader, not several sources sharing one."""
+    counts: dict[str, int] = {}
+    for source in CATALOG.values():
+        if READERS[source.reader].complication_type is not None:
+            counts[source.reader] = counts.get(source.reader, 0) + 1
+    assert counts, "expected at least one complication-backed source"
+    assert all(count == 1 for count in counts.values()), counts
+
+
+def test_body_battery_is_bindable():
+    """The concrete ask this feature exists for."""
+    source = CATALOG["body_battery.current"]
+    assert source.tier is Tier.EVENT
+    assert READERS[source.reader].complication_type == "COMPLICATION_TYPE_BODY_BATTERY"
+
+
+def test_pulse_ox_is_a_direct_source_not_a_complication():
+    """currentOxygenSaturation is a field of Activity.Info (like
+    heart_rate.current), so it does not need a complication subscription at
+    all -- confirmed present on all three targets directly against the SDK's
+    own Supported Devices list, unlike the complication-backed sources above."""
+    source = CATALOG["pulse_ox.current"]
+    assert source.tier is Tier.FRAME
+    assert source.reader == "activity_info"
+    assert source.permissions == ()
