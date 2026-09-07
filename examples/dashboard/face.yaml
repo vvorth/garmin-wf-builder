@@ -121,7 +121,7 @@ elements:
     type: icon
     icon: heart
     size: 11%r
-    at: {anchor: top, dx: -30%, dy: 18%}
+    at: {anchor: top, dx: -28%, dy: 18%}
     color: palette.dim
 
   - id: hr_value
@@ -129,7 +129,7 @@ elements:
     value: heart_rate.current
     format: "{:d}"
     font: FONT_XTINY
-    at: {anchor: top, dx: -26%, dy: 18%}
+    at: {anchor: top, dx: -24%, dy: 18%}
     align: left
     color: palette.dim
     when_absent: placeholder
@@ -144,8 +144,8 @@ elements:
 
   - id: calories_value
     type: text
-    value: activity.calories
-    format: "{:d}"
+    value: "activity.calories / 10000.0"
+    format: "{:.1f}k"
     font: FONT_XTINY
     at: {anchor: top, dx: -4%, dy: 18%}
     align: left
@@ -158,9 +158,10 @@ elements:
   - id: distance_value
     type: text
     value: "activity.distance / 100000.0"   # centimetres -> kilometres
-    format: "{:.0f}km"
+    format: "{:.1f}km"
     font: FONT_XTINY
-    at: {anchor: top, dx: 23%, dy: 18%}
+    at: {anchor: top, dx: 32%, dy: 18%}
+    align: right
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
@@ -190,20 +191,20 @@ elements:
     value: weather.feels_like_temperature
     format: "{:d}°"
     font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: -28%}
+    at: {anchor: top, dy: 30%, dx: -32%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "--°"
 
-  - id: temp_high
+  - id: precipitation
     type: text
-    value: weather.high_temperature_today
-    format: "H:{:d}°"
+    value: weather.precipitation_chance_today
+    format: "{:d}%"
     font: FONT_XTINY
     at: {anchor: top, dy: 30%, dx: -15%}
     color: palette.dim
     when_absent: placeholder
-    placeholder: "H:--°"
+    placeholder: "--%"
 
   - id: weather_icon
     type: icon
@@ -212,25 +213,26 @@ elements:
     at: {anchor: top, dy: 30%}
     color: palette.dim
 
+  - id: temp_high
+    type: text
+    value: weather.high_temperature_today
+    format: "H:{:d}°"
+    font: FONT_XTINY
+    at: {anchor: top, dy: 30%, dx: 15%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "H:--°"
+
   - id: temp_low
     type: text
     value: weather.low_temperature_today
     format: "L:{:d}°"
     font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: 15%}
+    at: {anchor: top, dy: 30%, dx: 32%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "L:--°"
 
-  - id: precipitation
-    type: text
-    value: weather.precipitation_chance_today
-    format: "{:d}%"
-    font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: 28%}
-    color: palette.dim
-    when_absent: placeholder
-    placeholder: "--%"
 
   - id: sep_3
     type: shape
