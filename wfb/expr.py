@@ -571,7 +571,18 @@ def emit(node: Node, scope: Scope) -> str:
         return f"(-{inner})" if node.op == "-" else f"(!{inner})"
     if isinstance(node, Binary):
         op = _MONKEYC_BINARY.get(node.op, node.op)
-        return f"({emit(node.left, scope)} {op} {emit(node.right, scope)})"
+        left_code = emit(node.left, scope)
+        right_code = emit(node.right, scope)
+        if node.op == "/" and not _has_float_operand(node.left, node.right, scope):
+            # `check()` always types `/` as Float (see `check` above), but Monkey
+            # C's own `Number / Number` truncates -- unlike `+`/`-`/`*`, where an
+            # all-Number result matches what `check` assigns. Left un-coerced,
+            # the preview renderer (host-side Python `/`) and the device
+            # silently disagree, breaking the invariant ADR 0005 exists to
+            # guarantee. Only needed when *neither* operand is already a Float:
+            # Monkey C promotes a Number/Float mix to Float on its own.
+            left_code = _as_float(node.left, left_code)
+        return f"({left_code} {op} {right_code})"
     if isinstance(node, Conditional):
         return (
             f"({emit(node.cond, scope)} ? {emit(node.then, scope)} "
@@ -581,6 +592,32 @@ def emit(node: Node, scope: Scope) -> str:
         args = [emit(a, scope) for a in node.args]
         return _emit_call(node.name, args)
     raise ExprError(f"cannot emit {type(node).__name__}")
+
+
+def _has_float_operand(left: Node, right: Node, scope: Scope) -> bool:
+    """Does either side of a `/` already type as Float?
+
+    Re-runs `check` on the (already-folded) operands rather than threading a
+    type through emission -- `emit` is only ever called on a tree `check` has
+    already validated, so this recomputation cannot itself raise; it exists
+    purely to answer "does Monkey C already do float division here", which
+    `check`'s own Value isn't otherwise available at this point in `emit`.
+    """
+    return check(left, scope).type is Type.FLOAT or check(right, scope).type is Type.FLOAT
+
+
+def _as_float(node: Node, code: str) -> str:
+    """Force integer-typed Monkey C code to Float division by coercing it.
+
+    A bare numeric literal needs parentheses first -- ``5.toFloat()`` parses as
+    a malformed decimal (the ``.`` reads as starting a fraction), not a method
+    call, so ``5`` becomes ``(5).toFloat()``. Every other operand `emit`
+    produces is already an identifier, a parenthesized subexpression, or a
+    function call, all of which take `.toFloat()` directly.
+    """
+    if isinstance(node, Literal):
+        return f"({code}).toFloat()"
+    return f"{code}.toFloat()"
 
 
 def _emit_literal(node: Literal) -> str:

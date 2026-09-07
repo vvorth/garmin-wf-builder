@@ -245,6 +245,10 @@ class Source:
     #: element's field rather than the reader object's own field directly --
     #: `weather.condition_today`/`_tomorrow` read `DailyForecast[0]`/`[1]`.
     array_index: int | None = None
+    #: Set when `field_name` is a dotted path whose intermediate object is itself
+    #: nullable -- `activity.active_minutes_week` reads `activeMinutesWeek.total`,
+    #: and `activeMinutesWeek` is `ActiveMinutes or Null`.
+    intermediate: str | None = None
 
     @property
     def read_expr(self) -> str:
@@ -265,6 +269,13 @@ class Source:
             return None
         reader = READERS[self.reader]
         return f"{reader.name}.size() > {self.array_index}"
+
+    @property
+    def intermediate_guard(self) -> str | None:
+        """The null check a dotted `field_name` needs for its intermediate object."""
+        if self.intermediate is None:
+            return None
+        return f"{READERS[self.reader].name}.{self.intermediate} != null"
 
     @property
     def guard_needed(self) -> bool:
@@ -354,7 +365,11 @@ CATALOG: dict[str, Source] = {
         _s("activity.active_minutes_week", Type.NUMBER, "activity",
            "activeMinutesWeek.total", True, Tier.FRAME, unit="minutes",
            doc="intensity minutes this week",
-           source_ref="Toybox/ActivityMonitor/Info.html"),
+           source_ref="Toybox/ActivityMonitor/Info.html",
+           # activeMinutesWeek is itself "ActiveMinutes or Null" -- the
+           # generated code cannot dereference `.total` on it unconditionally.
+           # See Source.intermediate_guard.
+           intermediate="activeMinutesWeek"),
         _s("activity.active_minutes_week_goal", Type.NUMBER, "activity",
            "activeMinutesWeekGoal", True, Tier.FRAME, unit="minutes",
            doc="weekly intensity-minutes goal",

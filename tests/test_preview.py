@@ -67,3 +67,33 @@ def test_preview_and_codegen_read_the_same_geometry(resolved):
     ring = next(p for p in resolved.items if p.id == "step_ring")
     assert f"const STEP_RING_RADIUS as Number = {ring.radius};" in layout
     assert f"const STEP_RING_CX as Number = {ring.center[0]};" in layout
+
+
+def test_a_progress_fallback_renders_the_same_fraction_the_device_draws(
+        write_design, db, bag, tmp_path):
+    """Preview and device must agree about an absent reading, not just a present
+    one.
+
+    `when_absent: fallback` used to be honoured here and silently dropped by
+    codegen, so the two renderers disagreed in exactly the case the policy
+    exists for. They now substitute the same fill fraction, so a half-full
+    fallback ring is half full in both -- distinguishable here from the 0.0 an
+    unhandled absence would produce.
+    """
+    from tests.test_semantics import RING, design
+
+    path = write_design(design(RING.replace("__FALLBACK__", "0.5")))
+    face = load(path, bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    # No reading for either bound source: the fallback is the only thing left.
+    options = PreviewOptions(scale=1, mask_shape=False,
+                             sample={"activity.steps": None, "activity.step_goal": None})
+    filled = render(resolved, options)
+    empty = render(resolved, PreviewOptions(
+        scale=1, mask_shape=False,
+        sample={"activity.steps": 0, "activity.step_goal": 1000}))
+    lit = sum(1 for p in filled.get_flattened_data() if p != (0, 0, 0))
+    dark = sum(1 for p in empty.get_flattened_data() if p != (0, 0, 0))
+    assert lit > dark, "the fallback fraction drew nothing"

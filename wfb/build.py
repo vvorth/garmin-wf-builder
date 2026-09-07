@@ -113,6 +113,7 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
     from .layout import resolve
 
     lint.check_permissions(face, bag)
+    lint.check_lint_allow(face, bag)
 
     reference_minor = min(d.minor_radius for d in devices)
     resolved: dict[str, ResolvedFace] = {}

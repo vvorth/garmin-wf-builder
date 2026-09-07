@@ -113,11 +113,23 @@ def test_two_complications_share_one_callback_with_two_cases(write_design, bag, 
 
 def test_complication_callback_requests_an_update(write_design, bag, db, tmp_path):
     view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
-    assert "getComplication(id);" in view
+    assert "WfbComplications.valueOf(id);" in view
     lines = view.splitlines()
     callback_start = next(i for i, l in enumerate(lines) if "function onComplicationChanged" in l)
-    callback_body = "\n".join(lines[callback_start:callback_start + 12])
+    callback_body = "\n".join(lines[callback_start:callback_start + 14])
     assert "WatchUi.requestUpdate();" in callback_body
+
+
+def test_complication_callback_guards_a_not_found_or_unavailable_complication(
+    write_design, bag, db, tmp_path,
+):
+    """`getComplication` throws `ComplicationNotFoundException` (Bug 7) --
+    the callback must not call it directly and must bail out if the looked-up
+    value comes back null, rather than dereferencing `.value` on it."""
+    view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
+    assert "Complications.getComplication(id)" not in view
+    assert "var complication = WfbComplications.valueOf(id);" in view
+    assert "if (complication == null) {\n            return;" in view
 
 
 def test_absent_complication_hides_the_element(write_design, bag, db, tmp_path):

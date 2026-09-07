@@ -95,12 +95,21 @@ cannot be overridden gets disabled wholesale:
 
 ```yaml
 lint:
-  allow: [palette_dither]
+  allow: [palette-dither]
   reason: "deliberate orange accent, matches the brand"
 ```
 
 `error`-severity checks that reflect hard platform limits (2, 11, 12) are **not**
 suppressible — suppressing them produces a face that does not work.
+
+The code named in `allow:` is checked against the set the compiler actually
+emits (`lint.ALL_CODES`, kept honest by a test that re-derives it from the
+source), so a misspelling and a deliberately-unsuppressible code are reported
+differently instead of both being ignored in silence — `lint.check_lint_allow`,
+which runs once per build rather than once per target because an element's
+`allow:` list is fixed before any device is resolved. This decision cost a real
+bug: the code above was written `palette_dither` in this ADR for a long time,
+which the compiler would have accepted and silently ignored.
 
 ## Consequences
 

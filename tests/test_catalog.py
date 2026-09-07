@@ -1,10 +1,18 @@
 """wfb/catalog.py: readers, sources, and the tier/permission machinery
 built around them (ADR 0005).
 
-Nothing here needs the Garmin toolchain or device files.
+Nothing here needs the Garmin toolchain or device files, except the one
+``@pytest.mark.slow`` test at the bottom that builds every catalogue entry
+through the real compiler -- the catalogue can only *advertise* a source
+correctly (`wfb sources`); whether binding it actually compiles is a claim
+only `monkeyc` can settle.
 """
 
 from __future__ import annotations
+
+import uuid
+
+import pytest
 
 from wfb import catalog
 from wfb.catalog import CATALOG, READERS, Tier, Type
@@ -75,6 +83,44 @@ def test_read_expr_for_a_plain_field_has_no_array_indexing():
     assert source.array_index is None
     assert source.read_expr == f"{reader.name}.{source.field_name}"
     assert "[" not in source.read_expr
+
+
+def test_dotted_field_name_has_an_intermediate_guard():
+    """`activity.active_minutes_week` reads `activeMinutesWeek.total`, and
+    `activeMinutesWeek` is itself `ActiveMinutes or Null` (Toybox/
+    ActivityMonitor/Info.html) -- dereferencing `.total` unconditionally
+    crashes with "Cannot find symbol ':total' on type 'Null'" the moment the
+    field is genuinely absent, which is the common case on this platform, not
+    an edge case."""
+    source = CATALOG["activity.active_minutes_week"]
+    reader = READERS[source.reader]
+    assert "." in source.field_name
+    assert source.intermediate == "activeMinutesWeek"
+    assert source.intermediate_guard == f"{reader.name}.activeMinutesWeek != null"
+
+
+def test_plain_field_name_has_no_intermediate_guard():
+    """The converse: a source whose `field_name` is not itself a dotted path
+    needs no extra guard beyond its own/reader nullability."""
+    source = CATALOG["activity.steps"]
+    assert "." not in source.field_name
+    assert source.intermediate is None
+    assert source.intermediate_guard is None
+
+
+def test_no_other_dotted_field_names_are_missing_an_intermediate_guard():
+    """A future entry copy-pasting a dotted `field_name` (the same mistake
+    `activity.active_minutes_week` made) must not silently ship without a
+    guard -- this is the audit `activity.active_minutes_week`'s fix was
+    supposed to generalise, pinned down so it can't regress."""
+    for path, source in CATALOG.items():
+        if source.field_name is not None and "." in source.field_name:
+            assert source.intermediate is not None, (
+                f"{path!r} has a dotted field_name {source.field_name!r} but no "
+                "'intermediate' guard -- its intermediate object may itself be "
+                "nullable, the exact bug activity.active_minutes_week had"
+            )
+            assert source.intermediate_guard is not None, path
 
 
 # -- the broader catalogue expansion (weather fields, ambient, user profile) -
@@ -192,3 +238,97 @@ def test_pulse_ox_is_a_direct_source_not_a_complication():
     assert source.tier is Tier.FRAME
     assert source.reader == "activity_info"
     assert source.permissions == ()
+
+
+# -- every catalogue entry actually compiles ---------------------------------
+#
+# This is the test the activity.active_minutes_week bug (the dotted
+# field_name / intermediate_guard fix above) should have made unnecessary to
+# discover by hand: `wfb sources` advertises a binding as soon as it is in
+# CATALOG, but nothing short of a real `monkeyc` build proves the generated
+# Monkey C for that binding actually typechecks. One catalogue entry failing
+# this way is exactly the shape of bug that a schema/validate-only test
+# cannot catch -- `wfb validate` never lowers as far as Monkey C at all.
+
+
+def _text_element_for(path: str, source) -> str:
+    """One `text` element YAML block binding `path`, valid for its type."""
+    element_id = path.replace(".", "_")
+    lines = [
+        f"  - id: {element_id}",
+        "    type: text",
+        f"    value: {path}",
+    ]
+    if source.type is Type.TIME:
+        lines.append('    format: "{:%H:%M}"')
+    elif source.type is Type.DATE:
+        lines.append('    format: "{:%a %e %b}"')
+    if source.guard_needed:
+        lines.append("    when_absent: hide")
+    lines += [
+        "    at: { anchor: center }",
+        "    color: palette.text",
+        "    lint:",
+        "      allow: [text-overflow, safe-area]",
+        "      reason: \"one text element per catalogue source, stacked on top of",
+        "        itself on purpose -- this design exists to compile, not to be read\"",
+    ]
+    return "\n".join(lines)
+
+
+def _full_catalog_design(tmp_path) -> "pathlib.Path":
+    import pathlib
+
+    elements = ["""  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg"""]
+    elements += [_text_element_for(path, source) for path, source in sorted(CATALOG.items())]
+
+    text = f"""format: 1
+
+face:
+  id: {uuid.uuid4()}
+  name: FullCatalog
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+
+elements:
+{chr(10).join(elements)}
+"""
+    path = pathlib.Path(tmp_path) / "full_catalog.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+@pytest.mark.slow
+def test_every_catalog_source_compiles(tmp_path, bag, db):
+    """The catalogue-wide guard against `activity.active_minutes_week`'s bug:
+    build a design binding *every* CATALOG entry, one text element each, and
+    require a real BUILD SUCCESSFUL. `wfb sources`/`wfb validate` can only
+    check that a binding is well-typed against the catalogue's own claims --
+    they cannot catch a claim that is simply wrong, the way
+    `activeMinutesWeek.total` was wrong until this session's fix. This test
+    would have failed before that fix, and is the reason the fix is worth
+    more than its one line."""
+    from wfb.build import Toolchain, build
+
+    toolchain = Toolchain.discover()
+    if toolchain is None or not toolchain.key.exists():
+        pytest.skip("no Connect IQ SDK or developer key")
+    design = _full_catalog_design(tmp_path)
+    result = build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    errors = [d for d in bag.items if d.severity.value == "error"]
+    assert not errors, bag.render()
+    assert result.products, "nothing was compiled"

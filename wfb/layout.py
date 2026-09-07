@@ -17,8 +17,9 @@ from dataclasses import dataclass, field
 from . import catalog, formatting, icons
 from .devices import Device
 from .fonts import BakedFont, fallback
+from .catalog import Type
 from .ir import (
-    Element, Face, Group, IconElement, Position, Progress, Shape, Size, Text,
+    Element, Expression, Face, Group, IconElement, Position, Progress, Shape, Size, Text,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
 
@@ -335,6 +336,16 @@ class Resolver:
         if element.when_absent == "placeholder" and element.placeholder:
             if len(element.placeholder) > len(widest):
                 widest = element.placeholder
+        if element.when_absent == "fallback" and element.fallback is not None:
+            # 'fallback:' is drawn through the exact same format spec as the
+            # real value (see _emit_text in wfb.emit.monkeyc), so its widest
+            # rendering has to be considered too -- otherwise a font baked
+            # from the *value*'s digit range alone can come up short for a
+            # wider fallback (e.g. a longer literal string on a nullable
+            # STRING source).
+            fallback_widest = _fallback_widest(element.fallback, spec)
+            if len(fallback_widest) > len(widest):
+                widest = fallback_widest
         return widest
 
     @staticmethod
@@ -348,6 +359,24 @@ class Resolver:
         if element.vertical_align == "center":
             out.append("TEXT_JUSTIFY_VCENTER")
         return tuple(out)
+
+
+def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
+    """The widest string a `fallback:` expression could render, through the
+    same format spec the bound value uses (see Bug 1's `_emit_text`).
+
+    A literal string fallback (`fallback: "N/A"`) renders exactly as written,
+    the same way `placeholder:` already does above -- `formatting.widest`'s
+    digit-based estimate has no way to guess the content of an arbitrary
+    string, so a literal one is used verbatim.  Anything else (typically a
+    numeric literal, or an expression over a non-nullable source) goes
+    through the same digit-count estimate the bound value itself uses, keyed
+    off the fallback's own source when it has one.
+    """
+    if fallback_expr.value.type is Type.STRING and fallback_expr.constant is not None:
+        return str(fallback_expr.constant)
+    source = catalog.get(fallback_expr.sources[0]) if fallback_expr.sources else None
+    return formatting.widest(spec, source, fallback_expr.value.type, fallback_expr.scale)
 
 
 def resolve(face: Face, device: Device, fonts: dict[str, BakedFont]) -> ResolvedFace:

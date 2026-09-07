@@ -55,10 +55,23 @@ def glyph_set(face: Face) -> dict[str, str]:
         if element.value is None:
             continue
         source = catalog.get(element.value.sources[0]) if element.value.sources else None
-        bucket |= formatting.glyphs(element.format or "{}", source,
-                                    element.value.value.type, element.value.scale)
+        spec = element.format or "{}"
+        bucket |= formatting.glyphs(spec, source, element.value.value.type, element.value.scale)
         if element.placeholder:
             bucket |= set(element.placeholder)
+        if element.when_absent == "fallback" and element.fallback is not None:
+            # 'fallback:' is drawn through the same format spec as the real
+            # value (see Bug 1's _emit_text in wfb.emit.monkeyc) -- a literal
+            # string fallback renders exactly as written, the same way
+            # 'placeholder:' is handled above; anything else goes through the
+            # same digit-set formatting.glyphs already adds for the value.
+            fallback = element.fallback
+            if fallback.value.type is catalog.Type.STRING and fallback.constant is not None:
+                bucket |= set(str(fallback.constant))
+            else:
+                fallback_source = catalog.get(fallback.sources[0]) if fallback.sources else None
+                bucket |= formatting.glyphs(spec, fallback_source, fallback.value.type,
+                                            fallback.scale)
     out: dict[str, str] = {}
     for name, chars in needed.items():
         declared = face.fonts[name].glyphs

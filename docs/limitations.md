@@ -171,6 +171,7 @@ drop to hand-written Monkey C rather than growing the schema.
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
+| ADR 0008's check 2, **unsupported API for a targeted device** | ADR 0008 lists it as exact and it is not implemented at all. `Device.has_symbol` and `catalog.Source.requires` are both in place and unused; §3 below has the detail |
 | `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
 
 The `slow` refresh tier and its TTL cache (ADR 0005 §5) **shipped** --
@@ -216,9 +217,18 @@ edges matter more than its coverage.
 
 ### Checks that are exact
 
-Data-source spelling; per-device API availability; palette legality; geometry
-against the framebuffer and the visible area (round and rectangle only); glyph
-coverage of a subsetted font; refresh tiers; contrast arithmetic.
+Data-source spelling; palette legality; geometry against the framebuffer and the
+visible area (round and rectangle only); glyph coverage of a subsetted font;
+refresh tiers; contrast arithmetic.
+
+**Per-device API availability is not among them**, despite ADR 0008 listing it as
+check 2 and as exact. The machinery exists and is correct — `Device.has_symbol`
+resolves a `Parent.name` against the device's own `<id>.api.debug.xml`, keyed by
+fully-qualified parent so `InputDelegate.onTap` cannot be mistaken for
+`WatchFaceDelegate.onTap`, and `tests/test_devices.py` proves it on the real
+device files — but **nothing in the compiler pipeline calls it**. See "Device
+gating for a source is not enforced" below, which is the same gap seen from the
+catalogue's side.
 
 ### Checks that are explicitly weaker, and say so in their own output
 
@@ -228,6 +238,29 @@ coverage of a subsetted font; refresh tiers; contrast arithmetic.
 | **Partial-update power budget** | **A heuristic.** Garmin does not publish the numeric budget; the docs say only "strict limits". The check flags relative cost — clip area and operation count — and is labelled a heuristic until measured empirically against `onPowerBudgetExceeded`. |
 | **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is **always an estimate** — Garmin publishes each `FONT_*` symbol's pixel *height* per device and language, but not its per-glyph advances, and the real typefaces (Pridi, Roboto Condensed, Bionic, ...) are not available on the host or in the SDK. The estimate scales a real scalable stand-in face to the device's published height and measures per character (`wfb/fonts/fallback.py`), which is why it needs that per-device height to be correct in the first place — a flat 0.55 em/character coefficient is a last-resort fallback used only if even that stand-in face fails to load. Every system-font measurement is labelled `(estimated)` in the generated code regardless. |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
+
+### Suppression, and what it can reach
+
+`lint: {allow: [<code>], reason: "..."}` on an element silences a suppressible
+check for that element. Two of the five suppressible codes are not element-scoped
+diagnostics at all, so their suppression is scoped to the elements that *cause*
+them rather than to an arbitrary one:
+
+* **`palette-dither`** is about a `palette:` entry, and `palette:` is a flat
+  mapping with nowhere to hang a `lint:` block. The allow is honoured on any
+  element whose `color:` or `track_color:` is exactly `palette.<name>` — the
+  match is on the author's own expression text, so an element that merely
+  *mentions* the entry inside a larger conditional does not count. When no
+  element references the entry that way, the warning says so instead of printing
+  instructions that would not work.
+* **`partial-update-budget`** is about the whole face's clip rectangle, so the
+  allow is honoured on any element drawn in `low_power` mode — the elements that
+  the clip is computed from and that pay its cost.
+
+A code in `allow:` that this compiler does not emit, or that is deliberately not
+suppressible, is now an **error** naming which of the two it is. Before that, both
+were ignored without a word, and the author had no way to tell a typo from a
+check that refuses suppression on purpose.
 
 ### Not checked at all
 
@@ -249,10 +282,11 @@ coverage of a subsetted font; refresh tiers; contrast arithmetic.
 * **Safe area on `semi-round` and `semi-octagon`.** Reported as "not checked".
 * **Whether a device's firmware actually behaves as its files describe.** The
   device files are the best available ground truth, not a guarantee.
-* **Device gating for a source is not enforced.** `catalog.Source.requires`
+* **Device gating for a source is not enforced** — ADR 0008's check 2, the
+  other half of "per-device API availability" above. `catalog.Source.requires`
   (`Parent.name` symbols a binding needs on the target device) exists and is
   set on one source (`device.do_not_disturb`), but nothing in `wfb/lint.py`
-  or `wfb/ir.py` ever reads it -- found while adding `activity.sleep_score`
+  or `wfb/ir.py` ever reads it, and nothing calls `Device.has_symbol` -- found while adding `activity.sleep_score`
   (its complication needs ConnectIQ 6.0.2, above `fr955`'s 5.2.0 ceiling), and
   worked around there by relying on `WfbComplications.mc`'s catch-both-
   outcomes `subscribe()` instead of gating the source itself: the field just

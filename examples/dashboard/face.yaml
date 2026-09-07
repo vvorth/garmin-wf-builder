@@ -67,9 +67,10 @@ fonts:
     source: assets/OpenSans-Regular.ttf
     # Rasterised at this many pixels on the smallest target and scaled up for
     # the 280x280 fenix 8 Solar 51 mm, so one declaration is right on both.
-    size: 99
-    # 'glyphs' is omitted on purpose: the compiler derives the set from the
-    # 
+    size: 90
+    # 'glyphs' is omitted on purpose: the compiler derives the set from every
+    # format spec and literal this design can render, so the sheet carries the
+    # handful of digits the clock actually draws rather than a character set.
 
 elements:
   - id: background
@@ -85,7 +86,7 @@ elements:
     value: date.today
     format: "{:%a %e %b}"       # "Thu 3 Sep" -- %a and %b come back localised
     font: FONT_XTINY
-    at: {anchor: top, dy: 7%}
+    at: {anchor: top, dy: 9.5%}
     color: palette.date
 
   # A separator is a chord of a circle just inside the bezel. Both ends are
@@ -93,8 +94,8 @@ elements:
   - id: sep_1
     type: shape
     shape: line
-    at: {anchor: top, dy: 12%, dx: 25% }
-    to: {anchor: top, dy: 12%, dx: -25% }
+    at: {anchor: top, dy: 14%, dx: 25% }
+    to: {anchor: top, dy: 14%, dx: -25% }
     thickness: 1px
     color: palette.separator
     lint:
@@ -159,7 +160,7 @@ elements:
     value: "activity.distance / 100000.0"   # centimetres -> kilometres
     format: "{:.0f}km"
     font: FONT_XTINY
-    at: {anchor: top, dx: 27%, dy: 18%}
+    at: {anchor: top, dx: 23%, dy: 18%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "--"
@@ -179,25 +180,30 @@ elements:
 
   # -- row 3: weather -------------------------------------
 
+  # Ordered outer-to-inner-to-outer as now / high / [icon] / low / precip
+  # rather than the reference's strict left-to-right reading order: the two
+  # wider "H:"/"L:" labels flank the icon (its own narrow footprint leaves
+  # them the most room), and the two narrower readings take the outer slots
+  # a wide label could not reach without crossing the bezel curve.
   - id: temp_now
     type: text
     value: weather.feels_like_temperature
     format: "{:d}°"
     font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: -32%}
+    at: {anchor: top, dy: 30%, dx: -28%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "--°"
 
-  - id: precipitation
+  - id: temp_high
     type: text
-    value: weather.precipitation_chance_today
-    format: "{:d}%"
+    value: weather.high_temperature_today
+    format: "H:{:d}°"
     font: FONT_XTINY
     at: {anchor: top, dy: 30%, dx: -15%}
     color: palette.dim
     when_absent: placeholder
-    placeholder: "--%"
+    placeholder: "H:--°"
 
   - id: weather_icon
     type: icon
@@ -206,26 +212,25 @@ elements:
     at: {anchor: top, dy: 30%}
     color: palette.dim
 
-  - id: temp_high
-    type: text
-    value: weather.high_temperature_today
-    format: "H:{:d}°"
-    font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: 15%}
-    color: palette.dim
-    when_absent: placeholder
-    placeholder: "H:--°"
-
   - id: temp_low
     type: text
     value: weather.low_temperature_today
     format: "L:{:d}°"
     font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: 32%}
+    at: {anchor: top, dy: 30%, dx: 15%}
     color: palette.dim
     when_absent: placeholder
     placeholder: "L:--°"
 
+  - id: precipitation
+    type: text
+    value: weather.precipitation_chance_today
+    format: "{:d}%"
+    font: FONT_XTINY
+    at: {anchor: top, dy: 30%, dx: 28%}
+    color: palette.dim
+    when_absent: placeholder
+    placeholder: "--%"
 
   - id: sep_3
     type: shape

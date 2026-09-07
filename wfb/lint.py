@@ -12,6 +12,7 @@ Only :func:`check_memory` needs a real build.
 
 from __future__ import annotations
 
+import difflib
 import math
 import re
 
@@ -19,7 +20,7 @@ from . import catalog
 from .devices import Device
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
-from .ir import Face, Text
+from .ir import Element, Face, Text
 from .layout import (
     PlacedText, ResolvedFace, inside_screen, inside_visible_area_for, is_full_bleed,
 )
@@ -30,6 +31,23 @@ from .palette import Color
 #: produces a face that does not work.
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
+})
+
+#: Every diagnostic code emitted anywhere in this compiler -- not just the
+#: checks in this file.  This is what lets :func:`check_lint_allow` tell a
+#: misspelled code (not here at all) apart from a real one that is simply not
+#: suppressible (here, but not in ``SUPPRESSIBLE``).  Derived by hand from a
+#: grep of every ``bag.error/warning/note`` and ``Diagnostic(...)`` call across
+#: ``wfb/`` -- ``tests/test_lint.py`` re-runs that grep and fails the build the
+#: day this set drifts from what the compiler actually emits, so it cannot rot
+#: silently the way the two codes in Bug 1 did.
+ALL_CODES = frozenset({
+    "color", "contrast", "devices", "duplicate-id", "element", "expression",
+    "font", "format", "format-version", "icon", "io", "lint-allow", "memory",
+    "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
+    "palette-dither", "partial-update", "partial-update-budget", "permission",
+    "raw-color", "refresh-tier", "safe-area", "schema", "target",
+    "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
 
 
@@ -92,11 +110,95 @@ def check_permissions(face: Face, bag: Bag) -> None:
                     )
 
 
+def check_lint_allow(face: Face, bag: Bag) -> None:
+    """A ``lint: {allow: [...]}`` entry must name a code this compiler can
+    actually suppress.
+
+    Before this check existed, an unknown code (a typo) and a real-but-hard
+    check (naming one of the errors ``SUPPRESSIBLE`` deliberately excludes)
+    both failed the exact same way: silently.  The warning the author was
+    trying to silence just kept firing, with nothing to say whether they
+    misspelled the code or the check itself refuses suppression on purpose.
+
+    An element's ``lint_allow`` is fixed once the IR is built, before any
+    device is resolved, so -- like :func:`check_permissions` -- this runs once
+    per build rather than once per device.
+    """
+    for element in face.walk():
+        for code in sorted(element.lint_allow):
+            if code in SUPPRESSIBLE:
+                continue
+            span = element.span
+            if code in ALL_CODES:
+                bag.error(
+                    "lint-allow",
+                    f"{element.id}: {code!r} is a real diagnostic code, but it is "
+                    f"deliberately not suppressible",
+                    span,
+                    notes=[
+                        "the hard-platform-limit checks stay unsuppressible on purpose: "
+                        "silencing one would produce a face that does not work",
+                        "suppressible codes: " + ", ".join(sorted(SUPPRESSIBLE)),
+                    ],
+                    confidence="exact -- SUPPRESSIBLE is this file's own registry",
+                )
+                continue
+            near = difflib.get_close_matches(code, ALL_CODES, n=1, cutoff=0.6)
+            notes = ["suppressible codes: " + ", ".join(sorted(SUPPRESSIBLE))]
+            if near:
+                notes.insert(0, f"did you mean {near[0]!r}?")
+            bag.error(
+                "lint-allow",
+                f"{element.id}: {code!r} is not a diagnostic code this compiler emits",
+                span,
+                notes=notes,
+                confidence="exact -- SUPPRESSIBLE is this file's own registry",
+            )
+
+
 # -- check 3: palette legality ---------------------------------------------
 
 
+#: Element fields that can carry a bare ``palette.<name>`` reference.  Not
+#: every element kind has both -- ``Text``/``Shape``/``IconElement`` have only
+#: ``color``, ``Progress`` also has ``track_color`` -- ``getattr`` covers the
+#: gap without needing an isinstance check per kind here.
+_PALETTE_REFERENCING_FIELDS = ("color", "track_color")
+
+
+def _palette_users(face: Face, name: str) -> list[Element]:
+    """Elements whose ``color:``/``track_color:`` is exactly ``palette.<name>``.
+
+    This is deliberately an exact textual match on the author's own expression
+    text, not a search through folded constants -- a conditional expression
+    that merely *mentions* the entry (``hr.current > 100 ? palette.fg : ...``)
+    does not count, because the dithering the warning is about is a property
+    of the named colour itself, not of any one place it is used, and claiming
+    to trace it through arbitrary expressions would overclaim what this check
+    can actually verify.
+    """
+    token = f"palette.{name}"
+    return [
+        element for element in face.walk()
+        if any(
+            (expression := getattr(element, field, None)) is not None
+            and expression.text == token
+            for field in _PALETTE_REFERENCING_FIELDS
+        )
+    ]
+
+
 def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
-    """Each channel must be 0x00/0x55/0xAA/0xFF on a 64-colour panel."""
+    """Each channel must be 0x00/0x55/0xAA/0xFF on a 64-colour panel.
+
+    The warning is about a *palette entry*, not an element -- ``palette:`` is
+    a flat mapping with nowhere of its own to hang a ``lint:`` block (and
+    schema/IR changes are out of scope here) -- so suppression is honoured on
+    whichever element(s) actually reference the entry via ``color:`` or
+    ``track_color:``.  That is the right scope: a dithered colour dithers
+    every place it is drawn, so acknowledging it once, on any one use, is
+    acknowledging the colour itself.
+    """
     colors = resolved.device.display_colors
     if colors is None:
         bag.note(
@@ -108,7 +210,20 @@ def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
     for name, color in resolved.face.palette.items():
         if color.is_palette_legal(colors):
             continue
+        users = _palette_users(resolved.face, name)
+        if any("palette-dither" in element.lint_allow for element in users):
+            continue
         nearest = color.nearest_legal(colors)
+        if users:
+            suppress_note = (
+                f"set 'lint: {{allow: [palette-dither], reason: ...}}' on the element "
+                f"whose 'color:' or 'track_color:' is 'palette.{name}' to keep it"
+            )
+        else:
+            suppress_note = (
+                f"no element's 'color:' or 'track_color:' is exactly 'palette.{name}', "
+                f"so there is nowhere to put 'lint: {{allow: [palette-dither]}}' for it"
+            )
         bag.warning(
             "palette-dither",
             f"palette.{name} = {color} is not one of {resolved.device.id}'s "
@@ -117,7 +232,7 @@ def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
                 f"nearest legal colour: {nearest}",
                 "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
                 "dithered by the firmware and looks grainy",
-                "set 'lint: {allow: [palette-dither], reason: ...}' on the element to keep it",
+                suppress_note,
             ],
             confidence="exact -- device display_colors",
         )
@@ -278,6 +393,13 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
     counts as modified whenever any does, and exceeding the budget disables
     partial updates permanently.  So a large clip is worth flagging even without
     an exact threshold -- but the message must not pretend to one.
+
+    Like :func:`check_palette`, this is about the whole face's clip rectangle
+    rather than one element, so there is no single natural place to hang
+    ``lint: {allow: ...}``.  The candidates that *do* exist are the elements
+    the clip was actually built from -- everything drawn in ``low_power`` mode
+    -- so suppression is honoured there: acknowledging the cost on any one of
+    them acknowledges the shared clip they all pay into.
     """
     clip = resolved.clip_for("low_power")
     if clip is None:
@@ -293,9 +415,12 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
             confidence="exact -- device displayType",
         )
         return
+    low_power = resolved.in_mode("low_power")
     fraction = clip.area / (device.width * device.height)
-    operations = len([p for p in resolved.in_mode("low_power") if p.kind != "group"])
+    operations = len([p for p in low_power if p.kind != "group"])
     if fraction > 0.25:
+        if any("partial-update-budget" in p.element.lint_allow for p in low_power):
+            return
         bag.warning(
             "partial-update-budget",
             f"low-power updates clip {fraction * 100:.0f}% of the screen "
@@ -304,7 +429,9 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
                    "when little inside it changes",
                    "exceeding the budget calls onPowerBudgetExceeded and disables partial "
                    "updates for the rest of the app's lifecycle",
-                   "group the low-power elements closer together to tighten the clip"],
+                   "group the low-power elements closer together to tighten the clip",
+                   "set 'lint: {allow: [partial-update-budget], reason: ...}' on any "
+                   "one of the elements drawn in low-power mode to keep it"],
             confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
                        "flags relative cost, not a measured overrun",
         )

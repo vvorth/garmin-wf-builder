@@ -175,8 +175,22 @@ class _Renderer:
         if value is None or maximum is None:
             if element.when_absent == "hide":
                 return
-            value, maximum = 0, 1
-        fraction = 0.0 if not maximum or maximum <= 0 else min(1.0, max(0.0, value / maximum))
+            # `fallback:` on a progress substitutes the fill fraction itself,
+            # not the value -- see wfb/emit/monkeyc.py's `_fallback_fraction`.
+            # Rendering the same substitution the device does is what keeps
+            # this preview and the generated code from disagreeing, which is
+            # the whole reason the resolved geometry is shared.
+            fraction = 0.0
+            if element.when_absent == "fallback" and element.fallback is not None \
+                    and element.fallback.ast is not None:
+                substitute = expr.evaluate(element.fallback.ast, self.values)
+                if substitute is not None:
+                    fraction = min(1.0, max(0.0, float(substitute)))
+        else:
+            fraction = (
+                0.0 if not maximum or maximum <= 0
+                else min(1.0, max(0.0, value / maximum))
+            )
         s = self.scale
 
         if element.style == "arc":

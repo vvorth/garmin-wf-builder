@@ -78,7 +78,13 @@ wfb devices                        # installed device definitions and their limi
 wfb sources                        # the data-source catalogue
 wfb schema    [--path]             # the JSON Schema, for editor setup
 wfb doctor                         # what is installed, what is missing, what to do
+wfb help      [command]            # every command's own help, from its own docstring
 ```
+
+`wfb help <command>` and `wfb <command> help` print the same thing as
+`wfb <command> --help`, byte for byte, because all three are read from that
+command's handler docstring rather than from a hand-written string that could
+drift from it.
 
 The quickest start:
 
@@ -165,6 +171,9 @@ wfb/                  the compiler
   layout.py             relative units -> absolute pixels, per device
   lint.py               ADR 0008's checks, each with a stated confidence
   fonts/                TrueType -> BMFont sheet, subsetted to the used glyphs
+  icons.py              icon sizing and resolution over a vendored Nerd Font
+  icon_catalog.py       the icon name -> codepoint table, data only
+  assets/icons/         the vendored "Symbols Only" font (MIT; see its README)
   emit/                 Monkey C, resources, manifest, jungle
   preview.py            host-side renderer over the resolved IR
   build.py, cli.py      the pipeline and `wfb`
@@ -173,7 +182,7 @@ schema/               the published JSON Schema (a shipped artefact)
 examples/slice/       the Phase 2 example face -- the smallest end-to-end path
 examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
                       conditional colours, a badge and three arcs
-tests/                181 tests; only the `slow` ones need the Garmin toolchain
+tests/                414 tests; only the `slow` ones need the Garmin toolchain
 docs/                 format reference, limitations, ADRs, Phase 0 research
 ```
 

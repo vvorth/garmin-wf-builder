@@ -52,6 +52,7 @@ face:
   id: <uuid>            # the Connect IQ application UUID -- generate once, keep stable
   name: Slice
   version: 1.0.0
+  entry: Slice          # optional: the Monkey C entry class name, from `name` if omitted
 targets: [fenix8solar47mm, fenix8solar51mm, fr955]
 palette: {...}
 fonts:   {...}
@@ -479,6 +480,22 @@ nullable binding rather than defaulting silently:
 | `placeholder` | fixed text is drawn instead (needs `placeholder:`) |
 | `fallback` | another expression supplies the value (needs `fallback:`, which must not itself be nullable) |
 
+**`when_absent:` covers every nullable binding on the element, not just
+`value:`.** A nullable `color:`, `track_color:` or `max:` needs a policy too — a
+conditional colour reading `heart_rate.current` makes the whole element depend on
+that sensor. A nullable non-value binding always *hides* the element when it is
+absent, whichever policy is named, because a colour has no placeholder. If that
+makes a declared `placeholder:`/`fallback:` impossible to reach — every nullable
+source behind the value is also read by the colour — the compiler says so rather
+than letting the substitute sit there as dead text.
+
+**On a `progress`, `fallback:` supplies the fill fraction (0.0–1.0), not the
+value.** This is the one place the policy means something different from `text`,
+and it is forced: either `value:` or `max:` can be the absent reading, so the
+resulting proportion is the only well-defined thing to substitute. A constant
+outside 0.0–1.0 is a build error; a computed one is clamped on device. For "half
+full" write `0.5`, not the reading you would have shown.
+
 ### Expressions
 
 Compiled to Monkey C. Nothing interprets them on the watch.
@@ -586,6 +603,19 @@ lint:
 disabled wholesale. Errors that reflect hard platform limits (refresh tiers,
 missing glyphs, off-screen geometry) are **not** suppressible: silencing one
 produces a face that does not work.
+
+Exactly five codes are suppressible: `palette-dither`, `safe-area`,
+`text-overflow`, `contrast` and `partial-update-budget`. **A code that is not one
+of them is a build error**, and the message distinguishes the two ways that
+happens — a code the compiler does not emit at all (with a "did you mean"
+suggestion) versus a real code that is deliberately unsuppressible (with the
+reason). Both used to be ignored in silence, which left an author unable to tell
+a typo from a check that refuses to be silenced.
+
+Two of the five are not element-scoped diagnostics, so the allow goes on the
+element that causes them: `palette-dither` on an element whose `color:` or
+`track_color:` is exactly `palette.<name>`, and `partial-update-budget` on any
+element drawn in `low_power` mode. See `docs/limitations.md` §3.
 
 ---
 

@@ -275,7 +275,7 @@ is the thing the user asked to review.
 | `monkeyc`, and the measured memory check | `wfb/build.py` | **yes** |
 | Host-side preview | `wfb/preview.py` | no |
 
-181 tests. Only the ones marked `slow` invoke `monkeyc`.
+414 tests. Only the ones marked `slow` invoke `monkeyc`.
 
 ### Findings from Phase 2 that were not in the research
 
@@ -847,6 +847,102 @@ answer to "what can I bind, what can I target, is my environment ready" --
 this closes the last gap, "what does this command actually do," so an
 unfamiliar caller (human or model) never has to fall back to a markdown doc
 to find out.
+
+**A review session went looking for logical errors rather than building a
+feature, and found seven real ones — every one reproduced against the real
+toolchain before being believed, and every one now fixed with a test.** They
+are recorded here because five of the seven were *silent*: the compiler
+accepted the design, generated code, and did the wrong thing without a word.
+
+1. **`when_absent: fallback` was never emitted.** Codegen routed anything that
+   was not `placeholder` into the same early `return` as `hide`, so a declared
+   fallback silently hid the element — while `wfb/preview.py` *did* evaluate
+   it. Preview and device disagreed, which is the one invariant the shared
+   resolved geometry exists to guarantee. Fixed for `text` and `progress`, and
+   `wfb/layout.py`'s widest-rendering and `wfb/emit/resources.py`'s glyph set
+   now include the fallback too — otherwise a subsetted font could be missing
+   the very glyphs the fallback needs.
+2. **Two element ids could collide into one generated symbol.** `temp_low` and
+   `tempLow` both derive `TEMP_LOW`/`drawTempLow`; `wfb/ir.py` only rejected
+   duplicate *literal* ids. The build reported "no diagnostics" and then
+   `monkeyc` failed with four `Redefinition of ...` errors pointing at
+   generated line numbers — exactly the failure `wfb/diagnostics.py` exists to
+   prevent. Symbol derivation moved into `wfb/ir.py` (`element_const_prefix`,
+   `element_method_name`) so it is checked where ids are checked, and
+   `wfb/emit/monkeyc.py` imports it rather than keeping a second copy.
+3. **`activity.active_minutes_week` could not compile at all.** Its
+   `field_name` is the dotted path `activeMinutesWeek.total`, and the
+   intermediate is itself nullable. `Source.intermediate`/`intermediate_guard`
+   now express that, and `ReadPlan.declarations` hoists the intermediate into
+   its own local first — a single ternary (`(r.f != null) ? r.f.x : null`)
+   does **not** work, confirmed standalone: monkeyc's flow typing narrows a
+   *local*, not a re-evaluated field-access expression. A new `slow` test
+   builds a design binding **every** catalogue source, which is what would
+   have caught this; it was the only one of the 55 that failed.
+4. **`/` was typed Float on the host and integer-divided on the device.**
+   `check()` types any `/` as Float and the preview evaluates it as one, but
+   the emitter passed `/` through and Monkey C truncates `Number / Number`.
+   `activity.steps / 1000` — the idiom `Expression.scale` explicitly names —
+   showed 8.5 in preview and 8 on the wrist. The emitter now coerces when
+   neither operand is already a Float.
+5. **`when_absent:` only ever covered `value:`.** A nullable source in
+   `color:`/`track_color:`/`max:` needed no policy, and codegen then emitted an
+   *undeclared* hide guard — a clock bound to `time.hour` vanished whenever a
+   conditional colour's heart-rate source was absent. Two further bugs sat
+   under this one: `when_absent: placeholder` skipped the guard for *every*
+   bound source, so a nullable colour on the same element failed to build; and
+   once fixed, a placeholder whose sources are all also read by the colour
+   becomes dead text, which now warns rather than sitting there unreachable.
+6. **`modes: [always_on]` elements were generated and never called.**
+   `onUpdate` filtered on `active`, `onPartialUpdate` on `low_power`, and
+   nothing drew `always_on` — while `docs/format.md` documented it plainly and
+   `wfb/lint.py` recommended it for AMOLED. The view now tracks `_sleeping`
+   and `onUpdate` draws the `always_on` set while asleep, emitting nothing
+   extra for designs that do not use it.
+7. **`onComplicationChanged` called `getComplication` unguarded.** It throws
+   `ComplicationNotFoundException`, and the callback fires when a complication
+   "is changed **or becomes unavailable**" — an uncaught throw takes the face
+   down. `WfbComplications.valueOf` now wraps it in the same typed catch
+   `subscribe` already used. That module's docstring also claimed to "catch"
+   `subscribeToUpdates`'s `false` return; it discards it, and now says so.
+
+**Two linter-credibility bugs came out of the same pass.** `palette-dither`
+and `partial-update-budget` were listed as suppressible but emitted through
+`bag.warning` directly rather than `_emit`, so neither could be suppressed —
+and the palette one printed advice that provably did not work (following it
+verbatim left the warning in place). Both are now honoured on the elements
+that actually cause them: an element whose `color:`/`track_color:` is exactly
+`palette.<name>`, or any element drawn in `low_power`. Separately, an unknown
+or deliberately-unsuppressible code in `allow:` was accepted in silence; it is
+now an error that distinguishes the two cases, backed by `lint.ALL_CODES`,
+whose test re-derives the set from the source so it cannot rot.
+
+**One documentation claim was simply false and is now corrected.**
+`docs/limitations.md` listed "per-device API availability" under *Checks that
+are exact*. `Device.has_symbol` is implemented, correct and unit-tested — and
+called from nowhere in the pipeline, as is `catalog.Source.requires`. ADR
+0008's check 2 is unimplemented, and the same document said so three headings
+lower while claiming the opposite above. ADR 0008's own suppression example
+was also written `palette_dither` with an underscore, which the real code
+would have rejected — the kind of drift the new `lint-allow` check now catches.
+
+`examples/dashboard/face.yaml` was red on `main` when this started: two WIP
+commits added content without re-checking geometry, leaving 25 safe-area and
+text-overflow warnings and a comment truncated mid-sentence. Fixed by geometry
+alone (no `format:` narrowing, no suppressions), including reordering the
+weather row so the two wide `H:`/`L:` labels flank the icon and the narrow
+readings take the outer slots a wide label cannot reach without crossing the
+bezel.
+
+**A process note worth keeping, because it cost real work.** This session ran
+four agents in parallel against one shared working tree. Two of them reached
+for `git stash`/`git reset` to test something, which is repo-wide: it wiped
+another agent's in-flight edits and a set of documentation changes that had
+nothing to do with either. Nothing was permanently lost, but the lesson is
+cheap to record and expensive to relearn — **parallel work in one tree must
+edit files, never run git commands that touch the working tree.** Disjoint
+file ownership is what makes the parallelism safe, and a `git stash` ignores
+ownership entirely.
 
 ### Known-good reference
 

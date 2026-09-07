@@ -61,6 +61,56 @@ def test_division_always_yields_a_float(scope):
     assert compile_expression("4 / 2", scope)[1].type is Type.FLOAT
 
 
+def test_integer_division_is_coerced_to_float_in_the_emitted_code(scope):
+    """`check` types `/` as Float unconditionally, but Monkey C's own
+    `Number / Number` truncates -- unlike `4 / 2` above (which folds to a
+    build-time constant and never reaches this code at all), a genuinely
+    dynamic Number/Number division must have the emitted Monkey C coerce one
+    side, or the device silently disagrees with the host-side preview, which
+    evaluates the same expression with Python's true division."""
+    code, value, _ = compile_expression("activity.steps / 1000", scope)
+    assert code == "(activitySteps.toFloat() / 1000)"
+    assert value.type is Type.FLOAT
+
+
+def test_division_with_an_already_float_operand_is_left_alone(scope):
+    """Monkey C promotes a Number/Float mix to Float on its own -- adding
+    `.toFloat()` here would be redundant, not incorrect, but it would also be
+    noise the generated code doesn't need (ADR 0003)."""
+    code, _, _ = compile_expression("system.battery / 2", scope)
+    assert code == "(systemBattery / 2)"
+    assert ".toFloat()" not in code
+
+
+def test_division_by_a_literal_float_needs_no_coercion(scope):
+    """The mirror image of the case above, with the Float on the right --
+    e.g. `activity.distance / 100000.0` in examples/dashboard/face.yaml."""
+    code, _, _ = compile_expression("activity.steps / 100000.0", scope)
+    assert code == "(activitySteps / 100000.0f)"
+    assert ".toFloat()" not in code
+
+
+def test_constant_division_folds_before_coercion_would_apply(scope):
+    """A build-time-constant division becomes a plain Float literal (Python
+    true division at fold time) and never reaches the Binary-emission code
+    that adds `.toFloat()` -- there is nothing left to coerce."""
+    code, _, node = compile_expression("10 / 4", scope)
+    assert code == "2.5f"
+    assert ".toFloat()" not in code
+
+
+def test_integer_division_of_a_bare_literal_parenthesizes_before_tofloat(scope):
+    """`5.toFloat()` is not a method call in Monkey C -- the lexer reads `5.`
+    as the start of a malformed decimal literal -- so a bare numeric literal
+    operand must be parenthesized first: `(5).toFloat()`."""
+    code, _, _ = compile_expression("10 / activity.steps", scope)
+    assert code == "((10).toFloat() / activitySteps)"
+
+
+def test_modulo_is_not_affected_by_the_division_fix(scope):
+    assert compile_expression("activity.steps % 7", scope)[0] == "(activitySteps % 7)"
+
+
 def test_unknown_source_suggests_the_nearest_catalogue_entry(scope):
     with pytest.raises(ExprError) as excinfo:
         compile_expression("activity.stps", scope)

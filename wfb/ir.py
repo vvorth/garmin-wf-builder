@@ -292,6 +292,12 @@ class Builder:
         self.fonts: dict[str, FontSpec] = {}
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
+        #: Derived Monkey C symbol -> the element id and span that claimed it
+        #: first. Two distinct ids can still generate the same symbol
+        #: (`temp_low` and `tempLow` both become `TEMP_LOW`), which the
+        #: compiler must catch itself rather than let `monkeyc` discover it
+        #: through a `Redefinition of ...` error pointing at generated code.
+        self.seen_symbols: dict[str, tuple[str, Span | None]] = {}
 
     # -- entry point ------------------------------------------------------
 
@@ -412,6 +418,8 @@ class Builder:
             )
             return None
         self.seen_ids[element_id] = span
+        if not self._check_symbol_collision(element_id, node, span):
+            return None
 
         common = dict(
             id=element_id,
@@ -440,6 +448,46 @@ class Builder:
         if element is not None:
             self._check_tiers(element)
         return element
+
+    def _check_symbol_collision(self, element_id: str, node: dict, span: Span | None) -> bool:
+        """Reject two distinct ids that derive the same Monkey C symbol.
+
+        ``_build_element`` above already rejects a literal duplicate id; this
+        catches the case the emitter would otherwise discover on the
+        generator's behalf, four `Redefinition of ...` errors deep, pointing
+        at *generated* line numbers rather than the author's YAML -- exactly
+        what the diagnostics module exists to prevent.  Checked against both
+        derived forms (`element_const_prefix`, `element_method_name`) because
+        they fold case and separators independently; in practice they collide
+        together, but there is no reason to assume that stays true forever.
+        """
+        candidates = (element_const_prefix(element_id), element_method_name(element_id))
+        collisions: list[tuple[str, str, Span | None]] = []
+        for symbol in candidates:
+            claimed = self.seen_symbols.get(symbol)
+            if claimed is not None and claimed[0] != element_id:
+                collisions.append((symbol, claimed[0], claimed[1]))
+        if collisions:
+            other_id = collisions[0][1]
+            other_span = collisions[0][2]
+            symbols = ", ".join(repr(symbol) for symbol, _, _ in collisions)
+            notes = ["element ids only need to be distinct as literal strings today, "
+                     "but codegen derives one Monkey C symbol per id, folding case and "
+                     "separators away -- 'temp_low' and 'tempLow' both become 'TEMP_LOW'"]
+            if other_span is not None:
+                notes.insert(0, f"{other_id!r} first declared at {other_span}")
+            self.bag.error(
+                "duplicate-id",
+                f"element id {element_id!r} generates the same Monkey C symbol as "
+                f"{other_id!r} ({symbols})",
+                self.doc.span(node, "id") or span,
+                notes=notes,
+            )
+            return False
+        for symbol in candidates:
+            self.seen_symbols[symbol] = (element_id, span)
+        return True
+        return ok
 
     def _build_group(self, node: dict, common: dict, path: tuple) -> Element:
         return Group(
@@ -490,6 +538,9 @@ class Builder:
             self._check_absence(node, element, value, element.when_absent, element.placeholder,
                                 element.fallback)
             self._check_format(node, value, element.format)
+        self._check_other_absence(node, element, "color", element.color)
+        self._check_reachable_substitute(node, element, "'color'",
+                                         (element.value,), (element.color,))
         return element
 
     def _build_progress(self, node: dict, common: dict, path: tuple) -> Element:
@@ -525,6 +576,12 @@ class Builder:
             probe = Expression("value/max", "", combined, (), frozenset(), frozenset(), None)
             self._check_absence(node, element, probe, element.when_absent, None, element.fallback,
                                 key="value")
+            self._check_fallback_fraction(node, element)
+        self._check_other_absence(node, element, "color", element.color)
+        self._check_other_absence(node, element, "track_color", element.track_color)
+        self._check_reachable_substitute(node, element, "'color'/'track_color'",
+                                         (element.value, element.maximum),
+                                         (element.color, element.track_color))
         return element
 
     def _build_icon(self, node: dict, common: dict, path: tuple) -> Element:
@@ -608,7 +665,15 @@ class Builder:
                        fallback: Expression | None, key: str = "value") -> None:
         """ADR 0005 3: null handling is part of the binding, not an afterthought."""
         if not bound.nullable:
-            if when_absent is not None:
+            # Only "no effect" if nothing *else* on the element is nullable
+            # either: since `_check_other_absence`, a nullable colour or max
+            # requires a policy too, so a `when_absent:` sitting next to a
+            # non-nullable value can be doing real work.  Saying it has no
+            # effect there would contradict the error the author just fixed.
+            others_nullable = any(
+                e is not bound and e.nullable for e in element.expressions()
+            )
+            if when_absent is not None and not others_nullable:
                 self.bag.note(
                     "when-absent",
                     f"{element.id}: 'when_absent' has no effect -- {bound.text} is never absent",
@@ -639,6 +704,132 @@ class Builder:
                 self.doc.span(node, "fallback"),
                 notes=["a fallback must always produce a value"],
             )
+
+    def _check_other_absence(self, node: dict, element: Element, key: str,
+                             bound: Expression | None) -> None:
+        """A nullable binding outside `value` still needs an explicit `when_absent:`.
+
+        `_check_absence` above only ever ran for `value` -- a nullable
+        `color`/`track_color` sailed through validation with no policy at
+        all, and codegen (`wfb.emit.monkeyc`'s `ReadPlan.other_guards`)
+        always treats an absent non-value binding as 'hide', regardless of
+        which policy is chosen for the value, because there is no sensible
+        placeholder or fallback for a colour. The requirement here is only
+        that the author has consciously picked *something*, the same ADR
+        0005 3 contract `value` already has -- not that the chosen policy's
+        exact semantics (placeholder text, a substitute number) apply to a
+        colour, which they do not.
+        """
+        if bound is None or not bound.nullable:
+            return
+        if getattr(element, "when_absent", None) is not None:
+            return
+        self.bag.error(
+            "when-absent",
+            f"{element.id}: {key!r} reads {bound.text!r}, which can be absent, so "
+            "'when_absent:' is required",
+            self.doc.span(node, key),
+            notes=[
+                "every ActivityMonitor field is nullable and sensors are simply missing on "
+                "some devices, so absence is the normal case, not an error",
+                f"'when_absent:' is required once anything on this element is nullable, not "
+                f"just 'value' -- a nullable {key} always hides the element when absent, "
+                "regardless of which policy is chosen for the bound value",
+                "choose one of: hide | placeholder (with 'placeholder:') | fallback "
+                "(with 'fallback:')",
+            ],
+        )
+
+    def _check_reachable_substitute(self, node: dict, element: Element, key: str,
+                                    value_bindings: tuple[Expression | None, ...],
+                                    other_bindings: tuple[Expression | None, ...]) -> None:
+        """Warn when a `placeholder:`/`fallback:` can never actually be drawn.
+
+        A nullable non-value binding hides the whole element (see
+        `_check_other_absence`), and that guard runs *before* the value's own
+        substitute.  So if every nullable source behind the value is also read
+        by a colour or max, the element is already gone by the time the
+        substitute would be chosen, and the author's `placeholder:` is dead
+        text -- declared, accepted, and impossible to see.
+
+        Not an error: the design still behaves sensibly (it hides), and the
+        fix is a judgement call -- drop the substitute, or stop reading the
+        same source from the colour.  But saying nothing here would be the
+        very failure this compiler exists to prevent, one level down.
+        """
+        policy = getattr(element, "when_absent", None)
+        if policy not in ("placeholder", "fallback"):
+            return
+        value_sources = self._nullable_sources(value_bindings)
+        if not value_sources:
+            return
+        other_sources = self._nullable_sources(other_bindings)
+        if not value_sources <= other_sources:
+            return
+        shared = ", ".join(sorted(value_sources))
+        self.bag.warning(
+            "when-absent",
+            f"{element.id}: the {policy} can never be drawn -- {shared} is also read by "
+            f"{key}, which hides the element whenever it is absent",
+            self.doc.span(node, policy if policy == "fallback" else "placeholder")
+            or self.doc.span(node, key),
+            notes=[
+                f"a nullable {key} always hides the element, and that guard runs before "
+                f"the value's own {policy}",
+                f"either drop the {policy}, or stop reading {shared} from {key} so the "
+                "element can still draw when the reading is missing",
+            ],
+            confidence="exact -- the same guard order codegen emits",
+        )
+
+    @staticmethod
+    def _nullable_sources(bindings: tuple[Expression | None, ...]) -> set[str]:
+        """Catalogue paths among `bindings` that the generated code null-checks."""
+        out: set[str] = set()
+        for bound in bindings:
+            if bound is None:
+                continue
+            for path in bound.sources:
+                source = catalog.get(path)
+                if source is not None and source.guard_needed:
+                    out.add(path)
+        return out
+
+    def _check_fallback_fraction(self, node: dict, element: Progress) -> None:
+        """A `progress` fallback is a **fill fraction**, so it must be 0.0-1.0.
+
+        This is the one place `fallback:` means something other than "the
+        value" -- for a progress, either the value or the max can be the
+        absent reading, so the outcome is the only well-defined substitute
+        (see `wfb/emit/monkeyc.py`'s `_fallback_fraction`).  That makes an
+        out-of-range constant a plausible mistake -- writing the *step count*
+        you wanted rather than the fraction -- and it is the one path not
+        already clamped by `WfbMath.percent`, so a bar could be drawn wider
+        than its own box.  Only a build-time constant is checked here; a
+        computed fallback is clamped on device instead.
+        """
+        fallback = element.fallback
+        if element.when_absent != "fallback" or fallback is None or not fallback.is_constant:
+            return
+        try:
+            value = float(fallback.constant)
+        except (TypeError, ValueError):
+            return
+        if 0.0 <= value <= 1.0:
+            return
+        self.bag.error(
+            "when-absent",
+            f"{element.id}: a progress fallback is a fill fraction, so it must be "
+            f"between 0.0 and 1.0 -- got {fallback.text}",
+            self.doc.span(node, "fallback"),
+            notes=[
+                "unlike a text fallback, which supplies the value and is then "
+                "formatted, a progress fallback supplies the filled proportion "
+                "directly: either the value or the max can be the absent reading, "
+                "so the outcome is the only well-defined thing to substitute",
+                "for 'half full' write 0.5, not the reading you would have shown",
+            ],
+        )
 
     def _check_format(self, node: dict, bound: Expression, spec: str | None) -> None:
         span = self.doc.span(node, "format")
@@ -863,6 +1054,30 @@ def local_name(source_path: str) -> str:
     """
     parts = source_path.replace(".", "_").split("_")
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
+
+
+def element_const_prefix(element_id: str) -> str:
+    """The layout-constant prefix codegen derives from an element id.
+
+    ``temp_low`` and ``tempLow`` both become ``TEMP_LOW``: separators are
+    folded to ``_`` and a case boundary is treated as an implicit one, so
+    that a design read either camelCase or snake_case still produces the
+    Monkey C convention (`SCREAMING_SNAKE_CASE` constants).  That folding is
+    exactly why two distinct ids can collide -- see
+    :meth:`Builder._check_symbol_collision`, the one place this is checked.
+    """
+    out = []
+    for index, char in enumerate(element_id):
+        if char.isupper() and index and not element_id[index - 1].isupper():
+            out.append("_")
+        out.append(char.upper() if char.isalnum() else "_")
+    return "".join(out)
+
+
+def element_method_name(element_id: str) -> str:
+    """The private draw method codegen derives from an element id (``drawTempLow``)."""
+    parts = [p for p in element_id.replace("-", "_").split("_") if p]
+    return "draw" + "".join(p[:1].upper() + p[1:] for p in parts)
 
 
 def _pascal(text: str) -> str:

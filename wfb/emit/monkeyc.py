@@ -21,7 +21,10 @@ from dataclasses import dataclass
 
 from .. import __version__, catalog, formatting, icons
 from ..catalog import READERS, Tier, Type
-from ..ir import Expression, Face, IconElement, Progress, Shape, Text, font_resource_id
+from ..ir import (
+    Expression, Face, IconElement, Progress, Shape, Text,
+    element_const_prefix, element_method_name, font_resource_id,
+)
 from ..layout import (
     PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
@@ -274,15 +277,24 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         "the element's `id:` in the source YAML, so a change on screen leads back to\n"
         "a line in the design file."
     )
+    always_on = bool(resolved.in_mode("always_on"))
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
         _emit_cache_fields(w, plan)
+        if always_on:
+            w.doc(
+                "Whether the watch is currently asleep.  Set by onEnterSleep/\n"
+                "onExitSleep below, and read by onUpdate to choose which element set "
+                "to draw -- 'always_on' elements while asleep, 'active' ones while awake."
+            )
+            w.line("private var _sleeping as Boolean = false;")
+            w.blank()
         _emit_initialize(w, face)
         _emit_on_layout(w, resolved, plan)
-        _emit_on_update(w, resolved, plan)
+        _emit_on_update(w, resolved, plan, always_on)
         if resolved.in_mode("low_power") and device.supports_partial_update:
             _emit_on_partial_update(w, resolved, plan)
-        _emit_sleep_hooks(w, resolved)
+        _emit_sleep_hooks(w, resolved, always_on)
         if plan.event_readers():
             _emit_complication_callback(w, plan)
         for placed in resolved.items:
@@ -359,21 +371,41 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None
     w.blank()
 
 
-def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
+def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_on: bool) -> None:
     w.doc(
         "Draw the full face.\n"
         "\n"
         "Called once a minute in low-power mode and once a second while the watch is\n"
-        "awake."
+        "awake." + (
+            "  While asleep, draws the 'always_on' set instead of 'active' -- see\n"
+            "_sleeping, set by onEnterSleep/onExitSleep below."
+            if always_on else ""
+        )
     )
     with w.block("function onUpdate(dc as Dc) as Void"):
         w.line("dc.clearClip();")
-        plan.emit_reads(w, "active")
-        w.blank()
-        for placed in resolved.items:
-            if placed.kind == "group" or "active" not in placed.element.modes:
-                continue
-            w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
+        if always_on:
+            with w.block("if (_sleeping)"):
+                plan.emit_reads(w, "always_on")
+                w.blank()
+                for placed in resolved.items:
+                    if placed.kind == "group" or "always_on" not in placed.element.modes:
+                        continue
+                    w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
+            with w.block("else"):
+                plan.emit_reads(w, "active")
+                w.blank()
+                for placed in resolved.items:
+                    if placed.kind == "group" or "active" not in placed.element.modes:
+                        continue
+                    w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
+        else:
+            plan.emit_reads(w, "active")
+            w.blank()
+            for placed in resolved.items:
+                if placed.kind == "group" or "active" not in placed.element.modes:
+                    continue
+                w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
     w.blank()
 
 
@@ -406,13 +438,21 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan")
     w.blank()
 
 
-def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace) -> None:
+def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, always_on: bool) -> None:
     w.doc("Awake: full-power updates resume.")
     with w.block("function onExitSleep() as Void"):
+        if always_on:
+            w.line("_sleeping = false;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
-    w.doc("Asleep: the next onUpdate draws the low-power layout.")
+    w.doc(
+        "Asleep: the next onUpdate draws the 'always_on' layout."
+        if always_on else
+        "Asleep: the next onUpdate draws the low-power layout."
+    )
     with w.block("function onEnterSleep() as Void"):
+        if always_on:
+            w.line("_sleeping = true;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
     if resolved.in_mode("low_power") and resolved.device.supports_partial_update:
@@ -434,17 +474,27 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
     (ComplicationChangedCallback as Method(id as Complications.Id) as Void,
     Toybox/Complications.html) -- `getComplication(id)` fetches it, and the
     switch dispatches on `id.getType()` to the one cached field that
-    complication backs.
+    complication backs.  `getComplication` throws `ComplicationNotFoundException`
+    when a complication "is not found", which the callback's own doc says
+    includes the case where a previously-working one "becomes unavailable" --
+    `WfbComplications.valueOf` absorbs that (Bug 7), the same way `subscribe`
+    already absorbs a subscription a device declines, so an uncaught throw
+    here cannot take the whole watch face down.
     """
     w.doc(
         "A subscribed complication changed.\n"
         "\n"
         "Complications.registerComplicationChangeCallback delivers only the id --\n"
-        "getComplication looks the value back up, and the switch below routes it\n"
-        "to the cached field the changed type backs."
+        "WfbComplications.valueOf looks the value back up (absorbing a "
+        "'not found or became unavailable' error the same way a declined "
+        "subscription already is), and the switch below routes it to the "
+        "cached field the changed type backs."
     )
     with w.block("function onComplicationChanged(id as Complications.Id) as Void"):
-        w.line("var complication = Complications.getComplication(id);")
+        w.line("var complication = WfbComplications.valueOf(id);")
+        with w.block("if (complication == null)"):
+            w.line("return;  // not found, or no longer available")
+        w.blank()
         with w.block("switch (id.getType())"):
             for name in plan.event_readers():
                 reader = READERS[name]
@@ -464,9 +514,14 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
     element = placed.element
     w.doc(_method_doc(placed))
     signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
-    placeholder = (
-        isinstance(placed, PlacedText)
-        and getattr(element, "when_absent", None) == "placeholder"
+    # 'placeholder'/'fallback' are policies for the *value* -- a substitute
+    # text or fill fraction takes over instead of the element simply not
+    # drawing.  They say nothing about a nullable colour, track colour or
+    # max: there is no placeholder for a colour, so those always get a real
+    # guard regardless of which policy the value chose (Bug 5).
+    substitutes_value = (
+        isinstance(placed, (PlacedText, PlacedProgress))
+        and getattr(element, "when_absent", None) in ("placeholder", "fallback")
     )
     with w.block(signature):
         declarations = plan.declarations(placed)
@@ -475,15 +530,23 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             for name, read in declarations:
                 w.line(f"var {name} = {read};")
             w.blank()
-        guards = plan.guards(placed)
-        if guards and not placeholder:
-            _emit_guard(w, placed, guards)
+        value_guards = plan.value_guards(placed)
+        if substitutes_value:
+            other_guards = plan.other_guards(placed)
+            if other_guards:
+                _emit_guard(w, placed, other_guards,
+                           note="hide -- a nullable colour/track_color/max always hides "
+                                "the element, regardless of the value's own when_absent")
+        else:
+            other_guards = plan.guards(placed)
+            if other_guards:
+                _emit_guard(w, placed, other_guards)
         if isinstance(placed, PlacedShape):
             _emit_shape(w, placed)
         elif isinstance(placed, PlacedText):
-            _emit_text(w, resolved, placed, guards)
+            _emit_text(w, resolved, placed, value_guards)
         elif isinstance(placed, PlacedProgress):
-            _emit_progress(w, placed)
+            _emit_progress(w, placed, value_guards)
         elif isinstance(placed, PlacedIcon):
             _emit_icon(w, placed)
 
@@ -503,12 +566,17 @@ def _method_doc(placed) -> str:
     return "\n".join(lines)
 
 
-def _emit_guard(w: Writer, placed, guards: list[str]) -> None:
-    """Emit the null check, and say which `when_absent:` produced it."""
+def _emit_guard(w: Writer, placed, guards: list[str], note: str | None = None) -> None:
+    """Emit the null check, and say which `when_absent:` produced it.
+
+    ``note`` overrides the default "when_absent: <policy>" comment for the
+    case (Bug 5) where the guard covers only bindings the value's own policy
+    does not govern -- a nullable colour still just hides the element even
+    when the value itself falls back to a placeholder.
+    """
     element = placed.element
-    policy = getattr(element, "when_absent", None) or "hide"
     condition = " || ".join(f"{name} == null" for name in guards)
-    w.comment(f"when_absent: {policy}")
+    w.comment(note if note is not None else f"when_absent: {getattr(element, 'when_absent', None) or 'hide'}")
     with w.block(f"if ({condition})"):
         w.line("return;")
     w.blank()
@@ -563,6 +631,23 @@ def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: li
         w.blank()
         _emit_text_draw(w, placed, "text")
         return
+    if element.when_absent == "fallback" and guards:
+        # Same shape as placeholder above, except the substitute is itself a
+        # compiled expression rather than a literal string, so it is run
+        # through the same format spec the real value uses.
+        fallback_code = formatting.emit(
+            element.format or "{}",
+            element.fallback.code,
+            element.fallback.value.type,
+        )
+        w.comment("when_absent: fallback")
+        available = " && ".join(f"{name} != null" for name in guards)
+        w.line(f"var text = {fallback_code};")
+        with w.block(f"if ({available})"):
+            w.line(f"text = {value_code};")
+        w.blank()
+        _emit_text_draw(w, placed, "text")
+        return
     _emit_text_draw(w, placed, value_code)
 
 
@@ -584,9 +669,27 @@ def _emit_text_draw(w: Writer, placed: PlacedText, value_code: str) -> None:
     w.line(f"            {justify});")
 
 
-def _emit_progress(w: Writer, placed: PlacedProgress) -> None:
+def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str]) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
+    fraction_expr = _fraction(element)
+    if element.when_absent == "fallback" and guards:
+        # The fill fraction falls back, not the raw value/max -- 'fallback:'
+        # supplies a number in the same 0.0-1.0 range _fraction() computes, so
+        # it slots into exactly the same drawProgress/fillRectangle call the
+        # real reading would have used.  (This is why a `progress` fallback
+        # means something different from a `text` one, which supplies the
+        # *value* and is then formatted; for progress either half of the pair
+        # can be the absent reading, so the outcome is the only well-defined
+        # thing to substitute.  wfb/ir.py checks it is in range and
+        # wfb/preview.py renders the same substitution.)
+        w.comment("when_absent: fallback")
+        available = " && ".join(f"{name} != null" for name in guards)
+        w.line(f"var fraction = {_fallback_fraction(element)};")
+        with w.block(f"if ({available})"):
+            w.line(f"fraction = {fraction_expr};")
+        w.blank()
+        fraction_expr = "fraction"
     if element.style == "arc":
         if element.track_color is not None:
             w.comment("the unfilled track")
@@ -610,7 +713,7 @@ def _emit_progress(w: Writer, placed: PlacedProgress) -> None:
             f"                    Layout.{prefix}_THICKNESS, Layout.{prefix}_START, "
             f"Layout.{prefix}_SWEEP,"
         )
-        w.line(f"                    {_fraction(element)});")
+        w.line(f"                    {fraction_expr});")
         return
 
     if element.track_color is not None:
@@ -620,7 +723,7 @@ def _emit_progress(w: Writer, placed: PlacedProgress) -> None:
             f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);"
         )
         w.blank()
-    w.line(f"var filled = (Layout.{prefix}_WIDTH * {_fraction(element)}).toNumber();")
+    w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
     w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
     w.line(
         f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, Layout.{prefix}_HEIGHT);"
@@ -662,6 +765,24 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     w.line("            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);")
 
 
+def _fallback_fraction(element: Progress) -> str:
+    """The `progress` fallback, as a Float in 0.0-1.0.
+
+    Two things have to be true of it, and neither is automatic.  It must be a
+    **Float**: `fraction` is reassigned from `_fraction()` (a Float) in the
+    branch below, and a `var` first bound to a Number makes the whole thing a
+    `PolyType<Float or Number>` that `WfbArc.drawProgress`'s `Float` parameter
+    rejects under `-l 3`.  And it must be **in range**: the real path is
+    clamped by `WfbMath.percent`, so an unclamped fallback is the one way a
+    bar could be drawn wider than its own box.  A constant is checked at build
+    time (wfb/ir.py) and emitted bare; anything else is clamped on device.
+    """
+    fallback = element.fallback
+    if fallback.is_constant:
+        return f"{float(fallback.constant)}f"
+    return f"WfbMath.clamp({fallback.code}, 0.0, 1.0).toFloat()"
+
+
 def _fraction(element: Progress) -> str:
     return f"WfbMath.percent({element.value.code}, {element.maximum.code}) / 100.0"
 
@@ -687,6 +808,22 @@ class ReadPlan:
         #: The subset referenced by compiled expressions, which read through a
         #: named local.  Format specs read their reader directly instead.
         self._bound: dict[str, list[str]] = {}
+        #: The subset of `_bound` reached through the element's *value*
+        #: expression(s) specifically -- `Text.value`, or `Progress.value`
+        #: and `Progress.maximum` together, since both feed one fraction.
+        #: This is what a `when_absent: placeholder`/`fallback` policy
+        #: actually governs (Bug 5).
+        self._value_bound: dict[str, list[str]] = {}
+        #: The subset reached through every *other* expression (colour, track
+        #: colour, max on its own) -- collected independently of
+        #: `_value_bound`, not by subtracting it, because a source can be
+        #: dereferenced at *both* sites (`value: heart_rate.current` and
+        #: `color: "heart_rate.current > 100 ? ..."`) and each site needs its
+        #: own protection: the value's dereference is what `when_absent`
+        #: covers, but the colour's is a second, independent dereference of
+        #: the same possibly-null local, which a placeholder for the *text*
+        #: does nothing to protect.
+        self._other_bound: dict[str, list[str]] = {}
         self._readers_for_mode: dict[str, list[str]] = {}
         self._analyse()
         if self.slow_readers():
@@ -694,15 +831,24 @@ class ReadPlan:
 
     def _analyse(self) -> None:
         for placed in self.resolved.items:
+            element = placed.element
+            value_exprs = self._value_expressions(element)
             paths: list[str] = []
-            for expression in placed.element.expressions():
+            value_paths: list[str] = []
+            other_paths: list[str] = []
+            for expression in element.expressions():
                 self.modules |= set(expression.modules)
+                is_value = any(expression is v for v in value_exprs)
                 for path in expression.sources:
                     if path not in paths:
                         paths.append(path)
+                    if is_value:
+                        if path not in value_paths:
+                            value_paths.append(path)
+                    elif path not in other_paths:
+                        other_paths.append(path)
             # A time format reads the clock (and, for %h, the device settings)
             # even though the format string names no source.
-            element = placed.element
             format_paths: list[str] = []
             if (isinstance(element, Text) and element.format
                     and formatting.is_time_spec(element.format)):
@@ -715,6 +861,8 @@ class ReadPlan:
                     if "%h" in element.format:
                         format_paths.append("device.is_24_hour")
             self._bound[placed.id] = list(paths)
+            self._value_bound[placed.id] = list(value_paths)
+            self._other_bound[placed.id] = list(other_paths)
             paths = paths + [p for p in format_paths if p not in paths]
             self._per_element[placed.id] = paths
             for path in paths:
@@ -786,7 +934,13 @@ class ReadPlan:
         return "".join(f", {READERS[name].name}" for name in self._readers_used_by(placed))
 
     def guards(self, placed) -> list[str]:
-        """Locals the element must null-check, declared in dependency order."""
+        """Every local the element must null-check, declared in dependency order.
+
+        Used as-is for an element with no placeholder/fallback policy (the
+        whole thing hides together, as one guard always has); split into
+        :meth:`value_guards`/:meth:`other_guards` for one that has one
+        (Bug 5): the policy governs the value, not a colour.
+        """
         from ..ir import local_name
 
         names: list[str] = []
@@ -795,6 +949,44 @@ class ReadPlan:
             if source.guard_needed:
                 names.append(local_name(path))
         return names
+
+    def value_guards(self, placed) -> list[str]:
+        """Locals reached through the element's own *value* expression(s)."""
+        from ..ir import local_name
+
+        return [local_name(path) for path in self._value_bound[placed.id]
+                if catalog.CATALOG[path].guard_needed]
+
+    def other_guards(self, placed) -> list[str]:
+        """Locals dereferenced by a *different* expression (colour, track
+        colour, max) -- there is no placeholder for a colour, so every one of
+        these needs a real guard (Bug 5), even a source that is *also* the
+        value: `color: "heart_rate.current > 100 ? ..."` dereferences
+        `heartRateCurrent` at its own call site, which a placeholder guarding
+        only the text's dereference does nothing to protect.
+        """
+        from ..ir import local_name
+
+        return [local_name(path) for path in self._other_bound[placed.id]
+                if catalog.CATALOG[path].guard_needed]
+
+    @staticmethod
+    def _value_expressions(element) -> tuple:
+        """Which of an element's expressions its `when_absent:` policy governs.
+
+        A `Text`'s only substitutable value is `value:`; a `Progress`'s fill
+        fraction depends on both `value:` and `max:` together (one nullable
+        reading is as absent as the other, from the fraction's point of
+        view), which is also why `Builder._build_progress` checks their
+        combined nullability as one thing. Every other element kind has no
+        `when_absent:` field at all, so nothing here is "the value" -- every
+        binding is an "other" one, guarded unconditionally.
+        """
+        if isinstance(element, Text):
+            return (element.value,) if element.value is not None else ()
+        if isinstance(element, Progress):
+            return tuple(e for e in (element.value, element.maximum) if e is not None)
+        return ()
 
     def declarations(self, placed) -> list[tuple[str, str]]:
         from ..ir import local_name
@@ -813,7 +1005,6 @@ class ReadPlan:
                 # expression both reference by name.
                 continue
             reader = READERS[source.reader]
-            read = source.read_expr
             guard_parts = []
             if reader.nullable:
                 # The reader itself can be absent -- Activity.getActivityInfo()
@@ -828,6 +1019,30 @@ class ReadPlan:
                 # asked for. Short-circuit `&&` means the null check above (if
                 # any) always runs first, so `.size()` never hits a null array.
                 guard_parts.append(source.array_guard)
+
+            intermediate = getattr(source, "intermediate", None)
+            if intermediate is not None:
+                # A dotted field_name (`activeMinutesWeek.total`) has its own
+                # nullable intermediate object.  monkeyc's flow typing narrows
+                # a *local variable*, not a field-access expression, inside a
+                # ternary -- `(reader.field != null) ? reader.field.x : null`
+                # still typechecks `.x` against the declared (nullable) type
+                # of `reader.field` and fails -- confirmed against a real
+                # build, not assumed.  So the intermediate gets its own local
+                # first, and the final field is guarded off *that* local,
+                # exactly the pattern every other nullable field here uses.
+                base = (reader.name if source.array_index is None
+                        else f"{reader.name}[{source.array_index}]")
+                obj_read = f"{base}.{intermediate}"
+                if guard_parts:
+                    obj_read = f"({' && '.join(guard_parts)}) ? {obj_read} : null"
+                obj_name = f"{local_name(path)}Obj"
+                out.append((obj_name, obj_read))
+                suffix = source.field_name[len(intermediate) + 1:]
+                out.append((local_name(path), f"({obj_name} != null) ? {obj_name}.{suffix} : null"))
+                continue
+
+            read = source.read_expr
             if guard_parts:
                 read = f"({' && '.join(guard_parts)}) ? {read} : null"
             out.append((local_name(path), read))
@@ -849,18 +1064,13 @@ class ReadPlan:
 # naming and small helpers
 
 
-def _const_prefix(element_id: str) -> str:
-    out = []
-    for index, char in enumerate(element_id):
-        if char.isupper() and index and not element_id[index - 1].isupper():
-            out.append("_")
-        out.append(char.upper() if char.isalnum() else "_")
-    return "".join(out)
-
-
-def _method(element_id: str) -> str:
-    parts = [p for p in element_id.replace("-", "_").split("_") if p]
-    return "draw" + "".join(p[:1].upper() + p[1:] for p in parts)
+#: The symbol-derivation logic lives in `wfb.ir` now (`element_const_prefix`,
+#: `element_method_name`) so that id uniqueness (checked in `ir.Builder`) and
+#: symbol derivation (used here) cannot drift into two different notions of
+#: "the same name" -- see `Builder._check_symbol_collision`. These aliases
+#: keep every call site below unchanged.
+_const_prefix = element_const_prefix
+_method = element_method_name
 
 
 def _field(name: str) -> str:

@@ -179,3 +179,46 @@ def test_low_power_clip_is_the_tight_union(write_design, bag, db):
     assert clip is not None
     # Only the badge is low-power, so the clip must be tiny, not the screen.
     assert clip.area < 0.05 * device.width * device.height
+
+
+def test_widest_text_accounts_for_a_longer_fallback(write_design, bag, db):
+    """Bug 1: `fallback:` is drawn through the same format spec as the real
+    value (see `_emit_text` in `wfb.emit.monkeyc`), so a font baked from the
+    value's own widest rendering alone can come up short.
+
+    `activity.training_status` has no known digit range
+    (`formatting._SOURCE_DIGITS`), so its own worst-case estimate is already
+    a few characters wide -- not wide enough to happen to cover a longer
+    literal fallback, though, which is exactly what makes this a meaningful
+    regression check rather than one the existing estimate would pass anyway.
+    """
+    design = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: status
+    type: text
+    value: activity.training_status
+    at: {anchor: center}
+    color: palette.fg
+    when_absent: fallback
+    fallback: "'Not Available'"
+"""
+    face = load(write_design(design), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    status = find(resolved, "status")
+    assert status.widest == "Not Available"

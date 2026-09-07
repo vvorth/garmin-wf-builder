@@ -1,9 +1,11 @@
 """ADR 0008 checks, and the confidence each one is allowed to claim."""
 
+import re
+
 import pytest
 
 from tests.test_diagnostics import load
-from wfb import lint
+from wfb import build, lint
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 
@@ -56,6 +58,70 @@ def test_a_dithered_colour_warns_with_the_nearest_legal_one(check):
 
 def test_a_legal_palette_is_silent(check):
     assert "palette-dither" not in codes(check())
+
+
+def test_a_dithered_colour_names_an_unused_entry_as_unsuppressible(check):
+    """The note must not claim a suppression mechanism that does not exist.
+
+    Nothing in this design uses palette.fg, so there is nowhere to hang
+    'lint: {allow: [palette-dither]}' -- the note has to say that honestly
+    rather than repeat instructions that would silently do nothing (Bug 1).
+    """
+    bag = check(palette='  bg: "#000000"\n  fg: "#123456"')
+    warning = next(d for d in bag.items if d.code == "palette-dither")
+    assert any("nowhere to put" in note for note in warning.notes)
+
+
+def test_a_dithered_colour_can_be_suppressed_on_the_element_that_uses_it(check):
+    """The note this warning prints must be something that actually works.
+
+    Before this fix, following the note's own instructions -- adding
+    'lint: {allow: [palette-dither], reason: ...}' to the element that draws
+    the dithered colour -- did nothing: `check_palette` warns per palette
+    entry, which has no element of its own to hang a suppression on, and the
+    warning bypassed `_emit`/`_suppressed` entirely.
+    """
+    bag = check(
+        """
+  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 5px
+    color: palette.fg
+    lint:
+      allow: [palette-dither]
+      reason: "probing"
+""",
+        palette='  bg: "#000000"\n  fg: "#123456"',
+    )
+    assert "palette-dither" not in codes(bag)
+
+
+def test_a_dithered_track_color_can_also_be_suppressed(check):
+    """`track_color:` (Progress) is the other field check_palette must honour,
+    not just `color:` -- both are named in the warning's own note."""
+    bag = check(
+        """
+  - id: ring
+    type: progress
+    style: arc
+    value: 5
+    max: 10
+    at: {anchor: center}
+    radius: 40%r
+    thickness: 4px
+    start_angle: 0deg
+    sweep: 360deg
+    color: palette.bg
+    track_color: palette.fg
+    lint:
+      allow: [palette-dither]
+      reason: "probing"
+""",
+        palette='  bg: "#000000"\n  fg: "#123456"',
+    )
+    assert "palette-dither" not in codes(bag)
 
 
 # -- check 4 ---------------------------------------------------------------
@@ -194,6 +260,29 @@ def test_a_tight_low_power_clip_does_not_warn(check):
     assert "partial-update-budget" not in codes(bag)
 
 
+def test_the_power_budget_warning_can_be_suppressed_on_a_low_power_element(check):
+    """Like palette-dither, this check is about a face-wide clip rectangle,
+    not one element, so there was nowhere to hang `_emit`/`_suppressed`'s
+    per-element suppression -- the check called `bag.warning` directly and
+    ignored `lint: {allow: ...}` entirely, the same shape of bug as Bug 1's
+    palette-dither case, on the other check `SUPPRESSIBLE` already claimed
+    could be silenced.
+    """
+    bag = check("""
+  - id: wide
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 90%, height: 60%}
+    color: palette.fg
+    modes: [active, low_power]
+    lint:
+      allow: [partial-update-budget]
+      reason: "probing"
+""")
+    assert "partial-update-budget" not in codes(bag)
+
+
 # -- check 7 ---------------------------------------------------------------
 
 
@@ -285,3 +374,129 @@ def test_heart_rate_needs_no_permission():
     from wfb import catalog
 
     assert catalog.get("heart_rate.current").permissions == ()
+
+
+# -- lint: allow -------------------------------------------------------------
+
+#: One element carrying a `lint:` block, appended to BASE the same way the
+#: geometry checks above append 'corner'.  The code under test varies.
+_ALLOW_ELEMENT = """
+  - id: corner
+    type: shape
+    shape: circle
+    at: {{anchor: top_left, dx: 6px, dy: 6px}}
+    radius: 5px
+    color: palette.fg
+    lint:
+      allow: [{code}]
+      reason: "{reason}"
+"""
+
+
+def _face_allowing(write_design, bag, code: str, reason: str = "probing"):
+    face = load(write_design(BASE.format(
+        palette='  bg: "#000000"\n  fg: "#FFFFFF"',
+        extra=_ALLOW_ELEMENT.format(code=code, reason=reason),
+    )), bag)
+    assert face is not None, bag.render()
+    return face
+
+
+def test_an_unknown_lint_code_is_reported_with_a_suggestion(write_design, bag):
+    """A typo in 'allow:' used to do nothing at all (Bug 2) -- the warning it
+    was meant to silence just kept firing, with no sign of whether the code
+    was misspelled or the check refuses suppression on purpose.
+    """
+    face = _face_allowing(write_design, bag, "safearea")
+    lint.check_lint_allow(face, bag)
+    diag = next(d for d in bag.errors if d.code == "lint-allow")
+    assert "'safearea'" in diag.message
+    assert "not a diagnostic code" in diag.message
+    assert any("safe-area" in note for note in diag.notes)
+
+
+def test_an_unknown_lint_code_with_no_close_match_gets_no_false_suggestion(write_design, bag):
+    """'overlap' names a check this project has never built (docs/limitations.md
+    records the gap) -- it must be reported as unknown outright, not offered a
+    near-miss real code just because a few letters happen to line up (an
+    earlier draft of this check suggested 'text-overflow' for it at a looser
+    cutoff, which would have been actively misleading).
+    """
+    face = _face_allowing(write_design, bag, "overlap")
+    lint.check_lint_allow(face, bag)
+    diag = next(d for d in bag.errors if d.code == "lint-allow")
+    assert "'overlap'" in diag.message
+    assert not any("did you mean" in note for note in diag.notes)
+
+
+def test_a_real_but_unsuppressible_code_is_reported_with_the_reason(write_design, bag):
+    """`off-screen` is a real code that fires all the time -- but SUPPRESSIBLE
+    excludes it on purpose, because silencing a hard platform limit produces a
+    face that does not work.  'allow: [off-screen]' must be refused with that
+    reason stated, not treated as a plain typo.
+    """
+    face = _face_allowing(write_design, bag, "off-screen")
+    lint.check_lint_allow(face, bag)
+    diag = next(d for d in bag.errors if d.code == "lint-allow")
+    assert "not" in diag.message and "suppressible" in diag.message
+    assert any("does not work" in note for note in diag.notes)
+    assert not any("did you mean" in note for note in diag.notes)
+
+
+def test_a_suppressible_code_used_correctly_raises_nothing(write_design, bag):
+    face = _face_allowing(write_design, bag, "safe-area")
+    lint.check_lint_allow(face, bag)
+    assert "lint-allow" not in codes(bag)
+
+
+def test_lint_allow_runs_once_per_build_regardless_of_target_count(write_design, db):
+    """Device-independent, like check_permissions -- `resolve_all` must call it
+    exactly once, or a single typo would be reported once per target device
+    instead of once against the author's one line of YAML.
+    """
+    from wfb.diagnostics import Bag
+
+    design = BASE.format(
+        palette='  bg: "#000000"\n  fg: "#FFFFFF"',
+        extra=_ALLOW_ELEMENT.format(code="safearea", reason="typo for safe-area"),
+    ).replace(
+        "targets: [fenix8solar47mm]",
+        "targets: [fenix8solar47mm, fenix8solar51mm, fr955]",
+    )
+    bag = Bag()
+    face = build.load(write_design(design), bag)
+    assert face is not None, bag.render()
+    devices = build.select_devices(face, db, bag)
+    assert len(devices) == 3
+    build.resolve_all(face, devices, bag)
+    assert sum(1 for d in bag.items if d.code == "lint-allow") == 1
+
+
+# -- the diagnostic-code registry ---------------------------------------------
+
+#: Matches the code literal in `bag.error("code", ...)` / `.warning(...)` /
+#: `.note(...)`, across all of `self.bag` and a plain `bag`.
+_BAG_CALL_RE = re.compile(r'(?:bag|self\.bag)\.(?:error|warning|note)\(\s*"([a-zA-Z0-9_-]+)"')
+#: Matches the code literal in a directly-constructed `Diagnostic(Severity.X, "code", ...)`
+#: -- `check_geometry`, `check_text_fit` and `check_contrast` build these to pass
+#: through `_emit` rather than call `bag.*` directly.
+_DIAGNOSTIC_RE = re.compile(r'Diagnostic\(\s*Severity\.\w+,\s*"([a-zA-Z0-9_-]+)"')
+
+
+def test_all_codes_registry_matches_every_code_the_compiler_actually_emits(repo_root):
+    """`lint.ALL_CODES` is what lets `check_lint_allow` tell a misspelled code
+    apart from a real one that is simply not suppressible (Bug 2) -- so it
+    must itself stay honest about what this compiler emits.  Rather than trust
+    a hand-maintained list not to drift, this re-runs the same grep it was
+    built from and fails the day a new `bag.error/warning/note` or
+    `Diagnostic(...)` call introduces a code nobody registered.
+    """
+    found: set[str] = set()
+    for path in (repo_root / "wfb").rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        found.update(_BAG_CALL_RE.findall(text))
+        found.update(_DIAGNOSTIC_RE.findall(text))
+    assert found == lint.ALL_CODES, (
+        f"missing from ALL_CODES: {found - lint.ALL_CODES}; "
+        f"registered but never emitted: {lint.ALL_CODES - found}"
+    )
