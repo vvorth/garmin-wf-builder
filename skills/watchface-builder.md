@@ -348,7 +348,7 @@ elements:
 
   - id: hr_icon                   # a glyph from the vendored icon font; small
     type: icon                    # resource cost, takes a colour at runtime
-    icon: heart                   # alarm | battery | distance | dnd | flame | floors | heart | notification | phone | steps | weather_clear | weather_cloudy | weather_dust | weather_fog | weather_hurricane | weather_partly_cloudy | weather_rain | weather_snow | weather_thunderstorm | weather_tornado | weather_windy | weather_wintry_mix
+    icon: heart                   # alarm | battery | distance | dnd | flame | floors | heart | notification | phone | steps | weather_cloudy | weather_cloudy_heavy | weather_cloudy_light | weather_dust | weather_fog | weather_hail | weather_haze | weather_hurricane | weather_hurricane_warning | weather_ice | weather_lightning | weather_rain | weather_rain_heavy | weather_rain_light | weather_sandstorm | weather_sleet | weather_smoke | weather_snow | weather_snow_heavy | weather_strong_wind | weather_sunny | weather_sunny_overcast | weather_thunderstorm | weather_thunderstorm_showers | weather_tornado | weather_unknown | weather_volcano | weather_windy | weather_wintry_mix
                                    # -- or any single glyph pasted directly, e.g. icon: ""
     size: 11%r                    # px or %r only -- never % or pt (rule 8)
     at: {anchor: center, dx: -40%r, dy: 30%r}
@@ -359,6 +359,14 @@ elements:
 sources (`activity.steps` → `steps`, `heart_rate.current` → `heart`, and so on) --
 useful as a default when a design binds a source and needs an icon to go with
 it, not a constraint the compiler enforces.
+
+Most of the day-condition weather names above also have a `_night` variant
+(`weather_sunny_night`, `weather_rain_night`, ...) for a font glyph specifically
+drawn for after dark -- not every condition has one, so check `wfb sources` or
+`wfb.icons.names()` rather than assuming. `icon_for:` (below) only resolves the
+day glyph today (there is no sunrise/sunset source yet to know which half
+applies on-device); a static `icon: weather_rain_night` is how a design reaches
+a night glyph directly today.
 
 **A dynamic icon** chooses its glyph on-device at runtime instead of at build
 time -- `icon_for:` instead of `icon:`, mutually exclusive with it, and

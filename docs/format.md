@@ -243,11 +243,10 @@ semantics are identical across styles and only the rendering differs.
 - id: steps_icon
   type: icon
   icon: steps               # alarm | battery | distance | dnd | flame | floors | heart |
-                             # notification | phone | steps | weather_clear | weather_cloudy |
-                             # weather_dust | weather_fog | weather_hurricane |
-                             # weather_partly_cloudy | weather_rain | weather_snow |
-                             # weather_thunderstorm | weather_tornado | weather_windy |
-                             # weather_wintry_mix -- see wfb/icons.py for the full list
+                             # notification | phone | steps, plus one `weather_<condition>`
+                             # per Weather.CONDITION_* bucket and a `weather_<condition>_night`
+                             # variant for most of them -- run `wfb sources` for the full,
+                             # current list (53 names as of this writing)
   size: 30px                # px or %r only -- see below
   color: palette.accent
 ```

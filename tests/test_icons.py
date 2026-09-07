@@ -206,42 +206,42 @@ def test_every_condition_value_zero_to_fifty_three_is_covered():
     assert set(icons.GARMIN_WEATHER_CONDITION_ICON) == set(range(54))
 
 
-def test_every_condition_maps_to_a_real_weather_glyph_name():
+def test_every_condition_maps_to_a_real_catalogue_name():
+    """`GARMIN_WEATHER_CONDITION_ICON` names a `CATALOG` entry directly --
+    there is no separate weather-only table any more (one catalogue, ADR-style
+    "icons are icons")."""
     for condition, name in icons.GARMIN_WEATHER_CONDITION_ICON.items():
-        assert name in icons._WEATHER_GLYPH, f"condition {condition} -> unknown glyph {name!r}"
+        assert name in icons.CATALOG, f"condition {condition} -> unknown icon {name!r}"
+        assert name.startswith("weather_")
 
 
-def test_every_weather_glyph_is_a_real_font_character():
-    for name, ch in icons._WEATHER_GLYPH.items():
-        assert ch in icons._available_glyphs(), f"{name!r} names U+{ord(ch):04X}, not in the font"
-    for name, ch in icons._WEATHER_GLYPH_NIGHT.items():
-        assert name in icons._WEATHER_GLYPH, f"night variant {name!r} has no day entry"
-        assert ch in icons._available_glyphs(), f"{name!r} (night) names U+{ord(ch):04X}, not in the font"
+def test_every_night_variant_has_a_matching_day_entry():
+    for name in icons.names():
+        if name.endswith("_night"):
+            day_name = name[: -len("_night")]
+            assert day_name in icons.CATALOG, f"{name!r} has no day counterpart {day_name!r}"
 
 
 def test_weather_icon_for_condition_resolves_day_and_night():
     day = icons.weather_icon_for_condition(3)  # CONDITION_RAIN
     night = icons.weather_icon_for_condition(3, night=True)
-    assert day == icons._WEATHER_GLYPH["rain"]
-    assert night == icons._WEATHER_GLYPH_NIGHT["rain"]
+    assert day == icons.CATALOG["weather_rain"].codepoint
+    assert night == icons.CATALOG["weather_rain_night"].codepoint
     assert day != night
 
 
 def test_weather_icon_for_condition_falls_back_for_no_night_variant():
     """`strong_wind` has no night glyph -- night=True should still resolve,
     to the day glyph, not raise."""
-    assert icons.weather_icon_for_condition(36, night=True) == icons._WEATHER_GLYPH["strong_wind"]
+    assert "weather_strong_wind_night" not in icons.CATALOG
+    assert (icons.weather_icon_for_condition(36, night=True)
+            == icons.CATALOG["weather_strong_wind"].codepoint)
 
 
 def test_weather_icon_for_condition_handles_unknown_and_none():
-    unknown = icons._WEATHER_GLYPH["unknown"]
+    unknown = icons.CATALOG["weather_unknown"].codepoint
     assert icons.weather_icon_for_condition(53) == unknown  # CONDITION_UNKNOWN
     assert icons.weather_icon_for_condition(None) == unknown
-
-
-def test_weather_named_catalogue_entries_match_the_glyph_table():
-    for catalog_name, glyph_name in icons._WEATHER_NAMED.items():
-        assert icons.CATALOG[catalog_name].codepoint == icons._WEATHER_GLYPH[glyph_name]
 
 
 def test_metric_icon_values_all_resolve_in_the_catalogue():

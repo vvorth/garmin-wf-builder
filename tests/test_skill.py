@@ -109,16 +109,32 @@ def test_every_font_the_card_names_exists(text):
 
 
 def test_every_icon_the_card_names_exists(text):
-    """The reference card's `icon: heart # a | b | c` comment lists the whole
-    catalogue.  If a name drifts from wfb/icons.py, this line rots silently."""
+    """The reference card's `icon: heart # a | b | c` comment lists every
+    general-purpose icon and every weather *day* condition -- not the `_night`
+    variants too, which would make the line unreadable (53 names total, most
+    of them weather). If a name drifts from wfb/icons.py, this line rots
+    silently; a separate check just below covers the `_night` half."""
     line = next(l for l in text.splitlines() if "icon: heart" in l)
     listed = line.split("#", 1)[1]
     named = set(re.findall(r"[a-z_]+", listed))
     for name in named:
         assert icons.get(name) is not None, f"{name!r} in the skill's icon list is not in the catalogue"
-    assert named == set(icons.names()), (
-        f"the skill's icon comment ({named}) has drifted from the catalogue ({set(icons.names())})"
+    day_and_general = {n for n in icons.names() if not n.endswith("_night")}
+    assert named == day_and_general, (
+        f"the skill's icon comment ({named}) has drifted from the catalogue's "
+        f"non-night names ({day_and_general})"
     )
+
+
+def test_night_variants_are_documented_by_pattern(text):
+    """Every `_night` catalogue name is exactly its day name plus `_night` --
+    the skill doc documents this as a pattern (`weather_sunny_night`, etc.)
+    rather than enumerating all of them, so this checks the pattern itself
+    holds for the whole catalogue instead of checking a list."""
+    assert "_night" in text
+    for name in icons.names():
+        if name.endswith("_night"):
+            assert name[: -len("_night")] in icons.CATALOG
 
 
 def test_templates_it_tells_you_to_use_exist(text):

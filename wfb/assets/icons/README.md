@@ -41,15 +41,24 @@ at all -- `icon:` accepts a single literal character, checked against this
 font's own character map at build time, in addition to the maintained names in
 `wfb/icons.py`. Adding a *name* for one (so `wfb sources`/`wfb new` document
 it, and so an author does not have to go hunting for a codepoint) means adding
-one line to `wfb/icons.py`'s `CATALOG` (or, for a weather condition, to its
-`_WEATHER_GLYPH` table and `GARMIN_WEATHER_CONDITION_ICON` mapping).
+one `Icon(...)` entry to `wfb/icons.py`'s single `CATALOG` -- there is one
+catalogue for every icon, general-purpose and weather alike, not a separate
+table per kind. A new weather condition also needs an entry in
+`GARMIN_WEATHER_CONDITION_ICON` mapping the raw `Weather.CONDITION_*` value to
+that `CATALOG` name.
 
 Every codepoint in `wfb/icons.py` is written as a Python `\uXXXX`/`\U000XXXXX`
 escape, not a pasted character -- the glyph is invisible in most editors and
-terminals, so the escape is what stays readable and safe to hand-edit. Look
-codepoints up against the font's own cmap (`fontTools.ttLib.TTFont(...).
-getBestCmap()`) rather than typing them from memory or a website table, the
-same "never invent an API" rule CLAUDE.md applies to Monkey C symbols.
+terminals, so the escape is what stays readable and safe to hand-edit; a
+pasted character that fails to paste correctly still parses as valid Python
+(silently becoming an empty string), so the mistake only surfaces later as a
+blank tile. Each entry also carries the real character in a trailing
+`# preview: <char> (<font glyph name>)` comment -- not for the code to use,
+just so an editor that can render the font (most can) shows what the escape
+next to it is supposed to produce. Look codepoints up against the font's own
+cmap (`fontTools.ttLib.TTFont(...).getBestCmap()`) rather than typing them
+from memory or a website table, the same "never invent an API" rule
+CLAUDE.md applies to Monkey C symbols.
 
 To find a codepoint by browsing rather than by name: extract this font with
 `fonttools ttx -l` or a font inspector, or browse

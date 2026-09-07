@@ -29,7 +29,7 @@ def test_every_condition_matches_wfb_icons_exactly():
     assert set(cases) == set(range(54))
     for condition, (glyph, name) in cases.items():
         expected_name = icons.GARMIN_WEATHER_CONDITION_ICON[condition]
-        expected_glyph = icons._WEATHER_GLYPH[expected_name]
+        expected_glyph = icons.CATALOG[expected_name].codepoint
         assert name == expected_name, f"condition {condition}: name drifted"
         assert glyph == expected_glyph, f"condition {condition} ({name}): glyph drifted"
 
@@ -38,7 +38,7 @@ def test_default_and_null_case_both_match_the_unknown_glyph():
     text = BARREL.read_text(encoding="utf-8")
     default_glyph = re.search(r'default: return "(.)";', text).group(1)
     null_glyph = re.search(r"condition == null.*?\n\s*return \"(.)\";", text, re.S).group(1)
-    unknown = icons._WEATHER_GLYPH["unknown"]
+    unknown = icons.CATALOG["weather_unknown"].codepoint
     assert default_glyph == unknown
     assert null_glyph == unknown
 
