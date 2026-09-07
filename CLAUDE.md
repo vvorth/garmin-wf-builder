@@ -349,10 +349,11 @@ dependency order:
 5. **Interactivity** (ADR 0006 §6): tap where available, hold on fr955, from one
    declaration — and the compiler must **reject** `on_hold: launch` combined with
    hold-to-cycle on fr955 rather than silently preferring one.
-6. **Complications and the `event` refresh tier.** The `slow` tier and its TTL
-   cache shipped (`WfbCache.mc`) — see the session note below — with
-   `weather.*` as its first real source; `event` (a subscription callback, for
-   Complications) is still unbuilt.
+6. ~~Complications and the `event` refresh tier.~~ **Shipped.** Both refresh
+   tiers ADR 0005 describes now exist: `slow` with its TTL cache
+   (`WfbCache.mc`, `weather.*` as its first source) and `event` with a
+   subscription callback (`WfbComplications.mc`, `body_battery.current` and
+   seven other complication-backed sources) — see the session notes below.
 7. **Generate the data-source catalogue from the SDK** (ADR 0005 §1). It is
    hand-written today; a drifted catalogue would silently mis-declare permissions.
 8. The GUI (ADR 0002), last, once the schema has stabilised.
@@ -700,6 +701,95 @@ targets binding all 17 new sources in one design (including the two new
 `Type.STRING` date fields' `.toString()` calls and the `UserProfile`
 permission actually landing in the generated manifest), not just `wfb
 validate`.
+
+**A follow-up session made Body Battery bindable by building the `event`
+refresh tier (ADR 0005) end to end -- Complications, the one piece of that
+ADR that was still 0% built.** `Toybox.Complications` (API 4.2.0) delivers a
+value through a subscription callback rather than a call the generator can
+hoist into `onUpdate`, so `Reader` gained a fourth case alongside FRAME and
+SLOW: `Reader.complication_type` names the `COMPLICATION_TYPE_*` constant,
+and `Reader.call` for one of these is not an API call at all but the cached
+view field `onComplicationChanged` (generated once, shared by every
+complication a design binds) writes into -- `ReadPlan.emit_reads` already
+branched on tier, so this only needed the branch condition flipped from
+"is FRAME" to "is SLOW", not a new code path: EVENT falls through to the
+same `var x = call;` line FRAME uses, since by the time `onUpdate` runs the
+value is already sitting in the field. `onLayout` gained one
+`registerComplicationChangeCallback` plus one `subscribeToUpdates` per
+complication (`WfbComplications.mc`, a new barrel file), and `_features()`
+in `wfb/emit/project.py` -- previously a stub returning `set()`
+unconditionally, with the `minApiLevel`-bumping machinery it should have
+driven already sitting unused in `wfb/emit/manifest.py` -- now actually
+detects complication usage from `face.requirements().readers` and wires it
+up, so `minApiLevel` correctly reaches 4.2.0 only when a design uses one.
+
+Both an existing generalisation and a real gap surfaced in `wfb/emit/
+monkeyc.py` while wiring the element side through. `declarations()` and
+`guards()` had silently assumed every `field_name is None` source was
+`time.clock`/`date.today` (both handled entirely inside `formatting.py`,
+which reads the reader parameter directly and never goes through a
+declared local) -- true by accident, not by design, and false the moment a
+complication source arrived, since a complication's reader *is* its value
+the same way `time.clock`'s is, but for a `Type.NUMBER`/`STRING`/`FLOAT`
+source that generic formatting path very much needs its own named local.
+Fixed by narrowing the skip to `field_name is None and type in (TIME,
+DATE)` in `declarations()`, and dropping the `field_name is not None`
+restriction from `guards()` entirely (provably a no-op for time/date, since
+neither is ever nullable) -- the same fix both places, once recognised as
+one bug rather than two.
+
+Researched all 43 `COMPLICATION_TYPE_*` values (`Toybox/Complications.html`)
+against what the catalogue could already read directly, and added nine as
+new sources, each genuinely unreachable any other way: `body_battery.current`
+(the concrete ask), `system.solar_input`, `weather.sunrise`/`sunset`,
+`activity.training_status`, `activity.weekly_run_distance`/
+`weekly_bike_distance`, and `activity.sleep_score`, plus
+`device.next_calendar_event`. Deliberately left out: everything duplicating
+a source already bound directly through `ActivityMonitor`/`Activity`/
+`Weather`/`UserProfile` (steps, calories, heart rate, altitude, VO2 max,
+recovery time, stress, current/forecast weather, current temperature, and
+more -- a direct read is cheaper and needs no subscription), and the niche
+ones (eight race-time/race-pace predictors, golf score, wheelchair pushes).
+`Activity.Info.currentOxygenSaturation` (pulse ox) was added too, but *not*
+as a complication -- `COMPLICATION_TYPE_PULSE_OX` exists, but the value is
+already a direct `Activity.Info` field, the same no-permission reasoning as
+`heart_rate.current`, so a complication for it would only add a subscription
+for no reason. Confirmed present on all three targets by reading its own
+"Supported Devices" list directly, the same discipline as every other field
+added this project (it is device-gated in the SDK doc, unlike
+`currentHeartRate`).
+
+One real device-gating question came up and was resolved by testing, not
+assumption: `COMPLICATION_TYPE_SLEEP_SCORE` needs API 6.0.2, above `fr955`'s
+own ConnectIQ ceiling (5.2.0, from its `compiler.json` -- confirmed there
+rather than guessed, since `docs/research/data/devices/*.json` does not
+record this). Rather than drop the source or invent per-device catalogue
+gating (a much bigger change), a real standalone `monkeyc` build confirmed
+`Complications.subscribeToUpdates` throwing `ComplicationNotFoundException`
+is catchable with a typed `catch (ex instanceof ...)` clause under `-l 3`,
+so `WfbComplications.mc`'s `subscribe()` wraps every subscription in one,
+uniformly, regardless of *why* a device declines a type (a thrown exception
+or a `false` return are both covered). `activity.sleep_score` shipped rather
+than being dropped, on the strength of that verification: it just never
+updates on `fr955`, silently, the same "absence is normal" contract as any
+other nullable source. This also surfaced a real, separate, pre-existing
+gap worth its own note: `catalog.Source.requires` (`Parent.name` symbols a
+binding needs on-device) has existed since the original catalogue and is
+set on exactly one source (`device.do_not_disturb`), but nothing anywhere
+-- not `wfb/lint.py`, not `wfb/ir.py` -- ever reads it. Recorded in
+`docs/limitations.md` §3 rather than fixed now: the runtime behaviour here
+(silent absence via the try/catch) is correct on its own, but a build-time
+lint would still be strictly better than discovering a blank field on the
+wrist, and `requires` is exactly the field such a lint would consult, once
+one is written.
+
+Verified end to end with a real design binding ten sources (all nine new
+complications plus `pulse_ox.current`) built through the real toolchain
+across all three targets: `BUILD SUCCESSFUL`, `minApiLevel="4.2.0"` and
+`<iq:uses-permission id="ComplicationSubscriber"/>` both present in the
+generated manifest exactly when a complication is bound and absent
+otherwise, and `WfbComplications.mc` pulled into the barrel only then too --
+not just `wfb validate`.
 
 ### Known-good reference
 

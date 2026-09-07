@@ -368,47 +368,86 @@ heart_rate
 
 As of this writing the catalogue covers `time.*`, `date.*` (including the
 localised month name and weekday), `device.*` (notification/alarm counts,
-do-not-disturb, phone-connected, 24-hour setting), `system.*` (battery,
-charging), `activity.*` (steps, calories, distance, floors, move bar,
-intensity minutes, stress score, respiration rate, time to recovery),
-`heart_rate.current`, `ambient.*` (altitude, barometric pressure), `weather.*`
-(current condition and temperature, feels-like, today's high/low and
-precipitation chance, humidity, wind speed, and today's/tomorrow's forecast
-condition — see `icon_for:` above for turning a condition into a drawn icon)
-and `user.*` (running/cycling VO2 max, resting heart rate, from
-`Toybox.UserProfile`).
+do-not-disturb, phone-connected, 24-hour setting, next calendar event),
+`system.*` (battery, charging, solar charging input), `activity.*` (steps,
+calories, distance, floors, move bar, intensity minutes, stress score,
+respiration rate, time to recovery, training status, weekly run/bike
+distance, sleep score), `heart_rate.current`, `pulse_ox.current`, `ambient.*`
+(altitude, barometric pressure), `weather.*` (current condition and
+temperature, feels-like, today's high/low and precipitation chance, humidity,
+wind speed, today's/tomorrow's forecast condition, sunrise/sunset — see
+`icon_for:` above for turning a condition into a drawn icon), `user.*`
+(running/cycling VO2 max, resting heart rate, from `Toybox.UserProfile`) and
+`body_battery.current`.
 
-**Two commonly-requested values are not bindable, and not for want of
-trying:**
+**Complications back several of the sources above** (`COMPLICATION_TYPE_*`,
+`Toybox/Complications.html`, API 4.2.0) — `body_battery.current`,
+`system.solar_input`, `weather.sunrise`/`sunset`, `activity.training_status`,
+`activity.weekly_run_distance`/`weekly_bike_distance`,
+`activity.sleep_score` and `device.next_calendar_event` — because none of
+them is reachable any other way: Body Battery, for instance, is otherwise
+exposed only through `Toybox.SensorHistory`, a permission **watch faces are
+not allowed to declare at all** (`Core_Topics/Manifest_and_Permissions.html`'s
+permission table has a blank Watch Face column for it). These sit on the
+`event` refresh tier, not `frame` or `slow`: nothing is fetched on a schedule
+at all, `Complications.registerComplicationChangeCallback` pushes a new value
+whenever one arrives, and the generated view just keeps the most recent one
+in a field (see "Refresh tiers" below). Binding any of them adds the
+`ComplicationSubscriber` permission and raises `minApiLevel` to 4.2.0
+automatically, the same way any other binding derives its own requirements.
 
-- **Body Battery** is exposed only through `Toybox.SensorHistory` or a
-  Complication (`COMPLICATION_TYPE_BODY_BATTERY`), and `SensorHistory` is a
-  permission **watch faces are not allowed to declare at all**
-  (`Core_Topics/Manifest_and_Permissions.html`'s permission table has a blank
-  Watch Face column for it) — so a Complication, on the `event` refresh tier,
-  is the only path, and that tier is not implemented yet.
-- **A running-only *total* distance** does not exist as a direct field: the
-  closest platform equivalent is `COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE` (a
-  *weekly* total, and again a Complication), or aggregating
-  `UserProfile.getUserActivityHistory()` by hand, which is real computation
-  ADR 0005 deliberately keeps out of the expression language. `activity.distance`
-  (today's ambient distance, every activity type) is the nearest thing
-  actually bindable today.
+A device can decline to support a given complication type outright — most
+relevantly here, `activity.sleep_score` needs ConnectIQ 6.0.2, above `fr955`'s
+own 5.2.0 ceiling (its `compiler.json`), so it will never update there.
+`runtime-lib/WfbComplications.mc`'s `subscribe()` absorbs this the same way
+every other nullable source is absorbed: the field just never gets filled in,
+rather than the subscription throwing. A design that binds
+`activity.sleep_score` will show nothing at all on `fr955` specifically —
+worth knowing before relying on it there.
 
-See `docs/limitations.md` §2 for the current state of Complications and the
-`event` tier.
+*Redundant with a direct source and deliberately not added*: complications
+duplicating a field already bound directly (`COMPLICATION_TYPE_STEPS`,
+`_CALORIES`, `_HEART_RATE`, `_ALTITUDE`, `_VO2MAX_RUN`, `_VO2MAX_BIKE`,
+`_RECOVERY_TIME`, `_STRESS`, `_CURRENT_WEATHER`, `_CURRENT_TEMPERATURE`,
+and several more — a direct `ActivityMonitor`/`Activity`/`Weather`/
+`UserProfile` read is cheaper and needs no subscription). *Left out as
+niche*: the eight race-time and race-pace predictors, `LAST_GOLF_ROUND_SCORE`
+and `WHEELCHAIR_PUSHES` — nothing platform-specific blocks adding these later
+if a design needs one; they simply were not among the commonly-used fields
+this pass targeted.
 
-A `slow`-tier source (`weather.*` today) is not re-read every frame the way a
+**One thing genuinely still isn't bindable**: a running-only *total* distance
+(as opposed to weekly). `COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE` is a *weekly*
+total, not all-time, and there is no other platform field for it short of
+aggregating `UserProfile.getUserActivityHistory()` by hand, which is real
+computation ADR 0005 deliberately keeps out of the expression language.
+`activity.distance` (today's ambient distance, every activity type) remains
+the nearest thing actually bindable.
+
+See `docs/limitations.md` §2 for what is still missing from the catalogue.
+
+### Refresh tiers
+
+A `slow`-tier source (`weather.*`) is not re-read every frame the way a
 `frame`-tier one is: the generated view caches the last read in a field and a
 UTC-seconds timestamp, and only calls the API again once that reading is older
 than a fixed TTL (`WfbCache.mc`, `wfb/emit/monkeyc.py`'s `ReadPlan`). Two
 elements bound to the same underlying reader — `weather.condition_today` and
 `weather.condition_tomorrow` both read one `getDailyForecast()` call, for
-instance — share one cache and one read, not one each. A `slow` (or, once it
-exists, `event`) tier source may not be bound from a `low_power`-mode
-element: `onPartialUpdate` runs under a strict power budget that only
-frame-tier reads are cheap enough for, and the compiler rejects the design
-outright rather than silently reading something wrong.
+instance — share one cache and one read, not one each.
+
+An `event`-tier source (every complication-backed one above) is not read on
+any schedule at all: the view subscribes once, in `onLayout`
+(`WfbComplications.subscribe`, one call per complication, registered against
+one shared `onComplicationChanged` callback), and that callback is what
+writes the cached field — `onUpdate` just reads whatever is there, the same
+`var x = <cache>;` shape a `frame`-tier read uses, with no staleness check
+because there is nothing to re-fetch on demand.
+
+Neither a `slow` nor an `event` tier source may be bound from a
+`low_power`-mode element: `onPartialUpdate` runs under a strict power budget
+that only frame-tier reads are cheap enough for, and the compiler rejects the
+design outright rather than silently reading something wrong.
 
 If a value you want is missing and it is not one of the two above, check the
 underlying Garmin API page: `Toybox/ActivityMonitor/Info.html`,

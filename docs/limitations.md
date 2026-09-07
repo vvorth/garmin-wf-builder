@@ -135,27 +135,28 @@ Phase 2 shipped a vertical slice. Present in the ADRs, absent from the code:
 `garmin-watchface-protomolecule` — the "can the schema express Dashboard?"
 question ADR 0004 poses. It gets the row structure, the separators, the two-tone
 clock, the conditional colours, the badge and the arcs, and now the weather
-row's icon and every one of its readings. **Two things it still cannot
-express**, both for want of data sources the platform itself does not offer a
-direct field for, not element types:
+row's icon and every one of its readings, Body Battery, and the data a
+daylight arc would need. **One thing it still cannot express**, for want of an
+element type rather than a data source:
 
 | Dashboard has | Blocked on |
 |---|---|
-| Body Battery, on the status row and the left arc | exposed only through `SensorHistory` (not a permission a Watch Face may declare) or a Complication -- see `docs/format.md`'s "Data binding" section |
 | A configurable history graph — HR, Body Battery, stress, pressure, elevation | no graph element **and** no history sources |
-| A daylight arc that drains between sunrise and sunset | no sunrise/sunset source yet -- feasible (`Weather.getSunrise`/`getSunset` take a `Position.Location`, and a Watch Face may call `Position.getInfo()` for one without needing `enableLocationEvents()`), just not built |
 
 Weather's condition icon (`icon_for: weather.condition`, resolved on-device
 through `WfbWeather.mc`, mirroring `wfb.icons.weather_icon_for_condition()`)
 and its full reading set -- temperature, feels-like, today's high/low and
 precipitation chance, humidity, wind speed -- both shipped; see
-`docs/format.md`'s `icon_for` and "Data binding" sections. Body Battery and
-the daylight arc are catalogue/reader work of a kind this project cannot do
-without Complications or a Position-backed reader respectively; the history
-graph additionally needs an element type that plots a series, which is the
-strongest argument in the codebase for the `raw` escape hatch: a sparkline is
-exactly the sort of thing that should drop to hand-written Monkey C rather
-than growing the schema.
+`docs/format.md`'s `icon_for` and "Data binding" sections. Body Battery
+(`body_battery.current`) and a daylight arc's sunrise/sunset data
+(`weather.sunrise`/`weather.sunset`) also both shipped, all three through
+Complications (`event` refresh tier) rather than a direct API field -- see
+`docs/format.md`'s "Data binding" section. Nothing in `examples/dashboard/`
+binds them yet; that is an example-content update, not a platform gap. The
+history graph is the one thing left, and it additionally needs an element
+type that plots a series, which is the strongest argument in the codebase for
+the `raw` escape hatch: a sparkline is exactly the sort of thing that should
+drop to hand-written Monkey C rather than growing the schema.
 
 | Missing | Where it is specified |
 |---|---|
@@ -166,7 +167,6 @@ than growing the schema.
 | The `config:` block, on-device config, phone settings | ADR 0006 |
 | Tap / hold interactivity | ADR 0006 §6 |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
-| Complications, and the `event` refresh tier | ADR 0005 |
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
@@ -175,7 +175,16 @@ than growing the schema.
 
 The `slow` refresh tier and its TTL cache (ADR 0005 §5) **shipped** --
 `weather.*` is its first real source; see `docs/format.md`'s "Data binding"
-section and `WfbCache.mc`.
+section and `WfbCache.mc`. The `event` refresh tier -- Complications --
+**also shipped**: `body_battery.current`, `system.solar_input`,
+`weather.sunrise`/`sunset`, `activity.training_status`,
+`activity.weekly_run_distance`/`weekly_bike_distance`, `activity.sleep_score`
+and `device.next_calendar_event` are all backed by one `COMPLICATION_TYPE_*`
+subscription each; see `docs/format.md`'s "Refresh tiers" section and
+`WfbComplications.mc`. `activity.sleep_score` is a partial exception worth
+tracking separately: its complication needs ConnectIQ 6.0.2, above `fr955`'s
+own 5.2.0 ceiling, so it never updates there (below, "device gating for a
+source is not enforced").
 
 ### Screen shapes
 
@@ -240,3 +249,15 @@ coverage of a subsetted font; refresh tiers; contrast arithmetic.
 * **Safe area on `semi-round` and `semi-octagon`.** Reported as "not checked".
 * **Whether a device's firmware actually behaves as its files describe.** The
   device files are the best available ground truth, not a guarantee.
+* **Device gating for a source is not enforced.** `catalog.Source.requires`
+  (`Parent.name` symbols a binding needs on the target device) exists and is
+  set on one source (`device.do_not_disturb`), but nothing in `wfb/lint.py`
+  or `wfb/ir.py` ever reads it -- found while adding `activity.sleep_score`
+  (its complication needs ConnectIQ 6.0.2, above `fr955`'s 5.2.0 ceiling), and
+  worked around there by relying on `WfbComplications.mc`'s catch-both-
+  outcomes `subscribe()` instead of gating the source itself: the field just
+  never fills in on `fr955`, silently, rather than failing the build. That is
+  the right runtime behaviour, but a build-time lint surfacing "this source
+  is unsupported on device X" before the design ships would still be better
+  than discovering a blank field on the wrist -- `requires` is exactly the
+  field that lint would read, once written.
