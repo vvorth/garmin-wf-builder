@@ -435,6 +435,183 @@ dependency order:
 7. **Generate the data-source catalogue from the SDK** (ADR 0005 §1). It is
    hand-written today; a drifted catalogue would silently mis-declare permissions.
 8. The GUI (ADR 0002), last, once the schema has stabilised.
+9. **Primitives, fonts, visibility, authoring form and static buffers** —
+   **shipped**, see the session note at the end of this section.
+
+**A six-feature session, orchestrated one task at a time.** All six were
+user-requested, specified up front, and built by a subagent each, integrated
+and committed between tasks so a failure never spanned two features. The rules
+every task obeyed — real `monkeyc` on all three targets and **warning-free**,
+not merely successful; every new error driven red against violating input
+before it was believed; `tests/golden/` forbidden to move; preview and device
+kept in step — are worth reusing verbatim. Two of them caught real problems
+that a passing test would not have.
+
+1. **`shape:` gained `arc`, `ellipse` and `polygon`**, which is every remaining
+   `Dc` primitive the schema had no access to. `filled:` on an `arc` is an
+   error naming constraint 3 above; `filled: false` on a `polygon` is an error
+   because `Dc` has **no `drawPolygon`**. `fillPolygon`'s 64-point cap is the
+   SDK's own, quoted. The angle conversion is now one function,
+   `layout.garmin_arc`, shared with `progress`, so the 12-o'clock-zero
+   convention is not implemented twice.
+
+   Fixed a silent bug found while writing it: **`filled: false` was parsed,
+   validated and then ignored** on `rectangle` and `rounded_rectangle` — only
+   `circle` ever branched on it. Nothing in the repo used `filled:`, so no
+   design moved.
+
+   Probe result worth keeping (`docs/research/probes/polygon-const/`):
+   `Graphics.Point2D` is a fixed-size **tuple** type, not `Array<Number>`.
+   Declaring the generated constant `Array<Array<Number>>` compiles the
+   constant fine and then fails at the `fillPolygon` **call site**.
+
+2. **A font's `size:` is now a `Length`** — `18%r` bakes 23 px on a 260 px
+   screen and 25 px on a 280 px one. `%` and `pt` are refused (a font has no
+   parent box; `pt` is defined in terms of a font). A bare number keeps its
+   exact old meaning: the arithmetic is character-for-character the old
+   formula, relocated, and every golden artefact byte-compares the same.
+   `icons.pixel_size` moved to `wfb/units.py` and is now the single
+   `Length -> px` resolver for both the icon and font paths.
+
+   **Deliberately not unified: `icons.bake_size`'s ink-height normalisation
+   stays icon-only**, and its docstring now says why. It searches for the
+   nominal size whose *one glyph's* ink bbox hits a target height — right for
+   an independently-placed icon drawn from ten aggregated third-party sets
+   with different em-square padding, wrong for text, where line height,
+   baseline and the relative proportions of different glyphs are the point.
+
+3. **`monospace: true` + `align:` on a `fonts:` entry.** The cell is measured
+   from the glyphs actually baked, floored at the widest ink, rather than
+   trusted from the font's `post` table — so it works on a proportional source,
+   not only on a font that calls itself monospaced. Costs nothing at runtime;
+   the device just reads advances out of the `.fnt`.
+
+   **The near-miss worth recording**: the obvious test, `"00:00"` vs `"11:11"`,
+   **cannot go red** — Open Sans's figures are already tabular, every digit
+   19 px. A test built on it would have passed forever against a broken
+   implementation. The pair that actually drives it is `Fri 11:11` /
+   `Wed 00:00` (132 px vs 164 px proportional, both 279 px monospaced).
+
+4. **`visible:`, a conditional that hides an element or a whole group.** Must
+   type as `BOOLEAN` — `visible: activity.steps` is an error naming the type.
+   **Absent means hidden**, folded into one guard
+   (`if (x == null || !(cond)) { return; }`) rather than a new `when_absent:`
+   axis, because there is no meaningful placeholder for existence. That
+   `monkeyc` narrows a local across `||` under `-l 3` was probed against a real
+   build before the single-guard form was relied on.
+
+   A group's condition is conjoined into every descendant **in the IR, not the
+   emitter**. A group emits no draw method and `resolved.items` is flat, so
+   pushing the AST down is what makes reader hoisting, permission derivation,
+   the preview's evaluator and the linter's folding all work unchanged.
+
+   **`on_hold:` on a hidden element is documented, not gated**, and the
+   reasoning is the transferable part: the delegate has no `Dc` and none of
+   `onUpdate`'s hoisted locals, so gating means a second copy of the read plan
+   in a second file, free to drift — and `onPress` runs at *touch* time, not
+   draw time, so a re-evaluated condition answers about a different moment than
+   the pixels on screen.
+
+5. **`elements:` accepts a mapping of id -> element**, as well as the list
+   form. Both stay valid; not a format-version bump. Implemented as a
+   **desugaring pass** (`wfb/desugar.py`) between the loader and the schema, so
+   schema, IR, layout, lint, preview and codegen are untouched — which is what
+   makes the gate as strong as it is: a design written both ways produces
+   byte-identical generated trees **and identical `.prg` checksums** on all
+   three targets. Scope is exactly the two places `$defs/element` is
+   referenced (top-level `elements:` and a group's `children:`); a carousel's
+   `items:` are slots with no id and are never rewritten.
+
+   ruamel 0.19.1's real API, since the obvious guess is wrong: sequence
+   positions need `add_idx_line_col(i, [line, col])` (`lc.data` is `None` until
+   the first add), and an injected key needs `add_kv_line_col(k, [l, c, l, c])`
+   — **four** values, because `key()` reads slots 0-1 and `value()` reads 2-3.
+
+   **The documented cost**: the JSON Schema is normative and describes only the
+   list form, so a schema-aware editor red-underlines a valid mapping-form
+   file. `docs/format.md` therefore still recommends the list form, and
+   `examples/complications/face.yaml` (converted, as the worked proof) drops
+   its `yaml-language-server:` modeline with the reason inline.
+
+6. **`static:` — paint once into a `BufferedBitmap`, then blit.** Both
+   spellings the user asked for: `static: true` on any element or group, and a
+   top-level `static:` block folded into one static group at the front of draw
+   order.
+
+   **The design was decided by a probe, not by preference**
+   (`docs/research/probes/static-buffer/`). The attractive version — a
+   transparent buffer that can sit anywhere in draw order — **cannot be
+   established from the SDK**: `Dc.clear()`'s `COLOR_TRANSPARENT` note is about
+   the WatchUi *overlay layer*; the one page explaining where a transparent
+   index comes from is about **resource-compiler** bitmaps; `drawBitmap`
+   documents no transparency at all; and `alphaBlendingSupport` appears nowhere
+   under `doc/` and is `false` on all three targets. Against that:
+   `pixelFormat` is `ARGB2222`, so a transparent pixel *is* representable —
+   suggestive, not decisive. And `setFill`/`setStroke`/`setBlendMode` are all
+   present in the symbol tables **despite** `alphaBlendingSupport: false`,
+   which is constraint 6b in miniature. So the **opaque** design shipped:
+   full-screen buffer, static content a contiguous prefix of draw order, one
+   buffer per face. If transparency later holds, only `_check_static_order`
+   relaxes; the codegen does not.
+
+   Two things no doc page gives, found by building: the nullable cast
+   `.get() as BufferedBitmap?` compiles, but **narrowing must go through a
+   local** — `if (_staticBuffer != null) { _staticBuffer.getDc(); }` fails with
+   `Cannot find symbol ':getDc' on type 'Null'` (which doubled as the negative
+   control proving `-l 3` was really running). And `BufferedBitmapReference.get`
+   is absent from every `api.debug.xml` because it is inherited from
+   `ResourceReference`.
+
+   `renderStatic(dc)` fills the buffer in `onLayout` **and** is called directly
+   from `onUpdate` when the buffer is null, so a device without
+   `createBufferedBitmap`, or a failed pool allocation, still renders.
+
+   A static group's generated method name is now a **third reserved symbol**:
+   without it a real build produced `Redefinition of 'drawStaticFoo'` pointing
+   at generated line numbers — exactly what `wfb/diagnostics.py` exists to
+   prevent.
+
+   **Cost measured, benefit not.** Against a hand-written twin drawing the
+   identical picture with no buffer (the two previews are pixel-identical):
+   +27 B data, +183 B code, 2,769 -> 2,979 B, plus one pool surface of 67,600 B
+   (260x260) / 78,400 B (280x280) out of 1,048,576 B. **The benefit is CPU and
+   battery and was not measured** — no simulator (finding 11), no watch.
+   Nothing in the docs or the code claims a speedup.
+
+**Still open from this session, deliberately:**
+
+* **Transparency for a static buffer** (item 6). It needs a real device or a
+  working simulator, and the whole prefix restriction exists only because of it.
+* **`graphics-pool` cannot fire as a warning on any current target** — one
+  full-screen buffer is 6.4-7.5% of a 1 MB pool — so its threshold is untested
+  against real device data. Its estimate also ignores fonts and bitmaps, which
+  share the pool; the reported fraction is a floor.
+* **Silent keys predating this session**: `radius:` on a rectangle, `size:` on
+  a circle, `corner_radius:` on a line are all still parsed and dropped. The
+  new checks cover only the keys this session added, because erroring on the
+  rest would reject designs written before today.
+* **A rejected font cascades into a wrong second error**: any bad `fonts:`
+  entry makes the builder drop the font, so every element naming it reports
+  `unknown font 'font.x' ... declared fonts: (none declared)` — actively wrong
+  when other fonts were declared.
+* **`expr.fold` does not short-circuit `and`/`or`**, so `false and X` is not
+  folded to `false`. Output is correct either way and `-O 3z` removes the dead
+  branch.
+* **`$defs/commonElement` in the schema is dead** — defined, never `$ref`'d,
+  with every element branch repeating the properties by hand. The same drift
+  the last review flagged for `on_hold:`.
+* **`docs/format.md`'s suppressible-code count is hand-maintained prose.**
+  `tests/test_lint.py` checks each code is *mentioned*, not that the number is
+  right.
+
+**A git note, because it cost the user files.** Commit `614d100` ("test work on
+new watchface definition") added `examples/big-clock-3/assets/` — eleven fonts,
+ChivoMono and SairaStencil among them. A later fix commit was made on top of
+`b1c09d9` rather than `614d100`, so that commit is no longer an ancestor of
+`main` and those assets are not in the working tree. Nothing is lost; the
+commit is intact in the object store and
+`git checkout 614d100 -- examples/big-clock-3` restores it. Left undone
+pending the user's decision.
 
 Use the sibling Dashboard face as the forcing function: **"can the schema express
 Dashboard?"** is the right question to drive Phase 3 scope.
