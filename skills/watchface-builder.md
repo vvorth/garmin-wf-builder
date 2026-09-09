@@ -311,7 +311,10 @@ fonts:                  # optional -- omit to use built-in fonts only
     monospace: true     # optional: one cell width for every glyph, so a clock
                         # does not shift as its digits change (align: center)
 
-elements:
+elements:                 # a list, as below -- or a mapping keyed by element
+                          # id (`background:` instead of `- id: background`).
+                          # Identical meaning; the list form is the one the
+                          # schema describes, so write that unless asked.
   - id: background
     type: shape
     shape: rectangle              # rectangle | rounded_rectangle | circle | ellipse

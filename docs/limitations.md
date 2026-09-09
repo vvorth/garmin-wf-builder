@@ -118,6 +118,25 @@ one chosen reference character would distort every other one. Nothing checks
 that two fonts at one declared size look the same height — they will not,
 in general.
 
+### The JSON Schema does not describe the mapping form of `elements:`
+
+An element list may be written as a sequence or as a mapping keyed by element id
+(`docs/format.md` §"Two ways to write a list of elements"). Both are accepted;
+only the sequence is in `schema/wfb-face-1.schema.json`, because the mapping is
+rewritten into the sequence by `wfb/desugar.py` **before** validation, which is
+exactly what keeps the schema, the IR, the linter, the preview and codegen from
+having to know that two spellings exist.
+
+The cost lands on the editor. A YAML language server pointed at the schema —
+which this project recommends setting up — validates the file as written, not
+as the compiler will read it, so every mapping-form element is reported as
+invalid (`elements` should be an array) while `wfb validate` reports nothing.
+This is not fixable by adding an `anyOf` to the schema without also giving the
+schema a second, parallel description of every element type keyed differently,
+which is the duplication the desugaring pass exists to avoid. The workarounds
+are to use the list form in files you want an editor to check, or to drop the
+`$schema` modeline from a mapping-form file.
+
 ### The resource compiler's font `filter` cannot represent a codepoint above U+FFFF
 
 `icon:` accepts any single character from the vendored Nerd Font directly, not

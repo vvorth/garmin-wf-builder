@@ -33,6 +33,13 @@ with it configured:
 `wfb schema --path` prints the schema's location if you need to point something
 else at it.
 
+One caveat, because it will bite you the first time: the schema describes the
+**list form** of `elements:`. The equally-valid mapping form
+([below](#two-ways-to-write-a-list-of-elements)) is rewritten by the compiler
+before the schema ever sees it, so an editor validating against the schema
+alone will mark a mapping-form file invalid. `wfb validate` is the authority,
+not the editor.
+
 **Keep a preview open while you edit:**
 
 ```sh
@@ -56,7 +63,7 @@ face:
 targets: [fenix8solar47mm, fenix8solar51mm, fr955]
 palette: {...}
 fonts:   {...}
-elements: [...]
+elements: [...]        # a list, or a mapping keyed by element id -- see below
 ```
 
 **Unknown keys are an error, not a warning.** Silently ignoring a misspelled key
@@ -245,6 +252,69 @@ Alternatively name a system font directly: `font: FONT_MEDIUM`,
 
 Z-order is document order, with an optional `z:` override. Every element takes
 `id`, `type`, `at`, `modes`, `z`, `visible`, `lint` and `overrides`.
+
+### Two ways to write a list of elements
+
+Anywhere a list of elements is accepted — the top-level `elements:` and a
+`group`'s `children:` — it may be written either as a **sequence**, where each
+element carries its own `id:`, or as a **mapping**, where the key *is* the id:
+
+```yaml
+# the list form                       # the mapping form
+elements:                             elements:
+  - id: background                      background:
+    type: shape                           type: shape
+    shape: rectangle                      shape: rectangle
+    color: palette.bg                     color: palette.bg
+  - id: clock                           clock:
+    type: text                            type: text
+    value: time.clock                     value: time.clock
+    format: "{:%H:%M}"                    format: "{:%H:%M}"
+```
+
+They mean exactly the same thing. `wfb/desugar.py` rewrites the mapping into
+the sequence before anything else runs, so the schema, the IR, layout, the
+linter, the preview and code generation only ever see one form — and the two
+therefore cannot drift into meaning different things. The gate on that claim is
+that a design written both ways generates byte-identical Monkey C, resources,
+manifest and jungle for every target
+(`tests/test_desugar.py::test_the_two_forms_generate_byte_identical_output`);
+`examples/complications/face.yaml` is written in the mapping form for the same
+reason, as a working proof rather than a snippet.
+
+**Order still matters in the mapping form.** A YAML mapping is ordered as
+written, and this compiler reads it in that order, so document order is still
+draw order — the *second* element is drawn over the first, exactly as in a
+sequence. If that feels like something a mapping should not promise, that is a
+fair instinct, and it is one of the reasons for the recommendation below.
+
+Three things are errors in the mapping form, each reported against your own
+line:
+
+* writing `id:` inside the body as well — the key already is the id;
+* a key that is not a valid identifier (`back-ground:`, `2clock:`);
+* the same key twice. This one never reaches the compiler: YAML itself forbids
+  duplicate keys and the loader reports it, which is a small bonus of this
+  form — a duplicate element id is unwriteable rather than diagnosed.
+
+A `carousel`'s `items:` are **not** affected. They are slots, not elements;
+they have no id and are always a sequence.
+
+**Which to use.** The project recommends the **list form**, and everything it
+generates — `wfb new`'s templates, the skill, every other example — emits it.
+Two concrete reasons:
+
+* the normative artefact is the JSON Schema, and the schema describes only the
+  list form. A `$schema`-aware editor (the second thing this page tells you to
+  set up) will therefore flag a mapping-form file as invalid even though the
+  compiler accepts it. That is a real daily cost, and it is
+  [recorded as a limitation](limitations.md);
+* a sequence says out loud that order is meaningful, which here it is.
+
+Use the mapping form when the ids are what you navigate the file by — a dense
+face with twenty elements, where `hr_value:` as a heading beats hunting for
+`- id: hr_value` — and accept the editor caveat, or drop the `$schema` modeline
+from that file.
 
 ### `visible:` — draw this only sometimes
 

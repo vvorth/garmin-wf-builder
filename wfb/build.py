@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import lint, validate, yamlsrc
+from . import desugar, lint, validate, yamlsrc
 from .devices import Device, DeviceDatabase, DeviceError
 from .diagnostics import Bag, BuildError
 from .emit import GeneratedProject, generate
@@ -76,6 +76,11 @@ def load(path: Path, bag: Bag) -> Face | None:
     """Parse and validate a design file into an IR, or report why not."""
     doc = yamlsrc.load(path, bag)
     if doc is None:
+        return None
+    # Stage 0.5: the author's conveniences become the one shape the schema, the
+    # IR and codegen know about.  Runs before validation so the schema never has
+    # to describe two spellings of the same thing (`wfb/desugar.py`).
+    if not desugar.desugar(doc, bag):
         return None
     if not validate.validate(doc, bag):
         return None

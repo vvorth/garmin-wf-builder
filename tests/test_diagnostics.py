@@ -1,12 +1,21 @@
 """Errors must point at the author's YAML, with file, line and column."""
 
-from wfb import validate, yamlsrc
+from wfb import desugar, validate, yamlsrc
 from wfb.ir import build
 
 
 def load(path, bag):
+    """The same stage order as `wfb.build.load`, minus the toolchain.
+
+    `desugar` sits between the loader and the schema for the same reason it
+    does there: everything downstream sees only the list form of an element
+    list, so a test helper that skipped it would quietly disagree with the
+    real pipeline about what a design means.
+    """
     doc = yamlsrc.load(path, bag)
-    if doc is None or not validate.validate(doc, bag):
+    if doc is None or not desugar.desugar(doc, bag):
+        return None
+    if not validate.validate(doc, bag):
         return None
     return build(doc, bag)
 

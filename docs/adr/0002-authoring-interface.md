@@ -81,6 +81,47 @@ makes the hybrid safe:
   a build directory and is not the source of truth. (The escape hatch for
   hand-written Monkey C is a separate, explicit mechanism — see ADR 0007.)
 
+## Amendment (2026-09-09): a second surface spelling, and one desugaring stage
+
+An element list may now also be written as a **mapping keyed by the element
+id** -- `clock:` as the heading instead of `- id: clock` -- anywhere the format
+takes a list of elements (the top-level `elements:` and a `group`'s
+`children:`). Both spellings stay valid and this is **not** a format-version
+bump (ADR 0009): nothing about what a design can express changed, only how it
+can be typed.
+
+The decision that matters is *where* it is implemented. It is a **desugaring
+pass**, `wfb/desugar.py`, run between the loader and the schema. The schema,
+the IR, layout, the linter, the preview and code generation see only the list
+form and are untouched. The alternative -- describing both shapes in the JSON
+Schema and teaching `wfb/ir.py` to walk either -- would have put the same idea
+in two places in the normative artefact and in every consumer of it, which is
+the duplication that eventually produces two spellings quietly meaning
+different things. The gate on the equivalence is correspondingly strong: a
+design written both ways generates **byte-identical** Monkey C, resources,
+manifest and jungle on every target, and its compiled `.prg` files match byte
+for byte too.
+
+This keeps the "errors point at the author's line" consequence above intact
+rather than eroding it: the rewritten sequence holds the *same* `CommentedMap`
+bodies the loader produced, each sequence item's position is taken from the
+position of the key that named it, and the injected `id` is recorded in the
+body's own `lc` so a diagnostic about an element id lands on the author's key.
+
+One consequence is a genuine cost, recorded in `docs/limitations.md` rather
+than hidden: the JSON Schema is the normative artefact and describes only the
+list form, so a `$schema`-aware editor flags a mapping-form file that
+`wfb validate` accepts. The list form therefore stays the recommended one and
+the one every template and generated file emits; the mapping form is offered
+for dense designs where the ids are what the author navigates by, and it has
+the small side benefit that YAML itself makes a duplicate element id
+unwriteable.
+
+It also bears on the deferred GUI: a lossless editor must round-trip
+*whichever* form it was given, since rewriting a file from the mapping form
+into the list form on save would be exactly the kind of unrequested change
+point 2 of the decision above forbids.
+
 ## Open
 
 - Whether the GUI is a local web app (browser canvas, Python server) or native.

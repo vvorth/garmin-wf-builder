@@ -12,7 +12,17 @@
 # sources below (body_battery, solar_input) have no direct-read alternative
 # at all, which is exactly the case the namespace exists for.
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# `elements:` below is written in the **mapping form** -- the key is the
+# element id. It means exactly the same thing as the list form
+# (`- id: background`) every other example uses: the compiler rewrites it into
+# that form before anything else runs, and a design written both ways generates
+# byte-identical output. See docs/format.md, "Two ways to write a list of
+# elements", for which to prefer and why.
+#
+# There is deliberately no `yaml-language-server:` modeline here, unlike the
+# other examples: the schema describes only the list form, so an editor
+# validating this file against it would flag every element below even though
+# `wfb validate` is clean (docs/limitations.md).
 
 format: 1
 
@@ -35,14 +45,14 @@ palette:
   accent: "#FF5500"
 
 elements:
-  - id: background
+  background:
     type: shape
     shape: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
     color: palette.bg
 
-  - id: clock
+  clock:
     type: text
     value: time.clock
     format: "{:%H:%M}"
@@ -54,14 +64,14 @@ elements:
   # 'heart_rate.current' has a conventional launch target (`heart_rate`,
   # wfb.catalog.Source.launch_complication) -- 'auto' below resolves it, so
   # a hold on this text opens the heart-rate glance without naming it by hand.
-  - id: hr_icon
+  hr_icon:
     type: icon
     icon: heart
     at: { anchor: center, dx: -26%, dy: -1% }
     size: 9%r
     color: palette.accent
 
-  - id: hr_value
+  hr_value:
     type: text
     value: heart_rate.current
     format: "{:d}"
@@ -78,14 +88,14 @@ elements:
   # (Core_Topics/Manifest_and_Permissions.html's table has a blank Watch Face
   # column for it) -- so 'complication.body_battery' is not a convenience
   # here, it is the only way in.
-  - id: body_battery_icon
+  body_battery_icon:
     type: icon
     icon: battery
     at: { anchor: center, dy: -1% }
     size: 9%r
     color: palette.accent
 
-  - id: body_battery_value
+  body_battery_value:
     type: text
     value: complication.body_battery
     format: "{:d}"
@@ -96,14 +106,14 @@ elements:
     placeholder: "--"
 
   # -- solar input: also only reachable through Complications -----------------
-  - id: solar_icon
+  solar_icon:
     type: icon
     icon: weather_sunny
     at: { anchor: center, dx: 26%, dy: -1% }
     size: 9%r
     color: palette.accent
 
-  - id: solar_value
+  solar_value:
     type: text
     value: complication.solar_input
     format: "{:.0f}%"
@@ -114,7 +124,7 @@ elements:
     placeholder: "--"
 
   # -- a carousel, with 'launch: auto' on one item ---------------------------
-  - id: data
+  data:
     type: carousel
     at: { anchor: center, dy: 26% }
     size: { width: 52%, height: 20% }   # the TOUCH target, not the drawn extent

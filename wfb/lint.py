@@ -47,6 +47,7 @@ SUPPRESSIBLE = frozenset({
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
     "carousel", "color", "complication-gated", "contrast", "dead-element",
+    "element-mapping",
     "devices", "duplicate-id", "element", "expression",
     "font", "format", "format-version", "icon", "io", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
