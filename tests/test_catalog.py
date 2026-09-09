@@ -1,5 +1,6 @@
-"""wfb/catalog.py: readers, sources, and the tier/permission machinery
-built around them (ADR 0005).
+"""wfb/catalog.py: readers, sources, and the permission machinery built
+around them (ADR 0005), plus the generated `complication.*` half of the
+catalogue (`wfb.complications.TYPES`).
 
 Nothing here needs the Garmin toolchain or device files, except the one
 ``@pytest.mark.slow`` test at the bottom that builds every catalogue entry
@@ -14,22 +15,8 @@ import uuid
 
 import pytest
 
-from wfb import catalog
-from wfb.catalog import CATALOG, READERS, Tier, Type
-
-
-def test_every_source_agrees_with_its_readers_tier():
-    """The cache (or lack of one) is generated once per *reader*
-    (wfb/emit/monkeyc.py's ReadPlan), not per source, so every source sharing
-    a reader had better agree with it -- a source claiming `slow` off a
-    `frame`-tier reader (or vice versa) would silently get the wrong
-    treatment."""
-    for path, source in CATALOG.items():
-        reader = READERS[source.reader]
-        assert source.tier == reader.tier, (
-            f"{path!r} is {source.tier.value}-tier but its reader {source.reader!r} "
-            f"is {reader.tier.value}-tier"
-        )
+from wfb import catalog, complications
+from wfb.catalog import CATALOG, READERS, Type
 
 
 def test_every_reader_is_used_by_at_least_one_source():
@@ -50,12 +37,9 @@ def test_array_index_sources_have_a_bounds_guard():
     assert plain.array_guard is None
 
 
-def test_weather_condition_sources_are_slow_tier_and_numeric():
-    from wfb.catalog import Type
-
+def test_weather_condition_sources_are_numeric_and_nullable():
     for path in catalog.WEATHER_CONDITION_SOURCES:
         source = CATALOG[path]
-        assert source.tier is Tier.SLOW
         assert source.type is Type.NUMBER
         assert source.nullable
 
@@ -168,74 +152,183 @@ def test_new_weather_fields_share_the_current_conditions_reader():
         assert source.array_index is None, name
 
 
-def test_weather_readers_have_an_hourly_ttl():
-    """Weather -- current conditions and the forecast -- does not change fast
-    enough to justify the 900s default; both weather readers use an hour."""
-    assert READERS["weather_current"].ttl_seconds == 3600
-    assert READERS["weather_daily"].ttl_seconds == 3600
-
-
-# -- complications (ADR 0005's `event` tier) --------------------------------
-
-
-def test_every_event_tier_reader_names_a_complication_type():
-    """The one thing that distinguishes an EVENT reader from a FRAME/SLOW one
-    is `complication_type` -- catch a reader marked EVENT that forgot to set
-    it (nothing would subscribe to it) or a non-EVENT reader that set it by
-    copy-paste accident (nothing would ever fill its cache)."""
-    for name, reader in READERS.items():
-        if reader.tier is Tier.EVENT:
-            assert reader.complication_type is not None, name
-        else:
-            assert reader.complication_type is None, name
-
-
-def test_complication_backed_sources_have_no_field_name():
-    """Like `time.clock`, the reader *is* the value for a complication -- there
-    is no sub-field to read off it, unlike `activity.steps` off `activity`."""
-    for name, reader in READERS.items():
-        if reader.complication_type is None:
-            continue
-        for source in CATALOG.values():
-            if source.reader == name:
-                assert source.field_name is None, source.path
-
-
-def test_complication_backed_sources_declare_complicationsubscriber():
-    for name, reader in READERS.items():
-        if reader.complication_type is None:
-            continue
-        for source in CATALOG.values():
-            if source.reader == name:
-                assert source.permissions == ("ComplicationSubscriber",), source.path
-
-
-def test_complication_readers_are_not_grouped():
-    """Unlike ActivityMonitor.getInfo(), no single Complications call returns
-    several types at once, so each complication is its own reader -- one
-    source per reader, not several sources sharing one."""
-    counts: dict[str, int] = {}
+def test_no_refresh_tier_concept_survives():
+    """D2: the tier concept is deleted outright, not merely hidden -- neither
+    `Reader` nor `Source` may carry a field for it any more."""
+    for reader in READERS.values():
+        assert not hasattr(reader, "tier")
+        assert not hasattr(reader, "ttl_seconds")
     for source in CATALOG.values():
-        if READERS[source.reader].complication_type is not None:
-            counts[source.reader] = counts.get(source.reader, 0) + 1
-    assert counts, "expected at least one complication-backed source"
-    assert all(count == 1 for count in counts.values()), counts
+        assert not hasattr(source, "tier")
+    assert not hasattr(catalog, "Tier")
 
 
-def test_body_battery_is_bindable():
-    """The concrete ask this feature exists for."""
-    source = CATALOG["body_battery.current"]
-    assert source.tier is Tier.EVENT
-    assert READERS[source.reader].complication_type == "COMPLICATION_TYPE_BODY_BATTERY"
+# -- complications: the generated `complication.*` half of the catalogue ----
+
+
+def test_all_42_complication_types_are_exposed():
+    """COMPLICATION_TYPE_INVALID is not a real value and must not appear;
+    every other COMPLICATION_TYPE_* from Toybox/Complications.html must."""
+    assert len(complications.TYPES) == 42
+    assert "invalid" not in complications.TYPES
+    for entry in complications.TYPES.values():
+        assert entry.constant != "COMPLICATION_TYPE_INVALID"
+        assert entry.constant.startswith("COMPLICATION_TYPE_")
+
+
+def test_every_complication_type_has_a_matching_catalog_source():
+    """D1's one rule: `complication.<type>` is *always* read through
+    Toybox.Complications, generated by looping over the type table -- not a
+    hand-picked subset the way the nine old complication-backed sources
+    were."""
+    for name in complications.TYPES:
+        path = f"complication.{name}"
+        assert path in CATALOG, path
+        source = CATALOG[path]
+        assert source.field_name == "value"
+        assert source.nullable is True
+        assert source.permissions == ("ComplicationSubscriber",)
+        assert source.source_ref == "Toybox/Complications.html"
+
+
+def test_no_complication_source_is_a_leftover_hand_written_one():
+    """Exactly 42 `complication.*` paths -- no more (a stale hand-written
+    entry left behind), no fewer (the loop silently skipped one)."""
+    comp_paths = [p for p in CATALOG if p.startswith("complication.")]
+    assert len(comp_paths) == 42
+    assert sorted(p.split(".", 1)[1] for p in comp_paths) == sorted(complications.TYPES)
+
+
+def test_complication_source_type_matches_its_type_table_value_type():
+    _MAP = {"number": Type.NUMBER, "float": Type.FLOAT, "string": Type.STRING}
+    for name, entry in complications.TYPES.items():
+        source = CATALOG[f"complication.{name}"]
+        assert source.type is _MAP[entry.value_type], name
+
+
+def test_cast_is_set_iff_the_source_reads_a_complication():
+    """`Source.cast` exists only because `Complications.Complication.value`
+    is a Monkey C union type -- no other reader returns a union, so no other
+    source should ever set it."""
+    for path, source in CATALOG.items():
+        if path.startswith("complication."):
+            assert source.cast is not None, path
+            assert source.cast in ("Number?", "Float?", "String?"), (path, source.cast)
+        else:
+            assert source.cast is None, path
+
+
+def test_read_expr_does_not_bake_in_the_cast():
+    """SPEC contract: `read_expr` names what to read; `cast` is a separate
+    instruction the emitter applies where it can parenthesise correctly --
+    the two must never be conflated into one string here."""
+    source = CATALOG["complication.body_battery"]
+    assert " as " not in source.read_expr
+    assert source.cast == "Number?"
+
+
+def test_every_complication_reader_is_a_plain_pull_not_a_cached_field():
+    """D2: no tier, no cache -- `call` is a real `WfbComplications.valueOf`
+    expression, not a bare local field name a subscription callback used to
+    write into."""
+    for name in complications.TYPES:
+        reader = READERS[f"complication_{name}"]
+        assert reader.call.startswith("WfbComplications.valueOf(")
+        assert reader.complication_type == complications.TYPES[name].constant
+        assert reader.nullable is True
+
+
+def test_launch_complication_always_names_a_real_type():
+    for path, source in CATALOG.items():
+        if source.launch_complication is not None:
+            assert source.launch_complication in complications.TYPES, (
+                path, source.launch_complication
+            )
+
+
+def test_every_complication_source_launches_itself():
+    for name in complications.TYPES:
+        source = CATALOG[f"complication.{name}"]
+        assert source.launch_complication == name
+
+
+def test_direct_read_sources_with_a_conventional_launch_target():
+    """The hand-set half of `launch_complication`, per SPEC.md's table --
+    pinned down so a future edit can't silently drop or scramble one."""
+    expected = {
+        "activity.steps": "steps",
+        "activity.calories": "calories",
+        "activity.floors_climbed": "floors_climbed",
+        "activity.active_minutes_week": "intensity_minutes",
+        "activity.time_to_recovery": "recovery_time",
+        "activity.stress_score": "stress",
+        "activity.respiration_rate": "respiration_rate",
+        "heart_rate.current": "heart_rate",
+        "pulse_ox.current": "pulse_ox",
+        "system.battery": "battery",
+        "ambient.altitude": "altitude",
+        "ambient.pressure": "sea_level_pressure",
+        "weather.condition": "current_weather",
+        "weather.condition_tomorrow": "forecast_weather_1day",
+        "weather.temperature": "current_temperature",
+        "weather.high_temperature_today": "high_low_temperature",
+        "weather.low_temperature_today": "high_low_temperature",
+        "date.today": "date",
+        "date.day": "date",
+        "device.notification_count": "notification_count",
+        "user.vo2max_running": "vo2max_run",
+        "user.vo2max_cycling": "vo2max_bike",
+    }
+    for path, target in expected.items():
+        assert CATALOG[path].launch_complication == target, path
+
+
+def test_weather_condition_today_has_no_launch_target():
+    """FORECAST_WEATHER_1DAY means tomorrow, not today -- mapping
+    condition_today to it would open the wrong day's glance."""
+    assert CATALOG["weather.condition_today"].launch_complication is None
+
+
+# -- renamed sources (D1) -----------------------------------------------------
+
+
+def test_renamed_source_keys_are_gone_from_the_catalog():
+    for old_path in catalog.RENAMED_SOURCES:
+        assert old_path not in CATALOG, old_path
+
+
+def test_renamed_source_targets_all_exist():
+    for old_path, new_path in catalog.RENAMED_SOURCES.items():
+        assert new_path in CATALOG, (old_path, new_path)
+
+
+def test_renamed_sources_match_spec_table():
+    expected = {
+        "body_battery.current": "complication.body_battery",
+        "system.solar_input": "complication.solar_input",
+        "weather.sunrise": "complication.sunrise",
+        "weather.sunset": "complication.sunset",
+        "activity.training_status": "complication.training_status",
+        "activity.weekly_run_distance": "complication.weekly_run_distance",
+        "activity.weekly_bike_distance": "complication.weekly_bike_distance",
+        "activity.sleep_score": "complication.sleep_score",
+        "device.next_calendar_event": "complication.calendar_events",
+    }
+    assert catalog.RENAMED_SOURCES == expected
+
+
+def test_renamed_to_helper():
+    assert catalog.renamed_to("body_battery.current") == "complication.body_battery"
+    assert catalog.renamed_to("not.a.real.path") is None
+    assert catalog.renamed_to("complication.body_battery") is None
 
 
 def test_pulse_ox_is_a_direct_source_not_a_complication():
     """currentOxygenSaturation is a field of Activity.Info (like
     heart_rate.current), so it does not need a complication subscription at
     all -- confirmed present on all three targets directly against the SDK's
-    own Supported Devices list, unlike the complication-backed sources above."""
+    own Supported Devices list, unlike the complication-backed sources."""
     source = CATALOG["pulse_ox.current"]
-    assert source.tier is Tier.FRAME
     assert source.reader == "activity_info"
     assert source.permissions == ()
 

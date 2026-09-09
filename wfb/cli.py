@@ -198,10 +198,9 @@ def _build(args) -> int:
     """validate, generate and compile a design into a sideloadable .prg
 
     Runs the full pipeline: YAML load -> schema validation -> semantic
-    checks (types, null policy, refresh tiers) -> per-device layout resolve
-    -> lint -> Monkey C + resources + jungle + manifest generation ->
-    `monkeyc`. Every stage's diagnostics are reported against the design
-    file's own lines.
+    checks (types, null policy) -> per-device layout resolve -> lint ->
+    Monkey C + resources + jungle + manifest generation -> `monkeyc`. Every
+    stage's diagnostics are reported against the design file's own lines.
 
     `--no-compile` stops after generating the project, before invoking
     `monkeyc` -- useful with no Garmin toolchain installed, or to inspect
@@ -601,11 +600,13 @@ def _devices(args) -> int:
 def _sources(args) -> int:
     """list the data-source catalogue: every value a design may bind
 
-    For each source: its type, whether it is nullable, any permission or
-    non-frame refresh tier binding it implies, and the SDK page it was taken
-    from. This is the authoritative, always-current list -- never bind a
-    path that is not listed here, and never trust a copy of this list
-    pasted into prose, which goes stale the moment the catalogue grows.
+    For each source: its type, whether it is nullable, any permission
+    binding it implies, its conventional `on_hold: auto` launch target (if
+    it has one), and the SDK page it was taken from. Every read is a plain
+    per-frame read now -- there is no refresh-tier concept left to show.
+    This is the authoritative, always-current list -- never bind a path
+    that is not listed here, and never trust a copy of this list pasted
+    into prose, which goes stale the moment the catalogue grows.
     """
     for namespace, paths in catalog.namespaces().items():
         print(f"\n{namespace}")
@@ -616,31 +617,35 @@ def _sources(args) -> int:
                 flags.append("nullable")
             if source.permissions:
                 flags.append("needs " + "+".join(source.permissions))
-            if source.tier.value != "frame":
-                flags.append(f"{source.tier.value} tier")
+            if source.launch_complication:
+                flags.append(f"on_hold: auto -> {source.launch_complication}")
             suffix = f"  [{', '.join(flags)}]" if flags else ""
             ref = f"  ({source.source_ref})" if source.source_ref else ""
             print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}{ref}")
     print(f"\nicons: {', '.join(icons.names())}")
-    print("\nrun `wfb complications` for what an element's `on_hold:` may launch")
+    print("\nrun `wfb complications` for the full list of on_hold: targets")
     return 0
 
 
 def _complications(args) -> int:
-    """list what an element's `on_hold:` may launch
+    """list the complication type table: what `on_hold:` may launch, and
+    what `complication.*` may read
 
     A watch face cannot open an arbitrary app. The platform offers exactly
     one exit -- `Complications.exitTo`, "launches the app associated with
     the complication" -- so an interactive element names a complication
-    type and the watch opens whichever glance or app owns it.
+    type and the watch opens whichever glance or app owns it. The same 42
+    types are also readable directly as `complication.<name>` data sources
+    (see `wfb sources`) -- this is the one table both draw from.
 
     Printed for each: the name a design writes, the Monkey C constant it
     compiles to, and the API level that type was introduced at. An API
-    level is not a promise the watch has it; a tap on a type the watch
+    level is not a promise the watch has it; a hold on a type the watch
     does not know simply does nothing, which is why `wfb validate` also
     checks each target's own symbol table.
 
-    Binding one of these adds the ComplicationSubscriber permission and
+    Binding one of these -- as `on_hold:`, as `complication.<name>`, or via
+    `on_hold: auto` -- adds the ComplicationSubscriber permission and
     raises minApiLevel to 4.2.0 automatically, the same way a data binding
     derives its own requirements.
     """
@@ -648,12 +653,14 @@ def _complications(args) -> int:
 
     width = max(len(name) for name in complications.names())
     for name in complications.names():
-        entry = complications.LAUNCHABLE[name]
+        entry = complications.TYPES[name]
         since = "" if entry.since == complications.EXIT_TO_API_LEVEL else f"  (since {entry.since})"
         print(f"  {name:<{width}}  Complications.{entry.constant}{since}")
-    print(f"\n{len(complications.LAUNCHABLE)} launch targets. "
+    print(f"\n{len(complications.TYPES)} complication types. "
           f"Use one as `on_hold:` on any element:")
     print("    - id: hr\n      type: icon\n      icon: heart\n      on_hold: heart_rate")
+    print("\n...or let the compiler pick one from the element's own value binding:")
+    print("    - id: hr\n      type: icon\n      icon: heart\n      on_hold: auto")
     return 0
 
 

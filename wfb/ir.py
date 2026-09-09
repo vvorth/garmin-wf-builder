@@ -2,8 +2,14 @@
 
 Stage 2 of validation (ADR 0008): everything that is device-independent.  Data
 sources are resolved against the catalogue, expressions are type-checked and
-compiled, null handling is required where the platform makes absence normal, and
-refresh tiers are enforced against the mode an element draws in.
+compiled, and null handling is required where the platform makes absence
+normal.  (There used to be a third thing here, a per-source refresh cadence
+enforced against the mode an element draws in -- deleted along with the
+runtime TTL cache it existed to protect: every value already comes from a
+Garmin SDK call that caches it itself, so a plain per-frame read is correct
+everywhere now, including under `onPartialUpdate`.  The suppressible
+`partial-update-budget` lint, not this file, is where that tradeoff is
+managed today.)
 
 Nothing here knows a screen size.  Per-device work happens in :mod:`wfb.layout`.
 """
@@ -14,13 +20,23 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import catalog, complications, expr, icons
-from .catalog import Source, Tier, Type
+from .catalog import Source, Type
 from .diagnostics import Bag, Span
 from .palette import Color, ColorError
 from .units import Angle, Length, UnitError
 from .yamlsrc import YamlDocument
 
 MODES = ("active", "low_power", "always_on")
+
+#: `on_hold: auto` / a carousel item's `launch: auto` -- resolved later, once
+#: the element (or item) has a value binding to resolve *from* (SPEC.md D3).
+#: A plain string rather than a dedicated sentinel object so it survives
+#: unchanged through `Element.on_hold`/`CarouselItem.launch`, both typed
+#: `str | None` -- and safe to compare against, because `"auto"` is not and
+#: will not become a real `wfb.complications.TYPES` key (constant names are
+#: SCREAMING_SNAKE_CASE lowercased, and Garmin's own type table has no
+#: `COMPLICATION_TYPE_AUTO`).
+HOLD_AUTO = "auto"
 
 #: System fonts an author may name directly, instead of a baked custom font.
 SYSTEM_FONTS = (
@@ -524,7 +540,7 @@ class Builder:
             return None
         element = builder(node, common, path)
         if element is not None:
-            self._check_tiers(element)
+            self._resolve_hold_auto(element)
         return element
 
     def _check_symbol_collision(self, element_id: str, node: dict, span: Span | None) -> bool:
@@ -584,6 +600,15 @@ class Builder:
         only inside the on-device config editor.  The old spelling is still
         accepted by the schema purely so the rename can be reported here,
         against the author's own line.
+
+        `on_hold: auto` is validated here only as far as recognising the
+        sentinel and passing it through unresolved -- this runs from
+        `common`, *before* the kind-specific builder gives the element a
+        value binding to resolve `auto` from.  `Builder._resolve_hold_auto`
+        does the actual resolution once the element is fully built (SPEC.md
+        D3), the same deferred-pass shape `_check_tiers` used to run at
+        (deleted along with the per-source refresh-cadence concept -- see
+        CLAUDE.md's Phase 3 notes on this session).
         """
         if "on_tap" in node:
             self.bag.error(
@@ -600,6 +625,8 @@ class Builder:
         if raw is None:
             return None
         name = str(raw)
+        if name == HOLD_AUTO:
+            return HOLD_AUTO
         if complications.get(name) is not None:
             return name
         near = complications.suggest(name)
@@ -607,12 +634,134 @@ class Builder:
         if near:
             notes.append("did you mean: " + ", ".join(near) + "?")
         notes.append("run `wfb complications` for the full list of "
-                     f"{len(complications.LAUNCHABLE)} launch targets")
+                     f"{len(complications.TYPES)} launch targets")
         self.bag.error(
             "on-hold",
             f"unknown hold target {name!r}",
             self.doc.span(node, "on_hold"),
             notes=notes,
+        )
+        return None
+
+    def _resolve_hold_auto(self, element: Element) -> None:
+        """Resolve `on_hold: auto` and a carousel item's `launch: auto`.
+
+        Deferred here, called from `_build_element` right after the
+        kind-specific builder returns -- exactly where `_check_tiers` used to
+        run before the per-source refresh-cadence concept was deleted, and for the same
+        reason: this needs a *fully-built* element, since `_hold_target`
+        (called from `common`, before the builder runs) has no value binding
+        yet to resolve `auto` from.
+
+        By the time this returns, `element.on_hold` (and every carousel
+        item's `launch`) is either a real `wfb.complications.TYPES` key or
+        `None` -- never the `HOLD_AUTO` sentinel -- so
+        `wfb/emit/monkeyc.py`, which indexes `complications.TYPES` with it
+        directly, needs no change at all.
+        """
+        if isinstance(element, Carousel) and element.on_hold is not None:
+            # A carousel's whole box is cut into three hold zones
+            # (`_emit_carousel_zones`), so there is no leftover hold for an
+            # element-level `on_hold:` to mean anything -- the emitter branches
+            # to the zones and never reads the field.  Until this check it was
+            # accepted in silence and dropped, which is precisely how a design
+            # loses something it asked for (ADR 0009).  `auto` lands here too
+            # and gets this message rather than the generic "nothing to resolve
+            # from", which would be true but unhelpful.
+            self.bag.error(
+                "carousel-on-hold",
+                f"{element.id}: a carousel cannot take 'on_hold:'",
+                element.span,
+                notes=["a carousel already uses the whole hold gesture: left and "
+                       "right cycle the row, and the centre opens the selected "
+                       "item's target",
+                       "put 'launch:' on the item that should open something "
+                       "instead -- 'launch: auto' resolves it from that item's "
+                       "own value"],
+            )
+            element.on_hold = None
+        if element.on_hold == HOLD_AUTO:
+            element.on_hold = self._resolve_auto_target(
+                element.id, "on_hold", self._hold_auto_sources(element), element.span)
+        if isinstance(element, Carousel):
+            for index, item in enumerate(element.items):
+                if item.launch != HOLD_AUTO:
+                    continue
+                sources = item.value.sources if item.value is not None else ()
+                item.launch = self._resolve_auto_target(
+                    f"{element.id}: item {index}", "launch", sources,
+                    item.span or element.span)
+
+    @staticmethod
+    def _hold_auto_sources(element: Element) -> tuple[str, ...]:
+        """The catalogue paths `on_hold: auto` may resolve from, for one element.
+
+        SPEC.md D3: the element's own **value** expression(s) only --
+        deliberately not `color:`/`max:`, since a conditional colour's
+        reference is not what the element is *about*.  A `text`'s `value:`,
+        a `progress`'s `value:` (not `max:`), and an `icon`'s `icon_for:`
+        (not a static `icon:`/`glyph:`, which reads no source at all).
+
+        This intentionally is **not** `wfb.emit.monkeyc.ReadPlan.
+        _value_expressions` reused: that helper answers a different question
+        (which expressions a `when_absent:` policy governs) and its answer
+        differs from this one in exactly the two ways SPEC.md calls out --
+        `Progress` there includes `max:` too (one absent reading is as
+        absent as the other, for a fill *fraction*), and it does not cover
+        `IconElement` at all (an icon has no `when_absent:` to govern).
+        Forcing one shape onto both questions would make one of them wrong,
+        so this stays a second, smaller helper rather than an import.
+        """
+        if isinstance(element, Text):
+            return element.value.sources if element.value is not None else ()
+        if isinstance(element, Progress):
+            return element.value.sources if element.value is not None else ()
+        if isinstance(element, IconElement):
+            return element.value_for.sources if element.value_for is not None else ()
+        return ()
+
+    def _resolve_auto_target(self, label: str, key: str, sources: tuple[str, ...],
+                             span: Span | None) -> str | None:
+        """Resolve `auto` to exactly one `wfb.complications.TYPES` name.
+
+        SPEC.md D3's three outcomes: exactly one distinct non-None
+        `Source.launch_complication` among ``sources`` resolves; zero
+        (including no value binding at all) is `hold-auto-unresolved`; more
+        than one distinct is `hold-auto-ambiguous`.  Both are errors, not
+        warnings -- guessing here would silently open the wrong glance, which
+        is exactly the class of failure this compiler exists to prevent.
+        """
+        found: dict[str, str] = {}
+        for path in sources:
+            source = catalog.get(path)
+            target = source.launch_complication if source is not None else None
+            if target is not None and target not in found:
+                found[target] = path
+        if len(found) == 1:
+            return next(iter(found))
+        bound = ", ".join(repr(p) for p in sources) if sources else "(none)"
+        if not found:
+            self.bag.error(
+                "hold-auto-unresolved",
+                f"{label}: '{key}: auto' could not resolve a hold target -- "
+                f"bound source(s): {bound}",
+                span,
+                notes=[
+                    "none of this element's bound source(s) has a conventional "
+                    "complication counterpart (wfb.catalog.Source.launch_complication)",
+                    "name a target explicitly instead of 'auto' -- run "
+                    "`wfb complications` for the full list",
+                ],
+            )
+            return None
+        candidates = ", ".join(repr(name) for name in sorted(found))
+        self.bag.error(
+            "hold-auto-ambiguous",
+            f"{label}: 'auto' is ambiguous between {candidates} -- "
+            f"bound source(s): {bound}",
+            span,
+            notes=["name one explicitly instead of 'auto' -- run "
+                   "`wfb complications` for the full list"],
         )
         return None
 
@@ -982,17 +1131,22 @@ class Builder:
             )
 
         launch = raw.get("launch")
-        if launch is not None and complications.get(str(launch)) is None:
-            near = complications.suggest(str(launch))
-            self.bag.error(
-                "carousel",
-                f"item {index}: unknown launch target {str(launch)!r}",
-                self.doc.span(raw, "launch"),
-                notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
-                + [f"run `wfb complications` for the full list of "
-                   f"{len(complications.LAUNCHABLE)} launch targets"],
-            )
-            launch = None
+        if launch is not None:
+            launch = str(launch)
+            # `auto` is resolved later, once `value` (just above) is a real
+            # Expression -- see `Builder._resolve_hold_auto` -- not checked
+            # against the complication table here.
+            if launch != HOLD_AUTO and complications.get(launch) is None:
+                near = complications.suggest(launch)
+                self.bag.error(
+                    "carousel",
+                    f"item {index}: unknown launch target {launch!r}",
+                    self.doc.span(raw, "launch"),
+                    notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
+                    + [f"run `wfb complications` for the full list of "
+                       f"{len(complications.TYPES)} launch targets"],
+                )
+                launch = None
 
         item = CarouselItem(
             codepoint=codepoint,
@@ -1002,7 +1156,7 @@ class Builder:
             when_absent=raw.get("when_absent"),
             placeholder=raw.get("placeholder"),
             fallback=self._expression(raw, "fallback") if "fallback" in raw else None,
-            launch=str(launch) if launch is not None else None,
+            launch=launch,
             span=span,
         )
         if value is not None:
@@ -1295,31 +1449,6 @@ class Builder:
             except formatting.FormatError as exc:
                 self.bag.error("format", str(exc), span)
 
-    def _check_tiers(self, element: Element) -> None:
-        """ADR 0005 5 / lint check 12: low-power draws may read only frame-tier sources.
-
-        ``onPartialUpdate`` runs under a budget whose overrun permanently
-        disables partial updates for the rest of the app lifecycle, so this is
-        an error rather than a warning, and it is not suppressible.
-        """
-        if "low_power" not in element.modes and "always_on" not in element.modes:
-            return
-        for expression in element.expressions():
-            for path in expression.sources:
-                source = catalog.get(path)
-                if source and source.tier is not Tier.FRAME:
-                    self.bag.error(
-                        "refresh-tier",
-                        f"{element.id}: {path!r} is a '{source.tier.value}'-tier source and "
-                        f"cannot be read in low-power mode",
-                        expression.span or element.span,
-                        notes=[
-                            "onPartialUpdate runs under a strict budget, and exceeding it calls "
-                            "onPowerBudgetExceeded and disables partial updates permanently",
-                            "read it in 'active' mode, or bind a frame-tier source instead",
-                        ],
-                    )
-
     def _require(self, node: dict, key: str, message: str) -> None:
         self.bag.error("element", message, self.doc.span(node, key) or self.doc.span(node))
 
@@ -1343,7 +1472,7 @@ class Builder:
             resolved = expr.fold(node_ast, self.scope)
         except expr.ExprError as exc:
             self.bag.error(
-                "expression",
+                exc.code or "expression",
                 f"{key}: {exc.message}",
                 _offset_span(span, text, exc.offset),
                 notes=exc.notes,

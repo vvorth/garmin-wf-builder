@@ -1,9 +1,15 @@
-"""Generated Monkey C for `EVENT`-tier sources -- complications (ADR 0005).
+"""Generated Monkey C for `complication.*` sources.
 
-Unlike `SLOW`, there is no staleness check: the cached field is filled by
-onComplicationChanged, and onUpdate just reads it. These need only the device
-files (for font baking), not the Garmin toolchain -- see
-tests/test_weather_codegen.py for the same split on the `SLOW` tier.
+Every complication is read by *pull*, exactly like every other reader in the
+catalogue (`Weather.getCurrentConditions()`, `ActivityMonitor.getInfo()`, ...):
+`WfbComplications.valueOf(...)` is called fresh from `onUpdate` every frame.
+There is no cache field, no staleness check, and `onComplicationChanged`'s
+only job is to ask for an earlier redraw -- see
+`docs/research/probes/complication-pull/README.md` and
+`runtime-lib/WfbComplications.mc`'s own header for why a subscription is kept
+anyway.  These need only the device files (for font baking), not the Garmin
+toolchain -- see tests/test_weather_codegen.py for the equivalent split on
+`weather.*`.
 """
 
 from __future__ import annotations
@@ -31,7 +37,7 @@ elements:
 BODY_BATTERY = """
   - id: bb
     type: text
-    value: body_battery.current
+    value: complication.body_battery
     format: "{}"
     when_absent: hide
     font: FONT_TINY
@@ -42,7 +48,7 @@ BODY_BATTERY = """
 TWO_COMPLICATIONS = """
   - id: bb
     type: text
-    value: body_battery.current
+    value: complication.body_battery
     format: "{}"
     when_absent: hide
     font: FONT_TINY
@@ -50,11 +56,22 @@ TWO_COMPLICATIONS = """
     color: palette.fg
   - id: training
     type: text
-    value: activity.training_status
+    value: complication.training_status
     format: "{}"
     when_absent: hide
     font: FONT_TINY
     at: {anchor: center, dy: 20%}
+    color: palette.fg
+"""
+
+NO_COMPLICATION = """
+  - id: steps
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    when_absent: hide
+    font: FONT_TINY
+    at: {anchor: center}
     color: palette.fg
 """
 
@@ -73,68 +90,87 @@ def _view(write_design, bag, db, tmp_path, elements: str) -> str:
     return project.files()["source/TestView.mc"]
 
 
-def test_event_tier_cache_field_has_no_time(write_design, bag, db, tmp_path):
-    """Unlike a `slow`-tier field, there is exactly one cache field per
-    complication and no companion `*CacheTime` -- there is nothing to
-    time out; onComplicationChanged is what keeps it current."""
+def test_no_private_complication_cache_field_is_declared(write_design, bag, db, tmp_path):
+    """There used to be one `private var ..Cache` per bound complication --
+    the whole point of this change is that nothing is cached between frames,
+    so no such field should exist at all."""
     view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
-    assert "private var _bodyBatteryComplicationCache as Number?;" in view
-    assert "CacheTime" not in view
-    assert "WfbCache" not in view
+    private_var_lines = [line for line in view.splitlines() if "private var" in line]
+    assert not any("Complication" in line for line in private_var_lines)
+    assert "Cache" not in view
 
 
-def test_event_tier_read_has_no_staleness_check(write_design, bag, db, tmp_path):
-    """onUpdate just copies the cache into a local -- no `if (stale(...))`
-    re-fetch, because there is no on-demand call to make."""
+def test_onupdate_pulls_the_complication_every_frame(write_design, bag, db, tmp_path):
+    """`onUpdate` calls `WfbComplications.valueOf` directly -- the ordinary
+    per-frame read every other reader gets, not a copy out of a cached
+    field."""
     view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
-    assert "var bodyBatteryComplication = _bodyBatteryComplicationCache;" in view
-    assert "stale(" not in view
+    assert ("var bodyBatteryComplication = WfbComplications.valueOf("
+            "new Complications.Id(Complications.COMPLICATION_TYPE_BODY_BATTERY));") in view
+    # exactly one such read -- in onUpdate's per-frame block, not per element.
+    assert view.count("WfbComplications.valueOf(new Complications.Id("
+                       "Complications.COMPLICATION_TYPE_BODY_BATTERY))") == 1
 
 
-def test_onlayout_subscribes_and_registers_one_shared_callback(write_design, bag, db, tmp_path):
-    view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
-    assert "Complications.registerComplicationChangeCallback(method(:onComplicationChanged));" in view
+def test_read_carries_the_right_cast_per_value_type(write_design, bag, db, tmp_path):
+    """`Complications.Complication.value` is a union type -- the declared
+    local for each source must carry that source's own cast."""
+    view = _view(write_design, bag, db, tmp_path, TWO_COMPLICATIONS)
+    assert ("var complicationBodyBattery = (bodyBatteryComplication != null) "
+            "? bodyBatteryComplication.value as Number? : null;") in view
+    assert ("var complicationTrainingStatus = (trainingStatusComplication != null) "
+            "? trainingStatusComplication.value as String? : null;") in view
+
+
+def test_weekly_run_distance_casts_to_float(write_design, bag, db, tmp_path):
+    design = """
+  - id: run
+    type: text
+    value: complication.weekly_run_distance
+    format: "{:.1f}"
+    when_absent: hide
+    font: FONT_TINY
+    at: {anchor: center}
+    color: palette.fg
+"""
+    view = _view(write_design, bag, db, tmp_path, design)
+    assert ("var complicationWeeklyRunDistance = "
+            "(weeklyRunDistanceComplication != null) "
+            "? weeklyRunDistanceComplication.value as Float? : null;") in view
+
+
+def test_onlayout_registers_one_callback_and_subscribes_per_type(write_design, bag, db, tmp_path):
+    view = _view(write_design, bag, db, tmp_path, TWO_COMPLICATIONS)
+    assert view.count(
+        "Complications.registerComplicationChangeCallback(method(:onComplicationChanged));"
+    ) == 1
     assert ("WfbComplications.subscribe(new Complications.Id("
             "Complications.COMPLICATION_TYPE_BODY_BATTERY));") in view
-    # one registration call, no matter how many complications are subscribed to
-    # (the doc comment on onComplicationChanged also names the method, hence
-    # matching the call itself rather than the bare method name).
-    assert view.count("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));") == 1
+    assert ("WfbComplications.subscribe(new Complications.Id("
+            "Complications.COMPLICATION_TYPE_TRAINING_STATUS));") in view
 
 
-def test_two_complications_share_one_callback_with_two_cases(write_design, bag, db, tmp_path):
+def test_two_complications_still_share_one_callback(write_design, bag, db, tmp_path):
+    """Two bound complications produce two subscriptions but exactly one
+    onComplicationChanged -- there is nothing per-type left inside it to
+    duplicate."""
     view = _view(write_design, bag, db, tmp_path, TWO_COMPLICATIONS)
     assert view.count("function onComplicationChanged(id as Complications.Id) as Void") == 1
-    assert "case Complications.COMPLICATION_TYPE_BODY_BATTERY: _bodyBatteryComplicationCache = complication.value as Number?; break;" in view
-    assert "case Complications.COMPLICATION_TYPE_TRAINING_STATUS: _trainingStatusComplicationCache = complication.value as String?; break;" in view
-    assert "WfbComplications.subscribe(new Complications.Id(Complications.COMPLICATION_TYPE_BODY_BATTERY));" in view
-    assert "WfbComplications.subscribe(new Complications.Id(Complications.COMPLICATION_TYPE_TRAINING_STATUS));" in view
 
 
-def test_complication_callback_requests_an_update(write_design, bag, db, tmp_path):
+def test_complication_callback_has_exactly_one_statement(write_design, bag, db, tmp_path):
+    """No switch, no cache write -- just an earlier redraw request."""
     view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
-    assert "WfbComplications.valueOf(id);" in view
     lines = view.splitlines()
-    callback_start = next(i for i, l in enumerate(lines) if "function onComplicationChanged" in l)
-    callback_body = "\n".join(lines[callback_start:callback_start + 14])
-    assert "WatchUi.requestUpdate();" in callback_body
-
-
-def test_complication_callback_guards_a_not_found_or_unavailable_complication(
-    write_design, bag, db, tmp_path,
-):
-    """`getComplication` throws `ComplicationNotFoundException` (Bug 7) --
-    the callback must not call it directly and must bail out if the looked-up
-    value comes back null, rather than dereferencing `.value` on it."""
-    view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
-    assert "Complications.getComplication(id)" not in view
-    assert "var complication = WfbComplications.valueOf(id);" in view
-    assert "if (complication == null) {\n            return;" in view
+    start = next(i for i, l in enumerate(lines) if "function onComplicationChanged" in l)
+    end = next(i for i in range(start + 1, len(lines)) if lines[i].strip() == "}")
+    body = [l.strip() for l in lines[start + 1:end] if l.strip()]
+    assert body == ["WatchUi.requestUpdate();"]
 
 
 def test_absent_complication_hides_the_element(write_design, bag, db, tmp_path):
     view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
-    assert "if (bodyBatteryCurrent == null) {\n            return;\n        }" in view
+    assert "if (complicationBodyBattery == null) {\n            return;\n        }" in view
 
 
 def test_barrel_includes_wfb_complications(write_design, bag, db, tmp_path):
@@ -144,21 +180,11 @@ def test_barrel_includes_wfb_complications(write_design, bag, db, tmp_path):
 
 
 def test_barrel_omits_wfb_complications_without_one(write_design, bag, db, tmp_path):
-    no_complication = """
-  - id: steps
-    type: text
-    value: activity.steps
-    format: "{:d}"
-    when_absent: hide
-    font: FONT_TINY
-    at: {anchor: center}
-    color: palette.fg
-"""
-    face, project = _build(write_design, bag, db, tmp_path, no_complication)
+    face, project = _build(write_design, bag, db, tmp_path, NO_COMPLICATION)
     resolved = project.resolved["fenix8solar47mm"]
     assert "WfbComplications.mc" not in _barrel_for(face, resolved)
-    assert "WfbComplications.mc" not in project.files()
     files = project.files()
+    assert "WfbComplications.mc" not in files
     assert "WfbComplications" not in files["source/TestView.mc"]
 
 
@@ -169,17 +195,7 @@ def test_minapilevel_bumps_to_4_2_0_for_a_complication(write_design, bag, db, tm
 
 
 def test_minapilevel_stays_at_the_base_without_one(write_design, bag, db, tmp_path):
-    no_complication = """
-  - id: steps
-    type: text
-    value: activity.steps
-    format: "{:d}"
-    when_absent: hide
-    font: FONT_TINY
-    at: {anchor: center}
-    color: palette.fg
-"""
-    face, _ = _build(write_design, bag, db, tmp_path, no_complication)
+    face, _ = _build(write_design, bag, db, tmp_path, NO_COMPLICATION)
     assert _features(face) == set()
     assert api_level(face, _features(face)) == "3.2.0"
 
@@ -190,6 +206,31 @@ def test_manifest_declares_complicationsubscriber(write_design, bag, db, tmp_pat
     assert 'minApiLevel="4.2.0"' in project.manifest_text
 
 
+def test_manifest_omits_complicationsubscriber_without_one(write_design, bag, db, tmp_path):
+    _, project = _build(write_design, bag, db, tmp_path, NO_COMPLICATION)
+    assert 'ComplicationSubscriber' not in project.manifest_text
+    assert 'minApiLevel="3.2.0"' in project.manifest_text
+
+
 def test_view_imports_complications(write_design, bag, db, tmp_path):
     view = _view(write_design, bag, db, tmp_path, BODY_BATTERY)
     assert "import Toybox.Complications;" in view
+
+
+def test_low_power_element_may_bind_a_complication(write_design, bag, db, tmp_path):
+    """The refresh-tier restriction that used to reject a slow/event-tier
+    source on a low_power element is gone (D2): a complication is an
+    ordinary per-frame read now, so it is fine anywhere a plain value is."""
+    design = """
+  - id: bb
+    type: text
+    value: complication.body_battery
+    format: "{}"
+    when_absent: hide
+    font: FONT_TINY
+    at: {anchor: center}
+    color: palette.fg
+    modes: [active, low_power]
+"""
+    face, project = _build(write_design, bag, db, tmp_path, design)
+    assert face is not None

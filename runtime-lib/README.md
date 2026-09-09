@@ -16,6 +16,9 @@ unused helper costs nothing.
 | `WfbMath.mc` | `min`, `max`, `clamp`, `abs`, `percent` — the expression language's function set |
 | `WfbTime.mc` | 12/24-hour conversion following `DeviceSettings.is24Hour`, and AM/PM |
 | `WfbArc.mc` | progress-arc geometry over `setPenWidth` + `drawArc` |
+| `WfbWeather.mc` | `chooseIcon(condition)` — maps a `Weather.Condition` to a catalogue icon *name* (never a glyph; see `source/IconGlyphs.mc`, generated per project) |
+| `WfbComplications.mc` | safe complication subscribe (`subscribe`) and pull (`valueOf`) — every `complication.*` read goes through `valueOf`, called fresh each frame like any other reader; `subscribe` is not a cache, see the file's own header |
+| `WfbCarousel.mc` | wrapping index arithmetic and `Application.Storage` persistence for a `carousel` element's selection |
 
 These files are hand-maintained and are *not* regenerated. Edit them here.
 

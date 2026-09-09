@@ -27,11 +27,20 @@ from .catalog import Type
 class ExprError(Exception):
     """A syntax or type error, with an offset into the expression text."""
 
-    def __init__(self, message: str, offset: int = 0, notes: list[str] | None = None) -> None:
+    def __init__(self, message: str, offset: int = 0, notes: list[str] | None = None,
+                 code: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.offset = offset
         self.notes = notes or []
+        #: A diagnostic code more specific than the generic ``"expression"``
+        #: :meth:`wfb.ir.Builder._expression` falls back to.  Only
+        #: ``source-renamed`` uses this today -- a moved catalogue path wants
+        #: its own code, the same precedent ``on-tap-renamed`` set for
+        #: ``on_tap:`` -> ``on_hold:``, so an author (or a lint suppression)
+        #: can tell "you typed something unknown" apart from "the platform
+        #: moved this on you".
+        self.code = code
 
 
 _TOKEN_RE = re.compile(
@@ -325,6 +334,20 @@ def check(node: Node, scope: Scope) -> Value:
         binding = scope.lookup(node.path)
         if binding is None:
             from . import catalog
+
+            renamed = catalog.renamed_to(node.path)
+            if renamed is not None:
+                raise ExprError(
+                    f"{node.path!r} has been renamed to {renamed!r}",
+                    node.offset,
+                    ["complications now have their own namespace -- "
+                     "'complication.<type>' is always read through "
+                     "Toybox.Complications, and every other catalogue path is "
+                     "always a direct API read",
+                     "the value is unchanged; only the path moves",
+                     "run `wfb sources` for the current catalogue"],
+                    code="source-renamed",
+                )
 
             notes = []
             # Prefer suggestions from the same namespace: a mistyped palette

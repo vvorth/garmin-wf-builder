@@ -74,15 +74,19 @@ def test_when_absent_on_a_non_null_source_is_a_note_not_an_error(write_design, b
     assert any(d.code == "when-absent" for d in bag.items)
 
 
-def test_low_power_may_not_read_a_slow_tier_source(write_design, bag, monkeypatch):
-    """onPartialUpdate overrun disables partial updates permanently, so this is an error."""
+def test_low_power_may_bind_a_slow_reader_source(write_design, bag, monkeypatch):
+    """The refresh-tier concept is gone (SPEC.md D2): every read is a plain
+    per-frame read, and the SDK itself caches whatever backs it -- e.g.
+    `Weather.getCurrentConditions()` is documented as "the most recently
+    cached weather conditions". So a `low_power` element may bind a source
+    that used to be tier-gated, and this must produce no error at all."""
     from wfb import catalog
 
-    slow = catalog.Source(
+    fabricated = catalog.Source(
         path="weather.temperature", type=catalog.Type.NUMBER, reader="settings",
-        field_name="temperature", nullable=True, tier=catalog.Tier.SLOW,
+        field_name="temperature", nullable=True,
     )
-    monkeypatch.setitem(catalog.CATALOG, "weather.temperature", slow)
+    monkeypatch.setitem(catalog.CATALOG, "weather.temperature", fabricated)
     load(write_design(design("""
   - id: temp
     type: text
@@ -93,12 +97,13 @@ def test_low_power_may_not_read_a_slow_tier_source(write_design, bag, monkeypatc
     modes: [active, low_power]
     when_absent: hide
 """)), bag)
-    assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+    assert not any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+    assert bag.ok(), bag.render()
 
 
-def test_low_power_may_not_read_the_real_weather_condition_source(write_design, bag):
-    """Same check, against a real slow-tier source rather than a fabricated
-    one -- weather.* is the first real one this project has."""
+def test_low_power_may_bind_the_real_weather_condition_source(write_design, bag):
+    """Same check, against a real (formerly slow-tier) source rather than a
+    fabricated one -- weather.* is the first real one this project has."""
     load(write_design(design("""
   - id: temp
     type: text
@@ -109,28 +114,30 @@ def test_low_power_may_not_read_the_real_weather_condition_source(write_design, 
     modes: [active, low_power]
     when_absent: hide
 """)), bag)
-    assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+    assert not any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+    assert bag.ok(), bag.render()
 
 
-def test_low_power_may_not_read_a_real_complication_source(write_design, bag):
-    """Same check again, against `event`-tier this time -- a complication is
-    just as unreadable under onPartialUpdate's budget as a `slow` read is: the
-    check in wfb/ir.py's `_check_tiers` is `tier is not Tier.FRAME`, not
-    `is Tier.SLOW`, so this must reject EVENT too, not just SLOW."""
+def test_low_power_may_bind_a_real_complication_source(write_design, bag):
+    """Same check again, against a `complication.*` source -- SPEC.md D1
+    renamed `body_battery.current` to `complication.body_battery`, and D2
+    means a complication read is no more restricted in low_power than any
+    other read now."""
     load(write_design(design("""
   - id: bb
     type: text
-    value: body_battery.current
+    value: complication.body_battery
     format: "{}"
     color: palette.fg
     at: {anchor: center}
     modes: [active, low_power]
     when_absent: hide
 """)), bag)
-    assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+    assert not any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+    assert bag.ok(), bag.render()
 
 
-def test_low_power_may_not_bind_a_dynamic_weather_icon(write_design, bag):
+def test_low_power_may_bind_a_dynamic_weather_icon(write_design, bag):
     load(write_design(design("""
   - id: wicon
     type: icon
@@ -140,7 +147,59 @@ def test_low_power_may_not_bind_a_dynamic_weather_icon(write_design, bag):
     at: {anchor: center}
     modes: [active, low_power]
 """)), bag)
-    assert any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+    assert not any(d.code == "refresh-tier" for d in bag.errors), bag.render()
+    assert bag.ok(), bag.render()
+
+
+# --------------------------------------------------------------------------
+# renamed sources (SPEC.md D1) -- nine paths moved to `complication.*`
+
+
+def test_body_battery_current_names_its_replacement(write_design, bag):
+    """`body_battery.current` moved to `complication.body_battery`: complications
+    now have their own namespace, always read through Toybox.Complications,
+    rather than piggybacking on ActivityMonitor's tier. Precedent:
+    `on_tap:` -> `on_hold:`'s rename diagnostic."""
+    load(write_design(design("""
+  - id: bb
+    type: text
+    value: body_battery.current
+    format: "{}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+""")), bag)
+    hits = [d for d in bag.errors if d.code == "source-renamed"]
+    assert hits, bag.render()
+    assert "body_battery.current" in hits[0].message
+    assert "complication.body_battery" in hits[0].message
+
+
+def test_device_next_calendar_event_names_its_replacement(write_design, bag):
+    """A second renamed path, to confirm the diagnostic is not hard-coded to
+    just the one -- it is driven by `catalog.RENAMED_SOURCES`."""
+    load(write_design(design("""
+  - id: cal
+    type: text
+    value: device.next_calendar_event
+    format: "{:%H:%M}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+""")), bag)
+    hits = [d for d in bag.errors if d.code == "source-renamed"]
+    assert hits, bag.render()
+    assert "device.next_calendar_event" in hits[0].message
+    assert "complication.calendar_events" in hits[0].message
+
+
+def test_a_source_renamed_error_is_a_registered_lint_code(write_design, bag):
+    """`source-renamed` must actually be in `lint.ALL_CODES`, or
+    `check_lint_allow` would treat a `lint: {allow: [source-renamed]}` as
+    naming an unknown code rather than one that is simply not suppressible."""
+    from wfb import lint
+
+    assert "source-renamed" in lint.ALL_CODES
 
 
 def test_a_time_value_needs_a_time_format(write_design, bag):
@@ -278,7 +337,7 @@ def test_permissions_are_derived_from_bindings(write_design, bag, monkeypatch):
         "weather.temperature",
         catalog.Source(
             path="weather.temperature", type=catalog.Type.NUMBER, reader="settings",
-            field_name="temperature", nullable=True, tier=catalog.Tier.FRAME,
+            field_name="temperature", nullable=True,
             permissions=("Positioning",),
         ),
     )
@@ -1020,6 +1079,175 @@ def test_on_hold_on_a_group_covers_the_whole_box_not_one_child(write_design, bag
 
 
 # --------------------------------------------------------------------------
+# `on_hold: auto` -- resolved from the element's own value binding (D3)
+
+
+def test_on_hold_auto_resolves_a_direct_read_source(write_design, bag, db):
+    """`activity.steps` has no complication of its own -- it is a direct
+    Activity.Info read -- but `Source.launch_complication` names the
+    conventional counterpart (`steps`), so `auto` still resolves."""
+    files = _generated(write_design, bag, db, """
+  - id: steps
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+    on_hold: auto
+""")
+    delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
+    assert "Complications.exitTo(new Complications.Id(" \
+           "Complications.COMPLICATION_TYPE_STEPS))" in delegate
+
+
+def test_on_hold_auto_resolves_a_complication_source(write_design, bag, db):
+    """A `complication.*` source's own name is always its
+    `launch_complication` -- `auto` on an element reading one is never
+    ambiguous."""
+    files = _generated(write_design, bag, db, """
+  - id: bb
+    type: text
+    value: complication.body_battery
+    format: "{}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+    on_hold: auto
+""")
+    delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
+    assert "Complications.exitTo(new Complications.Id(" \
+           "Complications.COMPLICATION_TYPE_BODY_BATTERY))" in delegate
+
+
+def test_on_hold_auto_with_no_value_binding_is_unresolved(write_design, bag):
+    """A shape has nothing to resolve `auto` from at all -- the zero case,
+    same diagnostic as a value with no conventional target."""
+    load(write_design(design("""
+  - id: box
+    type: shape
+    shape: rectangle
+    size: {width: 20%, height: 20%}
+    color: palette.fg
+    at: {anchor: center}
+    on_hold: auto
+""")), bag)
+    hits = [d for d in bag.errors if d.code == "hold-auto-unresolved"]
+    assert hits, bag.render()
+    assert "box" in hits[0].message
+
+
+def test_on_hold_auto_with_no_conventional_target_is_unresolved(write_design, bag):
+    """`weather.condition_today` deliberately has no `launch_complication`:
+    `COMPLICATION_TYPE_FORECAST_WEATHER_1DAY` means tomorrow, not today, so
+    mapping it would open the wrong glance (SPEC.md)."""
+    load(write_design(design("""
+  - id: cond
+    type: text
+    value: weather.condition_today
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+    on_hold: auto
+""")), bag)
+    hits = [d for d in bag.errors if d.code == "hold-auto-unresolved"]
+    assert hits, bag.render()
+    assert "weather.condition_today" in hits[0].message
+    assert any("wfb complications" in n for n in hits[0].notes), hits[0].notes
+
+
+def test_on_hold_auto_is_ambiguous_between_two_targets(write_design, bag):
+    """Two direct-read sources with different conventional targets in one
+    value expression -- `auto` must refuse to guess which glance to open."""
+    load(write_design(design("""
+  - id: total
+    type: text
+    value: activity.steps + activity.calories
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: hide
+    on_hold: auto
+""")), bag)
+    hits = [d for d in bag.errors if d.code == "hold-auto-ambiguous"]
+    assert hits, bag.render()
+    assert "'steps'" in hits[0].message and "'calories'" in hits[0].message
+
+
+def test_on_hold_auto_ignores_color_and_max(write_design, bag):
+    """D3: only the value binding is consulted -- a conditional colour's
+    heart-rate reference is not what the element is *about*, so it must not
+    make `auto` ambiguous or change what it resolves to."""
+    load(write_design(design("""
+  - id: steps
+    type: progress
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    radius: 40%r
+    thickness: 4%r
+    color: "heart_rate.current != null and heart_rate.current > 100 ? palette.fg : palette.fg"
+    when_absent: hide
+    at: {anchor: center}
+    on_hold: auto
+""")), bag)
+    assert not any(d.code in ("hold-auto-ambiguous", "hold-auto-unresolved")
+                   for d in bag.errors), bag.render()
+
+
+def test_carousel_item_launch_auto_resolves(write_design, bag, db):
+    """A carousel item's `launch: auto` resolves the same way, but per item
+    -- scoped to that one item's own `value:`, not the whole row."""
+    files = _generated(write_design, bag, db, """
+  - id: data
+    type: carousel
+    at: {anchor: center}
+    size: {width: 62%, height: 22%}
+    pitch: 22%r
+    icon_size: 9%r
+    color: palette.fg
+    items:
+      - value: activity.steps
+        format: "{:d}"
+        when_absent: hide
+        launch: auto
+      - value: activity.calories
+        format: "{:d}"
+        when_absent: hide
+        launch: auto
+""")
+    delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
+    assert "Complications.exitTo(new Complications.Id(" \
+           "Complications.COMPLICATION_TYPE_STEPS))" in delegate
+    assert "Complications.exitTo(new Complications.Id(" \
+           "Complications.COMPLICATION_TYPE_CALORIES))" in delegate
+
+
+def test_carousel_item_launch_auto_unresolved_names_the_item(write_design, bag):
+    load(write_design(design("""
+  - id: data
+    type: carousel
+    at: {anchor: center}
+    size: {width: 62%, height: 22%}
+    pitch: 22%r
+    icon_size: 9%r
+    color: palette.fg
+    items:
+      - value: weather.condition_today
+        format: "{:d}"
+        when_absent: hide
+        launch: auto
+      - value: activity.calories
+        format: "{:d}"
+        when_absent: hide
+""")), bag)
+    hits = [d for d in bag.errors if d.code == "hold-auto-unresolved"]
+    assert hits, bag.render()
+    assert "item 0" in hits[0].message
+
+
+# --------------------------------------------------------------------------
 # `carousel:` -- a row of readings the wearer selects from (ADR 0006 6)
 
 
@@ -1172,3 +1400,20 @@ def test_each_item_gets_its_own_icon_font(write_design, bag, db):
                 if k.endswith("View.mc"))
     loaded = [line for line in view.splitlines() if "WatchUi.loadResource" in line]
     assert len(loaded) == 3, loaded
+
+
+def test_a_carousel_may_not_take_an_element_level_on_hold(write_design, bag):
+    """A carousel's whole box is already three hold zones, so an `on_hold:` on
+    the element itself has nowhere to fire.
+
+    It used to validate clean and then be dropped by the emitter, which never
+    reads the field -- a design silently losing something it asked for, which
+    is the failure ADR 0009 makes unknown keys an error to prevent.
+    """
+    face = load(write_design(design(CAROUSEL.replace(
+        "    type: carousel\n", "    type: carousel\n    on_hold: steps\n"))), bag)
+    assert any(d.code == "carousel-on-hold" for d in bag.errors), bag.render()
+    if face is not None:
+        row = next(e for e in face.elements if e.id == "data")
+        # and it must not survive into codegen as a phantom hold target
+        assert row.on_hold is None

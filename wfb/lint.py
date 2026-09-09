@@ -48,9 +48,10 @@ ALL_CODES = frozenset({
     "carousel", "color", "contrast", "devices", "duplicate-id", "element", "expression",
     "font", "format", "format-version", "icon", "io", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
-    "carousel-zone", "hold-overlap", "hold-unsupported",
+    "carousel-zone", "carousel-on-hold", "hold-overlap", "hold-unsupported",
+    "hold-auto-ambiguous", "hold-auto-unresolved",
     "palette-dither", "partial-update", "partial-update-budget", "permission",
-    "on-hold", "on-tap-renamed", "raw-color", "refresh-tier", "safe-area", "schema",
+    "on-hold", "on-tap-renamed", "raw-color", "safe-area", "schema", "source-renamed",
     "target",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
@@ -435,7 +436,13 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
             notes=["setClip is charged by region area, so a wide clip is expensive even "
                    "when little inside it changes",
                    "exceeding the budget calls onPowerBudgetExceeded and disables partial "
-                   "updates for the rest of the app's lifecycle",
+                   "updates PERMANENTLY for the rest of the app's lifecycle -- not just "
+                   "for the frame that overran",
+                   "since the per-source refresh-cadence check was removed, this warning is now the "
+                   "ONLY thing standing between an author and reading "
+                   "Weather.getCurrentConditions() or a Complications lookup inside "
+                   "onPartialUpdate -- a 'weather.*' or 'complication.*' binding on a "
+                   "low_power element is the expensive case to look at first",
                    "group the low-power elements closer together to tighten the clip",
                    "set 'lint: {allow: [partial-update-budget], reason: ...}' on any "
                    "one of the elements drawn in low-power mode to keep it"],

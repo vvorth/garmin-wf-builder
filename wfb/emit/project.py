@@ -21,9 +21,8 @@ BARREL_FILES = {
     "WfbMath.mc": "expression functions",
     "WfbTime.mc": "12/24-hour clock handling",
     "WfbArc.mc": "progress arcs",
-    "WfbCache.mc": "slow-tier read caching",
     "WfbWeather.mc": "weather-condition icon glyphs",
-    "WfbComplications.mc": "safe complication subscription",
+    "WfbComplications.mc": "safe complication subscription and pull",
     "WfbCarousel.mc": "carousel selection and persistence",
 }
 
@@ -161,9 +160,7 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
     plan = monkeyc.ReadPlan(resolved)
     if face.barrel_functions():
         needed.add("WfbMath.mc")
-    if plan.slow_readers():
-        needed.add("WfbCache.mc")
-    if plan.event_readers():
+    if plan.complication_readers():
         needed.add("WfbComplications.mc")
     for placed in resolved.items:
         kind = placed.kind

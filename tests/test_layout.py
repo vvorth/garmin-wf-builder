@@ -186,7 +186,7 @@ def test_widest_text_accounts_for_a_longer_fallback(write_design, bag, db):
     value (see `_emit_text` in `wfb.emit.monkeyc`), so a font baked from the
     value's own widest rendering alone can come up short.
 
-    `activity.training_status` has no known digit range
+    `complication.training_status` has no known digit range
     (`formatting._SOURCE_DIGITS`), so its own worst-case estimate is already
     a few characters wide -- not wide enough to happen to cover a longer
     literal fallback, though, which is exactly what makes this a meaningful
@@ -210,7 +210,7 @@ elements:
     color: palette.bg
   - id: status
     type: text
-    value: activity.training_status
+    value: complication.training_status
     at: {anchor: center}
     color: palette.fg
     when_absent: fallback

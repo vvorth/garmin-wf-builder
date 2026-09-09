@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .. import __version__, catalog, complications, formatting, icons
-from ..catalog import READERS, Tier, Type
+from ..catalog import READERS, Type
 from ..ir import (
     Carousel, Expression, Face, IconElement, Progress, Shape, Text,
     carousel_index_field, carousel_slide_done_method, carousel_slide_field,
@@ -270,7 +270,7 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
                     with w.block(condition):
                         _emit_carousel_zones(w, element, prefix)
                     continue
-                launch = complications.LAUNCHABLE[element.on_hold]
+                launch = complications.TYPES[element.on_hold]
                 w.comment(f"`{element.id}` -> {element.on_hold}")
                 with w.block(condition):
                     w.line(f"Complications.exitTo(new Complications.Id("
@@ -302,7 +302,7 @@ def _emit_carousel_zones(w: Writer, element: Carousel, prefix: str) -> None:
         w.comment("the middle: open whatever owns the selected item's reading")
         with w.block(f"switch (_view.{carousel_index_field(element.id)})"):
             for index, item in launchable:
-                constant = complications.LAUNCHABLE[item.launch].constant
+                constant = complications.TYPES[item.launch].constant
                 w.line(f"// item {index}: {item.icon}")
                 w.line(f"case {index}: Complications.exitTo("
                        f"new Complications.Id(Complications.{constant})); break;")
@@ -481,7 +481,6 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     sleep_flag = always_on or bool(animated)
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
-        _emit_cache_fields(w, plan)
         _emit_carousel_fields(w, rings)
         if sleep_flag:
             w.doc(_sleep_flag_doc(always_on, bool(animated)))
@@ -493,7 +492,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         if resolved.in_mode("low_power") and device.supports_partial_update:
             _emit_on_partial_update(w, resolved, plan)
         _emit_sleep_hooks(w, resolved, always_on, sleep_flag)
-        if plan.event_readers():
+        if plan.complication_readers():
             _emit_complication_callback(w, plan)
         for placed in rings:
             _emit_carousel_step(w, placed, sleep_flag)
@@ -592,28 +591,6 @@ def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
     w.blank()
 
 
-def _emit_cache_fields(w: Writer, plan: "ReadPlan") -> None:
-    slow = plan.slow_readers()
-    if slow:
-        w.doc("`slow`-tier reads, cached here instead of re-read every frame --\n"
-              "see WfbCache.mc and ReadPlan.emit_reads.")
-        for name in slow:
-            reader = READERS[name]
-            w.line(f"private var _{reader.name}Cache as {reader.monkeyc_type};")
-            w.line(f"private var _{reader.name}CacheTime as Number?;")
-        w.blank()
-
-    event = plan.event_readers()
-    if event:
-        w.doc("`event`-tier reads: complications, filled in by\n"
-              "onComplicationChanged rather than read fresh every frame -- see\n"
-              "_emit_on_layout's subscriptions below.")
-        for name in event:
-            reader = READERS[name]
-            w.line(f"private var {reader.call} as {reader.monkeyc_type};")
-        w.blank()
-
-
 def _emit_initialize(w: Writer, face: Face, rings: list) -> None:
     with w.block("function initialize()"):
         w.line("WatchFace.initialize();")
@@ -630,7 +607,7 @@ def _emit_initialize(w: Writer, face: Face, rings: list) -> None:
 
 def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
     loaded = _loaded_fonts(resolved)
-    event = plan.event_readers()
+    event = plan.complication_readers()
     w.doc("Load resources once.  Loading is expensive and must not happen per frame.")
     with w.block("function onLayout(dc as Dc) as Void"):
         if not loaded and not event:
@@ -644,9 +621,10 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None
             if loaded:
                 w.blank()
             w.comment(
-                "complications: one shared callback (below), one subscription per "
-                "type -- WfbComplications.subscribe absorbs a device not supporting "
-                "a given type, so an unsupported one just never updates its cache"
+                "complications: one subscription per type, which keeps the "
+                "platform's own reading fresh -- the value itself is pulled in "
+                "onUpdate, not delivered here. WfbComplications.subscribe absorbs "
+                "a device that does not support a given type"
             )
             w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
             for name in event:
@@ -754,40 +732,29 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, always_on: bool,
 
 
 def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
-    """`onComplicationChanged`: the one callback every EVENT-tier reader shares.
+    """`onComplicationChanged`: one callback, one statement.
 
-    Complications delivers only the changed `Id`, not its value
-    (ComplicationChangedCallback as Method(id as Complications.Id) as Void,
-    Toybox/Complications.html) -- `getComplication(id)` fetches it, and the
-    switch dispatches on `id.getType()` to the one cached field that
-    complication backs.  `getComplication` throws `ComplicationNotFoundException`
-    when a complication "is not found", which the callback's own doc says
-    includes the case where a previously-working one "becomes unavailable" --
-    `WfbComplications.valueOf` absorbs that (Bug 7), the same way `subscribe`
-    already absorbs a subscription a device declines, so an uncaught throw
-    here cannot take the whole watch face down.
+    This used to carry a `switch` writing each changed value into a private
+    per-type field that `onUpdate` then read -- a cache, and an unnecessary
+    one.  `Complications.getComplication(id)` is a plain pull that needs no
+    prior subscription at all: the SDK's own `ConfigurableWatchFace` sample
+    calls it from `onLayout` before it subscribes, and again in edit mode
+    where it never subscribes.  So `onUpdate` reads complications the same
+    ordinary way it reads `ActivityMonitor.getInfo()`, and nothing has to be
+    stored between frames.
+
+    What is left is only the redraw: a complication can change between two
+    scheduled updates, and this is how the face learns to draw sooner.  The
+    subscription in `onLayout` remains for the same reason -- it is what keeps
+    the platform's own value fresh, which is a different thing from caching it
+    here.  See `docs/research/probes/complication-pull/`.
     """
     w.doc(
-        "A subscribed complication changed.\n"
-        "\n"
-        "Complications.registerComplicationChangeCallback delivers only the id --\n"
-        "WfbComplications.valueOf looks the value back up (absorbing a "
-        "'not found or became unavailable' error the same way a declined "
-        "subscription already is), and the switch below routes it to the "
-        "cached field the changed type backs."
+        "A subscribed complication changed.  Nothing is stored: onUpdate pulls\n"
+        "every complication it needs, so this only asks for an earlier redraw\n"
+        "than the next scheduled one."
     )
     with w.block("function onComplicationChanged(id as Complications.Id) as Void"):
-        w.line("var complication = WfbComplications.valueOf(id);")
-        with w.block("if (complication == null)"):
-            w.line("return;  // not found, or no longer available")
-        w.blank()
-        with w.block("switch (id.getType())"):
-            for name in plan.event_readers():
-                reader = READERS[name]
-                w.line(
-                    f"case Complications.{reader.complication_type}: "
-                    f"{reader.call} = complication.value as {reader.monkeyc_type}; break;"
-                )
         w.line("WatchUi.requestUpdate();")
     w.blank()
 
@@ -1238,8 +1205,6 @@ class ReadPlan:
         self._other_bound: dict[str, list[str]] = {}
         self._readers_for_mode: dict[str, list[str]] = {}
         self._analyse()
-        if self.slow_readers():
-            self.modules.add("Toybox.Time")  # Time.now(), for WfbCache.stale()
 
     def _analyse(self) -> None:
         for placed in self.resolved.items:
@@ -1293,24 +1258,19 @@ class ReadPlan:
 
     # -- emission ---------------------------------------------------------
 
-    def slow_readers(self) -> list[str]:
-        """Reader names on `Tier.SLOW` this design actually reads.
+    def complication_readers(self) -> list[str]:
+        """Reader names this design reads through `Toybox.Complications`.
 
-        Always found under ``active`` mode only: `wfb.ir`'s `_check_tiers`
-        rejects binding a non-frame-tier source from a `low_power` or
-        `always_on` element, so there is nothing to check here -- a slow
-        reader appearing under any other mode would be an IR bug, not a
-        design mistake, and `emit_reads` below is written on that assumption.
+        These are the readers `onLayout` subscribes to.  The *read* itself is
+        an ordinary pull like every other reader (`emit_reads` below) -- the
+        subscription only keeps the platform's own value fresh, it is not how
+        the value arrives.  Found under every mode, not just `active`: with
+        the refresh-tier concept gone there is nothing stopping a `low_power`
+        element binding one.
         """
-        return sorted({name for name in self._readers_for_mode.get("active", [])
-                       if READERS[name].tier is Tier.SLOW})
-
-    def event_readers(self) -> list[str]:
-        """Reader names on `Tier.EVENT` this design actually reads -- each one
-        a complication subscription (see the `complication_*` entries in
-        wfb/catalog.py).  Same `active`-only reasoning as `slow_readers`."""
-        return sorted({name for name in self._readers_for_mode.get("active", [])
-                       if READERS[name].tier is Tier.EVENT})
+        names = {name for readers in self._readers_for_mode.values()
+                 for name in readers if READERS[name].complication_type}
+        return sorted(names)
 
     def emit_reads(self, w: Writer, mode: str) -> None:
         readers = self._readers_for_mode.get(mode) or []
@@ -1319,21 +1279,13 @@ class ReadPlan:
         tier_note = "frame-tier reads only" if mode != "active" else "data for this frame"
         w.comment(tier_note)
         for name in readers:
+            # Every reader is a plain pull, complications included: the value
+            # each one returns is already the platform's own cached reading
+            # (`Weather.getCurrentConditions()` is documented as "the most
+            # recently cached weather conditions"), so a second cache inside
+            # the face's 128 KB would re-store what the system already holds.
             reader = READERS[name]
-            if reader.tier is Tier.SLOW:
-                # Cached in a view field instead of called fresh every frame --
-                # see WfbCache.mc and `_emit_cache_fields`.
-                cache = f"_{reader.name}Cache"
-                cache_time = f"_{reader.name}CacheTime"
-                with w.block(f"if (WfbCache.stale({cache_time}, {reader.ttl_seconds}))"):
-                    w.line(f"{cache} = {reader.call};")
-                    w.line(f"{cache_time} = Time.now().value();")
-                w.line(f"var {reader.name} = {cache};")
-            else:
-                # FRAME calls the API fresh; EVENT's `call` is the cached field
-                # onComplicationChanged already filled in -- no staleness check,
-                # unlike SLOW, because there is nothing to re-fetch on demand.
-                w.line(f"var {reader.name} = {reader.call};")
+            w.line(f"var {reader.name} = {reader.call};")
 
     def parameters(self, placed) -> str:
         params = []
@@ -1462,6 +1414,13 @@ class ReadPlan:
                 continue
 
             read = source.read_expr
+            if source.cast is not None:
+                # `Complication.value` is a union (`String or Number or Float or
+                # Long or Double or Null`), so -l 3 will not let it reach a
+                # typed local unaided.  The cast binds tighter than the ternary
+                # below, and needs no parentheses of its own -- confirmed by a
+                # real build, see docs/research/probes/complication-pull/.
+                read = f"{read} as {source.cast}"
             if guard_parts:
                 read = f"({' && '.join(guard_parts)}) ? {read} : null"
             out.append((local_name(path), read))

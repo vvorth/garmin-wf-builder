@@ -308,7 +308,7 @@
           "type": "string"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor.",
+          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
           "type": "string"
         },
         "lint": {
@@ -382,7 +382,7 @@
           "type": "string"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor.",
+          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
           "type": "string"
         },
         "lint": {
@@ -462,7 +462,7 @@
           "type": "string"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor.",
+          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
           "type": "string"
         },
         "lint": {
@@ -553,7 +553,7 @@
           "type": "string"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor.",
+          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
           "type": "string"
         },
         "lint": {
@@ -654,7 +654,7 @@
           "type": "string"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor.",
+          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
           "type": "string"
         },
         "lint": {
@@ -754,7 +754,7 @@
           "type": "string"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor.",
+          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
           "type": "string"
         },
         "lint": {
@@ -838,7 +838,7 @@
                 "$ref": "#/$defs/expression"
               },
               "launch": {
-                "description": "A complication type this item's centre-hold opens (`wfb complications`). Omit it and a centre-hold on this item does nothing.",
+                "description": "A complication type this item's centre-hold opens (`wfb complications`). Omit it and a centre-hold on this item does nothing. Also accepts 'auto': resolved at build time from this item's own value: binding via Source.launch_complication, scoped to this one item -- not the carousel as a whole -- erroring if that binding resolves no conventional target or more than one.",
                 "type": "string"
               }
             }
@@ -906,7 +906,7 @@
           "type": "string"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor.",
+          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
           "type": "string"
         },
         "lint": {

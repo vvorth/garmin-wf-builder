@@ -1,5 +1,11 @@
-"""Generated Monkey C for `weather.*` sources and `icon_for:` -- the slow-tier
-cache and the dynamic icon draw call.
+"""Generated Monkey C for `weather.*` sources and `icon_for:` -- the dynamic
+icon draw call.
+
+`weather.*` is an ordinary per-frame read now (D2): `Weather.getCurrentConditions()`
+and `Weather.getDailyForecast()` are documented as already returning the
+platform's own cached value (Toybox/Weather.html: "get the most recently
+cached weather conditions"), so there is no TTL cache or staleness check left
+to generate -- see wfb/catalog.py's module docstring.
 
 Builds a real design and asserts on the emitted text directly, the same way
 tests/test_resources.py checks the filter-omission fix -- these need no
@@ -66,18 +72,16 @@ def _view(write_design, bag, db, tmp_path, elements: str) -> str:
     return _project_files(write_design, bag, db, tmp_path, elements)["source/TestView.mc"]
 
 
-def test_a_slow_reader_is_cached_not_read_every_frame(write_design, bag, db, tmp_path):
+def test_weather_current_is_a_plain_per_frame_read(write_design, bag, db, tmp_path):
+    """No cache field, no staleness check, no companion CacheTime -- just the
+    ordinary `var <reader> = <call>;` line every reader gets in onUpdate."""
     view = _view(write_design, bag, db, tmp_path, ONE_ICON)
-    assert "private var _weatherCurrentCache as Weather.CurrentConditions?;" in view
-    assert "private var _weatherCurrentCacheTime as Number?;" in view
-    assert "WfbCache.stale(_weatherCurrentCacheTime, 3600)" in view
-    assert "_weatherCurrentCache = Weather.getCurrentConditions();" in view
-    assert "_weatherCurrentCacheTime = Time.now().value();" in view
-    # not called unconditionally every frame -- only inside the stale check.
-    lines = view.splitlines()
-    unconditional = [l for l in lines if "Weather.getCurrentConditions()" in l
-                      and "_weatherCurrentCache =" in l]
-    assert len(unconditional) == 1
+    assert "var weatherCurrent = Weather.getCurrentConditions();" in view
+    assert "Cache" not in view
+    assert "stale(" not in view
+    assert "WfbCache" not in view
+    # called exactly once, from onUpdate's per-frame block.
+    assert view.count("Weather.getCurrentConditions()") == 1
 
 
 def test_today_and_tomorrow_share_one_daily_forecast_read(write_design, bag, db, tmp_path):
@@ -135,7 +139,7 @@ def test_dynamic_icon_hides_when_condition_is_absent(write_design, bag, db, tmp_
     assert "if (weatherCondition == null) {\n            return;\n        }" in view
 
 
-def test_barrel_includes_cache_and_weather_modules(write_design, bag, db):
+def test_barrel_includes_weather_module_and_not_cache(write_design, bag, db):
     from wfb.emit.project import _barrel_for
     from wfb.layout import resolve
 
@@ -145,11 +149,17 @@ def test_barrel_includes_cache_and_weather_modules(write_design, bag, db):
     baked = bake_fonts(face, device, device.minor_radius)
     resolved = resolve(face, device, baked)
     barrel = _barrel_for(face, resolved)
-    assert "WfbCache.mc" in barrel
     assert "WfbWeather.mc" in barrel
+    assert "WfbCache.mc" not in barrel
 
 
-def test_view_imports_time_and_weather(write_design, bag, db, tmp_path):
+def test_view_imports_weather_but_not_time_for_caching(write_design, bag, db, tmp_path):
+    """`Toybox.Time` was only ever imported here for the TTL cache's
+    `Time.now().value()` call -- gone with the cache.  This design has no
+    other reason to need it (no time-format text, no complication), so it
+    should not be imported at all; if a future design needs Toybox.Time for
+    something else, that is a different, legitimate reason and this
+    assertion would need to move to a design that doesn't need it."""
     view = _view(write_design, bag, db, tmp_path, ONE_ICON)
-    assert "import Toybox.Time;" in view
     assert "import Toybox.Weather;" in view
+    assert "import Toybox.Time;" not in view

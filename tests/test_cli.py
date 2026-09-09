@@ -104,6 +104,64 @@ def test_schema_path_points_at_a_real_file():
     assert Path(result.stdout.strip()).exists()
 
 
+# -- `wfb sources` / `wfb complications` -------------------------------------
+#
+# These invoke the real entry point as a subprocess, same as every other test
+# in this file, so they exercise the whole import chain (wfb.cli -> wfb.build
+# -> wfb.lint -> wfb.ir -> wfb.catalog) rather than just wfb/catalog.py or
+# wfb/cli.py in isolation. tests/test_catalog.py covers the catalogue's own
+# data shape (all 42 complication.* sources, launch_complication, cast, the
+# renamed-source table) without needing that whole chain to import cleanly.
+
+
+def test_sources_has_no_refresh_tier_flag():
+    """D2: the tier concept is gone outright -- `wfb sources` must not print
+    a "slow tier"/"event tier" flag for anything, weather and complications
+    included."""
+    result = run("sources")
+    assert result.returncode == 0, result.stderr
+    assert "tier" not in result.stdout
+
+
+def test_sources_lists_all_42_complication_sources():
+    result = run("sources")
+    assert result.returncode == 0, result.stderr
+    assert "complication.body_battery" in result.stdout
+    assert "complication.sleep_score" in result.stdout
+    assert result.stdout.count("complication.") >= 42
+
+
+def test_sources_shows_the_auto_hold_target_for_a_source_that_has_one():
+    result = run("sources")
+    assert result.returncode == 0, result.stderr
+    assert "on_hold: auto -> heart_rate" in result.stdout
+
+
+def test_sources_does_not_list_a_renamed_path():
+    """The nine old complication-backed paths (body_battery.current and
+    friends) are gone from the catalogue, not just renamed in place --
+    `wfb sources` must not still advertise the old spelling."""
+    result = run("sources")
+    assert result.returncode == 0, result.stderr
+    assert "body_battery.current" not in result.stdout
+    assert "device.next_calendar_event" not in result.stdout
+
+
+def test_complications_lists_all_42_types():
+    result = run("complications")
+    assert result.returncode == 0, result.stderr
+    assert "42 complication types" in result.stdout
+    assert "body_battery" in result.stdout
+    assert "sleep_score" in result.stdout
+    assert "invalid" not in result.stdout
+
+
+def test_complications_mentions_on_hold_auto():
+    result = run("complications")
+    assert result.returncode == 0, result.stderr
+    assert "on_hold: auto" in result.stdout
+
+
 # -- `wfb help` -------------------------------------------------------------
 
 

@@ -333,7 +333,7 @@ def test_a_permission_a_watch_face_cannot_hold_is_an_error(write_design, bag, mo
         "hr.raw",
         catalog.Source(
             path="hr.raw", type=catalog.Type.NUMBER, reader="activity_info",
-            field_name="currentHeartRate", nullable=True, tier=catalog.Tier.FRAME,
+            field_name="currentHeartRate", nullable=True,
             permissions=("Sensor",),
         ),
     )
@@ -485,10 +485,23 @@ def test_lint_allow_runs_once_per_build_regardless_of_target_count(write_design,
 #: Matches the code literal in `bag.error("code", ...)` / `.warning(...)` /
 #: `.note(...)`, across all of `self.bag` and a plain `bag`.
 _BAG_CALL_RE = re.compile(r'(?:bag|self\.bag)\.(?:error|warning|note)\(\s*"([a-zA-Z0-9_-]+)"')
+#: Same call shape, but the code is `<expr> or "fallback"` rather than a bare
+#: literal -- `wfb/ir.py`'s `_expression` forwards `expr.ExprError.code` when
+#: the raiser set one and falls back to a literal default otherwise
+#: (`exc.code or "expression"`). Still finds the literal fallback.
+_BAG_CALL_FALLBACK_RE = re.compile(
+    r'(?:bag|self\.bag)\.(?:error|warning|note)\(\s*[\w.]+\s+or\s+"([a-zA-Z0-9_-]+)"'
+)
 #: Matches the code literal in a directly-constructed `Diagnostic(Severity.X, "code", ...)`
 #: -- `check_geometry`, `check_text_fit` and `check_contrast` build these to pass
 #: through `_emit` rather than call `bag.*` directly.
 _DIAGNOSTIC_RE = re.compile(r'Diagnostic\(\s*Severity\.\w+,\s*"([a-zA-Z0-9_-]+)"')
+#: Matches a code carried on an `expr.ExprError` (e.g. `source-renamed`,
+#: raised in `wfb/expr.py` for a moved catalogue path) -- it never calls
+#: `bag.error` itself, `wfb/ir.py`'s `_expression` does that once it catches
+#: the exception, forwarding `exc.code` (see `_BAG_CALL_FALLBACK_RE` above),
+#: so this is the only place the literal actually appears in source.
+_EXPR_ERROR_CODE_RE = re.compile(r'code="([a-zA-Z0-9_-]+)"')
 
 
 def test_all_codes_registry_matches_every_code_the_compiler_actually_emits(repo_root):
@@ -503,7 +516,9 @@ def test_all_codes_registry_matches_every_code_the_compiler_actually_emits(repo_
     for path in (repo_root / "wfb").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         found.update(_BAG_CALL_RE.findall(text))
+        found.update(_BAG_CALL_FALLBACK_RE.findall(text))
         found.update(_DIAGNOSTIC_RE.findall(text))
+        found.update(_EXPR_ERROR_CODE_RE.findall(text))
     assert found == lint.ALL_CODES, (
         f"missing from ALL_CODES: {found - lint.ALL_CODES}; "
         f"registered but never emitted: {lint.ALL_CODES - found}"

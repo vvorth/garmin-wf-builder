@@ -66,7 +66,7 @@ def test_a_literal_string_fallback_extends_the_glyph_set(write_design, bag, db, 
     value (see `_emit_text` in `wfb.emit.monkeyc`), so a literal string
     fallback's own characters must be in the subsetted glyph set too.
 
-    `activity.training_status` is a nullable `STRING` source with no known
+    `complication.training_status` is a nullable `STRING` source with no known
     digit range, so `formatting.widest`'s worst-case estimate for the *value*
     alone already happens to be several characters wide -- not wide enough,
     though, to coincidentally cover a longer literal fallback like this one,
@@ -93,7 +93,7 @@ elements:
     color: palette.bg
   - id: status
     type: text
-    value: activity.training_status
+    value: complication.training_status
     font: font.small
     at: {{anchor: center}}
     color: palette.fg
