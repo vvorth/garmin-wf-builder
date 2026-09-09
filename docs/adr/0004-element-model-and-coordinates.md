@@ -67,6 +67,32 @@ them and only the rendering differs:
 
 Z-order is document order, with an optional explicit `z` override. Groups nest.
 
+**Visibility (`visible:`), as built.** The table above says a `group` "applies
+inherited anchor/visibility/mode"; visibility is now a real key on every
+element, not just an intention. `visible:` is a boolean expression (ADR 0005's
+language, type-checked — a non-boolean is an error, since Monkey C has no
+truthiness either) and **absent means hidden**: a nullable source read by the
+condition contributes a null check to the same guard, and takes no
+`when_absent:` policy, because there is no substitute for existence.
+
+The *inheritance* half is implemented in the IR rather than in codegen, and the
+reason is this ADR's own structure: a `group` renders nothing, so the emitter
+produces no method for one, and §2's per-device resolve flattens the tree to a
+list of placed elements. There is no group left downstream to gate a subtree
+from. So `wfb.ir` conjoins a group's condition into every descendant's own at
+build time (`Builder._push_visible`), producing one real `Expression` per leaf.
+Nested groups compose because the inner group has already pushed before the
+outer one runs, and everything downstream — reader hoisting, null guards, the
+host preview's evaluator, the linter's constant folding — works on it with no
+group-awareness at all.
+
+Two consequences are deliberate and recorded in `docs/limitations.md`: a hidden
+element still occupies its box for every build-time geometric check (visibility
+is a runtime fact, and deciding whether two conditions can both hold is a
+satisfiability question), and it still owns its `on_hold:` hit region (the
+generated delegate has none of the frame's readings, and re-reading them at
+touch time would answer about a different moment than the pixels on screen).
+
 ### 2. Coordinate system — anchors plus relative units, with polar as a first-class option
 
 Absolute pixels are rejected as the primary model; they are available only as a

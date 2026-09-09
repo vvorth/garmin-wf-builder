@@ -218,3 +218,99 @@ elements:
         font = result.project.resolved[device.id].fonts["clock"]
         assert font.monospace
         assert {g.xadvance for g in font.glyphs.values()} == {font.cell_width}
+
+
+@pytest.mark.slow
+def test_conditional_visibility_compiles_cleanly_for_every_target(
+        write_design, tmp_path, db, toolchain):
+    """`visible:` through the real toolchain, warning-free on all three targets.
+
+    Worth a real build rather than a text assertion for one specific reason:
+    the guard `if (x == null || !(cond)) { return; }` asks `monkeyc` to narrow
+    a nullable local *across* the `||`, so that the condition on the right may
+    dereference it.  Nothing in the generated text tells you whether strict
+    typechecking accepts that -- only the compiler does, and `wfb.build` turns
+    each `WARNING:` line it prints into a bag diagnostic, so this asserts
+    warning-free rather than merely successful.
+
+    The design covers each shape the emitter produces: a non-nullable
+    condition, a nullable one, a group condition pushed into a subtree, and a
+    nested group whose condition composes with both the outer group's and the
+    leaf's own.
+    """
+    design = write_design("""
+format: 1
+face: {id: 3b7d5c11-08a2-4f6e-9c33-5d1e77a04b28, name: Visible}
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+palette: {bg: "#000000", fg: "#FFFFFF", accent: "#FF5500"}
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: seconds
+    type: text
+    value: time.second
+    format: "{:d}"
+    font: FONT_SMALL
+    at: {anchor: center, dy: -30%r}
+    color: palette.fg
+    visible: "time.second < 30"
+  - id: step_note
+    type: text
+    text: "GO"
+    font: FONT_SMALL
+    at: {anchor: center, dy: -15%r}
+    color: palette.accent
+    visible: "activity.steps > 500"
+  - id: night_panel
+    type: group
+    at: {anchor: center}
+    size: {width: 70%, height: 40%}
+    visible: "time.hour >= 18 or time.hour < 6"
+    children:
+      - id: night_label
+        type: text
+        text: "NIGHT"
+        font: FONT_SMALL
+        at: {anchor: top}
+        color: palette.fg
+      - id: night_inner
+        type: group
+        at: {anchor: center}
+        size: {width: 100%, height: 50%}
+        visible: "not device.do_not_disturb"
+        children:
+          - id: night_steps
+            type: text
+            value: activity.steps
+            format: "{:d}"
+            font: FONT_SMALL
+            at: {anchor: center}
+            color: palette.accent
+            when_absent: placeholder
+            placeholder: "--"
+          - id: night_icon
+            type: icon
+            icon: heart
+            at: {anchor: bottom}
+            size: 8%r
+            color: palette.fg
+            visible: "system.battery > 20"
+""")
+    bag = Bag()
+    result = build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)
+    assert set(result.products) == {d.id for d in result.devices}
+    view = (result.output_dir / "source" / "VisibleView.mc").read_text(encoding="utf-8")
+    assert "if (activitySteps == null || !(activitySteps > 500))" in view
+    # The leaf's guard carries the outer group's condition, the inner group's,
+    # and its own -- and the group itself emits no method at all.
+    assert ("if (!(((timeHour >= 18) || (timeHour < 6)) "
+            "&& ((!deviceDoNotDisturb) && (systemBattery > 20))))") in view
+    assert "drawNightPanel" not in view

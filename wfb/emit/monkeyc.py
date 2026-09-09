@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .. import __version__, catalog, complications, formatting, icons
+from .. import __version__, catalog, complications, expr, formatting, icons
 from ..catalog import READERS, Type
 from ..ir import (
     Carousel, Expression, Face, IconElement, Progress, Shape, Text,
@@ -846,6 +846,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             for name, read in declarations:
                 w.line(f"var {name} = {read};")
             w.blank()
+        _emit_visible_guard(w, placed, plan)
         if isinstance(placed, PlacedCarousel):
             # Deliberately no element-level guard.  Every other element hides
             # as a whole when a binding is absent, but a carousel's bindings
@@ -880,16 +881,100 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
 def _method_doc(placed) -> str:
     element = placed.element
     lines = [f"`{element.id}` -- {_describe(placed)}."]
-    bindings = [e.text for e in element.expressions() if e.sources]
+    # `visible:` gets its own line below rather than being listed as a
+    # binding: it says when the element draws, not what it shows.
+    bindings = [e.text for e in element.expressions()
+                if e.sources and e is not element.visible]
     if bindings:
         lines.append("")
         lines.append("Bound to " + _and_list(f"`{text}`" for text in bindings) + ".")
+    if element.visible is not None:
+        lines.append(f"Drawn only when `{element.visible.text}` "
+                     "(absent readings count as hidden).")
     policy = getattr(element, "when_absent", None)
     if policy:
         lines.append(f"When the value is absent: {policy}.")
     modes = ", ".join(element.modes)
     lines.append(f"Drawn in: {modes}.")
     return "\n".join(lines)
+
+
+def _negated(expression) -> str:
+    """The Monkey C for "this condition does **not** hold".
+
+    A condition that is itself a `not` is un-negated rather than wrapped: the
+    guard for `visible: "not system.charging"` reads `if (systemCharging)`, not
+    `if (!(!systemCharging))`, which is not something a person would have
+    written.  `expr.emit` renders a `not` as exactly `(!<operand>)`, so this is
+    a slice off a known shape rather than a second, drifting emitter.
+    """
+    code = expression.code
+    node = expression.ast
+    if isinstance(node, expr.Unary) and node.op == "not":
+        assert code.startswith("(!") and code.endswith(")"), code
+        return code[2:-1]
+    return f"!{_negatable(code)}"
+
+
+def _negatable(code: str) -> str:
+    """``code`` wrapped in parentheses unless it already is one group.
+
+    `expr.emit` parenthesises every operator it emits, so a condition almost
+    always arrives as `(a < b)` and `!((a < b))` would be the honest but
+    unreadable result of wrapping it again.  Only a single enclosing group
+    counts: `(a) || (b)` starts and ends with a bracket without being one.
+    """
+    if not (code.startswith("(") and code.endswith(")")):
+        return f"({code})"
+    depth = 0
+    for index, char in enumerate(code):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0 and index != len(code) - 1:
+                return f"({code})"
+    return code
+
+
+def _emit_visible_guard(w: Writer, placed, plan: "ReadPlan") -> None:
+    """`visible:` -- one guard covering both absence and the condition.
+
+    Emitted before every other guard, and before a carousel's own early
+    return, because visibility gates the element as a whole: a hidden carousel
+    draws no row at all (its hold zones are another matter -- see
+    `docs/limitations.md`).
+
+    The shape is `if (x == null || !(cond)) { return; }`, one `== null` per
+    nullable local the condition reads.  That is "absent means hidden" written
+    out: there is no `when_absent:` for existence, so an unavailable reading
+    and a false condition are the same outcome and belong in the same test.
+    Verified that `monkeyc` narrows the local across the `||` -- the condition
+    on the right dereferences it -- with a real warning-free `-w` build under
+    the jungle's `project.typecheck = strict`.
+
+    A condition that folded to a build-time constant is handled honestly
+    rather than specially: a constant `true` emits nothing (there is nothing
+    to check), and a constant `false` emits the guard as written, which
+    `monkeyc` accepts without an unreachable-code warning (verified the same
+    way) and `-O 3z` folds away.  The `dead-element` lint is what tells the
+    author about the second case.
+    """
+    element = placed.element
+    expression = element.visible
+    if expression is None:
+        return
+    if expression.constant is not None and expression.constant:
+        w.comment(f"visible: {expression.text} -- always true, nothing to check")
+        w.blank()
+        return
+    parts = [f"{name} == null" for name in plan.visible_guards(placed)]
+    parts.append(_negated(expression))
+    w.comment(f"visible: {expression.text}"
+              + (" -- absent means hidden" if len(parts) > 1 else ""))
+    with w.block(f"if ({' || '.join(parts)})"):
+        w.line("return;")
+    w.blank()
 
 
 def _emit_guard(w: Writer, placed, guards: list[str], note: str | None = None) -> None:
@@ -1304,6 +1389,15 @@ class ReadPlan:
         #: the same possibly-null local, which a placeholder for the *text*
         #: does nothing to protect.
         self._other_bound: dict[str, list[str]] = {}
+        #: The subset reached through `visible:` (SPEC.md T5).  Kept apart from
+        #: both of the above because a visibility binding gets its *own* guard,
+        #: emitted first and combined with the condition itself
+        #: (`if (x == null || !(cond)) { return; }`) -- "absent means hidden".
+        #: Paths that land here are subtracted from the value and other guards
+        #: rather than being null-checked twice: that guard has already
+        #: returned, so a second `== null` on the same local would be dead code
+        #: a human reviewer would (rightly) ask about.
+        self._visible_bound: dict[str, list[str]] = {}
         self._readers_for_mode: dict[str, list[str]] = {}
         self._analyse()
 
@@ -1314,13 +1408,18 @@ class ReadPlan:
             paths: list[str] = []
             value_paths: list[str] = []
             other_paths: list[str] = []
+            visible_paths: list[str] = []
             for expression in element.expressions():
                 self.modules |= set(expression.modules)
                 is_value = any(expression is v for v in value_exprs)
+                is_visible = expression is element.visible
                 for path in expression.sources:
                     if path not in paths:
                         paths.append(path)
-                    if is_value:
+                    if is_visible:
+                        if path not in visible_paths:
+                            visible_paths.append(path)
+                    elif is_value:
                         if path not in value_paths:
                             value_paths.append(path)
                     elif path not in other_paths:
@@ -1339,8 +1438,11 @@ class ReadPlan:
                     if "%h" in element.format:
                         format_paths.append("device.is_24_hour")
             self._bound[placed.id] = list(paths)
-            self._value_bound[placed.id] = list(value_paths)
-            self._other_bound[placed.id] = list(other_paths)
+            self._visible_bound[placed.id] = list(visible_paths)
+            # A path read by `visible:` needs no second guard anywhere else on
+            # the element: the visibility guard runs first and returns on null.
+            self._value_bound[placed.id] = [p for p in value_paths if p not in visible_paths]
+            self._other_bound[placed.id] = [p for p in other_paths if p not in visible_paths]
             paths = paths + [p for p in format_paths if p not in paths]
             self._per_element[placed.id] = paths
             for path in paths:
@@ -1409,7 +1511,11 @@ class ReadPlan:
         from ..ir import local_name
 
         names: list[str] = []
+        visible = self._visible_bound[placed.id]
         for path in self._bound[placed.id]:
+            if path in visible:
+                # Already null-checked by the visibility guard above.
+                continue
             source = catalog.CATALOG[path]
             if source.guard_needed:
                 names.append(local_name(path))
@@ -1420,6 +1526,19 @@ class ReadPlan:
         from ..ir import local_name
 
         return [local_name(path) for path in self._value_bound[placed.id]
+                if catalog.CATALOG[path].guard_needed]
+
+    def visible_guards(self, placed) -> list[str]:
+        """Locals `visible:` dereferences, in declaration order.
+
+        These become the `x == null` halves of the visibility guard
+        (`_emit_visible_guard`).  "Absent means hidden" is the whole rule:
+        unlike a value, an unavailable reading has no substitute, so there is
+        no `when_absent:` to consult here.
+        """
+        from ..ir import local_name
+
+        return [local_name(path) for path in self._visible_bound[placed.id]
                 if catalog.CATALOG[path].guard_needed]
 
     def other_guards(self, placed) -> list[str]:

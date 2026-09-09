@@ -244,7 +244,60 @@ Alternatively name a system font directly: `font: FONT_MEDIUM`,
 ## Elements
 
 Z-order is document order, with an optional `z:` override. Every element takes
-`id`, `type`, `at`, `modes`, `z`, `lint` and `overrides`.
+`id`, `type`, `at`, `modes`, `z`, `visible`, `lint` and `overrides`.
+
+### `visible:` — draw this only sometimes
+
+```yaml
+- id: charging_bolt
+  type: icon
+  icon: battery
+  at: {anchor: center, dy: 25%}
+  visible: "system.charging"
+```
+
+An expression that must type as a **boolean** — a comparison, `and`/`or`/`not`,
+or a `?:` whose branches are booleans. There is no truthiness rule, so
+`visible: activity.steps` is an error naming the type it got: Monkey C has no
+truthy Number either, and guessing what the author meant is how a face ends up
+showing something nobody asked for.
+
+**Absent means hidden.** If the condition reads a nullable source and the device
+cannot supply it, the element is not drawn. There is deliberately **no
+`when_absent:` for visibility**: `when_absent:` chooses a substitute *value*
+(placeholder text, a fallback fraction), and existence has no substitute —
+"maybe drawn" is not a thing to fall back to. The two are separate axes and
+compose independently: an element can be visible while its value is absent, in
+which case `visible:` lets it through and `when_absent:` decides what it shows.
+Concretely, the generated guard is one test:
+
+```monkeyc
+// visible: activity.steps > 500 -- absent means hidden
+if (activitySteps == null || !(activitySteps > 500)) {
+    return;
+}
+```
+
+**On a `group`, `visible:` gates the whole subtree.** The condition is conjoined
+into every element beneath it at build time, so nested groups compose: a child
+of a hidden group is hidden no matter what its own `visible:` says, and a child
+with its own condition needs both to hold.
+
+A condition that folds to a constant `false` — `visible: "false"`, or something
+that reduces to it on a particular device — is the suppressible `dead-element`
+warning: the element is generated and never drawn. A constant `true` is not
+warned about; it is a normal thing to write while iterating.
+
+Two things `visible:` deliberately does **not** change, both recorded in
+[`docs/limitations.md`](limitations.md):
+
+* the element still occupies its box for the geometry, overlap, safe-area and
+  text-overflow checks, because visibility is a runtime fact and the linter
+  reasons about build-time geometry;
+* it still owns its `on_hold:` hit region. The hit test lives in the delegate,
+  which has no access to the frame's readings, and re-reading them at touch time
+  would answer about a different moment than the one on screen anyway. A hold on
+  a hidden element opens its glance.
 
 ### `shape`
 
@@ -553,6 +606,12 @@ natural way to make a multi-element cluster (an icon next to its value, as
 above) act as a single touch target instead of naming `on_hold:` on each piece
 separately. See "Interactivity" below.
 
+**`visible:` on a group gates every element beneath it**, at any depth. The
+group's condition is conjoined into each descendant's own at build time (a group
+emits no code of its own, so there is nothing else it could mean), which is why
+nesting composes: an inner group's condition and the outer one both have to hold
+for a leaf to draw. See "`visible:`" above.
+
 ### `carousel`
 
 ```yaml
@@ -846,6 +905,14 @@ makes a declared `placeholder:`/`fallback:` impossible to reach — every nullab
 source behind the value is also read by the colour — the compiler says so rather
 than letting the substitute sit there as dead text.
 
+**`when_absent:` is about the value, `visible:` is about existence.** A nullable
+source read by `visible:` needs no policy and cannot take one: absence there
+means hidden, full stop. The two compose independently — an element can be
+visible while its value is absent. The one interaction is reported rather than
+merged: a `placeholder:` whose nullable sources are *all* also read by
+`visible:` can never be drawn, and the compiler says so, exactly as it does for
+a nullable `color:`. See "`visible:`" above.
+
 **On a `progress`, `fallback:` supplies the fill fraction (0.0–1.0), not the
 value.** This is the one place the policy means something different from `text`,
 and it is forced: either `value:` or `max:` can be the absent reading, so the
@@ -1075,9 +1142,9 @@ off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
 `carousel-on-hold`) are **not** suppressible: silencing one produces a face
 that does not work.
 
-Nine codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+Ten codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `carousel-zone`, `hold-overlap`,
-`hold-unsupported` and `complication-gated`. `wfb/lint.py`'s `SUPPRESSIBLE` is
+`hold-unsupported`, `complication-gated` and `dead-element`. `wfb/lint.py`'s `SUPPRESSIBLE` is
 the normative list -- this prose has drifted from it before, so check there
 rather than here if the two ever disagree. **A code that is not one of them is a
 build error**, and the message distinguishes the two ways that happens — a code the compiler does not emit at all (with a "did you mean"

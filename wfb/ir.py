@@ -198,6 +198,18 @@ class Element:
     #: also the only gesture there is: `WatchFaceDelegate.onTap` fires solely
     #: inside the on-device config editor, on every device that has it.
     on_hold: str | None = None
+    #: `visible:` -- a BOOLEAN expression gating whether this element draws at
+    #: all (SPEC.md T5).  A separate axis from `when_absent:`, which governs
+    #: the element's *value*: **absent means hidden**, because there is no
+    #: meaningful placeholder for existence, so a nullable source read here
+    #: contributes a null check to the same guard as the condition itself.
+    #:
+    #: On a `group` this is also conjoined into every descendant's own
+    #: `visible` by `Builder._build_group` -- a group emits no draw method, so
+    #: gating the subtree has to happen where the subtree still exists as a
+    #: tree.  The copy left on the group itself is what the `dead-element`
+    #: lint reports against.
+    visible: Expression | None = None
 
     @property
     def symbol(self) -> str:
@@ -208,6 +220,19 @@ class Element:
         return []
 
     def expressions(self) -> list[Expression]:
+        """Every compiled expression on this element, `visible:` included.
+
+        Kind-specific expressions come from :meth:`_own_expressions`; this
+        wrapper appends `visible` so that permission derivation, barrel
+        collection and the read plan pick a visibility binding up for free,
+        exactly as they do a conditional colour.
+        """
+        out = self._own_expressions()
+        if self.visible is not None:
+            out.append(self.visible)
+        return out
+
+    def _own_expressions(self) -> list[Expression]:
         return []
 
 
@@ -239,7 +264,7 @@ class Shape(Element):
     color: Expression | None = None
     filled: bool = True
 
-    def expressions(self) -> list[Expression]:
+    def _own_expressions(self) -> list[Expression]:
         return [e for e in (self.color,) if e]
 
 
@@ -257,7 +282,7 @@ class Text(Element):
     placeholder: str | None = None
     fallback: Expression | None = None
 
-    def expressions(self) -> list[Expression]:
+    def _own_expressions(self) -> list[Expression]:
         return [e for e in (self.value, self.color, self.fallback) if e]
 
 
@@ -276,7 +301,7 @@ class Progress(Element):
     when_absent: str | None = None
     fallback: Expression | None = None
 
-    def expressions(self) -> list[Expression]:
+    def _own_expressions(self) -> list[Expression]:
         return [e for e in (self.value, self.maximum, self.color, self.track_color, self.fallback) if e]
 
 
@@ -301,7 +326,7 @@ class IconElement(Element):
     def is_dynamic(self) -> bool:
         return self.value_for is not None
 
-    def expressions(self) -> list[Expression]:
+    def _own_expressions(self) -> list[Expression]:
         return [e for e in (self.color, self.value_for) if e]
 
 
@@ -367,7 +392,7 @@ class Carousel(Element):
     animate: float = 0.3
     persist: bool = True
 
-    def expressions(self) -> list[Expression]:
+    def _own_expressions(self) -> list[Expression]:
         out = [e for e in (self.color, self.inactive_color, self.value_color) if e]
         for item in self.items:
             out.extend(item.expressions())
@@ -658,6 +683,7 @@ class Builder:
             lint_reason=(node.get("lint") or {}).get("reason"),
             overrides=dict(node.get("overrides") or {}),
             on_hold=self._hold_target(node),
+            visible=self._visible(node),
         )
 
         builders = {
@@ -899,12 +925,109 @@ class Builder:
         )
         return None
 
+    def _visible(self, node: dict) -> Expression | None:
+        """Compile and type-check `visible:`.
+
+        The one requirement beyond a normal expression is the static type: a
+        gate that is not a boolean is a mistake the author wants named, not a
+        truthiness rule invented on their behalf (Monkey C has no truthy
+        Number, so `visible: activity.steps` would not even compile).
+
+        Deliberately no `when_absent:` companion.  `when_absent:` chooses a
+        substitute *value*; there is no substitute for existence, so a
+        nullable source here means exactly one thing -- absent is hidden --
+        and the emitter folds the null check into the same guard as the
+        condition.
+        """
+        expression = self._expression(node, "visible")
+        if expression is None:
+            return None
+        if expression.value.type is not Type.BOOLEAN:
+            self.bag.error(
+                "type",
+                f"visible must be a boolean, got {expression.value}",
+                expression.span,
+                notes=["write a condition: a comparison ('activity.steps > 0'), "
+                       "'and'/'or'/'not', or a '?:' whose branches are booleans",
+                       "there is no truthiness rule -- a Number is not a condition"],
+            )
+            return None
+        return expression
+
+    def _conjoin_visible(self, outer: Expression, inner: Expression | None) -> Expression | None:
+        """``outer and inner`` as one real :class:`Expression`.
+
+        This is how a group gates its subtree.  A `group` emits no draw method
+        of its own (`wfb.emit.monkeyc` skips `kind == "group"`) and
+        `wfb.layout` flattens the tree, so by the time anything downstream sees
+        the design there is no subtree left to gate -- the conjunction has to
+        happen here, while the parent still owns its children.
+
+        Building a genuine `Expression` rather than splicing code strings is
+        what makes every consumer work unchanged: `ReadPlan` hoists the
+        group's readers and null-checks its locals because `sources` names
+        them, `wfb.preview.evaluate` walks the merged `ast`, and the linter's
+        constant folding sees through the whole conjunction.  Nested groups
+        compose because the inner group has already conjoined its own
+        condition into its children before the outer one runs.
+        """
+        if inner is None:
+            return outer
+        combined = expr.Binary("and", outer.ast, inner.ast)
+        try:
+            value = expr.check(combined, self.scope)
+            folded = expr.fold(combined, self.scope, fold_colors=False)
+            code = expr.emit(folded, self.scope)
+        except expr.ExprError as exc:  # unreachable: both halves already checked
+            self.bag.error(exc.code or "expression", f"visible: {exc.message}",
+                           inner.span or outer.span, notes=exc.notes)
+            return inner
+        constant = folded.value if isinstance(folded, expr.Literal) else None
+        return Expression(
+            # Parenthesised: this text is what diagnostics and the generated
+            # doc comment show, and `a or b and c` read back flat would claim
+            # a precedence the emitted code (correctly) does not have.
+            text=f"({outer.text}) and ({inner.text})",
+            code=code,
+            value=value,
+            sources=tuple(sorted(set(outer.sources) | set(inner.sources))),
+            barrel=outer.barrel | inner.barrel,
+            modules=outer.modules | inner.modules,
+            # The child's own line where it has one: that is where an author
+            # reading a `dead-element` warning expects to look first.
+            span=inner.span or outer.span,
+            constant=constant,
+            ast=folded,
+        )
+
+    def _push_visible(self, group: "Group") -> None:
+        """Conjoin a group's `visible:` into every element beneath it.
+
+        Every *descendant*, not just the direct children: an inner group has
+        already pushed its own condition down by the time the outer group is
+        built, so touching only the inner `Group` object would leave the
+        grandchildren ungated.  Pushing into the inner group as well keeps its
+        own record honest -- it is what `dead-element` reports against, and
+        what `wfb preview` would consult if groups ever drew anything.
+        """
+        if group.visible is None:
+            return
+
+        def visit(items: list[Element]) -> None:
+            for child in items:
+                child.visible = self._conjoin_visible(group.visible, child.visible)
+                visit(child.children())
+
+        visit(group.items)
+
     def _build_group(self, node: dict, common: dict, path: tuple) -> Element:
-        return Group(
+        group = Group(
             **common,
             size=self._size(node.get("size")),
             items=self._build_elements(node["children"], path + ("children",)),
         )
+        self._push_visible(group)
+        return group
 
     def _build_shape(self, node: dict, common: dict, path: tuple) -> Element:
         shape = node["shape"]
@@ -1445,7 +1568,8 @@ class Builder:
             # non-nullable value can be doing real work.  Saying it has no
             # effect there would contradict the error the author just fixed.
             others_nullable = any(
-                e is not bound and e.nullable for e in element.expressions()
+                e is not bound and e is not element.visible and e.nullable
+                for e in element.expressions()
             )
             if when_absent is not None and not others_nullable:
                 self.bag.note(
@@ -1530,6 +1654,14 @@ class Builder:
         fix is a judgement call -- drop the substitute, or stop reading the
         same source from the colour.  But saying nothing here would be the
         very failure this compiler exists to prevent, one level down.
+
+        `visible:` joins the "other" bindings here for exactly the same
+        reason, and with a stronger claim behind it: absence in a visibility
+        condition means hidden by definition, and that guard is emitted before
+        everything else in the method.  A placeholder for a reading the
+        element's own visibility already depends on is unreachable text.  The
+        label only grows when the element actually has a `visible:`, so no
+        existing message moves.
         """
         policy = getattr(element, "when_absent", None)
         if policy not in ("placeholder", "fallback"):
@@ -1537,6 +1669,9 @@ class Builder:
         value_sources = self._nullable_sources(value_bindings)
         if not value_sources:
             return
+        if element.visible is not None:
+            other_bindings = other_bindings + (element.visible,)
+            key = f"{key}/'visible'"
         other_sources = self._nullable_sources(other_bindings)
         if not value_sources <= other_sources:
             return

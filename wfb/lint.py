@@ -34,6 +34,7 @@ from .units import IntBox
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
     "hold-unsupported", "hold-overlap", "carousel-zone", "complication-gated",
+    "dead-element",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -45,8 +46,8 @@ SUPPRESSIBLE = frozenset({
 #: day this set drifts from what the compiler actually emits, so it cannot rot
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
-    "carousel", "color", "complication-gated", "contrast", "devices", "duplicate-id",
-    "element", "expression",
+    "carousel", "color", "complication-gated", "contrast", "dead-element",
+    "devices", "duplicate-id", "element", "expression",
     "font", "format", "format-version", "icon", "io", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "carousel-zone", "carousel-on-hold", "hold-overlap", "hold-unsupported",
@@ -68,6 +69,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_partial_update_budget(resolved, bag)
     check_hold_targets(resolved, bag)
     check_carousel_zones(resolved, bag)
+    check_dead_element(resolved, bag)
     check_complication_availability(resolved, bag)
     check_alpha(resolved, bag)
     for warning in resolved.warnings:
@@ -469,6 +471,49 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
 #: publishes no minimum touch size, so this is a judgement rather than a
 #: platform fact, and the diagnostic says so in its own confidence line.
 MIN_ZONE_WIDTH = 40
+
+
+def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
+    """A `visible:` that folded to a constant `false` -- the element never draws.
+
+    Only the `false` case.  A constant `true` is a perfectly reasonable thing
+    to write while iterating on a design (or what a config expression folds to
+    on this particular device), and warning about it would be noise on every
+    build.  A constant `false` is different: the author asked for an element
+    and the compiler is quietly generating one nothing will ever call.
+
+    Reported against the **outermost** dead element only.  `wfb.ir` conjoins a
+    group's condition into every descendant, so a dead group would otherwise
+    produce one warning per element beneath it, all saying the same thing about
+    a condition written once.  `resolved.items` is the flattened tree in
+    document order with `depth` on every entry, so skipping the subtree is just
+    skipping forward while `depth` stays greater.
+
+    Suppressible: a design under construction, or one whose condition is only
+    dead on *this* device, is the author's call to make.
+    """
+    items = resolved.items
+    index = 0
+    while index < len(items):
+        placed = items[index]
+        index += 1
+        expression = placed.element.visible
+        if expression is None or expression.constant is None or expression.constant:
+            continue
+        _emit(bag, placed, Diagnostic(
+            Severity.WARNING,
+            "dead-element",
+            f"{placed.id}: 'visible: {expression.text}' is always false, so this "
+            f"element is never drawn",
+            expression.span or placed.element.span,
+            notes=(["a group's 'visible:' is conjoined into every element beneath "
+                     "it, so the whole subtree is dead too"]
+                   if placed.kind == "group" else []) + ["delete it, or fix the condition"],
+            confidence="exact -- constant-folded at build time",
+        ))
+        # Everything under a dead group is dead for the same one reason.
+        while index < len(items) and items[index].depth > placed.depth:
+            index += 1
 
 
 def check_carousel_zones(resolved: ResolvedFace, bag: Bag) -> None:

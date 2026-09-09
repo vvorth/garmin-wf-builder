@@ -101,6 +101,16 @@ text; `fallback` supplies another expression. Generated code guards every read,
 so a missing sensor drops its element rather than crashing the face — matching
 the practice the sibling Dashboard project arrived at by hand.
 
+**`when_absent:` governs a *value*, and is a different axis from `visible:`**
+(ADR 0004 §1). A nullable source read by a visibility condition takes no policy
+and cannot be given one: absence there means hidden, full stop, because a
+placeholder is a substitute value and existence has no substitute. The two
+compose independently — an element can be visible while its value is absent, in
+which case `visible:` lets it through and `when_absent:` decides what it shows.
+The one place they interact is reported rather than merged: a `placeholder:`
+whose nullable sources are *all* also read by `visible:` can never be drawn, and
+that is a warning, the same one a nullable `color:` already earns.
+
 ### 4. Formatting is declarative and unit-aware
 
 `format` uses Python-style format specs, familiar and unambiguous:

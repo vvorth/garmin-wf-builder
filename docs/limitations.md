@@ -406,13 +406,53 @@ them rather than to an arbitrary one:
   allow is honoured on any element drawn in `low_power` mode — the elements that
   the clip is computed from and that pay its cost.
 
-`carousel-zone` and the two `hold-*` codes are ordinary element-scoped
-diagnostics, so `lint:` on the element itself reaches them.
+`carousel-zone`, `dead-element` and the two `hold-*` codes are ordinary
+element-scoped diagnostics, so `lint:` on the element itself reaches them.
 
 A code in `allow:` that this compiler does not emit, or that is deliberately not
 suppressible, is now an **error** naming which of the two it is. Before that, both
 were ignored without a word, and the author had no way to tell a typo from a
 check that refuses suppression on purpose.
+
+### `visible:` is a runtime fact, and the linter reasons about build-time geometry
+
+A hidden element still **occupies its box** for every geometric check: safe
+area, off-screen, text overflow, the `low_power` clip rectangle, the AMOLED
+luminance estimate, and (once it exists) overlap. Two elements that are
+`visible:` on mutually exclusive conditions, deliberately stacked in the same
+place, will still be reported as overlapping when that check lands, and both
+still count toward the clip.
+
+This is a real limitation, not an oversight, and the alternative is worse: the
+linter would have to decide whether two conditions can be true at the same time,
+which is a satisfiability question over arbitrary expressions on readings whose
+values are unknown at build time. Sizing the clip and the safe area for "every
+element that *could* draw" is the conservative answer, and conservative is the
+right direction for a budget whose overrun is permanent (§1). Suppress the
+warning on the element with `lint: {allow: [safe-area], reason: "..."}` where the
+overlap is intended.
+
+The one thing that *is* folded is a condition with no readings in it at all:
+`visible:` that reduces to a constant `false` is the suppressible `dead-element`
+warning, reported once against the outermost dead element (a group's condition
+is conjoined into its subtree, so warning per descendant would repeat one
+mistake N times).
+
+### A hold reaches an element that is not on screen
+
+`on_hold:` on an element whose `visible:` is currently false still opens that
+element's glance. The hit test lives in the generated `WatchFaceDelegate`, which
+receives only the touch coordinates: it has no `Dc`, no frame, and none of the
+hoisted reader locals `onUpdate` builds, so gating it would mean re-reading every
+source the condition touches inside `onPress` — a second copy of the element's
+read plan, in a second file, free to drift from the first.
+
+It would also not buy correctness. `onPress` runs at touch time, not at draw
+time, so a re-evaluated condition answers about a different moment than the pixels
+the wearer is looking at; the two can disagree either way. The failure mode as it
+stands is bounded and recoverable — a hold on an empty patch of screen opens a
+glance, and back returns — so this is documented rather than gated. A `carousel`
+is the same: its three hold zones stay live while the row is hidden.
 
 ### Not checked at all
 

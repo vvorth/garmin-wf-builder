@@ -120,6 +120,8 @@ class _Renderer:
     # -- dispatch ---------------------------------------------------------
 
     def render_element(self, placed) -> None:
+        if not self._visible(placed):
+            return
         if isinstance(placed, PlacedShape):
             self._shape(placed)
         elif isinstance(placed, PlacedText):
@@ -449,6 +451,26 @@ class _Renderer:
     def _rect(self, box) -> list[float]:
         s = self.scale
         return [box.x * s, box.y * s, box.right * s - 1, box.bottom * s - 1]
+
+    def _visible(self, placed) -> bool:
+        """`visible:` -- the same rule the device runs, on the sample readings.
+
+        Absent means hidden, so `expr.evaluate` returning ``None`` (which is
+        exactly what it does when any input is missing) hides the element,
+        matching the generated `if (x == null || !(cond)) return;` rather than
+        merely approximating it.  A group's condition is already conjoined into
+        every descendant by `wfb.ir`, so nothing here has to walk the tree --
+        which is also why the preview cannot silently disagree with the device
+        about a subtree.
+        """
+        expression = placed.element.visible
+        if expression is None:
+            return True
+        if expression.constant is not None:
+            return bool(expression.constant)
+        if expression.ast is None:
+            return True
+        return bool(expr.evaluate(expression.ast, self.values))
 
     def _color(self, expression) -> tuple[int, int, int]:
         if expression is None:
