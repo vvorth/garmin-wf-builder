@@ -1320,13 +1320,69 @@ written; read its README before touching this area again.
    body_battery` already owns `complicationBodyBattery`), producing
    `Redefinition of variable 'complicationBodyBattery'` from `monkeyc` on all
    three targets. `wfb/catalog.py::_complication_local_name`'s docstring
-   records the reasoning in full; `tests/test_catalog.py` pins the two
-   locals apart so the collision cannot come back silently.
+   records the reasoning in full, and
+   `tests/test_catalog.py::test_reader_and_value_locals_never_collide` pins
+   the whole family apart in the fast test loop (see the review note below --
+   that test did not exist when this paragraph was first written, and the
+   claim it makes was optimistic until it did).
 
 All of the above is code-complete and green (`pytest -m "not slow"` and
 `pytest -m "slow"`, real `monkeyc`, both pass) — this note is documentation
 and a new worked example (`examples/complications/`) written after the fact,
 not a description of work still pending.
+
+**A review pass followed immediately, and four of its findings were then
+fixed** (`docs/review/2026-09-architecture-review.md`, whose status table
+records what closed). Three are worth carrying forward:
+
+1. **Every `on_hold:` design without a `carousel` had been building with a
+   real `monkeyc` warning** — `Member variable '_view' is not used.` The
+   delegate is handed the view unconditionally but only a carousel's zone
+   handler reads it. The field is now conditional; the *parameter* stays
+   unconditional, because an unused parameter provably does **not** warn
+   (built both ways to find out), so one delegate shape and one
+   `new ...Delegate(view)` call site still serve every design. The reason it
+   shipped at all is the more useful lesson: **every `on_hold:` test
+   inspected generated text, and no test had ever put a plain `on_hold:`
+   design through real `monkeyc`.** There is now a `slow` test that does, and
+   asserts *warning-free* rather than merely successful — `wfb/build.py`
+   already turns each `WARNING:` line into a bag diagnostic, so that
+   assertion is on the compiler's own output rather than a proxy for it.
+2. **`docs/limitations.md` was pointing at a fix that could not work.** It
+   said `catalog.Source.requires` + `Device.has_symbol` was the mechanism for
+   per-device source gating. It is not: `has_symbol` indexes only
+   `<functionEntry>` symbols, and `COMPLICATION_TYPE_*` are *constants* that
+   do not appear in `api.debug.xml` at all — checked directly, including for
+   `COMPLICATION_TYPE_BATTERY`, which every target supports. The working
+   mechanism is a version comparison (`complications.TYPES[name].since` vs
+   `Device.api_level`, both already on disk), now shipped as
+   `check_complication_availability` / `complication-gated`, suppressible,
+   covering both a `complication.*` binding and an `on_hold:`/`launch:`
+   naming a gated type. `Device.api_level` had existed all along with exactly
+   one call site: a column in `wfb devices`. **Note the two checks answer
+   different questions** — "is this type old enough for this firmware" is not
+   "does this symbol exist here", and constraint 6's `onTap` case is the
+   standing proof they can disagree.
+3. **A guard nobody has watched fail is not a guard.** Each of the three
+   fixes above was required to go red against the unfixed code before being
+   believed: the `_view` test against the unconditional emitter, the new
+   catalogue-wide collision test against the pre-fix naming (it lists all 42
+   collisions by name), and the gating check's suppression against a real
+   `lint: {allow: [...]}`. That last one matters specifically because this
+   file already records two checks that were advertised as suppressible and
+   were not, having called `bag.warning` directly instead of `_emit`.
+
+Also closed: the collision class from item 7 above now has a **fast**
+catalogue-wide test (`test_reader_and_value_locals_never_collide`) covering
+every `Reader.name`, every `local_name(path)`, the `...Obj` intermediate form
+and the emitter's own fixed locals — previously the only thing that would
+have caught a recurrence was the `slow` full-catalogue build, excluded from
+the default loop. `Builder._check_symbol_collision` was deliberately left
+alone: it is element-id-scoped by construction, and these collisions are
+catalogue-scoped.
+
+Still open from that review: `on_hold:`'s schema description is hand-copied
+across seven element-type branches, and the low-severity items below it.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 

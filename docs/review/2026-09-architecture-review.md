@@ -13,6 +13,24 @@ Read-only review. No code was changed. `pytest -m "not slow"` passes clean
 
 ---
 
+## Status: F1-F4 were acted on in the session that followed
+
+This document is kept as written -- the findings are the record of what was
+wrong and how it was established, which stays useful after the fix. What
+changed since:
+
+| | Finding | Status |
+|---|---|---|
+| **F1** | `_view` unused warning | **Closed.** The field is now declared only when a carousel reads it (`wfb/emit/monkeyc.py`, `has_carousel`). The constructor *parameter* stays unconditional -- an unused parameter does not warn, verified by build -- so one delegate shape and one construction site still serve every design. The test gap this finding blamed is closed too: `test_a_plain_hold_design_compiles_without_warnings` (slow) compiles a plain `on_hold:` design through real `monkeyc` and asserts **warning-free**, and a fast test pins the field to carousel designs. Both were confirmed to go red against the unfixed emitter before being trusted. |
+| **F2** | collision guard | **Closed.** `tests/test_catalog.py::test_reader_and_value_locals_never_collide` checks every `Reader.name`, every `local_name(path)`, the `...Obj` intermediate form, and the emitter's own fixed locals for pairwise uniqueness -- in the fast loop, not behind `slow`. Verified red against the pre-fix naming (all 42 collisions listed by name) and green after. `Builder._check_symbol_collision` was deliberately left alone: it is element-id-scoped by construction, and these collisions are catalogue-scoped. |
+| **F3** | per-device gating | **Closed.** `wfb/lint.py::check_complication_availability`, code `complication-gated`: a suppressible warning comparing `complications.TYPES[name].since` against `Device.api_level`, covering both a `complication.*` binding and an `on_hold:`/`launch:` naming a gated type, with different message text for each (a reading that never arrives vs. a hold that does nothing). Emitted through `_emit`, so suppression genuinely works -- verified, since this document's own neighbourhood in CLAUDE.md records two checks that were advertised as suppressible and were not. |
+| **F4** | `Reader` means two things | **Closed, documentation only.** The class docstring now names both shapes and says which of the 51 entries is which. No structural change, as this finding itself recommended. |
+
+F5 was already stale when written (see its own note). F6 and the other
+low-severity items are **open** and untouched.
+
+---
+
 ## Summary
 
 The change itself is clean. The TTL cache is gone with nothing left dangling

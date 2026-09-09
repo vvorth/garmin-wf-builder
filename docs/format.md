@@ -924,15 +924,17 @@ off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
 `carousel-on-hold`) are **not** suppressible: silencing one produces a face
 that does not work.
 
-Exactly five codes are suppressible: `palette-dither`, `safe-area`,
-`text-overflow`, `contrast` and `partial-update-budget`. **A code that is not one
-of them is a build error**, and the message distinguishes the two ways that
-happens — a code the compiler does not emit at all (with a "did you mean"
+Nine codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+`contrast`, `partial-update-budget`, `carousel-zone`, `hold-overlap`,
+`hold-unsupported` and `complication-gated`. `wfb/lint.py`'s `SUPPRESSIBLE` is
+the normative list -- this prose has drifted from it before, so check there
+rather than here if the two ever disagree. **A code that is not one of them is a
+build error**, and the message distinguishes the two ways that happens — a code the compiler does not emit at all (with a "did you mean"
 suggestion) versus a real code that is deliberately unsuppressible (with the
 reason). Both used to be ignored in silence, which left an author unable to tell
 a typo from a check that refuses to be silenced.
 
-Two of the five are not element-scoped diagnostics, so the allow goes on the
+Two of them are not element-scoped diagnostics, so the allow goes on the
 element that causes them: `palette-dither` on an element whose `color:` or
 `track_color:` is exactly `palette.<name>`, and `partial-update-budget` on any
 element drawn in `low_power` mode. See `docs/limitations.md` §3.

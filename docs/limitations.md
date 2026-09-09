@@ -294,19 +294,33 @@ than its box, because its box is deliberately larger — it is the touch target.
 Whether that target is *usable* is a separate check (`carousel-zone`), listed
 below because half of it rests on a judgement.
 
-**Per-device API availability is checked for exactly one thing: `on_hold:`.**
-`check_hold_targets` resolves `WatchFaceDelegate.onPress` against each target's
-own `<id>.api.debug.xml` — which is the only honest way to answer it: an API
-level settles nothing here, as the sibling symbol `onTap` demonstrates, being
-documented "since 5.1.0" and genuinely absent on `fr955` at 5.2.0. (`onTap` is
-deliberately *not* consulted: it is documented "Only available in WatchFace
-config mode" and never fires on a live face, so checking for it would report a
-capability the author can never reach — see `docs/research/07-carousel-interaction.md`
-§1.) Everything else ADR 0008's check 2 covers is still unchecked:
-`Device.has_symbol` is correct and proven (`tests/test_devices.py` runs it
-against the real device files), and no *data source* consults it. See "Device
-gating for a source is not enforced" below, the same gap from the catalogue's
-side.
+**Per-device API availability is checked two ways, by two different
+mechanisms, because the data supports only one of them in each case.**
+
+*By symbol table, for `on_hold:`.* `check_hold_targets` resolves
+`WatchFaceDelegate.onPress` against each target's own `<id>.api.debug.xml` —
+the only honest way to answer it, since an API level settles nothing here: the
+sibling symbol `onTap` is documented "since 5.1.0" and genuinely absent on
+`fr955` at 5.2.0. (`onTap` is deliberately *not* consulted: it is documented
+"Only available in WatchFace config mode" and never fires on a live face, so
+checking for it would report a capability the author can never reach — see
+`docs/research/07-carousel-interaction.md` §1.)
+
+*By version comparison, for complications.* `check_complication_availability`
+compares a type's `since` against the device's `Device.api_level`. This one
+cannot use the symbol table: `COMPLICATION_TYPE_*` are constants, and
+`api.debug.xml` carries only `<functionEntry>` symbols, so they do not appear
+in it at all (checked directly, including for the universally-supported
+`COMPLICATION_TYPE_BATTERY`). The comparison is exact — both numbers come from
+files on disk, `Toybox/Complications.html` and the device's `compiler.json` —
+but note that it answers "is this type old enough for this firmware", which is
+a *different* question from "does this symbol exist here", and the `onTap` case
+above is the standing reminder that the two can disagree.
+
+What remains unchecked is ordinary data sources: `Device.has_symbol` is correct
+and proven (`tests/test_devices.py` runs it against the real device files), and
+no non-complication source consults it. See "Device gating for a source is only
+partly enforced" below, the same gap from the catalogue's side.
 
 ### Checks that are explicitly weaker, and say so in their own output
 
@@ -364,30 +378,38 @@ check that refuses suppression on purpose.
 * **Safe area on `semi-round` and `semi-octagon`.** Reported as "not checked".
 * **Whether a device's firmware actually behaves as its files describe.** The
   device files are the best available ground truth, not a guarantee.
-* **Device gating for a source is not enforced** — ADR 0008's check 2, the
-  other half of "per-device API availability" above. (`on_hold:` *is* now
-  checked this way — `check_hold_targets` resolves `WatchFaceDelegate.onPress`
-  against each target's own `api.debug.xml` — so the machinery is proven; it
-  is data *sources* that still go unchecked.) `catalog.Source.requires`
-  (`Parent.name` symbols a binding needs on the target device) exists and is
-  set on one source (`device.do_not_disturb`), but nothing in `wfb/lint.py`
-  or `wfb/ir.py` ever reads it, and nothing calls `Device.has_symbol` -- found while adding `activity.sleep_score`
-  (its complication needs ConnectIQ 6.0.2, above `fr955`'s 5.2.0 ceiling), and
-  worked around there by relying on `WfbComplications.mc`'s catch-both-
-  outcomes `subscribe()` instead of gating the source itself: the field just
-  never fills in on `fr955`, silently, rather than failing the build. That is
-  the right runtime behaviour, but a build-time lint surfacing "this source
-  is unsupported on device X" before the design ships would still be better
-  than discovering a blank field on the wrist -- `requires` is exactly the
-  field that lint would read, once written. **Opening up all 42
-  `COMPLICATION_TYPE_*` values as `complication.*` sources widened this gap's
-  surface roughly 4.5x** — from the nine complication-backed paths that used
-  to exist to all 42 — without changing anything about the gap itself: every
-  one of the 42 shares the exact same silent-absence behaviour on a device
-  that lacks it (`valueOf` returns `null`, `subscribe()` swallows both
-  outcomes a device can decline with), and `catalog.Source.requires` is set on
-  none of them, `complication.sleep_score` included (its ConnectIQ 6.0.2 floor
-  is documented in prose above and in `wfb/complications.py`'s `since` field,
-  not enforced by any check). Whoever eventually writes the check this bullet
-  and "checks that are exact" above both describe should expect `complication.
-  *` to be most of what it needs to cover on day one.
+* **Device gating for a source is only partly enforced** — ADR 0008's check
+  2, the other half of "per-device API availability" above. Two of the three pieces
+  are now built, and it is worth being precise about which:
+
+  * **`on_hold:` is checked** -- `check_hold_targets` resolves
+    `WatchFaceDelegate.onPress` against each target's own `api.debug.xml`.
+  * **A `complication.*` binding, and an `on_hold:`/`launch:` naming a
+    complication type, are checked** -- `check_complication_availability`
+    (code `complication-gated`) compares that type's `since`
+    (`wfb/complications.py`, from the SDK's own table) against the device's
+    own `Device.api_level` (from its `compiler.json`), and warns, suppressibly,
+    naming the device and both version numbers. `complication.sleep_score` on
+    `fr955` -- ConnectIQ 6.0.2 required against a 5.2.0 ceiling -- is the case
+    that motivated it and the one it currently catches.
+  * **Ordinary data sources are still unchecked.** `catalog.Source.requires`
+    (`Parent.name` symbols a binding needs on the target device) exists, is
+    set on exactly one source (`device.do_not_disturb`), and is still read by
+    nothing.
+
+  Note that the complication check deliberately does **not** go through
+  `requires`/`Device.has_symbol`, and could not: `has_symbol` indexes only the
+  `<functionEntry>` symbols scraped out of `api.debug.xml`, and
+  `COMPLICATION_TYPE_*` are constants that do not appear in that file at all
+  (checked directly, including for `COMPLICATION_TYPE_BATTERY`, which every
+  target supports). A version comparison is the only thing the available data
+  supports. Whoever writes the `requires` check for ordinary sources should
+  expect it to be a genuinely separate mechanism rather than an extension of
+  this one.
+
+  The runtime behaviour underneath all of this is unchanged and still correct:
+  a device that lacks a type returns `null` from `valueOf`, `subscribe()`
+  swallows both ways a device can decline, and the design renders as though
+  the value were simply absent -- the same "absence is normal" contract every
+  nullable source has. The check exists so that is a decision the author makes
+  knowingly, rather than something discovered as a blank field on the wrist.
