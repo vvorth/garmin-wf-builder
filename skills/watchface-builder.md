@@ -410,6 +410,35 @@ The hit region is the element's own drawn box, so put several elements in a
 `group` and hold that when you want a bigger target. There is no `on_tap:` --
 it was renamed, because no device delivers a tap to a live watch face.
 
+`on_hold: auto` resolves the target for you, from the element's own value
+binding, instead of naming one by hand:
+
+```yaml
+  - id: hr_value
+    type: text
+    value: heart_rate.current
+    format: "{:d}"
+    font: FONT_SMALL
+    on_hold: auto                 # resolves to 'heart_rate'
+```
+
+It errors (`hold-auto-unresolved` / `hold-auto-ambiguous`) rather than guess
+if the element's bound source has no conventional glance, or more than one
+candidate -- name a target explicitly in that case. A carousel element itself
+may not take `on_hold:` at all (`carousel-on-hold`); use each item's own
+`launch:` instead, which also accepts `auto`.
+
+**`complication.*` is a separate, wider namespace of its own** -- not just an
+`on_hold:` target. `wfb sources` lists all 42 alongside every other source,
+each prefixed `complication.` (e.g. `complication.body_battery`,
+`complication.sleep_score`). Reach for one only when there is no cheaper
+direct path -- most sources you would want are already bound directly
+(`activity.steps`, `heart_rate.current`, and so on), and those cost no extra
+permission or `minApiLevel` floor. `complication.body_battery` is the one
+genuinely common case with no direct alternative at all (Body Battery has no
+non-Complications, non-SensorHistory route, and a watch face may not declare
+`SensorHistory`).
+
 **A carousel** is a row of readings the *wearer* picks between -- the stock
 Forerunner face's data row. Use it when a design wants several readings in one
 place and there is no room for all of them, or when the wearer should choose:

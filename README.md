@@ -20,7 +20,7 @@ built      slice-fr955.prg            2,834 B / 131,072 B (2.2%)
 ```
 
 One command takes [`examples/slice/face.yaml`](examples/slice/face.yaml) through
-schema validation, a typed semantic pass, per-device layout resolution, twelve
+schema validation, a typed semantic pass, per-device layout resolution, eleven
 lint checks, font baking, Monkey C generation and `monkeyc` — for three devices,
 with no warnings.
 
@@ -185,6 +185,8 @@ examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
                       conditional colours, a badge and three arcs
 examples/carousel/    a data carousel -- a row of readings the wearer moves
                       through by touch and hold, one of three zones per press
+examples/complications/  complication.* bindings, on_hold: auto and a
+                      carousel item's launch: auto
 tests/                ? tests; only the `slow` ones need the Garmin toolchain
 docs/                 format reference, limitations, ADRs, Phase 0 research
 ```
@@ -219,7 +221,9 @@ only a generator can exploit. The reasoning is in [`docs/adr/`](docs/adr/).
 
 Phase 3 — breadth: the remaining element types, per-device overrides, the `raw`
 escape hatch, and configuration surfaces. Complications and interactivity have
-landed — `on_hold:` on any element, and `type: carousel` for a row of readings
-the wearer moves between. See
+landed — `on_hold:` (including `on_hold: auto`) on any element, `type:
+carousel` for a row of readings the wearer moves between, and all 42
+complication types as `complication.*` data sources, read by a plain pull with
+no cache anywhere in the generated face. See
 [`docs/limitations.md`](docs/limitations.md) §2 for the full list and `CLAUDE.md`
 §6 for the ordering.

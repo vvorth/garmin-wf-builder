@@ -57,7 +57,12 @@ With one deliberate qualification, which is where the "hybrid" lands:
 
 **A small hand-written Monkey C support barrel (`runtime-lib/`) is permitted for
 genuinely shared, data-independent logic** — arc geometry helpers, tick-scale
-maths, the `SensorHistory` iterator walk, refresh-tier caching. This is a
+maths, the `SensorHistory` iterator walk,
+~~refresh-tier caching~~ the complication subscribe/pull helper
+(`WfbComplications.mc` — see ADR 0005's amendment: this barrel file used to
+hold a TTL cache and per-type cached fields; both are gone, and what remains
+is a plain pull plus the subscription that keeps it current, not a cache).
+This is a
 *library the generated code calls*, not an interpreter: it contains no dispatch
 on serialised layout data, and anything unused is excluded per design by the
 generator, which decides which barrel files to copy into the project at all

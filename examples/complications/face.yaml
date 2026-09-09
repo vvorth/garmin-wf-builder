@@ -1,0 +1,151 @@
+# Demonstrates the surface added when the refresh-tier concept was deleted
+# and Complications became a full 42-type data-source namespace: two
+# `complication.*` bindings, `on_hold: auto` resolving a launch target from
+# an element's own value, and a carousel item using `launch: auto` too.
+#
+# Build it with:  ./wfb.py build examples/complications/face.yaml
+#
+# `complication.*` is always read through Toybox.Complications; every other
+# path here (`heart_rate.current`, `activity.*`, `system.battery`) is always
+# a direct API read -- see docs/format.md's "The complication.* namespace"
+# section for when to prefer one over the other. Both `complication.*`
+# sources below (body_battery, solar_input) have no direct-read alternative
+# at all, which is exactly the case the namespace exists for.
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 2e397ee6-193f-4157-accf-013e47ada318
+  name: Complications
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour is one the 64-colour MIP panel can show without dithering:
+# each channel is 0x00, 0x55, 0xAA or 0xFF.
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#555555"
+  accent: "#FF5500"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: -22% }
+    color: palette.fg
+
+  # -- heart rate: a direct read, with on_hold: auto ------------------------
+  # 'heart_rate.current' has a conventional launch target (`heart_rate`,
+  # wfb.catalog.Source.launch_complication) -- 'auto' below resolves it, so
+  # a hold on this text opens the heart-rate glance without naming it by hand.
+  - id: hr_icon
+    type: icon
+    icon: heart
+    at: { anchor: center, dx: -26%, dy: -1% }
+    size: 9%r
+    color: palette.accent
+
+  - id: hr_value
+    type: text
+    value: heart_rate.current
+    format: "{:d}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -26%, dy: 10% }
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+    on_hold: auto              # resolves to 'heart_rate'
+
+  # -- body battery: only reachable through Complications --------------------
+  # Toybox.SensorHistory is the only other route to Body Battery, and it is a
+  # permission a Watch Face may not declare at all
+  # (Core_Topics/Manifest_and_Permissions.html's table has a blank Watch Face
+  # column for it) -- so 'complication.body_battery' is not a convenience
+  # here, it is the only way in.
+  - id: body_battery_icon
+    type: icon
+    icon: battery
+    at: { anchor: center, dy: -1% }
+    size: 9%r
+    color: palette.accent
+
+  - id: body_battery_value
+    type: text
+    value: complication.body_battery
+    format: "{:d}"
+    font: FONT_XTINY
+    at: { anchor: center, dy: 10% }
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+
+  # -- solar input: also only reachable through Complications -----------------
+  - id: solar_icon
+    type: icon
+    icon: weather_sunny
+    at: { anchor: center, dx: 26%, dy: -1% }
+    size: 9%r
+    color: palette.accent
+
+  - id: solar_value
+    type: text
+    value: complication.solar_input
+    format: "{:.0f}%"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 26%, dy: 10% }
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+
+  # -- a carousel, with 'launch: auto' on one item ---------------------------
+  - id: data
+    type: carousel
+    at: { anchor: center, dy: 26% }
+    size: { width: 52%, height: 20% }   # the TOUCH target, not the drawn extent
+    pitch: 22%r
+    slots: 3
+    icon_size: 9%r
+    color: palette.accent
+    inactive_color: palette.dim
+    value_font: FONT_SMALL
+    value_color: palette.fg
+    value_offset: { anchor: center, dy: 34% }
+    animate: 0.3
+    items:
+      # 'activity.calories' has a conventional launch target ('calories'),
+      # so 'auto' resolves it the same way 'on_hold: auto' does above --
+      # scoped to this one item, not the carousel as a whole (a carousel
+      # element cannot itself take 'on_hold:').
+      - value: activity.calories
+        format: "{:d}"
+        when_absent: fallback
+        fallback: "0"
+        launch: auto           # resolves to 'calories'
+
+      - value: activity.steps
+        format: "{:d}"
+        when_absent: placeholder
+        placeholder: "--"
+        launch: steps           # named explicitly, for contrast with 'auto'
+
+      # No 'launch:': a hold on the centre zone while this item is selected
+      # consumes the touch and opens nothing.
+      - icon: battery
+        value: system.battery
+        format: "{:.0f}%"

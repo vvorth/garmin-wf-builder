@@ -224,8 +224,14 @@ restriction and more code; `animate()` is the right choice.
 
 A carousel of *n* items displays one value. Reading all *n* every frame is
 waste that grows with the item count, and some of the interesting sources
-(`body_battery.current`, `weather.*`) are `event`- or `slow`-tier and carry a
-subscription or a cache each.
+(`complication.body_battery`, `weather.*`) were, at the time this was
+written, `event`- or `slow`-tier and carried a subscription or a cache each.
+**That tier system no longer exists — see ADR 0005's amendment.** Every
+source is now a plain read; `complication.*` sources still carry a
+subscription (registered in `onLayout`, for freshness, not caching — see
+`docs/format.md`'s "How data is read"), but there is no TTL cache anywhere
+any more. The reasoning below about per-reader hoisting is unaffected by this;
+only the tier vocabulary it uses is dated.
 
 The right shape is a `switch` on the selected index around the value read and
 its formatting, so an unselected item costs only its icon glyph — which is
@@ -242,13 +248,14 @@ duplicate the reader hoisting into every `case`. What is genuinely per-item —
 `.format()` on the value, and the item's own null policy — *is* inside the
 switch, so an unselected item costs only its icon glyph.
 
-Where the cost would be real is a row mixing `event`- or `slow`-tier sources,
-which carry a subscription or a cached read each. That cost is not avoidable by
-gating either: a complication subscription must be registered in `onLayout` for
-**all** items regardless of selection, because a subscription is not a read,
-and a `slow` read is already cached behind its TTL rather than taken per frame.
-So the honest summary is that the saving this section anticipated mostly does
-not exist, and the code is simpler for not chasing it.
+Where the cost would be real is a row mixing complication-backed sources,
+which carry a subscription each (no longer a *cached read* for anything — the
+TTL cache this paragraph originally described is gone, ADR 0005's amendment).
+That cost is not avoidable by gating: a complication subscription must be
+registered in `onLayout` for **all** items regardless of selection, because a
+subscription is not a read. So the honest summary is that the saving this
+section anticipated mostly does not exist, and the code is simpler for not
+chasing it.
 
 Icons for the items come for free: `METRIC_ICON` / `icon_for_source()` in
 `wfb/icons.py` already map a catalogue data-source path to its conventional
@@ -387,10 +394,12 @@ follows is the shape and the decisions behind it.
   keeping with ADR 0004, but it needs a new kind of cross-element reference
   (`value: carousel.data`) for a pairing that is never anything but one-to-one.
   Owning it also makes the icon/reading pair impossible to desynchronise.
-* *Does a carousel participate in `modes:`?* Yes, unchanged — the existing
-  refresh-tier check governs what it may bind in `low_power`, and the
-  partial-update clip already charges by area. Nothing carousel-specific was
-  needed.
+* *Does a carousel participate in `modes:`?* Yes, unchanged. (At the time this
+  was written, a refresh-tier check governed what it could bind in
+  `low_power`; that check no longer exists, ADR 0005's amendment — any source
+  may be bound in `low_power` now, guarded only by the `partial-update-budget`
+  heuristic.) The partial-update clip already charges by area. Nothing
+  carousel-specific was needed.
 * *Should `persist:` default on?* Yes. It is what the stock face does, and a
   carousel whose selection resets on every restart is worse than useless.
   `persist: false` opts out.

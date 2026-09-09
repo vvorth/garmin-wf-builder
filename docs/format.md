@@ -470,11 +470,22 @@ sense for something the wearer is navigating. The carousel's own colours may
 therefore **not** be nullable: there is no `when_absent:` for the row's
 appearance, so guard a conditional colour inside the expression instead.
 
-**`launch:` is optional per item.** With it, a centre-hold opens that
-complication's glance (`wfb complications` lists the names). Without it, the
-hold is consumed and nothing opens, which is the honest outcome for a reading
-no glance owns. A carousel where no item declares one needs no
-`ComplicationSubscriber` permission and no raised `minApiLevel`.
+**`launch:` is optional per item, and also accepts `auto`.** With a name, a
+centre-hold opens that complication's glance (`wfb complications` lists the
+names). With `launch: auto`, the compiler resolves the target itself from
+*that item's own* `value:` binding, via `Source.launch_complication` — see
+"`on_hold: auto` / `launch: auto`" under Interactivity below for how that
+resolution works and what it does when it cannot decide. Without `launch:` at
+all, the hold is consumed and nothing opens, which is the honest outcome for a
+reading no glance owns. A carousel where no item declares a launch target
+needs no `ComplicationSubscriber` permission and no raised `minApiLevel`.
+
+**A carousel element may not itself take `on_hold:`.** Its whole box is
+already three hold zones — left/right cycle the row, centre opens the
+selected item's `launch:` — so there is nothing left for an element-level
+hold to mean. This used to validate cleanly and be silently dropped by the
+emitter; it is now the `carousel-on-hold` build error, pointing at per-item
+`launch:` instead.
 
 **The slide only runs while the watch is awake.** `WatchUi.animate` is
 documented to *crash the app* if called from a watch face in low power mode, so
@@ -487,123 +498,172 @@ not an assumption. `animate: 0` opts out entirely.
 
 ## Data binding
 
-Sources are addressed by dotted path and carry a type, a nullability, a
-permission and a refresh tier.
+Sources are addressed by dotted path and carry a type, a nullability, and any
+permission binding it implies.
 
 ```yaml
 value: activity.steps
 value: heart_rate.current
 value: system.battery
 value: time.clock
+value: complication.body_battery
 ```
 
 **`wfb sources` is the authoritative, always-current list** -- run it rather
 than trusting a copy pasted into prose, which goes stale the moment the
 catalogue grows. For each path it prints the type, whether it is nullable,
-any non-`frame` refresh tier, any permission it implies, and the SDK page it
-was taken from:
+any permission it implies, its conventional `on_hold: auto` target (if it has
+one), and the SDK page it was taken from:
 
 ```
 $ wfb sources
 activity
-  activity.steps                     number   steps today  [nullable]  (Toybox/ActivityMonitor/Info.html)
+  activity.steps                     number   steps today  [nullable, on_hold: auto -> steps]  (Toybox/ActivityMonitor/Info.html)
+  ...
+complication
+  complication.body_battery          number   a Number representing your current body battery  [nullable, needs ComplicationSubscriber, on_hold: auto -> body_battery]  (Toybox/Complications.html)
   ...
 heart_rate
-  heart_rate.current                 number   current heart rate  [nullable]  (Toybox/Activity/Info.html)
+  heart_rate.current                 number   current heart rate  [nullable, on_hold: auto -> heart_rate]  (Toybox/Activity/Info.html)
   ...
 ```
 
 As of this writing the catalogue covers `time.*`, `date.*` (including the
 localised month name and weekday), `device.*` (notification/alarm counts,
-do-not-disturb, phone-connected, 24-hour setting, next calendar event),
-`system.*` (battery, charging, solar charging input), `activity.*` (steps,
-calories, distance, floors, move bar, intensity minutes, stress score,
-respiration rate, time to recovery, training status, weekly run/bike
-distance, sleep score), `heart_rate.current`, `pulse_ox.current`, `ambient.*`
-(altitude, barometric pressure), `weather.*` (current condition and
-temperature, feels-like, today's high/low and precipitation chance, humidity,
-wind speed, today's/tomorrow's forecast condition, sunrise/sunset — see
-`icon_for:` above for turning a condition into a drawn icon), `user.*`
-(running/cycling VO2 max, resting heart rate, from `Toybox.UserProfile`) and
-`body_battery.current`.
+do-not-disturb, phone-connected, 24-hour setting), `system.*` (battery,
+charging), `activity.*` (steps, calories, distance, floors, move bar,
+intensity minutes, stress score, respiration rate, time to recovery),
+`heart_rate.current`, `pulse_ox.current`, `ambient.*` (altitude, barometric
+pressure), `weather.*` (current condition and temperature, feels-like,
+today's high/low and precipitation chance, humidity, wind speed,
+today's/tomorrow's forecast condition — see `icon_for:` above for turning a
+condition into a drawn icon), `user.*` (running/cycling VO2 max, resting
+heart rate, from `Toybox.UserProfile`), and `complication.*` (below).
 
-**Complications back several of the sources above** (`COMPLICATION_TYPE_*`,
-`Toybox/Complications.html`, API 4.2.0) — `body_battery.current`,
-`system.solar_input`, `weather.sunrise`/`sunset`, `activity.training_status`,
-`activity.weekly_run_distance`/`weekly_bike_distance`,
-`activity.sleep_score` and `device.next_calendar_event` — because none of
-them is reachable any other way: Body Battery, for instance, is otherwise
-exposed only through `Toybox.SensorHistory`, a permission **watch faces are
-not allowed to declare at all** (`Core_Topics/Manifest_and_Permissions.html`'s
-permission table has a blank Watch Face column for it). These sit on the
-`event` refresh tier, not `frame` or `slow`: nothing is fetched on a schedule
-at all, `Complications.registerComplicationChangeCallback` pushes a new value
-whenever one arrives, and the generated view just keeps the most recent one
-in a field (see "Refresh tiers" below). Binding any of them adds the
-`ComplicationSubscriber` permission and raises `minApiLevel` to 4.2.0
-automatically, the same way any other binding derives its own requirements.
+### The `complication.*` namespace, and the one rule for reaching it
+
+**`complication.<type>` is *always* read through `Toybox.Complications`; every
+other catalogue path is *always* a direct API read.** No exceptions, no
+overlap. All 42 real `COMPLICATION_TYPE_*` values are exposed
+(`COMPLICATION_TYPE_INVALID` is not a real value and is excluded), generated
+from one table, `wfb/complications.py`'s `TYPES` — transcribed verbatim from
+`Toybox/Complications.html`'s own Type table, not hand-copied, so it cannot
+silently drift from what the platform actually offers. `wfb complications`
+prints all 42, the Monkey C constant each compiles to, and the API level it
+was introduced at.
+
+```yaml
+- id: body_battery_reading
+  type: text
+  value: complication.body_battery
+  format: "{:d}"
+  font: FONT_SMALL
+  when_absent: placeholder
+  placeholder: "--"
+```
+
+A `complication.*` binding compiles to a plain pull, exactly like any other
+source — `WfbComplications.valueOf(new Complications.Id(Complications.
+COMPLICATION_TYPE_BODY_BATTERY))` — cast to the source's own type
+(`Complications.Complication.value` is a union of `String or Number or Float
+or Long or Double or Null`, so the cast is required, not decorative). Binding
+one adds the `ComplicationSubscriber` permission and raises `minApiLevel` to
+4.2.0 automatically. `wfb/emit/monkeyc.py` also emits one
+`WfbComplications.subscribe(...)` per bound type in `onLayout`, whose whole
+job is `WatchUi.requestUpdate()` on change — this is *not* a cache (see "How
+data is read", below), it exists only so a value that changes after the first
+draw is not stuck stale forever.
+
+**Prefer a direct-read source over its complication counterpart whenever both
+exist.** `heart_rate.current`, `activity.steps`, `weather.condition` and
+around twenty others are also reachable via `complication.*`
+(`complication.heart_rate`, `complication.steps`, `complication.
+current_weather`, ...), but the direct path is strictly cheaper: no
+`ComplicationSubscriber` permission, no `minApiLevel` floor of 4.2.0, and no
+subscription. The complication route exists **only** for values with no
+other way in — most usefully `complication.body_battery`
+(`Toybox.SensorHistory` is the only other route to Body Battery, and it is a
+permission **watch faces are not allowed to declare at all** —
+`Core_Topics/Manifest_and_Permissions.html`'s table has a blank Watch Face
+column for it), plus `complication.solar_input`, `complication.sunrise`/
+`sunset`, `complication.training_status`, `complication.
+weekly_run_distance`/`weekly_bike_distance`, `complication.sleep_score` and
+`complication.calendar_events`. These nine used to be bound through a
+direct-looking path (`body_battery.current`, `weather.sunrise`, and so on);
+binding the old path now raises **`source-renamed`**, naming the
+`complication.*` replacement, because the value moved without the platform
+actually changing what it means.
 
 A device can decline to support a given complication type outright — most
-relevantly here, `activity.sleep_score` needs ConnectIQ 6.0.2, above `fr955`'s
-own 5.2.0 ceiling (its `compiler.json`), so it will never update there.
-`runtime-lib/WfbComplications.mc`'s `subscribe()` absorbs this the same way
-every other nullable source is absorbed: the field just never gets filled in,
-rather than the subscription throwing. A design that binds
-`activity.sleep_score` will show nothing at all on `fr955` specifically —
-worth knowing before relying on it there.
+relevantly here, `complication.sleep_score` needs ConnectIQ 6.0.2, above
+`fr955`'s own 5.2.0 ceiling (its `compiler.json`), so it will never update
+there. `runtime-lib/WfbComplications.mc`'s `subscribe()` absorbs this the
+same way every other nullable source is absorbed: `valueOf` just returns
+`null` on a device that does not support the type, rather than the
+subscription throwing. A design that binds `complication.sleep_score` will
+show nothing at all on `fr955` specifically — worth knowing before relying on
+it there. This is a **per-device gap that is not itself checked** — see
+`docs/limitations.md` §3, "device gating for a source is not enforced".
 
-*Redundant with a direct source and deliberately not added*: complications
-duplicating a field already bound directly (`COMPLICATION_TYPE_STEPS`,
-`_CALORIES`, `_HEART_RATE`, `_ALTITUDE`, `_VO2MAX_RUN`, `_VO2MAX_BIKE`,
-`_RECOVERY_TIME`, `_STRESS`, `_CURRENT_WEATHER`, `_CURRENT_TEMPERATURE`,
-and several more — a direct `ActivityMonitor`/`Activity`/`Weather`/
-`UserProfile` read is cheaper and needs no subscription). *Left out as
-niche*: the eight race-time and race-pace predictors, `LAST_GOLF_ROUND_SCORE`
-and `WHEELCHAIR_PUSHES` — nothing platform-specific blocks adding these later
-if a design needs one; they simply were not among the commonly-used fields
-this pass targeted.
+*Redundant with a direct source and deliberately not added as its own
+entry*: a complication duplicating a field already bound directly
+(`COMPLICATION_TYPE_STEPS`, `_CALORIES`, `_HEART_RATE`, `_ALTITUDE`,
+`_VO2MAX_RUN`, `_VO2MAX_BIKE`, `_RECOVERY_TIME`, `_STRESS`,
+`_CURRENT_WEATHER`, `_CURRENT_TEMPERATURE`, and more) is still present as
+`complication.*` — the catalogue is complete, all 42 types — but a design
+should reach for the cheaper direct path first; `wfb sources`' `on_hold:
+auto -> ...` annotation on the direct source is the same hint applied to
+launch resolution.
 
-**One thing genuinely still isn't bindable**: a running-only *total* distance
-(as opposed to weekly). `COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE` is a *weekly*
-total, not all-time, and there is no other platform field for it short of
-aggregating `UserProfile.getUserActivityHistory()` by hand, which is real
-computation ADR 0005 deliberately keeps out of the expression language.
+**One thing genuinely still isn't bindable, through either route**: a
+running-only *total* distance (as opposed to weekly).
+`COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE` is a *weekly* total, not all-time, and
+there is no other platform field for it short of aggregating
+`UserProfile.getUserActivityHistory()` by hand, which is real computation
+ADR 0005 deliberately keeps out of the expression language.
 `activity.distance` (today's ambient distance, every activity type) remains
 the nearest thing actually bindable.
 
 See `docs/limitations.md` §2 for what is still missing from the catalogue.
 
-### Refresh tiers
+### How data is read
 
-A `slow`-tier source (`weather.*`) is not re-read every frame the way a
-`frame`-tier one is: the generated view caches the last read in a field and a
-UTC-seconds timestamp, and only calls the API again once that reading is older
-than a fixed TTL (`WfbCache.mc`, `wfb/emit/monkeyc.py`'s `ReadPlan`). Two
-elements bound to the same underlying reader — `weather.condition_today` and
-`weather.condition_tomorrow` both read one `getDailyForecast()` call, for
-instance — share one cache and one read, not one each.
+**Every binding is a plain read, every frame, unconditionally. Nothing is
+cached inside the generated face.** An earlier version of this compiler
+graded sources `frame`/`slow`/`event` and cached the two slower grades — a
+TTL for one, a subscribed field for the other — on the theory some Garmin API
+calls were too expensive to make every frame. That theory was wrong: the SDK
+documents its own calls as already cached on *its* side —
+`Toybox/Weather.html` describes `getCurrentConditions()` as "get the **most
+recently cached** weather conditions", not "fetch weather conditions" — so a
+second cache inside the 128 KB watch-face budget bought nothing but code and
+memory. It is gone. `wfb/emit/monkeyc.py`'s `ReadPlan` hoists one read per
+distinct reader per element method the way it always did (two elements
+sharing `weather.getDailyForecast()` still share one call, not one each), and
+that is the entire optimisation — no staleness check, no field, no TTL.
 
-An `event`-tier source (every complication-backed one above) is not read on
-any schedule at all: the view subscribes once, in `onLayout`
-(`WfbComplications.subscribe`, one call per complication, registered against
-one shared `onComplicationChanged` callback), and that callback is what
-writes the cached field — `onUpdate` just reads whatever is there, the same
-`var x = <cache>;` shape a `frame`-tier read uses, with no staleness check
-because there is nothing to re-fetch on demand.
+**Consequence: any source, including `weather.*` and `complication.*`, may
+now be bound from a `low_power` or `always_on` element.** The compiler used
+to reject that outright for anything but a `frame`-tier source; it no longer
+does. This does **not** make reading them free in `onPartialUpdate` — exceeding
+that handler's power budget still calls `onPowerBudgetExceeded` and disables
+partial updates **permanently, for the rest of the app's lifecycle**, and that
+has not changed. What changed is *who* is responsible for staying under it:
+previously the compiler refused the design outright; now the suppressible
+`partial-update-budget` lint is the only thing standing between an author and
+an expensive `low_power` read — a `weather.*` or `complication.*` binding
+there is exactly the case its own warning names as the one to check first. If
+your design draws in `low_power`, read the "Modes" section below and treat
+that warning as load-bearing, not optional.
 
-Neither a `slow` nor an `event` tier source may be bound from a
-`low_power`-mode element: `onPartialUpdate` runs under a strict power budget
-that only frame-tier reads are cheap enough for, and the compiler rejects the
-design outright rather than silently reading something wrong.
-
-If a value you want is missing and it is not one of the two above, check the
-underlying Garmin API page: `Toybox/ActivityMonitor/Info.html`,
-`Toybox/System/Stats.html`, `Toybox/System/DeviceSettings.html`,
-`Toybox/Activity/Info.html`, `Toybox/Weather/*.html` and
-`Toybox/UserProfile/Profile.html` are where the current catalogue draws from,
-and each has more fields than are exposed today -- adding one is a
-`wfb/catalog.py` entry (path, type, nullability, tier, permission, the SDK
-field it reads), not a schema change. Before adding one, check the field's own
+If a value you want is missing, check the underlying Garmin API page:
+`Toybox/ActivityMonitor/Info.html`, `Toybox/System/Stats.html`,
+`Toybox/System/DeviceSettings.html`, `Toybox/Activity/Info.html`,
+`Toybox/Weather/*.html`, `Toybox/UserProfile/Profile.html` and
+`Toybox/Complications.html` are where the current catalogue draws from, and
+each has more fields than are exposed today -- adding one is a
+`wfb/catalog.py` entry (path, type, nullability, permission, the SDK field it
+reads), not a schema change. Before adding one, check the field's own
 "Supported Devices" list in the SDK doc against the three targets by name --
 several fields on these pages are gated per device even though the class
 itself is universal (`ambientPressure`, `vo2maxRunning` and others all needed
@@ -730,10 +790,18 @@ The compiler computes the **tightest `setClip` rectangle** around all `low_power
 elements, because clip cost is charged by region *area* — every pixel inside the
 clip counts as modified whenever any does.
 
-**A `low_power` element may only read `frame`-tier sources.** This is an error,
-and it is not suppressible: exceeding the partial-update budget calls
-`onPowerBudgetExceeded` and disables partial updates for the rest of the app's
-lifecycle.
+**Any source may now be read from a `low_power` element — there is no
+compile-time restriction on which.** See "How data is read" above: nothing is
+cached in the generated face, so there is no longer a cheap/expensive class of
+source for the compiler to gate on. That does **not** mean every source is
+equally safe to read there. Exceeding the `onPartialUpdate` power budget calls
+`onPowerBudgetExceeded` and disables partial updates **permanently, for the
+rest of the app's lifecycle** — the platform limit is exactly as real as it
+ever was, only the enforcement moved: it is now the suppressible
+`partial-update-budget` warning, not a hard build error, so read it and act on
+it rather than assuming a green build means a safe one. A `weather.*` or
+`complication.*` read in `low_power` is the case its own message names as the
+one to look at first.
 
 ---
 
@@ -802,6 +870,44 @@ Binding `on_hold:` adds the `ComplicationSubscriber` permission and raises
 `minApiLevel` to 4.2.0 automatically — `exitTo`'s own level. Nothing emitted
 references `onTap`, so its 5.1.0 never enters into it.
 
+### `on_hold: auto`
+
+Naming a complication type by hand is often redundant with what the element
+already displays. `on_hold: auto` resolves the target for you, from the
+element's own **value** binding:
+
+```yaml
+- id: hr_value
+  type: text
+  value: heart_rate.current
+  format: "{:d}"
+  font: FONT_SMALL
+  at: {anchor: center, dy: -20%}
+  on_hold: auto              # resolves to 'heart_rate' -- same as writing it
+```
+
+The compiler looks at the element's value expression(s) only — a `text`'s
+`value:`, an `icon`'s `icon_for:`, a `progress`'s `value:` — deliberately
+never `color:`, `track_color:` or `max:`, because a conditional colour's own
+source reference is not what the element is *about*. It resolves through
+`Source.launch_complication`, the same field `wfb sources`' `on_hold: auto ->
+...` annotation shows for every source that has one:
+
+* **Exactly one distinct target among the bound source(s)** — `auto` becomes
+  that target, same as naming it.
+* **None** (including an element with no value binding at all, or one whose
+  source has no conventional counterpart) — build error `hold-auto-
+  unresolved`, naming the source(s) it looked at and pointing at `wfb
+  complications` for a name to write explicitly.
+* **More than one distinct target** (an expression combining two sources that
+  point at different glances) — build error `hold-auto-ambiguous`, listing
+  the candidates.
+
+Both are errors rather than warnings: guessing here would silently open the
+wrong glance, which is exactly the class of failure this compiler exists to
+prevent. A carousel item's `launch:` accepts `auto` the same way, resolved
+from that one item's own `value:` — see `carousel` above.
+
 ---
 
 ## Lint suppression
@@ -813,9 +919,10 @@ lint:
 ```
 
 `reason` is required — a suppression without a stated reason is how linters get
-disabled wholesale. Errors that reflect hard platform limits (refresh tiers,
-missing glyphs, off-screen geometry) are **not** suppressible: silencing one
-produces a face that does not work.
+disabled wholesale. Errors that reflect hard platform limits (missing glyphs,
+off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
+`carousel-on-hold`) are **not** suppressible: silencing one produces a face
+that does not work.
 
 Exactly five codes are suppressible: `palette-dither`, `safe-area`,
 `text-overflow`, `contrast` and `partial-update-budget`. **A code that is not one

@@ -175,15 +175,16 @@ through `WfbWeather.mc`, mirroring `wfb.icons.weather_icon_for_condition()`)
 and its full reading set -- temperature, feels-like, today's high/low and
 precipitation chance, humidity, wind speed -- both shipped; see
 `docs/format.md`'s `icon_for` and "Data binding" sections. Body Battery
-(`body_battery.current`) and a daylight arc's sunrise/sunset data
-(`weather.sunrise`/`weather.sunset`) also both shipped, all three through
-Complications (`event` refresh tier) rather than a direct API field -- see
-`docs/format.md`'s "Data binding" section. Nothing in `examples/dashboard/`
-binds them yet; that is an example-content update, not a platform gap. The
-history graph is the one thing left, and it additionally needs an element
-type that plots a series, which is the strongest argument in the codebase for
-the `raw` escape hatch: a sparkline is exactly the sort of thing that should
-drop to hand-written Monkey C rather than growing the schema.
+(`complication.body_battery`) and a daylight arc's sunrise/sunset data
+(`complication.sunrise`/`complication.sunset`) also both shipped, all three
+through `Toybox.Complications`, read the same way every other source is now
+read -- a plain per-frame pull, see `docs/format.md`'s "Data binding" section
+-- not a direct API field. Nothing in `examples/dashboard/` binds them yet;
+that is an example-content update, not a platform gap. The history graph is
+the one thing left, and it additionally needs an element type that plots a
+series, which is the strongest argument in the codebase for the `raw` escape
+hatch: a sparkline is exactly the sort of thing that should drop to
+hand-written Monkey C rather than growing the schema.
 
 | Missing | Where it is specified |
 |---|---|
@@ -200,18 +201,42 @@ drop to hand-written Monkey C rather than growing the schema.
 | ADR 0008's check 2, **unsupported API for a targeted device**, for anything other than `on_hold:` | `on_hold:` resolves `WatchFaceDelegate.onPress` against each device's own symbol table, so the machinery is live — but `catalog.Source.requires` still consults nothing; §3 below has the detail |
 | `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
 
-The `slow` refresh tier and its TTL cache (ADR 0005 §5) **shipped** --
-`weather.*` is its first real source; see `docs/format.md`'s "Data binding"
-section and `WfbCache.mc`. The `event` refresh tier -- Complications --
-**also shipped**: `body_battery.current`, `system.solar_input`,
-`weather.sunrise`/`sunset`, `activity.training_status`,
-`activity.weekly_run_distance`/`weekly_bike_distance`, `activity.sleep_score`
-and `device.next_calendar_event` are all backed by one `COMPLICATION_TYPE_*`
-subscription each; see `docs/format.md`'s "Refresh tiers" section and
-`WfbComplications.mc`. `activity.sleep_score` is a partial exception worth
-tracking separately: its complication needs ConnectIQ 6.0.2, above `fr955`'s
-own 5.2.0 ceiling, so it never updates there (below, "device gating for a
-source is not enforced").
+**The refresh-tier concept (ADR 0005 §5) shipped and was then deleted
+outright**, on the user's own explicit instruction: `catalog.Tier`,
+`Reader.tier`, `Reader.ttl_seconds`, `Source.tier`, `wfb/ir.py`'s
+`_check_tiers` and `runtime-lib/WfbCache.mc` are all gone. Rationale: every
+value already comes from a Garmin API that documents itself as caching on its
+own side (`Toybox/Weather.html`'s `getCurrentConditions()` is "get the most
+**recently cached** weather conditions"), so a second TTL cache inside the
+128 KB budget bought nothing. Every source, `weather.*` and `complication.*`
+included, is now a plain per-frame read -- see `docs/format.md`'s "How data
+is read" section. One real consequence: a `weather.*` or `complication.*`
+binding may now be used from a `low_power`/`always_on` element, where it used
+to be a hard, unsuppressible build error. It is no longer rejected outright;
+it is now the author's own responsibility, backed only by the suppressible
+`partial-update-budget` warning -- see §3 below and `docs/format.md`'s
+"Modes" section. **Complications are read by pull, not by subscription
+callback**: `WfbComplications.valueOf` is called from `onUpdate` exactly like
+any other reader, cast to the source's declared type because
+`Complication.value` is a union type. A subscription is still registered once
+per bound type in `onLayout`, but only to call `WatchUi.requestUpdate()` on
+change -- it is not a cache, and dropping it entirely was deliberately not
+tried: whether a pulled complication value would *stay* fresh with no
+subscription at all is **unverified**, because this container has no working
+simulator (§2 below, "The simulator does not run in a headless Linux
+container") to test it against. All 42 `COMPLICATION_TYPE_*` values are now
+data sources under `complication.*`, not the nine that used to be exposed
+under other names -- `complication.body_battery`, `complication.
+solar_input`, `complication.sunrise`/`sunset`, `complication.
+training_status`, `complication.weekly_run_distance`/`weekly_bike_distance`,
+`complication.sleep_score` and `complication.calendar_events` are the nine
+renamed ones (old path names now raise a `source-renamed` build error naming
+the replacement); see `docs/format.md`'s "The `complication.*` namespace"
+section and `WfbComplications.mc`. `complication.sleep_score` is a partial
+exception worth tracking separately: it needs ConnectIQ 6.0.2, above
+`fr955`'s own 5.2.0 ceiling, so it never updates there (below, "device
+gating for a source is not enforced") -- unchanged by the rename, just
+restated under its new path.
 
 ### Screen shapes
 
@@ -222,11 +247,27 @@ geometry check reports "not checked" instead of guessing.
 ### The simulator does not run in a headless Linux container
 
 `wfb simulate` works where the Connect IQ simulator does. It is a GUI
-application, and on Linux it links against `libwebkit2gtk-4.0` and `libsoup-2.4`,
-which current distributions no longer ship. Even with those libraries supplied,
-the simulator **segfaults on app load under Xvfb with software OpenGL** — and it
-does so with an unmodified SDK sample `.prg`, so this is an environment
-limitation and not a property of generated faces.
+application, and on Linux it links against `libwebkit2gtk-4.0`, `libsoup-2.4`
+and `libjavascriptcoregtk-4.0`, which current distributions no longer ship.
+
+Supplying them is not enough, and the failure is worth stating precisely because
+the obvious reading of it is wrong. On an `ubuntu:22.04` base — which still
+packages all three natively, so every one of the simulator's 27 otherwise-missing
+shared libraries resolves — the simulator **starts**: it opens its window under
+Xvfb and sits there. It then **segfaults the moment a `.prg` is pushed to it**
+with `monkeydo`, which is the "on app load" failure, and it does so with an
+unmodified SDK sample `.prg` — an environment limitation, not a property of
+generated faces.
+
+The faulting frame is on a worker thread the simulator spawns during app load,
+**entirely inside its own stripped executable**; GTK, WebKit and JavaScriptCore
+appear nowhere on the stack. `libGL` is not among the loaded objects at all, so
+this is not a software-OpenGL problem — an earlier version of this document said
+it was, and the backtrace disproves it. Ruled out by direct test, each varied on
+its own: `/dev/shm` at 64 MB and at 2 GB; Docker's default seccomp profile and
+`--security-opt seccomp=unconfined`; running as uid 1000 and as root; the device
+definitions mounted read-only and copied in writable; and WebKit's
+`DISABLE_COMPOSITING_MODE` / `DISABLE_SANDBOX` escape hatches.
 
 `wfb preview` is the answer in that environment: it renders from the same
 resolved geometry the generated code uses, so the two cannot disagree about
@@ -245,7 +286,8 @@ edges matter more than its coverage.
 
 Data-source spelling; palette legality; geometry against the framebuffer and the
 visible area (round and rectangle only); glyph coverage of a subsetted font;
-refresh tiers; contrast arithmetic.
+contrast arithmetic. (There is no longer a refresh-tier check to list here --
+the tier concept itself was deleted; see §2 above.)
 
 A `carousel` is the one element checked against its **drawn** extent rather
 than its box, because its box is deliberately larger — it is the touch target.
@@ -271,7 +313,7 @@ side.
 | Check | What it actually knows |
 |---|---|
 | **Memory** | *Measured*, not estimated — but the figure is the **static foreground** total from `monkeyc --build-stats`. Resources loaded at runtime (fonts, bitmaps) add to it and are **not** measured. A face near the limit needs checking on device. |
-| **Partial-update power budget** | **A heuristic.** Garmin does not publish the numeric budget; the docs say only "strict limits". The check flags relative cost — clip area and operation count — and is labelled a heuristic until measured empirically against `onPowerBudgetExceeded`. |
+| **Partial-update power budget** | **A heuristic, and now the only guard.** Garmin does not publish the numeric budget; the docs say only "strict limits". The check flags relative cost — clip area and operation count — and is labelled a heuristic until measured empirically against `onPowerBudgetExceeded`. Until the refresh-tier deletion (§2 above) this was backed by a hard, unsuppressible compile error barring `weather.*`/`complication.*` from `low_power`; that error is gone, so this suppressible heuristic is now the *entire* build-time defence against overrunning a budget whose overrun is **permanent**. Treat a warning here on a `low_power` element more seriously than its "heuristic" label alone would suggest. |
 | **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is **always an estimate** — Garmin publishes each `FONT_*` symbol's pixel *height* per device and language, but not its per-glyph advances, and the real typefaces (Pridi, Roboto Condensed, Bionic, ...) are not available on the host or in the SDK. The estimate scales a real scalable stand-in face to the device's published height and measures per character (`wfb/fonts/fallback.py`), which is why it needs that per-device height to be correct in the first place — a flat 0.55 em/character coefficient is a last-resort fallback used only if even that stand-in face fails to load. Every system-font measurement is labelled `(estimated)` in the generated code regardless. |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
 | **`carousel-zone`, narrow-zone half** | Splitting the box into thirds is exact; the **40px minimum** each third is measured against is not a Garmin number — Garmin publishes no minimum touch size — so it is this compiler's judgement and the message says so. The other half of the check, whether a zone reaches under a round screen's bezel, *is* exact resolved geometry. |
@@ -337,4 +379,15 @@ check that refuses suppression on purpose.
   the right runtime behaviour, but a build-time lint surfacing "this source
   is unsupported on device X" before the design ships would still be better
   than discovering a blank field on the wrist -- `requires` is exactly the
-  field that lint would read, once written.
+  field that lint would read, once written. **Opening up all 42
+  `COMPLICATION_TYPE_*` values as `complication.*` sources widened this gap's
+  surface roughly 4.5x** — from the nine complication-backed paths that used
+  to exist to all 42 — without changing anything about the gap itself: every
+  one of the 42 shares the exact same silent-absence behaviour on a device
+  that lacks it (`valueOf` returns `null`, `subscribe()` swallows both
+  outcomes a device can decline with), and `catalog.Source.requires` is set on
+  none of them, `complication.sleep_score` included (its ConnectIQ 6.0.2 floor
+  is documented in prose above and in `wfb/complications.py`'s `since` field,
+  not enforced by any check). Whoever eventually writes the check this bullet
+  and "checks that are exact" above both describe should expect `complication.
+  *` to be most of what it needs to cover on day one.

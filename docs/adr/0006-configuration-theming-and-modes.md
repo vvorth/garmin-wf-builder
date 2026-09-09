@@ -149,7 +149,13 @@ The compiler derives from this:
   three targets**, a budget separate from the 128 KB watch-face limit
   (`05-device-files.md` §4);
 - the AMOLED pixel/luminance estimate for `always_on` (Phase 1.4);
-- an error if a `low_power` element reads a non-`frame`-tier source (ADR 0005).
+- ~~an error if a `low_power` element reads a non-`frame`-tier source
+  (ADR 0005).~~ **No longer true — see ADR 0005's "Amendment (2026-09-09):
+  the refresh-tier concept is deleted".** The tier system this bullet refers
+  to is gone; any source may be bound from a `low_power` element now. The
+  platform limit behind the old rule (`onPartialUpdate` budget overrun is
+  permanent) is unchanged, but it is enforced by ADR 0008 check 9's
+  suppressible heuristic alone, not a hard compile-time rule.
 
 ### 6. Interactivity
 

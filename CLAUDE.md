@@ -280,7 +280,7 @@ is the thing the user asked to review.
 |---|---|---|
 | YAML load, with source spans | `wfb/yamlsrc.py` | no |
 | JSON Schema, reported against the author's lines | `wfb/validate.py` | no |
-| Semantic pass: sources, types, null policy, tiers | `wfb/ir.py`, `wfb/catalog.py`, `wfb/expr.py` | no |
+| Semantic pass: sources, types, null policy | `wfb/ir.py`, `wfb/catalog.py`, `wfb/expr.py` | no |
 | Per-device layout resolve | `wfb/layout.py` | device files only |
 | Lint | `wfb/lint.py` | device files only |
 | Font baking (TTF → BMFont, subsetted) | `wfb/fonts/` | no |
@@ -324,12 +324,18 @@ These cost real time to discover; do not rediscover them.
 10. **`monkeyc` regenerates `$CIQ_SDK/bin/default.jungle` on every invocation**
    and *replaces* the file, so the SDK's `bin/` directory must be writable — a
    read-only SDK fails with `Unable to generate default.jungle: Permission denied`.
-11. **The simulator will not run in this container.** It links against
-   `libwebkit2gtk-4.0` and `libsoup-2.4`, which current distributions no longer
-   ship, and even with those supplied it segfaults on app load under Xvfb with
-   software OpenGL — reproduced with an **unmodified SDK sample `.prg`**, so it is
-   the environment, not generated output. `wfb preview` covers the gap; see
-   `docs/limitations.md` §2.
+11. **The simulator will not run in this container, and "software OpenGL" is
+   not why.** It links against `libwebkit2gtk-4.0`, `libsoup-2.4` and
+   `libjavascriptcoregtk-4.0`, which current distributions no longer ship. On an
+   `ubuntu:22.04` base, which still packages all three, it **starts** and opens
+   its window under Xvfb — then segfaults the moment a `.prg` is pushed with
+   `monkeydo`, reproduced with an **unmodified SDK sample `.prg`**, so it is the
+   environment, not generated output. The backtrace puts the crash on a worker
+   thread **inside the simulator's own stripped binary**, with `libGL` not loaded
+   at all. Do not spend another session rebasing the image to get the libraries:
+   `/dev/shm` size, seccomp, uid, device-mount writability and WebKit's own
+   escape hatches are all ruled out by direct test. `wfb preview` covers the gap;
+   see `docs/limitations.md` §2.
 
 ### Authoring ergonomics — researched, decision pending
 
@@ -417,11 +423,15 @@ dependency order:
    Still missing from §6: the *other* half of `complication_slot` — a slot
    whose **type** the wearer changes in the on-device editor, which needs the
    `config:` block (item 4 above), not this.
-6. ~~Complications and the `event` refresh tier.~~ **Shipped.** Both refresh
-   tiers ADR 0005 describes now exist: `slow` with its TTL cache
-   (`WfbCache.mc`, `weather.*` as its first source) and `event` with a
-   subscription callback (`WfbComplications.mc`, `body_battery.current` and
-   eight other complication-backed sources) — see the session notes below.
+6. ~~Complications and the `event` refresh tier.~~ **Shipped, and then the
+   refresh-tier concept itself was deleted outright** — see the session note
+   below, "The TTL cache is gone, complications are pulled not cached, and
+   all 42 types are sources". `weather.*`'s `slow` tier and its TTL cache
+   (`WfbCache.mc`) and complications' `event` tier and its per-type cached
+   field are both gone; every source, `complication.*` included, is now a
+   plain per-frame read, and every source is bindable from `low_power`/
+   `always_on` elements. `wfb/catalog.py`'s `Tier` enum, `Reader.tier`,
+   `Reader.ttl_seconds` and `wfb/ir.py`'s `_check_tiers` no longer exist.
 7. **Generate the data-source catalogue from the SDK** (ADR 0005 §1). It is
    hand-written today; a drifted catalogue would silently mis-declare permissions.
 8. The GUI (ADR 0002), last, once the schema has stabilised.
@@ -569,6 +579,14 @@ against the 128 KB budget. Golden files updated accordingly
 close to filling its em-square) now bakes 2px larger than its declared `20%r`
 to hit the same ink height it always rendered at, which is the fix working
 correctly, not a drift.
+
+> **The `slow`/`event` refresh-tier machinery this subsection and the next
+> describe was later deleted outright** — see "A later session deleted the
+> refresh-tier concept outright..." near the end of this Phase 3 section.
+> `WfbCache.mc`, `catalog.Tier`, `Reader.tier` and `Reader.ttl_seconds` no
+> longer exist. Left as written below because it is what was decided and
+> built at the time, the same precedent the `on_tap:` → `on_hold:` correction
+> set.
 
 **The same session asked for a dynamic weather-condition icon (now/today's
 overall/tomorrow), and it landed as the first real `slow`-tier source** —
@@ -769,6 +787,13 @@ targets binding all 17 new sources in one design (including the two new
 `Type.STRING` date fields' `.toString()` calls and the `UserProfile`
 permission actually landing in the generated manifest), not just `wfb
 validate`.
+
+> **The `event`-tier/cached-field design this subsection describes was later
+> replaced by a plain pull read** — see "A later session deleted the
+> refresh-tier concept outright..." below. `Complications.exitTo` and the
+> per-type subscription for freshness both survive; the cached view field and
+> the `switch` in `onComplicationChanged` do not. Left as written, per the
+> same precedent noted above.
 
 **A follow-up session made Body Battery bindable by building the `event`
 refresh tier (ADR 0005) end to end -- Complications, the one piece of that
@@ -1193,6 +1218,115 @@ One ergonomics fix found while writing the example: `slots:` defaults to
 `min(3, len(items))`, not a flat 3, so a two-item carousel is not an error for
 taking the default. Asking for more slots than items is still an error — a
 wider row would draw one item twice, which reads as a rendering bug.
+
+**A later session deleted the refresh-tier concept outright, on the user's own
+explicit instruction, and opened up all 42 complication types as data
+sources.** Four agents worked this in parallel against one shared tree
+(catalogue, codegen, format/schema, docs+examples — this section is the last
+of those), following the "parallel work in one tree must edit files, never run
+git commands that touch the working tree" rule the earlier carousel-recovery
+session already established. `docs/research/probes/complication-pull/` is the
+probe that settled the one genuinely open question before any code was
+written; read its README before touching this area again.
+
+1. **The TTL cache is gone.** `runtime-lib/WfbCache.mc` is deleted, and so are
+   `catalog.Tier`, `Reader.tier`, `Reader.ttl_seconds`, `Source.tier`, and
+   `wfb/ir.py`'s `_check_tiers` and the `refresh-tier` diagnostic. Rationale,
+   the user's own and correct: every value already comes from a Garmin API
+   that caches it on *its* side — `Toybox/Weather.html` documents
+   `getCurrentConditions()` as "get the **most recently cached** weather
+   conditions", not "fetch weather conditions" — so a second TTL cache inside
+   the 128 KB watch-face budget was buying nothing. Every `Reader` is now a
+   plain read, every frame, unconditionally.
+2. **Consequence, deliberate and user-approved: `weather.*` and
+   `complication.*` may now be bound from `low_power`/`always_on` elements.**
+   The hard, unsuppressible compile error is gone. Constraint 4 above
+   (`onPartialUpdate` overrun disables partial updates **permanently**, for
+   the rest of the app's lifecycle) has not gotten any less true — it is now
+   the author's own responsibility to watch for, backed only by the
+   suppressible `partial-update-budget` lint, whose note was strengthened in
+   this same session to say so explicitly: a `weather.*` or `complication.*`
+   read on a `low_power` element is now named as the expensive case to check
+   first. This is a real, intentional weakening of a guarantee the compiler
+   used to enforce outright — recorded here so it is never mistaken for an
+   oversight.
+3. **Complications are read by pull, not by callback.** `onUpdate` now calls
+   `WfbComplications.valueOf(new Complications.Id(Complications.<TYPE>))`
+   exactly like any other reader, and casts the result
+   (`as Number?`/`String?`/`Float?`, `Source.cast`) because
+   `Complication.value` is `Complications.Value or Null` — a union of
+   `String or Number or Float or Long or Double or Null`
+   (`Toybox/Complications.html`). There is no per-type cached view field and
+   no `switch` anymore. **Evidence, not assumption:** Garmin's own sample,
+   `$CIQ_SDK/samples/ConfigurableWatchFace/source/
+   ConfigurationWatchFaceView.mc`, calls `Complications.getComplication(id)
+   .value` from `updateConfiguration`, which runs *before* the first
+   `subscribeToUpdates` and, in edit mode, without ever subscribing at all —
+   so a pull needs no subscription in principle. A standalone probe
+   (`docs/research/probes/complication-pull/ProbeView.mc`) confirms the exact
+   generated shape compiles `BUILD SUCCESSFUL` under `-l 3` on
+   `fenix8solar47mm` and `fr955`, including the cast parsing inside a ternary
+   branch with no extra parentheses. **Subscription is kept anyway, and is
+   explicitly not caching**: `onLayout` still calls `WfbComplications.
+   subscribe(...)` once per bound type, but the change callback's entire body
+   is now `WatchUi.requestUpdate();` — one line per bound type in `onLayout`,
+   nothing per frame. **Whether pull-without-subscribe would also stay fresh
+   is UNVERIFIED** — this container has no working simulator (finding 11
+   above), so this is a compile-time result only, and the subscription is the
+   hedge against that unknown rather than proof it is needed.
+4. **All 42 complication types are now data sources**, each in its own
+   `complication.<name>` path, generated from one table
+   (`wfb/complications.py`'s `TYPES`, transcribed verbatim from
+   `Toybox/Complications.html`'s Type table — not hand-copied, the same
+   discipline `wfb/icon_catalog.py` already follows and for the same reason).
+   **One rule, no exceptions: `complication.<type>` is *always* read through
+   `Toybox.Complications`; every other catalogue path is *always* a direct
+   API read.** The nine paths that used to reach a complication by a direct-
+   looking name (`body_battery.current`, `system.solar_input`,
+   `weather.sunrise`/`sunset`, `activity.training_status`,
+   `activity.weekly_run_distance`/`weekly_bike_distance`,
+   `activity.sleep_score`, `device.next_calendar_event`) are renamed to
+   `complication.body_battery`, `complication.solar_input`, and so on — an
+   author who types the old path gets a `source-renamed` error naming the
+   replacement (`wfb/expr.py`, `catalog.renamed_to`), the same precedent
+   `on-tap-renamed` set. No example YAML bound any of the nine before the
+   rename (checked first).
+5. **`on_hold: auto`** (and a carousel item's `launch: auto`) resolves the
+   launch target from the element's own **value** binding — a `text`'s
+   `value:`/an `icon`'s `icon_for:`/a `progress`'s `value:`, deliberately
+   never `color:`/`track_color:`/`max:`, because a conditional colour's
+   heart-rate reference is not what the element is *about*. The new
+   `Source.launch_complication` field carries the conventional counterpart
+   (set automatically on every `complication.*` source to its own name, and
+   by hand on ~20 direct-read sources that have an established one, e.g.
+   `activity.steps -> steps`, `weather.condition -> current_weather`).
+   Resolution runs in `wfb/ir.py`'s `Builder._resolve_hold_auto`, deferred
+   until after the kind-specific builder gives the element a real value
+   expression to inspect — the same deferred-second-pass shape
+   `_check_tiers` used to run at, before it was deleted. Zero candidates is
+   `hold-auto-unresolved`; more than one distinct candidate is
+   `hold-auto-ambiguous`; both are errors, not warnings, because guessing
+   here would silently open the wrong glance.
+6. **New: `carousel-on-hold` error.** A carousel's own box is already cut
+   into three hold zones, so an element-level `on_hold:` on a `carousel` used
+   to validate cleanly and then be silently dropped by the emitter — nothing
+   ever read the field. It is now a build error pointing the author at
+   per-item `launch:` (and `launch: auto`) instead.
+7. **A real build caught a naming collision before it shipped.** A
+   complication reader's local is `<name>Complication` (e.g.
+   `bodyBatteryComplication`), not `complication<Name>` — the latter was the
+   first attempt, and it collided with the *value* local
+   `wfb.ir.local_name` derives from the source path (`complication.
+   body_battery` already owns `complicationBodyBattery`), producing
+   `Redefinition of variable 'complicationBodyBattery'` from `monkeyc` on all
+   three targets. `wfb/catalog.py::_complication_local_name`'s docstring
+   records the reasoning in full; `tests/test_catalog.py` pins the two
+   locals apart so the collision cannot come back silently.
+
+All of the above is code-complete and green (`pytest -m "not slow"` and
+`pytest -m "slow"`, real `monkeyc`, both pass) — this note is documentation
+and a new worked example (`examples/complications/`) written after the fact,
+not a description of work still pending.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 

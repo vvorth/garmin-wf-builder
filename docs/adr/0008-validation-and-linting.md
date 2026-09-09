@@ -36,7 +36,7 @@ and every diagnostic carries **file, line and column** from the YAML source
 | 9 | **Partial-update power-budget risk** | warning | clip area + operation count heuristic | **heuristic only** — see below |
 | 10 | **Insufficient contrast** | warning | WCAG-style ratio between element and its backdrop | exact arithmetic, subjective threshold |
 | 11 | **Config surface unavailable on target** | error | API 5.1.0 + four-axis limits (ADR 0006) | exact |
-| 12 | **Low-power element reads a slow-tier source** | error | refresh tiers (ADR 0005) | exact |
+| 12 | ~~**Low-power element reads a slow-tier source**~~ **Deleted** | ~~error~~ n/a | ~~refresh tiers (ADR 0005)~~ | n/a — ADR 0005's refresh-tier concept this check depended on no longer exists (see that ADR's amendment); any source may now be bound from a `low_power` element, guarded only by check 9's suppressible heuristic instead |
 
 ### Check 2 must use per-device symbol tables, not API level
 
@@ -78,8 +78,9 @@ Validation runs in stages, each gating the next, so errors are reported against
 the earliest meaningful representation:
 
 1. **Schema** — JSON Schema over the parsed YAML. Structural errors only.
-2. **Semantic** — data sources, expression types, config surfaces, modes/tiers
-   (checks 1, 2, 11, 12). Device-independent.
+2. **Semantic** — data sources, expression types, config surfaces, modes
+   (checks 1, 2, 11; check 12 no longer exists, see its table row above).
+   Device-independent.
 3. **Per-device resolve** — geometry, fonts, palette, safe area
    (checks 3, 4, 5, 6, 10). Runs once per target device.
 4. **Post-build** — memory (7), and AMOLED/power estimates (8, 9).
@@ -99,8 +100,9 @@ lint:
   reason: "deliberate orange accent, matches the brand"
 ```
 
-`error`-severity checks that reflect hard platform limits (2, 11, 12) are **not**
-suppressible — suppressing them produces a face that does not work.
+`error`-severity checks that reflect hard platform limits (2, 11; 12 no longer
+exists) are **not** suppressible — suppressing them produces a face that does
+not work.
 
 The code named in `allow:` is checked against the set the compiler actually
 emits (`lint.ALL_CODES`, kept honest by a test that re-derives it from the

@@ -33,7 +33,7 @@ needs to keep reasoning.
   type: raw
   bounds: { anchor: center, dy: 20%, width: 60%, height: 12% }
   modes: [active]
-  reads: [heart_rate.history]        # drives permissions + refresh tier
+  reads: [heart_rate.history]        # drives permissions
   draws: custom/Sparkline.mc:drawSparkline
   est_bytes: 900                     # optional, for the memory linter
 ```
@@ -43,11 +43,14 @@ The contract:
 - **`bounds` is mandatory.** The compiler treats it as opaque but occupied — it
   still computes clip rectangles, overlap and safe-area checks, and AMOLED
   ratios (assuming worst case: fully lit).
-- **`reads` is mandatory.** Permissions and refresh tiers stay derivable, so the
-  silent-permission-failure protection (ADR 0005) is not lost.
+- **`reads` is mandatory.** Permissions stay derivable, so the
+  silent-permission-failure protection (ADR 0005) is not lost. (`reads` no
+  longer also drives a refresh-tier placement decision — ADR 0005's amendment
+  deleted that concept; every source, including whatever a `raw` element
+  declares here, is read the same plain way.)
 - **`draws` names a function** with a fixed signature, given the `Dc`, the
-  resolved bounds and the values it declared. The generator emits the call, the
-  guards and the tier placement.
+  resolved bounds and the values it declared. The generator emits the call and
+  the null guards.
 - The file is copied into the build and compiled normally; it participates in
   `excludeAnnotations` like generated code.
 
