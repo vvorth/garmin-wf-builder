@@ -323,6 +323,108 @@ def test_renamed_to_helper():
     assert catalog.renamed_to("complication.body_battery") is None
 
 
+
+# -- symbol-collision guard (F2): fast, catalogue-wide, no toolchain --------
+#
+# docs/review/2026-09-architecture-review.md's F2: `wfb/ir.py`'s
+# `Builder._check_symbol_collision` only ever compares two derived forms of
+# one *element id* against each other -- it says nothing about the families
+# below, which are the ones that actually collided in the session that
+# produced `Redefinition of variable 'complicationBodyBattery'` on all three
+# targets: a `complication.*` reader's own local name (its element method's
+# parameter) and `wfb.ir.local_name` of that same source's path (its value
+# local) both landed on the same generated identifier. The shipped fix
+# (`_complication_local_name`, wfb/catalog.py) is a naming *convention* for
+# that one family; nothing before this test asserted the families stay
+# distinct in general.
+
+#: Fixed identifiers `wfb/emit/monkeyc.py` writes directly into the same
+#: generated scope a reader parameter (`ReadPlan.parameters`) and a value /
+#: intermediate local (`ReadPlan.declarations`) share -- the private
+#: per-element method `_emit_element_method` builds
+#: (``private function draw<Id>(dc as Dc, <reader params>) as Void { <value
+#: locals>; ... }``). Read directly out of that file, line by line, not
+#: guessed -- each name's origin:
+#:   - "dc": `_emit_element_method`'s own signature, every element method.
+#:   - "font": `_emit_text_draw` (a custom text font) and `_emit_icon` (the
+#:     icon's baked font) -- never both in one element, but both are this
+#:     same kind of scope.
+#:   - "text": `_emit_text`'s `when_absent: placeholder`/`fallback`
+#:     branches, and `_emit_carousel`'s own selected-item reading.
+#:   - "fraction": `_emit_progress`'s `when_absent: fallback` branch.
+#:   - "filled": `_emit_progress`'s rectangle-style fill width.
+#:   - "item", "x": `_emit_carousel`'s per-slot loop (`element.slots > 1`).
+#:   - "valueFont": `_emit_carousel`'s centred reading's font.
+#:   - "glyphFont": `_emit_carousel_glyph_switch`'s per-item icon font.
+#: A future catalogue entry landing on one of these would be exactly the
+#: same class of `Redefinition of variable` this test exists to catch,
+#: just against a name the emitter chose rather than one another catalogue
+#: entry chose. If a name here stops being cleanly enumerable this way (a
+#: literal `var` scattered across a helper this list doesn't cover), that is
+#: a real gap in this guard -- see this test's own docstring.
+FIXED_ELEMENT_METHOD_LOCALS = {
+    "dc", "font", "text", "fraction", "filled", "item", "x", "valueFont", "glyphFont",
+}
+
+
+def test_reader_and_value_locals_never_collide():
+    """F2: a fast, catalogue-wide guard for the whole class of bug that
+    produced ``Redefinition of variable 'complicationBodyBattery'`` -- not
+    just the one family (a `complication.*` reader's local vs. its own
+    source's value local) the shipped fix happens to cover.
+
+    Three families of generated identifier can land in one per-element
+    method's scope (`wfb/emit/monkeyc.py`'s `_emit_element_method`):
+
+    1. Every `Reader.name` in `READERS` -- becomes a parameter of whichever
+       element method uses that reader (`ReadPlan.parameters`).
+    2. Every `wfb.ir.local_name(path)` for `path` in `CATALOG` -- becomes a
+       `var` inside that element method (`ReadPlan.declarations`), plus the
+       ``...Obj`` form for any source with an `intermediate` (the
+       dotted-field-name intermediate local `declarations` also declares).
+    3. `FIXED_ELEMENT_METHOD_LOCALS` above -- names the emitter itself
+       writes into that same scope, independent of the catalogue.
+
+    Only the readers and sources one *particular* element actually binds
+    ever share one real scope -- but which readers and sources that will be
+    depends on a future design this test cannot see, so it deliberately
+    checks the whole catalogue as one flat namespace rather than trying to
+    track real co-occurrence. That is strictly more conservative than the
+    bug it is guarding against needs, and is the same shape of check the
+    architecture review itself proposed for this finding.
+
+    No SDK, no `monkeyc`, no device files -- runs in the default
+    ``pytest -m "not slow"`` loop, unlike `test_every_catalog_source_compiles`
+    below, which is the only thing that caught this collision before this
+    test existed (and only because it happens to bind every source in one
+    build).
+    """
+    from wfb.ir import local_name
+
+    # generated identifier -> [ human-readable origins that produced it ]
+    origins: dict[str, list[str]] = {}
+
+    def register(name: str, origin: str) -> None:
+        origins.setdefault(name, []).append(origin)
+
+    for reader_key, reader in READERS.items():
+        register(reader.name, f"Reader {reader_key!r}.name")
+
+    for path, source in CATALOG.items():
+        register(local_name(path), f"local_name({path!r})")
+        if source.intermediate is not None:
+            register(f"{local_name(path)}Obj", f"intermediate local for {path!r}")
+
+    for fixed in FIXED_ELEMENT_METHOD_LOCALS:
+        register(fixed, f"fixed emitter local {fixed!r} (wfb/emit/monkeyc.py)")
+
+    collisions = {name: where for name, where in origins.items() if len(where) > 1}
+    assert not collisions, "symbol collision(s) in the generated element-method scope:\n" + "\n".join(
+        f"  {name!r} <- {', '.join(where)}"
+        for name, where in sorted(collisions.items())
+    )
+
+
 def test_pulse_ox_is_a_direct_source_not_a_complication():
     """currentOxygenSaturation is a field of Activity.Info (like
     heart_rate.current), so it does not need a complication subscription at

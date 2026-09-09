@@ -95,11 +95,38 @@ _COMPLICATION_CAST: dict[str, str] = {
 
 @dataclass(frozen=True)
 class Reader:
-    """A single API call whose result several sources read fields from.
+    """One generated local a `Source` reads its value off.
 
-    Fetching ``ActivityMonitor.getInfo()`` once per frame and reading three
-    fields off it is both cheaper and clearer than three separate calls, so the
-    generator groups sources by reader.
+    Covers two different shapes now, not one -- see finding F4 in
+    ``docs/review/2026-09-architecture-review.md``. Tell them apart by
+    `complication_type` (below): set means the second shape, ``None`` means
+    the first.
+
+    **The original shape** (9 of 51 readers -- ``activity``,
+    ``weather_current``, ``date``, etc.): a shared accessor several sources
+    read fields off. Fetching ``ActivityMonitor.getInfo()`` once per frame
+    and reading three fields off it is both cheaper and clearer than three
+    separate calls, so the generator groups sources by reader and hoists one
+    ``var`` that every source sharing it reads through.
+
+    **The complication shape** (42 of 51, one per `complications.TYPES`
+    entry -- see the ``READERS.update(...)`` loop below): a single-use
+    wrapper that exists so `ReadPlan`'s declare/guard/parameter pipeline
+    (``wfb/emit/monkeyc.py``, keyed by reader, not by source) has something
+    to key off of. Each of these serves exactly one `Source`
+    (``complication.<name>``), and `call` is already the whole read --
+    ``WfbComplications.valueOf(new Complications.Id(Complications.<CONSTANT>))``
+    -- not an object several fields come off afterwards, so the
+    field-sharing benefit the class was designed around never applies to
+    any of the 42. That is not a bug: generating all 42 from one loop over
+    `complications.TYPES`, rather than hand-copying near-identical entries,
+    is still exactly right by this project's own standing rule against
+    catalogue drift (see the module docstring's "one rule, no exceptions"
+    paragraph, and CLAUDE.md's account of catalogue-table bugs this project
+    has already hit) -- it is cheaper to reuse the one pipeline that already
+    declares/guards/parameterises a reader correctly than to invent a
+    second, complication-only code path that would have to stay in step
+    with it by hand.
     """
 
     name: str  # the local variable the generator declares
@@ -200,8 +227,18 @@ def _complication_local_name(name: str) -> str:
     as what they are: ``bodyBatteryComplication`` is the ``Complication``
     object, ``complicationBodyBattery`` is the value pulled off it.
 
-    ``tests/test_catalog.py`` pins this apart, so the collision cannot come
-    back silently.
+    That claim used to end here saying "``tests/test_catalog.py`` pins this
+    apart, so the collision cannot come back silently" -- true only for this
+    one naming convention, and only by accident: no test asserted the two
+    families stayed distinct, so a differently-shaped regression (a new
+    catalogue path whose ``local_name`` happened to land on some *other*
+    reader's name, say) would have shipped silently until the next
+    ``@pytest.mark.slow`` full-catalogue build. Fixed by
+    ``tests/test_catalog.py::test_reader_and_value_locals_never_collide``,
+    a fast, catalogue-wide pairwise-distinctness check over every
+    `Reader.name`, every `wfb.ir.local_name(path)`, the ``...Obj``
+    intermediate form, and the emitter's own fixed scope-local names -- not
+    scoped to this one suffix.
     """
     return "".join(
         part if index == 0 else part.capitalize()
