@@ -55,7 +55,7 @@ elements:
     size: { width: 62%, height: 22% }
     pitch: 22%r             # centre-to-centre spacing between slots
     slots: 3                # the selected item plus one neighbour either side
-    icon_size: 9%r
+    icon_size: 12%r
     color: palette.accent   # the selected item
     inactive_color: palette.dim
     value_font: FONT_XTINY
