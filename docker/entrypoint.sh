@@ -76,9 +76,10 @@ case "${1:-}" in
 wfb: `simulate` is not available in this image.
 
 The Connect IQ simulator is a GTK/WebKit GUI application. It is not installed
-here, and it does not work headlessly in any case: with its libraries supplied it
-still segfaults on app load under Xvfb with software OpenGL, and it does so with
-an unmodified SDK sample .prg -- so it is the environment, not the built face.
+here, and it does not work headlessly in any case: on a base that supplies its
+libraries natively it starts, then segfaults the moment a .prg is pushed to it,
+and it does so with an unmodified SDK sample .prg -- so it is the environment,
+not the built face.  See docs/limitations.md section 2.
 
 Run `wfb simulate` on a desktop machine with the full SDK installed, or use
 

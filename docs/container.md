@@ -150,11 +150,16 @@ traceback.
 plainly rather than letting you discover it mid-build.
 
 The Connect IQ simulator is a GTK/WebKit GUI application. On current Linux it
-links against `libwebkit2gtk-4.0` and `libsoup-2.4`, which distributions no
-longer ship — and supplying those libraries is not enough: it still **segfaults
-on app load under Xvfb with software OpenGL**. That was reproduced with an
-unmodified SDK sample `.prg`, so it is a property of the environment, not of
-generated faces.
+links against `libwebkit2gtk-4.0`, `libsoup-2.4` and `libjavascriptcoregtk-4.0`,
+which distributions no longer ship — and supplying those libraries is not
+enough. On an `ubuntu:22.04` base, which still packages all three natively, the
+simulator starts and opens its window under Xvfb, then **segfaults the moment a
+`.prg` is pushed to it** with `monkeydo`. That was reproduced with an unmodified
+SDK sample `.prg`, so it is a property of the environment, not of generated
+faces. The crash is on a worker thread inside the simulator's own stripped
+binary, with no GL library loaded at all; `docs/limitations.md` §2 records the
+backtrace and everything that was ruled out. Rebasing this image on jammy to get
+the libraries would therefore buy nothing but ~800 MB.
 
 Use `wfb preview` instead:
 
