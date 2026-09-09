@@ -14,6 +14,8 @@ toolchain -- see tests/test_weather_codegen.py for the equivalent split on
 
 from __future__ import annotations
 
+import pytest
+
 from tests.test_diagnostics import load
 from wfb.emit.manifest import api_level
 from wfb.emit.project import _barrel_for, _features, generate
@@ -234,3 +236,95 @@ def test_low_power_element_may_bind_a_complication(write_design, bag, db, tmp_pa
 """
     face, project = _build(write_design, bag, db, tmp_path, design)
     assert face is not None
+
+
+# -- the delegate's view field (review finding F1) --------------------------
+
+HOLD_NO_CAROUSEL = """
+  - id: steps
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    when_absent: hide
+    font: FONT_TINY
+    at: {anchor: center}
+    color: palette.fg
+    on_hold: auto
+"""
+
+HOLD_WITH_CAROUSEL = HOLD_NO_CAROUSEL + """
+  - id: data
+    type: carousel
+    at: {anchor: center, dy: 30%}
+    size: {width: 60%, height: 20%}
+    pitch: 22%r
+    icon_size: 9%r
+    color: palette.fg
+    inactive_color: palette.fg
+    items:
+      - value: activity.calories
+        format: "{:d}"
+        when_absent: hide
+      - value: activity.steps
+        format: "{:d}"
+        when_absent: hide
+"""
+
+
+def _delegate(write_design, bag, db, tmp_path, elements: str) -> str:
+    _, project = _build(write_design, bag, db, tmp_path, elements)
+    return project.files()["source/TestDelegate.mc"]
+
+
+def test_delegate_holds_the_view_only_when_a_carousel_needs_it(
+        write_design, bag, db, tmp_path):
+    """`_view` is declared only when something reads it.
+
+    The delegate is handed the view unconditionally, but only a carousel's
+    zone handler ever calls back into it.  Declaring the field regardless made
+    `monkeyc -w` report `Member variable '_view' is not used.` on every design
+    that used `on_hold:` without a carousel -- a whole documented feature
+    building with guaranteed warning noise, which is the class of thing
+    CLAUDE.md 6 records several sessions eliminating.
+
+    The constructor *parameter* stays unconditional: an unused parameter does
+    not warn (verified against a real build), so one delegate shape and one
+    `new ...Delegate(view)` call site still serve every design.
+    """
+    without = _delegate(write_design, bag, db, tmp_path, HOLD_NO_CAROUSEL)
+    assert "private var _view" not in without
+    assert "_view = view;" not in without
+    # the parameter is still there -- one shape, one construction site
+    assert "function initialize(view as TestView)" in without
+
+    with_carousel = _delegate(write_design, bag, db, tmp_path, HOLD_WITH_CAROUSEL)
+    assert "private var _view as TestView;" in with_carousel
+    assert "_view = view;" in with_carousel
+    assert "_view.stepData(" in with_carousel
+
+
+@pytest.mark.slow
+def test_a_plain_hold_design_compiles_without_warnings(tmp_path, bag, db):
+    """`on_hold:` with no carousel, through the real toolchain, warning-free.
+
+    This is the gap that let F1 ship: every other `on_hold:` test inspects
+    generated text, and the tests that do run `monkeyc` either bind no
+    `on_hold:` or bind one alongside a carousel, so the one combination that
+    warned was never compiled here.  `wfb/build.py` turns each `WARNING:` line
+    from `monkeyc` into a `monkeyc`-coded warning in the bag, so this asserts
+    on the compiler's own output rather than on a proxy for it.
+    """
+    from wfb.build import Toolchain, build
+
+    toolchain = Toolchain.discover()
+    if toolchain is None or not toolchain.key.exists():
+        pytest.skip("no Connect IQ SDK or developer key")
+    design = tmp_path / "hold.yaml"
+    design.write_text(DESIGN.format(elements=HOLD_NO_CAROUSEL), encoding="utf-8")
+
+    result = build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert result.products, "nothing was compiled"
+    complaints = [d for d in bag.items
+                  if d.severity.value in ("error", "warning")]
+    assert not complaints, bag.render()

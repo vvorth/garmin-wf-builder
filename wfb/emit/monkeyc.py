@@ -233,16 +233,25 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
         "Each region below is one element's own drawn box, resolved per device in\n"
         "the Layout module, so what the finger must hit is what the eye sees."
     )
+    has_carousel = bool(carousels(face))
     with w.block(f"class {face.entry}Delegate extends WatchUi.WatchFaceDelegate"):
-        w.doc("The view, so a carousel's selection can be moved and read back.\n"
-              "\n"
-              "Held even by a face with no carousel: one delegate shape is easier to\n"
-              "read than two, and an unused field costs nothing measurable.")
-        w.line(f"private var _view as {face.entry}View;")
-        w.blank()
+        if has_carousel:
+            w.doc("The view, so a carousel's selection can be moved and read back.\n"
+                  "\n"
+                  "Only declared when a carousel exists: `monkeyc -w` reports an unused\n"
+                  "member variable (verified -- \"Member variable '_view' is not used.\"\n"
+                  "on a plain `on_hold:` design with no carousel), and a generator has no\n"
+                  "excuse for output a human wouldn't have written (CLAUDE.md).  The\n"
+                  "constructor parameter stays unconditional either way: an unused\n"
+                  "*parameter* does not warn (verified the same way, standalone), so one\n"
+                  "delegate shape and one `new ...Delegate(view)` call site still serve\n"
+                  "every design -- only the field is conditional.")
+            w.line(f"private var _view as {face.entry}View;")
+            w.blank()
         with w.block(f"function initialize(view as {face.entry}View)"):
             w.line("WatchFaceDelegate.initialize();")
-            w.line("_view = view;")
+            if has_carousel:
+                w.line("_view = view;")
         w.blank()
         w.doc("A touch and hold -- the only gesture a live watch face receives.\n"
               "\n"
