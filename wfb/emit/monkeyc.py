@@ -25,6 +25,7 @@ from ..ir import (
     Carousel, Expression, Face, IconElement, Progress, Shape, Text,
     carousel_index_field, carousel_slide_done_method, carousel_slide_field,
     carousel_step_method, element_const_prefix, element_method_name, font_resource_id,
+    static_group_method,
 )
 from ..layout import (
     PlacedCarousel, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
@@ -516,6 +517,64 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
 # the view
 
 
+#: The view field holding the offscreen buffer, and the method that fills it.
+#: Fixed names rather than derived ones: there is at most one buffer per face
+#: (an opaque full-screen blit cannot coexist with a second one -- see
+#: `docs/research/probes/static-buffer/`), so there is nothing to disambiguate.
+STATIC_FIELD = "_staticBuffer"
+STATIC_RENDER = "renderStatic"
+
+
+@dataclass
+class StaticPlan:
+    """Which drawn elements go into the offscreen buffer, and in what order.
+
+    Built from the *resolved* items rather than the element tree, because the
+    emitter works on the flattened draw order and `Element.static_root`
+    (`wfb.ir.Builder._apply_static`) is what survives the flattening.
+
+    `wfb.ir` has already guaranteed everything this relies on: the members are a
+    contiguous prefix of draw order, each root's members are one unbroken run,
+    nothing here reads a data source, and every member draws in the same modes.
+    So this class computes, it does not check.
+    """
+
+    #: ``(placed_root, [placed_member, ...])``, in draw order.
+    groups: list
+    #: Every buffered element, in draw order.
+    members: list
+    #: The modes the blit happens in -- all members agree on this.
+    modes: tuple[str, ...]
+
+    @property
+    def ids(self) -> set[str]:
+        return {placed.id for placed in self.members}
+
+    def method(self, placed) -> str:
+        """The method that paints one root: its own for a leaf, a wrapper else."""
+        return (static_group_method(placed.id) if placed.kind == "group"
+                else _method(placed.id))
+
+
+def static_plan(resolved: ResolvedFace) -> StaticPlan | None:
+    """The face's one static buffer, or None when nothing is static."""
+    members = [p for p in resolved.items
+               if p.kind != "group" and p.element.static_root is not None]
+    if not members:
+        return None
+    roots = {p.id: p for p in resolved.items if p.element.static}
+    groups: list = []
+    for placed in members:
+        root = roots.get(placed.element.static_root)
+        if root is None:  # unreachable: `_apply_static` sets both together
+            continue
+        if not groups or groups[-1][0] is not root:
+            groups.append((root, []))
+        groups[-1][1].append(placed)
+    modes = tuple(members[0].element.modes)
+    return StaticPlan(groups=groups, members=members, modes=modes)
+
+
 def emit_view(resolved: ResolvedFace) -> SourceFile:
     face, device = resolved.face, resolved.device
     plan = ReadPlan(resolved)
@@ -542,16 +601,18 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     # `always_on`: WatchUi.animate crashes the app in low power mode, so the
     # slide has to know (research 07 3).
     sleep_flag = always_on or bool(animated)
+    static = static_plan(resolved)
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
+        _emit_static_field(w, static)
         _emit_carousel_fields(w, rings)
         if sleep_flag:
             w.doc(_sleep_flag_doc(always_on, bool(animated)))
             w.line("private var _sleeping as Boolean = false;")
             w.blank()
         _emit_initialize(w, face, rings)
-        _emit_on_layout(w, resolved, plan)
-        _emit_on_update(w, resolved, plan, always_on)
+        _emit_on_layout(w, resolved, plan, static)
+        _emit_on_update(w, resolved, plan, always_on, static)
         if resolved.in_mode("low_power") and device.supports_partial_update:
             _emit_on_partial_update(w, resolved, plan)
         _emit_sleep_hooks(w, resolved, always_on, sleep_flag)
@@ -559,6 +620,8 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
             _emit_complication_callback(w, plan)
         for placed in rings:
             _emit_carousel_step(w, placed, sleep_flag)
+        if static is not None:
+            _emit_static_methods(w, static)
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
@@ -643,6 +706,95 @@ def _emit_carousel_step(w: Writer, placed, sleep_flag: bool) -> None:
             w.line("WatchUi.requestUpdate();")
 
 
+def _emit_static_field(w: Writer, static: "StaticPlan | None") -> None:
+    """The offscreen buffer the static content is painted into, once."""
+    if static is None:
+        return
+    w.doc("The static content, painted once in onLayout and blitted every frame\n"
+          "afterwards.\n"
+          "\n"
+          "Allocated from the graphics pool, which is separate from the watch face's\n"
+          "own memory limit -- so this costs a full screen of pixels there, not here.\n"
+          "Null on a device without createBufferedBitmap, or if the pool declines the\n"
+          "allocation; onUpdate then draws the same content directly instead, so the\n"
+          "face renders either way.")
+    w.line(f"private var {STATIC_FIELD} as BufferedBitmap?;")
+    w.blank()
+
+
+def _emit_static_allocation(w: Writer, static: "StaticPlan") -> None:
+    """Allocate the buffer and fill it -- the `onLayout` half of the feature.
+
+    `.get()` rather than the reference it comes back as: the Core Topics
+    Graphics page is explicit that a purged BufferedBitmap is *not* restored the
+    way a resource is, and nothing here would ever refill it, so the lock is
+    correctness rather than an optimisation.  Same shape as
+    `$CIQ_SDK/samples/Analog/source/AnalogView.mc`, and `Graphics has
+    :createBufferedBitmap` guards it for the same reason that sample does.
+
+    No `:palette`: a reduced palette cannot take an anti-aliased font, which the
+    Analog sample hit and worked around with a second buffer.  A static group may
+    hold text, so it gets the system colours.
+    """
+    w.comment("the static content, painted once into a buffer in the graphics pool")
+    with w.block("if (Graphics has :createBufferedBitmap)"):
+        w.line(f"{STATIC_FIELD} = Graphics.createBufferedBitmap({{")
+        w.line("    :width => dc.getWidth(),")
+        w.line("    :height => dc.getHeight()")
+        w.line("}).get() as BufferedBitmap?;")
+    w.line(f"var buffer = {STATIC_FIELD};")
+    with w.block("if (buffer != null)"):
+        w.line(f"{STATIC_RENDER}(buffer.getDc());")
+
+
+def _emit_static_blit(w: Writer, static: "StaticPlan") -> None:
+    """One blit, or the same drawing done live when there is no buffer."""
+    w.comment("static content: one blit of the buffer filled in onLayout")
+    w.line(f"var buffer = {STATIC_FIELD};")
+    with w.block("if (buffer != null)"):
+        w.line("dc.drawBitmap(0, 0, buffer);")
+    with w.block("else"):
+        w.comment("no buffer on this device: draw the same content directly")
+        w.line(f"{STATIC_RENDER}(dc);")
+
+
+def _emit_static_methods(w: Writer, static: "StaticPlan") -> None:
+    """`renderStatic`, plus one `drawStatic<Id>` per static *group*.
+
+    `renderStatic` takes a Dc rather than the buffer, and is called with the
+    buffer's Dc from onLayout and with the screen's from onUpdate.  That is the
+    whole of the fallback: one method, two call sites, and no second version of
+    the drawing to drift.
+
+    It clears first.  The buffer's initial contents are not documented anywhere
+    in the SDK, so it has to; and because the static content is a prefix of draw
+    order, clearing on the *screen* path too is both safe (nothing has been drawn
+    yet this frame) and what makes the two paths identical.  Black is also what
+    `wfb preview` starts from, so the host renderer and the device agree.
+    """
+    w.blank()
+    w.doc("Everything that never changes, drawn once.\n"
+          "\n"
+          "Called with the offscreen buffer's Dc from onLayout, and with the screen's\n"
+          "own Dc from onUpdate when there is no buffer.  One method, so the buffered\n"
+          "and unbuffered paths cannot drift apart.")
+    with w.block(f"private function {STATIC_RENDER}(dc as Dc) as Void"):
+        w.comment("a fresh buffer's contents are undefined, and this is the first")
+        w.comment("thing drawn in the frame either way, so start from a known ground")
+        w.line("dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);")
+        w.line("dc.clear();")
+        for root, _members in static.groups:
+            w.line(f"{static.method(root)}(dc);")
+    for root, members in static.groups:
+        if root.kind != "group":
+            continue  # a static leaf is drawn by its own method, called above
+        w.blank()
+        w.doc(f"`{root.element.id}` -- the static subtree, in draw order.")
+        with w.block(f"private function {static.method(root)}(dc as Dc) as Void"):
+            for placed in members:
+                w.line(f"{_method(placed.id)}(dc);")
+
+
 def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
     loaded = _loaded_fonts(resolved)
     if not loaded:
@@ -668,12 +820,15 @@ def _emit_initialize(w: Writer, face: Face, rings: list) -> None:
     w.blank()
 
 
-def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
+def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
+                    static: "StaticPlan | None" = None) -> None:
     loaded = _loaded_fonts(resolved)
     event = plan.complication_readers()
-    w.doc("Load resources once.  Loading is expensive and must not happen per frame.")
+    w.doc("Load resources once.  Loading is expensive and must not happen per frame."
+          + ("\n\nThis is also where the static content is painted, once, into its\n"
+             "offscreen buffer -- every later frame just blits it." if static else ""))
     with w.block("function onLayout(dc as Dc) as Void"):
-        if not loaded and not event:
+        if not loaded and not event and static is None:
             w.line("// No resources to load: this face draws entirely from system fonts.")
         for name in loaded:
             resource = font_resource_id(name)
@@ -693,10 +848,15 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None
             for name in event:
                 reader = READERS[name]
                 w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
+        if static is not None:
+            if loaded or event:
+                w.blank()
+            _emit_static_allocation(w, static)
     w.blank()
 
 
-def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_on: bool) -> None:
+def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_on: bool,
+                    static: "StaticPlan | None" = None) -> None:
     w.doc(
         "Draw the full face.\n"
         "\n"
@@ -705,33 +865,41 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_
             "  While asleep, draws the 'always_on' set instead of 'active' -- see\n"
             "_sleeping, set by onEnterSleep/onExitSleep below."
             if always_on else ""
+        ) + (
+            "  The static content comes first, as one blit of a buffer painted in\n"
+            "onLayout -- or, on a device that could not allocate one, drawn straight\n"
+            "onto the screen instead."
+            if static is not None else ""
         )
     )
     with w.block("function onUpdate(dc as Dc) as Void"):
         w.line("dc.clearClip();")
         if always_on:
             with w.block("if (_sleeping)"):
-                plan.emit_reads(w, "always_on")
-                w.blank()
-                for placed in resolved.items:
-                    if placed.kind == "group" or "always_on" not in placed.element.modes:
-                        continue
-                    w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
+                _emit_mode_body(w, resolved, plan, "always_on", static)
             with w.block("else"):
-                plan.emit_reads(w, "active")
-                w.blank()
-                for placed in resolved.items:
-                    if placed.kind == "group" or "active" not in placed.element.modes:
-                        continue
-                    w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
+                _emit_mode_body(w, resolved, plan, "active", static)
         else:
-            plan.emit_reads(w, "active")
-            w.blank()
-            for placed in resolved.items:
-                if placed.kind == "group" or "active" not in placed.element.modes:
-                    continue
-                w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
+            _emit_mode_body(w, resolved, plan, "active", static)
     w.blank()
+
+
+def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: str,
+                    static: "StaticPlan | None") -> None:
+    """One mode's draw sequence: the static blit, then everything dynamic."""
+    buffered = static is not None and mode in static.modes
+    if buffered:
+        _emit_static_blit(w, static)
+        w.blank()
+    plan.emit_reads(w, mode)
+    w.blank()
+    skip = static.ids if static is not None else set()
+    for placed in resolved.items:
+        if placed.kind == "group" or mode not in placed.element.modes:
+            continue
+        if placed.id in skip:
+            continue  # painted into the buffer above
+        w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
 
 
 def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:

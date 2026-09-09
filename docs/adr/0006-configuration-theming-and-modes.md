@@ -147,7 +147,8 @@ The compiler derives from this:
 - whether a `BufferedBitmap` background is worth pre-rendering in `onUpdate` —
   and this is cheaper than feared: `graphicsResourcePoolSize` is **1 MB on all
   three targets**, a budget separate from the 128 KB watch-face limit
-  (`05-device-files.md` §4);
+  (`05-device-files.md` §4). **This shipped, as `static:`** — see the note at
+  the end of this section;
 - the AMOLED pixel/luminance estimate for `always_on` (Phase 1.4);
 - ~~an error if a `low_power` element reads a non-`frame`-tier source
   (ADR 0005).~~ **No longer true — see ADR 0005's "Amendment (2026-09-09):
@@ -156,6 +157,43 @@ The compiler derives from this:
   platform limit behind the old rule (`onPartialUpdate` budget overrun is
   permanent) is unchanged, but it is enforced by ADR 0008 check 9's
   suppressible heuristic alone, not a hard compile-time rule.
+
+#### Note (2026-09-09): the `BufferedBitmap` bullet shipped, as `static:`
+
+The third bullet above is now a feature rather than a possibility.
+`static: true` on any element, and a top-level `static:` block beside
+`elements:`, mark content that never changes; the compiler paints it once into a
+full-screen `Graphics.BufferedBitmap` in `onLayout` and blits it each
+`onUpdate`. `docs/format.md` is the author-facing reference and
+`docs/research/probes/static-buffer/` is the probe that settled the design.
+
+Three things about it belong in this ADR rather than only in the reference,
+because they are decisions and not documentation:
+
+1. **The compiler does not decide "whether it is worth it" — the author
+   declares it.** The bullet above imagined the compiler working that out. It
+   cannot: the benefit is CPU time per frame, and this project has no way to
+   measure CPU time (no simulator in the container, no watch). A compiler that
+   silently buffered what it guessed was expensive would be trading a *measured*
+   1 MB pool for an *unmeasured* saving. Declaring it keeps the trade visible.
+
+2. **The buffer is opaque, and static content must therefore be a contiguous
+   prefix of draw order.** Whether a `COLOR_TRANSPARENT`-cleared buffer blits
+   transparently on a device with `alphaBlendingSupport: false` could not be
+   established from the SDK and cannot be run here — the evidence both ways is
+   in the probe's README, labelled UNVERIFIED in the same way ADR 0005's
+   complication-pull question was. The provable design shipped instead. One
+   consequence: exactly one buffer per face.
+
+3. **The benefit is unmeasured and is not claimed anywhere.** What is verified:
+   it compiles warning-free under `-l 3` on all three targets; the fallback path
+   (`Graphics has :createBufferedBitmap`, plus a null check on `.get()`) draws
+   the same content through the same generated method, so a device without the
+   API still renders correctly; and the byte cost is +9 B data / +147 B code
+   plus a full screen of pool. ADR 0008's rule that a check must not overclaim
+   applies to features too: the `graphics-pool` lint reports the pool cost as an
+   **estimate**, because bytes per pixel for a `BufferedBitmap` is not published
+   and it uses the display's `bitsPerPixel` as a proxy.
 
 ### 6. Interactivity
 

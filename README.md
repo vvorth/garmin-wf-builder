@@ -187,6 +187,8 @@ examples/carousel/    a data carousel -- a row of readings the wearer moves
                       through by touch and hold, one of three zones per press
 examples/complications/  complication.* bindings, on_hold: auto and a
                       carousel item's launch: auto
+examples/static/      a `static:` block: fixed furniture painted once into an
+                      offscreen buffer and blitted every frame
 tests/                ? tests; only the `slow` ones need the Garmin toolchain
 docs/                 format reference, limitations, ADRs, Phase 0 research
 ```

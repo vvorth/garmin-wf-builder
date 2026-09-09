@@ -311,6 +311,17 @@ fonts:                  # optional -- omit to use built-in fonts only
     monospace: true     # optional: one cell width for every glyph, so a clock
                         # does not shift as its digits change (align: center)
 
+static:                   # optional: elements that never change -- a
+  ticks:                  # background, tick marks, printed captions.  Painted
+    type: shape           # once into an offscreen buffer and blitted every
+    shape: line           # frame; the buffer comes from the 1 MB graphics pool,
+    at: {anchor: center, dy: -84%r}     # not the face's 128 KB.  Nothing here
+    to: {anchor: center, dy: -72%r}     # may be bound to a data source, and it
+    thickness: 3px                      # must come first in draw order (the
+    color: palette.track                # block gets that right for you).
+                          # `static: true` on any element or group is the same
+                          # thing written in place.  See examples/static/.
+
 elements:                 # a list, as below -- or a mapping keyed by element
                           # id (`background:` instead of `- id: background`).
                           # Identical meaning; the list form is the one the

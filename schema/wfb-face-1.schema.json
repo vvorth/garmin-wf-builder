@@ -59,6 +59,22 @@
       "items": {
         "$ref": "#/$defs/element"
       }
+    },
+    "static": {
+      "description": "Elements that never change, gathered in one place. Exactly equivalent to writing a single 'group' with 'static: true' as the first entry of 'elements:' -- which is what the compiler rewrites it to, under the reserved id 'static'. Accepts the same two spellings as 'elements:': a list of elements, or a mapping whose key is the element id.",
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/element"
+          }
+        },
+        {
+          "type": "object",
+          "minProperties": 1
+        }
+      ]
     }
   },
   "$defs": {
@@ -344,6 +360,11 @@
         "visible": {
           "$ref": "#/$defs/visible"
         },
+        "static": {
+          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
+          "type": "boolean",
+          "default": false
+        },
         "lint": {
           "$ref": "#/$defs/lint"
         },
@@ -420,6 +441,11 @@
         },
         "visible": {
           "$ref": "#/$defs/visible"
+        },
+        "static": {
+          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
+          "type": "boolean",
+          "default": false
         },
         "lint": {
           "$ref": "#/$defs/lint"
@@ -523,6 +549,11 @@
         "visible": {
           "$ref": "#/$defs/visible"
         },
+        "static": {
+          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
+          "type": "boolean",
+          "default": false
+        },
         "lint": {
           "$ref": "#/$defs/lint"
         },
@@ -616,6 +647,11 @@
         },
         "visible": {
           "$ref": "#/$defs/visible"
+        },
+        "static": {
+          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
+          "type": "boolean",
+          "default": false
         },
         "lint": {
           "$ref": "#/$defs/lint"
@@ -721,6 +757,11 @@
         "visible": {
           "$ref": "#/$defs/visible"
         },
+        "static": {
+          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
+          "type": "boolean",
+          "default": false
+        },
         "lint": {
           "$ref": "#/$defs/lint"
         },
@@ -823,6 +864,11 @@
         },
         "visible": {
           "$ref": "#/$defs/visible"
+        },
+        "static": {
+          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
+          "type": "boolean",
+          "default": false
         },
         "lint": {
           "$ref": "#/$defs/lint"
@@ -978,6 +1024,11 @@
         },
         "visible": {
           "$ref": "#/$defs/visible"
+        },
+        "static": {
+          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
+          "type": "boolean",
+          "default": false
         },
         "lint": {
           "$ref": "#/$defs/lint"

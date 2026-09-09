@@ -34,7 +34,7 @@ from .units import IntBox
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
     "hold-unsupported", "hold-overlap", "carousel-zone", "complication-gated",
-    "dead-element",
+    "dead-element", "graphics-pool",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -49,13 +49,15 @@ ALL_CODES = frozenset({
     "carousel", "color", "complication-gated", "contrast", "dead-element",
     "element-mapping",
     "devices", "duplicate-id", "element", "expression",
-    "font", "format", "format-version", "icon", "io", "lint-allow", "memory",
+    "font", "format", "format-version", "graphics-pool", "icon", "io",
+    "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "carousel-zone", "carousel-on-hold", "hold-overlap", "hold-unsupported",
     "hold-auto-ambiguous", "hold-auto-unresolved",
     "palette-dither", "partial-update", "partial-update-budget", "permission",
     "on-hold", "on-tap-renamed", "raw-color", "safe-area", "schema", "source-renamed",
     "target",
+    "static",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
 
@@ -72,6 +74,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_carousel_zones(resolved, bag)
     check_dead_element(resolved, bag)
     check_complication_availability(resolved, bag)
+    check_graphics_pool(resolved, bag)
     check_alpha(resolved, bag)
     for warning in resolved.warnings:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
@@ -777,6 +780,77 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
                 ],
                 confidence=confidence,
             ))
+
+
+# -- the graphics pool ------------------------------------------------------
+
+#: Fraction of the graphics pool the static buffers may take before this warns.
+#: A judgement, and labelled as one: the pool also holds every font and bitmap
+#: the face loads at runtime, and a buffer taken with ``.get()`` is *locked* --
+#: it cannot be purged to make room for them (Core_Topics/Graphics).  Half the
+#: pool is where "there is plenty left for everything else" stops being obvious.
+GRAPHICS_POOL_BUDGET = 0.5
+
+
+def check_graphics_pool(resolved: ResolvedFace, bag: Bag) -> None:
+    """What the static offscreen buffers cost in the graphics pool.
+
+    An **estimate**, and it says so (ADR 0008).  Bytes per pixel for a
+    ``BufferedBitmap`` is not published anywhere in the SDK; the device's own
+    ``compiler.json`` gives ``bitsPerPixel`` for the *display*, and this uses it
+    as the best available proxy (`Device.buffer_bytes`).  Real per-surface
+    overhead is unknown and not included.
+
+    The buffer is full-screen because Monkey C's ``Dc`` has no translate: a
+    smaller one would mean threading an origin offset through every generated
+    element method, and every coordinate in `Layout` is already absolute
+    (ADR 0004).  So the size is not something the author can tune -- which is
+    exactly why they should be told what it is.
+
+    Reported against the first static root, so ``lint: {allow: [graphics-pool]}``
+    on that element acknowledges the whole face's pool cost.
+    """
+    roots = [p for p in resolved.items if p.element.static]
+    if not roots:
+        return
+    device = resolved.device
+    per_buffer = device.buffer_bytes()
+    pool = device.graphics_pool_bytes
+    if per_buffer is None or not pool:
+        return
+    # One buffer per face today: an opaque full-screen blit cannot coexist with
+    # a second one (`docs/research/probes/static-buffer/`), so every static
+    # group paints into the same surface no matter how many there are.  The day
+    # transparency is settled on real hardware this becomes a sum over roots,
+    # which is why the message is phrased for a total rather than for one.
+    total = per_buffer
+    share = total / pool
+    detail = (f"the static content buffers {total:,} B of the {pool:,} B graphics "
+              f"pool ({share * 100:.1f}%) on {device.id}")
+    notes = [f"{device.width}x{device.height} pixels at the display's own "
+             f"{device.bits_per_pixel} bits/pixel; the buffer is full-screen "
+             f"because Dc has no translate",
+             "the graphics pool is separate from the "
+             f"{device.watchface_memory_limit:,} B watch-face limit, so this is "
+             "not charged against the face's own memory",
+             "it is shared with every font and bitmap loaded at runtime, and a "
+             "buffer held with .get() is locked and cannot be purged to make "
+             "room for them"]
+    confidence = ("estimate -- bytes per pixel for a BufferedBitmap is not published; "
+                  "this uses the display's bitsPerPixel and ignores any per-surface "
+                  "overhead")
+    if share > GRAPHICS_POOL_BUDGET:
+        _emit(bag, roots[0], Diagnostic(
+            Severity.WARNING, "graphics-pool", detail, roots[0].element.span,
+            notes=notes + ["drop `static:` from the largest group, or accept it "
+                           "with lint: {allow: [graphics-pool], reason: \"...\"}"],
+            confidence=confidence,
+        ))
+    else:
+        _emit(bag, roots[0], Diagnostic(
+            Severity.NOTE, "graphics-pool", detail, roots[0].element.span,
+            notes=notes, confidence=confidence,
+        ))
 
 
 # -- alpha ------------------------------------------------------------------

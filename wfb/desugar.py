@@ -1,8 +1,8 @@
 """Stage 0.5: rewrite the author's conveniences into the one shape everything
 downstream already understands.
 
-Today that is exactly one rewrite: **an element list written as a mapping whose
-key is the element id**.
+Two rewrites live here.  The first is **an element list written as a mapping
+whose key is the element id**.
 
 .. code-block:: yaml
 
@@ -35,6 +35,31 @@ not elements; they have no id, and turning their (nonexistent) keys into ids
 would silently mangle a real design.  Only two places in the schema take a list
 of elements -- the top-level ``elements:`` and a ``group``'s ``children:`` --
 and this pass rewrites exactly those two.
+
+The second rewrite is the top-level ``static:`` block:
+
+.. code-block:: yaml
+
+    static:              #  is rewritten to        elements:
+      ticks:             #                           - id: static
+        type: shape      #                             type: group
+    elements:            #                             static: true
+      clock:             #                             children:
+        type: text       #                               - id: ticks
+                         #                                   type: shape
+                         #                             - id: clock
+                         #                               type: text
+
+Same argument as above, and the same payoff: `static:` is a *spelling*, not a
+second feature.  Everything downstream sees one ordinary ``group`` carrying
+``static: true``, so the IR's gates, the emitter's buffer and the
+``graphics-pool`` lint have exactly one shape to handle -- and the group lands
+at the **front** of draw order for free, which is where an opaque static buffer
+has to be (`docs/research/probes/static-buffer/`).
+
+The synthetic group's id, :data:`STATIC_GROUP_ID`, is reserved: a design that
+already uses it gets an error naming the collision rather than a confusing
+``duplicate-id`` against a line that does not exist in the source.
 """
 
 from __future__ import annotations
@@ -52,13 +77,19 @@ from .yamlsrc import YamlDocument
 #: schema rather than repeating it.
 IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-# The one diagnostic code this pass emits is `element-mapping`, written out as a
-# literal at each call site rather than through a constant so that
-# `tests/test_lint.py`'s grep-based ALL_CODES registry can see it.  A duplicate
-# key is not among them: ruamel's round-trip loader raises DuplicateKeyError
-# before this file ever sees the document, and `wfb/yamlsrc.py`'s `load` already
-# reports that as error[yaml] against the second key's own line -- verified, not
-# assumed (`tests/test_desugar.py::test_a_duplicate_key_is_a_clear_diagnostic`).
+#: The id the top-level ``static:`` block's synthetic group is given.  Reserved:
+#: an element that claims it is an error, because the two would collide into one
+#: generated symbol and only one of them has a line in the source file.
+STATIC_GROUP_ID = "static"
+
+# The diagnostic codes this pass emits are `element-mapping` and `static`,
+# written out as literals at each call site rather than through a constant so
+# that `tests/test_lint.py`'s grep-based ALL_CODES registry can see them.  A
+# duplicate key is not among them: ruamel's round-trip loader raises
+# DuplicateKeyError before this file ever sees the document, and
+# `wfb/yamlsrc.py`'s `load` already reports that as error[yaml] against the
+# second key's own line -- verified, not assumed
+# (`tests/test_desugar.py::test_a_duplicate_key_is_a_clear_diagnostic`).
 
 
 def desugar(doc: YamlDocument, bag: Bag) -> bool:
@@ -66,7 +97,84 @@ def desugar(doc: YamlDocument, bag: Bag) -> bool:
     data = doc.data
     if not isinstance(data, dict):
         return True  # `validate.check_format_version` reports this properly
-    return _rewrite(doc, data, "elements", bag)
+    ok = _rewrite(doc, data, "elements", bag)
+    return _static_block(doc, data, bag) and ok
+
+
+# --------------------------------------------------------------------------
+# the top-level `static:` block
+
+
+def _static_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
+    """Fold ``static:`` into one ``group`` at the front of ``elements:``.
+
+    Runs *after* the mapping-form rewrite above so that ``elements:`` is already
+    a sequence to insert into; the block's own children are then put through the
+    same rewrite, so ``static:`` accepts both spellings exactly as ``elements:``
+    does.
+    """
+    if "static" not in data:
+        return True
+    node = data["static"]
+    span = doc.span(data, "static", of="key")
+    if not isinstance(node, (dict, list)) or not node:
+        bag.error(
+            "static",
+            "the top-level `static:` block must be a list of elements or a "
+            "mapping of id -> element",
+            span,
+            notes=["it takes the same two spellings `elements:` does",
+                   "`static: true` on a single element is the other spelling of "
+                   "this feature, and belongs *inside* `elements:`"],
+        )
+        return False
+
+    group = CommentedMap()
+    group["id"] = STATIC_GROUP_ID
+    group["type"] = "group"
+    group["static"] = True
+    group["children"] = node
+    if span is not None:
+        line, col = span.line - 1, span.col - 1
+        group.lc.line, group.lc.col = line, col
+        for key in ("id", "type", "static", "children"):
+            group.lc.add_kv_line_col(key, [line, col, line, col])
+
+    ok = _rewrite(doc, group, "children", bag)
+
+    elements = data.get("elements")
+    if elements is None:
+        elements = CommentedSeq()
+        data["elements"] = elements
+    if not isinstance(elements, list):
+        # The mapping-form rewrite above failed and already said why; leaving
+        # `elements:` as the author wrote it keeps that diagnostic honest.
+        return False
+    for existing in elements:
+        if isinstance(existing, dict) and existing.get("id") == STATIC_GROUP_ID:
+            bag.error(
+                "static",
+                f"the id {STATIC_GROUP_ID!r} is reserved while a top-level "
+                "`static:` block is present",
+                doc.span(existing, "id") or span,
+                notes=["the block is rewritten into a group under that id, and "
+                       "two elements cannot share one",
+                       "rename this element, or drop the `static:` block and put "
+                       "`static: true` on the group you want buffered"],
+            )
+            return False
+    elements.insert(0, group)
+    if hasattr(elements, "lc"):
+        # Every existing item shifted one place along; without this each one's
+        # span would be read off the item that used to sit at that index.
+        existing_lc = getattr(elements.lc, "data", None) or {}
+        shifted = {index + 1: value for index, value in existing_lc.items()}
+        if span is not None:
+            line, col = span.line - 1, span.col - 1
+            shifted[0] = [line, col, line, col]
+        elements.lc.data = shifted
+    del data["static"]
+    return ok
 
 
 # --------------------------------------------------------------------------

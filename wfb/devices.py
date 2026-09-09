@@ -137,6 +137,29 @@ class Device:
         """Separate from the watch-face limit -- see ADR 0006 5."""
         return self.simulator.get("graphicsResourcePoolSize")
 
+    @property
+    def bits_per_pixel(self) -> int | None:
+        """The display's own pixel depth, from ``compiler.json``.
+
+        8 on all three targets, with ``pixelFormat: ARGB2222``.  Used only to
+        *estimate* what a full-screen ``BufferedBitmap`` costs in the graphics
+        pool: the SDK nowhere says that a no-palette surface is allocated in the
+        display's format, nor what per-surface overhead the pool adds, so the
+        `graphics-pool` lint that consumes this labels itself an estimate
+        (ADR 0008).  See `docs/research/probes/static-buffer/`.
+        """
+        value = self.compiler.get("bitsPerPixel")
+        return int(value) if value else None
+
+    def buffer_bytes(self, width: int | None = None, height: int | None = None) -> int | None:
+        """Estimated pool cost of one offscreen buffer, default full-screen."""
+        depth = self.bits_per_pixel
+        if not depth:
+            return None
+        w = self.width if width is None else width
+        h = self.height if height is None else height
+        return (w * h * depth + 7) // 8
+
     # -- limits -----------------------------------------------------------
 
     @property

@@ -162,6 +162,53 @@ not just compiled: a supplementary-plane glyph renders correctly.
 transparency and no compositing; `COLOR_TRANSPARENT` as a background means "do
 not paint the background", not "blend".
 
+### A `BufferedBitmap` is opaque here, because transparency could not be established
+
+`static:` (see [`docs/format.md`](format.md)) draws fixed content once into a
+`Graphics.BufferedBitmap` and blits it every frame. The attractive version of
+that feature lets a static group sit **anywhere** in draw order: clear the buffer
+to `COLOR_TRANSPARENT` and its untouched pixels leave what is under them alone.
+
+That could not be established. `Dc.clear()` is documented to honour
+`COLOR_TRANSPARENT` since 3.1.0, and the example it gives is the WatchUi overlay
+layer, not a buffered bitmap; `createBufferedBitmap`'s default is
+`ALPHA_BLENDING_FULL`, which is about drawing *into* the surface; the only place
+the SDK explains where a transparent index comes from is about **resource
+compiler** bitmaps; `alphaBlendingSupport` is `false` on all three targets and
+appears nowhere in the SDK documentation at all. Pointing the other way, the
+same device files say `pixelFormat: ARGB2222`, so the display's own pixel does
+carry alpha bits. Suggestive on both sides, decisive on neither — and the
+simulator does not run here (below), so it cannot be tried.
+
+So the shipped design is the provable one: **the buffer is opaque, and static
+content must be a contiguous prefix of draw order.** One consequence worth
+naming: there is exactly **one** buffer per face, because a second opaque
+full-screen blit would erase the first. Several `static:` groups are allowed, but
+only where they are contiguous at the front, and they share that one buffer.
+
+If someone demonstrates transparency on real hardware, the prefix rule is the
+only thing that has to relax. The full evidence is in
+[`docs/research/probes/static-buffer/`](research/probes/static-buffer/README.md).
+
+### The benefit of `static:` is unmeasured, and must not be claimed
+
+`static:` exists to spend less CPU and therefore less battery per frame. **That
+has not been measured anywhere in this repository, and cannot be**: there is no
+simulator in this container and no watch. What *is* verified is that the
+generated shape compiles warning-free under `-l 3` on all three targets, that
+the no-buffer fallback path draws the same content through the same method, and
+what it costs in bytes: **+9 B data, +147 B code** for the idiom on its own,
+**+27 B data, +183 B code** on a real design (`examples/static/`, 2,769 B ->
+2,979 B of the 131,072 B limit), plus one full-screen surface in the graphics
+pool (67,600 B at 260x260, 78,400 B at 280x280, of 1,048,576 B) that is *not*
+charged against the watch-face limit. Anyone reading a speedup into this feature is reading something nobody
+here established.
+
+The pool figure is itself an **estimate**: bytes per pixel for a
+`BufferedBitmap` is not published, so the `graphics-pool` lint uses the
+display's own `bitsPerPixel` from the device files and ignores per-surface
+overhead. It says so in its own `confidence:` line.
+
 ### 64 colours, and everything else dithers
 
 Each channel must be `0x00`, `0x55`, `0xAA` or `0xFF`. Anything else is dithered
@@ -405,12 +452,13 @@ partly enforced" below, the same gap from the catalogue's side.
 | **Partial-update power budget** | **A heuristic, and now the only guard.** Garmin does not publish the numeric budget; the docs say only "strict limits". The check flags relative cost — clip area and operation count — and is labelled a heuristic until measured empirically against `onPowerBudgetExceeded`. Until the refresh-tier deletion (§2 above) this was backed by a hard, unsuppressible compile error barring `weather.*`/`complication.*` from `low_power`; that error is gone, so this suppressible heuristic is now the *entire* build-time defence against overrunning a budget whose overrun is **permanent**. Treat a warning here on a `low_power` element more seriously than its "heuristic" label alone would suggest. |
 | **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is **always an estimate** — Garmin publishes each `FONT_*` symbol's pixel *height* per device and language, but not its per-glyph advances, and the real typefaces (Pridi, Roboto Condensed, Bionic, ...) are not available on the host or in the SDK. The estimate scales a real scalable stand-in face to the device's published height and measures per character (`wfb/fonts/fallback.py`), which is why it needs that per-device height to be correct in the first place — a flat 0.55 em/character coefficient is a last-resort fallback used only if even that stand-in face fails to load. Every system-font measurement is labelled `(estimated)` in the generated code regardless. |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
+| **`graphics-pool`** | The pool size is exact (`graphicsResourcePoolSize`, straight from the device file) and so is the pixel count. **Bytes per pixel is not.** The SDK publishes no figure for a `BufferedBitmap`, so this uses the display's own `bitsPerPixel` as a proxy and ignores per-surface overhead; the check labels itself an estimate. It also does not account for the fonts and bitmaps the face loads at runtime, which share the same pool -- so the *fraction* it reports is a floor, not a total. |
 | **`carousel-zone`, narrow-zone half** | Splitting the box into thirds is exact; the **40px minimum** each third is measured against is not a Garmin number — Garmin publishes no minimum touch size — so it is this compiler's judgement and the message says so. The other half of the check, whether a zone reaches under a round screen's bezel, *is* exact resolved geometry. |
 
 ### Suppression, and what it can reach
 
 `lint: {allow: [<code>], reason: "..."}` on an element silences a suppressible
-check for that element. Two of the five suppressible codes are not element-scoped
+check for that element. Three of the suppressible codes are not element-scoped
 diagnostics at all, so their suppression is scoped to the elements that *cause*
 them rather than to an arbitrary one:
 
@@ -422,8 +470,11 @@ them rather than to an arbitrary one:
   element references the entry that way, the warning says so instead of printing
   instructions that would not work.
 * **`partial-update-budget`** is about the whole face's clip rectangle, so the
-  allow is honoured on any element drawn in `low_power` mode — the elements that
+  allow is honoured on any element drawn in `low_power` mode -- the elements that
   the clip is computed from and that pay its cost.
+* **`graphics-pool`** is about the one buffer the whole face shares, so the
+  allow is honoured on the first element declaring `static: true` -- there is no
+  per-group figure to acknowledge separately.
 
 `carousel-zone`, `dead-element` and the two `hold-*` codes are ordinary
 element-scoped diagnostics, so `lint:` on the element itself reaches them.

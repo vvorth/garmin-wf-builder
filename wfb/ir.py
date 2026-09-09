@@ -210,6 +210,18 @@ class Element:
     #: tree.  The copy left on the group itself is what the `dead-element`
     #: lint reports against.
     visible: Expression | None = None
+    #: `static: true` as the author wrote it -- this element is the *root* of a
+    #: static subtree, drawn once into an offscreen buffer and blitted every
+    #: frame afterwards.  On a `group` it covers the subtree; on a leaf it is a
+    #: subtree of one.
+    static: bool = False
+    #: The id of the static root this element belongs to, itself included, or
+    #: None.  Set by `Builder._apply_static`, not by the author: the emitter
+    #: needs to know, for each *flattened* element, which buffer draws it, and
+    #: by the time layout has flattened the tree the subtree is gone -- the
+    #: same reason `visible:` is pushed down rather than read off the group
+    #: (`_push_visible`).
+    static_root: str | None = None
 
     @property
     def symbol(self) -> str:
@@ -414,15 +426,24 @@ class Face:
 
     def walk(self) -> list[Element]:
         """Every element, parents before children, in document order."""
-        out: list[Element] = []
+        return walk_elements(self.elements)
 
-        def visit(items: list[Element]) -> None:
-            for item in items:
-                out.append(item)
-                visit(item.children())
+    def draw_order(self) -> list[Element]:
+        """Every element that actually draws, in the order it is drawn.
 
-        visit(self.elements)
-        return out
+        Document order, then a stable sort by ``z`` -- exactly what
+        :class:`wfb.layout.Resolver` does to its flattened ``Placed`` list, and
+        with groups dropped for the same reason the emitter skips them: a group
+        is a coordinate frame, not something that paints.  Device-independent,
+        because ``z`` and document order are, which is what lets the static
+        prefix check run once in the IR rather than three times over resolved
+        geometry.  ``tests/test_static.py`` pins the two orders together.
+        """
+        return draw_order(self.elements)
+
+    def static_roots(self) -> list[Element]:
+        """The static subtree roots, in document order."""
+        return [e for e in self.walk() if e.static]
 
     def requirements(self) -> catalog.Requirements:
         """Permissions, readers and modules implied by every binding."""
@@ -474,6 +495,9 @@ class Builder:
         self._build_scope()
 
         elements = self._build_elements(data.get("elements") or [], ("elements",))
+        if not self.bag.ok():
+            return None
+        self._apply_static(elements)
         if not self.bag.ok():
             return None
 
@@ -684,6 +708,7 @@ class Builder:
             overrides=dict(node.get("overrides") or {}),
             on_hold=self._hold_target(node),
             visible=self._visible(node),
+            static=bool(node.get("static", False)),
         )
 
         builders = {
@@ -715,7 +740,13 @@ class Builder:
         they fold case and separators independently; in practice they collide
         together, but there is no reason to assume that stays true forever.
         """
-        candidates = (element_const_prefix(element_id), element_method_name(element_id))
+        candidates = [element_const_prefix(element_id), element_method_name(element_id)]
+        if node.get("type") == "group":
+            # A group may become a static subtree root, which owns a third
+            # symbol.  Reserved unconditionally, like the two above: whether a
+            # group is static is the author's to change later, and a name that
+            # only collides after an unrelated edit is the worst kind.
+            candidates.append(static_group_method(element_id))
         collisions: list[tuple[str, str, Span | None]] = []
         for symbol in candidates:
             claimed = self.seen_symbols.get(symbol)
@@ -1019,6 +1050,190 @@ class Builder:
                 visit(child.children())
 
         visit(group.items)
+
+    # -- static subtrees ---------------------------------------------------
+
+    def _apply_static(self, elements: list[Element]) -> None:
+        """Mark, then check, every `static: true` subtree.
+
+        A static subtree is drawn once into an offscreen ``BufferedBitmap`` and
+        blitted every frame afterwards.  The buffer is **opaque and
+        full-screen**, because transparency could not be established from the
+        SDK and cannot be observed in this container -- the whole argument is in
+        `docs/research/probes/static-buffer/`.  Everything checked here follows
+        from that one decision plus "the buffer is filled exactly once":
+
+        * a binding would make the content change, and the buffer would not;
+        * a carousel holds a selection, which is a binding by another name;
+        * `low_power` would charge the blit against the partial-update budget by
+          clip *area* (CLAUDE.md constraint 4), which is the whole screen here;
+        * a nested `static:` is a second buffer for content the outer one
+          already draws;
+        * mixed `modes:` inside one buffer would blit elements into a mode they
+          asked not to be drawn in;
+        * and an opaque blit erases whatever is under it, so the static content
+          has to come first.
+
+        Every one of these is an error rather than a warning: each is a design
+        that would compile and then be silently wrong on the wrist, which is the
+        failure mode this compiler exists to remove.
+        """
+        roots = [e for e in walk_elements(elements) if e.static]
+        if not roots:
+            return
+        for root in roots:
+            self._mark_static(root, root)
+        if not self._check_static_subtrees(roots):
+            return
+        self._check_static_modes(roots)
+        self._check_static_order(elements, roots)
+
+    def _mark_static(self, root: Element, element: Element) -> None:
+        if element is not root and element.static:
+            self.bag.error(
+                "static",
+                f"{element.id!r} declares `static: true` inside the static "
+                f"subtree of {root.id!r}",
+                element.span,
+                notes=[f"{root.id!r} already draws it into the same buffer",
+                       "delete the inner `static: true`"],
+            )
+            return
+        element.static_root = root.id
+        for child in element.children():
+            self._mark_static(root, child)
+
+    def _check_static_subtrees(self, roots: list[Element]) -> bool:
+        ok = True
+        for root in roots:
+            for element in walk_elements([root]):
+                if isinstance(element, Carousel):
+                    self.bag.error(
+                        "static",
+                        f"{element.id!r} is a carousel and cannot be static",
+                        element.span,
+                        notes=["a carousel remembers which item is centred and "
+                               "redraws when the wearer moves it -- a buffer "
+                               "filled once would freeze it",
+                               f"take it out of {root.id!r}"
+                               if element is not root else
+                               "drop `static: true` from it"],
+                    )
+                    ok = False
+                    continue
+                for expression in element.expressions():
+                    if not expression.sources:
+                        continue
+                    where = ("visible" if expression is element.visible
+                             else "a value")
+                    self.bag.error(
+                        "static",
+                        f"{element.id!r} binds {where} to "
+                        f"{_and_paths(expression.sources)} inside the static "
+                        f"subtree of {root.id!r}",
+                        expression.span or element.span,
+                        notes=["a static subtree is drawn once, into a buffer "
+                               "that is never refilled -- a reading bound here "
+                               "would freeze at whatever it was on the first "
+                               "frame",
+                               "move this element out of the static group, or "
+                               "replace the binding with a constant"],
+                    )
+                    ok = False
+                if "low_power" in element.modes:
+                    self.bag.error(
+                        "static",
+                        f"{element.id!r} is static and declares "
+                        "`modes: [... low_power ...]`",
+                        element.span,
+                        notes=["onPartialUpdate is charged by clip *area*, and "
+                               "the buffer is the whole screen -- one blit a "
+                               "second would spend the power budget, which is "
+                               "disabled permanently once exceeded",
+                               "`active` and `always_on` are both fine"],
+                    )
+                    ok = False
+        return ok
+
+    def _check_static_modes(self, roots: list[Element]) -> None:
+        """One buffer, so one mode set: everything static must agree."""
+        reference: Element | None = None
+        for root in roots:
+            for element in walk_elements([root]):
+                if element.kind == "group":
+                    continue  # a group paints nothing; its modes gate nothing
+                if reference is None:
+                    reference = element
+                elif set(element.modes) != set(reference.modes):
+                    self.bag.error(
+                        "static",
+                        f"{element.id!r} draws in "
+                        f"{', '.join(element.modes)} but the static "
+                        f"{reference.id!r} draws in "
+                        f"{', '.join(reference.modes)}",
+                        element.span,
+                        notes=["all static content shares one buffer, and a "
+                               "buffer is blitted as a whole -- so every "
+                               "element in it must draw in the same modes",
+                               f"give both the same `modes:`, or take "
+                               f"{element.id!r} out of the static content"],
+                    )
+
+    def _check_static_order(self, elements: list[Element], roots: list[Element]) -> None:
+        """Static content must be a contiguous prefix of draw order.
+
+        The buffer is opaque and full-screen (probe question (a)), so its blit
+        overwrites every pixel under it.  Anything drawn before it would
+        disappear.  Reported here, against the first element that is out of
+        place, rather than left to be discovered on the wrist.
+        """
+        order = draw_order(elements)
+        static_ids = {e.id for e in walk_elements(roots) if e.kind != "group"}
+        if not static_ids:
+            return
+        count = len(static_ids)
+        prefix = order[:count]
+        stray = [e for e in prefix if e.id not in static_ids]
+        if stray:
+            first_static = next((e for e in order if e.id in static_ids), None)
+            self.bag.error(
+                "static",
+                f"{stray[0].id!r} is drawn before, or in between, the static "
+                "content",
+                stray[0].span,
+                notes=["static content is buffered into one opaque full-screen "
+                       "bitmap, so it must be drawn first -- the blit would "
+                       "erase anything under it",
+                       f"move {stray[0].id!r} after the static content, or give "
+                       "it a higher `z:`"]
+                + ([f"the static content starts at {first_static.id!r}"]
+                   if first_static is not None else []),
+            )
+            return
+        # Two static roots may not interleave either.  Each is emitted as one
+        # `drawStatic<Id>` called in order, so an element of root A drawn
+        # between two of root B would end up painted out of order inside the
+        # buffer -- silently, since the blit looks the same either way.
+        seen: set[str] = set()
+        previous: str | None = None
+        for element in prefix:
+            root = element.static_root
+            if root == previous:
+                continue
+            if root in seen:
+                self.bag.error(
+                    "static",
+                    f"the static content of {root!r} is split apart by "
+                    f"{previous!r}",
+                    element.span,
+                    notes=["each static group is painted into the buffer in one "
+                           "run, so two of them cannot interleave",
+                           "usually a `z:` on one of the elements is what "
+                           "reordered them"],
+                )
+                return
+            seen.add(root)
+            previous = root
 
     def _build_group(self, node: dict, common: dict, path: tuple) -> Element:
         group = Group(
@@ -1922,6 +2137,37 @@ class Builder:
             return None
 
 
+def _and_paths(paths: tuple[str, ...]) -> str:
+    """``'a'``, ``'a' and 'b'``, ``'a', 'b' and 'c'`` -- for a diagnostic."""
+    quoted = [repr(path) for path in paths]
+    if len(quoted) == 1:
+        return quoted[0]
+    return ", ".join(quoted[:-1]) + " and " + quoted[-1]
+
+
+def walk_elements(elements: list[Element]) -> list[Element]:
+    """Flatten a tree of elements, parents before children, in document order."""
+    out: list[Element] = []
+
+    def visit(items: list[Element]) -> None:
+        for item in items:
+            out.append(item)
+            visit(item.children())
+
+    visit(elements)
+    return out
+
+
+def draw_order(elements: list[Element]) -> list[Element]:
+    """The flattened, ``z``-sorted list of elements that actually paint.
+
+    Shared by :meth:`Face.draw_order` and :meth:`Builder._apply_static`, which
+    runs before there is a :class:`Face` to ask.
+    """
+    drawn = [e for e in walk_elements(elements) if e.kind != "group"]
+    return sorted(drawn, key=lambda e: (e.z if e.z is not None else 0,))
+
+
 def build(doc: YamlDocument, bag: Bag) -> Face | None:
     return Builder(doc, bag).build()
 
@@ -1961,6 +2207,25 @@ def element_const_prefix(element_id: str) -> str:
 def element_method_name(element_id: str) -> str:
     """The private draw method codegen derives from an element id (``drawTempLow``)."""
     return "draw" + _element_suffix(element_id)
+
+
+def static_group_method(element_id: str) -> str:
+    """The method that paints one static subtree (``drawStaticTicks``).
+
+    A root already called ``static`` -- which is the id the top-level
+    ``static:`` block is desugared under -- gives ``drawStatic``, not
+    ``drawStaticStatic``: the prefix says what the method *is*, and repeating a
+    word the id already carries is not something a person would write
+    (ADR 0003).  Only a `group` root gets one of these; a static leaf is drawn
+    by its own `draw<Id>` straight from `renderStatic`, because a wrapper around
+    a single call is noise.
+
+    Derived here rather than in the emitter for the same reason every other
+    generated symbol is: :meth:`Builder._check_symbol_collision` has to see, in
+    one place, every symbol an id can produce.
+    """
+    suffix = _element_suffix(element_id)
+    return "drawStatic" if suffix == "Static" else "drawStatic" + suffix
 
 
 def carousel_step_method(element_id: str) -> str:

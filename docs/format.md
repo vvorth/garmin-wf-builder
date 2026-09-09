@@ -63,6 +63,7 @@ face:
 targets: [fenix8solar47mm, fenix8solar51mm, fr955]
 palette: {...}
 fonts:   {...}
+static:   [...]        # optional: elements that never change -- see below
 elements: [...]        # a list, or a mapping keyed by element id -- see below
 ```
 
@@ -368,6 +369,105 @@ Two things `visible:` deliberately does **not** change, both recorded in
   which has no access to the frame's readings, and re-reading them at touch time
   would answer about a different moment than the one on screen anyway. A hold on
   a hidden element opens its glance.
+
+### `static:` — draw it once, then blit it
+
+```yaml
+static:                     # a top-level block, beside `elements:`
+  backdrop:
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  hour_ticks:
+    type: group
+    children: [...]         # twelve tick marks, none of them bound to anything
+
+elements:
+  clock:
+    type: text
+    value: time.clock
+```
+
+Content that never changes is painted **once**, into an offscreen
+`Graphics.BufferedBitmap`, and every later frame draws it with a single
+`drawBitmap` instead of re-running every primitive. That buffer comes from the
+**graphics pool** — 1 MB on every supported target — not from the 128 KB the
+watch face itself gets, so a full screen of pixels there costs nothing against
+the design's own budget.
+
+**What this buys is CPU and battery, and this repository has not measured it.**
+There is no simulator in this container and no watch, so what is verified is
+that it compiles, that the fallback path draws the same content, and what it
+costs in bytes. See [`docs/limitations.md`](limitations.md).
+
+There are two spellings and they mean exactly the same thing:
+
+```yaml
+static:                    #  equivalent to      elements:
+  ticks:                   #                       - id: static
+    type: shape            #                         type: group
+elements:                  #                         static: true
+  clock:                   #                         children:
+    type: text             #                           - id: ticks
+                           #                               type: shape
+                           #                       - id: clock
+                           #                         type: text
+```
+
+`static: true` works on **any** element: on a `group` it covers the subtree, on
+a leaf it is a subtree of one. The top-level block is the same thing written in
+one place, and the compiler rewrites it into exactly that group — under the
+reserved id `static`, at the front of draw order. Prefer the block when a design
+has a lot of fixed furniture; prefer `static: true` when one group is already
+the natural home for it.
+
+**Static content must come first in draw order.** The buffer is opaque and
+covers the whole screen, so its blit erases whatever is under it. The top-level
+block satisfies this automatically; `static: true` on a group you have placed
+somewhere else does not, and the compiler says so rather than letting the blit
+quietly wipe out an element. Whether a *transparent* buffer would work on these
+devices could not be established from the SDK and cannot be tried without a
+simulator — the evidence, both ways, is in
+[`docs/research/probes/static-buffer/`](research/probes/static-buffer/README.md).
+
+Everything else the compiler rejects, and why:
+
+| rejected | because |
+|---|---|
+| any data binding in the subtree, `visible:` included | the buffer is filled once and never refilled; the reading would freeze at whatever it was on the first frame |
+| a `carousel` | it remembers which item is centred and redraws when the wearer moves it |
+| `modes:` containing `low_power` | `onPartialUpdate` is charged by clip *area*, and the buffer is the whole screen. `active` and `always_on` are both fine |
+| `static:` inside a static subtree | the outer one already draws it |
+| two static elements with different `modes:` | there is one buffer, and a buffer is blitted as a whole |
+
+A constant expression is fine — it is the *binding* that is rejected, not the
+syntax. `color: "palette.warm"` and `visible: "true"` both fold at build time and
+are welcome in a static group.
+
+**It always renders, buffer or not.** The generated view allocates behind
+`if (Graphics has :createBufferedBitmap)` and null-checks the result, and
+`onUpdate` calls the very same `renderStatic(dc)` on the screen's own Dc when
+there is no buffer. One method, two call sites, so the buffered and unbuffered
+pictures cannot drift apart. `renderStatic` clears to black first: a fresh
+buffer's contents are undefined, and since the static content is the first thing
+drawn either way, clearing costs nothing and is what makes `wfb preview` — which
+also starts from black — agree with the watch.
+
+The suppressible `graphics-pool` note reports what the buffer costs, per device:
+
+```
+note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B
+                     graphics pool (6.4%) on fenix8solar47mm
+      confidence: estimate -- bytes per pixel for a BufferedBitmap is not
+                  published; this uses the display's bitsPerPixel and ignores
+                  any per-surface overhead
+```
+
+It becomes a warning past half the pool. It is an **estimate** and says so: the
+SDK publishes no bytes-per-pixel figure for a `BufferedBitmap`, so this uses the
+display's own `bitsPerPixel` from the device files as the nearest honest proxy.
 
 ### `shape`
 
@@ -1212,9 +1312,10 @@ off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
 `carousel-on-hold`) are **not** suppressible: silencing one produces a face
 that does not work.
 
-Ten codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+Eleven codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `carousel-zone`, `hold-overlap`,
-`hold-unsupported`, `complication-gated` and `dead-element`. `wfb/lint.py`'s `SUPPRESSIBLE` is
+`hold-unsupported`, `complication-gated`, `dead-element` and `graphics-pool`.
+`wfb/lint.py`'s `SUPPRESSIBLE` is
 the normative list -- this prose has drifted from it before, so check there
 rather than here if the two ever disagree. **A code that is not one of them is a
 build error**, and the message distinguishes the two ways that happens — a code the compiler does not emit at all (with a "did you mean"
@@ -1222,10 +1323,11 @@ suggestion) versus a real code that is deliberately unsuppressible (with the
 reason). Both used to be ignored in silence, which left an author unable to tell
 a typo from a check that refuses to be silenced.
 
-Two of them are not element-scoped diagnostics, so the allow goes on the
+Three of them are not element-scoped diagnostics, so the allow goes on the
 element that causes them: `palette-dither` on an element whose `color:` or
-`track_color:` is exactly `palette.<name>`, and `partial-update-budget` on any
-element drawn in `low_power` mode. See `docs/limitations.md` §3.
+`track_color:` is exactly `palette.<name>`, `partial-update-budget` on any
+element drawn in `low_power` mode, and `graphics-pool` on the first element
+declaring `static: true`. See `docs/limitations.md` 3.
 
 ---
 
