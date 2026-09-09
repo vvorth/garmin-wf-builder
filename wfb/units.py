@@ -84,6 +84,65 @@ class Length:
         return f"{num}{self.unit}"
 
 
+# --------------------------------------------------------------------------
+# Sizes that are resolved *before* layout runs
+#
+# A bitmap font -- an author's own custom font, or one of the synthetic
+# per-size icon fonts :mod:`wfb.icons` builds -- is rasterised at one nominal
+# pixel size, and that size has to be known before any element is placed.
+# That is the whole reason these two rules live here rather than in either
+# caller: both the icon path (`wfb.layout`, `wfb.emit.resources.icon_font_specs`)
+# and the custom-font path (`wfb.emit.resources.bake_fonts`) need exactly the
+# same "declared size -> this device's pixels" answer, and having two of them
+# is how a `12px` icon and a `12px` font would silently drift apart.
+
+
+#: The units a size resolved before layout may use.  `%` (of the parent box)
+#: and `pt` (of an element's own font) both depend on context that does not
+#: exist yet at baking time; `%r` and `px` do not -- a fraction of the
+#: screen's minor radius, or a device pixel count, mean the same thing
+#: wherever the thing being sized ends up sitting.
+SIZE_UNITS = ("px", "%r")
+
+
+def pixel_size(length: "Length | None", minor_radius: float, default: float = 24.0) -> int:
+    """Resolve a `px`/`%r` length to whole device pixels, with no box in scope.
+
+    Deliberately independent of any parent box -- callable before layout, so a
+    bitmap font can be baked once per distinct declared size before the
+    elements that use it are placed.  This is why the sizes that reach it are
+    restricted to :data:`SIZE_UNITS` (enforced in :mod:`wfb.ir`, which owns the
+    author-facing diagnostic).
+
+    For an icon this is the height the glyph should *visibly* draw at, not
+    necessarily the nominal em size it gets baked at -- see
+    `wfb.icons.bake_size`, which turns this target into the size handed to the
+    rasteriser.  For a text font it is the nominal em size directly; see that
+    function's docstring for why the two are deliberately not unified.
+    """
+    if length is None:
+        return round(default)
+    return max(1, round(length.resolve(box=_UNUSED_BOX, axis=Axis.MINOR,
+                                       minor_radius=minor_radius)))
+
+
+def scaled_font_size(size: float, minor_radius: float, reference_minor: float) -> int:
+    """Scale a bare-number font size to this device's screen (ADR 0004 §3b).
+
+    The legacy spelling of `fonts.<name>.size`, kept exactly as it was: the
+    number is pixels on the *smallest* target and every larger screen gets it
+    scaled by the ratio of minor radii.  A sheet baked for 260x260 is wrong on
+    the 280x280 fenix 8 Solar 51 mm -- the drift the sibling Dashboard project
+    already has by hand.
+
+    `size: 18%r` says the same thing directly and per device, without the
+    reference screen having to be inferred from the target list, which is why
+    it is now the recommended spelling.  This one stays because designs are
+    written against it and its meaning must not move.
+    """
+    return max(6, round(size * (minor_radius / reference_minor)))
+
+
 @dataclass(frozen=True)
 class Angle:
     """Degrees, 12 o'clock = 0, clockwise positive."""
@@ -169,6 +228,13 @@ class Box:
     def rounded(self) -> "IntBox":
         left, top = round(self.x), round(self.y)
         return IntBox(left, top, round(self.right) - left, round(self.bottom) - top)
+
+
+#: A stand-in for :meth:`Length.resolve`'s ``box`` argument where there is no
+#: box: :func:`pixel_size` only ever resolves `px`/`%r`, neither of which reads
+#: it.  Never leaks anywhere -- a `%` length that reached it would resolve to
+#: zero, which is why :data:`SIZE_UNITS` exists and is enforced upstream.
+_UNUSED_BOX = Box(0.0, 0.0, 0.0, 0.0)
 
 
 @dataclass(frozen=True)

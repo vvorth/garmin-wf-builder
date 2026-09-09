@@ -200,9 +200,14 @@ near `210deg` and sweeps about `300deg`.
    "umbrella", "bluetooth" — copy the glyph, paste it as the `icon:` value).
    Only fall back to a plain shape or a labelled number if nothing in that font
    fits at all.
-8. **An icon's `size:` is `px` or `%r` only** — never `%` or `pt`. Its font has
-   to be baked before layout runs, so its size cannot depend on a parent box or
-   another element's own font, both of which are only known afterwards.
+8. **A `size:` that names a font — an `icon`'s, or a `fonts:` entry's — is
+   `px` or `%r` only**, never `%` or `pt`. The sheet has to be baked before
+   layout runs, so its size cannot depend on a parent box or on a font, neither
+   of which is known yet. Prefer `%r`, which follows each device's own screen.
+   A `fonts:` entry may also take a bare number (`size: 68`), which means
+   pixels on the *smallest* target and is scaled up from there; it still works,
+   but `%r` says the same thing per device without an unnamed reference screen,
+   and `scale:` may not be combined with a length.
 
 ---
 
@@ -301,7 +306,8 @@ palette:                # each channel must be 00, 55, AA or FF
 fonts:                  # optional -- omit to use built-in fonts only
   clock:
     source: assets/YourFont.ttf
-    size: 68            # em pixels on the smallest target, scaled per device
+    size: 18%r          # of this device's minor radius -- or 12px, or a bare
+                        # number for 'pixels on the smallest target' (rule 8)
 
 elements:
   - id: background

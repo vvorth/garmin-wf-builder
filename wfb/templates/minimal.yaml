@@ -6,7 +6,7 @@
 #   fonts:
 #     clock:
 #       source: assets/YourFont.ttf
-#       size: 68            # em pixels on the smallest target; scaled per device
+#       size: 18%r          # of this device's minor radius (px and %r only)
 #
 #   ...then `font: font.clock` on the text element.
 #

@@ -222,3 +222,40 @@ elements:
     resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
     status = find(resolved, "status")
     assert status.widest == "Not Available"
+
+
+def test_a_percent_r_font_size_reaches_the_placed_text_per_device(
+        write_design, bag, db, repo_root):
+    """`font_px` on the placed text is the number **both** renderers read --
+    `wfb.emit.monkeyc` loads the resource it names and `wfb.preview` draws the
+    baked sheet at it -- so asserting it here is asserting that preview and
+    device cannot disagree about a `%r` font size.
+    """
+    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    design = f"""
+format: 1
+face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
+targets: [fenix8solar47mm, fenix8solar51mm]
+palette: {{bg: "#000000", fg: "#FFFFFF"}}
+fonts:
+  clock:
+    source: {ttf}
+    size: 18%r
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    font: font.clock
+    at: {{anchor: center}}
+    color: palette.fg
+"""
+    face = load(write_design(design), bag)
+    assert face is not None, bag.render()
+    sizes = {}
+    for device_id in ("fenix8solar47mm", "fenix8solar51mm"):
+        device = db.get(device_id)
+        reference = min(db.get(t).minor_radius for t in face.targets)
+        fonts = bake_fonts(face, device, reference)
+        placed = find(resolve(face, device, fonts), "clock")
+        sizes[device_id] = placed.font_px
+    assert sizes == {"fenix8solar47mm": 23, "fenix8solar51mm": 25}

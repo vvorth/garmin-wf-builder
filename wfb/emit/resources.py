@@ -19,12 +19,11 @@ from xml.sax.saxutils import escape
 
 from PIL import Image, ImageDraw
 
-from .. import catalog, formatting, icons
+from .. import catalog, formatting, icons, units
 from ..devices import Device
 from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
 from ..ir import Carousel, Face, FontSpec, IconElement, Text
-from ..layout import font_pixel_size
 from ..palette import Color
 
 _XSD = "https://developer.garmin.com/downloads/connect-iq/resources.xsd"
@@ -153,7 +152,7 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
             name=key,
             source=icons.FONT_PATH,
             size=float(icons.bake_size(
-                reference, icons.pixel_size(length, device.minor_radius),
+                reference, units.pixel_size(length, device.minor_radius),
             )),
             glyphs=glyphs,
             antialias=False,
@@ -170,11 +169,10 @@ def bake_fonts(face: Face, device: Device, reference_minor: float) -> dict[str, 
     sets = glyph_set(face)
     baked: dict[str, BakedFont] = {}
     for name, spec in face.fonts.items():
-        size = (
-            font_pixel_size(spec.size, device, reference_minor)
-            if spec.scale
-            else round(spec.size)
-        )
+        # One resolver for both spellings of `size:` -- and, through
+        # `wfb.units.pixel_size`, the same one the synthetic icon fonts below
+        # go through, so `12px` means the same thing on a font and on an icon.
+        size = spec.pixel_size(device.minor_radius, reference_minor)
         font, sheet = bake(
             spec.source,
             name=name,
@@ -186,6 +184,10 @@ def bake_fonts(face: Face, device: Device, reference_minor: float) -> dict[str, 
         font.sheet_image = sheet  # type: ignore[attr-defined]
 
     for name, spec in icon_font_specs(face, device).items():
+        # Not `spec.pixel_size(...)`: an icon font's spec is synthesised, not
+        # authored, and its `size` is already this device's final nominal size
+        # -- `icon_font_specs` has run the declared `Length` through
+        # `units.pixel_size` and then `icons.bake_size` to get there.
         font, sheet = bake(
             spec.source, name=name, size=round(spec.size), glyphs=spec.glyphs,
             antialias=spec.antialias,

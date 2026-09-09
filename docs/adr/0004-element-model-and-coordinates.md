@@ -122,6 +122,42 @@ Also from the device files: **`alphaBlendingSupport` is `false` on all three
 targets.** Any element property implying transparency or alpha compositing must
 be gated on that flag rather than assumed.
 
+### 3c. A font's `size:` is a length too
+
+> **Amendment (2026-09-09).** This ADR made every *coordinate* relative and
+> per-device, and §3b above says plainly that "a bitmap font baked for 260×260
+> is wrong on the 51 mm" — and yet `fonts.<name>.size` was, until now, the one
+> declaration in the format that could not be written in the unit that says so.
+> It was a bare number meaning "pixels on the smallest target", scaled from
+> there by `scale: true` against a reference device the declaration never
+> names. An `icon`'s `size:` had been a proper `Length` (`9%r`) since the icon
+> catalogue was rebuilt; a text font had not.
+
+`fonts.<name>.size` now accepts either spelling:
+
+* a **`Length`** — restricted to `px` and `%r`, resolved per device from that
+  device's own minor radius. `18%r` is 23 px on a 260×260 screen and 25 px on a
+  280×280 one; `12px` is twelve pixels everywhere. This is the recommended
+  form, and it is the same unit and the same resolver (`wfb.units.pixel_size`)
+  that every coordinate and every icon size already goes through.
+* a **bare number**, unchanged in meaning, still scaled by `scale:`. Designs
+  are written against it and moving it would be a silent breaking change.
+
+`%` and `pt` are rejected: a sheet is rasterised before any element is placed,
+so there is no parent box for `%` and, for a font's own size, `pt` would be
+self-referential. `scale:` combined with a length is an error — the unit has
+already decided.
+
+What is deliberately **not** shared with the icon path is
+`wfb.icons.bake_size`'s ink-height normalisation. That exists because the
+vendored icon font aggregates ~10 third-party sets that pad glyphs differently
+inside the em-square, so one file's own glyphs disagree about what a nominal
+size means; an author's typeface has one such convention throughout, and
+normalising a face against one reference character would scale the whole face
+by that character's ink ratio and break the baseline and line-height
+relationships two text elements in a row depend on. See that function's
+docstring.
+
 ### 4. Per-device overrides
 
 A design is one document; overrides are a scoped patch, never a fork:

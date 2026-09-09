@@ -129,22 +129,53 @@ on an element silences it for a deliberate choice.
 fonts:
   clock:
     source: assets/OpenSans-Regular.ttf   # relative to the design file
-    size: 68                              # em pixels on the smallest target
+    size: 18%r                            # or 68, or 12px -- see below
     glyphs: "0123456789:"                 # optional -- see below
     antialias: false
-    scale: true
 ```
 
 The compiler rasterises the TrueType source into a BMFont sheet at build time,
 per device.
 
+### `size:` has two spellings
+
+| Written | Means | Per device |
+|---|---|---|
+| `size: 18%r` | 18% of **this device's own minor radius** | 23 px on a 260×260 screen, 25 px on a 280×280 one |
+| `size: 12px` | exactly twelve pixels | 12 px everywhere |
+| `size: 68` | 68 px **on the smallest target**, scaled from there by the ratio of minor radii | 68 px on 260×260, 73 px on 280×280 (unless `scale: false`) |
+
+**Prefer `%r`.** It says the thing a design actually means — "this font is a
+fixed fraction of the dial" — directly, per device, in the same unit `at:`,
+`radius:` and an `icon`'s `size:` already use. The bare number says it
+indirectly, by naming a size on a *reference* device the declaration never
+mentions: change the target list so a smaller screen joins it and every
+bare-number font in the design silently rebakes.
+
+The bare number is not deprecated and its meaning has not moved — designs are
+written against it, and `scale: false` still pins it to a literal pixel count
+on every device.
+
+* **Only `px` and `%r` are allowed.** `%` is of a parent box and `pt` is of a
+  font, and a sheet is rasterised before any element is placed — there is no box
+  yet, and for a font's own size `pt` would be measuring against itself. Both
+  are a build error naming `%r`.
+* **`scale:` may not be combined with a length.** The unit has already said
+  whether the size is per-device; `scale:` is only meaningful for the bare
+  number, which needs a reference device to scale away from.
+* **A font's declared size is the nominal em size**, handed to the rasteriser as
+  written. It is deliberately *not* normalised to a measured ink height the way
+  an `icon`'s `size:` is: an icon draws one glyph on its own, where ink height
+  is the whole of what a size can mean, while a typeface's characters are drawn
+  against a shared baseline and their relative proportions are the point.
+  See `wfb/icons.py`'s `bake_size` docstring for the full reasoning.
+
+### Everything else
+
 * **Omit `glyphs` and the compiler derives the set** from every format spec and
   literal string the design can render. The example face's clock font carries
   eleven glyphs rather than a character set — on a 128 KB budget that is the
   difference between a large font fitting and not.
-* **`scale: true` scales the sheet with the screen**, so one declaration is right
-  on both the 260×260 and the 280×280 family. A sheet baked for one and shipped
-  to the other is a real, common drift.
 * **Glyphs are rasterised at 16x and averaged down**, not drawn straight at the
   target size. At single-digit sizes FreeType's hinting fits the outline to the
   pixel grid and breaks the shape's own symmetry — measured across 99

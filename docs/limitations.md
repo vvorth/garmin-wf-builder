@@ -77,6 +77,29 @@ on top of each other. Icons inherit this too: an icon element is a glyph from a
 baked bitmap font (`wfb/icons.py`), so a two-tone icon is not possible without
 splitting it into two overlaid glyphs, the same as two-colour text.
 
+### A font's `size:` cannot be `%` or `pt`, and is not normalised to ink height
+
+`fonts.<name>.size` takes a bare number or a `px`/`%r` length (`docs/format.md`
+§Fonts), and not the other two units the coordinate model has. This is a real
+restriction, and it is structural rather than an omission: a bitmap sheet is
+rasterised **before** any element is placed, so a `%` has no parent box to be a
+fraction of, and a `pt` — which is defined as a multiple of a font's own pixel
+height — would be measuring a font's size against itself. Both are a build
+error naming `%r`, which is what an author reaching for `%` on a font almost
+always wants.
+
+Separately, and deliberately: a font's declared size is the **nominal em size**
+handed to the rasteriser, not a measured ink height. Two different typefaces
+declared at the same `size:` can therefore render visibly different heights,
+because how much of the em-square a face's ink fills is a property of the face.
+An `icon`'s `size:` *is* normalised that way (`wfb/icons.py`'s `bake_size`),
+because an icon is one glyph placed on its own and ink height is the whole of
+what its size can mean; a typeface's characters share a baseline and a line
+height, and their relative proportions are the typeface, so normalising against
+one chosen reference character would distort every other one. Nothing checks
+that two fonts at one declared size look the same height — they will not,
+in general.
+
 ### The resource compiler's font `filter` cannot represent a codepoint above U+FFFF
 
 `icon:` accepts any single character from the vendored Nerd Font directly, not

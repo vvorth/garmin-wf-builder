@@ -135,9 +135,7 @@
           "type": "string"
         },
         "size": {
-          "description": "Em size in pixels to rasterise at, on the smallest target. Scaled per device by screen size unless scale is false.",
-          "type": "number",
-          "exclusiveMinimum": 0
+          "$ref": "#/$defs/fontSize"
         },
         "glyphs": {
           "description": "The characters to bake. Omit to let the compiler derive the set from every string the design can render.",
@@ -149,7 +147,7 @@
           "default": false
         },
         "scale": {
-          "description": "Scale the rasterised size with the target's screen size, so one declaration works across the 260px and 280px families.",
+          "description": "Scale the rasterised size with the target's screen size, so one declaration works across the 260px and 280px families. Only meaningful for a bare-number size: giving it alongside a length such as '18%r' is an error, because the unit has already said whether the size is per-device.",
           "type": "boolean",
           "default": true
         }
@@ -219,6 +217,20 @@
           "type": "number"
         },
         {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|%|px|pt)?\\s*$"
+        }
+      ]
+    },
+    "fontSize": {
+      "description": "The em size to rasterise a font at. A bare number is em pixels on the smallest target, scaled per device by screen size unless scale is false -- the original spelling, unchanged. A length string resolves per device on its own: '12px' is exactly twelve pixels everywhere, '18%r' is a fraction of each device's own minor radius. Only px and %r are allowed (a sheet is baked before any element is placed, so there is no parent box for % and no font in scope for pt); the compiler reports the other two against your own line.",
+      "anyOf": [
+        {
+          "description": "A positive number (em pixels on the smallest target, scaled per device) or a positive px/%r length such as '12px' or '18%r'.",
+          "type": "number"
+        },
+        {
+          "description": "A positive number (em pixels on the smallest target, scaled per device) or a positive px/%r length such as '12px' or '18%r'.",
           "type": "string",
           "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|%|px|pt)?\\s*$"
         }

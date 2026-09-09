@@ -4,7 +4,10 @@ import math
 
 import pytest
 
-from wfb.units import ANCHORS, Angle, Axis, Box, IntBox, Length, UnitError
+from wfb.units import (
+    ANCHORS, SIZE_UNITS, Angle, Axis, Box, IntBox, Length, UnitError, pixel_size,
+    scaled_font_size,
+)
 
 
 @pytest.mark.parametrize(
@@ -86,3 +89,41 @@ def test_intbox_union_and_clamp():
     assert a.union(b) == IntBox(0, 0, 30, 15)
     assert IntBox(-5, -5, 20, 20).clamp_to(10, 10) == IntBox(0, 0, 10, 10)
     assert a.area == 100
+
+
+# -- sizes resolved before layout runs ---------------------------------------
+#
+# `pixel_size` and `SIZE_UNITS` used to live in `wfb.icons`, where only an
+# icon's `size:` could reach them.  A custom font's `size:` now takes the same
+# lengths, through the same function, so these tests live with the function.
+
+
+@pytest.mark.parametrize(
+    "spec,minor_radius,expected",
+    [("8%r", 130.0, 10), ("24px", 130.0, 24), ("50%r", 200.0, 100)],
+)
+def test_pixel_size_resolves_px_and_percent_r(spec, minor_radius, expected):
+    assert pixel_size(Length.parse(spec), minor_radius) == expected
+
+
+def test_pixel_size_has_a_default_for_an_unset_size():
+    assert pixel_size(None, 130.0) == 24
+
+
+def test_pixel_size_never_returns_zero():
+    """A rasteriser handed a size of 0 has nothing to draw; 1 is the floor."""
+    assert pixel_size(Length.parse("0.1%r"), 130.0) == 1
+
+
+def test_size_units_are_exactly_the_context_free_ones():
+    """`%` needs a parent box and `pt` needs a font, neither of which exists
+    when a bitmap sheet is rasterised."""
+    assert set(SIZE_UNITS) == {"px", "%r"}
+
+
+@pytest.mark.parametrize(
+    "size,minor_radius,reference,expected",
+    [(68, 130.0, 130.0, 68), (68, 140.0, 130.0, 73), (2, 130.0, 260.0, 6)],
+)
+def test_scaled_font_size_scales_by_minor_radius(size, minor_radius, reference, expected):
+    assert scaled_font_size(size, minor_radius, reference) == expected

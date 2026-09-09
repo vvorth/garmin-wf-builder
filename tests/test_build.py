@@ -103,3 +103,55 @@ def test_the_slice_compiles_cleanly_for_every_target(slice_design, tmp_path, db,
         assert prg.exists() and prg.stat().st_size > 0
         stats = result.memory[device_id]
         assert 0 < stats["total"] < stats["limit"]
+
+
+@pytest.mark.slow
+def test_a_length_font_size_compiles_cleanly_for_every_target(
+        write_design, repo_root, tmp_path, db, toolchain):
+    """`size: 18%r` through the real toolchain, warning-free on all three.
+
+    A `Length` size changes only a number in the baked sheet and its `fonts.xml`
+    comment, so the generated Monkey C is the same shape a bare number produces
+    -- which is exactly the reasoning that makes a test worth having rather than
+    assuming: nothing about "it should be identical" is checked by `wfb
+    validate`, and `wfb.build` turns each `WARNING:` line `monkeyc` prints into
+    a bag diagnostic, so this asserts warning-free rather than merely
+    successful.
+    """
+    ttf = repo_root / "examples" / "slice" / "assets" / "OpenSans-Regular.ttf"
+    design = write_design(f"""
+format: 1
+face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: FontLen}}
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+palette: {{bg: "#000000", fg: "#FFFFFF"}}
+fonts:
+  clock:
+    source: {ttf}
+    size: 18%r
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {{anchor: center}}
+    size: {{width: 100%, height: 100%}}
+    color: palette.bg
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{{:%H:%M}}"
+    font: font.clock
+    at: {{anchor: center}}
+    color: palette.fg
+""")
+    bag = Bag()
+    result = build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)
+    sizes = {
+        device.id: result.project.resolved[device.id].fonts["clock"].size
+        for device in result.devices
+    }
+    # 18% of each device's own minor radius: 130 -> 23.4, 140 -> 25.2.
+    assert sizes == {"fenix8solar47mm": 23, "fenix8solar51mm": 25, "fr955": 23}

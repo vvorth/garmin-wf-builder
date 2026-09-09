@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import catalog, complications, expr, icons
+from . import catalog, complications, expr, icons, units
 from .catalog import Source, Type
 from .diagnostics import Bag, Span
 from .palette import Color, ColorError
@@ -124,7 +124,21 @@ class Expression:
 class FontSpec:
     name: str
     source: Path
-    size: float
+    #: The declared size, in one of its two spellings.
+    #:
+    #: A bare number is the legacy form and keeps its exact meaning: em pixels
+    #: on the *reference* device (the smallest target), scaled per device when
+    #: :attr:`scale` is true.
+    #:
+    #: A :class:`~wfb.units.Length` is the newer, recommended one: `12px` is
+    #: twelve pixels on every device, `18%r` is a fraction of each device's own
+    #: minor radius.  Restricted to :data:`wfb.units.SIZE_UNITS` -- the same
+    #: `px`/`%r` an `icon`'s `size:` allows, and for the same reason (the sheet
+    #: is rasterised before any element is placed, so there is no parent box to
+    #: take a `%` of and no font in scope to take a `pt` of).  A `Length`
+    #: forbids :attr:`scale`, because its unit has already said whether the
+    #: number is per-device.
+    size: float | Length
     glyphs: str | None
     antialias: bool
     scale: bool
@@ -133,6 +147,27 @@ class FontSpec:
     @property
     def resource_id(self) -> str:
         return font_resource_id(self.name)
+
+    @property
+    def size_is_length(self) -> bool:
+        return isinstance(self.size, Length)
+
+    def pixel_size(self, minor_radius: float, reference_minor: float | None = None) -> int:
+        """The nominal em size this font's sheet is rasterised at, on a device
+        whose screen has this minor radius.
+
+        ``reference_minor`` is the smallest target's minor radius, which the
+        legacy bare-number form scales against (`wfb.units.scaled_font_size`).
+        Pass ``None`` where no such reference is in scope -- `wfb.layout`'s
+        fallback for a font that was never baked -- and a bare number is taken
+        verbatim, exactly as it was before this method existed.  A `Length`
+        never needs it: its unit already says whether it is per-device.
+        """
+        if isinstance(self.size, Length):
+            return units.pixel_size(self.size, minor_radius)
+        if self.scale and reference_minor is not None:
+            return units.scaled_font_size(self.size, minor_radius, reference_minor)
+        return round(self.size)
 
 
 # --------------------------------------------------------------------------
@@ -457,15 +492,84 @@ class Builder:
                     notes=[f"resolved against the design file, to {source}"],
                 )
                 continue
+            size = self._font_size(name, spec)
+            if size is None:
+                continue
+            scale = bool(spec.get("scale", True))
+            if isinstance(size, Length):
+                if "scale" in spec:
+                    self.bag.error(
+                        "font",
+                        f"font {name!r}: 'scale' cannot be combined with a size "
+                        f"given as a length ({size})",
+                        self.doc.span(spec, "scale"),
+                        notes=[
+                            "the unit already decides: 'px' is the same pixel count on "
+                            "every device, '%r' is a fraction of each device's own screen",
+                            "drop 'scale', or go back to a bare number for the "
+                            "reference-device-plus-scale-factor meaning",
+                        ],
+                    )
+                    continue
+                # Meaningless for a length, and left false so nothing downstream
+                # can consult it and get a "scaled" answer for a size that is
+                # already per-device by construction.
+                scale = False
             self.fonts[name] = FontSpec(
                 name=name,
                 source=source,
-                size=float(spec["size"]),
+                size=size,
                 glyphs=spec.get("glyphs"),
                 antialias=bool(spec.get("antialias", False)),
-                scale=bool(spec.get("scale", True)),
+                scale=scale,
                 span=span,
             )
+
+    def _font_size(self, name: str, spec: dict) -> float | Length | None:
+        """`fonts.<name>.size`, in whichever of its two spellings was used.
+
+        A bare number stays a `float` -- deliberately not normalised into a
+        `Length`, because the two mean genuinely different things: the number
+        is pixels *on the reference device* and is scaled from there, while
+        `12px` is twelve pixels everywhere.  Collapsing them would have to pick
+        one of those meanings and silently change every design written against
+        the other.
+        """
+        raw = spec["size"]
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            if float(raw) <= 0:
+                self.bag.error(
+                    "font", f"font {name!r}: size must be greater than zero",
+                    self.doc.span(spec, "size"),
+                )
+                return None
+            return float(raw)
+        try:
+            size = Length.parse(raw, what=f"font {name!r}: size")
+        except UnitError as exc:
+            self.bag.error("units", str(exc), self.doc.span(spec, "size"))
+            return None
+        if size.unit not in units.SIZE_UNITS:
+            self.bag.error(
+                "font",
+                f"font {name!r}: size must be px or %r, not {size.unit}",
+                self.doc.span(spec, "size"),
+                notes=[
+                    "a font's sheet is rasterised before any element is placed, so its "
+                    "size cannot depend on a parent box (%) or on a font (pt) -- there "
+                    "is no box yet, and the font being sized is the one 'pt' would "
+                    "measure against",
+                    "use '%r' for a size that follows the screen, e.g. '18%r'",
+                ],
+            )
+            return None
+        if size.value <= 0:
+            self.bag.error(
+                "font", f"font {name!r}: size must be greater than zero",
+                self.doc.span(spec, "size"),
+            )
+            return None
+        return size
 
     def _build_scope(self) -> None:
         """Populate the expression scope: catalogue sources, then the palette.
@@ -947,7 +1051,7 @@ class Builder:
             )
 
         size = self._length(node, "size")
-        if size is not None and size.unit not in icons.SIZE_UNITS:
+        if size is not None and size.unit not in units.SIZE_UNITS:
             self.bag.error(
                 "icon",
                 f"icon size must be px or %r, not {size.unit}",
@@ -1071,7 +1175,7 @@ class Builder:
         against the author's own line.
         """
         icon_size = self._length(node, "icon_size")
-        if icon_size is not None and icon_size.unit not in icons.SIZE_UNITS:
+        if icon_size is not None and icon_size.unit not in units.SIZE_UNITS:
             self.bag.error(
                 "carousel",
                 f"icon_size must be px or %r, not {icon_size.unit}",

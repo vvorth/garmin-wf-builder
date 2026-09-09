@@ -73,18 +73,6 @@ def test_resolve_codepoint_rejects_a_multi_character_name():
     assert icons.resolve_codepoint("notacatalogname") is None
 
 
-@pytest.mark.parametrize(
-    "spec,minor_radius,expected",
-    [("8%r", 130.0, 10), ("24px", 130.0, 24), ("50%r", 200.0, 100)],
-)
-def test_pixel_size_resolves_px_and_percent_r(spec, minor_radius, expected):
-    assert icons.pixel_size(Length.parse(spec), minor_radius) == expected
-
-
-def test_pixel_size_has_a_default_for_an_unset_size():
-    assert icons.pixel_size(None, 130.0) == 24
-
-
 # -- ink-height compensation across icon sets --------------------------------
 
 

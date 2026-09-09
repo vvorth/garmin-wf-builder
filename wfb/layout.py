@@ -14,13 +14,13 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from . import catalog, formatting, icons
+from . import catalog, formatting, icons, units
 from .devices import Device
 from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
-    Carousel, Element, Expression, Face, Group, IconElement, Position, Progress, Shape,
-    Size, Text,
+    Carousel, Element, Expression, Face, FontSpec, Group, IconElement, Position, Progress,
+    Shape, Size, Text,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
 
@@ -409,8 +409,8 @@ class Resolver:
         cx, cy = self._point(element.at, parent)
         # Independent of `parent`, deliberately: an icon's font is baked once,
         # before any box in the tree is resolved, so its size cannot depend on
-        # one (ADR-equivalent reasoning in wfb.icons.pixel_size).
-        px = icons.pixel_size(element.size, self.device.minor_radius)
+        # one (ADR-equivalent reasoning in wfb.units.pixel_size).
+        px = units.pixel_size(element.size, self.device.minor_radius)
         if element.is_dynamic:
             # The real glyph is chosen on-device at runtime (WfbWeather.mc);
             # measure and preview against the same representative glyph
@@ -446,7 +446,7 @@ class Resolver:
         cx, cy = self._point(element.at, parent)
         box = Box(cx - width / 2, cy - height / 2, width, height)
 
-        icon_px = icons.pixel_size(element.icon_size, self.device.minor_radius)
+        icon_px = units.pixel_size(element.icon_size, self.device.minor_radius)
         pitch = round(self._len(element.pitch, box, Axis.X,
                                 width / max(1, element.slots)))
 
@@ -510,7 +510,7 @@ class Resolver:
         if element.value_font_is_custom:
             baked = self.fonts.get(element.value_font)
             spec = self.face.fonts[element.value_font]
-            return ((baked.size if baked else round(spec.size)),
+            return ((baked.size if baked else self._unbaked_font_size(spec)),
                     element.value_font, True, baked)
         metric = self.device.system_fonts.get(element.value_font)
         if metric is None:
@@ -540,11 +540,25 @@ class Resolver:
         return length.resolve(box=parent, axis=axis, minor_radius=self.minor_radius,
                               font_px=font_px)
 
+    def _unbaked_font_size(self, spec: FontSpec) -> int:
+        """The size to assume for a custom font that was not baked.
+
+        A real build always bakes every declared font, so this is the path a
+        caller who resolved layout with an empty ``fonts`` dict takes -- a unit
+        test, or a geometry-only pass.  A `Length` size resolves exactly here,
+        since its unit already refers to this device; a bare number is taken
+        verbatim, because the reference device it would scale against is a
+        property of the *target list*, which is not in scope.  Unchanged from
+        before `size:` grew the `Length` spelling.
+        """
+        return spec.pixel_size(self.minor_radius)
+
     def _font_for(self, element: Text) -> tuple[int, str, bool, BakedFont | None]:
         if element.font_is_custom:
             baked = self.fonts.get(element.font)
             spec = self.face.fonts[element.font]
-            return (baked.size if baked else round(spec.size)), element.font, True, baked
+            return (baked.size if baked else self._unbaked_font_size(spec)), \
+                element.font, True, baked
         metric = self.device.system_fonts.get(element.font)
         size = metric.size_px if metric else 0
         if metric is None:
@@ -634,16 +648,6 @@ def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
 
 def resolve(face: Face, device: Device, fonts: dict[str, BakedFont]) -> ResolvedFace:
     return Resolver(face, device, fonts).resolve()
-
-
-def font_pixel_size(spec_size: float, device: Device, reference_minor: float) -> int:
-    """Scale a declared font size to this device's screen (ADR 0004 3b).
-
-    A sheet baked for 260x260 is wrong on the 280x280 fenix 8 Solar 51 mm -- the
-    drift the sibling Dashboard project already has by hand.  Scaling by the
-    minor screen dimension keeps one declaration correct on both.
-    """
-    return max(6, round(spec_size * (device.minor_radius / reference_minor)))
 
 
 #: How much of a round screen's outer edge the bezel effectively crops.
@@ -747,6 +751,6 @@ __all__ = [
     "PlacedCarousel", "PlacedCarouselItem",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
     "inside_visible_area_for", "circular_extent", "garmin_arc",
-    "is_full_bleed", "font_pixel_size",
+    "is_full_bleed",
     "ANCHORS", "Size",
 ]

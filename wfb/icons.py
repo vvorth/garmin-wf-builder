@@ -40,7 +40,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from .icon_catalog import CATALOG, Icon
-from .units import Axis, Box, Length
+from .units import Length
 
 #: The vendored font every icon glyph comes from.
 FONT_PATH = Path(__file__).resolve().parent / "assets" / "icons" / "SymbolsNerdFont-Regular.ttf"
@@ -149,32 +149,11 @@ def _available_glyphs() -> frozenset[str]:
     return frozenset(chr(cp) for cp in cmap)
 
 
-#: Lengths an icon's `size:` may use.  `%` (of the parent box) and `pt`
-#: (of an element's own font) both depend on context that is not yet known when
-#: the icon font is baked, before layout runs -- see `pixel_size` below.  `%r`
-#: and `px` do not: a fraction of the screen's minor radius, or a device pixel
-#: count, mean the same thing regardless of where the icon sits.
-SIZE_UNITS = ("px", "%r")
-
-
-def pixel_size(length: Length | None, minor_radius: float, default: float = 24.0) -> int:
-    """Resolve an icon's `size:` to its target *visual* height, in device pixels.
-
-    Deliberately independent of any parent box -- callable before layout, so
-    the icon font can be baked once per distinct size before the elements that
-    use it are placed.  This is why `size:` is restricted to `px`/`%r`
-    (enforced in `wfb.ir`): both resolve from `minor_radius` alone.
-
-    This is the height the glyph should visibly draw at, not necessarily the
-    font's own nominal em-square size it gets baked at -- see `bake_size`,
-    which turns this target into the actual size passed to the font rasteriser.
-    """
-    if length is None:
-        return round(default)
-    return max(1, round(length.resolve(box=_UNUSED_BOX, axis=Axis.MINOR, minor_radius=minor_radius)))
-
-
-_UNUSED_BOX = Box(0.0, 0.0, 0.0, 0.0)
+# An icon's `size:` and a custom font's `size:` are the *same* declaration
+# resolved the *same* way -- `wfb.units.pixel_size` and `wfb.units.SIZE_UNITS`,
+# which used to live here and were lifted out when `fonts.<name>.size` gained
+# the `Length` spelling an icon already had.  What stays icon-only is
+# `bake_size` below; its docstring says why.
 
 
 def _ink_height(codepoint: str, nominal_size: int) -> int:
@@ -221,6 +200,36 @@ def bake_size(codepoint: str, target_px: int) -> int:
     search window is small: no glyph in this font is lopsided enough to need
     it any wider, and this only runs once per distinct (codepoint, size:) pair
     per build, cached for the process.
+
+    **This stays icon-only, on purpose.** `fonts.<name>.size` now accepts the
+    same `Length` an icon's `size:` does (`wfb.units.pixel_size` is the one
+    shared resolver), and the obvious next step -- normalising a *text* font's
+    ink height the same way -- is wrong, for a reason specific to what a font
+    is:
+
+    * An icon element draws exactly **one** glyph, placed on its own. There is
+      no other character for it to be in proportion with, so "how tall does
+      this glyph's ink come out" is the whole of what `size:` can honestly
+      mean, and measuring one glyph answers it exactly.
+    * A text font draws **many** glyphs against a shared baseline, and their
+      *relative* proportions are the typeface. Normalising against a chosen
+      reference character would scale the whole face by that one character's
+      ink ratio: pick `'0'` and a font whose digits are short but whose caps
+      are tall gets silently inflated, its ascenders then overrunning the line
+      height the same nominal size still computes. Worse, two fonts declared
+      at one `size:` would no longer share a baseline or a line height, which
+      is exactly the property a declared size is relied on for when two text
+      elements sit in a row.
+    * The measurement that motivated this function does not apply either. It
+      was a *within-one-file* inconsistency -- the vendored icon font
+      aggregates ~10 third-party icon sets with different em-square padding
+      conventions, so one file's own glyphs disagree about what a nominal size
+      means. An author's text font is one typeface with one such convention;
+      nothing inside it is inconsistent for this to correct.
+
+    So a text font's declared size stays the nominal em size handed to the
+    rasteriser, and `12px`/`18%r` mean "bake at 12/that many pixels", which is
+    also what every existing bare-number `size:` has always meant.
     """
     if target_px <= 0:
         return 1

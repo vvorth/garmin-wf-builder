@@ -1417,3 +1417,97 @@ def test_a_carousel_may_not_take_an_element_level_on_hold(write_design, bag):
         row = next(e for e in face.elements if e.id == "data")
         # and it must not survive into codegen as a phantom hold target
         assert row.on_hold is None
+
+
+# -- a font's `size:` as a length ---------------------------------------------
+
+
+def _font_design(size: str, extra: str = "") -> str:
+    """A design whose one custom font declares this `size:`."""
+    return f"""
+format: 1
+face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
+targets: [fenix8solar47mm]
+palette: {{bg: "#000000", fg: "#FFFFFF"}}
+fonts:
+  clock:
+    source: examples/slice/assets/OpenSans-Regular.ttf
+    size: {size}
+{extra}
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    font: font.clock
+    color: palette.fg
+    at: {{anchor: center}}
+"""
+
+
+@pytest.mark.parametrize("size,unit", [('"18%"', "%"), ('"1.5pt"', "pt")])
+def test_a_font_size_may_not_use_percent_or_pt(write_design, bag, repo_root, size, unit):
+    """A font's sheet is rasterised before any element is placed, so neither
+    context a `%` or a `pt` would need exists yet -- and `pt` is measured
+    against a font, which for a font's own size is circular.  The note has to
+    point at `%r`, which is the unit an author reaching for `%` actually wants.
+    """
+    design_text = _font_design(size).replace(
+        "examples/", f"{repo_root}/examples/")
+    load(write_design(design_text), bag)
+    errors = [d for d in bag.errors if d.code == "font"]
+    assert errors, bag.render()
+    assert f"not {unit}" in errors[0].message
+    assert any("%r" in note for note in errors[0].notes)
+
+
+@pytest.mark.parametrize("size", ['"18%r"', '"12px"'])
+@pytest.mark.parametrize("scale", ["true", "false"])
+def test_scale_with_a_length_font_size_is_an_error(write_design, bag, repo_root,
+                                                   size, scale):
+    """The unit already decides.  `scale` is only meaningful for the bare
+    number, whose 'pixels on the smallest target' meaning needs a reference
+    device to scale away from; a length has no such reference to scale from.
+    """
+    design_text = _font_design(size, extra=f"    scale: {scale}").replace(
+        "examples/", f"{repo_root}/examples/")
+    load(write_design(design_text), bag)
+    errors = [d for d in bag.errors if d.code == "font"]
+    assert errors, bag.render()
+    assert "scale" in errors[0].message
+
+
+@pytest.mark.parametrize("size", ["0", "-5", '"0%r"', '"-3px"'])
+def test_a_font_size_must_be_positive(write_design, bag, repo_root, size):
+    """One rule for both spellings: the schema only says 'a number or a
+    length', so this is the compiler's job in either case."""
+    design_text = _font_design(size).replace("examples/", f"{repo_root}/examples/")
+    load(write_design(design_text), bag)
+    errors = [d for d in bag.errors if d.code == "font"]
+    assert errors, bag.render()
+    assert "greater than zero" in errors[0].message
+
+
+@pytest.mark.parametrize("size,expected", [
+    ('"18%r"', ("%r", 18.0)), ('"12px"', ("px", 12.0)), ("68", None),
+])
+def test_a_font_size_keeps_the_spelling_it_was_written_in(write_design, bag,
+                                                          repo_root, size, expected):
+    """A bare number is deliberately *not* normalised into a `Length`: the two
+    mean different things (reference-device pixels that scale, versus this
+    device's pixels), so collapsing them would silently move one of them.
+    """
+    from wfb.units import Length
+
+    design_text = _font_design(size).replace("examples/", f"{repo_root}/examples/")
+    face = load(write_design(design_text), bag)
+    assert face is not None, bag.render()
+    spec = face.fonts["clock"]
+    if expected is None:
+        assert not spec.size_is_length and spec.size == 68.0
+        assert spec.scale is True
+    else:
+        assert spec.size_is_length and isinstance(spec.size, Length)
+        assert (spec.size.unit, spec.size.value) == expected
+        # Left false so nothing downstream can consult it and get a "scaled"
+        # answer for a size that is already per-device by construction.
+        assert spec.scale is False
