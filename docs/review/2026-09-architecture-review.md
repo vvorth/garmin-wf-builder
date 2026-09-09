@@ -8,16 +8,26 @@ against the actual code and, where noted, against real `wfb build` /
 (`$CIQ_SDK` at 9.2.0, device files installed), so "verified" below means an
 actual build ran, not just a read of the source.
 
-Read-only review. No code was changed. `pytest -m "not slow"` passes clean
-(exit 0) as of this review.
+The review itself changed no code. **The session immediately after it fixed
+F1-F4**; see the status section below before reading any finding as current.
 
 ---
 
-## Status: F1-F4 were acted on in the session that followed
+## Status — read this first
 
-This document is kept as written -- the findings are the record of what was
-wrong and how it was established, which stays useful after the fix. What
-changed since:
+**F1, F2, F3 and F4 are fixed.** F6, F7 and F8 are open. F5 was already stale
+when it was written.
+
+The findings below are **left exactly as first written**, in the present tense
+they were written in. That is deliberate: what was wrong, and *how it was
+established*, is the part worth keeping — several of these were settled by a
+real build rather than by reading, and that evidence is what makes them
+trustworthy later. Each fixed finding carries a **`FIXED`** note at its head
+saying what changed and where; the body after that note describes the code as
+it was, not as it is.
+
+If you are looking for the current state of the compiler, read the code and
+`docs/limitations.md`, not this file.
 
 | | Finding | Status |
 |---|---|---|
@@ -26,8 +36,21 @@ changed since:
 | **F3** | per-device gating | **Closed.** `wfb/lint.py::check_complication_availability`, code `complication-gated`: a suppressible warning comparing `complications.TYPES[name].since` against `Device.api_level`, covering both a `complication.*` binding and an `on_hold:`/`launch:` naming a gated type, with different message text for each (a reading that never arrives vs. a hold that does nothing). Emitted through `_emit`, so suppression genuinely works -- verified, since this document's own neighbourhood in CLAUDE.md records two checks that were advertised as suppressible and were not. |
 | **F4** | `Reader` means two things | **Closed, documentation only.** The class docstring now names both shapes and says which of the 51 entries is which. No structural change, as this finding itself recommended. |
 
-F5 was already stale when written (see its own note). F6 and the other
-low-severity items are **open** and untouched.
+Commits: `c095538` (F1), `7aebde6` (F2 and F4), `1ba1077` (F3), `11a4781`
+(the documentation those three made stale). `pytest -m "not slow"` is 511
+passing and `-m slow` is 9 after them, up from 501 and 8.
+
+**One thing each fix was held to, and it is the part worth copying**: every
+new guard had to be *seen to fail* against the unfixed code before it was
+trusted — the `_view` test against the unconditional emitter, the collision
+test against the pre-fix naming, the new warning's suppression against a real
+`lint: {allow: [...]}`. A guard nobody has watched fail is not a guard, and
+this repo has been bitten by exactly that before (CLAUDE.md records two lint
+checks advertised as suppressible that were not).
+
+F5 was already stale when written (see its own note). F6, F7 and F8 are
+**open** and untouched — they are collected under "Still open" at the end of
+this document.
 
 ---
 
@@ -44,7 +67,10 @@ than bypassed. This is a codebase that mostly does what its own CLAUDE.md
 asks: symbols are checked against the SDK, tradeoffs are written down where
 they're made, and the fast test suite still passes.
 
-Five things actually matter, in priority order:
+Five things actually matter, in priority order. **Items 1-4 have since been
+fixed** (`c095538`, `7aebde6`, `1ba1077`); item 5 was already resolved as it
+was being written. They are left in their original wording below — see the
+status table above and each finding's own `FIXED` note for what changed.
 
 1. **A concrete, verified bug**: any design using `on_hold:` without a
    `carousel` produces a real `monkeyc` warning (`Member variable '_view' is
@@ -95,6 +121,22 @@ Five things actually matter, in priority order:
 ### High
 
 #### F1 — `on_hold:` without a `carousel` compiles with a real warning
+
+> **FIXED** in `c095538`. The `_view` field is now declared and assigned only
+> when the design has a carousel (`has_carousel` in `emit_delegate`). The
+> constructor *parameter* stays unconditional, because an unused parameter
+> provably does **not** warn — built both ways to find out — so one delegate
+> shape and one `new ...Delegate(view)` call site still serve every design,
+> which is what the field's own docstring argued for.
+>
+> The test gap this finding blames mattered more than the fix.
+> `test_a_plain_hold_design_compiles_without_warnings` (slow) now builds a
+> plain `on_hold:` design through real `monkeyc` and asserts the build is
+> **warning-free**, not merely successful — `wfb/build.py` already turns each
+> `WARNING:` line into a bag diagnostic, so that assertion reads the
+> compiler's own output rather than a proxy. A fast test pins the field to
+> carousel designs, since the fast suite is the default loop. Both were
+> confirmed red against the unfixed emitter first.
 
 **What:** `wfb/emit/monkeyc.py:241` unconditionally declares
 `private var _view as <Face>View;` on the generated delegate, and line 245
@@ -151,6 +193,28 @@ diff. Newly verified and previously unlisted.
 
 #### F2 — the symbol-collision checker doesn't see the class of bug that just hit it
 
+> **FIXED** in `7aebde6`, though not in the place this finding's own "Size"
+> note left open. `tests/test_catalog.py::test_reader_and_value_locals_never_collide`
+> builds an identifier→origins registry over every `Reader.name`, every
+> `local_name(path)`, the `...Obj` intermediate form, and the fixed locals the
+> emitter itself writes into that scope — found by reading
+> `wfb/emit/monkeyc.py` rather than guessed (`dc`, `font`, `text`, `fraction`,
+> `filled`, `item`, `x`, `valueFont`, `glyphFont`). A collision fails with both
+> origins named. It runs in the **fast** loop, which is the whole point: the
+> only previous net was the `slow` full-catalogue build.
+>
+> Verified red against the pre-fix naming, listing all 42 collisions, then
+> green. `Builder._check_symbol_collision` was deliberately left untouched —
+> it is element-id-scoped by construction and these collisions are
+> catalogue-scoped, so extending it would have meant importing catalogue
+> internals into a function whose whole job is comparing two derivations of
+> one id.
+>
+> The check treats the catalogue as one flat namespace rather than tracking
+> which readers and sources actually co-occur in a scope: which of them a
+> future design will bind together cannot be known here, so it is deliberately
+> more conservative than the bug requires.
+
 **What:** `wfb/ir.py:546` (`Builder._check_symbol_collision`) exists, per its
 own docstring, to catch "two distinct ids [that] derive the same Monkey C
 symbol" before the emitter discovers it "four `Redefinition of ...` errors
@@ -204,6 +268,35 @@ default loop rather than only in the slow one.
 ---
 
 #### F3 — per-device complication gating: the natural fix (`requires` + `has_symbol`) doesn't actually work
+
+> **FIXED** in `1ba1077`, using the mechanism this finding identified rather
+> than the one `docs/limitations.md` had been recommending.
+> `wfb/lint.py::check_complication_availability` (code `complication-gated`)
+> compares `complications.TYPES[name].since` against `Device.api_level` and
+> warns, suppressibly. It covers **both** directions with different message
+> text, because the consequences differ: a `complication.*` binding is a
+> reading that never arrives, an `on_hold:`/`launch:` is a gesture that does
+> nothing. Each message names the device, the type, the level required and the
+> level available, so the author can decide "fine, it degrades" or "drop it"
+> without leaving the diagnostic.
+>
+> A warning rather than an error, deliberately: the runtime already degrades
+> correctly on its own, so a design knowingly accepting a blank field on one
+> target should not be forced to drop a source that works on the other two.
+> It goes through `_emit`, and the suppression was exercised rather than
+> assumed — this repo has shipped checks advertised as suppressible that were
+> not, having called `bag.warning` directly.
+>
+> `Device.api_level`'s one call site (a column in `wfb devices`) is now two.
+> `_version_key` became public `version_key` for the comparison.
+>
+> **The `requires` gap this finding sits inside is still open** for ordinary
+> data sources, and the two checks answer genuinely different questions —
+> "old enough for this firmware" is not "this symbol exists here", and
+> constraint 6's `onTap` case is the standing proof they can disagree. Whoever
+> writes the ordinary-source check should expect a separate mechanism, not an
+> extension of this one. `docs/limitations.md` now says so where it used to
+> point at the dead end.
 
 **What:** `catalog.Source.requires` (`wfb/catalog.py:242`, doc comment: "the
 target device") is set on exactly one source
@@ -275,6 +368,15 @@ infrastructure.
 ### Medium
 
 #### F4 — `Reader` now means two different things, and 82% of instances are the smaller one
+
+> **FIXED** in `7aebde6`, documentation only, exactly as this finding
+> recommended. `Reader`'s class docstring now names both shapes — the original
+> shared accessor several sources read fields off (9 of 51), and the
+> single-use complication wrapper whose `call` is the whole read (42 of 51) —
+> with `complication_type` as the discriminator, and states why the 42 are
+> generated from a loop despite sharing nothing: catalogue drift is the
+> failure this project fights. No structural change, no new field; generated
+> output is byte-identical.
 
 **What:** `catalog.Reader` (`wfb/catalog.py:97`) was designed, per its own
 docstring, for "fetching `ActivityMonitor.getInfo()` once per frame and
@@ -437,22 +539,47 @@ findings-only list gives no signal about coverage:
 
 ---
 
-## If you do nothing else
+## Still open
 
-1. **Fix F1.** It's the only finding here that's a concrete, currently-true
-   build regression rather than a design tradeoff or a documentation gap —
-   every `on_hold:`-without-`carousel` face built today gets a warning it
-   shouldn't. Small, contained, and it comes with a build command that
-   reproduces it in under 10 seconds.
-2. **Decide on F3's actual mechanism before wiring anything to `requires` /
-   `has_symbol`.** The natural-looking fix doesn't work — `has_symbol` cannot
-   see `COMPLICATION_TYPE_*` constants at all, confirmed against the real
-   `api.debug.xml`. The real answer is a `since`-vs-`Device.api_level`
-   comparison, which is a different, smaller piece of work than "wire up the
-   existing mechanism" suggests, and worth deciding on explicitly rather than
-   discovering mid-implementation.
-3. **Close F2 with one fast test.** A pairwise-uniqueness check over
-   `catalog.READERS` names and `local_name(path)` for every `CATALOG` path
-   would turn "caught eventually by a slow full-catalogue build" into "caught
-   immediately by the default test loop," for the exact class of bug that
-   already cost a real debugging session once this change.
+The three recommendations this section originally carried — fix F1, settle
+F3's mechanism, close F2 with a fast test — were all done in the session that
+followed, so they are replaced here by what is genuinely still outstanding.
+None is urgent; all three are small.
+
+1. **F6 — `on_hold:`'s schema description is hand-copied across seven
+   element-type branches** in `schema/wfb-face-1.schema.json`. The schema is
+   normative, so seven copies of one sentence is seven chances to drift.
+   Extract to `$defs/onHold` and `$ref` it, the same pattern `modes`/`lint`
+   already use. This is the largest of the three and still small.
+2. **F7 — `_features()` collapses two distinct conditions to one string.**
+   Reading a complication value and launching one both add `"complications"`,
+   which is correct today (both mean "needs 4.2.0 for `Toybox.Complications`")
+   but the `set[str]` shape reads as if it carries more granularity than it
+   does. Worth knowing before the next feature is added there.
+3. **F8 — `on_hold: auto`'s sentinel is checked before the real-name lookup,
+   with nothing pinning the assumption.** Harmless: `"auto"` is not one of the
+   42 type names and Garmin's constants could not produce it. A one-line
+   `assert "auto" not in complications.TYPES` would make the invariant
+   explicit rather than implicit, which is this repo's usual standard for
+   assumptions of exactly this kind.
+
+## If you read one thing from this review later
+
+Not a finding — a pattern, which is the part most likely to repeat.
+
+**Three of the four fixed findings were invisible to the test suite for the
+same structural reason: the tests inspected generated text instead of
+compiling it.** F1 shipped a guaranteed compiler warning because every
+`on_hold:` test read strings out of `emit.generate()` and none ran `monkeyc`.
+F2's collision was caught only by a `slow` build excluded from the default
+loop. F3's whole class of problem is invisible at any level short of the
+device's own files.
+
+Generated code has two audiences — the human reading a diff, and the compiler
+— and this repo's tests were thorough about the first and thin about the
+second. The cheap correction is not "more slow tests" but *one* real build per
+feature seam, asserting **warning-free** rather than merely successful, since
+`wfb/build.py` already surfaces every `monkeyc` warning as a diagnostic. That
+is what `test_a_plain_hold_design_compiles_without_warnings` now does for
+`on_hold:`, and the same shape would fit any future seam that emits code no
+existing example exercises.
