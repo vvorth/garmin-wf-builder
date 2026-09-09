@@ -71,6 +71,11 @@ fonts:
     # 'glyphs' is omitted on purpose: the compiler derives the set from every
     # format spec and literal this design can render, so the sheet carries the
     # handful of digits the clock actually draws rather than a character set.
+  test:
+    source: assets/ChivoMono-SemiBold.ttf
+    # source: assets/SairaStencil-SemiBold.ttf
+    size: 90
+
 
 elements:
   - id: background
@@ -260,7 +265,7 @@ elements:
     type: text
     value: time.hour
     format: "{:02d}"
-    font: font.clock
+    font: font.test
     at: {anchor: center, dx: -1%, dy: 0.8%}
     align: right
     color: palette.hours
@@ -269,7 +274,7 @@ elements:
     type: text
     value: time.minute
     format: "{:02d}"
-    font: font.clock
+    font: font.test
     at: {anchor: center, dx: 1%, dy: 0.8%}
     align: left
     color: palette.minutes
@@ -377,7 +382,7 @@ elements:
     format: "{:d}"
     font: FONT_TINY
     at: {anchor: top, dy: 88%}
-    color: "device.notification_count > 0 ? palette.notify_text : palette.bg"
+    color: "device.notification_count > 0 ? palette.notify_text : palette.off"
 
   - id: battery_percent
     type: text
