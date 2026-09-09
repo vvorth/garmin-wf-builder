@@ -58,7 +58,11 @@ elements:
     icon_size: 9%r
     color: palette.accent   # the selected item
     inactive_color: palette.dim
+<<<<<<< Updated upstream
     value_font: FONT_SMALL
+=======
+    value_font: FONT_XTINY
+>>>>>>> Stashed changes
     value_color: palette.fg
     value_offset: { anchor: center, dy: 34% }
     animate: 0.3            # seconds; skipped while asleep, where animate() would crash
