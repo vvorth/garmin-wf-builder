@@ -186,6 +186,14 @@ class Shape(Element):
     radius: Length | None = None
     corner_radius: Length | None = None
     to: Position | None = None
+    #: A polygon's vertices, each resolved against the parent box exactly the
+    #: way `to` is.  Empty for every other shape.
+    points: list[Position] = field(default_factory=list)
+    #: `shape: arc` only.  Author degrees: 12 o'clock is 0, clockwise positive,
+    #: the same convention `progress` with `style: arc` uses -- and converted by
+    #: the same `wfb.layout.garmin_arc`, so there is exactly one convention.
+    start_angle: Angle | None = None
+    sweep: Angle | None = None
     thickness: Length | None = None
     color: Expression | None = None
     filled: bool = True
@@ -774,6 +782,7 @@ class Builder:
 
     def _build_shape(self, node: dict, common: dict, path: tuple) -> Element:
         shape = node["shape"]
+        raw_points = node.get("points") or []
         element = Shape(
             **common,
             shape=shape,
@@ -781,6 +790,10 @@ class Builder:
             radius=self._length(node, "radius"),
             corner_radius=self._length(node, "corner_radius"),
             to=self._position(node.get("to"), node, "to") if "to" in node else None,
+            points=[self._position(raw, node, "points")
+                    for raw in raw_points if isinstance(raw, dict)],
+            start_angle=self._angle(node, "start_angle"),
+            sweep=self._angle(node, "sweep"),
             thickness=self._length(node, "thickness"),
             color=self._color_expression(node, "color"),
             filled=bool(node.get("filled", True)),
@@ -793,6 +806,60 @@ class Builder:
             self._require(node, "corner_radius", "a rounded rectangle needs a corner_radius")
         if shape == "line" and element.to is None:
             self._require(node, "to", "a line needs a 'to' position")
+        # The keys this change *added* are rejected on the shapes that cannot
+        # use them, rather than being parsed and then silently dropped -- which
+        # is precisely the bug `filled:` had on a rectangle until now, and there
+        # is no point fixing one instance of it while shipping three more.
+        # Deliberately only the new keys: whether `size:` on a circle (say)
+        # should also be an error is a pre-existing question, and answering it
+        # here would change designs written before any of this.
+        for key, allowed in (("points", "polygon"),
+                             ("start_angle", "arc"),
+                             ("sweep", "arc")):
+            if key in node and shape != allowed:
+                self.bag.error(
+                    "element",
+                    f"{key!r} is only meaningful on 'shape: {allowed}', not "
+                    f"'shape: {shape}'",
+                    self.doc.span(node, key) or self.doc.span(node),
+                )
+        if shape == "arc":
+            if element.radius is None:
+                self._require(node, "radius", "an arc needs a radius")
+            if "filled" in node:
+                # CLAUDE.md constraint 3: there is no fillArc, fillSector or
+                # drawSector anywhere in the API.  Silently ignoring `filled:`
+                # here would promise a solid sector the platform cannot draw.
+                self.bag.error(
+                    "element",
+                    "'filled' is not accepted on 'shape: arc' -- Connect IQ has no "
+                    "filled-arc primitive",
+                    self.doc.span(node, "filled") or self.doc.span(node),
+                    notes=["there is no fillArc, fillSector or drawSector in "
+                           "Toybox.Graphics.Dc: an arc is setPenWidth + drawArc and "
+                           "nothing else, so 'thickness' is its only weight control",
+                           "for a solid disc use 'shape: circle'; for a solid wedge, "
+                           "approximate it with 'shape: polygon'"],
+                )
+        if shape == "ellipse" and (element.size.width is None or element.size.height is None):
+            self._require(node, "size", "an ellipse needs size.width and size.height")
+        if shape == "polygon":
+            if len(element.points) < 3:
+                self._require(node, "points", "a polygon needs at least 3 points")
+            if not element.filled:
+                # Dc has fillPolygon and no drawPolygon -- confirmed against
+                # $CIQ_SDK/doc/Toybox/Graphics/Dc.html and each target's own
+                # api.debug.xml.  An outline would have to be emitted as N
+                # drawLine calls, which is a different element, not this one.
+                self.bag.error(
+                    "element",
+                    "'filled: false' is not accepted on 'shape: polygon' -- "
+                    "Toybox.Graphics.Dc has fillPolygon but no drawPolygon",
+                    self.doc.span(node, "filled") or self.doc.span(node),
+                    notes=["for an outline, draw the edges as 'shape: line' "
+                           "elements, which is what a drawPolygon would have "
+                           "compiled to anyway"],
+                )
         return element
 
     def _build_text(self, node: dict, common: dict, path: tuple) -> Element:

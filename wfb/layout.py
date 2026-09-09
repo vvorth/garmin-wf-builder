@@ -45,12 +45,47 @@ class Placed:
         return self.element.kind
 
 
+def garmin_arc(start: float, sweep: float) -> tuple[float, str]:
+    """The author's arc angles in Garmin's ``drawArc`` convention.
+
+    The format measures degrees clockwise from 12 o'clock; ``drawArc`` measures
+    them counter-clockwise from 3 o'clock, so a positive (clockwise) sweep
+    travels in the ``ARC_CLOCKWISE`` direction from ``90 - start``.
+
+    There is deliberately **one** of these: `progress` with `style: arc` and
+    `shape: arc` both call it, so the two can never drift into two conventions
+    that agree on the common cases and disagree on the corners.
+    """
+    return (
+        (90.0 - start) % 360.0,
+        "ARC_CLOCKWISE" if sweep >= 0 else "ARC_COUNTER_CLOCKWISE",
+    )
+
+
 @dataclass
 class PlacedShape(Placed):
     radius: int = 0
     corner_radius: int = 0
     thickness: int = 1
     end: tuple[int, int] = (0, 0)
+    #: `shape: ellipse` only: the semi-axes, ``width/2`` and ``height/2``.
+    rx: int = 0
+    ry: int = 0
+    #: The rectangle handed to ``fillRectangle``/``drawRectangle``, when that is
+    #: not ``box``.  An *outlined* rectangle strokes its edge, so the ink
+    #: straddles the declared rectangle and ``box`` -- the pixels the element
+    #: can touch, which is what the safe-area and overlap checks read -- is half
+    #: a pen width larger all round.  ``None`` means the two coincide.
+    rect: IntBox | None = None
+    #: `shape: polygon` only: the resolved vertices, in author order.
+    points: tuple[tuple[int, int], ...] = ()
+    #: `shape: arc` only.  Author degrees (12 o'clock = 0, clockwise), kept for
+    #: the preview renderer, then the same pair `PlacedProgress` carries in
+    #: Garmin's own convention, ready for `WfbArc.drawSpan`.
+    start_angle: float = 0.0
+    sweep: float = 360.0
+    garmin_start: float = 90.0
+    garmin_direction: str = "ARC_CLOCKWISE"
 
 
 @dataclass
@@ -245,12 +280,66 @@ class Resolver:
             return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
                                thickness=max(1, thickness), end=(round(ex), round(ey)))
 
+        if element.shape == "arc":
+            radius = round(self._len(element.radius, parent, Axis.MINOR, 0))
+            pen = max(1, thickness)
+            # The same reach a `progress` arc claims: the pen straddles the
+            # radius, so the ink runs half a pen width past it either side.
+            reach = radius + pen // 2 + 1
+            box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
+            start = (element.start_angle or Angle(0.0)).degrees
+            sweep = (element.sweep or Angle(360.0)).degrees
+            garmin_start, direction = garmin_arc(start, sweep)
+            return PlacedShape(
+                element, box.rounded(), (round(cx), round(cy)), depth,
+                radius=radius, thickness=pen,
+                start_angle=start, sweep=sweep,
+                garmin_start=garmin_start, garmin_direction=direction,
+            )
+
+        if element.shape == "polygon":
+            points = tuple(
+                (round(px), round(py))
+                for px, py in (self._point(point, parent) for point in element.points)
+            )
+            if not points:
+                # `wfb.ir` has already errored; keep resolving so the rest of
+                # the design still gets checked.
+                return PlacedShape(element, Box(cx, cy, 0, 0).rounded(),
+                                   (round(cx), round(cy)), depth)
+            xs = [px for px, _ in points]
+            ys = [py for _, py in points]
+            box = Box(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+            centre = (round(sum(xs) / len(xs)), round(sum(ys) / len(ys)))
+            return PlacedShape(element, box.rounded(), centre, depth, points=points)
+
         width = self._len(element.size.width, parent, Axis.X, parent.width)
         height = self._len(element.size.height, parent, Axis.Y, parent.height)
+
+        if element.shape == "ellipse":
+            rx = round(width / 2)
+            ry = round(height / 2)
+            # An outline straddles the semi-axis exactly as a circle's does, so
+            # it reaches half a pen width further out on both axes.
+            pad = 0 if element.filled else max(1, thickness) // 2 + 1
+            box = Box(cx - rx - pad, cy - ry - pad, 2 * (rx + pad), 2 * (ry + pad))
+            return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
+                               rx=rx, ry=ry, thickness=max(1, thickness))
+
         corner = round(self._len(element.corner_radius, parent, Axis.MINOR, 0))
-        box = Box(cx - width / 2, cy - height / 2, width, height)
-        return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
-                           corner_radius=corner, thickness=max(1, thickness))
+        rect = Box(cx - width / 2, cy - height / 2, width, height).rounded()
+        if element.filled:
+            return PlacedShape(element, rect, (round(cx), round(cy)), depth,
+                               corner_radius=corner, thickness=max(1, thickness))
+        # An unfilled rectangle is stroked *on* its edge, so the ink straddles
+        # the declared rectangle the same way a circle's outline straddles its
+        # radius.  Until `filled:` was honoured at all this shape was always
+        # filled, so this branch is new -- see `PlacedShape.rect`.
+        pad = max(1, thickness) // 2 + 1
+        reach = Box(rect.x - pad, rect.y - pad,
+                    rect.width + 2 * pad, rect.height + 2 * pad).rounded()
+        return PlacedShape(element, reach, (round(cx), round(cy)), depth,
+                           corner_radius=corner, thickness=max(1, thickness), rect=rect)
 
     def _resolve_text(self, element: Text, parent: Box, depth: int) -> Placed:
         font_px, reference, is_custom, baked = self._font_for(element)
@@ -299,15 +388,16 @@ class Resolver:
             box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
             start = (element.start_angle or Angle(0.0)).degrees
             sweep = (element.sweep or Angle(360.0)).degrees
+            # The author's clockwise-positive angle becomes Garmin's
+            # counter-clockwise one; a positive sweep therefore draws clockwise
+            # on the device.  `shape: arc` calls the same helper.
+            garmin_start, direction = garmin_arc(start, sweep)
             return PlacedProgress(
                 element, box.rounded(), (round(cx), round(cy)), depth,
                 radius=radius, thickness=thickness,
                 start_angle=start, sweep=sweep,
-                # The author's clockwise-positive angle becomes Garmin's
-                # counter-clockwise one; a positive sweep therefore draws
-                # clockwise on the device.
-                garmin_start=(90.0 - start) % 360.0,
-                garmin_direction="ARC_CLOCKWISE" if sweep >= 0 else "ARC_COUNTER_CLOCKWISE",
+                garmin_start=garmin_start,
+                garmin_direction=direction,
             )
         width = self._len(element.size.width, parent, Axis.X, parent.width)
         height = self._len(element.size.height, parent, Axis.Y, parent.height)
@@ -579,6 +669,8 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
     """
     if isinstance(placed, PlacedProgress) and placed.element.style == "arc":
         return (placed.center[0], placed.center[1], placed.radius + placed.thickness / 2.0)
+    if isinstance(placed, PlacedShape) and placed.element.shape == "arc":
+        return (placed.center[0], placed.center[1], placed.radius + placed.thickness / 2.0)
     if isinstance(placed, PlacedShape) and placed.element.shape == "circle":
         reach = placed.radius + (0 if placed.element.filled else placed.thickness / 2.0)
         return (placed.center[0], placed.center[1], reach)
@@ -654,7 +746,7 @@ __all__ = [
     "Placed", "PlacedShape", "PlacedText", "PlacedProgress", "PlacedIcon",
     "PlacedCarousel", "PlacedCarouselItem",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
-    "inside_visible_area_for", "circular_extent",
+    "inside_visible_area_for", "circular_extent", "garmin_arc",
     "is_full_bleed", "font_pixel_size",
     "ANCHORS", "Size",
 ]

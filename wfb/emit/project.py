@@ -20,7 +20,7 @@ RUNTIME_LIB = Path(__file__).resolve().parent.parent.parent / "runtime-lib"
 BARREL_FILES = {
     "WfbMath.mc": "expression functions",
     "WfbTime.mc": "12/24-hour clock handling",
-    "WfbArc.mc": "progress arcs",
+    "WfbArc.mc": "arcs -- a `progress` ring and a plain `shape: arc` alike",
     "WfbWeather.mc": "weather-condition icon glyphs",
     "WfbComplications.mc": "safe complication subscription and pull",
     "WfbCarousel.mc": "carousel selection and persistence",
@@ -167,6 +167,10 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
         if kind == "progress":
             needed.add("WfbArc.mc")
             needed.add("WfbMath.mc")  # the fill fraction goes through percent()
+        elif kind == "shape" and placed.element.shape == "arc":
+            # A plain arc draws through the same WfbArc.drawSpan a progress
+            # element's unfilled track uses -- one arc convention, one helper.
+            needed.add("WfbArc.mc")
         elif kind == "text":
             element = placed.element
             spec = getattr(element, "format", None)

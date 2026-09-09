@@ -423,7 +423,10 @@
             "rectangle",
             "rounded_rectangle",
             "circle",
-            "line"
+            "line",
+            "arc",
+            "ellipse",
+            "polygon"
           ]
         },
         "at": {
@@ -441,6 +444,21 @@
         "to": {
           "$ref": "#/$defs/position"
         },
+        "points": {
+          "description": "A polygon's vertices, each resolved against the parent box exactly as a line's `to:` is. Dc.fillPolygon documents a 64-point limit (Toybox/Graphics/Dc.html).",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        },
+        "start_angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "$ref": "#/$defs/angle"
+        },
         "thickness": {
           "$ref": "#/$defs/length"
         },
@@ -448,6 +466,7 @@
           "$ref": "#/$defs/colorExpression"
         },
         "filled": {
+          "description": "false draws the outline at `thickness` instead of filling. Not accepted on `arc` (the platform has no filled-arc primitive) and `filled: false` is not accepted on `polygon` (Dc has no drawPolygon).",
           "type": "boolean",
           "default": true
         },

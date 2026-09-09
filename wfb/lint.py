@@ -382,11 +382,20 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
             ))
 
 
+#: Shapes whose *ink* fills their bounding box closely enough to be the thing
+#: behind everything else.  An `arc` or a `polygon` can easily have a
+#: screen-sized bounding box while painting a sliver of it, and an outlined
+#: shape of any kind paints only its edge -- neither is a backdrop.
+_BACKDROP_SHAPES = ("rectangle", "rounded_rectangle", "circle", "ellipse")
+
+
 def _backdrop(resolved: ResolvedFace) -> Color | None:
     """The colour behind everything: the first full-screen shape, or palette.bg."""
     for placed in resolved.items:
         element = placed.element
         if placed.kind != "shape" or getattr(element, "color", None) is None:
+            continue
+        if element.shape not in _BACKDROP_SHAPES or not element.filled:
             continue
         if placed.box.area >= resolved.screen.area * 0.9 and element.color.constant is not None:
             return Color.parse(int(element.color.constant))

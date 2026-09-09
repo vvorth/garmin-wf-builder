@@ -334,7 +334,16 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
             f"{device.display_type}, family {device.device_family}",
         )
     ).blank()
-    w.lines("import Toybox.Lang;").blank()
+    # Toybox.Graphics only when something here is typed against it: a polygon's
+    # point array is `Array<Graphics.Point2D>`, and Point2D is the fixed-size
+    # `[Numeric, Numeric]` tuple type, not `Array<Number>` (verified by
+    # building -- docs/research/probes/polygon-const/).
+    needs_graphics = any(
+        isinstance(p, PlacedShape) and p.element.shape == "polygon" for p in resolved.items
+    )
+    imports = ["import Toybox.Graphics;", "import Toybox.Lang;"] if needs_graphics \
+        else ["import Toybox.Lang;"]
+    w.lines(*imports).blank()
     w.doc(
         f"Layout resolved for {device.id}.\n"
         "\n"
@@ -399,12 +408,34 @@ def _hold_constants(placed) -> list[tuple[str, float, str]]:
     ]
 
 
-def _layout_constants(placed) -> list[tuple[str, float, str]]:
+@dataclass(frozen=True)
+class McLiteral:
+    """A layout constant whose value is not a plain number.
+
+    Every other constant is a `Number` or a `Float` that `_mc_type`/`_mc_number`
+    can derive from the Python value.  A polygon's point array is the one
+    exception, so it carries its own declared Monkey C type and source text.
+
+    **The type is not cosmetic and the shape was chosen by building, not by
+    preference** (`docs/research/probes/polygon-const/`).  `Dc.fillPolygon`
+    takes `Array<Graphics.Point2D>`, and `Point2D` is the *fixed-size* tuple
+    type `[Numeric, Numeric]`: declaring the const `Array<Array<Number> >`
+    instead compiles the const fine and then fails at the call site under
+    `-l 3`.  A module-level `const` of the right type is accepted, so the array
+    lives in `Layout` like every other coordinate (ADR 0004) rather than being
+    assembled from per-coordinate constants at the call site.
+    """
+
+    type: str
+    code: str
+
+
+def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
     prefix = _const_prefix(placed.id)
-    out: list[tuple[str, float, str]] = []
+    out: list[tuple[str, float | McLiteral, str]] = []
     if isinstance(placed, PlacedShape):
         element = placed.element
-        if element.shape in ("circle", "line"):
+        if element.shape in ("circle", "line", "arc", "ellipse"):
             out.append((f"{prefix}_CX", placed.center[0], ""))
             out.append((f"{prefix}_CY", placed.center[1], ""))
         if element.shape == "circle":
@@ -413,13 +444,36 @@ def _layout_constants(placed) -> list[tuple[str, float, str]]:
             out.append((f"{prefix}_END_X", placed.end[0], ""))
             out.append((f"{prefix}_END_Y", placed.end[1], ""))
             out.append((f"{prefix}_THICKNESS", placed.thickness, ""))
+        elif element.shape == "arc":
+            out.append((f"{prefix}_RADIUS", placed.radius, ""))
+            out.append((f"{prefix}_THICKNESS", placed.thickness,
+                        "pen width; there is no filled-arc primitive"))
+            out.append((f"{prefix}_START", float(placed.garmin_start),
+                        f"{placed.start_angle:g}deg clockwise from 12 o'clock, "
+                        f"in Garmin's convention"))
+            out.append((f"{prefix}_SWEEP", float(placed.sweep), "clockwise-positive degrees"))
+        elif element.shape == "ellipse":
+            out.append((f"{prefix}_RX", placed.rx, "semi-axis along x"))
+            out.append((f"{prefix}_RY", placed.ry, "semi-axis along y"))
+            if not element.filled:
+                out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
+        elif element.shape == "polygon":
+            points = ", ".join(f"[{x}, {y}]" for x, y in placed.points)
+            out.append((
+                f"{prefix}_POINTS",
+                McLiteral("Array<Graphics.Point2D>", f"[{points}]"),
+                f"{len(placed.points)} vertices; fillPolygon's own limit is 64",
+            ))
         else:
-            out.append((f"{prefix}_X", placed.box.x, ""))
-            out.append((f"{prefix}_Y", placed.box.y, ""))
-            out.append((f"{prefix}_WIDTH", placed.box.width, ""))
-            out.append((f"{prefix}_HEIGHT", placed.box.height, ""))
+            rect = placed.rect or placed.box
+            out.append((f"{prefix}_X", rect.x, ""))
+            out.append((f"{prefix}_Y", rect.y, ""))
+            out.append((f"{prefix}_WIDTH", rect.width, ""))
+            out.append((f"{prefix}_HEIGHT", rect.height, ""))
             if element.shape == "rounded_rectangle":
                 out.append((f"{prefix}_CORNER", placed.corner_radius, ""))
+            if not element.filled:
+                out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
     elif isinstance(placed, PlacedText):
         out.append((f"{prefix}_X", placed.anchor_point[0], ""))
         out.append((f"{prefix}_Y", placed.anchor_point[1], ""))
@@ -859,12 +913,50 @@ def _emit_shape(w: Writer, placed: PlacedShape) -> None:
     prefix = _const_prefix(placed.id)
     w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
     if element.shape == "rectangle":
-        w.line(f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
-        w.line(f"                 Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);")
+        if element.filled:
+            w.line(f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
+            w.line(f"                 Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);")
+        else:
+            w.line(f"dc.setPenWidth(Layout.{prefix}_THICKNESS);")
+            w.line(f"dc.drawRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
+            w.line(f"                 Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);")
+            w.line("dc.setPenWidth(1);")
     elif element.shape == "rounded_rectangle":
-        w.line(f"dc.fillRoundedRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
-        w.line(f"                        Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
-        w.line(f"                        Layout.{prefix}_CORNER);")
+        if element.filled:
+            w.line(f"dc.fillRoundedRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
+            w.line(f"                        Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
+            w.line(f"                        Layout.{prefix}_CORNER);")
+        else:
+            w.line(f"dc.setPenWidth(Layout.{prefix}_THICKNESS);")
+            w.line(f"dc.drawRoundedRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
+            w.line(f"                        Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
+            w.line(f"                        Layout.{prefix}_CORNER);")
+            w.line("dc.setPenWidth(1);")
+    elif element.shape == "arc":
+        # The same barrel call a `progress` track uses, so the two arcs cannot
+        # disagree about the angle convention or about the full-circle case
+        # (drawArc draws a complete circle when start == end).
+        w.line(
+            f"WfbArc.drawSpan(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, "
+            f"Layout.{prefix}_RADIUS,"
+        )
+        w.line(
+            f"                Layout.{prefix}_THICKNESS, Layout.{prefix}_START, "
+            f"Layout.{prefix}_SWEEP);"
+        )
+    elif element.shape == "ellipse":
+        if element.filled:
+            w.line(f"dc.fillEllipse(Layout.{prefix}_CX, Layout.{prefix}_CY,")
+            w.line(f"               Layout.{prefix}_RX, Layout.{prefix}_RY);")
+        else:
+            w.line(f"dc.setPenWidth(Layout.{prefix}_THICKNESS);")
+            w.line(f"dc.drawEllipse(Layout.{prefix}_CX, Layout.{prefix}_CY,")
+            w.line(f"               Layout.{prefix}_RX, Layout.{prefix}_RY);")
+            w.line("dc.setPenWidth(1);")
+    elif element.shape == "polygon":
+        # There is no drawPolygon in Dc, only fillPolygon -- `filled: false` is
+        # rejected in wfb/ir.py rather than silently filled here.
+        w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
     elif element.shape == "circle":
         if element.filled:
             w.line(f"dc.fillCircle(Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS);")
@@ -1500,7 +1592,13 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
 def _describe(placed) -> str:
     element = placed.element
     if isinstance(element, Shape):
-        return _article(element.shape.replace("_", " "))
+        if element.shape == "polygon":
+            return f"a polygon of {len(element.points)} points"
+        noun = _article(element.shape.replace("_", " "))
+        if element.shape in ("rectangle", "rounded_rectangle", "circle", "ellipse") \
+                and not element.filled:
+            return f"{noun}, outlined"
+        return noun
     if isinstance(element, Text):
         return "text" if element.value is not None else "fixed text"
     if isinstance(element, Progress):
@@ -1526,9 +1624,13 @@ def _article(noun: str) -> str:
     return f"{'an' if noun[:1].lower() in 'aeiou' else 'a'} {noun}"
 
 
-def _mc_type(value: float) -> str:
+def _mc_type(value: float | McLiteral) -> str:
+    if isinstance(value, McLiteral):
+        return value.type
     return "Float" if isinstance(value, float) else "Number"
 
 
-def _mc_number(value: float) -> str:
+def _mc_number(value: float | McLiteral) -> str:
+    if isinstance(value, McLiteral):
+        return value.code
     return f"{value}f" if isinstance(value, float) else str(int(value))

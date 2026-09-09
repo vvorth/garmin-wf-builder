@@ -138,10 +138,44 @@ class _Renderer:
         fill = self._color(element.color)
         s = self.scale
         if element.shape == "rectangle":
-            self.draw.rectangle(self._rect(placed.box), fill=fill)
+            box = self._rect(placed.rect or placed.box)
+            if element.filled:
+                self.draw.rectangle(box, fill=fill)
+            else:
+                self.draw.rectangle(box, outline=fill, width=max(1, placed.thickness * s))
         elif element.shape == "rounded_rectangle":
-            self.draw.rounded_rectangle(self._rect(placed.box), radius=placed.corner_radius * s,
-                                        fill=fill)
+            box = self._rect(placed.rect or placed.box)
+            radius = placed.corner_radius * s
+            if element.filled:
+                self.draw.rounded_rectangle(box, radius=radius, fill=fill)
+            else:
+                self.draw.rounded_rectangle(box, radius=radius, outline=fill,
+                                            width=max(1, placed.thickness * s))
+        elif element.shape == "arc":
+            # Same conversion the generated code gets from WfbArc.drawSpan:
+            # Pillow's arc runs clockwise from 3 o'clock, the format's angles run
+            # clockwise from 12, so shift by 90 and order the endpoints so Pillow
+            # takes the short way round -- exactly as `_progress` does.
+            cx, cy = placed.center[0] * s, placed.center[1] * s
+            r = placed.radius * s
+            start = placed.start_angle - 90.0
+            sweep = max(-359.9, min(359.9, placed.sweep))
+            end = start + sweep
+            a, b = (start, end) if sweep >= 0 else (end, start)
+            if r > 0 and sweep != 0:
+                self.draw.arc([cx - r, cy - r, cx + r, cy + r], a, b,
+                              fill=fill, width=max(1, placed.thickness * s))
+        elif element.shape == "ellipse":
+            cx, cy = placed.center
+            rx, ry = placed.rx, placed.ry
+            box = [(cx - rx) * s, (cy - ry) * s, (cx + rx) * s, (cy + ry) * s]
+            if element.filled:
+                self.draw.ellipse(box, fill=fill)
+            else:
+                self.draw.ellipse(box, outline=fill, width=max(1, placed.thickness * s))
+        elif element.shape == "polygon":
+            if len(placed.points) >= 3:
+                self.draw.polygon([(x * s, y * s) for x, y in placed.points], fill=fill)
         elif element.shape == "circle":
             cx, cy = placed.center
             r = placed.radius

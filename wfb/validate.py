@@ -100,8 +100,14 @@ ELEMENT_ALIASES: dict[str, str] = {
     "rounded_rectangle": "type: shape\n    shape: rounded_rectangle",
     "circle": "type: shape\n    shape: circle",
     "line": "type: shape\n    shape: line",
-    "ellipse": "type: shape\n    shape: circle",
-    "arc": "type: progress\n    style: arc",
+    "ellipse": "type: shape\n    shape: ellipse",
+    "polygon": "type: shape\n    shape: polygon",
+    "triangle": "type: shape\n    shape: polygon",
+    # Two right answers, so name both rather than guess: an arc bound to a
+    # reading is a `progress`, an arc that just decorates is a `shape`.
+    "arc": "type: progress\n    style: arc      # bound to a reading\n"
+           "  # ...or, for a plain decorative arc:\n"
+           "    type: shape\n    shape: arc",
     "ring": "type: progress\n    style: arc",
     "bar": "type: progress\n    style: bar",
     "progress_bar": "type: progress\n    style: bar",
@@ -323,10 +329,17 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
         message = f"{error.instance!r} has the wrong shape"
     elif error.validator == "type":
         message = f"expected {error.validator_value}, got {_type_name(error.instance)}"
+    elif error.validator in ("minItems", "maxItems") and isinstance(error.instance, list):
+        # jsonschema's own wording repeats the whole array back, which for a
+        # 65-vertex polygon is a screenful of noise around a one-number fact.
+        adjective = "at least" if error.validator == "minItems" else "at most"
+        message = (f"needs {adjective} {error.validator_value} items, "
+                   f"got {len(error.instance)}")
     else:
         message = error.message
 
-    if description and error.validator in ("pattern", "enum", "required", "anyOf", "type"):
+    if description and error.validator in ("pattern", "enum", "required", "anyOf", "type",
+                                           "minItems", "maxItems"):
         notes.append(description)
     return message, notes
 

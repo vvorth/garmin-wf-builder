@@ -1,0 +1,145 @@
+# Every native primitive `shape` can draw, on one face.
+#
+# Connect IQ's Dc gives a watch face seven drawing calls that are not text or a
+# bitmap, and this design uses all of them.  It exists to prove they compile and
+# to show the corners, not to be a good-looking watch face.
+#
+# The two shapes the platform does *not* have are worth naming here, because
+# their absence is what shapes the ones it does:
+#
+#   * there is no fillArc/fillSector/drawSector anywhere in the API, so an arc
+#     is `setPenWidth` + `drawArc` and `filled:` is rejected on it outright;
+#   * there is no drawPolygon, only fillPolygon, so `filled: false` is rejected
+#     on a polygon and an outline has to be drawn as `shape: line` edges.
+#
+# Build it with:  ./wfb.py build examples/shapes/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 9c1d5f30-6a72-4b18-8d4e-0f2a71c93b64
+  name: Shapes
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour is one the 64-colour MIP panel can show without dithering:
+# each channel is 0x00, 0x55, 0xAA or 0xFF.  The linter checks this.
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+  accent: "#FF5500"
+  cool: "#00AAFF"
+  dim: "#AAAAAA"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # A plain arc: no binding, no track, just a stroked span.  The angles are the
+  # format's own -- 12 o'clock is 0 and clockwise is positive -- and they go
+  # through exactly the conversion a `progress` ring's do.
+  - id: outer_arc
+    type: shape
+    shape: arc
+    at: { anchor: center }
+    radius: 92%r
+    thickness: 5px
+    start_angle: 210deg
+    sweep: 300deg
+    color: palette.dim
+
+  # A counter-clockwise span, to exercise the sign of `sweep`.
+  - id: accent_arc
+    type: shape
+    shape: arc
+    at: { anchor: center }
+    radius: 92%r
+    thickness: 5px
+    start_angle: 200deg
+    sweep: -80deg
+    color: palette.accent
+
+  # An outlined rounded rectangle.  Before `filled:` was honoured this drew
+  # solid, silently: the flag was parsed, validated and then ignored.
+  - id: card
+    type: shape
+    shape: rounded_rectangle
+    at: { anchor: center, dy: -22% }
+    size: { width: 46%, height: 20% }
+    corner_radius: 6px
+    thickness: 2px
+    filled: false
+    color: palette.cool
+
+  # ...and an outlined plain rectangle, the other half of the same fix.
+  - id: card_inner
+    type: shape
+    shape: rectangle
+    at: { anchor: center, dy: -22% }
+    size: { width: 36%, height: 10% }
+    thickness: 1px
+    filled: false
+    color: palette.dim
+
+  - id: label
+    type: text
+    text: "SHAPES"
+    font: FONT_XTINY
+    at: { anchor: center, dy: -22% }
+    color: palette.text
+
+  # fillEllipse: a circle that is not round.
+  - id: pill
+    type: shape
+    shape: ellipse
+    at: { anchor: center, dx: -20%, dy: 12% }
+    size: { width: 22%, height: 11% }
+    color: palette.cool
+
+  # drawEllipse: the same, outlined at a pen width.
+  - id: pill_outline
+    type: shape
+    shape: ellipse
+    at: { anchor: center, dx: 20%, dy: 12% }
+    size: { width: 22%, height: 11% }
+    thickness: 2px
+    filled: false
+    color: palette.accent
+
+  # fillPolygon.  The vertices are resolved against the parent box exactly the
+  # way a line's `to:` is, and land in the Layout module as one typed const --
+  # the device does no layout arithmetic (ADR 0004).
+  - id: chevron
+    type: shape
+    shape: polygon
+    points:
+      - { anchor: center, dy: 26% }
+      - { anchor: center, dx: -9%, dy: 34% }
+      - { anchor: center, dx: 9%, dy: 34% }
+    color: palette.accent
+
+  # The two primitives that were already here, for completeness.
+  - id: dot
+    type: shape
+    shape: circle
+    at: { anchor: center }
+    radius: 4px
+    color: palette.text
+
+  - id: rule
+    type: shape
+    shape: line
+    at: { anchor: center, dx: -28%, dy: 2% }
+    to: { anchor: center, dx: 28%, dy: 2% }
+    thickness: 1px
+    color: palette.dim

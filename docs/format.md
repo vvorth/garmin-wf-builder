@@ -175,14 +175,89 @@ Z-order is document order, with an optional `z:` override. Every element takes
 ```yaml
 - id: background
   type: shape
-  shape: rectangle          # rectangle | rounded_rectangle | circle | line
-  at: { anchor: center }
+  shape: rectangle    # rectangle | rounded_rectangle | circle | ellipse
+  at: { anchor: center }    #  | arc | polygon | line
   size: { width: 100%, height: 100% }
   color: palette.bg
 ```
 
-`circle` takes `radius` and `filled`; `rounded_rectangle` takes `corner_radius`;
-`line` takes `to` and `thickness`.
+Seven shapes, one per native `Dc` drawing call. Each takes `color:`, and each
+takes the keys its own geometry needs:
+
+| `shape:` | keys | draws |
+|---|---|---|
+| `rectangle` | `size` | `fillRectangle` / `drawRectangle` |
+| `rounded_rectangle` | `size`, `corner_radius` | `fillRoundedRectangle` / `drawRoundedRectangle` |
+| `circle` | `radius` | `fillCircle` / `drawCircle` |
+| `ellipse` | `size` | `fillEllipse` / `drawEllipse` |
+| `arc` | `radius`, `start_angle`, `sweep` | `setPenWidth` + `drawArc` |
+| `polygon` | `points` | `fillPolygon` |
+| `line` | `to` | `drawLine` |
+
+**`filled:` (default `true`) is a real switch, not decoration.** `filled: false`
+draws the outline at `thickness:` (default 1 px) instead of filling, on
+`rectangle`, `rounded_rectangle`, `circle` and `ellipse`. The outlined shape's
+ink straddles the declared box, so the compiler grows the element's extent by
+half a pen width for the safe-area and overlap checks -- what you declare is
+still the geometry, not the ink.
+
+Two shapes reject `filled:`, and both refusals are the platform's, not this
+project's:
+
+* **`arc` rejects `filled:` outright.** There is no `fillArc`, `fillSector` or
+  `drawSector` anywhere in Connect IQ. An arc is a pen width and nothing else,
+  so there is no inner/outer radius, no cap control, and no gradient sweep. For
+  a solid disc use `circle`; for a solid wedge, approximate it with `polygon`.
+* **`polygon` rejects `filled: false`.** `Dc` has `fillPolygon` and no
+  `drawPolygon`. Draw the edges as `line` elements if you want an outline.
+
+`points:`, `start_angle:` and `sweep:` are likewise errors on a shape that
+cannot use them, rather than being read and quietly dropped.
+
+#### `arc`
+
+```yaml
+- id: outer_arc
+  type: shape
+  shape: arc
+  at: { anchor: center }
+  radius: 92%r
+  thickness: 5px
+  start_angle: 210deg     # 12 o'clock is 0, clockwise positive
+  sweep: 300deg           # negative sweeps counter-clockwise
+  color: palette.dim
+```
+
+Angles are the format's own convention -- 12 o'clock is 0 and clockwise is
+positive -- converted to Garmin's (3 o'clock is 0, counter-clockwise) at build
+time. It is **exactly** the conversion `progress` with `style: arc` uses; both
+call `wfb.layout.garmin_arc` and both draw through the same
+`WfbArc.drawSpan`, so the two arcs cannot drift apart.
+
+Use `shape: arc` for a fixed decorative span and `type: progress` /
+`style: arc` for one whose length is bound to a reading.
+
+#### `polygon`
+
+```yaml
+- id: chevron
+  type: shape
+  shape: polygon
+  points:                             # 3 to 64 of them
+    - { anchor: center, dy: 26% }
+    - { anchor: center, dx: -9%, dy: 34% }
+    - { anchor: center, dx: 9%, dy: 34% }
+  color: palette.accent
+```
+
+Each entry in `points:` is a full `at:`-style position -- anchor, `dx`/`dy`, or
+polar `angle`/`radius` -- resolved against the parent box exactly the way a
+`line`'s `to:` is. The resolved vertices land in the per-device `Layout` module
+as one `Array<Graphics.Point2D>` constant, so the device does no arithmetic
+(ADR 0004). `fillPolygon` documents a **64-point limit**, which the schema
+enforces.
+
+See `examples/shapes/face.yaml` for all seven on one face.
 
 ### `text`
 

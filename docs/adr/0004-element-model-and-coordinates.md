@@ -39,9 +39,19 @@ A tree of typed elements, borrowing WFF's shape but mapped onto Garmin's actual
 | `complication_slot` | a bound complication with a hit region |
 | `raw` | escape hatch, see ADR 0007 |
 
-**As built, `shape:` exposes only `rectangle`, `rounded_rectangle`, `circle`
-and `line`** (the schema's actual enum) — `fillEllipse`/`fillPolygon` were
-never implemented; tracked in `docs/limitations.md`.
+**As built, `shape:` exposes one entry per native `Dc` drawing call**:
+`rectangle`, `rounded_rectangle`, `circle`, `ellipse`, `arc`, `polygon` and
+`line`. `ellipse` and `polygon` were added later than the rest, along with a
+plain unbound `arc` and — a behaviour change to designs written before it —
+`filled: false` actually being honoured on `rectangle`/`rounded_rectangle`,
+which the emitter had silently ignored. Two refusals are the platform's:
+`filled:` is rejected outright on `arc` (there is no filled-arc primitive) and
+`filled: false` is rejected on `polygon` (there is no `drawPolygon`). A
+polygon's resolved vertices live in the per-device `Layout` module as one
+`Array<Graphics.Point2D>` constant, which keeps §3's "the device does no layout
+arithmetic" rule intact for the first coordinate in this project that is not a
+scalar; `docs/research/probes/polygon-const/` is the build that settled the
+shape of that constant.
 
 `progress` is a single element with a `style` discriminator rather than four
 element types, because the *binding* and *range* semantics are identical across

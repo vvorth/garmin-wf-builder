@@ -26,6 +26,22 @@ Consequences, all of them permanent:
 * `progress` with `style: arc` therefore does not offer `inner_radius` or
   `outer_radius`. Offering them would be a lie.
 
+`shape: arc` is the same primitive without a binding, and for the same reason
+**`filled:` is a build error on it** rather than a silently-ignored key. The
+nearest achievable thing to a filled sector is a `shape: polygon` approximating
+the wedge; the nearest thing to a solid disc is `shape: circle`.
+
+### There is no `drawPolygon`
+
+`Toybox.Graphics.Dc` has `fillPolygon` and no outline counterpart — checked in
+`$CIQ_SDK/doc/Toybox/Graphics/Dc.html` and in each target's own
+`<id>.api.debug.xml`. So `filled: false` is a build error on `shape: polygon`,
+naming the gap; an outline has to be drawn as `shape: line` edges, which is
+exactly what a generated `drawPolygon` would have had to compile to anyway.
+
+`fillPolygon` also documents a hard **64-point limit**, which the schema
+enforces as `maxItems` on `points:`.
+
 ### 128 KB, and 28 devices that cannot run a watch face at all
 
 A watch face gets **131 072 bytes** on all three targets — one sixth of the
@@ -189,7 +205,6 @@ hand-written Monkey C rather than growing the schema.
 | Missing | Where it is specified |
 |---|---|
 | `image` and `complication_slot` elements | ADR 0004. `complication_slot`'s "cycle through several readings" half shipped as `carousel`; what is missing is a slot whose *type* the wearer picks in the on-device editor, which needs the `config:` block below |
-| `shape: ellipse` and `shape: polygon` | ADR 0004 §1 lists both as renderable via `fillEllipse`/`fillPolygon`; the schema's `shape:` enum has only `rectangle`, `rounded_rectangle`, `circle`, `line` -- confirmed by reading the schema, not previously tracked here |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
 | The `config:` block, on-device config, phone settings | ADR 0006 |

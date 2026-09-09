@@ -182,7 +182,9 @@ near `210deg` and sweeps about `300deg`.
    commonest slip.
 5. **An arc is a stroked ring, not a filled wedge.** This platform has no
    filled-arc primitive: `thickness` is a pen width, and there is no inner
-   radius, gradient or cap style.
+   radius, gradient or cap style. `filled:` is an error on `shape: arc` for
+   that reason, and `filled: false` is an error on `shape: polygon` because
+   `Dc` has `fillPolygon` and no `drawPolygon`.
 6. **Stay inside the visible circle.** The frame buffer is square but the panel
    is round, so a corner that fits the buffer can still sit under the bezel.
 7. **Never press an icon into service for something it does not mean.** The
@@ -304,7 +306,8 @@ fonts:                  # optional -- omit to use built-in fonts only
 elements:
   - id: background
     type: shape
-    shape: rectangle              # rectangle | rounded_rectangle | circle | line
+    shape: rectangle              # rectangle | rounded_rectangle | circle | ellipse
+                                  #  | arc | polygon | line
     at: {anchor: center}
     size: {width: 100%, height: 100%}
     color: palette.bg
