@@ -48,6 +48,10 @@ class BakedFont:
     sheet_height: int
     glyphs: dict[str, GlyphBox] = field(default_factory=dict)
     antialias: bool = False
+    #: Every glyph was given the same advance (:attr:`cell_width`).
+    monospace: bool = False
+    #: The shared advance, in pixels, when :attr:`monospace`; 0 otherwise.
+    cell_width: int = 0
     #: Filenames written by :meth:`write`, relative to the resource directory.
     fnt_name: str = ""
     png_name: str = ""
@@ -151,6 +155,10 @@ def _rasterise(source: Path, size: int, char: str,
         round((top - pad + ink[1]) / SUPERSAMPLE)
 
 
+#: Where a glyph's ink sits inside its cell when ``monospace`` is on.
+ALIGNMENTS = ("left", "center", "right")
+
+
 def bake(
     source: Path,
     *,
@@ -158,8 +166,30 @@ def bake(
     size: int,
     glyphs: str,
     antialias: bool = False,
+    monospace: bool = False,
+    align: str = "center",
 ) -> tuple[BakedFont, Image.Image]:
-    """Rasterise ``glyphs`` from ``source`` at ``size`` pixels."""
+    """Rasterise ``glyphs`` from ``source`` at ``size`` pixels.
+
+    ``monospace`` gives every baked glyph the *same* advance, which is what a
+    digital clock in a proportional face needs: its characters are each as wide
+    as they want to be, so the line's width -- and, centred, every character's
+    position -- moves as the reading changes.  Measured on the vendored Open
+    Sans at 33 px: `Fri 11:11` is 111 px and `Wed 00:00` is 125 px.  (Its
+    *figures* happen to be tabular, all 19 px, so a digits-only clock is
+    already steady in that particular face; its colon is not, at 9 px.)
+
+    Baking one cell width costs nothing at runtime -- the device just reads the
+    advances out of the `.fnt` -- and it works on a proportional source as well
+    as a monospaced one, because the cell is measured from the glyphs actually
+    baked rather than trusted from the font's `post` table.
+
+    ``align`` places the ink inside that cell.  ``center`` is the default
+    because it is what a tabular figure wants; ``left``/``right`` exist for
+    the rarer case of a column of readings whose edges should line up.
+    """
+    if align not in ALIGNMENTS:
+        raise ValueError(f"font {name!r}: unknown align {align!r}")
     chars = _ordered_unique(glyphs)
     if not chars:
         raise ValueError(f"font {name!r}: no glyphs to bake")
@@ -191,6 +221,8 @@ def bake(
         sheet_width=sheet_width,
         sheet_height=sheet_height,
         antialias=antialias,
+        monospace=monospace,
+        cell_width=_cell_width(rendered) if monospace else 0,
         fnt_name=f"{name}.fnt",
         png_name=f"{name}.png",
     )
@@ -198,17 +230,52 @@ def bake(
         if tile.size != (1, 1) or tile.getpixel((0, 0)):
             sheet.paste(tile, (x, y))
         empty = tile.size == (1, 1) and not tile.getpixel((0, 0))
+        ink_width = 0 if empty else tile.width
+        if monospace:
+            # The cell replaces the natural advance *and* the natural left
+            # bearing: keeping the bearing would re-introduce the very jitter
+            # the cell removes, since a narrow glyph's ink would still sit
+            # where the proportional face put it.
+            advance = baked.cell_width
+            left = 0 if empty else _ink_offset(align, baked.cell_width, ink_width)
         baked.glyphs[char] = GlyphBox(
             char=char,
             x=x,
             y=y,
-            width=0 if empty else tile.width,
+            width=ink_width,
             height=0 if empty else tile.height,
             xoffset=left,
             yoffset=top,
             xadvance=advance,
         )
     return baked, sheet
+
+
+def _cell_width(rendered: list[tuple[str, Image.Image, int, int, int]]) -> int:
+    """The shared advance for a monospaced bake.
+
+    The widest natural advance, but never narrower than the widest *ink*.  An
+    outline may overhang its own advance -- the two are separate numbers in the
+    font, and the ink measured here is this rasteriser's own supersampled
+    bitmap, not the face's declared bbox -- and a cell narrower than the ink it
+    holds would overlap its neighbour rather than merely being tight.  Cheap
+    insurance: on a face where it does not happen the term simply loses.
+    """
+    widest_advance = max(advance for *_, advance in rendered)
+    widest_ink = max(
+        (tile.width for _, tile, *_ in rendered
+         if tile.size != (1, 1) or tile.getpixel((0, 0))),
+        default=0,
+    )
+    return max(1, widest_advance, widest_ink)
+
+
+def _ink_offset(align: str, cell: int, ink_width: int) -> int:
+    if align == "left":
+        return 0
+    if align == "right":
+        return cell - ink_width
+    return round((cell - ink_width) / 2)
 
 
 def write(baked: BakedFont, sheet: Image.Image, directory: Path) -> list[Path]:

@@ -1511,3 +1511,38 @@ def test_a_font_size_keeps_the_spelling_it_was_written_in(write_design, bag,
         # Left false so nothing downstream can consult it and get a "scaled"
         # answer for a size that is already per-device by construction.
         assert spec.scale is False
+
+
+# -- a monospaced font --------------------------------------------------------
+
+
+def test_align_without_monospace_is_an_error(write_design, bag, repo_root):
+    """A proportional font has no cell for the ink to sit in, so `align:` would
+    be silently doing nothing -- which is exactly the class of bug this
+    compiler exists to turn into a line number."""
+    design_text = _font_design("33", extra="    align: right").replace(
+        "examples/", f"{repo_root}/examples/")
+    load(write_design(design_text), bag)
+    errors = [d for d in bag.errors if d.code == "font"]
+    assert errors, bag.render()
+    assert "align" in errors[0].message and "monospace" in errors[0].message
+
+
+@pytest.mark.parametrize("align,expected", [("", "center"), ("    align: left", "left")])
+def test_monospace_carries_its_alignment_onto_the_spec(write_design, bag, repo_root,
+                                                       align, expected):
+    extra = "    monospace: true" + (f"\n{align}" if align else "")
+    design_text = _font_design("33", extra=extra).replace(
+        "examples/", f"{repo_root}/examples/")
+    face = load(write_design(design_text), bag)
+    assert face is not None, bag.render()
+    spec = face.fonts["clock"]
+    assert spec.monospace is True and spec.align == expected
+
+
+def test_a_font_is_proportional_unless_it_asks_not_to_be(write_design, bag, repo_root):
+    design_text = _font_design("33").replace("examples/", f"{repo_root}/examples/")
+    face = load(write_design(design_text), bag)
+    assert face is not None, bag.render()
+    assert face.fonts["clock"].monospace is False
+    assert face.fonts["clock"].align == "center"

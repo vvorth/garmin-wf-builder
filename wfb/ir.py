@@ -143,6 +143,12 @@ class FontSpec:
     antialias: bool
     scale: bool
     span: Span | None
+    #: Bake every glyph at one shared advance, so a clock does not shift as its
+    #: digits change (`wfb.fonts.bmfont.bake`).
+    monospace: bool = False
+    #: Where a glyph's ink sits inside that shared cell.  Meaningless, and
+    #: therefore an error, without :attr:`monospace`.
+    align: str = "center"
 
     @property
     def resource_id(self) -> str:
@@ -515,6 +521,20 @@ class Builder:
                 # can consult it and get a "scaled" answer for a size that is
                 # already per-device by construction.
                 scale = False
+            monospace = bool(spec.get("monospace", False))
+            if "align" in spec and not monospace:
+                self.bag.error(
+                    "font",
+                    f"font {name!r}: 'align' needs 'monospace: true'",
+                    self.doc.span(spec, "align"),
+                    notes=[
+                        "align says where a glyph's ink sits inside its cell, and a "
+                        "proportional font has no cell -- every glyph is exactly as "
+                        "wide as it needs to be",
+                        "add 'monospace: true', or drop 'align'",
+                    ],
+                )
+                continue
             self.fonts[name] = FontSpec(
                 name=name,
                 source=source,
@@ -523,6 +543,8 @@ class Builder:
                 antialias=bool(spec.get("antialias", False)),
                 scale=scale,
                 span=span,
+                monospace=monospace,
+                align=str(spec.get("align", "center")),
             )
 
     def _font_size(self, name: str, spec: dict) -> float | Length | None:

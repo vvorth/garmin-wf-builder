@@ -132,6 +132,8 @@ fonts:
     size: 18%r                            # or 68, or 12px -- see below
     glyphs: "0123456789:"                 # optional -- see below
     antialias: false
+    monospace: false                      # one cell width for every glyph
+    align: center                         # where the ink sits in that cell
 ```
 
 The compiler rasterises the TrueType source into a BMFont sheet at build time,
@@ -169,6 +171,49 @@ on every device.
   is the whole of what a size can mean, while a typeface's characters are drawn
   against a shared baseline and their relative proportions are the point.
   See `wfb/icons.py`'s `bake_size` docstring for the full reasoning.
+
+### `monospace:` stops a clock from jittering
+
+```yaml
+fonts:
+  clock:
+    source: assets/OpenSans-Regular.ttf
+    size: 22%r
+    monospace: true
+    align: center      # or left, or right
+```
+
+`monospace: true` bakes **every glyph at the same advance** -- the widest the
+baked set needs, and never narrower than the widest ink. Nothing changes at
+runtime: the device simply reads those advances out of the `.fnt`.
+
+Why it matters: a centred clock in a proportional face **moves as its digits
+change**. Measured on Open Sans at 33 px, `Fri 11:11` is 111 px wide and
+`Wed 00:00` is 125 px, so a centred element shifts seven pixels between two
+Fridays. Monospaced, both are 217 px and every character sits in the same
+column it sat in a second ago.
+
+* It works on a **proportional source as well as a monospaced one**, because
+  the cell is measured from the glyphs actually baked rather than read off the
+  font's own `post` table. A face whose figures are already tabular (Open Sans
+  is one -- every digit is exactly the same width) still gains a fixed column
+  for the *colon*, which is otherwise about half a digit wide.
+* The row gets **wider**, not narrower: the narrow characters are padded up to
+  the cell, never the reverse. `wfb`'s text-overflow and safe-area checks
+  measure the baked advances, so they see that width without being told about
+  it -- but a design that was already close to the bezel may start warning.
+* **`align:` places the ink inside the cell** -- `center` (the default) is what
+  a digital readout wants; `left` and `right` line up the edges of a column of
+  readings. A glyph with no ink at all, such as a space, keeps a zero offset.
+* **`align:` without `monospace: true` is a build error.** A proportional font
+  has no cell for the ink to sit in, so honouring it would mean doing nothing
+  silently.
+* This is a **custom-font** feature. A system font (`FONT_NUMBER_HOT`, ...) is
+  the device's own, already rasterised, and cannot be rebaked -- see
+  `docs/limitations.md`.
+
+Vertical placement is deliberately not part of this: baseline and line height
+are the font's own metrics, and a `text` element already has `vertical_align:`.
 
 ### Everything else
 

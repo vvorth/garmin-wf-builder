@@ -150,6 +150,20 @@
           "description": "Scale the rasterised size with the target's screen size, so one declaration works across the 260px and 280px families. Only meaningful for a bare-number size: giving it alongside a length such as '18%r' is an error, because the unit has already said whether the size is per-device.",
           "type": "boolean",
           "default": true
+        },
+        "monospace": {
+          "description": "Bake every glyph at one shared advance, the widest the set needs. A digital clock in a proportional face shifts as its digits change ('1' is narrower than '0'); one cell width stops that. Works on a proportional source as well as a monospaced one -- the cell is measured from the glyphs actually baked.",
+          "type": "boolean",
+          "default": false
+        },
+        "align": {
+          "description": "Where a glyph's ink sits inside its cell. Only meaningful with monospace: true, and an error without it.",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "default": "center"
         }
       }
     },

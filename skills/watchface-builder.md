@@ -308,6 +308,8 @@ fonts:                  # optional -- omit to use built-in fonts only
     source: assets/YourFont.ttf
     size: 18%r          # of this device's minor radius -- or 12px, or a bare
                         # number for 'pixels on the smallest target' (rule 8)
+    monospace: true     # optional: one cell width for every glyph, so a clock
+                        # does not shift as its digits change (align: center)
 
 elements:
   - id: background

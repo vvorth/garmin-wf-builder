@@ -77,6 +77,24 @@ on top of each other. Icons inherit this too: an icon element is a glyph from a
 baked bitmap font (`wfb/icons.py`), so a two-tone icon is not possible without
 splitting it into two overlaid glyphs, the same as two-colour text.
 
+### `monospace:` only reaches a font the compiler bakes
+
+`fonts.<name>.monospace` (`docs/format.md` §Fonts) gives every glyph in a
+**custom** font one shared advance, which is what stops a digital clock
+shifting as its digits change. A **system** font — `FONT_MEDIUM`,
+`FONT_NUMBER_HOT` and the rest — is already rasterised on the device and the
+real typeface is not available anywhere on the host, so there is nothing to
+rebake and no way to offer the same guarantee. A clock in a system font
+jitters exactly as much as that font's own figures do, and `wfb` cannot tell
+you by how much: its width for a system font is an estimate against a stand-in
+face (`wfb/fonts/fallback.py`), which is the same reason the text-overflow
+check is labelled estimated there.
+
+Deliberately not offered, on either kind of font: a *vertical* equivalent of
+`align:`. Baseline and line height are the font's own metrics and are what make
+a line of text sit together; a `text` element's `vertical_align:` already says
+where that line goes.
+
 ### A font's `size:` cannot be `%` or `pt`, and is not normalised to ink height
 
 `fonts.<name>.size` takes a bare number or a `px`/`%r` length (`docs/format.md`

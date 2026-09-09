@@ -179,6 +179,8 @@ def bake_fonts(face: Face, device: Device, reference_minor: float) -> dict[str, 
             size=size,
             glyphs=sets[name] or "0123456789",
             antialias=spec.antialias,
+            monospace=spec.monospace,
+            align=spec.align,
         )
         baked[name] = font
         font.sheet_image = sheet  # type: ignore[attr-defined]

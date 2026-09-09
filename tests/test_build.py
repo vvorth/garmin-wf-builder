@@ -155,3 +155,66 @@ elements:
     }
     # 18% of each device's own minor radius: 130 -> 23.4, 140 -> 25.2.
     assert sizes == {"fenix8solar47mm": 23, "fenix8solar51mm": 25, "fr955": 23}
+
+
+@pytest.mark.slow
+def test_a_monospaced_font_compiles_cleanly_for_every_target(
+        write_design, repo_root, tmp_path, db, toolchain):
+    """A monospaced bake through the real toolchain, warning-free on all three.
+
+    Nothing in the generated Monkey C changes -- only the advances and offsets
+    inside the `.fnt` -- which is precisely why this is worth building rather
+    than assuming: the resource compiler parses that file, and a bad advance or
+    a negative offset would be its problem to reject, not `wfb validate`'s.
+    `wfb.build` turns each `WARNING:` line into a bag diagnostic, so this
+    asserts warning-free rather than merely successful.
+    """
+    ttf = repo_root / "examples" / "slice" / "assets" / "OpenSans-Regular.ttf"
+    design = write_design(f"""
+format: 1
+face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Mono}}
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+palette: {{bg: "#000000", fg: "#FFFFFF"}}
+fonts:
+  clock:
+    source: {ttf}
+    size: 22%r
+    monospace: true
+  label:
+    source: {ttf}
+    size: 8%r
+    monospace: true
+    align: right
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {{anchor: center}}
+    size: {{width: 100%, height: 100%}}
+    color: palette.bg
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{{:%H:%M}}"
+    font: font.clock
+    at: {{anchor: center}}
+    color: palette.fg
+  - id: steps
+    type: text
+    value: activity.steps
+    font: font.label
+    at: {{anchor: center, dy: 20%r}}
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+""")
+    bag = Bag()
+    result = build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)
+    for device in result.devices:
+        font = result.project.resolved[device.id].fonts["clock"]
+        assert font.monospace
+        assert {g.xadvance for g in font.glyphs.values()} == {font.cell_width}

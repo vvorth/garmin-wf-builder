@@ -188,3 +188,79 @@ def test_a_bare_number_with_scale_false_is_verbatim(write_design, bag, db, repo_
 
     assert size("fenix8solar47mm") == 68
     assert size("fenix8solar51mm") == 68
+
+
+# -- a monospaced font --------------------------------------------------------
+
+
+def _baked_clock(write_design, bag, db, repo_root, device_id: str, extra: str = ""):
+    """The whole `BakedFont` for `clock`, not just its nominal size."""
+    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    face = load(write_design(f"""
+format: 1
+face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+palette: {{bg: "#000000", fg: "#FFFFFF"}}
+fonts:
+  clock:
+    source: {ttf}
+    size: 40
+{extra}
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{{:%H:%M}}"
+    font: font.clock
+    at: {{anchor: center}}
+    color: palette.fg
+""", name=f"mono-{device_id}-{abs(hash(extra))}.yaml"), bag)
+    assert face is not None, bag.render()
+    device = db.get(device_id)
+    reference = min(db.get(t).minor_radius for t in face.targets)
+    return bake_fonts(face, device, reference)["clock"]
+
+
+def test_monospace_reaches_the_bake(write_design, bag, db, repo_root):
+    """The declaration has to survive the whole way to the rasteriser -- this
+    is the seam a `FontSpec` field is easiest to add and forget to pass on."""
+    font = _baked_clock(write_design, bag, db, repo_root, "fenix8solar47mm",
+                        extra="    monospace: true\n    align: right")
+    assert font.monospace and font.cell_width > 0
+    assert {g.xadvance for g in font.glyphs.values()} == {font.cell_width}
+    for glyph in font.glyphs.values():
+        if glyph.width:
+            assert glyph.xoffset == font.cell_width - glyph.width
+
+
+def test_a_font_that_does_not_ask_for_it_is_still_proportional(
+        write_design, bag, db, repo_root):
+    font = _baked_clock(write_design, bag, db, repo_root, "fenix8solar47mm")
+    assert not font.monospace and font.cell_width == 0
+    assert font.glyphs[":"].xadvance < font.glyphs["0"].xadvance
+
+
+def test_icon_fonts_are_never_monospaced(write_design, bag, db, repo_root):
+    """An icon font is synthesised, one glyph per resource: a shared cell would
+    only pad a single independently-placed glyph."""
+    from wfb.emit.resources import icon_font_specs
+
+    face = load(write_design(f"""
+format: 1
+face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
+targets: [fenix8solar47mm]
+palette: {{bg: "#000000", fg: "#FFFFFF"}}
+elements:
+  - id: hr
+    type: icon
+    icon: heart
+    size: 9%r
+    at: {{anchor: center}}
+    color: palette.fg
+"""), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    specs = icon_font_specs(face, device)
+    assert specs and all(not spec.monospace for spec in specs.values())
+    baked = bake_fonts(face, device, device.minor_radius)
+    assert all(not font.monospace for name, font in baked.items())

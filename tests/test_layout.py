@@ -259,3 +259,46 @@ elements:
         placed = find(resolve(face, device, fonts), "clock")
         sizes[device_id] = placed.font_px
     assert sizes == {"fenix8solar47mm": 23, "fenix8solar51mm": 25}
+
+
+def test_a_monospaced_font_widens_the_placed_text_box(write_design, bag, db, repo_root):
+    """`BakedFont.measure` sums `xadvance`, so a shared cell reaches layout --
+    and therefore the text-overflow lint and the preview -- with no code of its
+    own.  Asserting the placed box is asserting exactly that: nothing in
+    `wfb.layout` knows the word "monospace".
+    """
+    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+
+    def box(extra: str):
+        face = load(write_design(f"""
+format: 1
+face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
+targets: [fenix8solar47mm]
+palette: {{bg: "#000000", fg: "#FFFFFF"}}
+fonts:
+  clock:
+    source: {ttf}
+    size: 40
+{extra}
+elements:
+  - id: clock
+    type: text
+    text: "00:00"
+    font: font.clock
+    at: {{anchor: center}}
+    color: palette.fg
+""", name=f"box-{abs(hash(extra))}.yaml"), bag)
+        assert face is not None, bag.render()
+        device = db.get("fenix8solar47mm")
+        fonts = bake_fonts(face, device, device.minor_radius)
+        return find(resolve(face, device, fonts), "clock").box, fonts["clock"]
+
+    proportional, _ = box("")
+    mono, font = box("    monospace: true")
+    assert font.measure("00:00")[0] == 5 * font.cell_width
+    # The placed box is that advance rounded outward from a fractional centre
+    # (`Box.rounded`), so it is the cell width times five give or take a pixel.
+    assert abs(mono.width - 5 * font.cell_width) <= 1
+    # The narrow colon no longer shrinks the line, so the box is wider -- the
+    # visible consequence, and the one the overflow lint now measures.
+    assert mono.width > proportional.width

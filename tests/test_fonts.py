@@ -149,3 +149,99 @@ def test_lowering_the_supersample_factor_would_be_caught():
     from wfb.fonts import bmfont
 
     assert bmfont.SUPERSAMPLE >= 8
+
+
+# -- monospace ---------------------------------------------------------------
+
+
+def _cell_origins(font, text: str) -> list[int]:
+    """Where each character's *cell* starts, which is where the device's pen
+    lands: `drawText` walks the string adding `xadvance`, exactly as
+    `wfb.preview._blit_bitmap_text` does."""
+    origins, pen = [], 0
+    for char in text:
+        origins.append(pen)
+        pen += font.glyphs[char].xadvance
+    return origins
+
+
+def test_a_monospaced_bake_gives_every_glyph_one_advance(source):
+    baked, _ = bake(source, name="clock", size=33, glyphs="0123456789: ",
+                    monospace=True)
+    assert baked.monospace and baked.cell_width > 0
+    assert {g.xadvance for g in baked.glyphs.values()} == {baked.cell_width}
+
+
+def test_a_proportional_bake_is_untouched(source):
+    """Opting in must be the only thing that changes output -- no existing font
+    declares `monospace:`, and no golden file may move."""
+    baked, _ = bake(source, name="clock", size=33, glyphs="0123456789: ")
+    assert not baked.monospace and baked.cell_width == 0
+    # The colon is much narrower than a digit in Open Sans; that is the
+    # proportional behaviour every existing design still gets.
+    assert baked.glyphs[":"].xadvance < baked.glyphs["0"].xadvance
+
+
+def test_a_monospaced_clock_does_not_jitter(source):
+    """The feature's whole point, asserted on both halves of it.
+
+    Note which half each pair drives.  Open Sans's *figures are already
+    tabular* -- every digit measures 19 px at this size, measured, not assumed
+    -- so `00:00` and `11:11` are the same width in it either way; that pair is
+    the invariant this feature must never break, not the thing that proves it.
+    A clock that shows more than digits is where a proportional face really
+    does move: `Fri 11:11` is 111 px and `Wed 00:00` is 125 px, so a centred
+    clock shifts seven pixels between two Fridays.  Monospaced, both are 217.
+    """
+    glyphs = "0123456789: FriWed"
+    proportional, _ = bake(source, name="clock", size=33, glyphs=glyphs)
+    mono, _ = bake(source, name="clock", size=33, glyphs=glyphs, monospace=True)
+
+    for font in (proportional, mono):
+        assert font.measure("00:00")[0] == font.measure("11:11")[0]
+        assert _cell_origins(font, "00:00") == _cell_origins(font, "11:11")
+
+    # Red against the proportional bake:
+    assert proportional.measure("Fri 11:11")[0] != proportional.measure("Wed 00:00")[0]
+    assert _cell_origins(proportional, "Fri 11:11") != _cell_origins(proportional, "Wed 00:00")
+    assert mono.measure("Fri 11:11")[0] == mono.measure("Wed 00:00")[0]
+    assert _cell_origins(mono, "Fri 11:11") == _cell_origins(mono, "Wed 00:00")
+    assert mono.measure("Wed 00:00")[0] == 9 * mono.cell_width
+
+
+def test_align_places_the_ink_inside_the_cell(source):
+    glyphs = "01: "
+    for align, offset in (
+        ("left", lambda cell, ink: 0),
+        ("center", lambda cell, ink: round((cell - ink) / 2)),
+        ("right", lambda cell, ink: cell - ink),
+    ):
+        baked, _ = bake(source, name="clock", size=33, glyphs=glyphs,
+                        monospace=True, align=align)
+        for char in "01:":
+            glyph = baked.glyphs[char]
+            assert glyph.xoffset == offset(baked.cell_width, glyph.width), (align, char)
+
+
+def test_a_glyph_with_no_ink_keeps_a_zero_offset(source):
+    """A space has nothing to centre; offsetting it would only be noise in the
+    `.fnt`."""
+    for align in ("left", "center", "right"):
+        baked, _ = bake(source, name="clock", size=33, glyphs="0 ",
+                        monospace=True, align=align)
+        space = baked.glyphs[" "]
+        assert (space.width, space.xoffset) == (0, 0)
+        assert space.xadvance == baked.cell_width
+
+
+def test_the_cell_is_never_narrower_than_the_widest_ink(source):
+    """An outline may overhang its own advance, and a cell narrower than its
+    ink would overlap the next glyph rather than merely being tight."""
+    baked, _ = bake(source, name="clock", size=33, glyphs="0123456789:%MW",
+                    monospace=True)
+    assert baked.cell_width >= max(g.width for g in baked.glyphs.values())
+
+
+def test_align_must_be_one_of_the_three(source):
+    with pytest.raises(ValueError):
+        bake(source, name="clock", size=33, glyphs="01", monospace=True, align="middle")
