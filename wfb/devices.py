@@ -160,7 +160,7 @@ class Device:
         ]
         if not versions:
             return "0.0.0"
-        return max(versions, key=_version_key)
+        return max(versions, key=version_key)
 
     @property
     def languages(self) -> list[str]:
@@ -248,7 +248,14 @@ class Device:
         return f"<Device {self.id} {self.width}x{self.height} {self.shape} {self.display_type}>"
 
 
-def _version_key(v: str) -> tuple[int, ...]:
+def version_key(v: str) -> tuple[int, ...]:
+    """``"5.2.0"`` -> ``(5, 2, 0)``, so two dotted version strings sort right.
+
+    Public (was module-private) so a per-device gating check outside this
+    module -- ``wfb.lint``'s complication-availability check -- can compare a
+    ``wfb.complications.ComplicationType.since`` string against
+    :attr:`Device.api_level` without re-deriving this.
+    """
     return tuple(int(p) if p.isdigit() else 0 for p in v.split("."))
 
 

@@ -16,11 +16,11 @@ import difflib
 import math
 import re
 
-from . import catalog
-from .devices import Device
+from . import catalog, complications
+from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
-from .ir import Element, Face, Text
+from .ir import Carousel, Element, Face, Text
 from .layout import (
     PlacedCarousel, PlacedText, ResolvedFace, inside_screen, inside_visible_area,
     inside_visible_area_for, is_full_bleed,
@@ -33,7 +33,7 @@ from .units import IntBox
 #: produces a face that does not work.
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
-    "hold-unsupported", "hold-overlap", "carousel-zone",
+    "hold-unsupported", "hold-overlap", "carousel-zone", "complication-gated",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -45,7 +45,8 @@ SUPPRESSIBLE = frozenset({
 #: day this set drifts from what the compiler actually emits, so it cannot rot
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
-    "carousel", "color", "contrast", "devices", "duplicate-id", "element", "expression",
+    "carousel", "color", "complication-gated", "contrast", "devices", "duplicate-id",
+    "element", "expression",
     "font", "format", "format-version", "icon", "io", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "carousel-zone", "carousel-on-hold", "hold-overlap", "hold-unsupported",
@@ -67,6 +68,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_partial_update_budget(resolved, bag)
     check_hold_targets(resolved, bag)
     check_carousel_zones(resolved, bag)
+    check_complication_availability(resolved, bag)
     check_alpha(resolved, bag)
     for warning in resolved.warnings:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
@@ -597,6 +599,129 @@ def _overlapping(held: list) -> list[tuple]:
             if a.x < b.right and b.x < a.right and a.y < b.bottom and b.y < a.bottom:
                 out.append((earlier, later))
     return out
+
+
+# -- complication gating -----------------------------------------------------
+
+
+def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
+    """Does this device actually know the complication types this design uses?
+
+    The obvious fix -- wiring `catalog.Source.requires` through
+    `Device.has_symbol`, the way `check_hold_targets` resolves `onPress` --
+    was investigated and does not work: `COMPLICATION_TYPE_*` values are
+    constants, not `<functionEntry>` symbols, and simply do not appear in a
+    device's `api.debug.xml` at all (confirmed by grep against the real
+    vendored files for `COMPLICATION_TYPE_BATTERY`, the one type every target
+    is documented to support unconditionally -- it is absent from all three).
+    So this checks the thing that *does* carry the information:
+    `wfb.complications.ComplicationType.since`, the API level the SDK
+    introduced that type at (`Toybox/Complications.html`'s own Type table),
+    against `Device.api_level`, the device's own ConnectIQ ceiling
+    (`compiler.json`'s `connectIQVersion`). Unlike `check_hold_targets`'s
+    `onPress` question, a level comparison *is* honest here: `since` is
+    exactly the number the SDK publishes for a type's introduction, not an
+    inferred floor a device might silently miss (constraint 6's `onTap` trap
+    was about a *method* documented at one level and absent on a device above
+    it -- there is no equivalent "documented since but device doesn't really
+    have it" case known for a `COMPLICATION_TYPE_*` constant).
+
+    Two things a design can do with a gated type, both checked here, both
+    producing the same silent-degradation outcome at runtime rather than a
+    crash: **read** it (`complication.<name>` in `value:`/`color:`/etc, via
+    `Complications.getComplication` returning null -- the ordinary "absence is
+    normal" contract every nullable source already has) or **hold to launch
+    it** (`on_hold:`/a carousel item's `launch:`, via
+    `Complications.subscribeToUpdates` returning `false` or throwing
+    `ComplicationNotFoundException` -- both already caught, uniformly, by
+    `WfbComplications.mc`'s `subscribe()`). Either way the face still works;
+    the warning exists so the author can decide "fine, it just never updates
+    there" instead of discovering it on the wrist.
+
+    A WARNING, not an error (SPEC2 D1): runtime degrades gracefully, and an
+    error would force dropping a target or a source that is fine on the other
+    two devices.
+    """
+    candidates: list[tuple] = []  # (placed, complication_name, span, is_hold)
+    for placed in resolved.items:
+        element = placed.element
+        for expression in element.expressions():
+            for path in expression.sources:
+                if not path.startswith("complication."):
+                    continue
+                name = path[len("complication."):]
+                if complications.get(name) is not None:
+                    candidates.append((placed, name, expression.span or element.span, False))
+        if element.on_hold is not None and complications.get(element.on_hold) is not None:
+            candidates.append((placed, element.on_hold, element.span, True))
+        if isinstance(element, Carousel):
+            for item in element.items:
+                if item.launch is not None and complications.get(item.launch) is not None:
+                    candidates.append((placed, item.launch, item.span or element.span, True))
+
+    if not candidates:
+        return
+
+    device = resolved.device
+    device_level = device.api_level
+    if device_level == "0.0.0":
+        # `Device.api_level` never raises -- it falls back to this sentinel
+        # when `compiler.json` has no `partNumbers`/`connectIQVersion` at all,
+        # which no device this project vendors actually does. Treated as
+        # "unavailable" rather than "the device supports nothing" so this
+        # degrades honestly instead of firing a warning against every
+        # gated type it happens to see.
+        bag.note(
+            "complication-gated",
+            f"{device.id}: no ConnectIQ version found in compiler.json, so "
+            f"complication-type availability is not checked",
+            confidence="not checked -- the device's compiler.json has no usable "
+                       "partNumbers/connectIQVersion",
+        )
+        return
+
+    for placed, name, span, is_hold in candidates:
+        ctype = complications.TYPES[name]
+        if version_key(ctype.since) <= version_key(device_level):
+            continue
+        confidence = (
+            f"exact -- {name!r}'s since ({ctype.since}, Toybox/Complications.html) "
+            f"vs {device.id}'s api_level ({device_level}, compiler.json)"
+        )
+        if is_hold:
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "complication-gated",
+                f"{placed.id}: holding to launch {name!r} needs ConnectIQ {ctype.since}, "
+                f"but {device.id} tops out at {device_level}",
+                span,
+                notes=[
+                    "Complications.subscribeToUpdates returning false or throwing "
+                    "ComplicationNotFoundException is already caught uniformly by "
+                    "WfbComplications.mc's subscribe() -- the hold simply becomes a "
+                    "no-op on this device, not a crash",
+                    "pick a launch target with a lower 'since' for this device, or "
+                    "accept that the hold does nothing here",
+                ],
+                confidence=confidence,
+            ))
+        else:
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "complication-gated",
+                f"{placed.id}: 'complication.{name}' needs ConnectIQ {ctype.since}, "
+                f"but {device.id} tops out at {device_level}",
+                span,
+                notes=[
+                    "Complications.getComplication returns null for a type the device "
+                    "does not support -- the same 'absence is normal' contract every "
+                    "other nullable source already has, so this reads as absent rather "
+                    "than crashing",
+                    "drop this binding for this target, bind a lower-'since' source "
+                    "instead, or accept that it never updates here",
+                ],
+                confidence=confidence,
+            ))
 
 
 # -- alpha ------------------------------------------------------------------

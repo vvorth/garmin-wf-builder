@@ -654,3 +654,228 @@ def test_a_carousel_whose_outer_zones_are_under_the_bezel_warns(write_design, ba
     assert hits, bag.render()
     assert "bezel" in hits[0].message
     assert hits[0].confidence.startswith("exact"), hits[0].confidence
+
+
+# -- complication gating (F3) -------------------------------------------------
+#
+# `complication.sleep_score` -> `COMPLICATION_TYPE_SLEEP_SCORE` needs
+# ConnectIQ 6.0.2 (wfb/complications.py). fenix8solar47mm/51mm sit at 6.0.2,
+# fr955 tops out at 5.2.0 (CLAUDE.md's own hand-derived numbers, and
+# docs/review/2026-09-architecture-review.md's F3 confirms `Device.api_level`
+# reproduces them). `Device.has_symbol` cannot answer this at all --
+# COMPLICATION_TYPE_* are constants, not <functionEntry> symbols, and are
+# simply absent from every device's api.debug.xml (the review confirmed this
+# by grep, including for COMPLICATION_TYPE_BATTERY, the one type every target
+# supports unconditionally) -- so `check_complication_availability` compares
+# `since` against `Device.api_level` instead.
+
+COMPLICATION_DATA_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: score
+    type: text
+    value: complication.sleep_score
+    format: "{:d}"
+    when_absent: hide
+    color: palette.fg
+    at: {anchor: center}
+"""
+
+COMPLICATION_HOLD_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: hr
+    type: icon
+    icon: heart
+    size: 14%r
+    at: {anchor: center}
+    color: palette.fg
+    on_hold: sleep_score
+"""
+
+
+def _resolved_for(write_design, bag, db, src: str, device_id: str, name: str = "face.yaml"):
+    face = load(write_design(src, name), bag)
+    assert face is not None, bag.render()
+    device = db.get(device_id)
+    return resolve(face, device, bake_fonts(face, device, device.minor_radius))
+
+
+def test_a_complication_above_the_devices_ceiling_warns_on_that_device(write_design, bag, db):
+    resolved = _resolved_for(write_design, bag, db, COMPLICATION_DATA_DESIGN, "fr955")
+    lint.check_complication_availability(resolved, bag)
+    hits = [d for d in bag.items if d.code == "complication-gated"]
+    assert hits, bag.render()
+    assert "score" in hits[0].message and "sleep_score" in hits[0].message
+    assert "6.0.2" in hits[0].message and "5.2.0" in hits[0].message
+    assert "fr955" in hits[0].message
+    assert any("null" in note for note in hits[0].notes), hits[0].notes
+    assert hits[0].confidence.startswith("exact"), hits[0].confidence
+
+
+def test_the_same_complication_is_silent_on_a_device_that_supports_it(write_design, bag, db):
+    """fenix8solar47mm sits at ConnectIQ 6.0.2, exactly `sleep_score`'s
+    `since` -- so the same binding that warns on fr955 must be silent here,
+    in the same design."""
+    resolved = _resolved_for(write_design, bag, db, COMPLICATION_DATA_DESIGN, "fenix8solar47mm")
+    lint.check_complication_availability(resolved, bag)
+    assert not [d for d in bag.items if d.code == "complication-gated"], bag.render()
+
+
+def test_an_ordinary_complication_type_never_fires_anywhere(write_design, bag, db):
+    """Only the three types above the 4.2.0 floor (wheelchair_pushes 4.2.3,
+    last_golf_round_score 5.0.0, sleep_score 6.0.2 -- wfb/complications.py)
+    can ever trigger this. `body_battery` (4.2.0) is fine on every device
+    this project vendors, fr955 included."""
+    from wfb.diagnostics import Bag
+
+    design = COMPLICATION_DATA_DESIGN.replace(
+        "complication.sleep_score", "complication.body_battery")
+    for device_id in ("fenix8solar47mm", "fenix8solar51mm", "fr955"):
+        quiet = Bag()
+        resolved = _resolved_for(write_design, quiet, db, design, device_id)
+        lint.check_complication_availability(resolved, quiet)
+        assert not [d for d in quiet.items if d.code == "complication-gated"], \
+            (device_id, quiet.render())
+
+
+def test_a_hold_target_above_the_devices_ceiling_warns_and_says_it_is_a_no_op(
+        write_design, bag, db):
+    """The `on_hold:`/`launch:` direction: distinct message text from the data
+    direction, and it must say the hold is a no-op, not a crash --
+    `WfbComplications.mc`'s `subscribe()` already absorbs both ways a device
+    can decline a type."""
+    resolved = _resolved_for(write_design, bag, db, COMPLICATION_HOLD_DESIGN, "fr955")
+    lint.check_complication_availability(resolved, bag)
+    hits = [d for d in bag.items if d.code == "complication-gated"]
+    assert hits, bag.render()
+    assert "holding to launch" in hits[0].message
+    assert "sleep_score" in hits[0].message
+    assert "6.0.2" in hits[0].message and "5.2.0" in hits[0].message
+    assert any("no-op" in note for note in hits[0].notes), hits[0].notes
+    assert not any("null" in note for note in hits[0].notes), hits[0].notes
+
+
+def test_a_carousel_launch_item_above_the_devices_ceiling_also_warns(write_design, bag, db):
+    """Same mechanism, the carousel item's own `launch:` rather than an
+    element-level `on_hold:` -- a carousel cannot take `on_hold:` itself
+    (`carousel-on-hold`), so this is the only way the hold direction reaches
+    a carousel."""
+    design = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm, fr955]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#555555"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: data
+    type: carousel
+    at: {anchor: center}
+    size: {width: 62%, height: 22%}
+    pitch: 22%r
+    icon_size: 9%r
+    color: palette.fg
+    inactive_color: palette.dim
+    items:
+      - value: activity.steps
+        format: "{:d}"
+        when_absent: hide
+        launch: sleep_score
+      - value: activity.calories
+        format: "{:d}"
+        when_absent: hide
+"""
+    resolved = _resolved_for(write_design, bag, db, design, "fr955")
+    lint.check_complication_availability(resolved, bag)
+    hits = [d for d in bag.items if d.code == "complication-gated"]
+    assert hits, bag.render()
+    assert "holding to launch" in hits[0].message
+
+
+def test_complication_gated_is_suppressible_on_the_bound_element(write_design, bag, db):
+    design = COMPLICATION_DATA_DESIGN.replace(
+        "    color: palette.fg\n    at: {anchor: center}\n",
+        "    color: palette.fg\n    at: {anchor: center}\n"
+        "    lint:\n      allow: [complication-gated]\n      reason: \"probing\"\n",
+    )
+    resolved = _resolved_for(write_design, bag, db, design, "fr955")
+    lint.check_complication_availability(resolved, bag)
+    assert not [d for d in bag.items if d.code == "complication-gated"], bag.render()
+
+
+def test_complication_availability_degrades_honestly_without_an_api_level(
+        write_design, bag, db, monkeypatch):
+    """`Device.api_level` never raises -- it falls back to a `"0.0.0"`
+    sentinel when `compiler.json` carries no usable `connectIQVersion`. That
+    must read as "not checked", not as "this device supports nothing",
+    the same discipline ADR 0008 and `check_hold_targets` already apply."""
+    from wfb.diagnostics import Severity
+
+    resolved = _resolved_for(write_design, bag, db, COMPLICATION_DATA_DESIGN, "fr955")
+    monkeypatch.setattr(type(resolved.device), "api_level", property(lambda self: "0.0.0"))
+    lint.check_complication_availability(resolved, bag)
+    warnings = [d for d in bag.items
+                if d.code == "complication-gated" and d.severity == Severity.WARNING]
+    assert not warnings, bag.render()
+    notes = [d for d in bag.items
+             if d.code == "complication-gated" and d.confidence
+             and d.confidence.startswith("not checked")]
+    assert notes and "complication" in notes[0].message.lower(), bag.render()
+
+
+def test_format_doc_lists_every_suppressible_code():
+    """`docs/format.md` names the suppressible codes; `lint.SUPPRESSIBLE` is
+    the real list.
+
+    These drifted once already -- the prose said "exactly five" long after
+    `carousel-zone`, `hold-overlap` and `hold-unsupported` had joined -- so
+    the claim is pinned here rather than trusted. Prose is a deliverable in
+    this repo, and a doc that quietly lists the wrong set is worse than one
+    that lists none: an author who reads it and writes an `allow:` for a code
+    it omits gets a build error the doc says they should not.
+    """
+    import pathlib
+
+    doc = pathlib.Path(__file__).resolve().parent.parent / "docs" / "format.md"
+    text = doc.read_text(encoding="utf-8")
+    missing = [code for code in sorted(lint.SUPPRESSIBLE) if f"`{code}`" not in text]
+    assert not missing, (
+        "docs/format.md does not mention these suppressible codes: "
+        + ", ".join(missing)
+    )
