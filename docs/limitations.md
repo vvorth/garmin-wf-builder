@@ -42,6 +42,56 @@ exactly what a generated `drawPolygon` would have had to compile to anyway.
 `fillPolygon` also documents a hard **64-point limit**, which the schema
 enforces as `maxItems` on `points:`.
 
+A `graph` element with `style: area` inherits the same limit: closing the
+outline costs two corners, so the usable sample count is 62, checked at
+build time (`wfb/ir.py`'s `GRAPH_AREA_MAX_SAMPLES`) against `style: line`
+as the named alternative.
+
+### `SensorHistory` is closed to a watch face, and solar has no history API at all
+
+The obvious route to pressure, stress, elevation and Body Battery **as a
+time series** is `Toybox.SensorHistory` — a real iterator, with a period and
+an order, for exactly this purpose. A watch face may not use it:
+`Core_Topics/Manifest_and_Permissions.html`'s permission table has a "Watch
+Face" column, and the `SensorHistory` row's cell is empty. It still
+compiles — a watchface manifest declaring the permission and calling
+`SensorHistory.getPressureHistory({...})` builds warning-free on all three
+targets — and a permission a face may not hold fails *silently* at runtime
+(see "A missing permission fails silently" below), so the only symptom
+would be an empty graph on the wrist. `wfb/series.py`'s catalogue therefore has no entry that reads
+`SensorHistory` at all, and never will without a platform change.
+
+**Solar is a stronger negative still: there is no solar history API
+anywhere in Connect IQ.** Only two current-value reads exist
+(`System.Stats.solarIntensity`, `Complications.
+COMPLICATION_TYPE_SOLAR_INPUT`), and neither is a series. The solar chart on
+a stock fēnix face is native firmware; the remaining route — sampling
+`solarIntensity` into the face's own rolling buffer — is a different design
+with its own unmeasurable risks (flash-write frequency, coverage gaps
+whenever the face is not the active one) and was deferred by decision, not
+attempted. `docs/research/08-graphs-and-configuration.md` §1 and
+`docs/research/probes/graph-series/` have the full evidence.
+
+What is open — every `graph` `series:` there is, all needing **no
+permission** (`Toybox.ActivityMonitor` and `Toybox.Weather` are both absent
+from the same permission table, the same no-permission situation
+`Toybox.Activity` is already in for `heart_rate.current`): `heart_rate`;
+the daily activity family `steps`/`calories`/`distance`/`floors_climbed`/
+`active_minutes` (`ActivityMonitor.getHistory()`, at most 7 days); the
+hourly forecast family `forecast_temperature`/
+`forecast_precipitation_chance`/`forecast_cloud_cover`/`forecast_uv_index`/
+`forecast_wind_speed`/`forecast_humidity`; and the daily forecast family
+`daily_high_temperature`/`daily_low_temperature`/
+`daily_precipitation_chance`. Run `wfb series` for the current, authoritative
+list.
+
+**The CPU cost of acquiring and drawing a graph every minute is
+unmeasured**, the same standing every other feature in this repository
+without a simulator or a watch has (below, "The simulator does not run in a
+headless Linux container"). The generated code rebuilds its cached series
+only when the clock minute changes, which is a cheap precaution, not a
+measurement.
+
 ### 128 KB, and 28 devices that cannot run a watch face at all
 
 A watch face gets **131 072 bytes** on all three targets — one sixth of the
@@ -310,12 +360,15 @@ Phase 2 shipped a vertical slice. Present in the ADRs, absent from the code:
 question ADR 0004 poses. It gets the row structure, the separators, the two-tone
 clock, the conditional colours, the badge and the arcs, and now the weather
 row's icon and every one of its readings, Body Battery, and the data a
-daylight arc would need. **One thing it still cannot express**, for want of an
-element type rather than a data source:
+daylight arc would need. **The `type: graph` element (`docs/format.md`) has
+since shipped**, closing the "no element type plots a series at all" half
+of what used to block the history graph. What remains blocked is narrower,
+and is a data-source gap rather than a layout one:
 
 | Dashboard has | Blocked on |
 |---|---|
-| A configurable history graph — HR, Body Battery, stress, pressure, elevation | no graph element **and** no history sources |
+| A history graph of heart rate | nothing — `type: graph`, `series: heart_rate` |
+| A history graph of Body Battery, stress, pressure or elevation | these are `Toybox.SensorHistory`-backed, and a watch face may not declare that permission at all — see "`SensorHistory` is closed to a watch face..." above. Body Battery and stress each have a *current-value* route (`complication.body_battery`, `activity.stress_score`), but neither is a series |
 
 Weather's condition icon (`icon_for: weather.condition`, resolved on-device
 through `WfbWeather.mc`, mirroring `wfb.icons.weather_icon_for_condition()`)
@@ -326,12 +379,10 @@ precipitation chance, humidity, wind speed -- both shipped; see
 (`complication.sunrise`/`complication.sunset`) also both shipped, all three
 through `Toybox.Complications`, read the same way every other source is now
 read -- a plain per-frame pull, see `docs/format.md`'s "Data binding" section
--- not a direct API field. Nothing in `examples/dashboard/` binds them yet;
-that is an example-content update, not a platform gap. The history graph is
-the one thing left, and it additionally needs an element type that plots a
-series, which is the strongest argument in the codebase for the `raw` escape
-hatch: a sparkline is exactly the sort of thing that should drop to
-hand-written Monkey C rather than growing the schema.
+-- not a direct API field. Nothing in `examples/dashboard/` binds any of
+these yet, the graph included; that is an example-content update the user
+makes on their own playground (see "`examples/dashboard/face.yaml` is the
+user's own playground" in CLAUDE.md), not a platform gap.
 
 | Missing | Where it is specified |
 |---|---|

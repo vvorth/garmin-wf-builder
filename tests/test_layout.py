@@ -5,9 +5,30 @@ import pytest
 from tests.test_diagnostics import load
 from wfb.emit.resources import bake_fonts
 from wfb.layout import (
-    PlacedIcon, PlacedProgress, PlacedShape, PlacedText, inside_screen,
+    PlacedGraph, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, inside_screen,
     inside_visible_area_for, is_full_bleed, resolve,
 )
+
+GRAPH_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm, fenix8solar51mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: hr_graph
+    type: graph
+    series: heart_rate
+    range: 4h
+    style: line
+    thickness: 3px
+    color: palette.fg
+    at: {anchor: center}
+    size: {width: 60%, height: 20%}
+"""
 
 DESIGN = """
 format: 1
@@ -302,3 +323,36 @@ elements:
     # The narrow colon no longer shrinks the line, so the box is wider -- the
     # visible consequence, and the one the overflow lint now measures.
     assert mono.width > proportional.width
+
+
+# -- graph --------------------------------------------------------------------
+
+
+def test_a_graph_resolves_to_a_box_and_a_pixel_thickness(resolved_for):
+    resolved = resolved_for("fenix8solar47mm", GRAPH_DESIGN)
+    placed = find(resolved, "hr_graph")
+    assert isinstance(placed, PlacedGraph)
+    device = resolved.device
+    assert placed.box.width == round(0.60 * device.width)
+    assert placed.box.height == round(0.20 * device.height)
+    assert placed.thickness == 3
+    # `style: line` needs no bar width, so it keeps its default rather than
+    # reading a `bar_width:` the design never gave.
+    assert placed.bar_width >= 1
+
+
+def test_a_graphs_thickness_scales_with_the_screen(resolved_for):
+    """`3px` is three device pixels everywhere -- unlike `%r`, it does not
+    scale, so both targets place the same thickness."""
+    small = find(resolved_for("fenix8solar47mm", GRAPH_DESIGN), "hr_graph")
+    large = find(resolved_for("fenix8solar51mm", GRAPH_DESIGN), "hr_graph")
+    assert small.thickness == large.thickness == 3
+    assert small.box.width != large.box.width
+
+
+def test_a_bars_graph_resolves_its_own_bar_width(resolved_for):
+    design = GRAPH_DESIGN.replace(
+        "    style: line\n    thickness: 3px\n", "    style: bars\n    bar_width: 4px\n"
+    )
+    placed = find(resolved_for("fenix8solar47mm", design), "hr_graph")
+    assert placed.bar_width == 4

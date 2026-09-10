@@ -19,11 +19,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import catalog, complications, expr, icons, units
+from . import catalog, complications, expr, icons, series, units
 from .catalog import Source, Type
 from .diagnostics import Bag, Span
 from .palette import Color, ColorError
-from .units import Angle, Length, UnitError
+from .series import Acquisition, SeriesDef
+from .units import Angle, Duration, Length, UnitError
 from .yamlsrc import YamlDocument
 
 MODES = ("active", "low_power", "always_on")
@@ -59,6 +60,22 @@ SHAPE_GEOMETRY_KEYS = {
 
 #: Every geometry key, for the "not used by this shape" check.
 _ALL_SHAPE_GEOMETRY_KEYS = frozenset().union(*SHAPE_GEOMETRY_KEYS.values())
+
+#: Which geometry key each `graph` `style:` actually reads -- the same
+#: precedent as `SHAPE_GEOMETRY_KEYS`, and for the same reason: a `bar_width:`
+#: on a `style: line` graph was parsed, validated and silently dropped on the
+#: floor until this table existed to catch it.
+GRAPH_STYLE_KEYS = {
+    "line": frozenset({"thickness"}),
+    "area": frozenset(),
+    "bars": frozenset({"bar_width"}),
+}
+_ALL_GRAPH_STYLE_KEYS = frozenset().union(*GRAPH_STYLE_KEYS.values())
+
+#: `Dc.fillPolygon`'s own 64-point limit, already recorded for `shape:
+#: polygon` -- a filled graph closes its outline with two extra corners, so
+#: the usable sample count is 62, not 64 (`docs/research/probes/graph-series/`).
+GRAPH_AREA_MAX_SAMPLES = 62
 
 
 #: System fonts an author may name directly, instead of a baked custom font.
@@ -458,6 +475,77 @@ class Carousel(Element):
 
 
 @dataclass
+class Graph(Element):
+    """`type: graph` -- a time series drawn as a line, a filled area or bars.
+
+    Modelled on `Progress`: one element with a `style:` discriminator, because
+    the *drawing* is what varies, not the acquisition. Unlike `Progress`,
+    there is no single bound `value:`/`max:` pair -- `series:` names an entry
+    in the :mod:`wfb.series` catalogue, and the actual samples are acquired
+    and cached on-device (`runtime-lib/WfbSeries.mc`, rebuilt once a minute),
+    never through the expression compiler. `color:`, `min:` and `max:` *are*
+    ordinary bound expressions (`_own_expressions` below), because a fixed
+    bound or a conditional colour is exactly the same kind of thing on a graph
+    as on any other element.
+    """
+
+    series: str = ""
+    #: The SDK catalogue entry `series:` resolved to.  Kept on the element
+    #: (rather than re-looked-up downstream) the same way `IconElement.
+    #: codepoint` keeps `wfb.icons.resolve_codepoint`'s answer -- one lookup,
+    #: at build time, against a table that can reject a name.
+    series_def: SeriesDef | None = None
+    #: "duration" (`range:` was `30m`/`4h`/`7d`) or "count" (a bare integer).
+    range_kind: str = "duration"
+    #: Seconds for a duration range; the sample count itself for a count one.
+    range_value: int = 0
+    #: Time-binned series only (`heart_rate` with a duration range) -- how
+    #: many buckets `WfbSeries.binHeartRate` fills. Default 40.
+    #:
+    #: Deliberately **not** derived from the element's resolved pixel width,
+    #: even though a pixel-per-bucket count is the obvious default someone
+    #: might reach for instead: `wfb/emit/project.py` generates one view
+    #: shared across every target device (`_emit_antialias_helper`'s
+    #: docstring states this same constraint for a different feature -- "the
+    #: decision cannot become a per-device constant"), and a resolved width
+    #: differs per device the same way a resolved font size does. This is
+    #: exactly `wfb.icons.font_key`'s reasoning for keying an icon font by
+    #: its *declared* size rather than the pixel size it resolves to --
+    #: baking a per-device value into a name (or, here, a loop bound) two
+    #: devices' generated code must share produces an `Undefined symbol` (or,
+    #: here, a wrong-length array) on every device but the one the view
+    #: happened to be generated from. `buckets:` therefore stays an authored
+    #: number, device-independent by construction, the same way `range:` is.
+    buckets: int = 40
+    style: str = "line"
+    thickness: Length | None = None
+    bar_width: Length | None = None
+    #: `True` unless the author gave a fixed `min:`/`max:` -- see `min`/`max`
+    #: below. Not the same axis as nullability: an *auto* bound is computed
+    #: on-device from the series itself, a fixed one compiles like any other
+    #: expression.
+    min_auto: bool = True
+    max_auto: bool = True
+    min: Expression | None = None
+    max: Expression | None = None
+    size: Size = field(default_factory=Size)
+    color: Expression | None = None
+    #: The build-time-known upper bound on how many samples this graph can
+    #: draw -- `buckets` for a time-binned duration range, the requested
+    #: count otherwise, converted from a duration for an array-backed series
+    #: using its own `interval_seconds`. Device-independent (it depends only
+    #: on `range:`/`buckets:` and the series' own documented shape, never on
+    #: a screen size), which is why it is resolved once here rather than in
+    #: `wfb.layout` -- and why the 62-sample `style: area` cap and a
+    #: documented-maximum overrun (`getHistory()`'s 7) are both build errors,
+    #: not something a device-by-device pass could catch differently.
+    sample_count: int = 0
+
+    def _own_expressions(self) -> list[Expression]:
+        return [e for e in (self.color, self.min, self.max) if e]
+
+
+@dataclass
 class Face:
     format: int
     uuid: str
@@ -800,6 +888,7 @@ class Builder:
             "progress": self._build_progress,
             "icon": self._build_icon,
             "carousel": self._build_carousel,
+            "graph": self._build_graph,
         }
         builder = builders.get(node["type"])
         if builder is None:  # unreachable once the schema has run
@@ -1234,6 +1323,26 @@ class Builder:
                         notes=["a carousel remembers which item is centred and "
                                "redraws when the wearer moves it -- a buffer "
                                "filled once would freeze it",
+                               f"take it out of {root.id!r}"
+                               if element is not root else
+                               "drop `static: true` from it"],
+                    )
+                    ok = False
+                    continue
+                if isinstance(element, Graph):
+                    # A graph's series isn't an `Expression` -- it is
+                    # recomputed on-device every minute -- so the generic
+                    # "nothing here may read a data source" check just below
+                    # would never see it. Checked explicitly for the same
+                    # reason a carousel is: a buffer filled once would freeze
+                    # a picture that is supposed to move.
+                    self.bag.error(
+                        "static",
+                        f"{element.id!r} is a graph and cannot be static",
+                        element.span,
+                        notes=["a graph's series is recomputed once a minute -- a "
+                               "buffer filled once would freeze it at whatever it "
+                               "showed on the first frame",
                                f"take it out of {root.id!r}"
                                if element is not root else
                                "drop `static: true` from it"],
@@ -1893,6 +2002,203 @@ class Builder:
         if resolved is not None:
             element.value_font, element.value_font_is_custom = resolved
 
+    def _build_graph(self, node: dict, common: dict, path: tuple) -> Element:
+        """`type: graph` -- a time series over a data source and a range.
+
+        The four validation questions here are independent of each other and
+        of layout (nothing below reads a device or a box): which series,
+        which range, whether `buckets:` means anything for that combination,
+        and whether the resulting sample count fits the chosen `style:`.
+        """
+        name = node.get("series")
+        src = series.get(name) if name else None
+        if src is None:
+            near = series.suggest(str(name)) if name else []
+            self.bag.error(
+                "graph",
+                f"unknown series {name!r}",
+                self.doc.span(node, "series"),
+                notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
+                + ["run `wfb series` for the full list"],
+            )
+
+        range_kind, range_value = self._graph_range(node, src)
+        buckets = int(node.get("buckets", 40))
+        heart_rate_duration = (
+            src is not None and src.acquisition is Acquisition.HEART_RATE
+            and range_kind == "duration"
+        )
+        if "buckets" in node and not heart_rate_duration:
+            reason = (
+                "a count range does not bin by time" if src is not None
+                and src.acquisition is Acquisition.HEART_RATE
+                else f"{name!r} is not time-binned" if src is not None
+                else "the series is unknown"
+            )
+            self.bag.error(
+                "graph",
+                f"'buckets' has no effect here -- {reason}",
+                self.doc.span(node, "buckets"),
+                notes=["'buckets:' only means something for a time-binned series read "
+                       "over a duration -- 'heart_rate' with a 'range:' such as '4h'",
+                       "drop 'buckets:', or change 'range:' to a duration"],
+            )
+        if buckets < 1:
+            self.bag.error(
+                "graph", "'buckets' must be at least 1", self.doc.span(node, "buckets"),
+            )
+            buckets = 40
+
+        style = node.get("style", "line")
+        thickness = self._length(node, "thickness")
+        bar_width = self._length(node, "bar_width")
+        self._check_graph_style_keys(node, style)
+
+        min_expr, min_auto = self._graph_bound(node, "min")
+        max_expr, max_auto = self._graph_bound(node, "max")
+        if (min_expr is not None and min_expr.is_constant
+                and max_expr is not None and max_expr.is_constant):
+            try:
+                lo, hi = float(min_expr.constant), float(max_expr.constant)
+            except (TypeError, ValueError):
+                lo = hi = None
+            if lo is not None and lo >= hi:
+                self.bag.error(
+                    "graph",
+                    f"min ({min_expr.text}) must be less than max ({max_expr.text})",
+                    self.doc.span(node, "max") or self.doc.span(node),
+                )
+
+        sample_count = self._graph_sample_count(node, src, range_kind, range_value, buckets)
+        if style == "area" and sample_count > GRAPH_AREA_MAX_SAMPLES:
+            self.bag.error(
+                "graph",
+                f"a 'style: area' graph can plot at most {GRAPH_AREA_MAX_SAMPLES} "
+                f"samples (Dc.fillPolygon's own 64-point limit, minus the two "
+                f"corners that close the outline), but this graph requests "
+                f"{sample_count}",
+                self.doc.span(node, "range") or self.doc.span(node),
+                notes=["use 'style: line' instead, or shorten 'range:'/'buckets:'"],
+            )
+
+        element = Graph(
+            **common,
+            series=str(name) if name is not None else "",
+            series_def=src,
+            range_kind=range_kind,
+            range_value=range_value,
+            buckets=buckets,
+            style=style,
+            thickness=thickness,
+            bar_width=bar_width,
+            min_auto=min_auto,
+            max_auto=max_auto,
+            min=min_expr,
+            max=max_expr,
+            size=self._size(node.get("size")),
+            color=self._color_expression(node, "color"),
+            sample_count=sample_count,
+        )
+        # No `_check_other_absence` here, deliberately: a graph has no
+        # `when_absent:` field to require, the same as `shape` and `icon`
+        # (only `text`/`progress` have a value-substitution policy for
+        # `_check_other_absence` to guard against being silently insufficient
+        # for a *different* nullable binding). A nullable `color:`/`min:`/
+        # `max:` still gets a real guard -- `wfb.emit.monkeyc.ReadPlan.guards`
+        # is generic over `element.expressions()` and does not consult
+        # `when_absent` at all when the element has none.
+        return element
+
+    def _graph_range(self, node: dict, src: SeriesDef | None) -> tuple[str, int]:
+        """Parse `range:` -- a duration string or a bare integer sample count."""
+        raw = node.get("range")
+        if isinstance(raw, bool):
+            self.bag.error("units", "range must be a duration or an integer count",
+                           self.doc.span(node, "range"))
+            return "count", 0
+        if isinstance(raw, int):
+            if raw < 1:
+                self.bag.error("graph", "range must be at least 1 sample",
+                               self.doc.span(node, "range"))
+                return "count", 1
+            return "count", raw
+        if isinstance(raw, str):
+            try:
+                duration = Duration.parse(raw, what="range")
+            except UnitError as exc:
+                self.bag.error("units", str(exc), self.doc.span(node, "range"))
+                return "duration", 0
+            return "duration", duration.seconds
+        self.bag.error(
+            "units",
+            f"range must be a duration ('30m', '4h', '7d') or an integer sample "
+            f"count, got {raw!r}",
+            self.doc.span(node, "range"),
+        )
+        return "count", 0
+
+    def _graph_sample_count(self, node: dict, src: SeriesDef | None, range_kind: str,
+                            range_value: int, buckets: int) -> int:
+        """The build-time-known upper bound on this graph's sample count.
+
+        `range: 14d` on `steps` is an error, not a clamp (SPEC.md): silently
+        drawing 7 when 14 was asked for is exactly the quiet wrongness this
+        compiler exists to remove.  Only checked against a *documented*
+        maximum (`SeriesDef.max_count`) -- the forecast arrays document none,
+        so a design asking for more than the provider actually has simply
+        gets fewer, bounds-checked at runtime the same way `weather.
+        condition_today`/`_tomorrow` already are.
+        """
+        if src is None:
+            return max(1, range_value if range_kind == "count" else buckets)
+        if src.acquisition is Acquisition.HEART_RATE:
+            return buckets if range_kind == "duration" else max(1, range_value)
+        if range_kind == "count":
+            count = max(1, range_value)
+        else:
+            interval = src.interval_seconds or 1
+            count = max(1, -(-range_value // interval))  # ceiling division
+        if src.max_count is not None and count > src.max_count:
+            self.bag.error(
+                "graph",
+                f"'{src.name}' requests {count} entries, but returns at most "
+                f"{src.max_count}",
+                self.doc.span(node, "range"),
+                notes=[f"{src.source_ref} documents the cap directly",
+                       "shorten 'range:', or lower the sample count"],
+            )
+        return count
+
+    def _check_graph_style_keys(self, node: dict, style: str) -> None:
+        if style not in GRAPH_STYLE_KEYS:
+            return  # the schema has already rejected an unknown style
+        for key in sorted(_ALL_GRAPH_STYLE_KEYS - GRAPH_STYLE_KEYS[style]):
+            if key not in node:
+                continue
+            owners = sorted(s for s, keys in GRAPH_STYLE_KEYS.items() if key in keys)
+            self.bag.error(
+                "graph",
+                f"{key!r} is not used by 'style: {style}'",
+                self.doc.span(node, key) or self.doc.span(node),
+                notes=[f"'style: {style}' reads: "
+                       + (", ".join(sorted(GRAPH_STYLE_KEYS[style])) or "(nothing)"),
+                       f"{key!r} belongs to " + " and ".join(f"'style: {s}'" for s in owners)],
+            )
+
+    def _graph_bound(self, node: dict, key: str) -> tuple[Expression | None, bool]:
+        """`min:`/`max:` -- `auto` (the default) or a compiled numeric expression."""
+        raw = node.get(key)
+        if raw is None or (isinstance(raw, str) and raw.strip() == "auto"):
+            return None, True
+        expression = self._expression(node, key)
+        if expression is not None and not expression.value.type.is_numeric():
+            self.bag.error(
+                "type", f"graph {key} must be a number, got {expression.value}",
+                self.doc.span(node, key),
+            )
+            return None, False
+        return expression, False
+
     # -- shared checks ----------------------------------------------------
 
     def _check_absence(self, node: dict, element: Element, bound: Expression,
@@ -2447,6 +2753,33 @@ def carousel_slide_field(element_id: str) -> str:
 def carousel_slide_done_method(element_id: str) -> str:
     """The animation-complete callback for a carousel (``onTempLowSlideDone``)."""
     return "on" + _element_suffix(element_id) + "SlideDone"
+
+
+def graph_series_field(element_id: str) -> str:
+    """The view field holding a graph's cached series (``hrGraphSeries``)."""
+    return _lower_first(_element_suffix(element_id)) + "Series"
+
+
+def graph_min_field(element_id: str) -> str:
+    """The view field holding a graph's auto-computed minimum, when
+    `min_auto` is set -- unused, and not emitted, otherwise."""
+    return _lower_first(_element_suffix(element_id)) + "Min"
+
+
+def graph_max_field(element_id: str) -> str:
+    return _lower_first(_element_suffix(element_id)) + "Max"
+
+
+def graph_built_field(element_id: str) -> str:
+    """The minute-of-last-rebuild field a graph checks every frame
+    (``hrGraphBuiltAt``) -- see `runtime-lib/WfbSeries.mc`'s module docstring
+    for why this is not the TTL cache this project deleted."""
+    return _lower_first(_element_suffix(element_id)) + "BuiltAt"
+
+
+def graph_rebuild_method(element_id: str) -> str:
+    """The private method that recomputes one graph's series (``rebuildHrGraph``)."""
+    return "rebuild" + _element_suffix(element_id)
 
 
 def _element_suffix(element_id: str) -> str:

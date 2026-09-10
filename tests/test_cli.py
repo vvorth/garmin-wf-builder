@@ -162,6 +162,33 @@ def test_complications_mentions_on_hold_auto():
     assert "on_hold: auto" in result.stdout
 
 
+def test_series_lists_all_fifteen_series():
+    result = run("series")
+    assert result.returncode == 0, result.stderr
+    assert "heart_rate" in result.stdout
+    assert "daily_precipitation_chance" in result.stdout
+    from wfb import series as series_catalog
+
+    for name in series_catalog.names():
+        assert name in result.stdout
+
+
+def test_series_names_no_sensor_history_or_solar_series():
+    result = run("series")
+    assert result.returncode == 0, result.stderr
+    assert "solar" not in result.stdout.lower()
+    assert "pressure" not in result.stdout.lower()
+    assert "body_battery" not in result.stdout.lower()
+    assert "stress" not in result.stdout.lower()
+
+
+def test_series_shows_the_documented_maximum_for_activity_history():
+    result = run("series")
+    assert result.returncode == 0, result.stderr
+    line = next(l for l in result.stdout.splitlines() if l.strip().startswith("steps "))
+    assert "max 7" in line
+
+
 # -- `wfb help` -------------------------------------------------------------
 
 

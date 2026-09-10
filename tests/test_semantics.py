@@ -1546,3 +1546,229 @@ def test_a_font_is_proportional_unless_it_asks_not_to_be(write_design, bag, repo
     assert face is not None, bag.render()
     assert face.fonts["clock"].monospace is False
     assert face.fonts["clock"].align == "center"
+
+
+# -- graph --------------------------------------------------------------------
+
+HR_GRAPH = """
+  - id: hr_graph
+    type: graph
+    series: heart_rate
+    range: 4h
+    style: line
+    thickness: 2px
+    color: palette.fg
+    at: {anchor: center}
+    size: {width: 60%, height: 18%}
+"""
+
+
+def _graph(**overrides: str) -> str:
+    """`HR_GRAPH`, with one or more `key: value` lines replaced or appended."""
+    lines = HR_GRAPH.strip("\n").splitlines()
+    for key, value in overrides.items():
+        prefix = f"    {key}:"
+        replaced = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith(prefix.strip()):
+                lines[i] = f"{prefix} {value}" if value is not None else None
+                replaced = True
+                break
+        if value is None:
+            if replaced:
+                lines = [l for l in lines if l is not None]
+            continue
+        if not replaced:
+            lines.append(f"{prefix} {value}")
+    return "\n" + "\n".join(l for l in lines if l is not None) + "\n"
+
+
+def test_a_valid_graph_builds_cleanly(write_design, bag):
+    face = load(write_design(design(_graph())), bag)
+    assert face is not None, bag.render()
+    assert bag.ok(), bag.render()
+    from wfb.ir import Graph
+
+    element = face.elements[0]
+    assert isinstance(element, Graph)
+    assert element.series == "heart_rate"
+    assert element.range_kind == "duration" and element.range_value == 14400
+    assert element.min_auto and element.max_auto
+    assert element.sample_count == 40  # the default bucket count
+
+
+def test_an_unknown_series_is_reported_with_a_suggestion(write_design, bag):
+    load(write_design(design(_graph(series="hart_rate"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "unknown series" in errors[0].message
+    assert "heart_rate" in " ".join(errors[0].notes)
+
+
+def test_buckets_on_a_non_heart_rate_series_is_an_error(write_design, bag):
+    load(write_design(design(_graph(series="steps", range="4d", buckets="10"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "buckets" in errors[0].message
+
+
+def test_buckets_on_a_heart_rate_count_range_is_also_an_error(write_design, bag):
+    """`buckets:` only binning-by-time; a bare sample count does not bin."""
+    load(write_design(design(_graph(range="30", buckets="10"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "buckets" in errors[0].message
+
+
+def test_a_duration_range_on_heart_rate_needs_no_buckets_error(write_design, bag):
+    face = load(write_design(design(_graph())), bag)
+    assert bag.ok(), bag.render()
+    assert face is not None
+
+
+def test_thickness_on_a_bars_graph_is_not_used(write_design, bag):
+    load(write_design(design(_graph(style="bars"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "thickness" in errors[0].message
+    assert "style: line" in " ".join(errors[0].notes)
+
+
+def test_bar_width_on_a_line_graph_is_not_used(write_design, bag):
+    load(write_design(design(_graph(bar_width="4px"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "bar_width" in errors[0].message
+
+
+def test_area_needs_neither_thickness_nor_bar_width(write_design, bag):
+    face = load(write_design(design(_graph(
+        style="area", thickness=None, bar_width=None))), bag)
+    assert bag.ok(), bag.render()
+    assert face is not None
+
+
+def test_two_fixed_bounds_with_min_at_least_max_is_an_error(write_design, bag):
+    load(write_design(design(_graph(min="100", max="50"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "min" in errors[0].message and "max" in errors[0].message
+
+
+def test_min_less_than_max_is_fine(write_design, bag):
+    face = load(write_design(design(_graph(min="40", max="180"))), bag)
+    assert bag.ok(), bag.render()
+    element = face.elements[0]
+    assert element.min_auto is False and element.max_auto is False
+    assert element.min.constant == 40 and element.max.constant == 180
+
+
+def test_a_mixed_fixed_and_auto_bound_is_not_checked_at_build_time(write_design, bag):
+    """One fixed, one auto -- there is nothing to compare until the auto side
+    is known on-device, so this must not be flagged."""
+    face = load(write_design(design(_graph(min="40"))), bag)
+    assert bag.ok(), bag.render()
+    element = face.elements[0]
+    assert element.min_auto is False and element.max_auto is True
+
+
+def test_a_duration_range_over_the_documented_maximum_is_an_error_not_a_clamp(write_design, bag):
+    """`range: 14d` on `steps` -- `getHistory()` returns at most 7 days, and
+    silently drawing 7 when 14 was asked for is exactly the class of quiet
+    wrongness this compiler exists to remove."""
+    load(write_design(design(_graph(series="steps", range="14d"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "steps" in errors[0].message and "7" in errors[0].message
+
+
+def test_a_count_range_over_the_documented_maximum_is_also_an_error(write_design, bag):
+    load(write_design(design(_graph(series="steps", range="10"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "10" in errors[0].message and "7" in errors[0].message
+
+
+def test_a_duration_range_within_the_documented_maximum_is_fine(write_design, bag):
+    face = load(write_design(design(_graph(series="steps", range="4d"))), bag)
+    assert bag.ok(), bag.render()
+    element = face.elements[0]
+    assert element.sample_count == 4
+
+
+def test_forecast_series_have_no_documented_maximum_to_exceed(write_design, bag):
+    face = load(write_design(design(_graph(series="forecast_temperature", range="240h"))), bag)
+    assert bag.ok(), bag.render()
+    element = face.elements[0]
+    assert element.sample_count == 240
+
+
+def test_an_area_graph_over_the_62_sample_cap_is_an_error(write_design, bag):
+    """`fillPolygon`'s own 64-point limit, minus the two corners that close
+    the outline -- `docs/research/probes/graph-series/`."""
+    load(write_design(design(_graph(
+        style="area", buckets="70", thickness=None))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "62" in errors[0].message
+
+
+def test_an_area_graph_over_the_cap_via_a_count_range_is_also_an_error(write_design, bag):
+    load(write_design(design(_graph(
+        style="area", range="70", thickness=None))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "62" in errors[0].message
+
+
+def test_an_area_graph_at_exactly_the_cap_is_fine(write_design, bag):
+    face = load(write_design(design(_graph(
+        style="area", buckets="62", thickness=None))), bag)
+    assert bag.ok(), bag.render()
+    assert face.elements[0].sample_count == 62
+
+
+def test_a_graph_cannot_be_static(write_design, bag):
+    load(write_design(design(_graph(static="true"))), bag)
+    errors = [d for d in bag.errors if d.code == "static"]
+    assert errors, bag.render()
+    assert "graph" in errors[0].message
+
+
+def test_a_nullable_color_still_hides_the_element_with_no_when_absent_required(
+        write_design, bag):
+    """A graph has no `when_absent:` field at all -- unlike `text`/`progress`,
+    a nullable `color:` here needs no explicit policy, the same as `shape`
+    and `icon` (`_check_other_absence` is deliberately not called for it)."""
+    face = load(write_design(design(_graph(
+        color='"activity.step_goal > 0 ? palette.fg : palette.fg"'))), bag)
+    assert bag.ok(), bag.render()
+    assert face is not None
+
+
+from tests.test_build import toolchain  # noqa: E402,F401 -- a fixture, used by name
+
+
+@pytest.mark.slow
+def test_a_graph_design_compiles_warning_free_on_every_target(
+        repo_root, tmp_path, bag, db, toolchain):
+    """Real `monkeyc`, all three targets, **warning-free** -- not merely
+    successful. Every other test in this file inspects generated text or the
+    IR directly; this is the one that puts a `graph` design through the real
+    toolchain, which is exactly the gap that let a real, unrelated `monkeyc`
+    warning ship once before (CLAUDE.md's account of the delegate's unused
+    `_view` field). `wfb.build` turns each `WARNING:` line `monkeyc` prints
+    into a bag diagnostic, so asserting no warnings here is on the
+    compiler's own output, not a proxy for it.
+    """
+    from wfb.build import build as run_build
+
+    design_path = repo_root / "examples" / "graph" / "face.yaml"
+    result = run_build(design_path, output=tmp_path / "out", bag=bag, db=db,
+                       toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)
+    assert set(result.products) == {"fenix8solar47mm", "fenix8solar51mm", "fr955"}
+

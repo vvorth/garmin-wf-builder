@@ -50,7 +50,7 @@ ALL_CODES = frozenset({
     "carousel", "color", "complication-gated", "contrast", "dead-element",
     "element-mapping",
     "devices", "duplicate-id", "element", "expression",
-    "font", "format", "format-version", "graphics-pool", "icon", "io",
+    "font", "format", "format-version", "graph", "graphics-pool", "icon", "io",
     "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "carousel-zone", "carousel-on-hold", "hold-overlap", "hold-unsupported",
@@ -531,8 +531,11 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
                    "since the per-source refresh-cadence check was removed, this warning is now the "
                    "ONLY thing standing between an author and reading "
                    "Weather.getCurrentConditions() or a Complications lookup inside "
-                   "onPartialUpdate -- a 'weather.*' or 'complication.*' binding on a "
-                   "low_power element is the expensive case to look at first",
+                   "onPartialUpdate -- a 'weather.*' or 'complication.*' binding, or a "
+                   "'graph' element (its own series is recomputed on-device every "
+                   "minute, not read fresh, but the drawing itself still runs every "
+                   "partial update), on a low_power element is the expensive case to "
+                   "look at first",
                    "group the low-power elements closer together to tighten the clip",
                    "set 'lint: {allow: [partial-update-budget], reason: ...}' on any "
                    "one of the elements drawn in low-power mode to keep it"],

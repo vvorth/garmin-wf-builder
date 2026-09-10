@@ -19,17 +19,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .. import __version__, catalog, complications, expr, formatting, icons
+from .. import __version__, catalog, complications, expr, formatting, icons, series
 from ..catalog import READERS, Type
 from ..ir import (
-    Carousel, Expression, Face, IconElement, Progress, Shape, Text,
+    Carousel, Expression, Face, Graph, IconElement, Progress, Shape, Text,
     carousel_index_field, carousel_slide_done_method, carousel_slide_field,
     carousel_step_method, element_const_prefix, element_method_name, font_resource_id,
-    static_group_method,
+    graph_built_field, graph_max_field, graph_min_field, graph_rebuild_method,
+    graph_series_field, static_group_method,
 )
 from ..layout import (
-    PlacedCarousel, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedCarousel, PlacedGraph, PlacedIcon, PlacedProgress, PlacedShape, PlacedText,
+    ResolvedFace,
 )
+from ..series import Acquisition
 from ..units import IntBox
 from .writer import Writer
 
@@ -510,6 +513,16 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
                     "a hold left of this is 'previous'"))
         out.append((f"{prefix}_NEXT_EDGE", placed.next_edge,
                     "a hold at or right of this is 'next'; between them opens the glance"))
+    elif isinstance(placed, PlacedGraph):
+        out.append((f"{prefix}_X", placed.box.x, ""))
+        out.append((f"{prefix}_Y", placed.box.y, ""))
+        out.append((f"{prefix}_WIDTH", placed.box.width, ""))
+        out.append((f"{prefix}_HEIGHT", placed.box.height, ""))
+        if placed.element.style == "line":
+            out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
+        elif placed.element.style == "bars":
+            out.append((f"{prefix}_BAR_WIDTH", placed.bar_width,
+                        "centred in each slot"))
     return out
 
 
@@ -597,7 +610,7 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
     behavioural change.
     """
     used = any(
-        isinstance(placed, (PlacedShape, PlacedProgress)) and placed.element.resolved_antialias
+        isinstance(placed, (PlacedShape, PlacedProgress, PlacedGraph)) and placed.element.resolved_antialias
         for placed in resolved.items
     )
     return resolved.face.antialias if used else None
@@ -640,9 +653,22 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     if resolved.in_mode("low_power") and device.supports_partial_update:
         plan.modules.add("Toybox.System")  # onPowerBudgetExceeded reports via println
 
+    graphs = [p for p in resolved.items if isinstance(p, PlacedGraph)]
+    graph_modules: set[str] = set()
+    if graphs:
+        # System.getClockTime() drives the rebuild-cadence check on every
+        # graph, regardless of series -- the same call the low-power branch
+        # above adds System for, just unconditional here.
+        graph_modules.add("Toybox.System")
+        for placed in graphs:
+            src = placed.element.series_def
+            graph_modules.add(series.ACQUISITION[src.acquisition].module)
+            if src.acquisition is Acquisition.HEART_RATE and placed.element.range_kind == "duration":
+                graph_modules.add("Toybox.Time")  # new Time.Duration(seconds)
+
     w = Writer()
     w.doc(header(face, f"Device:    {device.id}")).blank()
-    for module in sorted(set(_BASE_IMPORTS) | plan.modules):
+    for module in sorted(set(_BASE_IMPORTS) | plan.modules | graph_modules):
         w.line(f"import {module};")
     w.blank()
 
@@ -666,6 +692,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         _emit_fields(w, resolved)
         _emit_static_field(w, static)
         _emit_carousel_fields(w, rings)
+        _emit_graph_fields(w, graphs)
         if sleep_flag:
             w.doc(_sleep_flag_doc(always_on, bool(animated)))
             w.line("private var _sleeping as Boolean = false;")
@@ -682,6 +709,8 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
             _emit_complication_callback(w, plan)
         for placed in rings:
             _emit_carousel_step(w, placed, sleep_flag)
+        for placed in graphs:
+            _emit_graph_rebuild(w, placed)
         if static is not None:
             _emit_static_methods(w, static, antialias_default)
         for placed in resolved.items:
@@ -1136,7 +1165,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
         # own drawing runs.
         overrides_antialias = (
             antialias_default is not None
-            and isinstance(placed, (PlacedShape, PlacedProgress))
+            and isinstance(placed, (PlacedShape, PlacedProgress, PlacedGraph))
             and element.resolved_antialias != antialias_default
         )
         if overrides_antialias:
@@ -1152,6 +1181,8 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             _emit_icon(w, placed)
         elif isinstance(placed, PlacedCarousel):
             _emit_carousel(w, placed, plan)
+        elif isinstance(placed, PlacedGraph):
+            _emit_graph(w, placed)
         if overrides_antialias:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 
@@ -1608,6 +1639,161 @@ def _emit_carousel_item_text(w: Writer, item, plan: "ReadPlan") -> None:
         w.line(f"text = {value_code};")
 
 
+def _emit_graph_fields(w: Writer, graphs: list) -> None:
+    """One cached series (plus its auto bounds, where asked for) per `graph`.
+
+    Rebuilt once a minute (`_emit_graph`'s cadence check), not per frame --
+    see `runtime-lib/WfbSeries.mc`'s module docstring for why this is not the
+    TTL cache this project deleted.
+    """
+    if not graphs:
+        return
+    for placed in graphs:
+        element = placed.element
+        w.doc(f"`{element.id}`: the cached {element.series!r} series.")
+        w.line(f"private var {graph_series_field(element.id)} as Array<Float?> = "
+               "[] as Array<Float?>;")
+        # heart_rate's auto bound comes from the iterator's own getMin/getMax,
+        # which is a Number; every other series' comes from WfbSeries.autoMin/
+        # autoMax over the collected Array<Float?>, which is a Float.
+        auto_type = ("Number" if element.series_def is not None
+                     and element.series_def.acquisition is Acquisition.HEART_RATE
+                     else "Float")
+        zero = "0" if auto_type == "Number" else "0.0"
+        if element.min_auto:
+            w.line(f"private var {graph_min_field(element.id)} as {auto_type} = {zero};")
+        if element.max_auto:
+            w.line(f"private var {graph_max_field(element.id)} as {auto_type} = {zero};")
+        w.doc(f"`{element.id}`: the minute this series was last rebuilt.")
+        w.line(f"private var {graph_built_field(element.id)} as Number = -1;")
+    w.blank()
+
+
+def _emit_graph(w: Writer, placed: PlacedGraph) -> None:
+    """The rebuild-cadence check, then one drawing call per `style:`.
+
+    The check runs here rather than unconditionally in `onUpdate` -- after
+    the element's own guards, alongside every other kind's actual drawing --
+    so a hidden graph does not pay for a rebuild nobody will see this frame.
+    """
+    element = placed.element
+    prefix = _const_prefix(placed.id)
+    built = graph_built_field(element.id)
+    w.comment("the sample interval here is minutes, so rebuilding more often than")
+    w.comment("once a minute could not show anything new (WfbSeries.mc's docstring)")
+    with w.block(f"if (System.getClockTime().min != {built})"):
+        w.line(f"{built} = System.getClockTime().min;")
+        w.line(f"{graph_rebuild_method(element.id)}();")
+    w.blank()
+
+    values = graph_series_field(element.id)
+    lo = (f"{graph_min_field(element.id)}.toFloat()" if element.min_auto
+          else f"({element.min.code}).toFloat()")
+    hi = (f"{graph_max_field(element.id)}.toFloat()" if element.max_auto
+          else f"({element.max.code}).toFloat()")
+    w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
+    if element.style == "line":
+        w.line(f"WfbSeries.drawLine(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
+               f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
+        w.line(f"                   Layout.{prefix}_THICKNESS, {values}, {lo}, {hi});")
+    elif element.style == "area":
+        w.line(f"WfbSeries.drawArea(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
+               f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
+        w.line(f"                   {values}, {lo}, {hi});")
+    else:  # bars
+        w.line(f"WfbSeries.drawBars(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
+               f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
+        w.line(f"                   Layout.{prefix}_BAR_WIDTH, {values}, {lo}, {hi});")
+
+
+def _emit_graph_rebuild(w: Writer, placed: PlacedGraph) -> None:
+    """`rebuild<Id>()` -- recompute one graph's cached series.
+
+    `heart_rate` is the one hand-written shape in `WfbSeries.mc`, shared by
+    every design that plots it; every other series loops over its own array
+    here, generated per project, because the field a design binds
+    (`day.steps` vs. `day.calories`, `hour.temperature` vs. `hour.uvIndex`)
+    varies and Monkey C offers no way to pass one.
+    """
+    element = placed.element
+    src = element.series_def
+    w.blank()
+    w.doc(f"Recompute `{element.id}`'s {element.series!r} series.")
+    with w.block(f"private function {graph_rebuild_method(element.id)}() as Void"):
+        if src.acquisition is Acquisition.HEART_RATE:
+            _emit_hr_rebuild(w, element)
+        else:
+            _emit_array_rebuild(w, element, src)
+
+
+def _emit_hr_rebuild(w: Writer, element: Graph) -> None:
+    """`heart_rate`: acquire the iterator, take its free min/max, then hand
+    it to `WfbSeries` to bin (a duration range) or collect (a count range).
+
+    `getMin()`/`getMax()` must run before the iterator is consumed by
+    `next()` -- both queries are metadata on the iterator, not a cursor
+    advance, confirmed against the reference probe
+    (`docs/research/probes/graph-series/`), which calls them in exactly this
+    order for exactly this reason.
+    """
+    period = (f"new Time.Duration({element.range_value})" if element.range_kind == "duration"
+              else str(element.range_value))
+    w.line(f"var iterator = ActivityMonitor.getHeartRateHistory({period}, false);")
+    if element.min_auto:
+        w.line("var lo = iterator.getMin();")
+        w.line(f"{graph_min_field(element.id)} = (lo != null) ? lo : 0;")
+    if element.max_auto:
+        w.line("var hi = iterator.getMax();")
+        w.line(f"{graph_max_field(element.id)} = (hi != null) ? hi : 0;")
+    if element.range_kind == "duration":
+        w.line(f"{graph_series_field(element.id)} = WfbSeries.binHeartRate("
+               f"iterator, {element.sample_count}, {element.range_value});")
+    else:
+        w.line(f"{graph_series_field(element.id)} = WfbSeries.collectHeartRate(iterator);")
+
+
+def _emit_array_rebuild(w: Writer, element: Graph, src) -> None:
+    """`steps`/`calories`/.../`daily_precipitation_chance`: one short array,
+    read into a fixed-size `Array<Float?>` -- `null` past the end when the
+    acquired array is shorter than the requested sample count, which is the
+    ordinary case for a design new enough not to have 7 days of history yet.
+    """
+    info = series.ACQUISITION[src.acquisition]
+    n = element.sample_count
+    values = graph_series_field(element.id)
+    w.line(f"var raw = {info.call};")
+    w.line(f"var out = new [{n}] as Array<Float?>;")
+    with w.block(f"for (var i = 0; i < {n}; i += 1)"):
+        w.line("out[i] = null;")
+
+    def fill() -> None:
+        w.line(f"var count = WfbSeries.min({n}, raw.size());")
+        with w.block("for (var i = 0; i < count; i += 1)"):
+            if info.newest_first:
+                w.comment("most recent first on the wire; oldest first on screen")
+                w.line("var entry = raw[count - 1 - i];")
+            else:
+                w.line("var entry = raw[i];")
+            if src.intermediate is not None:
+                suffix = src.field_name[len(src.intermediate) + 1:]
+                w.line(f"var mid = entry.{src.intermediate};")
+                w.line(f"out[i] = (mid != null) ? mid.{suffix}.toFloat() : null;")
+            else:
+                w.line(f"var v = entry.{src.field_name};")
+                w.line("out[i] = (v != null) ? v.toFloat() : null;")
+
+    if info.array_nullable:
+        with w.block("if (raw != null)"):
+            fill()
+    else:
+        fill()
+    w.line(f"{values} = out;")
+    if element.min_auto:
+        w.line(f"{graph_min_field(element.id)} = WfbSeries.autoMin(out);")
+    if element.max_auto:
+        w.line(f"{graph_max_field(element.id)} = WfbSeries.autoMax(out);")
+
+
 def _fallback_fraction(element: Progress) -> str:
     """The `progress` fallback, as a Float in 0.0-1.0.
 
@@ -2011,6 +2197,8 @@ def _describe(placed) -> str:
     if isinstance(element, Carousel):
         return (f"a carousel of {len(element.items)} items, "
                 f"{element.slots} shown at a time")
+    if isinstance(element, Graph):
+        return f"{_article(f'{element.style} graph')} of {element.series}"
     return element.kind
 
 

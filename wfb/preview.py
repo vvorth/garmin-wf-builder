@@ -26,7 +26,8 @@ from .catalog import Type
 from .fonts import BakedFont, fallback
 from .ir import Carousel, Progress, Shape, Text
 from .layout import (
-    PlacedCarousel, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedCarousel, PlacedGraph, PlacedIcon, PlacedProgress, PlacedShape, PlacedText,
+    ResolvedFace,
 )
 from .palette import MIP64_LEVELS, Color
 
@@ -132,6 +133,8 @@ class _Renderer:
             self._icon(placed)
         elif isinstance(placed, PlacedCarousel):
             self._carousel(placed)
+        elif isinstance(placed, PlacedGraph):
+            self._graph(placed)
 
     # -- elements ---------------------------------------------------------
 
@@ -273,6 +276,120 @@ class _Renderer:
         s = self.scale
         color = self._color(placed.element.color)
         self._paste_glyph(sheet, glyph, placed.box.x * s, placed.box.y * s, color)
+
+    def _graph(self, placed: PlacedGraph) -> None:
+        """A synthetic series -- shape and placement only, never real data.
+
+        There is no live `ActivityMonitor`/`Weather` history on the host, so
+        this draws a deterministic stand-in sized to exactly the sample
+        count the device will draw (`element.sample_count`, resolved at IR
+        build time from `range:`/`buckets:` -- the same figure
+        `wfb.emit.monkeyc` bakes into the generated acquisition call) --
+        the honest analogue of the scalar `SAMPLE` table every other element
+        already previews against. Geometry -- box, thickness, bar width --
+        comes from the same resolved `PlacedGraph` the device draws from, so
+        this is exactly the picture codegen produces, not a second guess at it.
+        """
+        element = placed.element
+        values = _synthetic_series(max(0, element.sample_count))
+        if element.min_auto:
+            present = [v for v in values if v is not None]
+            lo = min(present) if present else 0.0
+        else:
+            lo = self._graph_bound(element.min, 0.0)
+        if element.max_auto:
+            present = [v for v in values if v is not None]
+            hi = max(present) if present else 1.0
+        else:
+            hi = self._graph_bound(element.max, 1.0)
+        span = hi - lo
+        if span <= 0:
+            span = 1.0
+        color = self._color(element.color)
+        if element.style == "line":
+            self._graph_line(placed, values, lo, span, color)
+        elif element.style == "area":
+            self._graph_area(placed, values, lo, span, color)
+        else:
+            self._graph_bars(placed, values, lo, span, color)
+
+    def _graph_bound(self, expression, default: float) -> float:
+        """A fixed `min:`/`max:` expression, evaluated against the same
+        sample readings every other bound value previews against."""
+        if expression is None or expression.ast is None:
+            return default
+        value = expr.evaluate(expression.ast, self.values)
+        return default if value is None else float(value)
+
+    def _graph_point(self, placed: PlacedGraph, i: int, n: int, value: float,
+                     lo: float, span: float) -> tuple[float, float]:
+        s = self.scale
+        x, y = placed.box.x, placed.box.y
+        w, h = placed.size
+        cx = x + (i * w / (n - 1) if n > 1 else 0)
+        cy = y + h - (value - lo) * h / span
+        return cx * s, cy * s
+
+    def _graph_line(self, placed: PlacedGraph, values: list[float | None],
+                    lo: float, span: float, color) -> None:
+        n = len(values)
+        if n < 2:
+            return
+        s = self.scale
+        previous = None
+        for i, value in enumerate(values):
+            if value is None:
+                previous = None
+                continue
+            point = self._graph_point(placed, i, n, value, lo, span)
+            if previous is not None:
+                self.draw.line([previous, point], fill=color, width=max(1, placed.thickness * s))
+            previous = point
+
+    def _graph_area(self, placed: PlacedGraph, values: list[float | None],
+                    lo: float, span: float, color) -> None:
+        """One filled run per contiguous stretch of present samples -- the
+        same "a gap must not draw" rule `WfbSeries.drawArea` follows, so a
+        gap in the synthetic series (were one ever added) would look the
+        same way here as it will on the wrist."""
+        n = len(values)
+        if n < 2:
+            return
+        s = self.scale
+        x, y = placed.box.x, placed.box.y
+        w, h = placed.size
+        i = 0
+        while i < n:
+            if values[i] is None:
+                i += 1
+                continue
+            run: list[tuple[float, float]] = []
+            while i < n and values[i] is not None:
+                run.append(self._graph_point(placed, i, n, values[i], lo, span))
+                i += 1
+            if len(run) >= 2:
+                bottom = (y + h) * s
+                polygon = run + [(run[-1][0], bottom), (run[0][0], bottom)]
+                self.draw.polygon(polygon, fill=color)
+
+    def _graph_bars(self, placed: PlacedGraph, values: list[float | None],
+                    lo: float, span: float, color) -> None:
+        n = len(values)
+        if n < 1:
+            return
+        s = self.scale
+        x, y = placed.box.x, placed.box.y
+        w, h = placed.size
+        pitch = w / n
+        for i, value in enumerate(values):
+            if value is None:
+                continue
+            bar_height = max(1, round((value - lo) * h / span))
+            left = (x + i * pitch + (pitch - placed.bar_width) / 2) * s
+            top = (y + h - bar_height) * s
+            self.draw.rectangle(
+                [left, top, left + placed.bar_width * s - 1, (y + h) * s - 1], fill=color
+            )
 
     def _carousel(self, placed: PlacedCarousel) -> None:
         """The carousel as the wearer would first see it: item 0 centred.
@@ -482,6 +599,25 @@ class _Renderer:
             return (255, 255, 255)
         color = Color.parse(int(value))
         return (color.r, color.g, color.b)
+
+
+def _synthetic_series(n: int) -> list[float | None]:
+    """A deterministic stand-in series, sized to exactly `n` samples.
+
+    Not real data -- there is no `ActivityMonitor`/`Weather` history on the
+    host -- but a plausible, varying one, so a graph previews as a shape
+    rather than a flat line. A smooth wave rather than noise, so the picture
+    is legible and reproducible across runs (no `random`, no seed to manage).
+
+    One sample is deliberately absent (index ``n // 3``, skipped when ``n``
+    is too small for a gap to read as intentional) -- "a bucket with no
+    samples must not draw" is a real, author-visible behaviour, and a
+    preview that always shows a complete series would never demonstrate it.
+    """
+    if n <= 0:
+        return []
+    gap = n // 3 if n >= 6 else -1
+    return [None if i == gap else 50.0 + 40.0 * math.sin(i * 0.6) for i in range(n)]
 
 
 def _render_time(spec: str, values: dict) -> str:

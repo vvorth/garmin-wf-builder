@@ -361,6 +361,9 @@
         },
         {
           "$ref": "#/$defs/carouselElement"
+        },
+        {
+          "$ref": "#/$defs/graphElement"
         }
       ]
     },
@@ -947,6 +950,109 @@
         },
         "at": {
           "$ref": "#/$defs/position"
+        },
+        "modes": {
+          "$ref": "#/$defs/modes"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_tap": {
+          "$ref": "#/$defs/onTapRemoved"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "static": {
+          "$ref": "#/$defs/staticFlag"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        }
+      }
+    },
+    "graphElement": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "series",
+        "range",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "graph"
+        },
+        "series": {
+          "description": "A name from the series catalogue (`wfb series`): heart_rate; steps, calories, distance, floors_climbed, active_minutes; forecast_temperature, forecast_precipitation_chance, forecast_cloud_cover, forecast_uv_index, forecast_wind_speed, forecast_humidity; daily_high_temperature, daily_low_temperature, daily_precipitation_chance. None of these needs a permission; SensorHistory-backed series (pressure, stress, elevation, Body Battery) and solar are not available to a watch face at all -- see docs/limitations.md.",
+          "type": "string"
+        },
+        "range": {
+          "description": "A duration ('30m', '4h', '7d') or a bare integer sample count. heart_rate passes a duration straight through to getHeartRateHistory and bins it at runtime; every other series converts a duration to a count at build time using its own natural interval (1 day for the activity and daily-forecast series, 1 hour for the hourly-forecast ones) -- asking for more than a documented maximum (getHistory()'s 7 days) is a build error, not a silent clamp.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+\\s*(m|h|d)\\s*$"
+            }
+          ]
+        },
+        "buckets": {
+          "description": "Time bins for a time-binned series read over a duration -- i.e. heart_rate with a duration range. Default 40. An error naming the series on anything else.",
+          "type": "integer",
+          "minimum": 1,
+          "default": 40
+        },
+        "style": {
+          "description": "line (setPenWidth + drawLine per segment), area (one fillPolygon, capped at 62 samples -- Dc.fillPolygon's own 64-point limit minus the two corners that close the outline) or bars (fillRectangle per bucket).",
+          "enum": [
+            "line",
+            "area",
+            "bars"
+          ],
+          "default": "line"
+        },
+        "thickness": {
+          "$ref": "#/$defs/length",
+          "description": "style: line only -- the pen width."
+        },
+        "bar_width": {
+          "$ref": "#/$defs/length",
+          "description": "style: bars only -- centred in each slot."
+        },
+        "min": {
+          "$ref": "#/$defs/expression",
+          "description": "auto (the default) uses the series' own extent -- the iterator's getMin() for heart_rate, the collected values' extent for every other series. A number or an expression compiles like any other bound value."
+        },
+        "max": {
+          "$ref": "#/$defs/expression",
+          "description": "See min. Two fixed bounds with min >= max is a build error."
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression"
         },
         "modes": {
           "$ref": "#/$defs/modes"

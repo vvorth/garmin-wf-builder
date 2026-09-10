@@ -21,7 +21,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, catalog, icons
+from . import __version__, catalog, icons, series as series_catalog
 from .build import Toolchain, build as run_build, load, resolve_all, select_devices
 from .simulate import SimulatorError, push, screenshot
 from .devices import DeviceDatabase, DeviceError
@@ -185,6 +185,7 @@ def _parser() -> argparse.ArgumentParser:
 
     _command(sub, "sources", _sources)
     _command(sub, "complications", _complications)
+    _command(sub, "series", _series)
 
     help_cmd = _command(sub, "help", _help)
     help_cmd.add_argument("topic", nargs="?", help="a command name, e.g. `wfb help build`")
@@ -661,6 +662,40 @@ def _complications(args) -> int:
     print("    - id: hr\n      type: icon\n      icon: heart\n      on_hold: heart_rate")
     print("\n...or let the compiler pick one from the element's own value binding:")
     print("    - id: hr\n      type: icon\n      icon: heart\n      on_hold: auto")
+    return 0
+
+
+def _series(args) -> int:
+    """list the time-series catalogue: every `series:` a `graph` element may plot
+
+    A `graph` plots a series, not a scalar -- a different kind of binding
+    from `wfb sources`' data-source catalogue, acquired and cached on-device
+    rather than read fresh every frame (`docs/format.md`'s `graph` section).
+    Four families, and neither solar nor anything backed by
+    `Toybox.SensorHistory` (pressure, stress, elevation, Body Battery) is one
+    of them -- see `docs/limitations.md`.
+
+    Printed for each: its value type, the natural interval `range:` as a
+    duration divides by (none for `heart_rate`, which bins by real time
+    instead), the documented maximum sample count if the SDK states one, and
+    the SDK page it was taken from.
+    """
+    width = max(len(name) for name in series_catalog.names())
+    for name in series_catalog.names():
+        entry = series_catalog.SERIES[name]
+        flags = []
+        if entry.interval_seconds is not None:
+            flags.append(f"1 sample / {entry.interval_seconds}s")
+        if entry.max_count is not None:
+            flags.append(f"max {entry.max_count}")
+        if entry.unit:
+            flags.append(entry.unit)
+        suffix = f"  [{', '.join(flags)}]" if flags else ""
+        print(f"  {name:<{width}}  {entry.value_type.value:<6} {entry.doc}{suffix}"
+              f"  ({entry.source_ref})")
+    print(f"\n{len(series_catalog.SERIES)} series. Use one on a `graph` element:")
+    print("    - id: hr_graph\n      type: graph\n      series: heart_rate\n"
+          "      range: 4h\n      style: line\n      color: palette.accent")
     return 0
 
 

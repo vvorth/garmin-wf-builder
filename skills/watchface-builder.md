@@ -514,6 +514,46 @@ Three things to get right, all of which the linter will otherwise tell you:
 right as they stand. The slide only runs while the watch is awake -- generated
 code guards it, because `WatchUi.animate` crashes the app in low power mode.
 
+**A graph** plots a time series -- heart rate, or a few days/hours of an
+activity or weather reading -- as a line, a filled area, or bars. Run
+`wfb series` for the full catalogue; it is a separate, smaller list from
+`wfb sources`, because a series is acquired and cached on-device rather than
+read fresh every frame:
+
+```yaml
+  - id: hr_graph
+    type: graph
+    at: { anchor: center, dy: 30% }
+    size: { width: 60%, height: 18% }
+    series: heart_rate       # wfb series lists all of them
+    range: 4h                # a duration (30m/4h/7d), or a bare sample count
+    style: line               # line | area | bars
+    thickness: 2px            # style: line only
+    color: palette.accent
+    min: auto                 # auto (default) | a number | an expression
+    max: auto
+```
+
+Get these right, all otherwise caught only at build time:
+
+* **Nothing backed by `Toybox.SensorHistory`** -- pressure, stress,
+  elevation, Body Battery as a *history* -- and **no solar series** exist
+  at all; a watch face may not declare that permission, and solar has no
+  history API in Connect IQ regardless. Never invent a series name for one
+  of these; `wfb series` is the authoritative list.
+* **`range: 14d` on a 7-day series (`steps`, `calories`, `distance`,
+  `floors_climbed`, `active_minutes`) is a build error, not a clamp.**
+  `ActivityMonitor.getHistory()` documents a hard 7-day maximum; ask for at
+  most that.
+* **`buckets:` only means something for `heart_rate` over a duration
+  range.** Naming it anywhere else is a build error pointing at the series
+  that would have silently ignored it.
+* **`style: area` tops out at 62 samples** (`Dc.fillPolygon`'s own 64-point
+  limit, minus the two corners that close the outline). Use `style: line`
+  for a longer series.
+* A bucket, or a day/hour with no reading, does not draw -- it is a gap, not
+  a zero.
+
 **Anchors** — `center`, `top`, `bottom`, `left`, `right`, `top_left`,
 `top_right`, `bottom_left`, `bottom_right`. Offsets are measured from the anchor.
 

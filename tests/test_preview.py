@@ -187,3 +187,75 @@ def test_the_preview_draws_a_carousel_as_the_device_first_will(repo_root, bag, d
     assert (accent.r, accent.g, accent.b) in ink(centre), "the selected item is accented"
     assert (dim.r, dim.g, dim.b) in ink(centre - carousel.pitch), "neighbours are dimmed"
     assert (dim.r, dim.g, dim.b) in ink(centre + carousel.pitch)
+
+
+GRAPH_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: bg
+    type: shape
+    shape: rectangle
+    at: {{anchor: center}}
+    size: {{width: 100%, height: 100%}}
+    color: palette.bg
+  - id: hr_graph
+    type: graph
+    series: heart_rate
+    range: 4h
+    style: {style}
+    {style_key}
+    color: palette.fg
+    at: {{anchor: center}}
+    size: {{width: 60%, height: 20%}}
+"""
+
+
+@pytest.mark.parametrize("style,style_key", [
+    ("line", "thickness: 3px"),
+    ("area", ""),
+    ("bars", "bar_width: 4px"),
+])
+def test_a_graph_actually_draws_something_in_every_style(write_design, bag, db, style, style_key):
+    """Not a blank rectangle -- the synthetic series must produce real ink,
+    for whichever `style:` the design chose."""
+    face = load(write_design(GRAPH_DESIGN.format(style=style, style_key=style_key)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
+    fg = face.palette["fg"]
+    colors = {pixel for pixel in image.get_flattened_data()}
+    assert (fg.r, fg.g, fg.b) in colors, f"style={style} drew no ink at all"
+
+
+def test_a_graphs_geometry_matches_its_resolved_box(write_design, bag, db):
+    """Preview and device must agree: the drawn ink stays inside the
+    resolved box, not merely near it."""
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import PlacedGraph, resolve
+
+    face = load(write_design(
+        GRAPH_DESIGN.format(style="bars", style_key="bar_width: 4px")), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    placed = next(p for p in resolved.items if isinstance(p, PlacedGraph))
+
+    image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
+    fg = face.palette["fg"]
+    bg = face.palette["bg"]
+    # A row two pixels above the box's own top must still be pure background:
+    # if the graph painted there, its geometry has drifted from what
+    # wfb.layout resolved.
+    for x in range(placed.box.x, placed.box.right):
+        assert image.getpixel((x, placed.box.y - 2)) == (bg.r, bg.g, bg.b)

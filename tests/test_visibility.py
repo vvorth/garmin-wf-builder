@@ -475,7 +475,7 @@ def test_the_generated_doc_comment_says_when_the_element_draws(
             "(absent readings count as hidden).") in view
 
 
-@pytest.mark.parametrize("kind", ["group", "shape", "text", "progress", "icon", "carousel"])
+@pytest.mark.parametrize("kind", ["group", "shape", "text", "progress", "icon", "carousel", "graph"])
 def test_the_schema_offers_visible_on_every_element_type(repo_root, kind):
     import json
 

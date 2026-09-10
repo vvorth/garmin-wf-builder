@@ -19,8 +19,8 @@ from .devices import Device
 from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
-    Carousel, Element, Expression, Face, FontSpec, Group, IconElement, Position, Progress,
-    Shape, Size, Text, draw_sort_key,
+    Carousel, Element, Expression, Face, FontSpec, Graph, Group, IconElement, Position,
+    Progress, Shape, Size, Text, draw_sort_key,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
 
@@ -181,6 +181,21 @@ class PlacedCarousel(Placed):
 
 
 @dataclass
+class PlacedGraph(Placed):
+    """A `graph`, resolved: the drawn box, and the two style-specific widths.
+
+    Nothing here is series-dependent (`wfb/ir.py`'s `Graph.sample_count` and
+    `series_def` already carry everything about *which* series and *how
+    many* samples, device-independently) -- this is only the box and the
+    two pixel widths a device's screen actually determines.
+    """
+
+    thickness: int = 1
+    bar_width: int = 1
+    size: tuple[int, int] = (0, 0)
+
+
+@dataclass
 class ResolvedFace:
     face: Face
     device: Device
@@ -254,6 +269,8 @@ class Resolver:
                 self.items.append(self._resolve_icon(element, parent, depth))
             elif isinstance(element, Carousel):
                 self.items.append(self._resolve_carousel(element, parent, depth))
+            elif isinstance(element, Graph):
+                self.items.append(self._resolve_graph(element, parent, depth))
 
     # -- per-kind ---------------------------------------------------------
 
@@ -508,6 +525,18 @@ class Resolver:
             content_box=content.rounded(),
         )
 
+    def _resolve_graph(self, element: Graph, parent: Box, depth: int) -> Placed:
+        cx, cy = self._point(element.at, parent)
+        width = self._len(element.size.width, parent, Axis.X, parent.width)
+        height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        box = Box(cx - width / 2, cy - height / 2, width, height)
+        thickness = max(1, round(self._len(element.thickness, parent, Axis.MINOR, 2)))
+        bar_width = max(1, round(self._len(element.bar_width, parent, Axis.MINOR, 3)))
+        return PlacedGraph(
+            element, box.rounded(), (round(cx), round(cy)), depth,
+            thickness=thickness, bar_width=bar_width, size=(round(width), round(height)),
+        )
+
     def _carousel_value_font(self, element: Carousel) -> tuple[int, str, bool, BakedFont | None]:
         if element.value_font_is_custom:
             baked = self.fonts.get(element.value_font)
@@ -750,7 +779,7 @@ def safe_area(device: Device) -> Box | None:
 
 __all__ = [
     "Placed", "PlacedShape", "PlacedText", "PlacedProgress", "PlacedIcon",
-    "PlacedCarousel", "PlacedCarouselItem",
+    "PlacedCarousel", "PlacedCarouselItem", "PlacedGraph",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
     "inside_visible_area_for", "circular_extent", "garmin_arc",
     "is_full_bleed",

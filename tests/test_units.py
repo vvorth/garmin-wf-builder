@@ -5,8 +5,8 @@ import math
 import pytest
 
 from wfb.units import (
-    ANCHORS, SIZE_UNITS, Angle, Axis, Box, IntBox, Length, UnitError, pixel_size,
-    scaled_font_size,
+    ANCHORS, SIZE_UNITS, Angle, Axis, Box, Duration, IntBox, Length, UnitError,
+    pixel_size, scaled_font_size,
 )
 
 
@@ -27,6 +27,31 @@ def test_length_parsing(raw, value, unit):
 def test_length_rejects_nonsense(raw):
     with pytest.raises(UnitError):
         Length.parse(raw)
+
+
+@pytest.mark.parametrize(
+    "raw,seconds",
+    [("30m", 1800), ("4h", 14400), ("7d", 604800), ("1d", 86400), ("0m", 0)],
+)
+def test_duration_parsing(raw, seconds):
+    assert Duration.parse(raw).seconds == seconds
+
+
+@pytest.mark.parametrize("raw", ["banana", "4", "4s", "-4h", "4.5h", True, None, 4])
+def test_duration_rejects_nonsense(raw):
+    """A bare number is a sample *count*, handled separately (`wfb/ir.py`'s
+    `Builder._graph_range`) -- `Duration.parse` itself only ever sees a
+    string, so a number reaching it directly is as much a mistake as a unit
+    it does not recognise."""
+    with pytest.raises(UnitError):
+        Duration.parse(raw)
+
+
+def test_duration_round_trips_through_str():
+    assert str(Duration.parse("4h")) == "4h"
+    assert str(Duration.parse("240m")) == "4h"
+    assert str(Duration.parse("90m")) == "90m"
+    assert str(Duration.parse("7d")) == "7d"
 
 
 def test_percent_resolves_per_axis():

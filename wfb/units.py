@@ -35,6 +35,7 @@ class Axis(str, Enum):
 
 _LENGTH_RE = re.compile(r"^\s*(?P<num>[+-]?(?:\d+\.?\d*|\.\d+))\s*(?P<unit>%r|%|px|pt)?\s*$")
 _ANGLE_RE = re.compile(r"^\s*(?P<num>[+-]?(?:\d+\.?\d*|\.\d+))\s*(?P<unit>deg|rad|turn)?\s*$")
+_DURATION_RE = re.compile(r"^\s*(?P<num>\d+)\s*(?P<unit>m|h|d)\s*$")
 
 
 @dataclass(frozen=True)
@@ -181,6 +182,43 @@ class Angle:
 
 def to_garmin_degrees(degrees: float) -> float:
     return (90.0 - degrees) % 360.0
+
+
+@dataclass(frozen=True)
+class Duration:
+    """A plain span of time -- minutes, hours or days, whole numbers only.
+
+    Distinct from :class:`Angle`/:class:`Length`: nothing here is resolved
+    against a device.  A `graph` element's `range:` is the one place this
+    project needs a duration rather than a screen-relative quantity -- "the
+    last 4 hours" of heart-rate history means the same 14400 seconds on every
+    target, so there is no per-device resolve step the way a `Length` has.
+    """
+
+    seconds: int
+
+    @classmethod
+    def parse(cls, raw: object, *, what: str = "duration") -> "Duration":
+        if isinstance(raw, Duration):
+            return raw
+        if isinstance(raw, bool) or not isinstance(raw, str):
+            raise UnitError(
+                f"{what}: expected a duration such as '30m', '4h' or '7d', got {raw!r}"
+            )
+        m = _DURATION_RE.match(raw)
+        if not m:
+            raise UnitError(
+                f"{what}: {raw!r} is not a duration.  Use m, h or d, e.g. '30m', '4h', '7d'"
+            )
+        factor = {"m": 60, "h": 3600, "d": 86400}[m.group("unit")]
+        return cls(int(m.group("num")) * factor)
+
+    def __str__(self) -> str:
+        if self.seconds % 86400 == 0:
+            return f"{self.seconds // 86400}d"
+        if self.seconds % 3600 == 0:
+            return f"{self.seconds // 3600}h"
+        return f"{self.seconds // 60}m"
 
 
 @dataclass(frozen=True)

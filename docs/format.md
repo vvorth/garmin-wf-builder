@@ -1026,6 +1026,102 @@ asleep. Since a touch is one of the things that keeps the face awake, the
 animation window and the interaction coincide in practice — but it is a guard,
 not an assumption. `animate: 0` opts out entirely.
 
+### `graph`
+
+A time series, drawn as a line, a filled area or bars:
+
+```yaml
+- id: hr_graph
+  type: graph
+  at: { x: 50%, y: 72% }
+  size: { width: 60%, height: 18% }
+
+  series: heart_rate          # run `wfb series` for the full catalogue
+  range: 4h                   # a duration (30m/4h/7d) or a bare sample count
+  buckets: 40                 # time-binned series only; default 40
+
+  style: line                 # line | area | bars ; default line
+  thickness: 2px               # style: line only
+  bar_width: 3px               # style: bars only
+
+  min: auto                   # auto (default) | a number | an expression
+  max: auto
+
+  color: palette.accent
+```
+
+**`series:`** names an entry in a second, smaller catalogue than `wfb
+sources`' — run `wfb series` for the current list. Four families, all
+needing **no permission**: `heart_rate` (`ActivityMonitor.
+getHeartRateHistory`); the daily activity family `steps`, `calories`,
+`distance`, `floors_climbed`, `active_minutes` (`ActivityMonitor.
+getHistory()`, at most 7 days); the hourly forecast family
+`forecast_temperature`, `forecast_precipitation_chance`,
+`forecast_cloud_cover`, `forecast_uv_index`, `forecast_wind_speed`,
+`forecast_humidity`; and the daily forecast family
+`daily_high_temperature`, `daily_low_temperature`,
+`daily_precipitation_chance` (both `Weather` calls). **Nothing backed by
+`Toybox.SensorHistory` — pressure, stress, elevation, Body Battery as a
+history — and no solar series exist at all**: see
+[`docs/limitations.md`](limitations.md) and
+`docs/research/08-graphs-and-configuration.md` §1.
+
+**`range:`** is a duration (`30m`, `4h`, `7d`) or a bare integer sample
+count. `heart_rate` passes a duration straight through to
+`getHeartRateHistory`, which bins it by real time on-device — its own
+sample interval is device-dependent, so a build-time sample count cannot be
+derived from it. Every other series converts a duration to a count at build
+time using its own natural interval (one day for the activity and
+daily-forecast families, one hour for the hourly-forecast one); asking for
+more than a series' own documented maximum (`steps`, `calories`,
+`distance`, `floors_climbed` and `active_minutes` all read the same
+`getHistory()`, whose own limit is 7 days) is a **build error**, not a
+silent clamp to 7 — silently drawing fewer than asked for is exactly the
+class of quiet wrongness this compiler exists to remove. The forecast
+families document no such maximum, so a design asking for more than the
+provider actually has simply gets fewer, checked at runtime the same
+bounds-checked way `weather.condition_today`/`_tomorrow` already are.
+
+**`buckets:`** only means something for `heart_rate` read over a
+*duration* — a time-binned series, where a bucket can genuinely have no
+sample in it. Naming it on anything else is a build error pointing at the
+series that would silently have ignored it. Default 40. It cannot be
+derived from the element's resolved width: `wfb/emit/project.py` generates
+one view shared across every target device, so a per-device pixel width can
+never become a build-time constant in it — the same constraint
+`wfb.icons.font_key`'s docstring records for a font's declared, rather than
+resolved, size.
+
+**A bucket, or a day/hour with no reading, does not draw** rather than
+plotting a zero or a guessed value — a line breaks there instead of joining
+straight across, and a bar simply is not drawn. A filled area cannot lift
+the pen partway through one `fillPolygon`'s own outline, so `style: area`
+draws one filled run per contiguous stretch of present samples instead,
+each closed with its own two bottom corners — a gap ends one run and starts
+the next, rather than joining straight across it, guessing, or blanking the
+whole graph for the sake of one missing sample.
+
+**`style: area` is capped at 62 samples.** `Dc.fillPolygon` is the only fill
+`Dc` offers that follows a curve, so a filled graph inherits its 64-point
+limit; closing the outline costs two corners, leaving 62 for the series
+itself. Exceeding it is a build error naming the cap and `style: line` as
+the alternative.
+
+**`min:`/`max:`** are `auto` (the default), a number, or an expression —
+the last two compile exactly like any other bound value. `auto` on
+`heart_rate` reads the iterator's own `getMin()`/`getMax()`, which is free
+and already scoped to the samples in this graph's own range; `auto` on
+every other series computes the extent of whatever was actually collected,
+skipping gaps. Two fixed bounds with `min >= max` is a build error.
+
+**The series is cached in a private view field and rebuilt only when the
+clock minute changes** — one `Number` comparison a frame, not the TTL cache
+this project deleted (`wfb/catalog.py`'s module docstring): that deletion
+was about re-caching a value Garmin already caches on its own side, and a
+graph's own computation over a source whose sample interval is minutes
+cannot produce new information by recomputing it every second. **CPU cost
+is unmeasured** — see `docs/limitations.md`.
+
 ---
 
 ## Data binding
