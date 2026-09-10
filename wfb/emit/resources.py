@@ -125,17 +125,27 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     of that set (`wfb.icons.WEATHER_BAKE_REFERENCE_GLYPH`) for lack of a
     nominal size that fits all of them equally (see that constant's own
     docstring for why one does not exist).
+
+    Also keyed by `element.resolved_antialias`: two icons agreeing on size and
+    glyph but not on anti-aliasing need two different sheets, one 1-bit and one
+    an 8-bit grey ramp -- see `wfb.icons.font_key`'s docstring.
     """
-    by_key: dict[str, tuple[object, str, str]] = {}  # key -> (size, glyphs, bake_reference)
+    # key -> (size, glyphs, bake_reference, antialias)
+    by_key: dict[str, tuple[object, str, str, bool]] = {}
     for element in face.walk():
         if isinstance(element, Carousel):
             # Every item's glyph, each in its own single-glyph font for the
             # same per-codepoint bake-size reason a standalone icon has: the
             # aggregated icon sets pad glyphs differently inside the em-square,
             # so one nominal size does not give them all the same ink height.
+            # `element.resolved_antialias` is one flag for the whole carousel
+            # -- there is no per-item `antialias:` in the format -- so every
+            # item's font is baked with it.
             for item in element.items:
-                key = icons.font_key(element.icon_size, item.codepoint)
-                by_key[key] = (element.icon_size, item.codepoint, item.codepoint)
+                key = icons.font_key(element.icon_size, item.codepoint,
+                                     element.resolved_antialias)
+                by_key[key] = (element.icon_size, item.codepoint, item.codepoint,
+                               element.resolved_antialias)
             continue
         if not isinstance(element, IconElement):
             continue
@@ -145,8 +155,8 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
             reference = icons.WEATHER_BAKE_REFERENCE_GLYPH
         else:
             glyph_key = glyphs = reference = element.codepoint
-        key = icons.font_key(element.size, glyph_key)
-        by_key[key] = (element.size, glyphs, reference)
+        key = icons.font_key(element.size, glyph_key, element.resolved_antialias)
+        by_key[key] = (element.size, glyphs, reference, element.resolved_antialias)
     return {
         key: FontSpec(
             name=key,
@@ -155,11 +165,11 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
                 reference, units.pixel_size(length, device.minor_radius),
             )),
             glyphs=glyphs,
-            antialias=False,
+            antialias=antialias,
             scale=False,  # already resolved to this device's final pixel size
             span=None,
         )
-        for key, (length, glyphs, reference) in by_key.items()
+        for key, (length, glyphs, reference, antialias) in by_key.items()
     }
 
 

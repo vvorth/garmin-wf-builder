@@ -263,8 +263,9 @@ _UNIT_WORD = {"%r": "pctr", "%": "pct", "px": "px", "pt": "pt"}
 DYNAMIC_WEATHER_TAG = "weather"
 
 
-def font_key(length: Length | None, glyph_key: str) -> str:
-    """The synthetic font name for every icon declared at this `size:` and glyph.
+def font_key(length: Length | None, glyph_key: str, antialias: bool = False) -> str:
+    """The synthetic font name for every icon declared at this `size:`, glyph
+    and anti-aliasing setting.
 
     Keyed by the *declared* length, not the pixel size it resolves to --
     deliberately, because the generated view class is shared across every
@@ -290,6 +291,18 @@ def font_key(length: Length | None, glyph_key: str) -> str:
     or `DYNAMIC_WEATHER_TAG` (a dynamic icon's shared, multi-glyph font) --
     never an arbitrary string, so there is no collision to guard against
     between the two forms.
+
+    And also keyed by `antialias`: two icons that agree on `size:` and glyph
+    but disagree on `antialias:` are two different sheets -- one 1-bit, one an
+    8-bit grey ramp -- of the same declared size, so without this in the key
+    they would collide into one font resource and whichever icon baked second
+    would silently overwrite the other's sheet.  Left out of the key when
+    `False` (the default) rather than always appended, so a design that never
+    mentions `antialias:` gets byte-identical keys, and therefore byte-
+    identical generated output, to before this parameter existed.  Safe to key
+    by directly, for the same device-independence reason as the length and the
+    glyph: `antialias:` is a design decision an author makes once, not
+    something that varies by which screen the face happens to be running on.
     """
     if length is None:
         unit_value = "default"
@@ -298,7 +311,8 @@ def font_key(length: Length | None, glyph_key: str) -> str:
         value = f"{length.value:g}".replace(".", "p").replace("-", "neg")
         unit_value = f"{value}{unit}"
     glyph_id = f"u{ord(glyph_key):x}" if len(glyph_key) == 1 else glyph_key
-    return f"icon_{unit_value}_{glyph_id}"
+    suffix = "_aa" if antialias else ""
+    return f"icon_{unit_value}_{glyph_id}{suffix}"
 
 
 # ============================================================================

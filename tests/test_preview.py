@@ -99,6 +99,61 @@ def test_a_progress_fallback_renders_the_same_fraction_the_device_draws(
     assert lit > dark, "the fallback fraction drew nothing"
 
 
+def test_an_antialiased_icon_previews_with_intermediate_grey(write_design, bag, db):
+    """No anti-aliasing machinery was added to `wfb/preview.py` for this --
+    `_paste_glyph` already pastes a glyph tile as an alpha mask, so an
+    anti-aliased (multi-grey-level) sheet blends into the background for
+    free, and a 1-bit sheet cannot, because its mask has only two values.
+    This proves that fall-out actually happens end to end, from `antialias:`
+    on the element through layout and baking to the rendered pixels, rather
+    than asserting it against the baked sheet alone.
+    """
+    design = """
+format: 1
+face: {id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}
+targets: [fenix8solar47mm]
+palette: {bg: "#000000", fg: "#FFFFFF"}
+elements:
+  - id: bg
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: crisp
+    type: icon
+    icon: heart
+    size: 30%r
+    at: {anchor: center, dx: -25%}
+    color: palette.fg
+    antialias: false
+  - id: smooth
+    type: icon
+    icon: heart
+    size: 30%r
+    at: {anchor: center, dx: 25%}
+    color: palette.fg
+    antialias: true
+"""
+    face = load(write_design(design), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
+
+    def colors_in(element_id: str) -> set:
+        box = next(p for p in resolved.items if p.id == element_id).box
+        return {image.getpixel((x, y))
+                for x in range(box.x, box.x + box.width)
+                for y in range(box.y, box.y + box.height)}
+
+    crisp_colors = colors_in("crisp")
+    smooth_colors = colors_in("smooth")
+    assert crisp_colors == {(0, 0, 0), (255, 255, 255)}, crisp_colors
+    intermediate = smooth_colors - {(0, 0, 0), (255, 255, 255)}
+    assert intermediate, f"anti-aliased icon has no intermediate grey: {smooth_colors}"
+
+
 def test_the_preview_draws_a_carousel_as_the_device_first_will(repo_root, bag, db):
     """Item 0 centred, neighbours dimmed.
 

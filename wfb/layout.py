@@ -419,7 +419,7 @@ class Resolver:
             measure_codepoint = icons.WEATHER_BAKE_REFERENCE_GLYPH
         else:
             glyph_key = measure_codepoint = element.codepoint
-        key = icons.font_key(element.size, glyph_key)
+        key = icons.font_key(element.size, glyph_key, element.resolved_antialias)
         font = self.fonts.get(key)
         if font is not None:
             width, height = font.measure(measure_codepoint)
@@ -452,7 +452,7 @@ class Resolver:
 
         placed_items: list[PlacedCarouselItem] = []
         for index, item in enumerate(element.items):
-            key = icons.font_key(element.icon_size, item.codepoint)
+            key = icons.font_key(element.icon_size, item.codepoint, element.resolved_antialias)
             placed_items.append(PlacedCarouselItem(
                 index=index, font_key=key, codepoint=item.codepoint,
                 widest=_carousel_item_widest(item),

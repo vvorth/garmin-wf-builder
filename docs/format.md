@@ -238,8 +238,11 @@ are the font's own metrics, and a `text` element already has `vertical_align:`.
   recovers real per-pixel coverage before the 1-bit threshold sees it, which
   brings that to **1.1%**. Advances and line metrics are untouched, so this
   changes how a glyph looks, never where it sits.
-* **`antialias` defaults to false.** Bitmap fonts are 1-bit by default because
-  anti-aliasing costs runtime RAM.
+* **`antialias` defaults to false**, or to the top-level `antialias:` default
+  when there is one -- Bitmap fonts are 1-bit by default because anti-aliasing
+  costs runtime RAM. See "`antialias:` — soften an edge" below for the full
+  picture, including the icon and primitive-drawing elements that share this
+  same key.
 
 A glyph the design can render but the font does not contain is a **build error**,
 checked against the baked sheet's own character map.
@@ -468,6 +471,75 @@ note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B
 It becomes a warning past half the pool. It is an **estimate** and says so: the
 SDK publishes no bytes-per-pixel figure for a `BufferedBitmap`, so this uses the
 display's own `bitsPerPixel` from the device files as the nearest honest proxy.
+
+### `antialias:` — soften an edge
+
+```yaml
+antialias: true            # face-wide default
+
+fonts:
+  clock:
+    source: assets/OpenSans-Regular.ttf
+    size: 68
+    antialias: false        # override: keep the clock crisp
+
+elements:
+  - id: dial
+    type: group
+    antialias: false        # override: default for this subtree
+    children: [...]
+  - id: step_ring
+    type: progress
+    style: arc
+    antialias: true
+  - id: steps_icon
+    type: icon
+    size: 30px               # inherits the face default (true)
+```
+
+A single top-level `antialias:` (default `false`) is the face-wide default,
+inherited by every font, icon and primitive-drawing element unless it
+overrides it. It reaches two entirely different SDK mechanisms, gated in two
+entirely different ways:
+
+* **A bitmap font** (a `fonts:` entry, or the synthetic font an `icon` bakes)
+  is a *resource* attribute -- `<font antialias="true">` -- and the resource
+  compiler bakes an 8-bit grey ramp instead of a 1-bit mask. No device gating
+  is needed: the SDK's own history notes that the toolchain overrides the
+  attribute itself on devices too old to render it (Forerunner 45, Forerunner
+  920XT, Edge 130), which is not a concern for any of this project's three
+  targets in any case.
+* **A `shape` or `progress` element's own drawing** is a runtime `Dc` call,
+  `setAntiAlias`, gated per device with a `has` check. This side is not wired
+  up by the resolver alone -- see `docs/limitations.md`.
+
+**Inheritance is a default, not a conjunction.** A `group`'s own `antialias:`
+becomes what its subtree inherits, and a descendant's own `antialias:` always
+wins outright over its enclosing group's -- there is no meaningful "AND" of two
+booleans that both just mean "should this look soft", unlike `visible:`, where
+conjoining an ancestor's condition into a descendant's is exactly the point.
+Leaving it unset anywhere in the chain falls through to the next enclosing
+group, and ultimately to the face-wide default.
+
+**Accepted on `group`, `shape`, `progress`, `icon` and `carousel` only.** Not
+on `text`: a `text` element draws through a font named in `fonts:`, and that
+font is one bitmap resource shared by every element that references it, so
+anti-aliasing cannot vary per element the way it can on a shape's own outline
+or an icon's own, per-glyph font. Writing `antialias:` on a `text` element is a
+build error pointing at that font's own `antialias:` instead -- naming the
+actual font this element uses when it names a custom one, or saying plainly
+that a system font has no `antialias:` of its own when it does not.
+
+**Cost is measured, not estimated, and only on one side.** Anti-aliasing an
+eleven-glyph clock font at 68px cost +672 B in the `.prg` (96,108 → 96,780 B);
+a single anti-aliased icon at 14%r cost +48 B, identically on all three
+targets. `--build-stats` does not move either way -- font pixels are a
+resource, not foreground data, so the memory check `wfb build` reports never
+sees this cost. The *runtime RAM* the SDK's own Resources page warns
+anti-aliasing costs ("since bitmap fonts can take a lot of runtime memory...")
+is measured by neither `--build-stats` nor the `.prg` size, and stays
+unquantified here -- there is no simulator or device in this container to read
+it from (`docs/limitations.md`).
 
 ### `shape`
 

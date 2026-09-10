@@ -112,3 +112,74 @@ private function applyAntiAlias(dc as Dc, on as Boolean) as Void {
 A direct, unguarded `dc.setAntiAlias(false)` also builds clean on all three --
 they all have the symbol -- which is exactly why the guard cannot be judged by
 building here, and why it is kept.
+
+## 4. Task A: the format surface and font-baking plumbing
+
+Built on top of §§1-3 above, which stand as measured.  This section records
+what §§1-3 did not already answer, from the session that built the
+`antialias:` key itself (top-level default, per-element resolution, `text`'s
+rejection, and threading it through `wfb.icons.font_key`) -- everything that
+touches `Dc.setAntiAlias` directly is a separate, later task and is not here.
+
+**A single icon's cost, measured, not just a font's.**  §2 measured an
+eleven-glyph *font* at 68px (+672 B).  One anti-aliased *icon* at 14%r costs
+**+48 B**, identically on `fenix8solar47mm`, `fenix8solar51mm` and `fr955` --
+smaller than the font case because it is one glyph's grey ramp rather than
+eleven's, and identical across targets because the three screens differ only
+in resolved pixel size, not in how a grey ramp compresses.  `--build-stats`
+does not move for the icon case either, for the same reason it did not for
+the font: an icon's baked sheet is a resource, exactly like a declared font's.
+
+**A combined design -- a declared font, a static icon, a dynamic
+(`icon_for:`) icon and a carousel, all anti-aliased at once, all three
+targets -- builds `BUILD SUCCESSFUL` and warning-free.**  Checked against the
+`Bag` directly (`wfb.build.build`'s own `WARNING:` → diagnostic conversion),
+not just the CLI's summary line: zero `Severity.WARNING` entries, three
+`note[memory]` entries only.  This is the evidence R4's icon-font threading
+(`font_key`, `icon_font_specs`, a carousel's per-item fonts) and R5's
+font-inherits-the-face-default path do not interact badly when several of
+them fire in the same view class.
+
+**`antialias:` had to be accepted by the schema on a `text` element, not
+rejected by it, for the same reason `on_tap:` is.**  The obvious reading of
+"not accepted on text" is `additionalProperties: false` doing the rejecting.
+That produces `wfb`'s generic "unknown key" diagnostic (code `schema`, a note
+listing every allowed key) -- true, but not what CLAUDE.md's own working
+agreement asks for here ("a clear error whose note points at
+`fonts: <name>: antialias:`... naming the actual font"). So the schema's
+`textElement` branch carries the same `$defs/antialias` `$ref` every other
+branch does, and `wfb/ir.py`'s `Builder._reject_text_antialias` -- run from
+`_build_text`, *after* `_resolve_font` has turned `font:` into a real
+`element.font`/`element.font_is_custom` pair -- reports the bespoke error
+instead.  Confirmed by disabling the check directly (`monkeypatch.setattr`)
+and rebuilding the same design: it builds silently, with `resolved_antialias`
+set to `True` on a `Text` element that never reads it -- correct-looking IR
+state hiding a design that asked for something it did not get, exactly the
+silent-gap shape CLAUDE.md already records twice.
+
+**`font_key`'s new `antialias` parameter had to default to `False` and be
+*appended*, not always included, in the returned string.**  The hard gate is
+that every existing golden file stays byte-identical, and every one of them
+was generated before this parameter existed.  Suffixing `_aa` only when
+`antialias` is true means a design that never mentions the key produces the
+exact string it always did (`icon_20pctr_uf02d1`, not
+`icon_20pctr_uf02d1_False`); confirmed by asserting
+`font_key(length, glyph) == font_key(length, glyph, False)` and by a full
+`pytest -m "not slow"` / `pytest -m "slow"` run showing zero `git diff` in
+`tests/golden/`.
+
+**The collision this key exists to prevent reproduces cleanly by calling the
+old two-argument form directly, no code reversion needed.**  Two icon
+elements agreeing on `size:` and codepoint but not on `antialias:` still both
+compute a real `font_key` value under the old signature -- it is just the
+*same* value for both, so `wfb.emit.resources.icon_font_specs`'s `by_key`
+dict (keyed by that string) drops one of the two `FontSpec`s silently: the
+one built later in `face.walk()` order wins, and whichever icon asked for the
+other setting gets that icon's sheet instead.  This is now a permanent test
+(`tests/test_antialias.py::
+test_two_icons_same_size_and_glyph_collide_without_the_antialias_key`) that
+calls `icons.font_key(el.size, el.codepoint)` (no third argument) directly on
+both elements and asserts the two calls return the same string, alongside
+asserting the *fixed* `icon_font_specs` produces two distinct resources for
+the same design -- so the regression is pinned from both directions without
+needing to check out an earlier commit to reproduce it.

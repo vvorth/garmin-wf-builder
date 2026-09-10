@@ -58,6 +58,7 @@ ALL_CODES = frozenset({
     "on-hold", "on-tap-renamed", "raw-color", "safe-area", "schema", "source-renamed",
     "target",
     "static",
+    "text-antialias",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
 

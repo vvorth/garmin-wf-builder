@@ -245,6 +245,22 @@ class Element:
     #: same reason `visible:` is pushed down rather than read off the group
     #: (`_push_visible`).
     static_root: str | None = None
+    #: `antialias:` as the author wrote it, or `None` to inherit -- from the
+    #: enclosing group's own value, or from `Face.antialias` when there is
+    #: none.  Accepted only on `group`, `shape`, `progress`, `icon` and
+    #: `carousel`: `text` draws through a `fonts:` resource shared by every
+    #: element that references it, so anti-aliasing cannot vary per element
+    #: there (`Builder._reject_text_antialias`).
+    antialias: bool | None = None
+    #: The resolved value -- never `None` once `Builder._resolve_antialias`
+    #: has run over the whole tree.  What every downstream stage reads: on
+    #: `shape`/`progress` this is the flag for anti-aliased `Dc` primitive
+    #: drawing (a later stage of this work, not emitted yet -- see
+    #: docs/limitations.md); on `icon`, and on a `carousel`'s per-item icon
+    #: fonts, it is threaded into `wfb.icons.font_key` and the baked sheet.
+    #: On a `group` nothing reads it directly -- the field exists there only
+    #: as the default source `_resolve_antialias` hands to the subtree.
+    resolved_antialias: bool = False
 
     @property
     def symbol(self) -> str:
@@ -446,6 +462,13 @@ class Face:
     fonts: dict[str, FontSpec]
     elements: list[Element]
     source_path: Path
+    #: The top-level `antialias:` default (§R1) -- what a font, icon or
+    #: primitive-drawing element inherits when it declares no `antialias:`
+    #: of its own.  Already folded into every element's own
+    #: `resolved_antialias` and every `fonts:` entry's `FontSpec.antialias`
+    #: by build time; kept here mainly so a re-render (preview, a future
+    #: `wfb explain`) does not need to re-derive it.
+    antialias: bool = False
 
     def walk(self) -> list[Element]:
         """Every element, parents before children, in document order."""
@@ -517,11 +540,17 @@ class Builder:
         #: compiler must catch itself rather than let `monkeyc` discover it
         #: through a `Redefinition of ...` error pointing at generated code.
         self.seen_symbols: dict[str, tuple[str, Span | None]] = {}
+        #: The top-level `antialias:` default, read first in `build()` --
+        #: `_build_fonts` needs it (R5: a `fonts:` entry with no `antialias:`
+        #: of its own follows the face) and it is not otherwise in scope by
+        #: the time that method runs.
+        self.face_antialias = False
 
     # -- entry point ------------------------------------------------------
 
     def build(self) -> Face | None:
         data = self.doc.data
+        self.face_antialias = bool(data.get("antialias", False))
         self._build_palette(data.get("palette") or {})
         self._build_fonts(data.get("fonts") or {})
         self._build_scope()
@@ -532,6 +561,7 @@ class Builder:
         self._apply_static(elements)
         if not self.bag.ok():
             return None
+        self._resolve_antialias(elements)
 
         face = data["face"]
         name = face["name"]
@@ -546,6 +576,7 @@ class Builder:
             fonts=self.fonts,
             elements=elements,
             source_path=self.doc.path,
+            antialias=self.face_antialias,
         )
 
     # -- palette, fonts, scope --------------------------------------------
@@ -626,7 +657,13 @@ class Builder:
                 source=source,
                 size=size,
                 glyphs=spec.get("glyphs"),
-                antialias=bool(spec.get("antialias", False)),
+                # R5: a font with no `antialias:` of its own follows the
+                # face-wide default rather than a hardcoded False, exactly
+                # the same inherit-once-and-freeze a font's `size:` gets from
+                # its own `scale:` -- there is nothing further beneath a
+                # `fonts:` entry to inherit from, so this is resolved here,
+                # not deferred to a tree walk the way an element's is.
+                antialias=bool(spec.get("antialias", self.face_antialias)),
                 scale=scale,
                 span=span,
                 monospace=monospace,
@@ -746,6 +783,7 @@ class Builder:
             on_hold=self._hold_target(node),
             visible=self._visible(node),
             static=bool(node.get("static", False)),
+            antialias=(bool(node["antialias"]) if "antialias" in node else None),
         )
 
         builders = {
@@ -1088,6 +1126,37 @@ class Builder:
 
         visit(group.items)
 
+    def _resolve_antialias(self, elements: list[Element]) -> None:
+        """Resolve `antialias:` as an inherited *default*, root to leaf.
+
+        Deliberately a single top-down pass over the finished tree, called
+        once from `build()`, rather than pushed per group the way
+        `_push_visible` is: `visible:` *conjoins*, so composing it bottom-up
+        as each group finishes building is safe and even necessary (an inner
+        group has already folded its own condition into its children before
+        the outer one runs). `antialias:` is a plain override, not something
+        that accumulates -- the nearest enclosing declaration simply wins --
+        so there is nothing to compose, and threading "does an ancestor
+        further up still have to hand this element a default" through the
+        bottom-up build order would need more bookkeeping than a second,
+        independent walk over the tree that already exists in full.
+
+        A child's own `antialias:` always wins outright over its group's
+        (unlike `visible:`, there is no meaningful "AND" of two booleans that
+        both mean "should this look soft" -- one of them is simply what the
+        author asked for here), which is exactly what leaving `inherited`
+        unchanged for an element that declares its own value, and only
+        substituting it for one that left `antialias:` as `None`, gives.
+        """
+        def visit(items: list[Element], inherited: bool) -> None:
+            for element in items:
+                resolved = element.antialias if element.antialias is not None else inherited
+                element.resolved_antialias = resolved
+                if isinstance(element, Group):
+                    visit(element.items, resolved)
+
+        visit(elements, self.face_antialias)
+
     # -- static subtrees ---------------------------------------------------
 
     def _apply_static(self, elements: list[Element]) -> None:
@@ -1404,6 +1473,8 @@ class Builder:
             fallback=self._expression(node, "fallback") if "fallback" in node else None,
         )
         self._resolve_font(node, element)
+        if "antialias" in node:
+            self._reject_text_antialias(node, element)
         if value is not None:
             self._check_absence(node, element, value, element.when_absent, element.placeholder,
                                 element.fallback)
@@ -1412,6 +1483,36 @@ class Builder:
         self._check_reachable_substitute(node, element, "'color'",
                                          (element.value,), (element.color,))
         return element
+
+    def _reject_text_antialias(self, node: dict, element: Text) -> None:
+        """`antialias:` on a `text` element -- a per-element key on a shared resource.
+
+        A text element draws through a font declared in `fonts:`, and that
+        font is one bitmap resource shared by every element that references
+        it (`font: font.clock` is a name, not a private copy) -- so
+        anti-aliasing cannot vary per element the way it can on a shape's own
+        outline or an icon's own, per-glyph font.  The schema still parses
+        `antialias:` here rather than rejecting it as an unknown key, purely
+        so this can name the actual font instead of jsonschema's generic
+        "unknown key" message -- the same trick `on_tap:` uses to report its
+        own rename against the author's line, and for the same reason: by
+        the time `_resolve_font` above has run, `element.font` is the real
+        answer, not a guess.
+        """
+        span = self.doc.span(node, "antialias")
+        if element.font_is_custom:
+            notes = [f"put it on 'fonts: {element.font}: antialias:' instead -- "
+                     f"the font this element references"]
+        else:
+            notes = [f"this element uses the system font {element.font!r}, which "
+                     "has no 'antialias:' of its own to set -- only a custom "
+                     "'fonts:' entry does"]
+        self.bag.error(
+            "text-antialias",
+            f"{element.id}: 'antialias:' is not accepted on a 'text' element",
+            span,
+            notes=notes,
+        )
 
     def _build_progress(self, node: dict, common: dict, path: tuple) -> Element:
         value = self._expression(node, "value")
