@@ -426,13 +426,33 @@ reserved id `static`, at the front of draw order. Prefer the block when a design
 has a lot of fixed furniture; prefer `static: true` when one group is already
 the natural home for it.
 
-**Static content must come first in draw order.** The buffer is opaque and
-covers the whole screen, so its blit erases whatever is under it. The top-level
-block satisfies this automatically; `static: true` on a group you have placed
-somewhere else does not, and the compiler says so rather than letting the blit
-quietly wipe out an element. Whether a *transparent* buffer would work on these
-devices could not be established from the SDK and cannot be tried without a
-simulator — the evidence, both ways, is in
+**Static content is always drawn first, wherever you write it.** The buffer is
+opaque and covers the whole screen, so its blit erases whatever is under it —
+there is no order in which something can be *below* the static content. So the
+compiler moves it: every static element is hoisted to the front of draw order,
+each `static:` root staying one unbroken run, and everything else draws on top
+of the blit. Writing the static content first is still the clearer way to say
+it, and the top-level block does that for you.
+
+Hoisting swaps elements past each other, and two elements that swap trade which
+one is on top. Where that can show — the pair's boxes actually overlap — the
+suppressible `static-overlap` warning names it, per device:
+
+```
+warning[static-overlap]: 'clock' may draw over 'backdrop' on fenix8solar47mm:
+                         hoisting the static content to the front of draw order
+                         swapped them round
+      confidence: exact -- resolved geometry, but boxes rather than ink: the
+                  elements may not overlap where they actually draw
+```
+
+Two elements that swap without overlapping — a fixed corner marker and a
+centred reading — are silent, because nothing about the picture changed.
+
+Whether a *transparent* buffer would work on these devices could not be
+established from the SDK and cannot be tried without a simulator — it is the
+only thing standing between this and a static group that can sit anywhere in
+draw order. The evidence, both ways, is in
 [`docs/research/probes/static-buffer/`](research/probes/static-buffer/README.md).
 
 Everything else the compiler rejects, and why:
@@ -1444,10 +1464,10 @@ off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
 `carousel-on-hold`) are **not** suppressible: silencing one produces a face
 that does not work.
 
-Twelve codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+Thirteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `carousel-zone`, `hold-overlap`,
-`hold-unsupported`, `complication-gated`, `dead-element`, `graphics-pool` and
-`antialias-dither`.
+`hold-unsupported`, `complication-gated`, `dead-element`, `graphics-pool`,
+`antialias-dither` and `static-overlap`.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
 the normative list -- this prose has drifted from it before, so check there
 rather than here if the two ever disagree. **A code that is not one of them is a

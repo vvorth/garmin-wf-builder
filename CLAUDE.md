@@ -1673,6 +1673,68 @@ predates this work and was left alone -- harmless, because `wfb` subsets the
 `.fnt` itself, which is the same reasoning that already justifies omitting
 `filter` for supplementary-plane glyphs.
 
+**A later session turned the static-order *error* into an ordering *rule*.**
+The user's report was the whole argument: a design where a `static:` element
+follows a non-static one failed to build, and it should not have. It now
+builds -- the static content is hoisted to the front of draw order -- and the
+only thing said about it is a suppressible warning where the hoist can change
+the picture.
+
+1. **The error was wrong in kind, not just in strictness.** An opaque
+   full-screen blit has nothing under it, ever, so "static content first" was
+   never a constraint an author could satisfy some other way -- it is the only
+   arrangement the design has. A compiler that can compute the one legal answer
+   and refuses the input instead is asking the author to do its arithmetic.
+   `Builder._check_static_order` is gone; `ir.draw_sort_key` replaces it.
+2. **One sort key, two call sites, which is what keeps preview and device in
+   step.** `Face.draw_order` and `wfb/layout.py`'s `Resolver.resolve` both call
+   `draw_sort_key` now, so the IR's answer to "what draws in front of what" and
+   the resolved geometry's cannot diverge -- the existing
+   `test_ir_draw_order_matches_the_resolved_one`, which runs on every worked
+   example, is what pins it. The key is `(static first, root rank, z)` with
+   document order as the stable tiebreak; every part of it is device-
+   independent, which is why the check that reads it can still run once rather
+   than three times.
+3. **`static_rank` exists for one reason: a root's members must stay one
+   unbroken run.** The emitter writes one `drawStatic<Id>` per root and calls
+   it once, so two roots interleaving would have to emit one method twice.
+   Ranking by the authored draw-order position of each root's *first-drawn*
+   member -- not by document order, which a `z:` on either root may well have
+   overruled -- keeps the roots in the order the author actually put them. That
+   deletes the second half of the old check (`"split apart by"`) as well.
+4. **`warning[static-overlap]` is the honest cost, and it is narrow on
+   purpose.** Hoisting swaps elements past each other, and a swapped pair
+   trades which one is on top. Reported only for pairs the hoist *actually*
+   swapped whose boxes *actually* intersect on that device, and skipped
+   entirely for pairs whose `modes:` never coincide. A static marker in one
+   corner and a dynamic reading in another swap every time and never look
+   different for it -- warning about that would be noise, and noise is how a
+   linter loses the credibility ADR 0008 is built on. Stated in bounding boxes
+   rather than ink, and says so in its own `confidence:`.
+5. **The generated code did not change shape at all** -- and that is worth
+   knowing rather than assuming, because `_emit_mode_body` already emitted the
+   blit first and skipped the buffered ids in the dynamic loop, so *codegen*
+   was correct for an out-of-order design before this. What was wrong was
+   `wfb preview`, which draws `resolved.items` in order and would have painted
+   the stray element and then the full-screen blit over it. Sorting in the
+   resolver, rather than only relaxing the check, is what fixes that -- and
+   the two were checked against each other directly (the preview PNG shows the
+   clock over the hoisted backdrop; the generated `onUpdate` calls
+   `drawBitmap` before `drawClock`).
+6. **Every guard was watched go red.** The overlap warning against the
+   check disabled, its suppression against `static-overlap` removed from
+   `SUPPRESSIBLE`, and the reorder against the old error. There is also a new
+   `slow` test that puts a hoisted design through real `monkeyc` on all three
+   targets and asserts **warning-free**, not merely successful -- nothing else
+   in `tests/test_static.py` gets near the toolchain, which is exactly how the
+   delegate's unused `_view` field shipped with a real warning once before.
+   No golden file moved: no design in the repo was out of order.
+
+ADR 0006 carries an amendment rather than a rewrite, the same precedent §6's
+`on_tap:` correction set; `docs/format.md`, `docs/limitations.md`, the schema
+description, `skills/watchface-builder.md`, `examples/static/face.yaml` and the
+probe README are all corrected in the same commit.
+
 ### `examples/dashboard/face.yaml` is the user's own playground
 
 The user edits this file directly between sessions and has said explicitly:

@@ -245,6 +245,13 @@ class Element:
     #: same reason `visible:` is pushed down rather than read off the group
     #: (`_push_visible`).
     static_root: str | None = None
+    #: Where this element's static root sits in the design's *authored* draw
+    #: order, or None outside a static subtree.  Set alongside `static_root` by
+    #: `Builder._apply_static`, and read only by :func:`draw_sort_key`: static
+    #: content is hoisted to the front of draw order, and this is what keeps
+    #: each root's members one unbroken run there, ordered the way the author's
+    #: own `z:` ordered the roots themselves.
+    static_rank: int | None = None
     #: `antialias:` as the author wrote it, or `None` to inherit -- from the
     #: enclosing group's own value, or from `Face.antialias` when there is
     #: none.  Accepted only on `group`, `shape`, `progress`, `icon` and
@@ -477,13 +484,13 @@ class Face:
     def draw_order(self) -> list[Element]:
         """Every element that actually draws, in the order it is drawn.
 
-        Document order, then a stable sort by ``z`` -- exactly what
-        :class:`wfb.layout.Resolver` does to its flattened ``Placed`` list, and
-        with groups dropped for the same reason the emitter skips them: a group
-        is a coordinate frame, not something that paints.  Device-independent,
-        because ``z`` and document order are, which is what lets the static
-        prefix check run once in the IR rather than three times over resolved
-        geometry.  ``tests/test_static.py`` pins the two orders together.
+        Static content first, then document order stable-sorted by ``z`` --
+        exactly what :class:`wfb.layout.Resolver` does to its flattened
+        ``Placed`` list, because both call :func:`draw_sort_key`.  Groups are
+        dropped for the same reason the emitter skips them: a group is a
+        coordinate frame, not something that paints.  Device-independent,
+        because every part of the key is.  ``tests/test_static.py`` pins the
+        two orders together.
         """
         return draw_order(self.elements)
 
@@ -1176,23 +1183,29 @@ class Builder:
         * a nested `static:` is a second buffer for content the outer one
           already draws;
         * mixed `modes:` inside one buffer would blit elements into a mode they
-          asked not to be drawn in;
-        * and an opaque blit erases whatever is under it, so the static content
-          has to come first.
+          asked not to be drawn in.
 
         Every one of these is an error rather than a warning: each is a design
         that would compile and then be silently wrong on the wrist, which is the
         failure mode this compiler exists to remove.
+
+        The one restriction that is *not* an error any more is draw order.  An
+        opaque blit erases whatever is under it, so static content has to come
+        first -- but "has to come first" is something the compiler can simply
+        arrange, and now does: :func:`draw_sort_key` hoists it, and the author
+        hears about it only where the hoist can change the picture
+        (`warning[static-overlap]`, `wfb.lint.check_static_overlap`).  Ranking
+        the roots here is the whole of what the hoist needs from this pass.
         """
         roots = [e for e in walk_elements(elements) if e.static]
         if not roots:
             return
         for root in roots:
             self._mark_static(root, root)
+        self._rank_static(elements, roots)
         if not self._check_static_subtrees(roots):
             return
         self._check_static_modes(roots)
-        self._check_static_order(elements, roots)
 
     def _mark_static(self, root: Element, element: Element) -> None:
         if element is not root and element.static:
@@ -1285,61 +1298,23 @@ class Builder:
                                f"{element.id!r} out of the static content"],
                     )
 
-    def _check_static_order(self, elements: list[Element], roots: list[Element]) -> None:
-        """Static content must be a contiguous prefix of draw order.
+    def _rank_static(self, elements: list[Element], roots: list[Element]) -> None:
+        """Number the static roots by where the author's own draw order put them.
 
-        The buffer is opaque and full-screen (probe question (a)), so its blit
-        overwrites every pixel under it.  Anything drawn before it would
-        disappear.  Reported here, against the first element that is out of
-        place, rather than left to be discovered on the wrist.
+        Each root's rank is the authored draw-order position of its
+        first-drawn member, and every element of the subtree carries it.
+        :func:`draw_sort_key` then hoists the static content as a block,
+        keeping each root's members contiguous and the roots in the order the
+        author put them -- rather than in document order, which a `z:` on one
+        of the roots may well have overruled.
         """
-        order = draw_order(elements)
-        static_ids = {e.id for e in walk_elements(roots) if e.kind != "group"}
-        if not static_ids:
-            return
-        count = len(static_ids)
-        prefix = order[:count]
-        stray = [e for e in prefix if e.id not in static_ids]
-        if stray:
-            first_static = next((e for e in order if e.id in static_ids), None)
-            self.bag.error(
-                "static",
-                f"{stray[0].id!r} is drawn before, or in between, the static "
-                "content",
-                stray[0].span,
-                notes=["static content is buffered into one opaque full-screen "
-                       "bitmap, so it must be drawn first -- the blit would "
-                       "erase anything under it",
-                       f"move {stray[0].id!r} after the static content, or give "
-                       "it a higher `z:`"]
-                + ([f"the static content starts at {first_static.id!r}"]
-                   if first_static is not None else []),
-            )
-            return
-        # Two static roots may not interleave either.  Each is emitted as one
-        # `drawStatic<Id>` called in order, so an element of root A drawn
-        # between two of root B would end up painted out of order inside the
-        # buffer -- silently, since the blit looks the same either way.
-        seen: set[str] = set()
-        previous: str | None = None
-        for element in prefix:
-            root = element.static_root
-            if root == previous:
-                continue
-            if root in seen:
-                self.bag.error(
-                    "static",
-                    f"the static content of {root!r} is split apart by "
-                    f"{previous!r}",
-                    element.span,
-                    notes=["each static group is painted into the buffer in one "
-                           "run, so two of them cannot interleave",
-                           "usually a `z:` on one of the elements is what "
-                           "reordered them"],
-                )
-                return
-            seen.add(root)
-            previous = root
+        position = {id(e): i for i, e in enumerate(authored_draw_order(elements))}
+        for root in roots:
+            members = [e for e in walk_elements([root]) if e.kind != "group"]
+            rank = min((position[id(e)] for e in members if id(e) in position),
+                       default=len(position))
+            for element in walk_elements([root]):
+                element.static_rank = rank
 
     def _build_group(self, node: dict, common: dict, path: tuple) -> Element:
         group = Group(
@@ -2326,14 +2301,60 @@ def walk_elements(elements: list[Element]) -> list[Element]:
     return out
 
 
-def draw_order(elements: list[Element]) -> list[Element]:
-    """The flattened, ``z``-sorted list of elements that actually paint.
+def authored_draw_order(elements: list[Element]) -> list[Element]:
+    """Draw order as the author wrote it: document order, stable-sorted by ``z``.
 
-    Shared by :meth:`Face.draw_order` and :meth:`Builder._apply_static`, which
-    runs before there is a :class:`Face` to ask.
+    This is draw order *before* the static hoist.  Nothing draws in it -- it
+    exists so :func:`wfb.lint.check_static_overlap` can say which pairs of
+    elements the hoist swapped, and so :meth:`Builder._apply_static` can rank
+    the static roots by where the author actually put them rather than by
+    where they happen to appear in the document.
     """
     drawn = [e for e in walk_elements(elements) if e.kind != "group"]
     return sorted(drawn, key=lambda e: (e.z if e.z is not None else 0,))
+
+
+def draw_sort_key(element: Element) -> tuple:
+    """The sort key that puts an element in draw order, static content first.
+
+    The static buffer is opaque and full-screen (`docs/research/probes/
+    static-buffer/`), so its blit erases whatever was drawn under it.  That
+    used to be an error -- static content had to *be* a contiguous prefix of
+    draw order, and a design where it was not simply failed to build.  It is
+    now a **rule** instead: static content is *made* the prefix, here, by
+    sorting, and the only thing the author is told is what changed --
+    `warning[static-overlap]`, on the pairs whose relative order the hoist
+    actually swapped *and* whose boxes overlap, where it can make a visible
+    difference.
+
+    Three ranks, in order:
+
+    * ``0`` for static content, ``1`` for everything else -- the hoist itself;
+    * ``static_rank``, the position of the element's own root in the authored
+      order, which keeps each root's members one unbroken run (the emitter
+      writes one ``drawStatic<Id>`` per root and calls each once, so two roots
+      interleaving would emit one method twice) and keeps the roots themselves
+      in the order the author's `z:` put them;
+    * ``z``, then document order as the stable-sort tiebreak, exactly as before.
+
+    Device-independent, because every part of it is -- which is what lets
+    :meth:`Face.draw_order` and :class:`wfb.layout.Resolver` share it and stay
+    in step (`tests/test_static.py` pins the two together).
+    """
+    z = element.z if element.z is not None else 0
+    if element.static_root is None:
+        return (1, 0, z)
+    return (0, element.static_rank if element.static_rank is not None else 0, z)
+
+
+def draw_order(elements: list[Element]) -> list[Element]:
+    """The flattened list of elements that actually paint, in drawing order.
+
+    Shared by :meth:`Face.draw_order` and :class:`wfb.layout.Resolver` through
+    :func:`draw_sort_key`.
+    """
+    drawn = [e for e in walk_elements(elements) if e.kind != "group"]
+    return sorted(drawn, key=draw_sort_key)
 
 
 def build(doc: YamlDocument, bag: Bag) -> Face | None:

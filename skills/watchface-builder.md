@@ -317,8 +317,11 @@ static:                   # optional: elements that never change -- a
     shape: line           # frame; the buffer comes from the 1 MB graphics pool,
     at: {anchor: center, dy: -84%r}     # not the face's 128 KB.  Nothing here
     to: {anchor: center, dy: -72%r}     # may be bound to a data source, and it
-    thickness: 3px                      # must come first in draw order (the
-    color: palette.track                # block gets that right for you).
+    thickness: 3px                      # is always drawn first, wherever you
+    color: palette.track                # write it -- an opaque blit has
+                          # nothing under it.  Writing it somewhere else is
+                          # fine; you just get a `static-overlap` warning where
+                          # the reordering changes which element is on top.
                           # `static: true` on any element or group is the same
                           # thing written in place.  See examples/static/.
 

@@ -177,13 +177,26 @@ because they are decisions and not documentation:
    silently buffered what it guessed was expensive would be trading a *measured*
    1 MB pool for an *unmeasured* saving. Declaring it keeps the trade visible.
 
-2. **The buffer is opaque, and static content must therefore be a contiguous
+2. **The buffer is opaque, and static content is therefore a contiguous
    prefix of draw order.** Whether a `COLOR_TRANSPARENT`-cleared buffer blits
    transparently on a device with `alphaBlendingSupport: false` could not be
    established from the SDK and cannot be run here — the evidence both ways is
    in the probe's README, labelled UNVERIFIED in the same way ADR 0005's
    complication-pull question was. The provable design shipped instead. One
    consequence: exactly one buffer per face.
+
+   > **Amended (2026-09-10): the prefix is arranged, not demanded.** This
+   > originally shipped as `error[static]` — a design that wrote a dynamic
+   > element ahead of its static content simply did not build. That was the
+   > wrong call, for a reason that is visible in the sentence above: there is no
+   > order in which anything can be *under* an opaque full-screen blit, so
+   > "static content first" is not a choice the format offers and never was a
+   > constraint the author could satisfy differently. The compiler now sorts it
+   > (`wfb.ir.draw_sort_key`), keeping each `static:` root one unbroken run, and
+   > reports only the part the author cannot see for themselves: the
+   > suppressible `static-overlap` warning, for pairs the hoist swapped whose
+   > boxes overlap on that device. Nothing about the codegen or the opaque
+   > design changed.
 
 3. **The benefit is unmeasured and is not claimed anywhere.** What is verified:
    it compiles warning-free under `-l 3` on all three targets; the fallback path

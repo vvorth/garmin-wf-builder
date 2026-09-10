@@ -73,16 +73,24 @@ does when there is no buffer.
 Two consequences worth stating plainly, because they are restrictions the
 transparent design would not have had:
 
-* Static content must come **first**. `wfb` enforces it (`error[static]`,
-  `wfb/ir.py::Builder._check_static_order`) rather than letting a blit silently
-  erase whatever was drawn under it.
+* Static content is drawn **first**, whatever order it was written in. `wfb`
+  hoists it (`wfb/ir.py::draw_sort_key`) rather than letting a blit silently
+  erase whatever was drawn under it -- and rather than rejecting the design,
+  which is what it used to do (`error[static]`,
+  `Builder._check_static_order`). There is no order in which something can be
+  under an opaque full-screen blit, so this is not a choice the format can
+  offer; what the author is owed is being told when the hoist changed which
+  element ends up on top, which is `warning[static-overlap]`
+  (`wfb/lint.py::check_static_overlap`), reported only for pairs that were
+  actually swapped and whose boxes actually overlap.
 * All static content shares **one** buffer. Two opaque full-screen buffers
   cannot coexist -- the second would erase the first -- so several `static:`
-  groups are allowed only where they are contiguous at the front, and they fill
-  one buffer between them.
+  groups fill one buffer between them, each kept as one unbroken run inside it
+  (the emitter writes one `drawStatic<Id>` per root and calls it once).
 
-If someone can later demonstrate transparency on real hardware, the prefix rule
-is the only thing that has to relax; the codegen shape does not change.
+If someone can later demonstrate transparency on real hardware, the hoist and
+its warning are the only things that have to relax; the codegen shape does not
+change.
 
 ## b. The generated shape compiles
 

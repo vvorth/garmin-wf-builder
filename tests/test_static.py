@@ -1,10 +1,11 @@
 """`static:` -- content painted once into an offscreen buffer.
 
 The design shipped is the **opaque** one: the buffer covers the screen, so the
-static content has to be a contiguous prefix of draw order and there is exactly
-one buffer per face.  Why that rather than the transparent version everyone
-wants is in `docs/research/probes/static-buffer/`; the point here is that every
-consequence of it is a *checked* consequence, not an assumption.
+static content *is* a contiguous prefix of draw order -- hoisted there by the
+compiler rather than demanded of the author -- and there is exactly one buffer
+per face.  Why that rather than the transparent version everyone wants is in
+`docs/research/probes/static-buffer/`; the point here is that every consequence
+of it is a *checked* consequence, not an assumption.
 
 Every guard below was watched fail before it was believed -- each test names,
 in its own docstring or by construction, the unfixed input it goes red against.
@@ -16,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_build import toolchain  # noqa: F401  -- a fixture, used by name
 from tests.test_diagnostics import load
 from wfb import ir
 from wfb.diagnostics import Bag
@@ -328,24 +330,109 @@ def test_a_carousel_cannot_be_static(write_design):
     assert "is a carousel and cannot be static" in errors[0].message
 
 
-def test_static_content_must_come_first_in_draw_order(write_design):
+def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = _face(text, write_design, bag)
+    device = db.get(device_id)
+    return face, resolve(face, device, bake_fonts(face, device, device.minor_radius))
+
+
+def _lint(text, write_design, db, device_id="fenix8solar47mm"):
+    from wfb import lint
+
+    bag = Bag()
+    _, resolved = _resolved(text, write_design, bag, db, device_id)
+    lint.run(resolved, bag)
+    return bag
+
+
+def test_static_content_is_hoisted_rather_than_rejected(write_design, bag, db):
     """The consequence of an opaque buffer, and the one an author will hit.
 
-    Red against the same design with the `z: -1` removed.
+    `z: -1` puts the dynamic clock in front of the static content the author
+    wrote after it.  There is no order in which a full-screen opaque blit can
+    have something *under* it, so this used to be `error[static]` and the
+    design simply did not build.  It now builds: the static content is hoisted
+    to the front instead, in the IR and in the resolved geometry alike, so the
+    preview and the device agree about it the same way they agree about
+    everything else.
     """
-    text = BLOCK_FORM.replace("    color: palette.fg\nelements:",
-                              "    color: palette.fg\nelements:")
-    text = text.replace("    at: {anchor: center}\n    color: palette.fg\n",
-                        "    at: {anchor: center}\n    color: palette.fg\n    z: -1\n")
-    errors = _errors(text, write_design)
-    assert [d.code for d in errors] == ["static"]
-    assert "'clock' is drawn before, or in between, the static content" in errors[0].message
-    assert not _errors(text.replace("    z: -1\n", ""), write_design)
+    text = BLOCK_FORM.replace("    at: {anchor: center}\n    color: palette.fg\n",
+                              "    at: {anchor: center}\n    color: palette.fg\n    z: -1\n")
+    assert not _errors(text, write_design)
+    face, resolved = _resolved(text, write_design, bag, db)
+    assert [e.id for e in face.draw_order()] == ["backdrop", "caption", "clock"]
+    assert [p.id for p in resolved.items if p.kind != "group"] == \
+        ["backdrop", "caption", "clock"]
 
 
-def test_two_static_groups_may_not_interleave(write_design):
-    """Each group is painted into the buffer in one run, so a `z:` that
-    shuffles one group's element into the middle of another's is rejected."""
+def test_the_hoist_warns_where_it_changed_which_element_is_on_top(write_design, db):
+    """`static-overlap`: the honest cost of hoisting, reported per device.
+
+    The clock was written to sit under a full-screen backdrop and now sits on
+    top of it, which is a different picture from the one the author described.
+    A warning rather than an error, and suppressible, because drawing on top is
+    usually what they meant.
+    """
+    text = BLOCK_FORM.replace("    at: {anchor: center}\n    color: palette.fg\n",
+                              "    at: {anchor: center}\n    color: palette.fg\n    z: -1\n")
+    warnings = [d for d in _lint(text, write_design, db).items
+                if d.code == "static-overlap"]
+    assert len(warnings) == 1
+    assert "'clock' may draw over 'backdrop'" in warnings[0].message
+    assert "boxes rather than ink" in warnings[0].confidence
+    # Red without the `z: -1`: nothing is reordered, so nothing is reported.
+    assert not [d for d in _lint(BLOCK_FORM, write_design, db).items
+                if d.code == "static-overlap"]
+
+
+def test_the_hoist_is_silent_when_the_swapped_elements_do_not_overlap(write_design, db):
+    """A swap nobody can see is not worth a diagnostic.
+
+    Same reordering as above -- the marker is static and written last, the
+    clock is dynamic and drawn first -- but the two are in different corners,
+    so which one is on top makes no difference to the picture.
+    """
+    text = HEAD + """elements:
+  clock:
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center, dy: -20%}
+    color: palette.fg
+  marker:
+    type: shape
+    shape: circle
+    static: true
+    at: {anchor: center, dy: 30%}
+    radius: 6px
+    color: palette.fg
+"""
+    bag = _lint(text, write_design, db)
+    assert not [d for d in bag.items if d.code == "static-overlap"]
+
+
+def test_the_overlap_warning_can_be_suppressed(write_design, db):
+    """Watched red against the same design without the `lint:` block."""
+    text = BLOCK_FORM.replace(
+        "    at: {anchor: center}\n    color: palette.fg\n",
+        "    at: {anchor: center}\n    color: palette.fg\n    z: -1\n"
+        '    lint: {allow: [static-overlap], reason: "the clock belongs on top"}\n')
+    assert not [d for d in _lint(text, write_design, db).items
+                if d.code == "static-overlap"]
+
+
+def test_two_static_groups_are_pulled_back_together(write_design, bag, db):
+    """A `z:` that shuffles one static group into the middle of another's run.
+
+    Each root is emitted as one `drawStatic<Id>` called once, so two roots
+    interleaving would have to emit one method twice -- which is why this was
+    an error.  Hoisting keeps each root's members one unbroken run instead, and
+    orders the roots by where the author's own `z:` put the first of each.
+    """
     text = HEAD + """elements:
   - id: first
     type: group
@@ -384,11 +471,21 @@ def test_two_static_groups_may_not_interleave(write_design):
     color: palette.fg
     z: 3
 """
-    errors = _errors(text, write_design)
-    assert [d.code for d in errors] == ["static"]
-    assert "split apart by" in errors[0].message
-    assert not _errors(text.replace("        z: 2\n", "").replace("        z: 1\n", ""),
-                       write_design)
+    assert not _errors(text, write_design)
+    face = _face(text, write_design, bag)
+    # `first` is ranked ahead of `second` because a1 (z: 0) is drawn before
+    # b1 (z: 1) in the authored order -- not because it comes first in the
+    # document, which a `z:` on either root would have overruled.
+    assert [e.id for e in face.draw_order()] == ["a1", "a2", "b1", "clock"]
+    # b1 and a2 swapped, but they are in different places, so nothing is said.
+    assert not [d for d in _lint(text, write_design, db).items
+                if d.code == "static-overlap"]
+    # Red when they do overlap: the swap is then visible.
+    overlapping = text.replace("        at: {anchor: center, dx: 10%}",
+                               "        at: {anchor: center, dx: -10%}")
+    warnings = [d for d in _lint(overlapping, write_design, db).items
+                if d.code == "static-overlap"]
+    assert [d.message.split(" may draw over ")[0] for d in warnings] == ["'b1'"]
 
 
 def test_two_contiguous_static_groups_are_allowed(write_design, bag):
@@ -431,11 +528,12 @@ def test_two_contiguous_static_groups_are_allowed(write_design, bag):
 def test_ir_draw_order_matches_the_resolved_one(design, bag, db):
     """`Face.draw_order` re-derives what `wfb.layout` computes.
 
-    The static prefix check runs in the IR, once, on the strength of this: draw
-    order is document order then a stable sort by `z`, and neither depends on
-    the device.  If that ever stops being true the check would be policing an
-    order nothing draws in, so it is asserted against the real resolver on every
-    worked example rather than argued for in a comment.
+    Both call `ir.draw_sort_key`, and nothing in it depends on the device: the
+    static hoist, `z`, and document order are all properties of the design.
+    That is what lets the IR answer "what draws in front of what" -- which is
+    what `static-overlap` is asked about -- without resolving geometry three
+    times, so it is asserted against the real resolver on every worked example
+    rather than argued for in a comment.
     """
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
@@ -658,3 +756,49 @@ def test_preview_does_not_know_about_static_at_all():
     """
     text = (ROOT / "wfb" / "preview.py").read_text(encoding="utf-8")
     assert "static" not in text
+
+
+@pytest.mark.slow
+def test_a_hoisted_design_compiles_cleanly_for_every_target(
+        write_design, tmp_path, db, toolchain):  # noqa: F811
+    """The hoist, through the real toolchain, on all three targets.
+
+    The static marker is written *after* the dynamic clock, which is the design
+    that used to fail to build outright.  It is deliberately somewhere else on
+    the screen, so `static-overlap` has nothing to say and the bar can be the
+    real one this repo asks for: **warning-free**, not merely successful --
+    `wfb.build` turns each `WARNING:` line `monkeyc` prints into a bag
+    diagnostic, so this is the compiler's own output rather than a proxy for
+    it.  Nothing else in this file gets near `monkeyc`; every other test here
+    reads generated text, which is exactly how the delegate's unused `_view`
+    field shipped with a real warning once before.
+    """
+    from wfb.build import build as run_build
+
+    design = write_design(HEAD + """elements:
+  clock:
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center, dy: -20%}
+    color: palette.fg
+  marker:
+    type: shape
+    shape: circle
+    static: true
+    at: {anchor: center, dy: 30%}
+    radius: 6px
+    color: palette.fg
+""")
+    bag = Bag()
+    result = run_build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)
+    assert set(result.products) == {"fenix8solar47mm", "fenix8solar51mm", "fr955"}
+    view = (result.output_dir / "source" / "TestView.mc").read_text(encoding="utf-8")
+    body = view[view.index("function onUpdate"):]
+    # The blit comes before the clock, whatever order the YAML put them in.
+    assert body.index("drawBitmap") < body.index("drawClock")

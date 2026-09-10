@@ -20,7 +20,7 @@ from . import catalog, complications
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
-from .ir import Carousel, Element, Face, Text
+from .ir import Carousel, Element, Face, Text, authored_draw_order
 from .layout import (
     PlacedCarousel, PlacedProgress, PlacedShape, PlacedText, ResolvedFace, inside_screen,
     inside_visible_area, inside_visible_area_for, is_full_bleed,
@@ -34,7 +34,7 @@ from .units import IntBox
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
     "hold-unsupported", "hold-overlap", "carousel-zone", "complication-gated",
-    "dead-element", "graphics-pool", "antialias-dither",
+    "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -58,7 +58,7 @@ ALL_CODES = frozenset({
     "palette-dither", "partial-update", "partial-update-budget", "permission",
     "on-hold", "on-tap-renamed", "raw-color", "safe-area", "schema", "source-renamed",
     "target",
-    "static",
+    "static", "static-overlap",
     "text-antialias",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
@@ -78,6 +78,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_dead_element(resolved, bag)
     check_complication_availability(resolved, bag)
     check_graphics_pool(resolved, bag)
+    check_static_overlap(resolved, bag)
     check_alpha(resolved, bag)
     for warning in resolved.warnings:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
@@ -725,8 +726,7 @@ def _overlapping(held: list) -> list[tuple]:
     out = []
     for index, later in enumerate(held):
         for earlier in held[:index]:
-            a, b = earlier.box, later.box
-            if a.x < b.right and b.x < a.right and a.y < b.bottom and b.y < a.bottom:
+            if _intersects(earlier.box, later.box):
                 out.append((earlier, later))
     return out
 
@@ -852,6 +852,78 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
                 ],
                 confidence=confidence,
             ))
+
+
+# -- the static hoist -------------------------------------------------------
+
+
+def check_static_overlap(resolved: ResolvedFace, bag: Bag) -> None:
+    """Where hoisting the static content to the front changed the picture.
+
+    Static content is drawn once into an opaque, full-screen buffer, so its
+    blit erases whatever was under it and it therefore has to be drawn first.
+    The compiler arranges that itself (`wfb.ir.draw_sort_key`) instead of
+    rejecting a design that wrote it in another order -- but arranging it
+    *moves* elements past each other, and two elements that swapped places
+    trade which one is on top.  Wherever their boxes overlap, that is a visible
+    change from what the author wrote, and this is where they hear about it.
+
+    Only the pairs the hoist actually swapped are reported, and only where the
+    boxes intersect: a static decoration in one corner and a dynamic reading in
+    another swap order every time and never once look different for it.
+
+    A WARNING, not an error, and suppressible: the element on top is usually
+    where the author wanted it anyway -- writing the static content first says
+    so explicitly, and accepting the warning is the other way to say it.  It is
+    reported against the element that *ends up* on top, which is the one whose
+    `lint:` block reaches it.
+
+    It runs per device, like every other geometry check: two elements can
+    overlap on the 280x280 target and not on the 260x260 one.
+
+    **Bounding boxes, not ink.** Two boxes can intersect while nothing drawn
+    inside them does, which is why the message says "may draw over" -- the same
+    honesty ADR 0008 asks of every check that cannot be exact about pixels.
+    """
+    order = {p.id: i for i, p in enumerate(resolved.items) if p.kind != "group"}
+    authored = authored_draw_order(resolved.face.elements)
+    placed_by_id = {p.id: p for p in resolved.items if p.kind != "group"}
+    covered: dict[str, list[str]] = {}
+    for index, earlier in enumerate(authored):
+        for later in authored[index + 1:]:
+            if order.get(earlier.id, 0) <= order.get(later.id, 0):
+                continue  # the hoist left this pair in the order it was written
+            top, bottom = placed_by_id.get(earlier.id), placed_by_id.get(later.id)
+            if top is None or bottom is None:
+                continue
+            if not set(top.element.modes) & set(bottom.element.modes):
+                continue  # they are never on screen at the same time
+            if not _intersects(top.box, bottom.box):
+                continue
+            covered.setdefault(top.id, []).append(bottom.id)
+    for element_id, under in covered.items():
+        placed = placed_by_id[element_id]
+        names = ", ".join(repr(name) for name in under)
+        _emit(bag, placed, Diagnostic(
+            Severity.WARNING,
+            "static-overlap",
+            f"{element_id!r} may draw over {names} on {resolved.device.id}: "
+            f"hoisting the static content to the front of draw order swapped "
+            f"them round",
+            placed.element.span,
+            notes=["the static buffer is opaque and full-screen, so every static "
+                   "element is blitted before anything else is drawn -- there is "
+                   "no order in which something can be under it",
+                   "write them in the order they should paint, static content "
+                   "first, to say so explicitly -- or accept it with "
+                   "lint: {allow: [static-overlap], reason: \"...\"}"],
+            confidence="exact -- resolved geometry, but boxes rather than ink: the "
+                       "elements may not overlap where they actually draw",
+        ))
+
+
+def _intersects(a: IntBox, b: IntBox) -> bool:
+    return a.x < b.right and b.x < a.right and a.y < b.bottom and b.y < a.bottom
 
 
 # -- the graphics pool ------------------------------------------------------

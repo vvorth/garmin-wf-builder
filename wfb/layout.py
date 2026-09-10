@@ -20,7 +20,7 @@ from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
     Carousel, Element, Expression, Face, FontSpec, Group, IconElement, Position, Progress,
-    Shape, Size, Text,
+    Shape, Size, Text, draw_sort_key,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
 
@@ -221,7 +221,9 @@ class Resolver:
 
     def resolve(self) -> ResolvedFace:
         self._resolve_list(self.face.elements, self.screen, depth=0)
-        self.items.sort(key=lambda p: (p.element.z if p.element.z is not None else 0,))
+        # static content first, then `z`, then document order -- the one key,
+        # shared with `Face.draw_order` so the two can never disagree
+        self.items.sort(key=lambda p: draw_sort_key(p.element))
         return ResolvedFace(
             face=self.face,
             device=self.device,

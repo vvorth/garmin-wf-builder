@@ -533,10 +533,11 @@ class StaticPlan:
     emitter works on the flattened draw order and `Element.static_root`
     (`wfb.ir.Builder._apply_static`) is what survives the flattening.
 
-    `wfb.ir` has already guaranteed everything this relies on: the members are a
-    contiguous prefix of draw order, each root's members are one unbroken run,
-    nothing here reads a data source, and every member draws in the same modes.
-    So this class computes, it does not check.
+    `wfb.ir` has already guaranteed everything this relies on: `draw_sort_key`
+    hoists the members to a contiguous prefix of draw order and keeps each
+    root's members one unbroken run, nothing here reads a data source, and
+    every member draws in the same modes.  So this class computes, it does not
+    check.
     """
 
     #: ``(placed_root, [placed_member, ...])``, in draw order.
@@ -833,9 +834,10 @@ def _emit_static_methods(w: Writer, static: "StaticPlan",
     the drawing to drift.
 
     It clears first.  The buffer's initial contents are not documented anywhere
-    in the SDK, so it has to; and because the static content is a prefix of draw
-    order, clearing on the *screen* path too is both safe (nothing has been drawn
-    yet this frame) and what makes the two paths identical.  Black is also what
+    in the SDK, so it has to; and because the static content is always the
+    prefix of draw order (`wfb.ir.draw_sort_key` puts it there), clearing on the
+    *screen* path too is both safe (nothing has been drawn yet this frame) and
+    what makes the two paths identical.  Black is also what
     `wfb preview` starts from, so the host renderer and the device agree.
 
     Anti-aliasing is reset here too, for the same one-method-two-call-sites

@@ -181,13 +181,25 @@ carry alpha bits. Suggestive on both sides, decisive on neither — and the
 simulator does not run here (below), so it cannot be tried.
 
 So the shipped design is the provable one: **the buffer is opaque, and static
-content must be a contiguous prefix of draw order.** One consequence worth
-naming: there is exactly **one** buffer per face, because a second opaque
-full-screen blit would erase the first. Several `static:` groups are allowed, but
-only where they are contiguous at the front, and they share that one buffer.
+content is a contiguous prefix of draw order.** One consequence worth naming:
+there is exactly **one** buffer per face, because a second opaque full-screen
+blit would erase the first. Several `static:` groups are allowed, and they share
+that one buffer.
 
-If someone demonstrates transparency on real hardware, the prefix rule is the
-only thing that has to relax. The full evidence is in
+The author does not have to write them at the front, though. Since there is no
+order in which anything can be *under* an opaque full-screen blit, "static
+content first" is not a choice the design can express, so the compiler makes it
+rather than rejecting a design that wrote it otherwise: static elements are
+hoisted to the front of draw order (`wfb.ir.draw_sort_key`), each `static:` root
+kept as one unbroken run. What that costs is honesty about which element ends up
+on top, and the suppressible `static-overlap` warning pays it — it names the
+pairs the hoist actually swapped *and* whose boxes overlap on that device, and
+says nothing about swaps that cannot change the picture. It is stated in
+bounding boxes rather than ink, and says so: two boxes can intersect while
+nothing drawn inside them does.
+
+If someone demonstrates transparency on real hardware, the hoist and its warning
+are the only things that have to relax. The full evidence is in
 [`docs/research/probes/static-buffer/`](research/probes/static-buffer/README.md).
 
 ### The benefit of `static:` is unmeasured, and must not be claimed
@@ -511,8 +523,9 @@ them rather than to an arbitrary one:
   `antialias:` resolves to `true` on that device -- the same "one
   representative" shape `graphics-pool` uses, chosen the same way.
 
-`carousel-zone`, `dead-element` and the two `hold-*` codes are ordinary
-element-scoped diagnostics, so `lint:` on the element itself reaches them.
+`carousel-zone`, `dead-element`, `static-overlap` and the two `hold-*` codes are
+ordinary element-scoped diagnostics, so `lint:` on the element itself reaches
+them -- for `static-overlap`, on the element that ends up on top.
 
 A code in `allow:` that this compiler does not emit, or that is deliberately not
 suppressible, is now an **error** naming which of the two it is. Before that, both

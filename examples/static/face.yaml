@@ -15,12 +15,15 @@
 #     is verified is that it compiles warning-free on all three targets, that
 #     the no-buffer fallback draws the same picture, and what it costs in bytes.
 #     See docs/limitations.md.
-#   * The buffer is **opaque**, so static content must come first in draw order.
-#     Whether a transparent buffer would work on a device with
-#     `alphaBlendingSupport: false` could not be established from the SDK; the
-#     evidence, both ways, is in docs/research/probes/static-buffer/.  Writing
-#     the fixed furniture in a top-level `static:` block gets the ordering right
-#     by construction, which is the main reason to prefer that spelling.
+#   * The buffer is **opaque**, so static content is always drawn first --
+#     there is no order in which anything can be under it.  The compiler hoists
+#     it there rather than rejecting a design that wrote it elsewhere, and warns
+#     (`static-overlap`) only where the hoist swapped two elements that actually
+#     overlap.  A top-level `static:` block says it in the right order to begin
+#     with, which is the main reason to prefer that spelling.  Whether a
+#     transparent buffer would work on a device with `alphaBlendingSupport:
+#     false` could not be established from the SDK; the evidence, both ways, is
+#     in docs/research/probes/static-buffer/.
 #
 # Nothing in a static subtree may read a data source -- the buffer is filled
 # once and never refilled, so a binding here would freeze on the first frame.
