@@ -1,0 +1,40 @@
+format: 1
+
+face:
+  id: 3d9a7c14-6b28-4e55-8a10-cf42d7b90e63
+  name: SunArc
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:
+  bg: "#000000"
+  sun: "#FFAA00"
+  track: "#555555"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+    filled: true
+
+  - id: daylight
+    type: progress
+    style: arc
+    value: >-
+      (time.hour * 3600 + time.minute * 60 + time.second >= complication.sunrise
+       and time.hour * 3600 + time.minute * 60 + time.second <= complication.sunset)
+      ? time.hour * 3600 + time.minute * 60 + time.second - complication.sunrise
+      : 0
+    max: complication.sunset - complication.sunrise
+    at: { anchor: center }
+    radius: 90%r
+    thickness: 8px
+    start_angle: 180deg
+    sweep: 340deg
+    color: palette.sun
+    track_color: palette.track
+    when_absent: hide
