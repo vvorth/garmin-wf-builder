@@ -300,30 +300,78 @@ def test_a_polygon_is_capped_at_fillpolygons_own_limit(write_design, bag):
     assert any("at most 64" in d.message for d in bag.errors), bag.render()
 
 
-@pytest.mark.parametrize("key, line, shape", [
-    ("points", "    points: [{dx: -1%}, {dx: 1%}, {dy: 1%}]", "circle"),
-    ("start_angle", "    start_angle: 90deg", "circle"),
-    ("sweep", "    sweep: 90deg", "circle"),
+@pytest.mark.parametrize("key, shape, body", [
+    # the keys added alongside arc/ellipse/polygon
+    ("points", "circle", "    radius: 6px\n    points: [{dx: -1%}, {dx: 1%}, {dy: 1%}]"),
+    ("start_angle", "circle", "    radius: 6px\n    start_angle: 90deg"),
+    ("sweep", "circle", "    radius: 6px\n    sweep: 90deg"),
+    # and the ones that predate them, silently dropped until now
+    ("radius", "rectangle", "    size: {width: 10%, height: 10%}\n    radius: 6px"),
+    ("radius", "rounded_rectangle",
+     "    size: {width: 10%, height: 10%}\n    corner_radius: 4px\n    radius: 6px"),
+    ("corner_radius", "line", "    to: {dx: 10%}\n    corner_radius: 4px"),
+    ("to", "circle", "    radius: 6px\n    to: {dx: 10%}"),
+    ("size", "circle", "    radius: 6px\n    size: {width: 10%, height: 10%}"),
+    ("points", "arc", "    radius: 6px\n    points: [{dx: -1%}, {dx: 1%}, {dy: 1%}]"),
 ])
-def test_a_new_key_on_the_wrong_shape_is_an_error(write_design, bag, key, line, shape):
+def test_a_key_the_shape_does_not_read_is_an_error(write_design, bag, key, shape, body):
     """The same class of bug `filled:` had: parsed, validated, then dropped.
 
-    Only the keys this change *added* are checked -- whether `size:` on a
-    circle should also be an error is a pre-existing question, and answering
-    it here would change designs written before any of this.
+    `radius:` on a rounded_rectangle is the one that actually bites -- the
+    author means `corner_radius:`, the corners come out square, and nothing
+    says a word.  Most of these predate `SHAPE_GEOMETRY_KEYS`; the table is
+    what turned a three-key special case into the whole class.
     """
     wrong = f"""
   - id: dot
     type: shape
     shape: {shape}
     at: {{anchor: center}}
-    radius: 6px
-{line}
+{body}
     color: palette.fg
 """
     load(write_design(design(wrong)), bag)
-    assert any(key in d.message and "only meaningful" in d.message
+    assert any(key in d.message and "is not used by" in d.message
                for d in bag.errors), bag.render()
+
+
+def test_thickness_on_a_filled_shape_is_an_error(write_design, bag):
+    """`thickness:` is the pen width of an outline, and a fill has none.
+
+    Checked apart from SHAPE_GEOMETRY_KEYS because whether it is read depends
+    on `filled:` rather than on the shape -- a line and an arc always use it.
+    """
+    wrong = """
+  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 6px
+    thickness: 3px
+    color: palette.fg
+"""
+    load(write_design(design(wrong)), bag)
+    assert any("thickness" in d.message and "is not used by" in d.message
+               for d in bag.errors), bag.render()
+
+
+@pytest.mark.parametrize("shape, body", [
+    ("circle", "    radius: 6px\n    filled: false\n    thickness: 3px"),
+    ("line", "    to: {dx: 10%}\n    thickness: 3px"),
+    ("arc", "    radius: 6px\n    start_angle: 0deg\n    sweep: 90deg\n    thickness: 3px"),
+])
+def test_thickness_is_accepted_where_it_is_actually_drawn(write_design, bag, shape, body):
+    """The other half of the check above: it must not reject a real outline."""
+    ok = f"""
+  - id: dot
+    type: shape
+    shape: {shape}
+{body}
+    at: {{anchor: center}}
+    color: palette.fg
+"""
+    face = load(write_design(design(ok)), bag)
+    assert face is not None, bag.render()
 
 
 # -- codegen ----------------------------------------------------------------

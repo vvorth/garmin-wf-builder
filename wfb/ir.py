@@ -38,6 +38,29 @@ MODES = ("active", "low_power", "always_on")
 #: `COMPLICATION_TYPE_AUTO`).
 HOLD_AUTO = "auto"
 
+#: Which geometry keys each `shape:` actually reads.  Anything outside its own
+#: row is parsed by the schema and then dropped on the floor -- the bug
+#: `filled:` had on a rectangle for several phases, and the reason a
+#: `radius:` typed onto a rounded_rectangle used to do nothing at all.
+#:
+#: `color:` and `filled:` are common to every shape and are not listed;
+#: `filled:` has its own refusals on `arc` and `polygon`.  `thickness:` is
+#: handled separately below, because whether it is read depends on `filled:`
+#: rather than on the shape alone.
+SHAPE_GEOMETRY_KEYS = {
+    "rectangle": frozenset({"size"}),
+    "rounded_rectangle": frozenset({"size", "corner_radius"}),
+    "circle": frozenset({"radius"}),
+    "ellipse": frozenset({"size"}),
+    "line": frozenset({"to"}),
+    "arc": frozenset({"radius", "start_angle", "sweep"}),
+    "polygon": frozenset({"points"}),
+}
+
+#: Every geometry key, for the "not used by this shape" check.
+_ALL_SHAPE_GEOMETRY_KEYS = frozenset().union(*SHAPE_GEOMETRY_KEYS.values())
+
+
 #: System fonts an author may name directly, instead of a baked custom font.
 SYSTEM_FONTS = (
     "FONT_XTINY", "FONT_TINY", "FONT_SMALL", "FONT_MEDIUM", "FONT_LARGE",
@@ -477,6 +500,15 @@ class Builder:
         self.bag = bag
         self.palette: dict[str, Color] = {}
         self.fonts: dict[str, FontSpec] = {}
+        #: Every name in the `fonts:` block, whether or not it survived
+        #: `_build_fonts`.  A rejected entry is still a *declared* one, and
+        #: saying otherwise is how the old `unknown font` note came to tell an
+        #: author "declared fonts: (none declared)" about a file declaring three.
+        self.declared_fonts: dict[str, Span | None] = {}
+        #: Declared names that failed their own check.  Every element naming
+        #: one would otherwise raise a second, derived error blaming the
+        #: element for a mistake made in the `fonts:` block.
+        self.rejected_fonts: set[str] = set()
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it
@@ -538,6 +570,7 @@ class Builder:
         base = self.doc.path.parent
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
+            self.declared_fonts[name] = span
             source = base / str(spec["source"])
             if not source.exists():
                 self.bag.error(
@@ -546,9 +579,11 @@ class Builder:
                     self.doc.span(spec, "source"),
                     notes=[f"resolved against the design file, to {source}"],
                 )
+                self.rejected_fonts.add(name)
                 continue
             size = self._font_size(name, spec)
             if size is None:
+                self.rejected_fonts.add(name)
                 continue
             scale = bool(spec.get("scale", True))
             if isinstance(size, Length):
@@ -565,6 +600,7 @@ class Builder:
                             "reference-device-plus-scale-factor meaning",
                         ],
                     )
+                    self.rejected_fonts.add(name)
                     continue
                 # Meaningless for a length, and left false so nothing downstream
                 # can consult it and get a "scaled" answer for a size that is
@@ -583,6 +619,7 @@ class Builder:
                         "add 'monospace: true', or drop 'align'",
                     ],
                 )
+                self.rejected_fonts.add(name)
                 continue
             self.fonts[name] = FontSpec(
                 name=name,
@@ -1270,23 +1307,7 @@ class Builder:
             self._require(node, "corner_radius", "a rounded rectangle needs a corner_radius")
         if shape == "line" and element.to is None:
             self._require(node, "to", "a line needs a 'to' position")
-        # The keys this change *added* are rejected on the shapes that cannot
-        # use them, rather than being parsed and then silently dropped -- which
-        # is precisely the bug `filled:` had on a rectangle until now, and there
-        # is no point fixing one instance of it while shipping three more.
-        # Deliberately only the new keys: whether `size:` on a circle (say)
-        # should also be an error is a pre-existing question, and answering it
-        # here would change designs written before any of this.
-        for key, allowed in (("points", "polygon"),
-                             ("start_angle", "arc"),
-                             ("sweep", "arc")):
-            if key in node and shape != allowed:
-                self.bag.error(
-                    "element",
-                    f"{key!r} is only meaningful on 'shape: {allowed}', not "
-                    f"'shape: {shape}'",
-                    self.doc.span(node, key) or self.doc.span(node),
-                )
+        self._check_shape_keys(node, shape)
         if shape == "arc":
             if element.radius is None:
                 self._require(node, "radius", "an arc needs a radius")
@@ -1325,6 +1346,48 @@ class Builder:
                            "compiled to anyway"],
                 )
         return element
+
+    def _check_shape_keys(self, node: dict, shape: str) -> None:
+        """Reject a geometry key the chosen `shape:` does not read.
+
+        Every one of these was previously parsed by the schema, resolved into
+        the IR, and then never looked at -- so `shape: rounded_rectangle` with
+        a `radius:` (rather than `corner_radius:`) drew square corners and said
+        nothing, and `thickness:` on a shape left filled did nothing at all.
+        That is the same silent-key class as the `filled:` bug, and ADR 0009's
+        rule applies to it: a design must not quietly lose something it asked
+        for.
+
+        `thickness:` is checked separately from the table because whether it
+        is read depends on `filled:`, not on the shape: a `line` and an `arc`
+        always use it, any other shape uses it only when outlined.
+        """
+        for key in sorted(_ALL_SHAPE_GEOMETRY_KEYS - SHAPE_GEOMETRY_KEYS[shape]):
+            if key not in node:
+                continue
+            owners = sorted(s for s, keys in SHAPE_GEOMETRY_KEYS.items() if key in keys)
+            notes = [
+                f"'shape: {shape}' reads: "
+                + (", ".join(sorted(SHAPE_GEOMETRY_KEYS[shape])) or "(no geometry keys)"),
+                f"{key!r} belongs to " + " and ".join(f"'shape: {s}'" for s in owners),
+            ]
+            self.bag.error(
+                "element",
+                f"{key!r} is not used by 'shape: {shape}'",
+                self.doc.span(node, key) or self.doc.span(node),
+                notes=notes,
+            )
+        if "thickness" in node and shape not in ("line", "arc") \
+                and bool(node.get("filled", True)):
+            self.bag.error(
+                "element",
+                f"'thickness' is not used by a filled 'shape: {shape}'",
+                self.doc.span(node, "thickness") or self.doc.span(node),
+                notes=["thickness is the pen width of an outline; a filled shape has "
+                       "no outline to draw",
+                       "add 'filled: false' to outline this shape, or drop "
+                       "'thickness'"],
+            )
 
     def _build_text(self, node: dict, common: dict, path: tuple) -> Element:
         value = self._expression(node, "value") if "value" in node else None
@@ -1746,29 +1809,13 @@ class Builder:
             )
 
     def _resolve_carousel_font(self, node: dict, element: Carousel) -> None:
-        """`value_font:` -- the same name resolution `text`'s `font:` uses."""
+        """`value_font:` -- literally the same resolution `text`'s `font:` uses."""
         raw = node.get("value_font")
         if raw is None:
             return
-        name = str(raw)
-        span = self.doc.span(node, "value_font")
-        if name.startswith("font."):
-            key = name[len("font."):]
-            if key not in self.fonts:
-                known = ", ".join(f"font.{n}" for n in sorted(self.fonts)) or "(none declared)"
-                self.bag.error("font", f"unknown font {name!r}", span,
-                               notes=[f"declared fonts: {known}"])
-                return
-            element.value_font, element.value_font_is_custom = key, True
-            return
-        if name not in SYSTEM_FONTS:
-            self.bag.error(
-                "font", f"unknown font {name!r}", span,
-                notes=["use 'font.<name>' for a custom font, or a system font: "
-                       + ", ".join(SYSTEM_FONTS)],
-            )
-            return
-        element.value_font, element.value_font_is_custom = name, False
+        resolved = self._font_reference(str(raw), self.doc.span(node, "value_font"))
+        if resolved is not None:
+            element.value_font, element.value_font_is_custom = resolved
 
     # -- shared checks ----------------------------------------------------
 
@@ -2066,29 +2113,49 @@ class Builder:
             return None
         return bound
 
-    def _resolve_font(self, node: dict, element: Text) -> None:
-        raw = node.get("font")
-        if raw is None:
-            return
-        span = self.doc.span(node, "font")
-        name = str(raw)
-        if name.startswith("font."):
-            key = name[len("font."):]
-            if key not in self.fonts:
-                known = ", ".join(f"font.{n}" for n in sorted(self.fonts)) or "(none declared)"
-                self.bag.error("font", f"unknown font {name!r}", span,
-                               notes=[f"declared fonts: {known}"])
-                return
-            element.font, element.font_is_custom = key, True
-            return
-        if name not in SYSTEM_FONTS:
+    def _font_reference(self, name: str, span: Span | None) -> tuple[str, bool] | None:
+        """Resolve a `font:`/`value_font:` name to ``(reference, is_custom)``.
+
+        Shared by `text`'s `font:` and `carousel`'s `value_font:`, which had
+        the same fifteen lines twice and so could disagree about what a font
+        name means.
+
+        Returns ``None`` when the name does not resolve.  The one subtlety is
+        what happens for a font that *was* declared and then rejected by
+        `_build_fonts` (a missing `source:`, a bad `size:`, `align:` without
+        `monospace:`): the build is already failing, with an error pointing at
+        the real mistake in the `fonts:` block, so this stays quiet rather than
+        adding one more error per element blaming the element for it.  The old
+        behaviour was worse than noisy -- it reported `declared fonts: (none
+        declared)` from a file that declared several, because a rejected entry
+        never reached `self.fonts`.
+        """
+        if not name.startswith("font."):
+            if name in SYSTEM_FONTS:
+                return name, False
             self.bag.error(
                 "font", f"unknown font {name!r}", span,
                 notes=["use 'font.<name>' for a custom font, or a system font: "
                        + ", ".join(SYSTEM_FONTS)],
             )
+            return None
+        key = name[len("font."):]
+        if key in self.fonts:
+            return key, True
+        if key in self.rejected_fonts:
+            return None
+        known = ", ".join(f"font.{n}" for n in sorted(self.declared_fonts)) or "(none declared)"
+        self.bag.error("font", f"unknown font {name!r}", span,
+                       notes=[f"declared fonts: {known}"])
+        return None
+
+    def _resolve_font(self, node: dict, element: Text) -> None:
+        raw = node.get("font")
+        if raw is None:
             return
-        element.font, element.font_is_custom = name, False
+        resolved = self._font_reference(str(raw), self.doc.span(node, "font"))
+        if resolved is not None:
+            element.font, element.font_is_custom = resolved
 
     def _position(self, raw: dict | None, node: dict, key: str) -> Position:
         if raw is None:

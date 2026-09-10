@@ -124,3 +124,56 @@ def test_example_compiles(design, tmp_path, bag, db):
     assert result is not None, bag.render()
     assert bag.ok(), bag.render()
     assert len(result.products) == len(result.devices)
+
+
+# -- the schema's own hygiene -------------------------------------------------
+
+
+def test_every_schema_def_is_referenced():
+    """A `$defs` entry nothing points at is dead weight that drifts silently.
+
+    `commonElement` sat here for several phases: defined, never `$ref`'d, and
+    every element branch repeated its properties by hand -- so a change to one
+    copy (the `on_hold:` description, most recently) reached six other places
+    only if someone remembered.  Extracting the shared properties fixed the
+    duplication; this keeps a replacement from accumulating unnoticed.
+    """
+    import json
+
+    from wfb.validate import SCHEMA_PATH
+
+    text = SCHEMA_PATH.read_text(encoding="utf-8")
+    schema = json.loads(text)
+    unreferenced = [name for name in schema["$defs"]
+                    if f'#/$defs/{name}"' not in text]
+    assert not unreferenced, (
+        "these $defs are defined but never referenced: " + ", ".join(unreferenced)
+        + " -- either point something at them or delete them"
+    )
+
+
+def test_the_element_branches_share_one_definition_of_each_common_property():
+    """`on_hold:` and friends are defined once, not once per element type.
+
+    The 2026-09 review found `on_hold:`'s description hand-copied across seven
+    branches.  `visible:` (added later) got a shared `$defs` entry from the
+    start; this asserts the rest followed, so a seventh element type cannot
+    reintroduce the drift by copy-pasting a sixth.
+    """
+    import json
+
+    from wfb.validate import SCHEMA_PATH
+
+    defs = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))["$defs"]
+    branches = [name for name in defs if name.endswith("Element")]
+    assert branches, "no element branches found -- has the schema been restructured?"
+    shared = ("z", "on_tap", "on_hold", "static", "visible", "overrides")
+    for branch in branches:
+        for prop in shared:
+            body = defs[branch].get("properties", {}).get(prop)
+            if body is None:
+                continue
+            assert list(body) == ["$ref"], (
+                f"{branch}.{prop} is defined inline; it must be a $ref so every "
+                f"element type shares one description"
+            )

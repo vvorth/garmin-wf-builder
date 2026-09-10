@@ -332,51 +332,6 @@
         }
       }
     },
-    "commonElement": {
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/identifier"
-        },
-        "type": {
-          "type": "string"
-        },
-        "at": {
-          "$ref": "#/$defs/position"
-        },
-        "modes": {
-          "$ref": "#/$defs/modes"
-        },
-        "z": {
-          "type": "integer"
-        },
-        "on_tap": {
-          "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
-          "type": "string"
-        },
-        "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
-          "type": "string"
-        },
-        "visible": {
-          "$ref": "#/$defs/visible"
-        },
-        "static": {
-          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
-          "type": "boolean",
-          "default": false
-        },
-        "lint": {
-          "$ref": "#/$defs/lint"
-        },
-        "overrides": {
-          "description": "Scoped patches by device id or capability selector (shape:, colors:, touch:, api:). Capability selectors are preferred; device ids are the escape hatch.",
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
-        }
-      }
-    },
     "element": {
       "type": "object",
       "required": [
@@ -429,32 +384,25 @@
           "$ref": "#/$defs/modes"
         },
         "z": {
-          "type": "integer"
+          "$ref": "#/$defs/zOrder"
         },
         "on_tap": {
-          "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
-          "type": "string"
+          "$ref": "#/$defs/onTapRemoved"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
-          "type": "string"
+          "$ref": "#/$defs/onHold"
         },
         "visible": {
           "$ref": "#/$defs/visible"
         },
         "static": {
-          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
-          "type": "boolean",
-          "default": false
+          "$ref": "#/$defs/staticFlag"
         },
         "lint": {
           "$ref": "#/$defs/lint"
         },
         "overrides": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/overrides"
         },
         "children": {
           "type": "array",
@@ -536,32 +484,25 @@
           "$ref": "#/$defs/modes"
         },
         "z": {
-          "type": "integer"
+          "$ref": "#/$defs/zOrder"
         },
         "on_tap": {
-          "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
-          "type": "string"
+          "$ref": "#/$defs/onTapRemoved"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
-          "type": "string"
+          "$ref": "#/$defs/onHold"
         },
         "visible": {
           "$ref": "#/$defs/visible"
         },
         "static": {
-          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
-          "type": "boolean",
-          "default": false
+          "$ref": "#/$defs/staticFlag"
         },
         "lint": {
           "$ref": "#/$defs/lint"
         },
         "overrides": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/overrides"
         }
       }
     },
@@ -635,32 +576,25 @@
           "$ref": "#/$defs/modes"
         },
         "z": {
-          "type": "integer"
+          "$ref": "#/$defs/zOrder"
         },
         "on_tap": {
-          "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
-          "type": "string"
+          "$ref": "#/$defs/onTapRemoved"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
-          "type": "string"
+          "$ref": "#/$defs/onHold"
         },
         "visible": {
           "$ref": "#/$defs/visible"
         },
         "static": {
-          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
-          "type": "boolean",
-          "default": false
+          "$ref": "#/$defs/staticFlag"
         },
         "lint": {
           "$ref": "#/$defs/lint"
         },
         "overrides": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/overrides"
         }
       },
       "oneOf": [
@@ -744,32 +678,25 @@
           "$ref": "#/$defs/modes"
         },
         "z": {
-          "type": "integer"
+          "$ref": "#/$defs/zOrder"
         },
         "on_tap": {
-          "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
-          "type": "string"
+          "$ref": "#/$defs/onTapRemoved"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
-          "type": "string"
+          "$ref": "#/$defs/onHold"
         },
         "visible": {
           "$ref": "#/$defs/visible"
         },
         "static": {
-          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
-          "type": "boolean",
-          "default": false
+          "$ref": "#/$defs/staticFlag"
         },
         "lint": {
           "$ref": "#/$defs/lint"
         },
         "overrides": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/overrides"
         }
       },
       "allOf": [
@@ -852,32 +779,25 @@
           "$ref": "#/$defs/modes"
         },
         "z": {
-          "type": "integer"
+          "$ref": "#/$defs/zOrder"
         },
         "on_tap": {
-          "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
-          "type": "string"
+          "$ref": "#/$defs/onTapRemoved"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
-          "type": "string"
+          "$ref": "#/$defs/onHold"
         },
         "visible": {
           "$ref": "#/$defs/visible"
         },
         "static": {
-          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
-          "type": "boolean",
-          "default": false
+          "$ref": "#/$defs/staticFlag"
         },
         "lint": {
           "$ref": "#/$defs/lint"
         },
         "overrides": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/overrides"
         }
       },
       "oneOf": [
@@ -1012,34 +932,49 @@
           "$ref": "#/$defs/modes"
         },
         "z": {
-          "type": "integer"
+          "$ref": "#/$defs/zOrder"
         },
         "on_tap": {
-          "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
-          "type": "string"
+          "$ref": "#/$defs/onTapRemoved"
         },
         "on_hold": {
-          "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
-          "type": "string"
+          "$ref": "#/$defs/onHold"
         },
         "visible": {
           "$ref": "#/$defs/visible"
         },
         "static": {
-          "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
-          "type": "boolean",
-          "default": false
+          "$ref": "#/$defs/staticFlag"
         },
         "lint": {
           "$ref": "#/$defs/lint"
         },
         "overrides": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/overrides"
         }
       }
+    },
+    "zOrder": {
+      "type": "integer"
+    },
+    "onTapRemoved": {
+      "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
+      "type": "string"
+    },
+    "onHold": {
+      "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one.",
+      "type": "string"
+    },
+    "staticFlag": {
+      "default": false,
+      "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, every element in a static subtree must declare the same 'modes:', and static content must come first in draw order -- the buffer is opaque and blitting it would erase anything drawn under it. See docs/format.md and docs/research/probes/static-buffer/.",
+      "type": "boolean"
+    },
+    "overrides": {
+      "additionalProperties": {
+        "type": "object"
+      },
+      "type": "object"
     }
   }
 }

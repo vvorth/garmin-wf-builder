@@ -586,23 +586,39 @@ that a passing test would not have.
   full-screen buffer is 6.4-7.5% of a 1 MB pool — so its threshold is untested
   against real device data. Its estimate also ignores fonts and bitmaps, which
   share the pool; the reported fraction is a floor.
-* **Silent keys predating this session**: `radius:` on a rectangle, `size:` on
-  a circle, `corner_radius:` on a line are all still parsed and dropped. The
-  new checks cover only the keys this session added, because erroring on the
-  rest would reject designs written before today.
-* **A rejected font cascades into a wrong second error**: any bad `fonts:`
-  entry makes the builder drop the font, so every element naming it reports
-  `unknown font 'font.x' ... declared fonts: (none declared)` — actively wrong
-  when other fonts were declared.
 * **`expr.fold` does not short-circuit `and`/`or`**, so `false and X` is not
   folded to `false`. Output is correct either way and `-O 3z` removes the dead
   branch.
-* **`$defs/commonElement` in the schema is dead** — defined, never `$ref`'d,
-  with every element branch repeating the properties by hand. The same drift
-  the last review flagged for `on_hold:`.
 * **`docs/format.md`'s suppressible-code count is hand-maintained prose.**
   `tests/test_lint.py` checks each code is *mentioned*, not that the number is
   right.
+
+**Three of that list were then closed** on the user's instruction, in one
+follow-up commit. Each is small, and each was the same shape of problem — a
+thing the compiler knew and did not say:
+
+1. **Every geometry key is now checked against the shape that reads it**
+   (`ir.SHAPE_GEOMETRY_KEYS`), not just the three the arc/ellipse/polygon work
+   added. The one that actually bites is `radius:` on a `rounded_rectangle`
+   when `corner_radius:` was meant: the corners came out square and nothing
+   said a word. `thickness:` is checked against `filled:` rather than against
+   the shape, since a `line` and an `arc` always draw with it and everything
+   else only does when outlined. **No example in the repo moved**, dashboard
+   included, so the behaviour change cost nothing.
+2. **A rejected `fonts:` entry no longer cascades.** `Builder` now tracks
+   `declared_fonts` and `rejected_fonts`: a font that was declared and then
+   rejected produces exactly one error, at the real mistake, instead of one
+   more per element naming it — and a genuine *typo* now gets the full
+   declared list, where it used to be told `(none declared)` by a file
+   declaring three. The two duplicated resolvers (`text`'s `font:` and
+   `carousel`'s `value_font:`) collapsed into one `_font_reference`.
+3. **`$defs/commonElement` is gone, and the duplication it was reaching for
+   with it.** `z`, `on_tap`, `on_hold`, `static` and `overrides` were each
+   written out in full in all six element branches; they are now single `$defs`
+   entries referenced from every branch, the way `visible:` already was. Two
+   tests keep it that way: one fails on any unreferenced `$defs`, the other on
+   any common property defined inline rather than as a `$ref` — so a seventh
+   element type cannot reintroduce the drift by copy-pasting a sixth.
 
 **A git note, because it cost the user files.** Commit `614d100` ("test work on
 new watchface definition") added `examples/big-clock-3/assets/` — eleven fonts,

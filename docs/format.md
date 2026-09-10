@@ -481,7 +481,9 @@ display's own `bitsPerPixel` from the device files as the nearest honest proxy.
 ```
 
 Seven shapes, one per native `Dc` drawing call. Each takes `color:`, and each
-takes the keys its own geometry needs:
+takes **only** the keys its own geometry needs -- a key from another row is an
+error, not a no-op, so `radius:` typed where `corner_radius:` was meant is
+reported rather than drawing square corners in silence:
 
 | `shape:` | keys | draws |
 |---|---|---|
@@ -499,6 +501,10 @@ draws the outline at `thickness:` (default 1 px) instead of filling, on
 ink straddles the declared box, so the compiler grows the element's extent by
 half a pen width for the safe-area and overlap checks -- what you declare is
 still the geometry, not the ink.
+
+`thickness:` is checked against `filled:` rather than against the shape: a
+`line` and an `arc` always draw with it, and any other shape uses it only when
+outlined, so `thickness:` on a shape left filled is an error too.
 
 Two shapes reject `filled:`, and both refusals are the platform's, not this
 project's:
