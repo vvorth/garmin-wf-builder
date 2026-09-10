@@ -1577,6 +1577,102 @@ catalogue-scoped.
 Still open from that review: `on_hold:`'s schema description is hand-copied
 across seven element-type branches, and the low-severity items below it.
 
+**A later session added anti-aliasing, as one `antialias:` key spanning two
+entirely unrelated SDK mechanisms.** Two sequential subagents, integrated and
+committed between, because the two halves overlap on `wfb/ir.py`, `schema/`
+and `docs/format.md` and the carousel-recovery session already recorded what
+parallel agents in one tree do to each other. `docs/research/probes/antialias/`
+is the probe; **read its 6 before quoting any `.prg` figure in this repo.**
+
+The finding that shaped everything: **anti-aliasing is two mechanisms, not
+one.** A font is a *resource* attribute (`<font antialias="true"/>`,
+`Core_Topics/Resources.html`) and needs **no device gating at all** -- the
+resource compiler overrides the attribute itself on devices that cannot render
+it (`Readme/History.html`, v3.1.0.beta2, naming the FR45, FR920XT and Edge
+130). A primitive is a *runtime* `Dc.setAntiAlias` call, API 3.2.0, present on
+only 113 of 164 devices. So the user's opening question -- disable it by SDK
+level -- has no single answer: one half needs nothing, and the other needs a
+`has` check rather than a version compare, which is what
+`Core_Topics/Graphics.html` gives verbatim. **A build-time gate was never an
+option** for the primitive half regardless: `wfb/emit/project.py` generates one
+view shared across every target, so the decision cannot become a per-device
+constant, and the call would not typecheck under `-l 3` on a device lacking the
+symbol. All nine vendored devices have it, so **this repo has no negative
+control** and the guard's false branch is trusted on Garmin's documentation
+rather than tested.
+
+1. **Font anti-aliasing already worked and nothing had ever noticed.**
+   `antialias:` on a `fonts:` entry ran end to end -- `bake()` already skipped
+   its 1-bit threshold -- and no test had ever put it through `monkeyc`.
+   Measured rather than assumed: the sheet goes from 2 to 256 grey levels and
+   the `.prg` grows, so the resource compiler is genuinely consuming the ramp.
+   The gap was that **icon fonts hardcoded `antialias=False`**, and icons share
+   that exact rasteriser.
+2. **The format is one top-level `antialias:` (default false) inherited by
+   everything**, overridable per `fonts:` entry and per element. The user chose
+   this over per-item-only and over face-level-only. Unlike `visible:`, it is an
+   **override, not a conjunction**, so it resolves in one top-down pass over the
+   finished tree rather than being pushed down as each group is built --
+   `_resolve_antialias`'s docstring argues the difference.
+3. **`antialias:` on a `text` element is an error naming the font to put it
+   on.** A text element draws through a `fonts:` resource shared by every
+   element referencing it, so it cannot vary per element. The schema *accepts*
+   the key so the IR can name the actual font, the same trick `on_tap:` uses
+   for its rename.
+4. **`icons.font_key` is keyed by anti-aliasing too**, or two icons agreeing on
+   size and glyph but not on this collide into one font resource and the second
+   silently overwrites the first's sheet. The suffix is omitted when false, so
+   **a design that never mentions `antialias:` generates byte-identical output**
+   -- which is what kept every golden file unmoved.
+5. **The helper must not be named `setAntiAlias`.** A same-named private method
+   on the view makes `:setAntiAlias` resolve to *itself*, and `monkeyc` warns on
+   every target: `The private symbol 'setAntiAlias' will not be found when using
+   the indirect lookup syntax`. `applyAntiAlias` is warning-free. Found by
+   building, not by reading -- and it would have failed the warning-free bar.
+6. **The override brackets an element's drawing, not its method**, placed after
+   every early-return guard: a guard can `return`, and toggling before it would
+   leave the Dc changed on a frame that drew nothing.
+7. **New suppressible `antialias-dither`.** A soft edge is a blend, so every
+   value it manufactures is off the 64-colour grid -- constraint 13 reached from
+   the other side. It fires on *every* anti-aliased face on all three targets
+   and there is no "legal" soft edge to switch to, unlike `palette-dither`
+   where picking another colour is a real fix. `examples/antialias/` accepts it
+   explicitly rather than dodging it.
+8. **Preview keeps drawing primitives aliased, by the user's explicit choice**,
+   and `docs/limitations.md` says so. The font and icon half is *not* that gap:
+   `_paste_glyph` already pastes a glyph tile as a mask, so a grey-ramp sheet
+   blends and a 1-bit one cannot. Verified, not assumed.
+
+**A measurement lesson that invalidated numbers in both subagents' reports,
+and is the most reusable thing here: a `.prg`'s size depends on the path it
+was built at.** The same generated source built to two output directories
+whose names differ in length produced files **80 B apart**, with `source/`
+byte-identical under `diff -r`. It is not non-determinism -- eight `monkeyc`
+runs on one fixed directory are byte-stable -- it is a dependency on an input
+nobody thinks of as one, because a `.prg` embeds the paths it was built from.
+Both agents had compared builds at differently-named scratch directories, and
+both reported icon and primitive costs that were wrong by more than the effect
+they were measuring: an anti-aliased icon was reported at +48 B and is
+**+256 B**; a font was reported at +672 B and is **+656 B**. **Prefer
+`--build-stats`** -- deterministic, and the only figure that counts against the
+128 KB budget -- but note it moves *only* for emitted code, so the font half
+has no honest instrument except file size taken at equal-length paths.
+
+Corrected costs, controlled: the eleven-glyph 68px clock font **+656 B** in the
+`.prg` and nothing in `--build-stats`; the 30px icon a further **+256 B**, also
+nothing; the primitive half **+9 B data and +39 B code** for the helper and its
+reset, plus **+24 B code** per overriding element. **Neither the visual
+improvement nor any CPU or battery cost is measured** -- no simulator (finding
+11), no watch. Nothing in the docs or the code claims a rendering improvement
+anyone has seen.
+
+**Still open, deliberately:** the `has` guard's false branch is untested for
+want of a device without `setAntiAlias`; `wfb preview` shows no soft edge for
+a primitive; and `filter=""` on a synthetic icon font's `<font>` element
+predates this work and was left alone -- harmless, because `wfb` subsets the
+`.fnt` itself, which is the same reasoning that already justifies omitting
+`filter` for supplementary-plane glyphs.
+
 ### `examples/dashboard/face.yaml` is the user's own playground
 
 The user edits this file directly between sessions and has said explicitly:
