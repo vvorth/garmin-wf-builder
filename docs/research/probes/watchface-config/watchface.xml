@@ -1,0 +1,18 @@
+<resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://developer.garmin.com/downloads/connect-iq/resources.xsd">
+    <watchface-config>
+        <styles>
+            <style id="1" label="@Strings.AppName" default="true"/>
+        </styles>
+        <accentColors allowAny="true"/>
+        <dataColors>
+            <color default="true">0xFFFFFF</color>
+            <color>0x00FFFF</color>
+        </dataColors>
+        <data>
+            <complication id="1">
+                <type default="true">Complications.COMPLICATION_TYPE_STEPS</type>
+                <type>Complications.COMPLICATION_TYPE_HEART_RATE</type>
+            </complication>
+        </data>
+    </watchface-config>
+</resources>

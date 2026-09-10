@@ -53,8 +53,14 @@ function draw(dc) {
 
 A build-time gate is not an option regardless: `wfb/emit/project.py` generates
 **one view shared across every target device**, so the decision cannot be a
-per-device constant, and `dc.setAntiAlias(...)` would not typecheck under `-l 3`
-on a device whose `api.debug.xml` lacks the symbol.
+per-device constant.
+
+> **Corrected (2026-09-10):** this paragraph used to add "and
+> `dc.setAntiAlias(...)` would not typecheck under `-l 3` on a device whose
+> `api.debug.xml` lacks the symbol". It would typecheck --
+> `../device-symbol-gate/` shows a symbol absent from `fr955.api.debug.xml`
+> compiling warning-free for `fr955`. The runtime `has` guard is still
+> required; only that second reason for it was wrong.
 
 `Dc.setAntiAlias` resolves through `Device.has_symbol` on all nine vendored
 devices, so **this repo has no negative control**: the false branch of the `has`

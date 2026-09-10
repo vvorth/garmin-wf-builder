@@ -198,6 +198,23 @@ These are the findings that shaped every decision. Full detail and citations in
    face's tap behaviour is modelled on native firmware this API does not
    expose.
 
+6d. **`monkeyc` does not gate on the device's symbol table -- so nothing
+   catches an absent symbol at build time.** It resolves names against the
+   **SDK-wide** API and checks arity, types and permissions; per-device
+   availability it does not check at all. Proof with a clean control
+   (`docs/research/probes/device-symbol-gate/`):
+   `UserProfile.getFunctionalThresholdPower` is present in
+   `fenix8solar47mm.api.debug.xml`, **absent from `fr955.api.debug.xml`**, and
+   builds warning-free for `fr955` under `-l 3` -- while a typo in the same
+   build is `Undefined symbol`. Two consequences, pulling opposite ways:
+   **one shared generated view may reference an API only some targets have**,
+   guarded at runtime, with no per-device source split (this is what makes
+   on-device config a single view); and **the compiler will never tell you**
+   when a binding cannot work on a target -- only `Device.has_symbol` and a
+   lint will. Every existing use of `has_symbol` stays correct: it answers
+   *what exists on the wrist*, which is the question that was always being
+   asked.
+
 7. **A missing permission fails silently.** The API returns null and the element
    never appears, with no diagnostic. The compiler deriving `manifest.xml`
    permissions from bindings is one of the framework's strongest justifications.
@@ -209,6 +226,13 @@ These are the findings that shaped every decision. Full detail and citations in
    complication slots, **one** data colour, **one** accent colour. Max four saved
    configurations. No per-element colour editing. **`fr955` is excluded entirely.**
 
+   **9b. The Data axis takes Garmin complication types only** -- there is no way
+   to put author-defined content in a `<complication>`'s list. Author-defined
+   selectable content therefore rides **Styles**, whose `styleId` is an opaque
+   `Number` Garmin gives no meaning to. And a style is *global*, so the naive
+   "one `styleId`, therefore one selectable area" is wrong: every area on the
+   face can respond to the same number independently. See research 08 §4.
+
 10. **`alphaBlendingSupport: false`** on all three targets. No transparency.
 
 11. **The graphics pool is separate** — `graphicsResourcePoolSize` is 1 MB,
@@ -219,6 +243,20 @@ These are the findings that shaped every decision. Full detail and citations in
 
 13. **64-colour MIP palette**: each channel must be `0x00`/`0x55`/`0xAA`/`0xFF`
     or the firmware dithers it and it looks grainy.
+
+14b. **A watch face can plot exactly four time series, and solar is not one.**
+    `Toybox.SensorHistory` -- the obvious API, and the only route to pressure,
+    stress, elevation and Body Battery *as series* -- has an **empty "Watch
+    Face" cell** in `Core_Topics/Manifest_and_Permissions.html`'s permission
+    table. It still compiles (see constraint 6d), and then fails silently
+    (constraint 7). What is open, all permission-free:
+    `ActivityMonitor.getHeartRateHistory` (period as a `Duration` *or* a sample
+    count; the iterator carries its own `getMin`/`getMax`),
+    `ActivityMonitor.getHistory()` (≤ 7 days), `Weather.getHourlyForecast()`
+    and `Weather.getDailyForecast()`. **Solar has no history API at all** --
+    only `System.Stats.solarIntensity` and `COMPLICATION_TYPE_SOLAR_INPUT`,
+    both current values; the chart on a stock fēnix is native firmware.
+    Research 08 §1.
 
 14. **`deviceFamily` in `compiler.json` is the resource-qualifier directory
     name** — `round-260x260` (47 mm, fr955) vs `round-280x280` (51 mm). Read it;
@@ -1596,10 +1634,21 @@ level -- has no single answer: one half needs nothing, and the other needs a
 `Core_Topics/Graphics.html` gives verbatim. **A build-time gate was never an
 option** for the primitive half regardless: `wfb/emit/project.py` generates one
 view shared across every target, so the decision cannot become a per-device
-constant, and the call would not typecheck under `-l 3` on a device lacking the
-symbol. All nine vendored devices have it, so **this repo has no negative
+constant. All nine vendored devices have it, so **this repo has no negative
 control** and the guard's false branch is trusted on Garmin's documentation
 rather than tested.
+
+> **Corrected (2026-09-10):** this paragraph used to give a second reason --
+> "the call would not typecheck under `-l 3` on a device lacking the symbol".
+> That is false, and `docs/research/probes/device-symbol-gate/` disproves it
+> with a clean control: `UserProfile.getFunctionalThresholdPower` is absent
+> from `fr955.api.debug.xml` and compiles warning-free for `fr955` under
+> `-l 3`. `monkeyc` resolves names against the **SDK-wide** API and checks
+> arity, types and permissions; it does not check per-device availability at
+> all. The conclusion above is unaffected -- a runtime `has` guard is still
+> required, because the failure is a runtime one -- and every existing use of
+> `Device.has_symbol` stays correct, because a device's symbol table answers
+> *what exists on the wrist*. See new constraint 6d in 4.
 
 1. **Font anti-aliasing already worked and nothing had ever noticed.**
    `antialias:` on a `fonts:` entry ran end to end -- `bake()` already skipped
