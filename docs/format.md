@@ -510,8 +510,18 @@ entirely different ways:
   920XT, Edge 130), which is not a concern for any of this project's three
   targets in any case.
 * **A `shape` or `progress` element's own drawing** is a runtime `Dc` call,
-  `setAntiAlias`, gated per device with a `has` check. This side is not wired
-  up by the resolver alone -- see `docs/limitations.md`.
+  `setAntiAlias`, gated per device with a `has :setAntiAlias` check --
+  `doc/docs/Core_Topics/Graphics.html` gives this idiom verbatim, and the
+  generated helper (`applyAntiAlias`, deliberately *not* named `setAntiAlias`
+  -- see `docs/research/probes/antialias/README.md` 3) is unconditional: a
+  build-time gate is not an option, because `wfb` generates one view shared by
+  every target device. The face default is reset once at the top of
+  `onUpdate` (covering both the awake and asleep branches), `onPartialUpdate`
+  and `renderStatic`; an element whose own `antialias:` differs from the face
+  default sets and restores it around its own drawing only, so guard early
+  returns above it never leave the wrong state behind for the next element.
+  `text`, `icon` and `carousel` never emit any of this -- they draw glyphs,
+  and a glyph's anti-aliasing is the font-baking half above.
 
 **Inheritance is a default, not a conjunction.** A `group`'s own `antialias:`
 becomes what its subtree inherits, and a descendant's own `antialias:` always
@@ -530,16 +540,60 @@ build error pointing at that font's own `antialias:` instead -- naming the
 actual font this element uses when it names a custom one, or saying plainly
 that a system font has no `antialias:` of its own when it does not.
 
-**Cost is measured, not estimated, and only on one side.** Anti-aliasing an
-eleven-glyph clock font at 68px cost +672 B in the `.prg` (96,108 → 96,780 B);
-a single anti-aliased icon at 14%r cost +48 B, identically on all three
-targets. `--build-stats` does not move either way -- font pixels are a
-resource, not foreground data, so the memory check `wfb build` reports never
-sees this cost. The *runtime RAM* the SDK's own Resources page warns
-anti-aliasing costs ("since bitmap fonts can take a lot of runtime memory...")
-is measured by neither `--build-stats` nor the `.prg` size, and stays
-unquantified here -- there is no simulator or device in this container to read
-it from (`docs/limitations.md`).
+**Cost is measured, not estimated, on both sides -- but read the caveat under
+the tables before comparing any two `.prg` figures of your own.** The two
+sides move different numbers, because they are different kinds of thing.
+
+The font side is baked into a *resource*, so it moves the `.prg` and never
+`--build-stats`. On `examples/slice/`, all three targets, output paths held to
+the same length:
+
+| | `.prg` (fenix8solar47mm) | vs. previous row | `--build-stats` |
+|---|---|---|---|
+| no `antialias:` anywhere | 96,076 B | — | 833 B data, 1,317 B code |
+| the eleven-glyph 68px clock font | 96,732 B | **+656 B** | *unchanged* |
+| the 30px `steps` icon as well | 96,988 B | **+256 B** | *unchanged* |
+
+The primitive side is emitted *code*, so it moves both -- and only this side
+counts against the 128 KB watch-face budget at all. On `examples/antialias/`,
+which turns the face default on and has one element override it back:
+
+| | `--build-stats` | total | `.prg` |
+|---|---|---|---|
+| no primitive anti-aliasing | 833 B data, 1,317 B code | 2,150 B | 96,876 B |
+| the face default on, one override | 842 B data, 1,380 B code | 2,222 B | 97,148 B |
+
+That **+72 B** decomposes as +9 B data and +39 B code for the guarded helper
+and its one reset call, plus +24 B code for each element that overrides the
+default (the two extra calls bracketing its own drawing).
+
+**Two things these numbers do not tell you, stated rather than implied.**
+
+First, **a `.prg`'s size depends on the path it was built at** -- the same
+generated source built to two output directories whose names differ in length
+produced files 80 B apart, with byte-identical `source/`. So a `.prg`
+comparison is only meaningful between builds whose output paths are the same
+length, which is how every figure above was taken; `--build-stats` has no such
+problem and is the instrument to prefer wherever it moves at all.
+
+Second, **the runtime RAM the SDK's own Resources page warns font
+anti-aliasing costs** ("since bitmap fonts can take a lot of runtime
+memory...") **and any CPU or battery cost of the primitive side are measured
+by neither `--build-stats` nor the `.prg`, and stay unquantified here** --
+there is no simulator or device in this container to read either from
+(`docs/limitations.md`). Nor has the visual improvement itself been seen: the
+softer edge is what the SDK says these switches do, not something this project
+has rendered on a panel.
+
+**A soft edge on a 64-colour panel dithers, and the linter says so.** The
+suppressible `antialias-dither` check fires once per device, against the
+first element (in draw order) whose `antialias:` resolves to `true` there, on
+any device whose panel shows only 64 colours -- all three of this project's
+current targets, so it fires on every face that turns the feature on for a
+`shape`/`progress` element. See "Lint suppression" below and
+`docs/limitations.md`. `examples/antialias/` is a worked design exercising
+both halves of the feature together, including this tradeoff accepted
+explicitly with `lint: {allow: [antialias-dither], reason: ...}`.
 
 ### `shape`
 
@@ -1390,9 +1444,10 @@ off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
 `carousel-on-hold`) are **not** suppressible: silencing one produces a face
 that does not work.
 
-Eleven codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+Twelve codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `carousel-zone`, `hold-overlap`,
-`hold-unsupported`, `complication-gated`, `dead-element` and `graphics-pool`.
+`hold-unsupported`, `complication-gated`, `dead-element`, `graphics-pool` and
+`antialias-dither`.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
 the normative list -- this prose has drifted from it before, so check there
 rather than here if the two ever disagree. **A code that is not one of them is a
@@ -1401,11 +1456,13 @@ suggestion) versus a real code that is deliberately unsuppressible (with the
 reason). Both used to be ignored in silence, which left an author unable to tell
 a typo from a check that refuses to be silenced.
 
-Three of them are not element-scoped diagnostics, so the allow goes on the
+Four of them are not element-scoped diagnostics, so the allow goes on the
 element that causes them: `palette-dither` on an element whose `color:` or
 `track_color:` is exactly `palette.<name>`, `partial-update-budget` on any
-element drawn in `low_power` mode, and `graphics-pool` on the first element
-declaring `static: true`. See `docs/limitations.md` 3.
+element drawn in `low_power` mode, `graphics-pool` on the first element
+declaring `static: true`, and `antialias-dither` on the first element (in
+document order) whose `antialias:` resolves to `true` on a 64-colour device.
+See `docs/limitations.md` 3.
 
 ---
 

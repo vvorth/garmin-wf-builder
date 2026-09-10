@@ -214,6 +214,18 @@ overhead. It says so in its own `confidence:` line.
 Each channel must be `0x00`, `0x55`, `0xAA` or `0xFF`. Anything else is dithered
 by the firmware and looks grainy at close range.
 
+Anti-aliasing a `shape` or `progress` element (`antialias:`, `docs/format.md`)
+manufactures exactly the intermediate values this rule is about: a soft edge
+is a blend, by construction, and every value in between is off the 64-colour
+grid. `lint.check_antialias_palette` (`antialias-dither`) says so once per
+device, against the first element that draws anti-aliased, and is
+suppressible — an author who wants the softer look on a MIP panel is
+accepting dithering at the edge on purpose. All three of this project's
+current targets are 64-colour, so this fires on every face that turns the
+feature on for a `shape`/`progress` element. (What `wfb preview` shows for
+that same soft edge is a separate gap — see "the simulator does not run in a
+headless Linux container" below.)
+
 ### On-device configuration: four axes, four configurations, and not on fr955
 
 The native watch-face editor is **API 5.1.0, fēnix 8 and newer**, and exposes
@@ -319,7 +331,6 @@ hand-written Monkey C rather than growing the schema.
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
-| Primitive anti-aliasing: `Dc.setAntiAlias` for a `shape` or `progress` element | `antialias:` is parsed, validated and resolved on every element that accepts it -- `Element.resolved_antialias` is never `None` by the time codegen runs -- and the *font*-baking half (a declared font, an icon's own font, a carousel's per-item icon fonts) is wired up end to end. Nothing yet emits `setAntiAlias` for a `shape`/`progress` element's own drawing, which needs the `has :setAntiAlias` guard idiom (`docs/format.md`'s "`antialias:`" section, `docs/research/probes/antialias/README.md`) -- deliberately a separate, later piece of work so the two SDK mechanisms this one key spans do not land in the same change |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
 | ADR 0008's check 2, **unsupported API for a targeted device**, for anything other than `on_hold:` | `on_hold:` resolves `WatchFaceDelegate.onPress` against each device's own symbol table, so the machinery is live — but `catalog.Source.requires` still consults nothing; §3 below has the detail |
 | `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
@@ -395,8 +406,25 @@ definitions mounted read-only and copied in writable; and WebKit's
 `wfb preview` is the answer in that environment: it renders from the same
 resolved geometry the generated code uses, so the two cannot disagree about
 position. What it does *not* claim to reproduce is glyph rasterisation for system
-fonts, arc cap shape, or the transflective panel's real appearance. For those the
-simulator is authoritative.
+fonts, arc cap shape, the transflective panel's real appearance, or — a
+deliberate scope decision, not an oversight found late — **a `shape`/
+`progress` element's own anti-aliasing** (`antialias:`, `docs/format.md`):
+that side of the feature is a runtime `Dc.setAntiAlias` call, and
+`wfb/preview.py` draws every primitive with plain `PIL.ImageDraw` calls
+(`rectangle`, `ellipse`, `arc`, `polygon`, `line`), which are aliased by
+construction and were not changed to match. ADR 0004 exists precisely so the
+preview and the device cannot disagree about what a design looks like, and a
+second renderer's idea of a soft edge is not Garmin's. Turning `antialias:` on
+for a `shape`/`progress` element changes what the device draws with no
+visible difference in `wfb preview`. **The font and icon half of the same key
+is not this gap** — it previews correctly, for free: `_paste_glyph` already
+pastes a baked glyph tile as a mask, so a multi-grey-level (anti-aliased)
+sheet blends into the background exactly the way `drawText` does on the
+device, while a 1-bit sheet cannot, because its mask has only two values
+(`tests/test_preview.py::
+test_an_antialiased_icon_previews_with_intermediate_grey` confirms this end
+to end, through a real design rather than against the baked sheet alone). For
+the primitive gap, the simulator is authoritative.
 
 ---
 
@@ -407,10 +435,12 @@ edges matter more than its coverage.
 
 ### Checks that are exact
 
-Data-source spelling; palette legality; geometry against the framebuffer and the
-visible area (round and rectangle only); glyph coverage of a subsetted font;
-contrast arithmetic. (There is no longer a refresh-tier check to list here --
-the tier concept itself was deleted; see §2 above.)
+Data-source spelling; palette legality; anti-aliasing legality on a 64-colour
+panel (`antialias-dither` -- the same channel-quantization fact `palette-dither`
+checks, reached from the other direction); geometry against the framebuffer and
+the visible area (round and rectangle only); glyph coverage of a subsetted
+font; contrast arithmetic. (There is no longer a refresh-tier check to list
+here -- the tier concept itself was deleted; see §2 above.)
 
 A `carousel` is the one element checked against its **drawn** extent rather
 than its box, because its box is deliberately larger — it is the touch target.
@@ -459,7 +489,7 @@ partly enforced" below, the same gap from the catalogue's side.
 ### Suppression, and what it can reach
 
 `lint: {allow: [<code>], reason: "..."}` on an element silences a suppressible
-check for that element. Three of the suppressible codes are not element-scoped
+check for that element. Four of the suppressible codes are not element-scoped
 diagnostics at all, so their suppression is scoped to the elements that *cause*
 them rather than to an arbitrary one:
 
@@ -476,6 +506,10 @@ them rather than to an arbitrary one:
 * **`graphics-pool`** is about the one buffer the whole face shares, so the
   allow is honoured on the first element declaring `static: true` -- there is no
   per-group figure to acknowledge separately.
+* **`antialias-dither`** is about the whole device's panel, not one element's
+  colour, so the allow is honoured on the first element (in draw order) whose
+  `antialias:` resolves to `true` on that device -- the same "one
+  representative" shape `graphics-pool` uses, chosen the same way.
 
 `carousel-zone`, `dead-element` and the two `hold-*` codes are ordinary
 element-scoped diagnostics, so `lint:` on the element itself reaches them.

@@ -22,8 +22,8 @@ from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import Carousel, Element, Face, Text
 from .layout import (
-    PlacedCarousel, PlacedText, ResolvedFace, inside_screen, inside_visible_area,
-    inside_visible_area_for, is_full_bleed,
+    PlacedCarousel, PlacedProgress, PlacedShape, PlacedText, ResolvedFace, inside_screen,
+    inside_visible_area, inside_visible_area_for, is_full_bleed,
 )
 from .palette import Color
 from .units import IntBox
@@ -34,7 +34,7 @@ from .units import IntBox
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
     "hold-unsupported", "hold-overlap", "carousel-zone", "complication-gated",
-    "dead-element", "graphics-pool",
+    "dead-element", "graphics-pool", "antialias-dither",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -46,6 +46,7 @@ SUPPRESSIBLE = frozenset({
 #: day this set drifts from what the compiler actually emits, so it cannot rot
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
+    "antialias-dither",
     "carousel", "color", "complication-gated", "contrast", "dead-element",
     "element-mapping",
     "devices", "duplicate-id", "element", "expression",
@@ -66,6 +67,7 @@ ALL_CODES = frozenset({
 def run(resolved: ResolvedFace, bag: Bag) -> None:
     """Stage 3: everything computable from resolved geometry on one device."""
     check_palette(resolved, bag)
+    check_antialias_palette(resolved, bag)
     check_geometry(resolved, bag)
     check_text_fit(resolved, bag)
     check_glyphs(resolved, bag)
@@ -253,6 +255,75 @@ def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
             ],
             confidence="exact -- device display_colors",
         )
+
+
+def check_antialias_palette(resolved: ResolvedFace, bag: Bag) -> None:
+    """Anti-aliasing manufactures the exact intermediate values a 64-colour
+    panel cannot show cleanly.
+
+    Constraint 13 (CLAUDE.md) is what :func:`check_palette` is about: each
+    channel must land on 0x00/0x55/0xAA/0xFF or the firmware dithers it.  A
+    soft edge is, by construction, a blend between the shape's colour and
+    whatever is behind it -- every intermediate pixel it produces is an
+    intermediate value, deliberately, the entire point of asking for one.  So
+    the same rule fires here for the same reason, just without a specific
+    off-grid colour to name: the colours at both ends can each be perfectly
+    legal and the blend between them still is not.
+
+    Once per **device**, not once per element: unlike a `palette:` entry,
+    which is one colour that either is or is not legal, "is anti-aliasing
+    used anywhere on this device" is the only fact this check can state --
+    exactly how many edges are soft and how visible each one is depends on
+    geometry and colour this check does not (and should not) try to model.
+    Reported against the first element that actually draws anti-aliased, the
+    same "one representative, not one diagnostic per user" shape
+    :func:`check_graphics_pool` already uses, so `lint: {allow: [...]}` on
+    that one element silences the device-wide note.
+
+    **Severity: WARNING, matching `palette-dither` rather than
+    `graphics-pool`'s informational half.** The two checks reach the same
+    firmware behaviour (channel quantization) from two different directions,
+    and `palette-dither` already treats it as something the author should
+    hear about, not just a number to log. The one thing worth weighing
+    explicitly: all three of this project's current targets are 64-colour, so
+    this warning fires on *every* face that turns primitive anti-aliasing on
+    at all, with no way to satisfy it short of turning the feature back off
+    (there is no "legal" soft edge on a 64-colour panel the way there is a
+    legal palette colour) -- unlike `palette-dither`, where picking a
+    different colour is a real fix. That is a real cost to this check's
+    signal-to-noise, but not a reason to go quiet about it: an author who has
+    already made this tradeoff on purpose acknowledges it once, on the one
+    element that triggered it, with `lint: {allow: [antialias-dither],
+    reason: ...}` -- the same one-line acceptance `palette-dither` and
+    `graphics-pool` already ask for.
+    """
+    colors = resolved.device.display_colors
+    if colors != 64:
+        return
+    users = [
+        placed for placed in resolved.items
+        if isinstance(placed, (PlacedShape, PlacedProgress)) and placed.element.resolved_antialias
+    ]
+    if not users:
+        return
+    _emit(bag, users[0], Diagnostic(
+        Severity.WARNING,
+        "antialias-dither",
+        f"{resolved.device.id}: anti-aliased primitive drawing is enabled, and this "
+        f"device's panel shows only {colors} colours -- every soft edge it draws "
+        f"will be dithered",
+        users[0].element.span,
+        notes=[
+            "each channel must be 0x00, 0x55, 0xAA or 0xFF; anti-aliasing blends "
+            "toward values in between by construction, so this is not avoidable "
+            "while antialias: stays true here",
+            f"{len(users)} element(s) draw anti-aliased on {resolved.device.id}: "
+            + ", ".join(sorted(p.id for p in users)),
+            "set 'lint: {allow: [antialias-dither], reason: ...}' on "
+            f"'{users[0].id}' to accept it",
+        ],
+        confidence="exact -- device display_colors",
+    ))
 
 
 # -- check 4: geometry ------------------------------------------------------

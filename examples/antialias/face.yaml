@@ -1,0 +1,127 @@
+# `antialias:` -- soft edges, on both sides of the feature this key spans.
+#
+# The face-wide default below is `true`, so every font, icon and
+# primitive-drawing element inherits it unless it says otherwise.  Two
+# entirely different SDK mechanisms share this one key, gated in two entirely
+# different ways -- this design exercises both so the difference is visible
+# in one place instead of two:
+#
+#   * a bitmap font (the declared `clock` font below, and the icon's own
+#     synthetic per-glyph font) bakes an 8-bit grey ramp into the resource
+#     instead of a 1-bit mask -- no device gating needed, the resource
+#     compiler handles it;
+#   * a `shape`/`progress` element's own drawing (`ring` below) is a runtime
+#     `Dc.setAntiAlias` call, gated per device with a `has :setAntiAlias`
+#     check -- the symbol is missing on roughly a third of Connect IQ
+#     devices, and `wfb` generates one view shared by every target, so the
+#     guard has to be there even though all three targets here happen to
+#     have the symbol.
+#
+# `background` overrides the default back to `false`: a full-bleed rectangle
+# has no edge inside the visible area to soften, so turning it on would only
+# pay the (real, measured) code-size cost of the guarded call for no visible
+# difference -- see docs/format.md's "antialias:" section for the numbers.
+#
+# All three targets here show only 64 colours (CLAUDE.md constraint 13), and
+# a soft edge is, by construction, a blend into values off that grid.  `ring`
+# accepts that tradeoff explicitly with `lint: {allow: [antialias-dither]}`
+# rather than leaving the warning in place -- an author who wants the softer
+# look on a MIP panel is choosing dithering at the edge on purpose.
+#
+# Build it with:  ./wfb.py build examples/antialias/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 45b59541-78ef-45de-b1cd-9e4ece2f8055
+  name: Antialias
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+antialias: true
+
+# Every colour is one the 64-colour MIP panel can show without dithering:
+# each channel is 0x00, 0x55, 0xAA or 0xFF.  The linter checks this -- it is
+# `ring`'s soft *edge*, not its fill colour, that dithers here.
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+  accent: "#FF5500"
+  track: "#555555"
+
+fonts:
+  clock:
+    source: assets/OpenSans-Regular.ttf
+    size: 68
+    # No 'antialias:' of its own: it inherits the face-wide default (true),
+    # so this bakes an 8-bit grey ramp instead of a 1-bit mask -- +656 B in
+    # the .prg for this eleven-glyph sheet, and nothing at all against the
+    # 128 KB budget, since a font is a resource rather than foreground data.
+    # See docs/research/probes/antialias/README.md 6 for how that was
+    # measured, and why a .prg comparison needs care.
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+    antialias: false   # override: nothing here to soften
+
+  # setPenWidth + drawArc, anti-aliased.  This is the primitive half of the
+  # feature: Dc.setAntiAlias(true), guarded by `dc has :setAntiAlias`, wrapped
+  # around exactly this element's own drawing and nothing else.
+  - id: ring
+    type: progress
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    at: { anchor: center }
+    radius: 90%r
+    thickness: 10px
+    start_angle: 180deg
+    sweep: 340deg
+    color: palette.accent
+    track_color: palette.track
+    when_absent: hide      # required: both bindings are nullable
+    # inherits the face default (true) -- no 'antialias:' of its own
+    lint:
+      allow: [antialias-dither]
+      reason: "the soft rim is the point of this example; dithering it on a
+        64-colour panel is an accepted tradeoff, not an oversight"
+
+  # The font half: a custom bitmap font baked with an 8-bit grey ramp.
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: font.clock
+    at: { anchor: center, dy: -4% }
+    color: palette.text
+
+  # The icon half: a synthetic per-glyph font, anti-aliased the same way a
+  # declared 'fonts:' entry is -- this and 'clock' above are the two faces of
+  # the font-baking mechanism, both inheriting the same face-wide default.
+  - id: steps_icon
+    type: icon
+    icon: steps
+    at: { anchor: center, dy: 16% }
+    size: 30px
+    color: palette.accent
+
+  - id: steps_value
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 30% }
+    color: palette.text
+    when_absent: placeholder
+    placeholder: "--"

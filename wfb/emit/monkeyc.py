@@ -575,6 +575,64 @@ def static_plan(resolved: ResolvedFace) -> StaticPlan | None:
     return StaticPlan(groups=groups, members=members, modes=modes)
 
 
+def _antialias_default(resolved: ResolvedFace) -> bool | None:
+    """The face-wide `antialias:` default, or `None` when the feature is unused.
+
+    `Element.resolved_antialias` already folds every inheritance step (face ->
+    group -> element) into one per-element boolean (`wfb.ir.Builder.
+    _resolve_antialias`), so "does any shape/progress actually draw
+    anti-aliased" is exactly "does any PlacedShape/PlacedProgress have
+    `resolved_antialias == True`" -- no separate walk of the face default and
+    the override tree is needed here.
+
+    `None` is the R3 gate: a design that never turns this on for a `shape` or
+    `progress` element -- whether because the face default is `false` and
+    nothing overrides it, or because the face default is `true` and every
+    primitive-drawing element overrides it back to `false` -- must generate
+    exactly the code it did before this feature existed.  Returning `None`
+    rather than `False` here is what lets every call site below skip emitting
+    anything at all, instead of dutifully emitting `applyAntiAlias(dc, false)`
+    calls that would be legal but would move every existing golden file for no
+    behavioural change.
+    """
+    used = any(
+        isinstance(placed, (PlacedShape, PlacedProgress)) and placed.element.resolved_antialias
+        for placed in resolved.items
+    )
+    return resolved.face.antialias if used else None
+
+
+def _emit_antialias_helper(w: Writer) -> None:
+    """`applyAntiAlias` -- the guarded `Dc.setAntiAlias` call.
+
+    `Dc.setAntiAlias` is API 3.2.0 and present on only 113 of 164 devices;
+    `doc/docs/Core_Topics/Graphics.html` gives this exact `has` idiom for it.
+    A build-time gate is not an option: `wfb/emit/project.py` generates one
+    view shared across every target device, so the decision cannot become a
+    per-device constant -- the call has to type-check under `-l 3` even on a
+    device whose `api.debug.xml` lacks the symbol.
+
+    Deliberately **not** named `setAntiAlias`: a same-named private method on
+    the view shadows `Dc`'s own, so `:setAntiAlias` resolves to this class's
+    symbol instead and `monkeyc` warns about it on every target --
+    `docs/research/probes/antialias/README.md` 3 measured this directly
+    before this name was chosen.
+    """
+    w.doc(
+        "Turn primitive anti-aliasing on or off, where the device supports it.\n"
+        "\n"
+        "Guarded rather than called directly: `Dc.setAntiAlias` is absent on "
+        "roughly a\n"
+        "third of Connect IQ devices, and this view's generated code has to "
+        "type-check\n"
+        "on every target regardless of which one actually has the symbol."
+    )
+    with w.block("private function applyAntiAlias(dc as Dc, on as Boolean) as Void"):
+        with w.block("if (dc has :setAntiAlias)"):
+            w.line("dc.setAntiAlias(on);")
+    w.blank()
+
+
 def emit_view(resolved: ResolvedFace) -> SourceFile:
     face, device = resolved.face, resolved.device
     plan = ReadPlan(resolved)
@@ -602,6 +660,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     # slide has to know (research 07 3).
     sleep_flag = always_on or bool(animated)
     static = static_plan(resolved)
+    antialias_default = _antialias_default(resolved)
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
         _emit_static_field(w, static)
@@ -611,22 +670,24 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
             w.line("private var _sleeping as Boolean = false;")
             w.blank()
         _emit_initialize(w, face, rings)
+        if antialias_default is not None:
+            _emit_antialias_helper(w)
         _emit_on_layout(w, resolved, plan, static)
-        _emit_on_update(w, resolved, plan, always_on, static)
+        _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
         if resolved.in_mode("low_power") and device.supports_partial_update:
-            _emit_on_partial_update(w, resolved, plan)
+            _emit_on_partial_update(w, resolved, plan, antialias_default)
         _emit_sleep_hooks(w, resolved, always_on, sleep_flag)
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
         for placed in rings:
             _emit_carousel_step(w, placed, sleep_flag)
         if static is not None:
-            _emit_static_methods(w, static)
+            _emit_static_methods(w, static, antialias_default)
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
             w.blank()
-            _emit_element_method(w, resolved, placed, plan)
+            _emit_element_method(w, resolved, placed, plan, antialias_default)
     return SourceFile(f"source/{face.entry}View.mc", w.render())
 
 
@@ -734,7 +795,11 @@ def _emit_static_allocation(w: Writer, static: "StaticPlan") -> None:
 
     No `:palette`: a reduced palette cannot take an anti-aliased font, which the
     Analog sample hit and worked around with a second buffer.  A static group may
-    hold text, so it gets the system colours.
+    hold text, so it gets the system colours.  The same absence of `:palette` is
+    also what makes `applyAntiAlias` legal on this buffer's own Dc --
+    `Dc.setAntiAlias` is documented unsupported only for a palette'd
+    `BufferedBitmap` -- so a static anti-aliased shape or progress element needs
+    no special case in `renderStatic`.
     """
     w.comment("the static content, painted once into a buffer in the graphics pool")
     with w.block("if (Graphics has :createBufferedBitmap)"):
@@ -758,7 +823,8 @@ def _emit_static_blit(w: Writer, static: "StaticPlan") -> None:
         w.line(f"{STATIC_RENDER}(dc);")
 
 
-def _emit_static_methods(w: Writer, static: "StaticPlan") -> None:
+def _emit_static_methods(w: Writer, static: "StaticPlan",
+                         antialias_default: bool | None = None) -> None:
     """`renderStatic`, plus one `drawStatic<Id>` per static *group*.
 
     `renderStatic` takes a Dc rather than the buffer, and is called with the
@@ -771,6 +837,14 @@ def _emit_static_methods(w: Writer, static: "StaticPlan") -> None:
     order, clearing on the *screen* path too is both safe (nothing has been drawn
     yet this frame) and what makes the two paths identical.  Black is also what
     `wfb preview` starts from, so the host renderer and the device agree.
+
+    Anti-aliasing is reset here too, for the same one-method-two-call-sites
+    reason: `_emit_static_allocation` allocates the buffer without `:palette`
+    (`Dc.setAntiAlias` is documented unsupported only for a palette'd
+    `BufferedBitmap`), so the call is legal on both the buffer's Dc and the
+    screen's, and putting the reset inside `renderStatic` itself, rather than
+    at each of its two call sites, is what keeps that true without saying it
+    twice.
     """
     w.blank()
     w.doc("Everything that never changes, drawn once.\n"
@@ -783,6 +857,8 @@ def _emit_static_methods(w: Writer, static: "StaticPlan") -> None:
         w.comment("thing drawn in the frame either way, so start from a known ground")
         w.line("dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);")
         w.line("dc.clear();")
+        if antialias_default is not None:
+            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         for root, _members in static.groups:
             w.line(f"{static.method(root)}(dc);")
     for root, members in static.groups:
@@ -856,7 +932,8 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
 
 
 def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_on: bool,
-                    static: "StaticPlan | None" = None) -> None:
+                    static: "StaticPlan | None" = None,
+                    antialias_default: bool | None = None) -> None:
     w.doc(
         "Draw the full face.\n"
         "\n"
@@ -870,10 +947,17 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_
             "onLayout -- or, on a device that could not allocate one, drawn straight\n"
             "onto the screen instead."
             if static is not None else ""
+        ) + (
+            "  Anti-aliasing is reset to the face default here, once, so it covers\n"
+            "both the asleep and awake branches below; an element that overrides the\n"
+            "default sets and restores it around its own drawing."
+            if antialias_default is not None else ""
         )
     )
     with w.block("function onUpdate(dc as Dc) as Void"):
         w.line("dc.clearClip();")
+        if antialias_default is not None:
+            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         if always_on:
             with w.block("if (_sleeping)"):
                 _emit_mode_body(w, resolved, plan, "always_on", static)
@@ -902,7 +986,8 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
         w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
 
 
-def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
+def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
+                            antialias_default: bool | None = None) -> None:
     clip = resolved.clip_for("low_power")
     fraction = 100.0 * clip.area / (resolved.device.width * resolved.device.height) if clip else 0
     w.doc(
@@ -921,6 +1006,8 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan")
         w.line(
             "           Layout.LOW_POWER_CLIP_WIDTH, Layout.LOW_POWER_CLIP_HEIGHT);"
         )
+        if antialias_default is not None:
+            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         plan.emit_reads(w, "low_power")
         w.blank()
         for placed in resolved.items:
@@ -994,7 +1081,8 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
 # one method per element
 
 
-def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadPlan") -> None:
+def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadPlan",
+                         antialias_default: bool | None = None) -> None:
     element = placed.element
     w.doc(_method_doc(placed))
     signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
@@ -1034,6 +1122,24 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             other_guards = plan.guards(placed)
             if other_guards:
                 _emit_guard(w, placed, other_guards)
+        # Anti-aliasing only ever varies for a shape or progress element -- text
+        # and icons draw glyphs, whose anti-aliasing is a font-resource matter
+        # (baked at build time, see wfb.icons/wfb.fonts), not a per-frame Dc
+        # call, so they emit no setAntiAlias-related code at all.  The toggle
+        # brackets only the actual drawing call below, deliberately *after*
+        # every guard above: a guard can return early, and doing this any
+        # earlier would leave the Dc's anti-alias state changed on a frame
+        # that drew nothing, breaking the invariant every other draw method
+        # relies on -- that Dc is already at the face default by the time its
+        # own drawing runs.
+        overrides_antialias = (
+            antialias_default is not None
+            and isinstance(placed, (PlacedShape, PlacedProgress))
+            and element.resolved_antialias != antialias_default
+        )
+        if overrides_antialias:
+            w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
+            w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
         if isinstance(placed, PlacedShape):
             _emit_shape(w, placed)
         elif isinstance(placed, PlacedText):
@@ -1044,6 +1150,8 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             _emit_icon(w, placed)
         elif isinstance(placed, PlacedCarousel):
             _emit_carousel(w, placed, plan)
+        if overrides_antialias:
+            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 
 
 def _method_doc(placed) -> str:
@@ -1848,6 +1956,10 @@ def _color(expression: Expression | None) -> str:
     if expression is None:
         return "Graphics.COLOR_WHITE"
     return expression.code
+
+
+def _mc_bool(value: bool) -> str:
+    return "true" if value else "false"
 
 
 def _loaded_fonts(resolved: ResolvedFace) -> list[str]:

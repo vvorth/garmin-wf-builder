@@ -32,7 +32,7 @@
       "uniqueItems": true
     },
     "antialias": {
-      "description": "Face-wide default for anti-aliasing. Defaults to false, matching the platform's own default -- a crisp 1-bit bitmap font, and (once a shape or progress element actually draws with it) non-anti-aliased Dc primitives. Every font, icon and primitive-drawing element inherits this unless it declares its own 'antialias:' (a group's own value becomes the default for its subtree in turn, so only the nearest enclosing declaration matters). Anti-aliasing a font costs runtime RAM the resource compiler does not report anywhere the build can measure (SDK: Resources, Fonts) -- turn it on only where the softer edge is worth it.",
+      "description": "Face-wide default for anti-aliasing. Defaults to false, matching the platform's own default -- a crisp 1-bit bitmap font, and non-anti-aliased Dc primitives (a guarded 'dc has :setAntiAlias' call around a shape/progress element's own drawing). Every font, icon and primitive-drawing element inherits this unless it declares its own 'antialias:' (a group's own value becomes the default for its subtree in turn, so only the nearest enclosing declaration matters). Anti-aliasing a font costs runtime RAM the resource compiler does not report anywhere the build can measure (SDK: Resources, Fonts); anti-aliasing a shape/progress element on a 64-colour panel (every currently supported target) dithers its soft edge, reported by the suppressible 'antialias-dither' lint -- turn it on only where the softer edge is worth either cost.",
       "type": "boolean",
       "default": false
     },

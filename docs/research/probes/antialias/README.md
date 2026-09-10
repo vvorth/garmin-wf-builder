@@ -73,14 +73,21 @@ The `BufferedBitmap` restriction does not bite: `wfb/emit/monkeyc.py`'s
 | `antialias: false` | 1,321 B, **2** grey levels | 96,108 B | 833 B data, 1,317 B code |
 | `antialias: true` | 4,936 B, **256** grey levels | 96,780 B | 833 B data, 1,317 B code |
 
-**+672 B in the `.prg` for eleven glyphs at 68 px.**  The resource compiler is
-genuinely consuming the grey ramp, not thresholding it away.
+The resource compiler is genuinely consuming the grey ramp, not thresholding
+it away -- which is the point this table proves, and it stands.
 
 Note which number moved.  `--build-stats` is **unchanged** -- font pixels are a
 resource, not foreground data, so the cost is invisible to the memory check
 `wfb build` reports and shows up only in the `.prg`.  Any claim about what
 anti-aliasing costs has to be made against file size, and the *runtime* RAM the
 Resources page warns about is measured by neither and stays unquantified here.
+
+> **The `.prg` figures in this section are contaminated and the exact delta
+> here (+672 B) is wrong.**  The two builds were made at output paths of
+> different lengths, and a `.prg` embeds the path it was built at -- see §6.
+> The corrected figure is **+656 B**, and §6 carries the controlled table for
+> both halves of the feature.  Left visible rather than silently rewritten,
+> because the mistake is the transferable part.
 
 `wfb/fonts/bmfont.py` needed nothing: `_rasterise` already skips its 1-bit
 threshold when `antialias` is set, and supersamples at 16x either way.
@@ -121,14 +128,13 @@ what §§1-3 did not already answer, from the session that built the
 rejection, and threading it through `wfb.icons.font_key`) -- everything that
 touches `Dc.setAntiAlias` directly is a separate, later task and is not here.
 
-**A single icon's cost, measured, not just a font's.**  §2 measured an
-eleven-glyph *font* at 68px (+672 B).  One anti-aliased *icon* at 14%r costs
-**+48 B**, identically on `fenix8solar47mm`, `fenix8solar51mm` and `fr955` --
-smaller than the font case because it is one glyph's grey ramp rather than
-eleven's, and identical across targets because the three screens differ only
-in resolved pixel size, not in how a grey ramp compresses.  `--build-stats`
-does not move for the icon case either, for the same reason it did not for
-the font: an icon's baked sheet is a resource, exactly like a declared font's.
+**A single icon's cost, measured, not just a font's.**  An anti-aliased icon
+is cheaper than an eleven-glyph font but not nearly as cheap as this section
+originally claimed: it first reported **+48 B**, taken from two builds at
+output paths of different lengths, and the controlled figure in §6 is
+**+256 B** for the 30px `steps` icon.  `--build-stats` does not move for the
+icon case either, for the same reason it did not for the font: an icon's
+baked sheet is a resource, exactly like a declared font's.
 
 **A combined design -- a declared font, a static icon, a dynamic
 (`icon_for:`) icon and a carousel, all anti-aliased at once, all three
@@ -183,3 +189,148 @@ both elements and asserts the two calls return the same string, alongside
 asserting the *fixed* `icon_font_specs` produces two distinct resources for
 the same design -- so the regression is pinned from both directions without
 needing to check out an earlier commit to reproduce it.
+
+## 5. Task B: wiring `Dc.setAntiAlias` into the primitive side
+
+Built on top of §§1-4. This is the piece §3's helper shape and §4's
+`resolved_antialias` were both waiting for -- what actually calls
+`applyAntiAlias` and where.
+
+**The invariant that makes "set at the start, restore at the end" safe.**
+`_emit_element_method` (`wfb/emit/monkeyc.py`) emits every guard -- `visible:`,
+the value's `when_absent`, a nullable colour/track_color/max -- *before* the
+call to `_emit_shape`/`_emit_progress`, and every one of them can `return`
+early. Wrapping the *whole* generated method in a set/restore pair, as the
+task's own wording ("at the start of that element's draw method... at the
+end") reads most literally, would leave the Dc's anti-alias state changed on
+a frame where a guard fired and nothing was actually drawn -- breaking the
+invariant every other element's draw method silently relies on, that Dc is
+already at the face default by the time its own drawing runs. Confirmed by
+inspection that no guard sits *inside* `_emit_shape`/`_emit_progress`
+themselves (a `progress` arc's internal early `return` happens **after** it
+has already drawn both the track and the fill, not before), so wrapping only
+the call site -- after every guard, immediately around the actual drawing --
+is equivalent to "start/end of the drawing" and never leaves a dangling
+override behind a guard's `return`. This is why `docs/format.md`'s section on
+this says "sets and restores... around its own drawing", not "around its own
+method".
+
+**Reported cost, measured, not estimated -- and it is the opposite shape from
+the font/icon side.** A declared font or icon's anti-aliasing is baked at
+build time into a resource, so it moves the `.prg` and never `--build-stats`
+(§§2/4 above). The primitive side is emitted *code*, so it is `--build-stats`
+that moves, and the `.prg` moves with it for the same reason. On a controlled
+two-element design (a filled rectangle, a stroked circle), identically on all
+three targets:
+
+| | `--build-stats` |
+|---|---|
+| off (no `antialias:` anywhere) | 460 B data, 260 B code |
+| face default `true`, no element overrides | 469 B data, 299 B code |
+| + one element overriding back to `false` | 469 B data, 323 B code |
+
+So: the guarded helper plus one reset call in `onUpdate` is **+9 B data, +39 B
+code**, and each element that overrides the face default adds a further
+**+24 B code, +0 B data** for the two extra calls that set and restore around
+its own drawing. Identical across all three targets, which is expected: this
+is pure generated code, not a per-device resource, so nothing about screen
+size or `deviceFamily` enters into it.
+
+The `.prg` column this table originally carried (+192 B, then +176 B more) has
+been dropped rather than corrected: those two builds were at output paths of
+different lengths (§6), and `--build-stats` -- which is both deterministic and
+the figure that actually counts against the 128 KB budget -- says everything
+this side of the feature needs said.  §6 carries a controlled `.prg` figure
+for the primitive side against a real example.
+
+**Neither the visual softening nor any CPU/battery cost is measured, and this
+probe does not claim otherwise.** There is no simulator (finding 11,
+`CLAUDE.md`) or device in this container, so "does the edge actually look
+softer" and "is a `has`-guarded call plus a state toggle per element
+meaningfully slower per frame" are both open questions this repository cannot
+answer from inside the sandbox. What is confirmed is only what real `monkeyc`
+confirms: it compiles, and it is silent.
+
+**`renderStatic`'s reset needed no special case, confirmed rather than
+assumed.** `_emit_static_allocation` already allocates the buffer without
+`:palette` (a reduced palette cannot take an anti-aliased font -- the reason
+predates this task). `Dc.setAntiAlias`'s own doc entry says it is "not
+supported for a BufferedBitmap that has a palette" -- read directly rather
+than inferred -- so the same `applyAntiAlias(dc, ...)` call is legal on both
+the buffer's own Dc (from `onLayout`) and the screen's (from `onUpdate` when
+there is no buffer), and putting the reset inside `renderStatic` itself, once,
+is what keeps that true without a second copy of the reasoning at each call
+site. Verified with a real design whose *entire* static subtree draws
+anti-aliased (`tests/test_antialias_primitives.py`'s `DESIGN_STATIC`
+scenario): `BUILD SUCCESSFUL`, warning-free, on all three targets.
+
+**The suppression target for `antialias-dither` is "first user in draw
+order", and getting this wrong produces a real false negative, not a
+crash.** Early in building the R4 lint check, a scratch design suppressed the
+warning on the *wrong* element (the one an author might reach for first,
+rather than the one `resolved.items` lists first) and the warning fired
+anyway -- correctly, per the documented contract, but a reminder that
+`check_graphics_pool`'s "report against the first representative, in draw
+order" shape is a real contract an author has to follow, not an arbitrary
+implementation detail. `docs/format.md` and `docs/limitations.md` both say
+"first element, in draw order" explicitly for this reason.
+
+
+## 6. A `.prg`'s size depends on the path it was built at
+
+Found while checking §§4-5's reported figures, and it invalidates several of
+them.  **The same generated source, built to two output directories whose
+names differ in length, produces `.prg` files 80 B apart** -- verified with
+`diff -r` reporting the `source/` trees byte-identical:
+
+```
+$ wfb build examples/slice/face.yaml --output …/p_short
+$ wfb build examples/slice/face.yaml --output …/p_muchlonger_dirname
+96,076 B   vs   96,156 B          # identical source/
+```
+
+A `.prg` embeds the paths of the files it was built from, so the build
+directory's own name is inside it.  Repeated `monkeyc` invocations on one
+fixed directory *are* byte-stable (eight runs, all 96,044 B), so this is not
+non-determinism -- it is a dependency on an input nobody thinks of as one.
+
+**Consequence for methodology, and it is the reusable part: a `.prg` size
+comparison is only valid between builds whose output paths are the same
+length.**  Prefer `--build-stats`, which has no such dependency and is also
+the number that counts against the 128 KB budget -- but note it moves only for
+emitted code, so the font/icon half of this feature has no honest instrument
+except file size, taken carefully.
+
+### The controlled numbers
+
+All output paths held to equal length (`…/m/o_d1`, `…/m/o_d2`, `…/m/o_d3`,
+`…/m/o_p1`, `…/m/o_p2`).  `fenix8solar47mm`; the other two targets move by the
+same amounts.
+
+**Fonts and icons**, on `examples/slice/`:
+
+| | `.prg` | vs. previous | `--build-stats` |
+|---|---|---|---|
+| no `antialias:` anywhere | 96,076 B | — | 833 B data, 1,317 B code |
+| + the eleven-glyph 68px `clock` font | 96,732 B | **+656 B** | *unchanged* |
+| + the 30px `steps` icon | 96,988 B | **+256 B** | *unchanged* |
+
+**Primitives**, on `examples/antialias/` -- the face default on, with
+`background` overriding it back to `false`, against the same design with the
+feature fully off:
+
+| | `--build-stats` | total | `.prg` |
+|---|---|---|---|
+| no primitive anti-aliasing | 833 B data, 1,317 B code | 2,150 B | 96,876 B |
+| face default on, one override | 842 B data, 1,380 B code | 2,222 B | 97,148 B |
+
+**+72 B against the 128 KB budget, +272 B in the `.prg`**, decomposing exactly
+as §5 says (+9 data / +39 code for the helper and its reset, +24 code for the
+one override).  §5's decomposition was right; only its `.prg` column was not.
+
+The R3 gate was re-checked here rather than taken on trust: the "off" row is
+`examples/antialias/` with the *face default still `true`* and every
+`shape`/`progress` element overriding back to `false`, and its generated view
+contains zero occurrences of `AntiAlias` -- so the emitter really does skip
+the whole feature, rather than emitting `applyAntiAlias(dc, false)` calls that
+would be legal and would move every golden file.
