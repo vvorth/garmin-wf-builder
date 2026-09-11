@@ -22,15 +22,16 @@ from dataclasses import dataclass
 from .. import __version__, catalog, complications, expr, formatting, icons, series
 from ..catalog import READERS, Type
 from ..ir import (
-    CONFIG_SYMBOL, Carousel, Expression, Face, Graph, IconElement, Progress, Shape, Text,
-    carousel_index_field, carousel_slide_done_method, carousel_slide_field,
-    carousel_step_method, config_field, element_const_prefix, element_method_name,
+    CONFIG_SYMBOL, Carousel, ComplicationSlot, Expression, Face, Graph, IconElement,
+    Progress, Shape, Text, carousel_index_field, carousel_slide_done_method,
+    carousel_slide_field, carousel_step_method, complication_slot_icon_method,
+    config_data_ids, config_field, element_const_prefix, element_method_name,
     font_resource_id, graph_built_field, graph_max_field, graph_min_field,
     graph_rebuild_method, graph_series_field, static_group_method,
 )
 from ..layout import (
-    PlacedCarousel, PlacedGraph, PlacedIcon, PlacedProgress, PlacedShape, PlacedText,
-    ResolvedFace,
+    COMPLICATION_SLOT_ICON_GAP, PlacedCarousel, PlacedComplicationSlot, PlacedGraph,
+    PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
 from ..series import Acquisition
 from ..units import IntBox
@@ -144,11 +145,24 @@ def emit_icon_glyphs(face: Face) -> SourceFile:
 
     Scoped to the names a dynamic icon could actually produce in this design
     -- every catalogue entry `icon_for:`'s underlying source table
-    (`wfb.icons.GARMIN_WEATHER_CONDITION_ICON`) can select -- not the whole
-    catalogue, so a design with one `icon_for:` element does not bake a
-    lookup table for icons it never draws dynamically.
+    (`wfb.icons.GARMIN_WEATHER_CONDITION_ICON`) can select, plus, for every
+    `complication_slot` with `icon_size:`, every catalogue name that slot's
+    declared choices can resolve to (`wfb.icons.COMPLICATION_ICON`) -- not
+    the whole catalogue, so a design using only one of the two dynamic-icon
+    features does not bake a lookup table for the other's names too.
     """
-    names = sorted(set(icons.GARMIN_WEATHER_CONDITION_ICON.values()))
+    names: set[str] = set()
+    if any(isinstance(e, IconElement) and e.is_dynamic for e in face.walk()):
+        names |= set(icons.GARMIN_WEATHER_CONDITION_ICON.values())
+    for element in face.walk():
+        if not (isinstance(element, ComplicationSlot) and element.icon_size is not None):
+            continue
+        slot = face.config_data.get(element.slot)
+        if slot is None or slot.allow_any:
+            continue
+        names |= {icons.COMPLICATION_ICON[name] for name in slot.choices
+                 if name in icons.COMPLICATION_ICON}
+    names = sorted(names)
     w = Writer()
     w.doc(header(face)).blank()
     w.lines("import Toybox.Lang;").blank()
@@ -584,6 +598,10 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         elif placed.element.style == "bars":
             out.append((f"{prefix}_BAR_WIDTH", placed.bar_width,
                         "centred in each slot"))
+    elif isinstance(placed, PlacedComplicationSlot):
+        out.append((f"{prefix}_CX", placed.anchor_point[0],
+                    "the icon+reading pair is centred here at runtime"))
+        out.append((f"{prefix}_CY", placed.anchor_point[1], ""))
     return out
 
 
@@ -740,6 +758,12 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         # first; `WatchFaceConfig.Settings`/`.getSettings` (applyConfig)
         # need the second.
         config_modules = {"Toybox.Application", "Toybox.Application.WatchFaceConfig"}
+    if face.config_data:
+        # `Complications.Id`/`Complications.COMPLICATION_TYPE_*` -- needed
+        # even when no ordinary `complication.*` source is bound, which is
+        # why this is not folded into `plan.modules` (derived from bound
+        # sources only).
+        config_modules.add("Toybox.Complications")
 
     w = Writer()
     w.doc(header(face, f"Device:    {device.id}")).blank()
@@ -789,6 +813,9 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
             _emit_carousel_step(w, placed, sleep_flag)
         for placed in graphs:
             _emit_graph_rebuild(w, placed)
+        for placed in resolved.items:
+            if isinstance(placed, PlacedComplicationSlot) and placed.icon_font_key is not None:
+                _emit_complication_slot_icon_method(w, resolved, placed)
         if static is not None:
             _emit_static_methods(w, static, antialias_default, needs_repaint=face.has_config)
         for placed in resolved.items:
@@ -1010,24 +1037,26 @@ def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
 
 
 def _emit_config_fields(w: Writer, face: Face) -> None:
-    """One field per declared `config:` colour entry, plus one field per role
-    of a declared `config: colors:` (Styles) axis -- each initialised to its
-    compiled-in default.
+    """One field per declared `config:` colour entry, one per role of a
+    declared `config: colors:` (Styles) axis, and one `Complications.Id` per
+    declared `config: data:` slot -- each initialised to its compiled-in
+    default.
 
     The compiled-in default is not a fallback path -- it is *the* path: a
     device with no native editor (fr955) never calls `applyConfig` at all
     and simply keeps running with this.  A `config: colors:` role starts at
-    the *default scheme's* colour for that role, the same "default is the
-    path, not a fallback" reasoning applied to several colours moving
-    together instead of one.
+    the *default scheme's* colour for that role, and a `config: data:` slot
+    starts at its own declared `default:` type, the same "default is the
+    path, not a fallback" reasoning applied to a colour and a complication
+    type alike.
     """
     if not face.has_config:
         return
-    w.doc("Colours the wearer can change in the native on-device editor "
-          "(fēnix 8 and\n"
-          "newer only).  Each starts at its declared default, which is also "
-          "the only\n"
-          "value a device with no editor -- fr955 -- ever shows.")
+    w.doc("Colours and complications the wearer can change in the native "
+          "on-device editor\n"
+          "(fēnix 8 and newer only).  Each starts at its declared default, "
+          "which is also\n"
+          "the only value a device with no editor -- fr955 -- ever shows.")
     for name, entry in face.config.items():
         w.line(f"private var {entry.field} as Number = {entry.default.as_monkeyc()};")
     if face.config_colors is not None:
@@ -1035,6 +1064,10 @@ def _emit_config_fields(w: Writer, face: Face) -> None:
         for role, color in default_scheme.colors.items():
             field = config_field(f"colors_{role}")
             w.line(f"private var {field} as Number = {color.as_monkeyc()};")
+    for name, slot in face.config_data.items():
+        ctype = complications.TYPES[slot.default]
+        w.line(f"private var {slot.field} as Complications.Id = "
+               f"new Complications.Id(Complications.{ctype.constant});")
     w.blank()
 
 
@@ -1077,6 +1110,28 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
                 w.line(f"var {value_local} = {local}.color;")
                 with w.block(f"if ({value_local} != null)"):
                     w.line(f"{entry.field} = {value_local} as Number;")
+        if face.config_data:
+            ids = config_data_ids(face)
+            w.blank()
+            w.comment("config: data: -- each ComplicationRef names the slot it belongs")
+            w.comment("to by 'uniqueIdentifier', matching the <complication id=...> below")
+            w.line("var slots = settings.complicationSettings;")
+            with w.block("if (slots != null)"):
+                with w.block("for (var i = 0; i < slots.size(); i += 1)"):
+                    w.line("var ref = slots[i];")
+                    w.line("var unique = ref.uniqueIdentifier;")
+                    w.line("var picked = ref.complicationId;")
+                    with w.block("if (unique == null || picked == null)"):
+                        w.line("continue;")
+                    # Plain sequential `if`s rather than an `if`/`else if`
+                    # chain -- `unique` cannot equal two distinct slot ids at
+                    # once, so the two are equivalent, and independent blocks
+                    # are simpler for `Writer` to emit correctly (the same
+                    # reasoning `_emit_resolve_color_scheme` already uses).
+                    for name, slot_id in ids.items():
+                        slot = face.config_data[name]
+                        with w.block(f"if (unique == {slot_id})"):
+                            w.line(f"{slot.field} = picked;")
         if static is not None:
             w.blank()
             w.comment("a config colour may be painted into the static buffer -- repaint")
@@ -1371,6 +1426,15 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             # leaves the row, its icons and its hold zones exactly where they
             # were.  Each item's own policy is applied inside the switch below.
             _emit_carousel(w, placed, plan)
+            return
+        if isinstance(placed, PlacedComplicationSlot):
+            # Same reasoning as a carousel just above: the reading is not an
+            # element-level binding at all (it is a fresh per-frame pull off
+            # a wearer-editable `Complications.Id`), so there is nothing for
+            # `plan.guards`/`value_guards` to say about it -- `color:` is the
+            # only ordinary expression here, and `Builder._build_complication_
+            # slot` already requires it to be non-nullable.
+            _emit_complication_slot(w, resolved, placed)
             return
         value_guards = plan.value_guards(placed)
         if substitutes_value:
@@ -1751,6 +1815,148 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     w.line(f"dc.drawText(Layout.{prefix}_CX, Layout.{prefix}_CY, font,")
     w.line(f"            {glyph_expr},")
     w.line("            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);")
+
+
+def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
+                                        placed: PlacedComplicationSlot) -> None:
+    """`iconFor<Id>(t)` -- one slot's `Complications.Type` -> catalogue name
+    (via `IconGlyphs.glyph`) -> drawn glyph lookup.
+
+    A generated method rather than an inline mutable local: Monkey C locals
+    cannot be given an explicit `as String?` type ("Invalid explicit typing
+    of a local variable", from a real build), so there is no way to declare
+    one that starts `null` and is later assigned a `String`.  Returning
+    through a function whose own signature declares `String?` sidesteps that
+    -- the call site's local infers its type from the call expression
+    instead.  Verified buildable under `-l 3`
+    (docs/research/probes/config-axes/ProbeView.mc's `iconFor`).
+    """
+    element = placed.element
+    face = resolved.face
+    slot = face.config_data[element.slot]
+    mapped = {name: icons.COMPLICATION_ICON[name] for name in slot.choices
+             if name in icons.COMPLICATION_ICON}
+    w.blank()
+    w.doc(f"`{element.id}`'s icon, chosen from the wearer's picked type alone -- not\n"
+          "from the pulled value, so it still shows even on a frame the reading itself\n"
+          "could not be pulled.")
+    method = complication_slot_icon_method(element.id)
+    with w.block(f"private function {method}(t as Complications.Type) as String?"):
+        with w.block("switch (t)"):
+            for name in slot.choices:
+                icon_name = mapped.get(name)
+                if icon_name is None:
+                    continue
+                ctype = complications.TYPES[name]
+                w.line(f'case Complications.{ctype.constant}: return "{icon_name}";')
+            w.line("default: return null;")
+    w.blank()
+    # `IconGlyphs.glyph` turns the catalogue name into the actual character --
+    # see `emit_icon_glyphs`'s own docstring for why a name, not a raw
+    # character, is what this method should have produced in the first
+    # place, matching the weather-icon split.
+
+
+def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot) -> None:
+    """A native Data-axis slot: pull the wearer's chosen complication, choose
+    an icon from its *type* alone, then draw the two as one centred pair.
+
+    Everything here is a plain per-frame pull (`WfbComplications.valueOf`),
+    exactly like an ordinary `complication.<name>` catalogue source -- the
+    compiled field just holds a `Complications.Id` the *wearer* can repoint,
+    instead of a build-time-fixed one (CLAUDE.md: "complications are pulled
+    not cached", docs/research/probes/complication-pull/).
+
+    The icon is chosen from `chosenId.getType()`, not from the pulled value,
+    so it still shows even on a frame the reading itself could not be pulled
+    -- verified buildable under `-l 3`
+    (docs/research/probes/config-axes/ProbeView.mc's `iconFor`).  The icon
+    and the reading are centred on this element's own anchor as one pair, via
+    `Dc.getTextWidthInPixels` -- the actual text is not known until the value
+    is pulled, so unlike every other element this cannot be precomputed at
+    build time (ADR 0004's one deliberate exception, and for exactly that
+    reason).
+    """
+    element = placed.element
+    prefix = _const_prefix(placed.id)
+    face = resolved.face
+    slot = face.config_data[element.slot]
+    field = config_field(f"data_{element.slot}")
+
+    w.comment(f"slot: config.data.{element.slot}")
+    w.line(f"var chosenId = {field};")
+
+    icon_font_expr = None
+    if placed.icon_font_key is not None:
+        w.line(f"var iconFont = _{_field(placed.icon_font_key)};")
+        w.comment("the icon is chosen from the wearer's picked *type*, so it still shows")
+        w.comment("even on a frame the reading itself could not be pulled -- a name")
+        w.comment("(WfbComplications-style split), then IconGlyphs.glyph turns it into")
+        w.comment("the actual character, exactly like a dynamic weather icon does")
+        w.line(f"var iconName = {complication_slot_icon_method(element.id)}(chosenId.getType());")
+        w.line("var iconGlyph = (iconName != null) ? IconGlyphs.glyph(iconName) : null;")
+        w.blank()
+        icon_font_expr = "iconFont"
+
+    if placed.font_is_custom:
+        w.line(f"var textFont = _{_field(placed.font_reference)};")
+        with w.block("if (textFont == null)"):
+            w.line("return;  // the font resource failed to load")
+        font_expr = "textFont"
+    else:
+        font_expr = f"Graphics.{placed.font_reference}"
+    w.blank()
+
+    def _emit_absent() -> None:
+        if element.when_absent == "placeholder":
+            w.comment("when_absent: placeholder")
+            w.line(f'text = "{element.placeholder}";')
+        else:
+            w.comment("when_absent: hide -- the reading blanks, the icon (if any) stays")
+
+    w.line('var text = "";')
+    w.line("var pulled = WfbComplications.valueOf(chosenId);")
+    with w.block("if (pulled == null)"):
+        _emit_absent()
+    with w.block("else"):
+        # `pulled.value` is read into its own local, and narrowed through
+        # *that* local rather than re-read off `pulled` -- monkeyc cannot
+        # narrow a null check across a repeated field-access expression
+        # (CLAUDE.md), only across a local variable, and `pulled` itself
+        # stays narrowed for the whole of this `else` (it never leaves that
+        # local's own guarded scope), which is what still lets `pulled.
+        # shortLabel`/`.longLabel`/`.unit` below be read unconditionally.
+        w.line("var value = pulled.value;")
+        with w.block("if (value == null)"):
+            _emit_absent()
+        with w.block("else"):
+            if element.label in ("short", "long"):
+                attr = "shortLabel" if element.label == "short" else "longLabel"
+                w.line(f"var label = pulled.{attr};")
+                with w.block("if (label != null)"):
+                    w.line('text = label + " ";')
+            w.line("text += value.toString();")
+            if element.unit:
+                w.line("text += WfbComplications.unitSuffix(pulled.unit);")
+    w.blank()
+
+    w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
+    w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
+    w.line("var iconWidth = 0;")
+    if icon_font_expr is not None:
+        with w.block(f"if (iconGlyph != null && {icon_font_expr} != null)"):
+            w.line(
+                f"iconWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr}) + "
+                f"{COMPLICATION_SLOT_ICON_GAP};"
+            )
+    w.line("var totalWidth = iconWidth + textWidth;")
+    w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
+    if icon_font_expr is not None:
+        with w.block(f"if (iconGlyph != null && {icon_font_expr} != null)"):
+            w.line(f"dc.drawText(startX, Layout.{prefix}_CY, {icon_font_expr}, iconGlyph,")
+            w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
+    w.line(f"dc.drawText(startX + iconWidth, Layout.{prefix}_CY, {font_expr}, text,")
+    w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
 
 
 def _emit_carousel(w: Writer, placed: PlacedCarousel, plan: "ReadPlan") -> None:
@@ -2403,6 +2609,11 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
                     out.append(item.font_key)
             if placed.value_font_is_custom and placed.value_font_reference not in out:
                 out.append(placed.value_font_reference)
+        elif isinstance(placed, PlacedComplicationSlot):
+            if placed.font_is_custom and placed.font_reference not in out:
+                out.append(placed.font_reference)
+            if placed.icon_font_key is not None and placed.icon_font_key not in out:
+                out.append(placed.icon_font_key)
     return out
 
 
@@ -2429,6 +2640,8 @@ def _describe(placed) -> str:
                 f"{element.slots} shown at a time")
     if isinstance(element, Graph):
         return f"{_article(f'{element.style} graph')} of {element.series}"
+    if isinstance(element, ComplicationSlot):
+        return f"a native Data-axis slot (config.data.{element.slot})"
     return element.kind
 
 

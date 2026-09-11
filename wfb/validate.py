@@ -90,7 +90,9 @@ PROGRESS_STYLE_KEYS = {
 
 
 #: The element types this format version understands.
-ELEMENT_TYPES = ("group", "shape", "text", "progress", "icon", "carousel", "graph")
+ELEMENT_TYPES = (
+    "group", "shape", "text", "progress", "icon", "carousel", "graph", "complication_slot",
+)
 
 #: Names authors reach for that belong to a discriminated pair, or to another
 #: format entirely.  Mapping them beats listing the five valid types and leaving
@@ -124,10 +126,9 @@ ELEMENT_ALIASES: dict[str, str] = {
 ELEMENT_NOT_YET = {
     "image": "images are not implemented yet",
     "bitmap": "images are not implemented yet",
-    "complication_slot": "complication slots are not implemented yet -- for a "
-                         "wearer-selectable row of readings, see `type: carousel`",
-    "complication": "complication slots are not implemented yet -- for a "
-                    "wearer-selectable row of readings, see `type: carousel`",
+    # `complication_slot` shipped (docs/research/09-data-library-and-config-axes.md
+    # §4) -- it is a real element type now, listed in `ELEMENT_TYPES` below, not
+    # an alias here any more.
     "raw": "the `raw` escape hatch is not implemented yet (ADR 0007)",
     "analog_clock": "analog hands are not implemented yet -- build them from `shape: line`",
 }

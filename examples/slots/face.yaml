@@ -1,0 +1,130 @@
+# `config: data:` -- the native editor's **Data axis**: named complication
+# slots the wearer re-points at a different Garmin metric, on the watch, with
+# the editor's own instant preview (docs/research/09-data-library-and-config-
+# axes.md §4). `type: complication_slot` is the element that draws one.
+#
+# Two slots below, deliberately different shapes of the feature:
+#
+# * `top_reading` has an explicit `choices:` list (steps, heart rate,
+#   calories) and `icon_size:`, so its icon is chosen **on-device** from
+#   `Complications.Id.getType()` -- a generated `switch` maps the wearer's
+#   pick to a catalogue name (`wfb.icons.COMPLICATION_ICON`), and
+#   `IconGlyphs.glyph()` turns that name into the drawn character, the same
+#   "which name, then which glyph" split a dynamic weather icon already uses.
+#   `label: short` and `unit: true` also draw whatever `Complication.
+#   shortLabel`/`.unit` the device supplies alongside the value.
+# * `bottom_reading` uses `choices: any` -- the editor's own unrestricted
+#   complication picker -- which is exactly why it may **not** declare
+#   `icon_size:`: with `allowAny` the wearer can pick a Connect IQ
+#   complication this compiler has never heard of, so the set of icons such a
+#   slot could need is unbounded and nothing can be baked ahead of time. It
+#   still draws its reading, plain, with no icon.
+#
+# Neither slot declares `format:` -- it is a schema-and-IR error on this
+# element, on purpose: `Complications.Complication.value` is a `String or
+# Number or Float or Long or Double` union whose concrete type genuinely
+# varies by which choice the wearer makes, so a format string written for one
+# choice would be silently wrong for another. Both slots render
+# `value.toString()` and fall back to `placeholder:` while the platform has
+# not (yet) delivered a reading -- `when_absent: hide` (the default) would
+# instead blank just the *reading* and leave the icon drawn, which is what a
+# `complication_slot` does differently from every other element's `hide`.
+#
+# `fr955` has no native editor at all (CLAUDE.md constraint 6: it reports
+# ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still lacks
+# it) -- it simply keeps both slots' compiled-in `default:` forever, exactly
+# like every other `config:` axis. The suppressible `config-unsupported`
+# warning is accepted explicitly below rather than left to be discovered on
+# the wrist.
+#
+# What is verified: this design compiles warning-free, through the real
+# `monkeyc`, on all three targets -- including the generated manifest's
+# `minApiLevel="4.2.0"` and `<iq:uses-permission id="ComplicationSubscriber"/>`,
+# which a `config: data:` slot needs even though it binds no ordinary
+# `complication.<name>` data source at all. What is NOT verified anywhere in
+# this project: any behaviour of the on-device editor itself (no simulator in
+# this container, no watch) -- whether the two slots list correctly, whether
+# switching a slot's type previews instantly, and the editor's own animated
+# highlight on the slot being edited (`getComplicationDrawable`/`onTap`/
+# `setSelectedComplication`) are all a deliberately separate, not-yet-built
+# task (docs/research/09 §4). This example only exercises drawing a slot's
+# *current* pick.
+#
+# Build it with:  ./wfb.py build examples/slots/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 3d9e5c1a-6f27-4b8d-9a4e-7c2f6d8b1e93
+  name: Slots
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+
+config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - complication.heart_rate
+        - complication.calories
+    bottom:
+      default: complication.body_battery
+      choices: any          # the editor's own full complication picker
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_HOT
+    at: { anchor: center, dy: -4% }
+    color: palette.fg
+
+  - id: top_reading
+    type: complication_slot
+    slot: config.data.top
+    at: { anchor: center, dy: -28% }
+    font: FONT_SMALL
+    icon_size: 8%r
+    color: palette.fg
+    label: short
+    unit: true
+    when_absent: placeholder
+    placeholder: "--"
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps this slot's declared
+        default forever, which is this example's whole point -- see the
+        header comment"
+
+  - id: bottom_reading
+    type: complication_slot
+    slot: config.data.bottom
+    at: { anchor: center, dy: 28% }
+    font: FONT_SMALL
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps this slot's declared
+        default forever, which is this example's whole point -- see the
+        header comment"

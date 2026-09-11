@@ -64,4 +64,34 @@ module WfbComplications {
             return null;
         }
     }
+
+    //! A `complication_slot` element's `unit: true` -- `Complication.unit` is
+    //! typed `Complications.Unit or Lang.String or Null`: either the SDK's own
+    //! enum (a plain Number under the hood, checked with `instanceof Number`
+    //! the same way `WfbCarousel.mc` narrows a stored `Object`) or a literal
+    //! string a *user* complication supplied directly, which is returned as
+    //! written. `wfb.complications.UNIT_SUFFIX` is this switch's Python twin,
+    //! transcribed from the same `Toybox/Complications.html` "Unit" table --
+    //! `tests/test_complication_slot.py` parses this file and checks every
+    //! case against it directly, so the two cannot silently drift apart.
+    //! `UNIT_INVALID` and anything this SDK build does not yet document fall
+    //! through to the empty string, which is exactly as visible as no unit at
+    //! all -- there is nothing sensible to guess at.
+    function unitSuffix(unit as Complications.Unit or Lang.String or Null) as String {
+        if (unit == null) {
+            return "";
+        }
+        if (unit instanceof Lang.String) {
+            return unit;
+        }
+        switch (unit) {
+            case Complications.UNIT_DISTANCE: return "m";
+            case Complications.UNIT_ELEVATION: return "m";
+            case Complications.UNIT_HEIGHT: return "m";
+            case Complications.UNIT_SPEED: return "m/s";
+            case Complications.UNIT_TEMPERATURE: return "°C";
+            case Complications.UNIT_WEIGHT: return "g";
+            default: return "";
+        }
+    }
 }

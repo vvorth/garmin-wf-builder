@@ -239,19 +239,37 @@ config:
     choices:                           # must be one of choices:
       - color_scheme.dark
       - color_scheme.light
+  data:
+    top:
+      default: complication.steps      # a wfb.complications type -- see below
+      choices:
+        - complication.steps
+        - complication.heart_rate
+        - complication.calories
+    bottom:
+      default: complication.body_battery
+      choices: any                     # the editor's own full complication picker
 ```
 
-Three user-editable axes, read through the fēnix 8's **native on-device watch
+Four user-editable axes, read through the fēnix 8's **native on-device watch
 face editor** (`Core_Topics/Editing_Watch_Faces_On_Device.html`, API 5.1.0).
-All three keys are optional, and `accent_color`/`data_color`/`colors` are the
-**only** keys this block accepts -- Garmin's editor offers exactly one accent
-colour, one data colour and one Styles axis, and nothing else. Declaring
-anything else is a schema error naming what is accepted.
+All four keys are optional, and `accent_color`/`data_color`/`colors`/`data`
+are the **only** keys this block accepts -- Garmin's editor offers exactly one
+accent colour, one data colour, one Styles axis and one Data axis, and
+nothing else. Declaring anything else is a schema error naming what is
+accepted.
 
-`colors` is shaped differently from the other two: its `default:`/`choices:`
-name declared `color_scheme:` entries (`color_scheme.<name>`), not colours --
-see "Color scheme" above. Everything in the rest of this section describes
-`accent_color`/`data_color`; `colors`' own rules are in "Color scheme."
+`colors` is shaped differently from the other two colour keys: its
+`default:`/`choices:` name declared `color_scheme:` entries
+(`color_scheme.<name>`), not colours -- see "Color scheme" above. `data` is
+shaped differently again: it is a **mapping of named slots**, each with its
+own `default:`/`choices:` naming `complication.<name>` types (the same table
+`on_hold:` and the `complication.*` data-source namespace already resolve
+against -- run `wfb complications` for the full list); see "The Data axis"
+below for the slot names, and the `complication_slot` element that draws one.
+Everything in the rest of this section describes `accent_color`/`data_color`;
+`colors`'/`data`'s own rules are in "Color scheme"/"The Data axis"
+respectively.
 
 Each entry needs both `default:` and `choices:`. `default:` is a literal
 `#RRGGBB`/`#RGB` or a `palette.<name>` reference, compiled into the view as the
@@ -282,35 +300,146 @@ color: config.accent_color
 color: heart_rate.current > 120 ? config.accent_color : palette.dim
 ```
 
-### Three axes wired up, one still open
+### All four axes are wired up
 
 Garmin's editor has four axes total -- Styles, Data, Data Colour, Accent
-Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- and three are
-now wired up: the two colour axes, plus **Styles**, which carries no colour of
+Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- and all four
+are now wired up: the two colour axes, **Styles**, which carries no colour of
 its own and is the only axis Garmin gives no meaning to at all
-(`docs/research/09-data-library-and-config-axes.md` §3) -- which is exactly
-why a `color_scheme:` can ride it as `config.colors`. Only the **Data** axis
-(per-complication-slot type choice) remains unimplemented. The axis is the
-`config:` key itself rather than an author-chosen name, because Garmin gives
-exactly one of each: there is no fourth colour axis to add, so there is
-nothing to validate beyond "is this key one of the three the editor has."
+(`docs/research/09-data-library-and-config-axes.md` §3, which is exactly why a
+`color_scheme:` can ride it as `config.colors`), and **Data** -- named native
+complication slots, `config.data.<name>`, drawn by a `type: complication_slot`
+element (see "The Data axis" below). The axis is the `config:` key itself
+rather than an author-chosen name for the three colour/scheme axes, because
+Garmin gives exactly one of each; `data` alone is a mapping, because Garmin's
+Data axis itself holds several independent slots.
+
+**Still not built: the editor's own animated highlight** on the Data axis
+(`getComplicationDrawable`, `onTap`, `setSelectedComplication`) -- a
+deliberately separate task (docs/research/09 §4), because it is a different
+seam (a generated `WatchUi.Drawable` subclass) from drawing a slot's current
+pick, which is what `complication_slot` does.
+
+### The Data axis
+
+```yaml
+config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - complication.heart_rate
+        - complication.calories
+    bottom:
+      default: complication.body_battery
+      choices: any
+
+elements:
+  - id: top_reading
+    type: complication_slot
+    slot: config.data.top
+    at: { anchor: center, dy: -20% }
+    font: FONT_SMALL
+    icon_size: 8%r          # omit to draw no icon
+    color: palette.fg
+    label: short             # none (default) | short | long
+    unit: true                # append Complication.unit's suffix
+    when_absent: placeholder
+    placeholder: "--"
+```
+
+Each `data:` entry is a **named slot** with its own `default:`/`choices:`,
+resolved exactly like `on_hold:` against :mod:`wfb.complications`' table (run
+`wfb complications`) -- `default:` compiles into the view as the starting
+`Complications.Id`, and is the only type a device with no native editor
+(fr955) ever shows. `choices:` is either an explicit, orderable list (which
+`default:` must belong to) or the literal string `any`, handing the wearer the
+editor's own unrestricted complication picker.
+
+`type: complication_slot` draws one slot, naming it as `slot:
+config.data.<name>`. Unlike every other element, **which complication is
+showing is not known at build time** -- the wearer picks it on-device, and
+`Complications.Id.getType()` only resolves at runtime -- so this element binds
+no ordinary `value:` expression at all. Instead:
+
+* **`color:`** is an ordinary colour expression, but it must not be nullable
+  -- there is no `when_absent:` for the element's own appearance, only for the
+  reading (see below).
+* **No `format:`.** `Complications.Complication.value` is a `String or Number
+  or Float or Long or Double` union whose concrete type genuinely varies by
+  which choice the wearer makes -- a format string written for one choice
+  would be silently wrong for another. `format:` is a schema error naming
+  this reason. The value always renders `value.toString()`.
+* **`label:`** (`none` default, `short`, `long`) draws `Complication.
+  shortLabel`/`.longLabel` before the value, when the device supplies one.
+* **`unit:`** (`false` default) appends `Complication.unit`'s suffix after the
+  value, when the device supplies one -- a raw `String` unit (a user
+  complication may supply one directly) is used verbatim; the documented
+  `Complications.Unit` enum is translated through a small, SDK-transcribed
+  table (`m`, `m/s`, `°C`, `g`, ...; see `wfb/complications.py`'s
+  `UNIT_SUFFIX` and `runtime-lib/WfbComplications.mc`'s `unitSuffix`).
+* **`when_absent:`** is `hide` (default) or `placeholder` (needs
+  `placeholder:`) -- and unlike every other element, `hide` blanks only the
+  *reading*, leaving the icon drawn: the icon says which metric the slot is
+  pointed at, which stays true even on a frame the reading itself could not be
+  pulled. The same carve-out a `carousel` item's own `when_absent:` already
+  makes, for the same reason.
+* **`icon_size:`** (omit to draw no icon) chooses the icon **on-device**, from
+  the wearer's picked *type* alone -- `Complications.Id.getType()`, `switch`ed
+  against a table of catalogue names (`wfb.icons.COMPLICATION_ICON`), then
+  `IconGlyphs.glyph()` turns the name into a character, exactly the same
+  "which name, then which glyph" split a dynamic weather icon uses. **Not
+  every complication type has an icon** -- a type this table does not map
+  (because no catalogue glyph reads unambiguously as that metric, or because
+  its icon would depend on the pulled *value* rather than the type, like the
+  weather-condition types) simply draws no icon; the reading still renders
+  normally. Run `wfb sources`/read `wfb/icons.py`'s `COMPLICATION_ICON` for
+  the current mapping. **Not accepted together with `choices: any`** -- with
+  `allowAny` the wearer may pick any type on the watch, including a Connect
+  IQ complication, so the set of icons a slot could need is unbounded and
+  nothing can be baked ahead of time; drop `icon_size:` or list explicit
+  `choices:` instead.
+* The icon and the reading are centred together, as one pair, on this
+  element's own anchor -- at **runtime**, via `Dc.getTextWidthInPixels`,
+  because the actual text is not known until the value is pulled. This is the
+  one element in the format whose drawn position is not fully resolved at
+  build time (ADR 0004's one deliberate exception, and for exactly that
+  reason); the geometry lints below size its box from the value alone (see
+  "What this compiler cannot tell you").
+* A `complication_slot` **cannot be static** (its reading changes every frame,
+  and the wearer can repoint it at any time) and **does not accept
+  `on_hold:` yet** -- both errors, naming why.
+
+Font baking follows the same "multi-glyph font" shape a dynamic weather icon
+already needs: the text font must carry every character *any* declared choice
+could render (there is no per-choice `format:` to size against), and the icon
+font -- when `icon_size:` is set -- carries every mapped choice's glyph,
+normalised to the *default* choice's own ink height (the same one-reference-
+glyph trade-off `WEATHER_BAKE_REFERENCE_GLYPH` makes for the weather set: no
+single nominal size fits every icon set's glyphs equally, so the other
+choices render at whatever height that nominal size gives them).
 
 ### What each device does with it
 
 The generated resource (`<watchface-config>`, one `<accentColors>`/
-`<dataColors>`/`<styles>` per declared axis) is emitted **only for a device
-with the native editor** -- checked with `Device.has_symbol`, never an
+`<dataColors>`/`<styles>`/`<data>` per declared axis) is emitted **only for a
+device with the native editor** -- checked with `Device.has_symbol`, never an
 API-level compare: `fr955` reports ConnectIQ 5.2.0, above the editor's own
 documented 5.1.0, and still has no editor at all (see CLAUDE.md constraint 6,
 and `docs/research/probes/watchface-config/`). Declaring `config:` forces no
-`minApiLevel` bump on any device.
+`minApiLevel` bump on any device -- a `data:` slot does, to 4.2.0, but that
+comes from `Toybox.Complications` itself (`Complications.Id`,
+`COMPLICATION_TYPE_*`), needed on every device regardless of whether it has
+the editor, not from the resource.
 
 **A device with no native editor keeps every declared default forever** -- the
-compiled-in colours *and* the default scheme's role colours. This is a real,
-user-facing consequence of the chosen scope
-(`docs/adr/0006-configuration-theming-and-modes.md` §2), not a bug, and the
-compiler says so: the suppressible `config-unsupported` warning fires once per
-such target, naming the device and the entries (and roles) affected.
+compiled-in colours, the default scheme's role colours, *and* every slot's
+default complication type. This is a real, user-facing consequence of the
+chosen scope (`docs/adr/0006-configuration-theming-and-modes.md` §2), not a
+bug, and the compiler says so: the suppressible `config-unsupported` warning
+fires once per such target, naming the device and the entries (roles, slots)
+affected.
 
 ### Lint
 
@@ -331,7 +460,30 @@ such target, naming the device and the entries (and roles) affected.
   is not checked). Reported as `palette-dither` against whichever element's
   `color:`/`track_color:` is exactly `config.<name>`/`config.colors.<role>`.
 * `config-unsupported` (suppressible) -- at least one target has no native
-  editor, so the declared defaults are all that device ever shows.
+  editor, so the declared defaults are all that device ever shows (now
+  including every slot's default).
+* `data:`'s `default:`/`choices:` naming an unknown `complication.<name>` --
+  error, with a near-miss suggestion, the same as an `on_hold:` typo.
+* `data:`'s `default:` not among an explicit `choices:` list -- error, the
+  same shape as the colour axes'.
+* A `complication_slot`'s `slot:` naming an undeclared (or declared-and-
+  rejected) `config.data.<name>` -- error, naming the declared slots.
+* `format:` on a `complication_slot` -- error, naming why (see "The Data
+  axis").
+* `icon_size:` together with a slot whose `choices:` is `any` -- error.
+* `on_hold:` or `static:` on a `complication_slot` -- error.  `static:`
+  is a permanent one: the whole point of a slot is that its content
+  changes, and static content is painted once.  `on_hold:` is only
+  *not built yet* -- `Complications.exitTo` takes a `Complications.Id`
+  and a slot already holds one, so holding it would open whichever
+  glance the wearer's own choice belongs to.  It has nothing to do with
+  the editor's animated highlight, which never fires on a live face.
+* `complication-gated` (suppressible) -- a slot's `default:`, or a listed
+  `choices:` entry, needs a ConnectIQ level above a target's own ceiling
+  (checked against `wfb.complications.ComplicationType.since`, the same
+  check an `on_hold:`/`complication.<name>` binding already gets). The face
+  still works: the wearer simply cannot reach that type there, or, if it is
+  the default, the slot never shows it.
 
 ### What this compiler cannot tell you
 
@@ -339,6 +491,16 @@ such target, naming the device and the entries (and roles) affected.
 no simulator in this container and no watch (`docs/limitations.md` §2); every
 claim above is a compile-time result (schema, IR, a real `monkeyc` build) or a
 byte cost, never a description of what the editor's UI actually does.
+
+**A `complication_slot`'s geometry is sized from its value alone.** `label:`
+and a `String`-typed `unit:` are localised device strings with no documented
+upper bound -- unlike a digit count, padding for them would either be
+routinely wrong or, picked generously, turn an ordinary slot into a spurious
+`off-screen` build **error** (confirmed directly: an 8-character placeholder
+pushed a comfortably-fitting design off the framebuffer). So the safe-area/
+off-screen/overflow checks do not account for `label:`/`unit:` width at all --
+a slot whose label or unit runs long on the real device can overflow further
+than the compiler warned about.
 
 ---
 
@@ -1351,6 +1513,17 @@ is unmeasured** — see `docs/limitations.md`.
 
 ---
 
+### `complication_slot`
+
+Draws the native **Data axis**'s current pick — a slot the wearer re-points
+at a different Garmin metric, on the watch. Documented in full under
+[Configuration → The Data axis](#the-data-axis), alongside `config: data:`,
+the block that declares a slot's own `default:`/`choices:` — the two cannot
+be understood apart from each other, since the element only ever draws a
+declared slot.
+
+---
+
 ## Data binding
 
 Sources are addressed by dotted path and carry a type, a nullability, and any
@@ -1406,6 +1579,14 @@ from one table, `wfb/complications.py`'s `TYPES` — transcribed verbatim from
 silently drift from what the platform actually offers. `wfb complications`
 prints all 42, the Monkey C constant each compiles to, and the API level it
 was introduced at.
+
+**A `config: data:` slot is a third thing, distinct from both rules above --
+it is not a `catalog.CATALOG` path at all.** Which type it reads is not fixed
+at build time (the wearer picks it on-device), so there is no fixed source
+for the expression compiler to bind; `type: complication_slot` pulls through
+`WfbComplications.valueOf` directly instead, the same underlying mechanism a
+`complication.<type>` binding uses, reached a different way. See
+[Configuration → The Data axis](#the-data-axis).
 
 ```yaml
 - id: body_battery_reading
@@ -1807,20 +1988,25 @@ element that causes them: `palette-dither` on an element whose `color:` or
 `antialias-dither` on the first element (in document order) whose
 `antialias:` resolves to `true` on a 64-colour device, and
 `config-unsupported` on an element whose `color:`/`track_color:` is exactly
-`config.accent_color`, `config.data_color` or one role of `config.colors.<role>`.
+`config.accent_color`, `config.data_color` or one role of `config.colors.<role>`,
+or a `complication_slot` whose `slot:` is exactly `config.data.<name>`, and
+`complication-gated` on a `complication_slot` whose `default:`/`choices:`
+includes a type above a target's own ConnectIQ ceiling.
 See `docs/limitations.md` 3.
 
 ---
 
 ## Not yet implemented
 
-Present in the ADRs, absent from format 1: `image` and `complication_slot`
-elements, the `raw` escape hatch (ADR 0007), per-device `overrides` (parsed but
-not yet applied), the Data axis of on-device configuration (ADR 0006 -- the two
-colour axes and Styles are implemented; see [Configuration](#configuration) and
-[Color scheme](#color-scheme) above), and `segments`/`scale` progress styles.
-See [`docs/limitations.md`](limitations.md).
+Present in the ADRs, absent from format 1: `image` elements, the `raw` escape
+hatch (ADR 0007), per-device `overrides` (parsed but not yet applied), the
+editor's animated highlight on the Data axis (`getComplicationDrawable`,
+`onTap`, `setSelectedComplication` -- docs/research/09 §4; drawing a slot's
+current pick is implemented, see [Configuration](#configuration) above), and
+`segments`/`scale` progress styles. See [`docs/limitations.md`](limitations.md).
 
-(`complication_slot`'s "cycle through several readings" half now exists as
-`carousel`, above. What is still missing is the other half: a slot whose *type*
-the wearer picks in the on-device editor, which needs the `config:` block.)
+(All four on-device configuration axes are now implemented -- see
+[Configuration](#configuration) and [Color scheme](#color-scheme) above.
+`complication_slot`'s "cycle through several readings" half exists as
+`carousel`, above; its "a slot whose *type* the wearer picks in the on-device
+editor" half is `type: complication_slot` plus `config: data:`.)

@@ -295,12 +295,16 @@ exactly four axes: Styles, complication slots, **one** data colour and **one**
 accent colour. At most **four saved configurations** per face. There is no
 per-element colour editing and no arbitrary data rebinding.
 
-**Three of the four axes are implemented, as `config:`** (`docs/format.md`
-"Configuration" and "Color scheme"; ADR 0006 §1, twice amended): the two
-colour axes, and **Styles**, which carries no colour of its own but is the
-only axis Garmin gives no meaning to at all — a declared `color_scheme:`
-(a named role -> colour set) rides it as `config.colors`. Only the **Data**
-axis (per-complication-slot type choice) is not — see §2 below.
+**All four axes are implemented, as `config:`** (`docs/format.md`
+"Configuration"; ADR 0006 §1, twice amended): the two colour axes,
+**Styles**, which carries no colour of its own but is the only axis Garmin
+gives no meaning to at all — a declared `color_scheme:` (a named role ->
+colour set) rides it as `config.colors` — and **Data**: `config: data:`
+declares named complication slots, and `type: complication_slot` draws one,
+choosing its icon on-device from the wearer's picked *type* alone. What
+remains unbuilt is only the editor's own **animated highlight** on a slot
+(`getComplicationDrawable`/`onTap`/`setSelectedComplication`) — see §2
+below; drawing a slot's current pick does not need it.
 
 **The Forerunner 955 is excluded from it entirely.** A design targeting all three
 devices is configurable on the wrist on two of them. This is a consequence of the
@@ -319,27 +323,46 @@ editor's UI actually shows or does. `docs/research/probes/watchface-config/`'s
 own "What it deliberately does NOT settle" section is explicit about the same
 boundary.
 
-**What the Data axis could carry is now researched, not implemented**
-(`docs/research/09-data-library-and-config-axes.md`,
-`docs/research/probes/config-axes/`). Three results bear on any future work
-here, and none of them changes what the compiler does today:
+**The Data axis shipped as `config: data:` + `type: complication_slot`**
+(`docs/format.md` "Configuration → The Data axis";
+`docs/research/09-data-library-and-config-axes.md`,
+`docs/research/probes/config-axes/`). What the research settled, and what is
+still true of the shipped feature:
 
 * **The Data axis can never hold author-defined content.** `<complication>`'s
   children are `Complications.COMPLICATION_TYPE_*` values or `allowAny`, per
-  `resources.xsd`. Author-defined selectable content rides **Styles**, whose
-  `styleId` Garmin gives no meaning to -- and which is a *single* number, so
-  several independent author-defined axes multiply into one flat list.
+  `resources.xsd`. Author-defined selectable content rides **Styles** instead
+  (`color_scheme:`/`config.colors` is exactly this, spent on a colour scheme
+  rather than arbitrary content), whose `styleId` Garmin gives no meaning to
+  -- and which is a *single* number, so several independent author-defined
+  axes multiply into one flat list.
 * **There is no way to ask which saved configuration is active.**
   `getSettings(null)` returns the active `Settings`, which carries no id, and
   `Id` exposes only `equals`. So the four axes are per-configuration while
   anything the face persists itself (`Application.Storage`, properties) is
   global across all four of the wearer's saved faces.
-* **`getComplicationDrawable` is buildable**, at `+134 B data, +414 B code`,
-  from a generated `Drawable` subclass delegating back to the view's own
-  per-slot draw method. It remains unimplemented -- but the reason is now
-  "no Data axis to animate yet", not "unknown shape". Without it the editor's
-  animated highlight has nothing to animate, and the SDK sample's own comment
-  requires the view to *hide* a slot while the system pulses it.
+* **`getComplicationDrawable` -- the editor's animated highlight -- is
+  buildable**, at `+134 B data, +414 B code`, from a generated `Drawable`
+  subclass delegating back to the view's own per-slot draw method, but
+  remains **unimplemented**: a deliberately separate task from drawing a
+  slot's current pick (which is what shipped), because it is a different seam
+  entirely. Without it the editor's own animated highlight has nothing to
+  animate, and the SDK sample's own comment requires the view to *hide* a
+  slot while the system pulses it -- neither of which the shipped
+  `complication_slot` element does or needs to.
+* **A slot's icon is chosen on-device from the wearer's picked *type* alone**
+  (`Complications.Id.getType()`), not from the current *value* -- so a type
+  whose icon depends on its value (the weather-condition complications:
+  `current_weather`, `forecast_weather_*day`) has no icon in a slot, even
+  though the same condition already has one when read as `weather.condition`
+  and drawn by a dynamic `icon_for:` icon. The reading itself still renders as
+  plain text either way.
+* **A slot's geometry lints are sized from its value alone, never `label:`/
+  `unit:`.** Both are localised device strings with no documented upper
+  bound; padding for them was tried and produced a spurious `off-screen`
+  **build error** on an ordinary slot (confirmed directly), which is worse
+  than the gap it would have closed. `docs/format.md`'s "What this compiler
+  cannot tell you" records this the same way this file does.
 
 ### A live watch face receives exactly one gesture: touch and hold
 
@@ -427,10 +450,10 @@ user's own playground" in CLAUDE.md), not a platform gap.
 
 | Missing | Where it is specified |
 |---|---|
-| `image` and `complication_slot` elements | ADR 0004. `complication_slot`'s "cycle through several readings" half shipped as `carousel`; what is missing is a slot whose *type* the wearer picks in the on-device editor, which needs the Data axis below |
+| `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
-| The Data axis of on-device config, and phone-side settings | ADR 0006 §1, twice amended. The two colour axes and Styles (`config:`, `docs/format.md` "Configuration"/"Color scheme") shipped |
+| The editor's animated highlight on the Data axis (`getComplicationDrawable`/`onTap`/`setSelectedComplication`), and phone-side settings | ADR 0006 §1, twice amended. All four config axes (`config:`, `docs/format.md` "Configuration") shipped, `complication_slot` included -- drawing a slot's current pick does not need the animated highlight |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |

@@ -64,12 +64,20 @@ def permissions(face: Face) -> list[str]:
     A `carousel` item's `launch:` is the same call reached a different way --
     a hold on the centre zone rather than on the element -- so it implies the
     same permission.
+
+    A `config: data:` slot needs it too, for the same reason it is not a
+    catalogue reader `face.requirements()` would otherwise see: which type
+    the wearer picked is not known until runtime, so
+    `WfbComplications.valueOf` is called regardless of what the design binds
+    directly.
     """
     from .. import complications as launchable
     from .monkeyc import launches_a_glance
 
     needed = set(face.requirements().permissions)
     if launches_a_glance(face):
+        needed.add(launchable.EXIT_TO_PERMISSION)
+    if face.config_data:
         needed.add(launchable.EXIT_TO_PERMISSION)
     return sorted(needed)
 

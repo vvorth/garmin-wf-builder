@@ -342,6 +342,40 @@ class ConfigColorAxis:
     span: Span | None = None
 
 
+@dataclass(frozen=True)
+class ConfigDataSlot:
+    """One declared `config: data: <name>:` entry -- a native complication
+    slot the wearer re-points at a different Garmin metric, on the watch
+    (docs/research/09-data-library-and-config-axes.md §4).
+
+    Shaped like :class:`ConfigColor` (a compiled-in default plus either an
+    explicit orderable list or the editor's own unrestricted picker), but
+    `default:`/`choices:` name `wfb.complications.TYPES` keys, not colours --
+    the same table `on_hold:` and `catalog`'s `complication.*` sources
+    already resolve against, not a second one.
+    """
+
+    name: str
+    #: A `wfb.complications.TYPES` key -- compiled into the view as the
+    #: starting `Complications.Id`, and the only one a device with no native
+    #: editor (fr955) ever shows.  Not a fallback path; the path.
+    default: str
+    #: `"any"`, or the explicit picklist the editor offers, as
+    #: `wfb.complications.TYPES` keys in `choices:` order.
+    choices: "str | tuple[str, ...]"
+    span: Span | None = None
+
+    @property
+    def allow_any(self) -> bool:
+        return self.choices == "any"
+
+    @property
+    def field(self) -> str:
+        """The generated view field this slot's chosen `Complications.Id` is
+        cached in (`_configDataTop`)."""
+        return config_field(f"data_{self.name}")
+
+
 # --------------------------------------------------------------------------
 # elements
 
@@ -532,6 +566,61 @@ class IconElement(Element):
 
 
 @dataclass
+class ComplicationSlot(Element):
+    """`type: complication_slot` -- the element half of the native Data axis
+    (docs/research/09-data-library-and-config-axes.md §4): draws whichever
+    complication the wearer currently has this `slot:` pointed at.
+
+    Deliberately not a `Text`/`IconElement` variant, and deliberately not
+    reached through `wfb.catalog`/an ordinary bound `value:` expression at
+    all: which complication *type* is showing is chosen by the wearer at
+    runtime (`Complications.Id.getType()` only resolves on-device), so there
+    is no fixed source for the expression compiler to bind at build time.
+    Everything this element draws comes from a fresh
+    `WfbComplications.valueOf(<slot field>)` pull, every frame, exactly the
+    "complications are pulled, not cached" contract every other
+    `complication.*` reader already has (CLAUDE.md).
+
+    No `format:` -- see `Builder._build_complication_slot`'s rejection for
+    why: `Complications.Complication.value` is a `String or Number or Float
+    or Long or Double` union whose concrete shape genuinely varies by which
+    choice the wearer picked, so a format string written for one choice
+    would be silently wrong for another.  This element always renders
+    `value.toString()`, plus whatever `label:`/`unit:` add.
+    """
+
+    #: The declared `config: data:` slot name this element shows (the part
+    #: after `config.data.`), resolved and validated by
+    #: `Builder._resolve_slot_reference`.
+    slot: str = ""
+    font: str = "FONT_SMALL"
+    font_is_custom: bool = False
+    #: Visual height of the icon chosen from the wearer's pick, or `None` to
+    #: draw no icon at all.  Resolved on-device from `Complications.Id.
+    #: getType()` through `wfb.icons.COMPLICATION_ICON` -- see
+    #: `wfb.emit.monkeyc._emit_complication_slot`.
+    icon_size: Length | None = None
+    color: Expression | None = None
+    #: `none` (default) | `short` | `long` -- `Complication.shortLabel`/
+    #: `.longLabel`, read alongside the value, never authored.
+    label: str = "none"
+    #: Append `Complication.unit`'s suffix (`WfbComplications.mc`'s
+    #: `unitSuffix`) after the value.
+    unit: bool = False
+    #: `hide` (default) | `placeholder`.  Unlike every other element's
+    #: `when_absent:`, "hide" here blanks only the *reading* and leaves the
+    #: icon drawn -- the same carve-out a carousel item's own `when_absent:`
+    #: makes, and for the same reason: the icon says which metric the slot is
+    #: pointed at, which is still true even on a frame the reading itself
+    #: could not be pulled.
+    when_absent: str = "hide"
+    placeholder: str | None = None
+
+    def _own_expressions(self) -> list[Expression]:
+        return [e for e in (self.color,) if e]
+
+
+@dataclass
 class CarouselItem:
     """One slot in a :class:`Carousel` -- an icon, a reading, and a way out.
 
@@ -714,23 +803,28 @@ class Face:
     #: was declared and rejected).  Unlike `config`, this is not a dict --
     #: there is exactly one Styles axis, not a table of them.
     config_colors: ConfigColorAxis | None = None
+    #: `config: data:` slots, keyed by name.  A third, independent way to
+    #: turn on the whole on-device-config feature -- see `has_config`.
+    config_data: dict[str, ConfigDataSlot] = field(default_factory=dict)
 
     @property
     def has_config(self) -> bool:
         """Single on/off switch for the whole on-device-config feature.
 
-        Two independent things can turn it on: a declared `accent_color:`/
-        `data_color:` (`self.config`), or a declared `config: colors:`
-        (`self.config_colors`).  Every emitter site that used to test
-        `bool(face.config)` alone -- `needs_delegate`, the view's config
-        fields/`applyConfig`/`onLayout`, the static-buffer repaint flag, the
+        Three independent things can turn it on: a declared `accent_color:`/
+        `data_color:` (`self.config`), a declared `config: colors:`
+        (`self.config_colors`), or a declared `config: data:` (`self.
+        config_data`).  Every emitter site that used to test `bool(face.
+        config)` alone -- `needs_delegate`, the view's config fields/
+        `applyConfig`/`onLayout`, the static-buffer repaint flag, the
         generated `<watchface-config>` resource, `check_config_support` --
         now goes through this instead, so a design declaring only
-        `color_scheme:`/`config: colors:` (no colour axis at all) still gets
-        a delegate, `applyConfig` and the generated resource.  See CLAUDE.md's
-        own "Integration risk" note on this task for why every site matters.
+        `color_scheme:`/`config: colors:`/`config: data:` (no colour axis at
+        all) still gets a delegate, `applyConfig` and the generated resource.
+        See CLAUDE.md's own "Integration risk" note on this task for why
+        every site matters.
         """
-        return bool(self.config) or self.config_colors is not None
+        return bool(self.config) or self.config_colors is not None or bool(self.config_data)
 
     def walk(self) -> list[Element]:
         """Every element, parents before children, in document order."""
@@ -833,6 +927,14 @@ class Builder:
         #: dedicated error for a bad or missing role (see its own docstring).
         #: `None` means "no `config: colors:` axis at all", not "zero roles".
         self._config_colors_roles: tuple[str, ...] | None = None
+        #: `config: data:` slots, keyed by name -- the same declared/rejected
+        #: split every other `config:` sub-block keeps, so a `slot:` naming a
+        #: slot that was declared and then rejected (a bad default/choice
+        #: reference) gets exactly one error, at the real mistake, not a
+        #: second one blaming the element that references it.
+        self.config_data: dict[str, ConfigDataSlot] = {}
+        self.declared_config_data: dict[str, Span | None] = {}
+        self.rejected_config_data: set[str] = set()
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it
@@ -884,6 +986,7 @@ class Builder:
             config=self.config,
             color_scheme=self.color_scheme,
             config_colors=self.config_colors,
+            config_data=self.config_data,
         )
 
     # -- palette, config, fonts, scope -------------------------------------
@@ -1112,14 +1215,127 @@ class Builder:
         self.config_colors = ConfigColorAxis(
             default=default_name, choices=tuple(choices), span=span)
 
+    def _complication_reference(self, raw: object, what: str, span: Span | None) -> str | None:
+        """Resolve a `complication.<name>` reference used from `config: data:`'s
+        own `default:`/`choices:`, against :mod:`wfb.complications` -- the same
+        table `on_hold:` and `catalog`'s `complication.*` sources already
+        resolve against, not a second one (docs/research/09 §4).
+        """
+        if not (isinstance(raw, str) and raw.startswith("complication.")):
+            self.bag.error("config", f"{what}: expected a 'complication.<name>' "
+                                     f"reference, got {raw!r}", span)
+            return None
+        name = raw[len("complication."):]
+        if complications.get(name) is not None:
+            return name
+        near = complications.suggest(name)
+        notes = []
+        if near:
+            notes.append("did you mean: " + ", ".join(near) + "?")
+        notes.append(f"run `wfb complications` for the full list of "
+                     f"{len(complications.TYPES)} types")
+        self.bag.error("config", f"{what}: unknown complication type {raw!r}", span, notes=notes)
+        return None
+
+    def _build_config_data(self, raw: dict, block_span: Span | None) -> None:
+        """`config: data:` -- named native complication slots
+        (docs/research/09-data-library-and-config-axes.md §4).
+
+        Shaped like `_build_config`'s colour-axis loop: a compiled-in
+        `default:` plus either `"any"` (the editor's own unrestricted
+        complication picker) or an explicit, orderable `choices:` list --
+        except every name here is a `complication.<name>` reference into
+        :mod:`wfb.complications` rather than a colour.
+        """
+        for name, spec in raw.items():
+            span = self.doc.span(raw, name)
+            self.declared_config_data[name] = span
+            default_span = self.doc.span(spec, "default")
+            default = self._complication_reference(
+                spec["default"], f"config.data.{name}.default", default_span)
+            if default is None:
+                self.rejected_config_data.add(name)
+                continue
+
+            raw_choices = spec["choices"]
+            if raw_choices == "any":
+                self.config_data[name] = ConfigDataSlot(
+                    name=name, default=default, choices="any", span=span)
+                continue
+
+            choices: list[str] = []
+            ok = True
+            for index, item in enumerate(raw_choices):
+                item_span = self.doc.span(raw_choices, index)
+                resolved = self._complication_reference(
+                    item, f"config.data.{name}.choices[{index}]", item_span)
+                if resolved is None:
+                    ok = False
+                    continue
+                choices.append(resolved)
+            if not ok:
+                self.rejected_config_data.add(name)
+                continue
+
+            if default not in choices:
+                self.bag.error(
+                    "config",
+                    f"config.data.{name}: default {spec['default']!r} is not "
+                    "one of 'choices:'",
+                    default_span,
+                    notes=[
+                        "the on-device editor marks one listed type as the user's "
+                        "default (the generated <type default=\"true\">) -- Garmin "
+                        "defines no behaviour for a default that is not in the list",
+                        "add it to 'choices:', or change 'default:' to match a "
+                        "type already there",
+                        "listed types: " + ", ".join(f"complication.{n}" for n in choices),
+                    ],
+                )
+                self.rejected_config_data.add(name)
+                continue
+
+            self.config_data[name] = ConfigDataSlot(
+                name=name, default=default, choices=tuple(choices), span=span)
+
+    def _resolve_slot_reference(self, raw: str, span: Span | None) -> ConfigDataSlot | None:
+        """Resolve a `complication_slot`'s `slot: config.data.<name>` reference.
+
+        The same declared/rejected cascade every other `config:` sub-block
+        keeps: a name that was declared and then rejected (a bad default/
+        choice reference, or a default not among choices) gets no second
+        error here, because the real mistake already has its own error
+        reported against the `config: data:` block.
+        """
+        if not raw.startswith("config.data."):
+            self.bag.error(
+                "complication-slot",
+                f"slot: expected 'config.data.<name>', got {raw!r}",
+                span,
+            )
+            return None
+        name = raw[len("config.data."):]
+        if name in self.config_data:
+            return self.config_data[name]
+        if name in self.rejected_config_data:
+            return None
+        known = ", ".join(f"config.data.{n}" for n in sorted(self.declared_config_data)) \
+            or "(none declared)"
+        self.bag.error(
+            "complication-slot", f"unknown slot {raw!r}", span,
+            notes=[f"declared slots: {known}"],
+        )
+        return None
+
     def _build_config(self, raw: dict) -> None:
-        """`config:` -- the native editor's colour axes and the Styles axis
-        (ADR 0006 1, twice amended).
+        """`config:` -- the native editor's colour axes, the Styles axis, and
+        the Data axis (ADR 0006 1, twice amended; docs/research/09 §4).
 
         `accent_color`/`data_color` read back as a single `Color`; `colors`
         picks a declared `color_scheme:` entry instead (`_build_config_colors`)
         -- a different enough shape that it does not fit `ConfigAxis`/
-        `ConfigColor` at all.  Only these three keys reach here: the schema's
+        `ConfigColor` at all; `data` is a mapping of named slots, each built by
+        `_build_config_data`.  Only these four keys reach here: the schema's
         `additionalProperties: false` on `config:` rejects anything else
         before the IR ever sees it, the same division of labour `_build_fonts`
         and `_build_palette` already rely on for their own blocks.
@@ -1128,6 +1344,9 @@ class Builder:
             span = self.doc.span(raw, name)
             if name == "colors":
                 self._build_config_colors(spec, span)
+                continue
+            if name == "data":
+                self._build_config_data(spec, span)
                 continue
             default_span = self.doc.span(spec, "default")
             default = self._resolve_config_color(
@@ -1482,6 +1701,7 @@ class Builder:
             "icon": self._build_icon,
             "carousel": self._build_carousel,
             "graph": self._build_graph,
+            "complication_slot": self._build_complication_slot,
         }
         builder = builders.get(node["type"])
         if builder is None:  # unreachable once the schema has run
@@ -1511,6 +1731,12 @@ class Builder:
             # group is static is the author's to change later, and a name that
             # only collides after an unrelated edit is the worst kind.
             candidates.append(static_group_method(element_id))
+        if node.get("type") == "complication_slot":
+            # Only emitted when `icon_size:` is set, but reserved for every
+            # `complication_slot` regardless -- the same "an unrelated later
+            # edit must not introduce a collision" reasoning as the group
+            # case just above.
+            candidates.append(complication_slot_icon_method(element_id))
         collisions: list[tuple[str, str, Span | None]] = []
         for symbol in candidates:
             claimed = self.seen_symbols.get(symbol)
@@ -1936,6 +2162,28 @@ class Builder:
                         notes=["a graph's series is recomputed once a minute -- a "
                                "buffer filled once would freeze it at whatever it "
                                "showed on the first frame",
+                               f"take it out of {root.id!r}"
+                               if element is not root else
+                               "drop `static: true` from it"],
+                    )
+                    ok = False
+                    continue
+                if isinstance(element, ComplicationSlot):
+                    # Its reading is not an `Expression` either -- it is a
+                    # fresh `WfbComplications.valueOf` pull every frame, and
+                    # the wearer can repoint the slot at a different metric on
+                    # a device with the native editor at any time -- so the
+                    # same "would freeze it" reasoning as a carousel/graph
+                    # applies, for the same reason the generic source check
+                    # below would never catch it.
+                    self.bag.error(
+                        "static",
+                        f"{element.id!r} is a complication_slot and cannot be static",
+                        element.span,
+                        notes=["its reading is pulled fresh every frame, and the "
+                               "wearer can repoint it to a different complication "
+                               "at any time -- a buffer filled once would freeze "
+                               "both",
                                f"take it out of {root.id!r}"
                                if element is not root else
                                "drop `static: true` from it"],
@@ -2594,6 +2842,118 @@ class Builder:
         resolved = self._font_reference(str(raw), self.doc.span(node, "value_font"))
         if resolved is not None:
             element.value_font, element.value_font_is_custom = resolved
+
+    def _build_complication_slot(self, node: dict, common: dict, path: tuple) -> Element:
+        """`type: complication_slot` -- the element half of the native Data
+        axis (docs/research/09-data-library-and-config-axes.md §4).
+
+        Most of what makes every other element kind checkable at build time
+        -- a fixed source, a static type -- does not exist here: which
+        `complication.<name>` the wearer picked is only known on-device.  So
+        this validates the *slot reference* and the authoring keys that do
+        not depend on the choice (`icon_size:`/`choices: any`, `format:`),
+        and leaves everything about the pulled value itself to
+        `wfb.emit.monkeyc._emit_complication_slot`, which reads it fresh
+        every frame the same way any other `complication.*` source does.
+        """
+        slot_raw = node["slot"]
+        slot = self._resolve_slot_reference(str(slot_raw), self.doc.span(node, "slot"))
+
+        icon_size = self._length(node, "icon_size")
+        if icon_size is not None and icon_size.unit not in units.SIZE_UNITS:
+            self.bag.error(
+                "complication-slot",
+                f"icon_size must be px or %r, not {icon_size.unit}",
+                self.doc.span(node, "icon_size"),
+                notes=["an icon's font is baked once, before layout runs, so its size "
+                       "cannot depend on a parent box (%) or an element's own font (pt)"],
+            )
+            icon_size = None
+        if icon_size is not None and slot is not None and slot.allow_any:
+            self.bag.error(
+                "complication-slot",
+                f"{common['id']}: 'icon_size:' cannot be combined with a slot "
+                f"whose 'choices:' is 'any' ({slot_raw!r})",
+                self.doc.span(node, "icon_size"),
+                notes=[
+                    "'choices: any' hands the wearer the editor's own unrestricted "
+                    "complication picker, so the set of types -- and therefore icons "
+                    "-- a slot could need is unbounded, and nothing can be baked "
+                    "ahead of time",
+                    "drop 'icon_size:' (the slot then draws no icon), or give this "
+                    "slot an explicit 'choices:' list instead of 'any'",
+                ],
+            )
+            icon_size = None
+
+        if "format" in node:
+            self.bag.error(
+                "complication-slot",
+                f"{common['id']}: 'format:' is not accepted on a 'complication_slot'",
+                self.doc.span(node, "format"),
+                notes=[
+                    "Complications.Complication.value is a String or Number or "
+                    "Float or Long or Double union whose concrete type genuinely "
+                    "varies by which choice the wearer picks -- a format string "
+                    "written for one choice would be silently wrong for another",
+                    "this element always renders 'value.toString()'; use 'label:' "
+                    "and/or 'unit:' for the extra context a format string would "
+                    "otherwise add",
+                ],
+            )
+
+        color = self._color_expression(node, "color")
+        element = ComplicationSlot(
+            **common,
+            slot=(slot.name if slot is not None else str(slot_raw)),
+            icon_size=icon_size,
+            color=color,
+            label=node.get("label", "none"),
+            unit=bool(node.get("unit", False)),
+            when_absent=node.get("when_absent", "hide"),
+            placeholder=node.get("placeholder"),
+        )
+        self._resolve_font(node, element)
+
+        if element.on_hold is not None:
+            self.bag.error(
+                "complication-slot",
+                f"{element.id}: 'on_hold:' is not accepted on a 'complication_slot' yet",
+                element.span,
+                notes=[
+                    "nothing about the platform prevents it -- `Complications.exitTo` "
+                    "takes a `Complications.Id`, and this slot already holds one, so "
+                    "holding it would open whichever glance the wearer's own choice "
+                    "belongs to.  It is simply not built yet",
+                    "this is unrelated to the editor's animated highlight "
+                    "(getComplicationDrawable/onTap), which fires only inside the "
+                    "on-device editor and never on a face being looked at "
+                    "(docs/research/07-carousel-interaction.md §1)",
+                    "drop 'on_hold:' for now",
+                ],
+            )
+            element.on_hold = None
+
+        if color is None:
+            self._require(node, "color", "a complication_slot needs a color")
+        elif color.nullable:
+            self.bag.error(
+                "complication-slot",
+                f"{element.id}: 'color:' reads {color.text!r}, which can be absent",
+                self.doc.span(node, "color"),
+                notes=[
+                    "a complication_slot's colour has no 'when_absent:' of its own "
+                    "-- 'when_absent:'/'placeholder:' governs the pulled reading, "
+                    "not the element's appearance",
+                    "guard it in the expression instead, e.g. "
+                    "\"x != null and x > 100 ? palette.hot : palette.fg\"",
+                ],
+            )
+
+        if element.when_absent == "placeholder" and element.placeholder is None:
+            self._require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:'")
+
+        return element
 
     def _build_graph(self, node: dict, common: dict, path: tuple) -> Element:
         """`type: graph` -- a time series over a data source and a range.
@@ -3324,6 +3684,19 @@ def config_field(name: str) -> str:
     return "_config" + _pascal(name)
 
 
+def config_data_ids(face: "Face") -> dict[str, int]:
+    """`config: data:` slot name -> the `<complication id="N">` this slot is
+    emitted under, 1-based in declaration order (`docs/research/probes/
+    config-axes/watchface.xml` numbers from 1, following the SDK's own
+    sample).  Module-level, and derived from `face.config_data` rather than
+    stored on `ConfigDataSlot` itself, so `wfb.emit.resources.config_resource`
+    (writing the ids into the resource) and `wfb.emit.monkeyc._emit_apply_config`
+    (matching `ComplicationRef.uniqueIdentifier` back against them) cannot
+    silently number the same design's slots two different ways.
+    """
+    return {name: index for index, name in enumerate(face.config_data, start=1)}
+
+
 def element_const_prefix(element_id: str) -> str:
     """The layout-constant prefix codegen derives from an element id.
 
@@ -3364,6 +3737,25 @@ def static_group_method(element_id: str) -> str:
     """
     suffix = _element_suffix(element_id)
     return "drawStatic" if suffix == "Static" else "drawStatic" + suffix
+
+
+def complication_slot_icon_method(element_id: str) -> str:
+    """The private method that resolves one `complication_slot`'s icon glyph
+    from a `Complications.Type` (``iconForTopReading``).
+
+    A generated method, not an inline mutable local, because Monkey C locals
+    cannot be given an explicit ``as String?`` type (verified: "Invalid
+    explicit typing of a local variable" from a real build) -- there is no
+    way to declare a local that starts `null` and is later assigned a
+    `String` without one. Returning through a function whose own signature
+    declares `String?` sidesteps that entirely: the call site's local infers
+    its type from the function's declared return type instead.  Only emitted
+    for a slot that actually draws an icon (`icon_size:` set); reserved here
+    regardless, the same way `static_group_method` is reserved for every
+    `group` whether or not it ends up static, so a later edit adding
+    `icon_size:` cannot make an existing id collide with itself.
+    """
+    return "iconFor" + _element_suffix(element_id)
 
 
 def carousel_step_method(element_id: str) -> str:

@@ -207,6 +207,27 @@ TYPES: dict[str, ComplicationType] = {t.name: t for t in [
 ]}
 
 
+#: `Complications.Unit` (`Toybox/Complications.html`'s own "Unit" constant
+#: table, API 4.2.0) mapped to a short display suffix, transcribed from that
+#: table's own description column ("value is in meters", "meters/second",
+#: "degrees Celsius", "grams"). Used only by a `complication_slot` element's
+#: `unit: true` -- `Complications.Complication.unit` comes back typed
+#: `Complications.Unit or Lang.String or Null`, i.e. either this enum or a
+#: literal string a *user* complication supplied directly (see
+#: `runtime-lib/WfbComplications.mc`'s `unitSuffix`, which checks `instanceof
+#: Lang.String` before falling back to this table). `UNIT_INVALID` is not a
+#: real unit and maps to no suffix, the same way `COMPLICATION_TYPE_INVALID`
+#: is excluded from :data:`TYPES` above.
+UNIT_SUFFIX: dict[str, str] = {
+    "UNIT_DISTANCE": "m",
+    "UNIT_ELEVATION": "m",
+    "UNIT_HEIGHT": "m",
+    "UNIT_SPEED": "m/s",
+    "UNIT_TEMPERATURE": "°C",
+    "UNIT_WEIGHT": "g",
+}
+
+
 def get(name: str) -> ComplicationType | None:
     return TYPES.get(name)
 

@@ -465,3 +465,61 @@ def icon_for_source(source_path: str) -> Icon | None:
     """The catalogue icon conventionally paired with a data-source path, if any."""
     name = METRIC_ICON.get(source_path)
     return CATALOG.get(name) if name else None
+
+
+# ============================================================================
+# Complication-type-to-icon aliases (docs/research/09-data-library-and-config-axes.md §4)
+#
+# A `type: complication_slot` element draws whichever complication the wearer
+# repointed the slot at, and `Complications.Id.getType()` is readable
+# on-device regardless of whether the pulled *value* is available -- so the
+# icon can be resolved from the type alone, the same "which name, then which
+# glyph" split `GARMIN_WEATHER_CONDITION_ICON`/`weather_icon_for_condition`
+# already use. This is the "which name" half; `wfb.emit.monkeyc.emit_icon_glyphs`
+# is the "which glyph" half, generated straight from `CATALOG` like every other
+# dynamic icon.
+# ============================================================================
+
+#: `wfb.complications.TYPES` key -> a :data:`CATALOG` name. **Not every one of
+#: the 42 types is here, deliberately.** Three reasons a type is left out,
+#: each real rather than an oversight:
+#:
+#: * **The icon would depend on the pulled *value*, not the type.**
+#:   `current_weather`/`forecast_weather_*day` report a `Weather.CONDITION_*`
+#:   *as their value* -- resolving their icon needs the same
+#:   value-to-glyph step `icon_for: weather.condition` already does, which
+#:   this element's type-keyed switch has no way to reach without a second,
+#:   nested lookup this task does not build. The reading is still drawn as
+#:   plain text.
+#: * **No catalogue glyph reads unambiguously as that metric.** Reusing an
+#:   unrelated icon is a content bug, not a layout bug, and CLAUDE.md already
+#:   records one real instance of exactly this mistake (a heart icon
+#:   mistakenly standing in for do-not-disturb) -- `body_battery` is not
+#:   `battery` (that means device charge), and `pulse_ox` is not `heart`
+#:   (blood oxygen, not heart rate). Left unmapped rather than guessed.
+#: * **No existing catalogue entry fits at all** (a calendar glyph, a
+#:   golf-score glyph, a race-time glyph, ...). Growing the *named* catalogue
+#:   for these is future work, the same "grow it as real designs need it"
+#:   policy `wfb.icon_catalog`'s own docstring already states -- not
+#:   something this table should paper over with an unrelated glyph.
+#:
+#: An unmapped type simply draws no icon for that slot -- the reading itself
+#: still renders normally -- which is a legitimate, documented outcome, not a
+#: build error: `docs/format.md`'s `complication_slot` section says so.
+COMPLICATION_ICON: dict[str, str] = {
+    "battery": "battery",
+    "steps": "steps",
+    "calories": "flame",
+    "floors_climbed": "floors",
+    "notification_count": "notification",
+    "heart_rate": "heart",
+    "weekly_run_distance": "distance",
+    "weekly_bike_distance": "distance",
+}
+
+
+def icon_for_complication(type_name: str) -> Icon | None:
+    """The catalogue icon conventionally paired with a `wfb.complications.TYPES`
+    name, if any -- the reverse direction `COMPLICATION_ICON` records."""
+    name = COMPLICATION_ICON.get(type_name)
+    return CATALOG.get(name) if name else None

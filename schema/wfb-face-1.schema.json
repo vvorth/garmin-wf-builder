@@ -92,6 +92,17 @@
         "colors": {
           "description": "The Styles axis: picks one declared 'color_scheme:' entry (<styles> in the generated resource, Settings.styleId read back). Unlike 'accent_color'/'data_color', 'default:'/'choices:' here name schemes, not colours.",
           "$ref": "#/$defs/configColors"
+        },
+        "data": {
+          "description": "The Data axis: named native complication slots (<data> in the generated resource, Settings.complicationSettings read back). Each entry's 'default:'/'choices:' name 'complication.<name>' types (see 'wfb complications'), not colours or schemes. Drawn by a 'type: complication_slot' element referencing it as 'slot: config.data.<name>'.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/configDataSlot"
+          }
         }
       }
     },
@@ -314,6 +325,42 @@
             "$ref": "#/$defs/colorSchemeRef"
           },
           "uniqueItems": true
+        }
+      }
+    },
+    "complicationRef": {
+      "description": "A reference to a 'wfb.complications' type, accepted from a 'config: data:' slot's own 'default:'/'choices:' -- the same table 'on_hold:' and a carousel item's 'launch:' resolve against (run 'wfb complications' for the full list).",
+      "type": "string",
+      "pattern": "^complication\\.[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "configDataSlot": {
+      "description": "One 'config: data:' entry: a compiled-in default complication type plus either the editor's full complication picker ('any') or an explicit, orderable list of choices. Drawn by a 'type: complication_slot' element referencing this slot by name.",
+      "type": "object",
+      "required": [
+        "default",
+        "choices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "description": "Compiled into the view as the starting Complications.Id, and the only type a device without the native editor (fr955) ever shows -- not a fallback path, the path. Must also appear in 'choices:' when 'choices:' is an explicit list.",
+          "$ref": "#/$defs/complicationRef"
+        },
+        "choices": {
+          "description": "'any' hands the wearer the editor's own unrestricted complication picker (allowAny=\"true\", no listed types) -- and forbids 'icon_size:' on any element referencing this slot, since the set of icons such a slot could need is then unbounded. An explicit list becomes the editor's picklist; 'default:' must be one of the listed types in that case.",
+          "oneOf": [
+            {
+              "const": "any"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/complicationRef"
+              },
+              "uniqueItems": true
+            }
+          ]
         }
       }
     },
@@ -555,6 +602,9 @@
         },
         {
           "$ref": "#/$defs/graphElement"
+        },
+        {
+          "$ref": "#/$defs/complicationSlotElement"
         }
       ]
     },
@@ -1244,6 +1294,100 @@
         },
         "color": {
           "$ref": "#/$defs/colorExpression"
+        },
+        "modes": {
+          "$ref": "#/$defs/modes"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "on_tap": {
+          "$ref": "#/$defs/onTapRemoved"
+        },
+        "on_hold": {
+          "$ref": "#/$defs/onHold"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "static": {
+          "$ref": "#/$defs/staticFlag"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        }
+      }
+    },
+    "complicationSlotElement": {
+      "description": "The native Data axis: a slot the wearer re-points at a different Garmin metric, on the watch, with the editor's own instant preview. Draws an icon chosen at runtime from the wearer's pick (only for a subset of complication types -- run 'wfb complications'/see wfb.icons.COMPLICATION_ICON) plus the reading itself, always rendered 'value.toString()' since the concrete value type genuinely varies by choice -- see 'format:' below.",
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "slot"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "complication_slot"
+        },
+        "slot": {
+          "description": "Which declared 'config: data:' slot this element shows, as 'config.data.<name>'.",
+          "type": "string",
+          "pattern": "^config\\.data\\.[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "font": {
+          "description": "A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...), for the reading. Defaults to FONT_SMALL.",
+          "type": "string"
+        },
+        "icon_size": {
+          "$ref": "#/$defs/length",
+          "description": "Visual height of the icon chosen from the wearer's pick. Omit to draw no icon. px or %r only, and not accepted when the slot's own 'choices:' is 'any' -- the set of icons such a slot could need is then unbounded."
+        },
+        "color": {
+          "$ref": "#/$defs/colorExpression",
+          "description": "Must not be nullable -- there is no 'when_absent:' for this element's own appearance, only for the pulled reading."
+        },
+        "label": {
+          "description": "none (default): just the value. short/long: Complication.shortLabel/.longLabel, drawn before the value when the device supplies one.",
+          "enum": [
+            "none",
+            "short",
+            "long"
+          ],
+          "default": "none"
+        },
+        "unit": {
+          "description": "Append Complication.unit's suffix after the value (e.g. 'm', 'm/s', '°C') when the device supplies one. Default false.",
+          "type": "boolean",
+          "default": false
+        },
+        "when_absent": {
+          "description": "Governs the pulled reading only -- the icon, chosen from the slot's configured type rather than its current value, still draws either way. hide (default): the reading blanks, leaving the icon. placeholder: needs 'placeholder:'.",
+          "enum": [
+            "hide",
+            "placeholder"
+          ],
+          "default": "hide"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "format": {
+          "description": "Not accepted -- an error naming why: the pulled value's concrete type varies by which choice the wearer makes, so one format string cannot be right for all of them. Accepted here only so 'wfb validate' can report that against your own line instead of a generic \"additional property\" error.",
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/position"
         },
         "modes": {
           "$ref": "#/$defs/modes"

@@ -169,6 +169,74 @@ fr955** — the compiler generates both paths from one declaration.
 > including the static-buffer repaint case (two roles moving together inside
 > a `static:` block, confirmed by a real build rather than assumed).
 
+> **Third amendment (2026-09-11): the Data axis shipped too, as
+> `config: data:` + `type: complication_slot`** (`docs/research/09-data-
+> library-and-config-axes.md` §4). All four of Garmin's axes are now
+> declared, and the "Open" bullet below that named the Data axis as
+> outstanding is closed.
+>
+> ```yaml
+> config:
+>   data:
+>     top:
+>       default: complication.steps
+>       choices:
+>         - complication.steps
+>         - complication.heart_rate
+>         - complication.calories
+>     bottom:
+>       default: complication.body_battery
+>       choices: any
+>
+> elements:
+>   - id: top_reading
+>     type: complication_slot
+>     slot: config.data.top
+>     icon_size: 8%r
+>     color: palette.fg
+> ```
+>
+> Unlike the two colour axes and Styles, `data:` is a **mapping of named
+> slots** rather than one fixed key -- Garmin's own Data axis holds several
+> independent complication slots, not one value, so there is no single
+> `config.data` the way there is one `config.accent_color`. Each slot's
+> `default:`/`choices:` name `wfb.complications.TYPES` keys -- the same table
+> `on_hold:` and the `complication.*` data-source namespace already resolve
+> against, not a third one.
+>
+> **This is the first axis with a dedicated drawing element**, because unlike
+> a colour, *which complication is showing* is not known until the wearer
+> picks it on-device (`Complications.Id.getType()` only resolves at
+> runtime) -- there is no fixed source for the expression compiler to bind,
+> so `complication_slot` pulls through `WfbComplications.valueOf` directly
+> and renders `value.toString()` (no `format:` -- an error naming why: the
+> value's concrete type varies by choice). The icon is chosen the same way,
+> on-device, from the type alone, through a generated per-slot lookup method
+> (`wfb.icons.COMPLICATION_ICON` -> a catalogue name -> `IconGlyphs.glyph`)
+> -- verified in `docs/research/probes/config-axes/ProbeView.mc`'s `iconFor`,
+> and the reason it is a *method* rather than an inline local: Monkey C
+> locals cannot be given an explicit `as String?` type, confirmed by a real
+> build ("Invalid explicit typing of a local variable").
+>
+> **Not built, deliberately separate:** the editor's own animated highlight
+> on a slot (`getComplicationDrawable`/`onTap`/`setSelectedComplication`,
+> `docs/research/09 §4`) -- a different seam (a generated `WatchUi.Drawable`
+> subclass) from drawing a slot's current pick, which is what shipped here.
+> `Device.has_symbol(CONFIG_SYMBOL)` still gates the whole feature per
+> device, unchanged; `Face.has_config` now has three independent triggers
+> rather than two.
+>
+> Cost, measured through the real toolchain rather than assumed: a design
+> with two slots (one an explicit three-choice list with an icon, one
+> `allowAny` with none) compiles to 2.2% of the 128 KB budget on all three
+> targets, `minApiLevel="4.2.0"` and `ComplicationSubscriber` both present
+> even though the design binds no ordinary `complication.<name>` catalogue
+> source at all -- a slot is not a catalogue reader, so `_features()`/
+> `permissions()` had to add it as a second, independent trigger alongside
+> "reads a `complication.*` source". `docs/format.md`'s "Configuration → The
+> Data axis" is the full author-facing reference; `examples/slots/face.yaml`
+> exercises both slot shapes.
+
 An author declares a property once and states where it may be edited. The
 compiler emits the right artefact for each surface and **fails the build if a
 surface is unavailable on a targeted device** rather than silently dropping it.
@@ -429,9 +497,20 @@ both map to `onPress`, rather than silently preferring one.
   `config: colors:` — the "is Styles worth exposing" question the Open
   section below used to ask is answered, and closed. `docs/format.md` "Color
   scheme" is the author-facing reference.
+- (§1 third amendment) The Data axis shipped as `config: data:` +
+  `type: complication_slot` — all four of Garmin's axes are now declared.
+  `docs/format.md` "Configuration → The Data axis" is the author-facing
+  reference; the editor's own animated highlight on a slot remains a
+  separate, unbuilt task (see the amendment and `docs/limitations.md`).
 
 ## Open
 
-- The Data axis (per-complication-slot type choice) and a phone-side settings
-  surface, both still undecided — the two `config:` amendments implemented
-  only the colour axes and Styles.
+- A phone-side settings surface, still undecided — the three `config:`
+  amendments implemented the two colour axes, Styles and Data, which is all
+  four of Garmin's native-editor axes; phone settings would be a separate
+  mechanism (`settings.xml`/`properties.xml`) and is the only route that
+  reaches `fr955`.
+- The editor's own animated highlight on a Data-axis slot
+  (`getComplicationDrawable`/`onTap`/`setSelectedComplication`) — buildable
+  (docs/research/09 §4), deliberately not built alongside `complication_slot`
+  because it is a different seam (a generated `WatchUi.Drawable` subclass).

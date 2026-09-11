@@ -638,32 +638,39 @@ def _sources(args) -> int:
     print(f"  {'config.colors.<role>':<34} {'color':<8} the Styles axis -- one role of a "
           "declared 'color_scheme:' entry, picked via 'config: colors:' (<styles>, "
           "Settings.styleId)")
+    print(f"  {'config.data.<name>':<34} {'':<8} the Data axis -- a named native "
+          "complication slot declared in 'config: data:' (<data><complication>, "
+          "Settings.complicationSettings); drawn by a 'type: complication_slot' "
+          "element ('slot:'), not bound as an ordinary expression")
     print(f"\nicons: {', '.join(icons.names())}")
     print("\nrun `wfb complications` for the full list of on_hold: targets")
     return 0
 
 
 def _complications(args) -> int:
-    """list the complication type table: what `on_hold:` may launch, and
-    what `complication.*` may read
+    """list the complication type table: what `on_hold:` may launch, what
+    `complication.*` may read, and what `config: data:` may offer a slot
 
     A watch face cannot open an arbitrary app. The platform offers exactly
     one exit -- `Complications.exitTo`, "launches the app associated with
     the complication" -- so an interactive element names a complication
     type and the watch opens whichever glance or app owns it. The same 42
     types are also readable directly as `complication.<name>` data sources
-    (see `wfb sources`) -- this is the one table both draw from.
+    (see `wfb sources`), and are what a `config: data:` slot's own
+    `default:`/`choices:` name -- this is the one table all three draw from.
 
     Printed for each: the name a design writes, the Monkey C constant it
     compiles to, and the API level that type was introduced at. An API
     level is not a promise the watch has it; a hold on a type the watch
     does not know simply does nothing, which is why `wfb validate` also
-    checks each target's own symbol table.
+    checks each target's own symbol table (and, for a slot, each target's
+    own ConnectIQ ceiling -- see `complication-gated` in docs/format.md).
 
     Binding one of these -- as `on_hold:`, as `complication.<name>`, or via
     `on_hold: auto` -- adds the ComplicationSubscriber permission and
     raises minApiLevel to 4.2.0 automatically, the same way a data binding
-    derives its own requirements.
+    derives its own requirements. A `config: data:` slot does too, even
+    though it reads no catalogue source directly.
     """
     from . import complications
 

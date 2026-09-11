@@ -20,7 +20,9 @@ from . import catalog, complications
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
-from .ir import CONFIG_SYMBOL, Carousel, Element, Face, Text, authored_draw_order
+from .ir import (
+    CONFIG_SYMBOL, Carousel, ComplicationSlot, Element, Face, Text, authored_draw_order,
+)
 from .layout import (
     PlacedCarousel, PlacedProgress, PlacedShape, PlacedText, ResolvedFace, inside_screen,
     inside_visible_area, inside_visible_area_for, is_full_bleed,
@@ -48,7 +50,8 @@ SUPPRESSIBLE = frozenset({
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
     "antialias-dither",
-    "carousel", "color", "color-scheme", "complication-gated", "config", "config-unsupported",
+    "carousel", "color", "color-scheme", "complication-gated", "complication-slot",
+    "config", "config-unsupported",
     "contrast", "dead-element",
     "element-mapping",
     "devices", "duplicate-id", "element", "expression",
@@ -366,6 +369,12 @@ def _config_colors_role_users(face: Face, role: str) -> list[Element]:
     ]
 
 
+def _slot_users(face: Face, name: str) -> list[Element]:
+    """`complication_slot` elements whose `slot:` is exactly `config.data.<name>`."""
+    return [element for element in face.walk()
+            if isinstance(element, ComplicationSlot) and element.slot == name]
+
+
 def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
     """A declared `config:` colour is checked the same way a `palette:` entry
     is -- each channel must be 0x00/0x55/0xAA/0xFF on a 64-colour panel, or
@@ -522,34 +531,41 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
         default_scheme = face.color_scheme[face.config_colors.default]
         role_tokens = [f"config.colors.{role}" for role in sorted(default_scheme.colors)]
         names_list += role_tokens
+    slot_tokens = [f"config.data.{name}" for name in sorted(face.config_data)]
+    names_list += slot_tokens
     names = ", ".join(names_list)
-    # `_config_users`/`_config_colors_role_users` return raw IR Elements, from
-    # `Face.walk()`, not the `resolved.items` layout wrappers `_emit` expects
-    # -- the same reason `check_palette` (this check's own model) does not
-    # call `_emit` either, and checks `lint_allow` on the element directly
-    # instead.
+    # `_config_users`/`_config_colors_role_users`/`_slot_users` return raw IR
+    # Elements, from `Face.walk()`, not the `resolved.items` layout wrappers
+    # `_emit` expects -- the same reason `check_palette` (this check's own
+    # model) does not call `_emit` either, and checks `lint_allow` on the
+    # element directly instead.
     users: list[Element] = []
     for name in config:
         users.extend(_config_users(resolved.face, name))
     for role in [t.split(".", 2)[2] for t in role_tokens]:
         users.extend(_config_colors_role_users(resolved.face, role))
+    for name in face.config_data:
+        users.extend(_slot_users(resolved.face, name))
     if any("config-unsupported" in element.lint_allow for element in users):
         return
     notes = [
-        "the face still works: every element bound to a config.* colour "
-        "simply draws with its declared 'default:' forever on this device",
+        "the face still works: every element bound to a config.* colour, or "
+        "drawing a config.data.* slot, simply keeps its declared default "
+        "forever on this device",
         "this follows from ADR 0006 2's chosen scope -- the native editor is "
         "fēnix 8 and newer only -- not from a missing feature in this compiler",
     ]
     if users:
         suppress_note = (
             "set 'lint: {allow: [config-unsupported], reason: ...}' on the "
-            f"element whose 'color:' or 'track_color:' is one of {names} to accept it"
+            f"element whose 'color:'/'track_color:' or 'slot:' is one of {names} "
+            "to accept it"
         )
     else:
         suppress_note = (
-            f"no element's 'color:'/'track_color:' is exactly one of {names}, "
-            "so there is nowhere to put 'lint: {allow: [config-unsupported]}' for it"
+            f"no element's 'color:'/'track_color:'/'slot:' is exactly one of "
+            f"{names}, so there is nowhere to put "
+            "'lint: {allow: [config-unsupported]}' for it"
         )
     bag.warning(
         "config-unsupported",
@@ -1008,7 +1024,7 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
     error would force dropping a target or a source that is fine on the other
     two devices.
     """
-    candidates: list[tuple] = []  # (placed, complication_name, span, is_hold)
+    candidates: list[tuple] = []  # (placed, complication_name, span, kind)
     for placed in resolved.items:
         element = placed.element
         for expression in element.expressions():
@@ -1017,13 +1033,28 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
                     continue
                 name = path[len("complication."):]
                 if complications.get(name) is not None:
-                    candidates.append((placed, name, expression.span or element.span, False))
+                    candidates.append((placed, name, expression.span or element.span, "read"))
         if element.on_hold is not None and complications.get(element.on_hold) is not None:
-            candidates.append((placed, element.on_hold, element.span, True))
+            candidates.append((placed, element.on_hold, element.span, "hold"))
         if isinstance(element, Carousel):
             for item in element.items:
                 if item.launch is not None and complications.get(item.launch) is not None:
-                    candidates.append((placed, item.launch, item.span or element.span, True))
+                    candidates.append((placed, item.launch, item.span or element.span, "hold"))
+        if isinstance(element, ComplicationSlot):
+            # `default:` is checked unconditionally -- it is compiled in and
+            # is the only type a device with no native editor (fr955) ever
+            # shows, no matter what `choices:` says -- and every explicit
+            # `choices:` entry too, since the wearer can pick any of them on a
+            # device with the editor.  `choices: any` skips only the list
+            # half, the same `check_config_palette` precedent: there is no
+            # list to check when the wearer gets the editor's own
+            # unrestricted picker instead.
+            slot = resolved.face.config_data.get(element.slot)
+            if slot is not None:
+                choices = (slot.default,) if slot.allow_any else slot.choices
+                for name in choices:
+                    if complications.get(name) is not None:
+                        candidates.append((placed, name, element.span, "slot"))
 
     if not candidates:
         return
@@ -1046,7 +1077,7 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
         )
         return
 
-    for placed, name, span, is_hold in candidates:
+    for placed, name, span, kind in candidates:
         ctype = complications.TYPES[name]
         if version_key(ctype.since) <= version_key(device_level):
             continue
@@ -1054,7 +1085,7 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
             f"exact -- {name!r}'s since ({ctype.since}, Toybox/Complications.html) "
             f"vs {device.id}'s api_level ({device_level}, compiler.json)"
         )
-        if is_hold:
+        if kind == "hold":
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
                 "complication-gated",
@@ -1068,6 +1099,25 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
                     "no-op on this device, not a crash",
                     "pick a launch target with a lower 'since' for this device, or "
                     "accept that the hold does nothing here",
+                ],
+                confidence=confidence,
+            ))
+        elif kind == "slot":
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "complication-gated",
+                f"{placed.id}: slot config.data.{placed.element.slot}'s "
+                f"'complication.{name}' needs ConnectIQ {ctype.since}, but "
+                f"{device.id} tops out at {device_level}",
+                span,
+                notes=[
+                    "Complications.getComplication returns null for a type the device "
+                    "does not support -- the same 'absence is normal' contract every "
+                    "other nullable source already has, so this reads as absent rather "
+                    "than crashing",
+                    "the wearer simply cannot pick this type on this device (or, if it "
+                    "is the slot's 'default:', the slot never shows it here); drop it "
+                    "from 'choices:', or accept that it is unreachable on this target",
                 ],
                 confidence=confidence,
             ))

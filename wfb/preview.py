@@ -21,15 +21,35 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from . import catalog, expr, formatting
+from . import catalog, complications, expr, formatting, icons
 from .catalog import Type
 from .fonts import BakedFont, fallback
 from .ir import Carousel, Progress, Shape, Text
 from .layout import (
-    PlacedCarousel, PlacedGraph, PlacedIcon, PlacedProgress, PlacedShape, PlacedText,
-    ResolvedFace,
+    COMPLICATION_SLOT_ICON_GAP, PlacedCarousel, PlacedComplicationSlot, PlacedGraph,
+    PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
 from .palette import MIP64_LEVELS, Color
+
+#: Illustrative sample values for a `complication_slot` preview, keyed by
+#: `wfb.complications.TYPES` name -- not real data (there is no live
+#: `Complications` subscription on the host), just something plausible to
+#: show instead of an empty box. Falls back to a plain "12"/"--" for any type
+#: not listed here.
+_COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
+    "steps": 8432,
+    "heart_rate": 72,
+    "calories": 1840,
+    "battery": 68,
+    "body_battery": 62,
+    "floors_climbed": 7,
+    "notification_count": 3,
+    "stress": 34,
+    "current_temperature": 21.0,
+    "date": "28 Mar",
+    "weekday_monthday": "Wed 28",
+    "training_status": "Productive",
+}
 
 #: Plausible readings, so a preview shows a face mid-life rather than at zero.
 SAMPLE: dict[str, object] = {
@@ -148,6 +168,8 @@ class _Renderer:
             self._carousel(placed)
         elif isinstance(placed, PlacedGraph):
             self._graph(placed)
+        elif isinstance(placed, PlacedComplicationSlot):
+            self._complication_slot(placed)
 
     # -- elements ---------------------------------------------------------
 
@@ -487,6 +509,92 @@ class _Renderer:
             if value is None:
                 return ""
         return _render_numeric(spec, value)
+
+    def _complication_slot(self, placed: PlacedComplicationSlot) -> None:
+        """A `complication_slot`, previewed at its slot's *default* choice.
+
+        There is no on-device editor to ask which type the wearer actually
+        picked -- the same reason `config:`'s colour axes preview at their
+        own `default:` above -- and the default is what a device without the
+        native editor (fr955) always shows anyway.  The reading itself is an
+        illustrative sample (`_COMPLICATION_SLOT_SAMPLE`), not real data:
+        there is no live `Complications` subscription on the host.
+        """
+        element = placed.element
+        slot = self.resolved.face.config_data.get(element.slot)
+        if slot is None:
+            return
+        ctype = complications.TYPES[slot.default]
+        color = self._color(element.color)
+        s = self.scale
+
+        icon_font = None
+        icon_glyph = None
+        if placed.icon_font_key is not None:
+            icon_name = icons.COMPLICATION_ICON.get(slot.default)
+            if icon_name is not None:
+                icon_font = self.resolved.fonts.get(placed.icon_font_key)
+                icon_glyph = icons.CATALOG[icon_name].codepoint
+
+        text = self._complication_slot_text(element, ctype)
+        text_font = (self.resolved.fonts.get(placed.font_reference)
+                     if placed.font_is_custom else None)
+        if text_font is not None:
+            text_width, text_height = text_font.measure(text)
+        else:
+            text_width, text_height = fallback.measure(text, placed.font_px)
+
+        icon_width = 0.0
+        icon_sheet = None
+        glyph_obj = None
+        icon_height = 0.0
+        if icon_font is not None and icon_glyph is not None:
+            icon_sheet = getattr(icon_font, "sheet_image", None)
+            glyph_obj = icon_font.glyphs.get(icon_glyph)
+            if icon_sheet is not None and glyph_obj is not None:
+                iw, ih = icon_font.measure(icon_glyph)
+                icon_width = iw + COMPLICATION_SLOT_ICON_GAP
+                icon_height = ih
+
+        ax, ay = placed.anchor_point
+        start_x = ax - (icon_width + text_width) / 2
+
+        if icon_sheet is not None and glyph_obj is not None:
+            self._paste_glyph(icon_sheet, glyph_obj, start_x * s,
+                              (ay - icon_height / 2) * s, color)
+
+        pen_x = start_x + icon_width
+        if text_font is not None:
+            sheet = getattr(text_font, "sheet_image", None)
+            if sheet is not None:
+                top = ay - text_font.line_height / 2
+                for char in text:
+                    glyph = text_font.glyphs.get(char)
+                    if glyph is None:
+                        continue
+                    self._paste_glyph(sheet, glyph, pen_x * s, top * s, color)
+                    pen_x += glyph.xadvance
+                return
+        face = fallback.font_for_height(placed.font_px * s)
+        if face is not None:
+            self.draw.text((pen_x * s, ay * s), text, fill=color, font=face, anchor="lm")
+
+    def _complication_slot_text(self, element, ctype) -> str:
+        """An illustrative reading for `ctype`, formatted the same way
+        `wfb.emit.monkeyc._emit_complication_slot` renders one: an optional
+        label prefix, the value, and an optional unit suffix -- approximate,
+        since the real label and unit come from the device at runtime."""
+        value = _COMPLICATION_SLOT_SAMPLE.get(
+            ctype.name, 12 if ctype.value_type != "string" else "--")
+        text = ""
+        if element.label == "short":
+            text += "Now "
+        elif element.label == "long":
+            text += "Current "
+        text += str(value)
+        if element.unit and ctype.unit:
+            text += f" {ctype.unit}"
+        return text
 
     # -- text helpers -----------------------------------------------------
 

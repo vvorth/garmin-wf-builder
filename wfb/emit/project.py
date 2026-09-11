@@ -85,7 +85,12 @@ def generate(face: Face, devices: list[Device], root: Path,
     # The view is shared across devices; generate it from the first resolved
     # device, since only the Layout constants differ between them.
     first = project.resolved[devices[0].id]
-    if any(placed.kind == "icon" and placed.element.is_dynamic for placed in first.items):
+    needs_icon_glyphs = (
+        any(placed.kind == "icon" and placed.element.is_dynamic for placed in first.items)
+        or any(placed.kind == "complication_slot" and placed.element.icon_size is not None
+               for placed in first.items)
+    )
+    if needs_icon_glyphs:
         project.sources.append(monkeyc.emit_icon_glyphs(face))
     project.sources.append(monkeyc.emit_view(first))
     if monkeyc.needs_delegate(face):
@@ -146,6 +151,12 @@ def _features(face: Face) -> set[str]:
     features: set[str] = set()
     if any(READERS[name].complication_type for name in face.requirements().readers):
         features.add("complications")
+    if face.config_data:
+        # A `config: data:` slot reads `Toybox.Complications` (`Complications.
+        # Id`, `Complications.COMPLICATION_TYPE_*`) even though it is not a
+        # catalogue reader at all -- the type the wearer picks is not known
+        # until runtime, so `face.requirements().readers` above never sees it.
+        features.add("complications")
     if monkeyc.launches_a_glance(face):
         # `Complications.exitTo` is what an `on_hold:`, and a carousel item's
         # `launch:`, compiles to -- API 4.2.0, the same floor a complication
@@ -169,7 +180,10 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
     plan = monkeyc.ReadPlan(resolved)
     if face.barrel_functions():
         needed.add("WfbMath.mc")
-    if plan.complication_readers():
+    if plan.complication_readers() or face.config_data:
+        # A `config: data:` slot pulls through `WfbComplications.valueOf` too,
+        # even though it binds no ordinary `complication.*` catalogue reader
+        # at all -- see `_features` above for the same reasoning.
         needed.add("WfbComplications.mc")
     for placed in resolved.items:
         kind = placed.kind

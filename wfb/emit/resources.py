@@ -19,13 +19,13 @@ from xml.sax.saxutils import escape
 
 from PIL import Image, ImageDraw
 
-from .. import catalog, formatting, icons, units
+from .. import catalog, complications, formatting, icons, units
 from ..devices import Device
 from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
 from ..ir import (
-    CONFIG_SYMBOL, Carousel, Face, FontSpec, IconElement, Text, config_label_id,
-    config_style_label_id,
+    CONFIG_SYMBOL, Carousel, ComplicationSlot, Face, FontSpec, IconElement, Text,
+    config_data_ids, config_label_id, config_style_label_id,
 )
 from ..palette import Color
 
@@ -44,10 +44,53 @@ class ResourceBundle:
     images: dict[str, Image.Image] = field(default_factory=dict)
 
 
+#: Every letter a localised device string (`Complication.shortLabel`/
+#: `.longLabel`, or a `Complications.Unit` that comes back as a raw String
+#: rather than the documented enum) could plausibly contain -- the same
+#: "the full alphabet has to be present" reasoning `Type.DATE`'s glyph set
+#: already uses for a weekday/month string chosen by the firmware, applied
+#: here because neither string's content is knowable at build time either.
+_COMPLICATION_TEXT_ALPHABET = (
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz "
+)
+
+
 def glyph_set(face: Face) -> dict[str, str]:
     """The characters each declared font must contain, derived from the design."""
     needed: dict[str, set[str]] = {name: set() for name in face.fonts}
     for element in face.walk():
+        if isinstance(element, ComplicationSlot) and element.font_is_custom:
+            # The wearer can point this slot at any of its declared choices,
+            # and `Complication.value`'s concrete type genuinely varies by
+            # choice (there is no per-choice `format:` to size against --
+            # `Builder._build_complication_slot` forbids it) -- so the font
+            # has to carry everything *any* choice could render, not one
+            # choice's glyphs. See `wfb.layout.Resolver.
+            # _complication_slot_widest`'s docstring for the same reasoning
+            # applied to the overflow estimate.
+            bucket = needed.setdefault(element.font, set())
+            slot = face.config_data.get(element.slot)
+            choices: tuple[str, ...] = ()
+            if slot is not None:
+                choices = (slot.default,) if slot.allow_any else slot.choices
+            for name in choices:
+                ctype = complications.TYPES.get(name)
+                if ctype is None:
+                    continue
+                value_type = (catalog.Type.STRING if ctype.value_type == "string"
+                             else catalog.Type.NUMBER)
+                bucket |= formatting.glyphs("{}", None, value_type)
+                if ctype.value_type == "float":
+                    bucket |= set(".")
+            if element.placeholder:
+                bucket |= set(element.placeholder)
+            if element.label != "none" or element.unit:
+                # A label is always a localised device string; a unit can be
+                # too (`Complications.Unit or Lang.String`) -- both unbounded.
+                bucket |= set(_COMPLICATION_TEXT_ALPHABET)
+            if element.unit:
+                bucket |= set("".join(complications.UNIT_SUFFIX.values()))
+            continue
         if isinstance(element, Carousel) and element.value_font_is_custom:
             # A carousel draws one item's reading at a time, but any of them
             # could be selected, so the font has to carry every item's glyphs.
@@ -136,6 +179,31 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     # key -> (size, glyphs, bake_reference, antialias)
     by_key: dict[str, tuple[object, str, str, bool]] = {}
     for element in face.walk():
+        if isinstance(element, ComplicationSlot):
+            if element.icon_size is None:
+                continue
+            slot = face.config_data.get(element.slot)
+            if slot is None or slot.allow_any:
+                continue  # rejected slot, or 'choices: any' (icon_size: is an error there)
+            mapped = {name: icons.COMPLICATION_ICON[name] for name in slot.choices
+                     if name in icons.COMPLICATION_ICON}
+            if not mapped:
+                # None of this slot's choices has a catalogue icon -- it
+                # simply draws none, which is a documented, legitimate
+                # outcome (`wfb.icons.COMPLICATION_ICON`'s own docstring),
+                # not something to bake a font for.
+                continue
+            icon_names = sorted(set(mapped.values()))
+            glyphs = "".join(sorted({icons.CATALOG[n].codepoint for n in icon_names}))
+            # The default choice's own icon normalises the shared nominal
+            # size, the same "pick one reference glyph" trade-off
+            # `WEATHER_BAKE_REFERENCE_GLYPH` makes for the weather set --
+            # documented in `docs/format.md`'s `complication_slot` section.
+            reference = icons.CATALOG[mapped.get(slot.default) or icon_names[0]].codepoint
+            key = icons.font_key(element.icon_size, f"slot_{element.slot}",
+                                 element.resolved_antialias)
+            by_key[key] = (element.icon_size, glyphs, reference, element.resolved_antialias)
+            continue
         if isinstance(element, Carousel):
             # Every item's glyph, each in its own single-glyph font for the
             # same per-codepoint bake-size reason a standalone icon has: the
@@ -311,6 +379,20 @@ def config_resource(face: Face) -> str:
                 attrs += f' label="@Strings.{config_style_label_id(index)}"'
             lines.append(f"            <style{attrs}/>")
         lines.append("        </styles>")
+    if face.config_data:
+        lines.append("        <data>")
+        for name, slot_id in config_data_ids(face).items():
+            slot = face.config_data[name]
+            if slot.allow_any:
+                lines.append(f'            <complication id="{slot_id}" allowAny="true"/>')
+                continue
+            lines.append(f'            <complication id="{slot_id}">')
+            for choice in slot.choices:
+                ctype = complications.TYPES[choice]
+                attrs = ' default="true"' if choice == slot.default else ""
+                lines.append(f'                <type{attrs}>Complications.{ctype.constant}</type>')
+            lines.append("            </complication>")
+        lines.append("        </data>")
     for name, entry in face.config.items():
         tag = entry.axis.resource_tag
         if entry.allow_any:

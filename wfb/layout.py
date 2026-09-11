@@ -14,13 +14,13 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from . import catalog, formatting, icons, units
+from . import catalog, complications, formatting, icons, units
 from .devices import Device
 from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
-    Carousel, Element, Expression, Face, FontSpec, Graph, Group, IconElement, Position,
-    Progress, Shape, Size, Text, draw_sort_key,
+    Carousel, ComplicationSlot, Element, Expression, Face, FontSpec, Graph, Group,
+    IconElement, Position, Progress, Shape, Size, Text, draw_sort_key,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
 
@@ -195,6 +195,43 @@ class PlacedGraph(Placed):
     size: tuple[int, int] = (0, 0)
 
 
+#: Fixed pixel gap between a complication_slot's icon and its reading.  A
+#: small constant rather than a fraction of the icon's own size, the same way
+#: `PlacedShape`'s outline padding is a fixed `+1`/`+2` rather than scaled --
+#: there is no `size:`-like key in the format to derive one from, and getting
+#: this exact does not change what the element *is*.
+COMPLICATION_SLOT_ICON_GAP = 4
+
+
+@dataclass
+class PlacedComplicationSlot(Placed):
+    """A `complication_slot`, resolved: an estimated box for the geometry
+    lints, plus everything the emitter needs to draw the icon and reading it
+    cannot know the exact content of until the device pulls it.
+
+    `box`/`widest` are, like `PlacedText`'s, an *estimate* -- the real drawn
+    extent depends on which type the wearer has this slot pointed at and
+    what it currently reads, neither of which exists at build time.  The
+    generated code centres the actually-drawn icon+text pair on `anchor_point`
+    at runtime (`Dc.getTextWidthInPixels`), so this box is for the safe-area/
+    off-screen checks only, not the device's own placement math.
+    """
+
+    anchor_point: tuple[int, int] = (0, 0)
+    font_reference: str = "FONT_SMALL"
+    font_is_custom: bool = False
+    font_px: int = 0
+    #: The widest plausible reading, across every declared choice -- see
+    #: `Resolver._complication_slot_widest`.
+    widest: str = ""
+    #: The synthetic multi-glyph icon font this slot's icon draws from
+    #: (`wfb.icons.font_key`), or `None` when this slot draws no icon at all
+    #: -- `icon_size:` was omitted, or none of its declared choices has an
+    #: entry in `wfb.icons.COMPLICATION_ICON`.
+    icon_font_key: str | None = None
+    icon_px: int = 0
+
+
 @dataclass
 class ResolvedFace:
     face: Face
@@ -271,6 +308,8 @@ class Resolver:
                 self.items.append(self._resolve_carousel(element, parent, depth))
             elif isinstance(element, Graph):
                 self.items.append(self._resolve_graph(element, parent, depth))
+            elif isinstance(element, ComplicationSlot):
+                self.items.append(self._resolve_complication_slot(element, parent, depth))
 
     # -- per-kind ---------------------------------------------------------
 
@@ -537,6 +576,108 @@ class Resolver:
             thickness=thickness, bar_width=bar_width, size=(round(width), round(height)),
         )
 
+    def _resolve_complication_slot(self, element: ComplicationSlot, parent: Box,
+                                   depth: int) -> Placed:
+        """Resolve a `complication_slot`: an estimated box, plus the icon and
+        text font resources the emitter needs.
+
+        Unlike every other element, nothing about *what* is drawn is known
+        here -- the wearer's pick is a runtime `Complications.Id`.  So this
+        resolves only what a font baking, and the geometry lints, need
+        ahead of time: the text font/estimated extent (`_complication_slot_
+        widest`, the same "widest plausible rendering" idea `_widest_text`
+        already uses), and -- when `icon_size:` is set -- one shared,
+        multi-glyph icon font covering every declared choice that has an
+        entry in `wfb.icons.COMPLICATION_ICON`, keyed by this slot's own name
+        so two different slots never collide into one font resource.
+        """
+        cx, cy = self._point(element.at, parent)
+        font_px, reference, is_custom, baked = self._font_for(element)
+        widest = self._complication_slot_widest(element)
+        if baked is not None:
+            text_width, line_height = baked.measure(widest)
+        else:
+            text_width, _ = fallback.measure(widest, font_px)
+            line_height = font_px
+
+        icon_font_key: str | None = None
+        icon_px = 0
+        icon_width = 0
+        if element.icon_size is not None:
+            slot = self.face.config_data.get(element.slot)
+            reference_glyph: str | None = None
+            if slot is not None and not slot.allow_any:
+                mapped = {name: icons.COMPLICATION_ICON[name] for name in slot.choices
+                         if name in icons.COMPLICATION_ICON}
+                if mapped:
+                    icon_name = mapped.get(slot.default) or sorted(mapped.values())[0]
+                    reference_glyph = icons.CATALOG[icon_name].codepoint
+            if reference_glyph is not None:
+                icon_px = units.pixel_size(element.icon_size, self.device.minor_radius)
+                icon_font_key = icons.font_key(
+                    element.icon_size, f"slot_{element.slot}", element.resolved_antialias)
+                font = self.fonts.get(icon_font_key)
+                if font is not None:
+                    icon_width, _ = font.measure(reference_glyph)
+                else:
+                    icon_width = icon_px
+
+        total_width = text_width + (icon_width + COMPLICATION_SLOT_ICON_GAP if icon_font_key else 0)
+        height = max(line_height, icon_px, 1)
+        box = Box(cx - total_width / 2, cy - height / 2, total_width, height)
+        return PlacedComplicationSlot(
+            element, box.rounded(), (round(cx), round(cy)), depth,
+            anchor_point=(round(cx), round(cy)),
+            font_reference=reference, font_is_custom=is_custom, font_px=font_px,
+            widest=widest, icon_font_key=icon_font_key, icon_px=icon_px,
+        )
+
+    def _complication_slot_widest(self, element: ComplicationSlot) -> str:
+        """The widest plausible reading a `complication_slot` can draw.
+
+        There is no per-choice `format:` to size against (`Builder._build_
+        complication_slot` forbids it, because the value's concrete type
+        genuinely varies by choice) -- so this estimates across *every*
+        declared choice rather than exactly for one, the same digit-count
+        estimate `formatting.widest` already falls back to for a Number/
+        Float/String source with no documented range (every complication
+        type qualifies: none is in `wfb.formatting._SOURCE_DIGITS`).
+        `label:`/`unit:` add unbounded, localised device strings on top --
+        recorded approximately rather than precisely, the same "over-estimate
+        costs a spurious warning, under-estimate costs a clipped face"
+        tolerance this project already accepts for a Type.STRING source of
+        unknown length.
+        """
+        slot = self.face.config_data.get(element.slot)
+        choices: tuple[str, ...] = ()
+        if slot is not None:
+            choices = (slot.default,) if slot.allow_any else slot.choices
+        widest = ""
+        for name in choices:
+            ctype = complications.TYPES.get(name)
+            if ctype is None:
+                continue
+            value_type = Type.STRING if ctype.value_type == "string" else Type.NUMBER
+            candidate = formatting.widest("{}", None, value_type)
+            if len(candidate) > len(widest):
+                widest = candidate
+        if element.when_absent == "placeholder" and element.placeholder:
+            if len(element.placeholder) > len(widest):
+                widest = element.placeholder
+        # `label:`/`unit:` are deliberately NOT folded in here, unlike the
+        # digit-count estimate above: `Complication.shortLabel`/`.longLabel`
+        # and a String `.unit` are localised device strings with no
+        # documented upper bound at all (unlike a digit count, which at
+        # least has a plausible ceiling), so *any* fixed padding here is a
+        # guess that would either be routinely wrong or -- picked large
+        # enough to rarely be wrong -- inflate every ordinary slot's box
+        # into a spurious `off-screen` build **error** (checked directly:
+        # an 8-character placeholder pushed a design that fits comfortably
+        # off the framebuffer). `docs/limitations.md` records this as a
+        # documented gap instead: the geometry/overflow checks size a
+        # slot's box from its value alone.
+        return widest
+
     def _carousel_value_font(self, element: Carousel) -> tuple[int, str, bool, BakedFont | None]:
         if element.value_font_is_custom:
             baked = self.fonts.get(element.value_font)
@@ -779,7 +920,7 @@ def safe_area(device: Device) -> Box | None:
 
 __all__ = [
     "Placed", "PlacedShape", "PlacedText", "PlacedProgress", "PlacedIcon",
-    "PlacedCarousel", "PlacedCarouselItem", "PlacedGraph",
+    "PlacedCarousel", "PlacedCarouselItem", "PlacedGraph", "PlacedComplicationSlot",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
     "inside_visible_area_for", "circular_extent", "garmin_arc",
     "is_full_bleed",
