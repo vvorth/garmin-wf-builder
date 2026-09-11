@@ -37,14 +37,21 @@
       "default": false
     },
     "palette": {
-      "description": "Named colours. Elements reference palette entries, never raw hex.",
+      "description": "Named colours. Elements reference palette entries, never raw hex. Each entry is either the short form (a colour directly) or the long form ({value, label}), which adds a human-readable label a 'config:' choices: entry can pick up by referencing this entry as 'palette.<name>'.",
       "type": "object",
       "minProperties": 1,
       "propertyNames": {
         "$ref": "#/$defs/identifier"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/color"
+        "oneOf": [
+          {
+            "$ref": "#/$defs/color"
+          },
+          {
+            "$ref": "#/$defs/paletteEntry"
+          }
+        ]
       }
     },
     "fonts": {
@@ -147,6 +154,30 @@
       "type": "string",
       "pattern": "^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
     },
+    "paletteEntry": {
+      "description": "Long form of a 'palette:' entry: an explicit colour plus a human-readable label. The label is otherwise inert -- it surfaces only when this entry is referenced from a 'config:' 'default:'/'choices:' as 'palette.<name>', where it becomes the same '<color label=\"@Strings...\">' and generated '<string>' an inline 'label:' on a choices: item produces today.",
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "description": "The entry's colour -- a literal '#RRGGBB'/'#RGB', same restriction as the short form: a palette entry may not reference 'config.*' (or another 'palette.*' entry).",
+          "$ref": "#/$defs/color"
+        },
+        "label": {
+          "description": "Shown in the editor's picker when this entry is used as a 'config:' choice. Optional -- an entry with no label used as a choice produces an unlabelled '<color>', same as omitting 'label:' on an inline choice.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "paletteRef": {
+      "description": "A reference to a named 'palette:' entry, accepted where a build-time literal colour is otherwise required (a 'config:' entry's 'default:'/'choices:').",
+      "type": "string",
+      "pattern": "^palette\\.[A-Za-z_][A-Za-z0-9_]*$"
+    },
     "configColor": {
       "description": "One native colour axis: a compiled-in default, plus either the editor's full colour picker ('any') or an explicit, orderable list of choices. Every declared colour is checked against the target's 64-colour palette rule, the same 'palette-dither' check a palette entry gets.",
       "type": "object",
@@ -157,8 +188,15 @@
       "additionalProperties": false,
       "properties": {
         "default": {
-          "description": "Compiled into the view as the starting value, and the only value a device without the native editor (fr955) ever shows -- not a fallback path, the path.",
-          "$ref": "#/$defs/hexColor"
+          "description": "Compiled into the view as the starting value, and the only value a device without the native editor (fr955) ever shows -- not a fallback path, the path. A literal colour, or a 'palette.<name>' reference -- either way it must also appear (by colour value) in 'choices:' when 'choices:' is an explicit list.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/hexColor"
+            },
+            {
+              "$ref": "#/$defs/paletteRef"
+            }
+          ]
         },
         "choices": {
           "description": "'any' hands the wearer the editor's own full colour picker (allowAny=\"true\", no listed colours, no string resources needed). An explicit list becomes the editor's picklist; 'default:' must be one of the listed colours in that case, since Garmin defines no behaviour for a default that is not in the list.",
@@ -178,21 +216,29 @@
       }
     },
     "configChoice": {
-      "type": "object",
-      "required": [
-        "color"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "color": {
-          "$ref": "#/$defs/hexColor"
+      "description": "One entry in an explicit 'choices:' list -- either a bare 'palette.<name>' reference (contributing that entry's colour and, if it has one, its label) or an inline {color, label}.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/paletteRef"
         },
-        "label": {
-          "description": "Shown in the editor's picker. Optional -- an unlabelled colour is legal (the SDK's own sample has one) and becomes a '<color>' with no label attribute.",
-          "type": "string",
-          "minLength": 1
+        {
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/hexColor"
+            },
+            "label": {
+              "description": "Shown in the editor's picker. Optional -- an unlabelled colour is legal (the SDK's own sample has one) and becomes a '<color>' with no label attribute.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
         }
-      }
+      ]
     },
     "expression": {
       "description": "An expression over data sources, palette entries and literals. A bare number is accepted for the common case of a literal bound (max: 10000) and needs no quoting.",

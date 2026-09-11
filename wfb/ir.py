@@ -641,6 +641,15 @@ class Face:
     #: every emitter below treats this dict as the single on/off switch for
     #: the whole feature.
     config: dict[str, ConfigColor] = field(default_factory=dict)
+    #: Long-form `palette:` entries' labels, keyed by name.  Only entries
+    #: declared with the `{value, label}` form and an actual `label:` appear
+    #: here; a short-form entry (`name: "#RRGGBB"`) contributes nothing.
+    #: `config:` already resolves a `palette.<name>` choice's label into its
+    #: own `ConfigChoice.label` at build time, so nothing downstream reads
+    #: this to render `config:` -- it exists for anything else (a future
+    #: `color_scheme:`, `wfb explain`) that wants a palette entry's label
+    #: without re-parsing the source.
+    palette_labels: dict[str, str] = field(default_factory=dict)
 
     def walk(self) -> list[Element]:
         """Every element, parents before children, in document order."""
@@ -694,6 +703,14 @@ class Builder:
         self.doc = doc
         self.bag = bag
         self.palette: dict[str, Color] = {}
+        #: Long-form `palette:` entries' labels, keyed by name.  Only the
+        #: accepted entries with a `label:` appear here -- a rejected entry
+        #: has neither a colour nor a label, and a short-form/unlabelled
+        #: entry has a colour but no label.  Consulted only when a `config:`
+        #: `default:`/`choices:` names the entry as `palette.<name>`, which
+        #: is the one place a palette entry's label reaches beyond the
+        #: palette itself.
+        self.palette_labels: dict[str, str] = {}
         self.config: dict[str, ConfigColor] = {}
         self.fonts: dict[str, FontSpec] = {}
         #: Every name in the `fonts:` block, whether or not it survived
@@ -705,6 +722,13 @@ class Builder:
         #: one would otherwise raise a second, derived error blaming the
         #: element for a mistake made in the `fonts:` block.
         self.rejected_fonts: set[str] = set()
+        #: Every name in the `palette:` block, whether or not it survived
+        #: `_build_palette` -- the same "declared vs accepted" split
+        #: `declared_fonts`/`rejected_fonts` keep, needed now that a
+        #: `config:` `default:`/`choices:` entry can name a palette entry
+        #: and must get exactly one error when that name was rejected.
+        self.declared_palette: dict[str, Span | None] = {}
+        self.rejected_palette: set[str] = set()
         #: `config:` axes that were declared and then rejected.  Bound into
         #: scope anyway (`_build_scope`) so the author gets exactly one error,
         #: at the real mistake -- the same cascade fix `rejected_fonts` above
@@ -753,6 +777,7 @@ class Builder:
             entry=face.get("entry") or _pascal(name) or "WatchFace",
             targets=tuple(data["targets"]),
             palette=self.palette,
+            palette_labels=dict(self.palette_labels),
             fonts=self.fonts,
             elements=elements,
             source_path=self.doc.path,
@@ -763,13 +788,31 @@ class Builder:
     # -- palette, config, fonts, scope -------------------------------------
 
     def _build_palette(self, raw: dict) -> None:
+        """`palette:` -- named colours, in either of two spellings.
+
+        The short form, `name: "#RRGGBB"`, is unchanged.  The long form,
+        `name: {value: "#RRGGBB", label: "..."}`, adds a label with no other
+        effect here -- it only matters once a `config:` entry references this
+        entry as `palette.<name>` (`_palette_reference`), which is where the
+        label becomes a generated `<string>`, exactly as an inline `label:`
+        on a `config:` choice already does.
+        """
         for name, value in raw.items():
             span = self.doc.span(raw, name)
-            if isinstance(value, str) and value.startswith(("palette.", "config.")):
+            self.declared_palette[name] = span
+            if isinstance(value, dict):
+                raw_value = value.get("value")
+                value_span = self.doc.span(value, "value") or span
+                label = value.get("label")
+            else:
+                raw_value = value
+                value_span = span
+                label = None
+            if isinstance(raw_value, str) and raw_value.startswith(("palette.", "config.")):
                 self.bag.error(
                     "palette",
-                    f"palette entry {name!r} refers to {value!r}",
-                    span,
+                    f"palette entry {name!r} refers to {raw_value!r}",
+                    value_span,
                     notes=[
                         "palette entries must be literal colours in this format version",
                         "reference a config entry directly from 'color:'/'track_color:' "
@@ -777,11 +820,50 @@ class Builder:
                         "through a palette entry",
                     ],
                 )
+                self.rejected_palette.add(name)
                 continue
             try:
-                self.palette[name] = Color.parse(value, what=f"palette.{name}")
+                self.palette[name] = Color.parse(raw_value, what=f"palette.{name}")
             except ColorError as exc:
-                self.bag.error("palette", str(exc), span)
+                self.bag.error("palette", str(exc), value_span)
+                self.rejected_palette.add(name)
+                continue
+            if label is not None:
+                self.palette_labels[name] = label
+
+    def _palette_reference(self, name: str, span: Span | None) -> Color | None:
+        """Resolve a `palette.<name>` reference used where a build-time literal
+        colour is required -- a `config:` entry's own `default:`/`choices:`.
+
+        Returns ``None`` when the name does not resolve, either because it was
+        never declared or because it *was* declared and then rejected by
+        `_build_palette` (an out-of-range colour, a `config.*` reference).  In
+        the rejected case this stays quiet: the real mistake already has its
+        own error pointing at the `palette:` block, and the same
+        `rejected_fonts`/`rejected_config` cascade fix applies here -- one
+        error at the real mistake, not one more per reference blaming the
+        wrong line.
+        """
+        key = name[len("palette."):]
+        if key in self.palette:
+            return self.palette[key]
+        if key in self.rejected_palette:
+            return None
+        known = ", ".join(f"palette.{n}" for n in sorted(self.declared_palette)) or "(none declared)"
+        self.bag.error("config", f"unknown palette entry {name!r}", span,
+                       notes=[f"declared palette entries: {known}"])
+        return None
+
+    def _resolve_config_color(self, raw: object, what: str, span: Span | None) -> Color | None:
+        """A `config:` `default:`/`choices:` colour: a literal hex, or a
+        `palette.<name>` reference resolved through `_palette_reference`."""
+        if isinstance(raw, str) and raw.startswith("palette."):
+            return self._palette_reference(raw, span)
+        try:
+            return Color.parse(raw, what=what)
+        except ColorError as exc:
+            self.bag.error("config", str(exc), span)
+            return None
 
     def _build_config(self, raw: dict) -> None:
         """`config:` -- the native editor's two colour axes (ADR 0006 1, amended).
@@ -793,10 +875,10 @@ class Builder:
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            try:
-                default = Color.parse(spec["default"], what=f"config.{name}.default")
-            except ColorError as exc:
-                self.bag.error("config", str(exc), self.doc.span(spec, "default"))
+            default_span = self.doc.span(spec, "default")
+            default = self._resolve_config_color(
+                spec["default"], f"config.{name}.default", default_span)
+            if default is None:
                 self.rejected_config.add(name)
                 continue
 
@@ -809,6 +891,20 @@ class Builder:
             choices: list[ConfigChoice] = []
             ok = True
             for index, item in enumerate(raw_choices):
+                item_span = self.doc.span(raw_choices, index)
+                if isinstance(item, str):
+                    # A bare `palette.<name>` reference -- the schema accepts
+                    # nothing else as a plain string here.  Contributes the
+                    # entry's colour and, if it has one, its label.
+                    color = self._palette_reference(item, item_span)
+                    if color is None:
+                        ok = False
+                        continue
+                    choices.append(ConfigChoice(
+                        color=color,
+                        label=self.palette_labels.get(item[len("palette."):]),
+                    ))
+                    continue
                 try:
                     color = Color.parse(item["color"], what=f"config.{name}.choices[{index}]")
                 except ColorError as exc:
@@ -824,7 +920,7 @@ class Builder:
                 self.bag.error(
                     "config",
                     f"config.{name}: default {spec['default']!r} is not one of 'choices:'",
-                    self.doc.span(spec, "default"),
+                    default_span,
                     notes=[
                         "the on-device editor marks one listed colour as the user's "
                         "default (the generated <color default=\"true\">) -- Garmin "
@@ -982,6 +1078,25 @@ class Builder:
                     expr.Value(Type.COLOR),
                     code=f"Palette.{name.upper()}",
                     constant=color.value,
+                    kind="palette",
+                ),
+            )
+        for name in sorted(self.rejected_palette):
+            # Declared, then rejected above (an out-of-range colour, or a
+            # `config.*`/`palette.*` reference `_build_palette` refuses).
+            # Bound into scope anyway so an element's `color: palette.<name>`
+            # gets the one real error already reported against the
+            # `palette:` block, not a second "unknown data source" blaming
+            # the element for a mistake made elsewhere -- the same cascade
+            # fix `rejected_fonts`/`rejected_config` exist for, in the same
+            # shape.  Nothing is emitted from a design that has an error, so
+            # the placeholder value here is never reached.
+            self.scope.define(
+                f"palette.{name}",
+                expr.Binding(
+                    expr.Value(Type.COLOR),
+                    code=f"Palette.{name.upper()}",
+                    constant=0,
                     kind="palette",
                 ),
             )

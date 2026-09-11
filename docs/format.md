@@ -118,6 +118,7 @@ palette:
   bg: "#000000"
   text: "#FFFFFF"
   accent: "#FF5500"
+  aqua: { value: "#00FFFF", label: "Aqua" }   # long form -- see below
 ```
 
 Elements reference `palette.accent`, never a raw hex value. A literal colour is
@@ -132,23 +133,47 @@ on an element silences it for a deliberate choice.
 **A `palette:` entry may not reference `config.*`.** A palette entry compiles
 to a Monkey C `const`, and a config value is not known until the watch reads
 it, so `bg: config.accent_color` is an error. Reference the config entry
-directly instead: `color: config.accent_color`.
+directly instead: `color: config.accent_color`. This applies to either
+spelling below -- `aqua: { value: config.accent_color }` is rejected the same
+way `aqua: config.accent_color` is.
+
+### Long form: a label for the on-device editor
+
+```yaml
+palette:
+  aqua: { value: "#00FFFF", label: "Aqua" }
+```
+
+`{value, label}` is an alternative spelling of a palette entry, not a
+different kind of thing -- `value:` means exactly what the short form's colour
+means, and every existing check (the 64-colour rule, the `config.*` ban above)
+applies to it identically. The only thing the long form adds is `label:`,
+which does nothing on its own: it surfaces only when this entry is used from a
+`config:` axis's `default:` or `choices:` as `palette.<name>` (see
+Configuration, below), where it becomes the same `<color
+label="@Strings...">` and generated `<string>` an inline `label:` on a
+`config:` choice already produces. A long-form entry with no `label:` behaves
+exactly like the short form.
 
 ---
 
 ## Configuration
 
 ```yaml
+palette:
+  aqua: { value: "#00FFFF", label: "Aqua" }
+  amber: { value: "#FFAA00", label: "Amber" }
+
 config:
   accent_color:
     default: "#FF8000"
     choices: any                       # the editor's own full colour picker
   data_color:
-    default: "#FFFFFF"
+    default: palette.aqua              # a palette reference, or a literal hex
     choices:                           # or an explicit list
-      - { color: "#FFFFFF", label: "White" }
-      - { color: "#00FFFF", label: "Aqua" }
-      - { color: "#FFAA00", label: "Amber" }
+      - palette.aqua                   # a bare palette reference ...
+      - palette.amber
+      - { color: "#FFFFFF", label: "White" }   # ... or the inline form
 ```
 
 Two user-editable colours, read through the fēnix 8's **native on-device watch
@@ -158,14 +183,26 @@ this block accepts -- Garmin's editor offers exactly one accent colour and one
 data colour, and nothing else. Declaring anything else is a schema error
 naming what is accepted.
 
-Each entry needs both `default:` (a literal `#RRGGBB`/`#RGB`, compiled into the
-view as the starting value) and `choices:` -- either the literal string `any`,
-which hands the wearer the editor's own unrestricted colour picker, or an
-explicit list of `{color, label}` entries, where `label:` is optional (an
-unlabelled colour is legal -- Garmin's own sample has one). **When `choices:`
-is an explicit list, `default:` must be one of the listed colours** -- the
-editor marks one listed colour `default="true"`, and Garmin defines no
+Each entry needs both `default:` and `choices:`. `default:` is a literal
+`#RRGGBB`/`#RGB` or a `palette.<name>` reference, compiled into the view as the
+starting value either way -- once resolved, a palette reference and a literal
+are the same colour to every check below. `choices:` is either the literal
+string `any`, which hands the wearer the editor's own unrestricted colour
+picker, or an explicit list whose items are each **either** a bare
+`palette.<name>` reference **or** an inline `{color, label}`. A bare palette
+reference contributes that entry's colour and, if the entry declared one, its
+`label:` -- unlabelled long-form entries and the short form both produce an
+unlabelled choice, same as omitting `label:` on the inline form. **When
+`choices:` is an explicit list, `default:` must be one of the listed
+colours** -- compared by colour value, so `default: palette.aqua` matches a
+listed `palette.aqua` (or an inline choice with the identical hex) equally --
+the editor marks one listed colour `default="true"`, and Garmin defines no
 behaviour for a default that is not in the list.
+
+**Naming a palette entry that was never declared, or was declared and
+rejected (an out-of-range colour, a `config.*` reference), is an error** at
+the `default:`/`choices:` line, naming every entry `palette:` actually
+declares.
 
 Reference a declared entry as an ordinary colour expression, exactly like a
 palette entry:
@@ -203,6 +240,8 @@ such target, naming the device and the entries affected.
 ### Lint
 
 * An unknown key under `config:` -- schema error, naming what is accepted.
+* `default:`/`choices:` naming an undeclared (or declared-and-rejected)
+  `palette.<name>` -- error, naming the declared palette entries.
 * `default:` not among an explicit `choices:` list -- error.
 * Every declared colour goes through the same 64-colour palette-legality check
   a `palette:` entry gets: `default:` always (it is the only value a device

@@ -18,6 +18,7 @@ from tests.test_diagnostics import load
 from wfb import lint
 from wfb.diagnostics import Bag
 from wfb.ir import CONFIG_SYMBOL
+from wfb.palette import Color
 
 HEAD = """format: 1
 face:
@@ -207,6 +208,149 @@ def test_an_unknown_config_reference_suggests_the_declared_ones(write_design):
     assert any(d.code == "expression" for d in errors)
     note = " ".join(n for d in errors for n in d.notes)
     assert "config.accent_color" in note and "config.data_color" in note
+
+
+# -- `default:`/`choices:` as `palette.<name>` references ---------------------
+#
+# `palette:` grew a `{value, label}` long form so a `config:` choice can name
+# an entry instead of retyping its hex and label (docs/research/09 §2).  These
+# tests are the IR-level half of that; `test_palette.py` covers the palette
+# block itself.
+
+PALETTE_REF_HEAD = HEAD.replace(
+    'palette:\n  bg: "#000000"\n  fg: "#FFFFFF"\n',
+    'palette:\n'
+    '  bg: "#000000"\n'
+    '  fg: "#FFFFFF"\n'
+    '  aqua: { value: "#00FFFF", label: "Aqua" }\n'
+    '  amber: { value: "#FFAA00" }\n',  # deliberately unlabelled
+)
+
+
+def test_default_as_a_palette_reference_resolves_to_that_colour(write_design, bag):
+    text = PALETTE_REF_HEAD + """config:
+  accent_color:
+    default: palette.aqua
+    choices: any
+""" + BODY.replace("config.data_color", "palette.fg")
+    face = _face(text, write_design, bag)
+    assert face.config["accent_color"].default == Color.parse("#00FFFF")
+
+
+def test_choices_accept_bare_palette_references(write_design, bag):
+    text = PALETTE_REF_HEAD + """config:
+  data_color:
+    default: palette.aqua
+    choices:
+      - palette.aqua
+      - palette.amber
+      - { color: "#FFFFFF", label: "White" }
+""" + BODY.replace("config.accent_color", "palette.fg")
+    face = _face(text, write_design, bag)
+    entry = face.config["data_color"]
+    assert [c.color for c in entry.choices] == [
+        Color.parse("#00FFFF"), Color.parse("#FFAA00"), Color.parse("#FFFFFF"),
+    ]
+    assert entry.default == Color.parse("#00FFFF")
+
+
+def test_a_palette_choice_contributes_its_own_label(write_design, bag):
+    text = PALETTE_REF_HEAD + """config:
+  data_color:
+    default: palette.aqua
+    choices:
+      - palette.aqua
+      - { color: "#FFFFFF", label: "White" }
+""" + BODY.replace("config.accent_color", "palette.fg")
+    face = _face(text, write_design, bag)
+    aqua_choice = face.config["data_color"].choices[0]
+    assert aqua_choice.label == "Aqua"
+
+
+def test_a_palette_choice_with_no_label_is_unlabelled(write_design, bag):
+    text = PALETTE_REF_HEAD + """config:
+  data_color:
+    default: palette.amber
+    choices:
+      - palette.amber
+      - { color: "#FFFFFF", label: "White" }
+""" + BODY.replace("config.accent_color", "palette.fg")
+    face = _face(text, write_design, bag)
+    amber_choice = face.config["data_color"].choices[0]
+    assert amber_choice.label is None
+
+
+def test_default_and_a_palette_choice_are_compared_by_colour_value(write_design, bag):
+    """A literal `default:` matching a `palette.*` choice's colour is fine --
+    the existing "default must be one of choices:" check compares by colour
+    value, unchanged by where each side's colour came from."""
+    text = PALETTE_REF_HEAD + """config:
+  data_color:
+    default: "#00FFFF"
+    choices:
+      - palette.aqua
+""" + BODY.replace("config.accent_color", "palette.fg")
+    face = _face(text, write_design, bag)
+    assert face.config["data_color"].default == Color.parse("#00FFFF")
+
+
+def test_choices_naming_an_unknown_palette_entry_names_the_declared_ones(write_design):
+    text = PALETTE_REF_HEAD + """config:
+  data_color:
+    default: palette.aqua
+    choices:
+      - palette.aqua
+      - palette.nope
+""" + BODY.replace("config.accent_color", "palette.fg")
+    errors = _errors(text, write_design)
+    assert any(d.code == "config" and "unknown palette entry" in d.message for d in errors)
+    note = " ".join(n for d in errors for n in d.notes)
+    assert "palette.bg" in note and "palette.aqua" in note and "palette.amber" in note
+
+
+def test_default_naming_an_unknown_palette_entry_is_an_error(write_design):
+    text = PALETTE_REF_HEAD + """config:
+  accent_color:
+    default: palette.nope
+    choices: any
+""" + BODY.replace("config.data_color", "palette.fg")
+    errors = _errors(text, write_design)
+    assert any(d.code == "config" and "unknown palette entry 'palette.nope'" in d.message
+               for d in errors)
+
+
+def test_default_naming_a_rejected_palette_entry_does_not_cascade(write_design):
+    """`palette.bad` fails its own check (references `config.*`); naming it
+    from `config:` should not add a second, derived error -- the same
+    cascade fix `rejected_fonts`/`rejected_config` exist for."""
+    text = HEAD.replace(
+        'palette:\n  bg: "#000000"\n  fg: "#FFFFFF"\n',
+        'palette:\n  bg: "#000000"\n  fg: "#FFFFFF"\n  bad: config.accent_color\n',
+    ) + """config:
+  accent_color:
+    default: palette.bad
+    choices: any
+""" + BODY.replace("config.data_color", "palette.fg")
+    errors = _errors(text, write_design)
+    assert [d.code for d in errors] == ["palette"], (
+        "expected exactly the one real error, got: "
+        + "; ".join(f"{d.code}: {d.message}" for d in errors))
+
+
+def test_a_palette_ref_config_resource_carries_the_labels_through(write_design, bag):
+    from wfb.emit.resources import config_resource
+
+    text = PALETTE_REF_HEAD + """config:
+  data_color:
+    default: palette.aqua
+    choices:
+      - palette.aqua
+      - palette.amber
+""" + BODY.replace("config.accent_color", "palette.fg")
+    face = _face(text, write_design, bag)
+    xml = config_resource(face)
+    assert '<color default="true" label="@Strings.ConfigDataColor0">0x00FFFF</color>' in xml
+    assert '<color>0xFFAA00</color>' in xml
 
 
 # -- lint: config-unsupported --------------------------------------------------
