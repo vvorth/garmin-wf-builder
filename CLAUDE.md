@@ -429,9 +429,15 @@ dependency order:
 2. **The `raw` escape hatch** (ADR 0007). The seam most likely to break as codegen
    evolves, so it wants golden tests from day one.
 3. **Remaining elements**: `image`, `complication_slot`, `segments` and `scale`
-   progress styles.
-4. **Configuration** (ADR 0006): the `config:` block, `<watchface-config>`,
-   `settings.xml`/`properties.xml`, and the four-axis build-time checks.
+   progress styles. **`graph` shipped** -- see the session note at the end of
+   this section; it was not on this list, and it is the element the dashboard
+   history graph was blocked on.
+4. **Configuration** (ADR 0006) -- **the colour half shipped.** `config:` with
+   `accent_color`/`data_color`, `<watchface-config>` emitted per device, and
+   the `has_symbol` gate; see the session note at the end of this section.
+   Still missing: the **Styles** axis, the **Data** (complication-slot) axis,
+   and `settings.xml`/`properties.xml` (phone-side settings, so `fr955` still
+   has no configuration at all).
 5. **Interactivity** (ADR 0006 §6) — **partially shipped.** `on_hold:` exists on
    every element: touch and hold it, and `Complications.exitTo` opens that
    complication's glance. One target per element, resolved per device against
@@ -1783,6 +1789,94 @@ ADR 0006 carries an amendment rather than a rewrite, the same precedent §6's
 `on_tap:` correction set; `docs/format.md`, `docs/limitations.md`, the schema
 description, `skills/watchface-builder.md`, `examples/static/face.yaml` and the
 probe README are all corrected in the same commit.
+
+**A two-feature session: `type: graph`, and `config:`'s two colour axes.**
+One subagent each, integrated and committed between, with the orchestrator
+auditing each against the real toolchain rather than the agent's report.
+`docs/research/08-graphs-and-configuration.md` is the research;
+`docs/research/probes/graph-series/`, `probes/watchface-config/` and
+`probes/device-symbol-gate/` are the probes. Read 08 §1 before anyone asks
+for a pressure, stress, Body Battery or solar graph again.
+
+**The correction that reaches furthest is new constraint 6d: `monkeyc` does
+not gate on the device's symbol table.** `UserProfile.getFunctionalThresholdPower`
+is in `fenix8solar47mm.api.debug.xml`, absent from `fr955.api.debug.xml`, and
+builds warning-free for `fr955` under `-l 3` -- while a typo in the same build
+is `Undefined symbol`. So one shared generated view may reference an API only
+some targets have, guarded at runtime, and no per-device source split is
+needed; equally, **nothing will tell you** a binding cannot work on a target.
+This corrected a claim in this file and in the anti-aliasing probe (both now
+carry the correction); every existing `Device.has_symbol` use stays right,
+because it answers *what exists on the wrist*.
+
+1. **`type: graph`** -- a series as a line, a filled area, or bars.
+   `wfb/series.py` is the catalogue, `runtime-lib/WfbSeries.mc` the barrel,
+   `wfb series` the listing. `examples/graph/` is 3,441 B (2.6%).
+
+   **Four families exist and solar is not one (constraint 14b).**
+   `Toybox.SensorHistory` has an empty "Watch Face" cell in the permission
+   table -- and **compiles anyway**, then fails silently, which is exactly the
+   trap 6d describes. Solar has no history API at all. Naming one of them is
+   an error that **says why** rather than "unknown series": these are real
+   quantities the watch shows in its own widgets, so the name gets typed on
+   purpose and a lookup-miss message sends the author hunting for a spelling
+   mistake that does not exist (`series.UNAVAILABLE`, the `source-renamed`
+   precedent). A genuine typo still gets suggestions.
+
+   Two implementation notes worth keeping: **`buckets:` cannot be derived
+   from the element's width**, because one view is shared across devices --
+   the same constraint that forced `icons.font_key` onto the *declared* size;
+   and **gaps are `null`, not a sentinel**, because forecast temperatures are
+   genuinely negative and `-1` would collide with real data on exactly the
+   series where it would be least visible.
+
+2. **`config:`** -- `accent_color` and `data_color`, edited in the fēnix 8's
+   own editor. **The axis is the key**, which deletes ADR 0006 §1's "at most
+   one colour may be the accent" rule instead of checking it (ADR amended, not
+   rewritten). `examples/config/` is 2,276 B (1.7%).
+
+   The gate is `Device.has_symbol("WatchFaceConfig.getSettings")`, **never an
+   API-level compare** -- `fr955` reports 5.2.0, above the editor's documented
+   5.1.0, and has no editor. It compiles every line and keeps the declared
+   defaults, which `warning[config-unsupported]` says out loud. Every value
+   arrives nullable twice over (`accentColor` is `Color?`, its `.color` is
+   `ColorType?`), so compiled-in defaults are *the* path, not a fallback --
+   which is also what makes `fr955` degrade correctly rather than specially.
+
+   **`onTap` comes back here, and only here.** Research 07 established it
+   never fires on a live face; this is the config mode it was restricted to.
+   A face with no complication slots still emits none.
+
+**Three audit findings the subagents' own reports did not contain**, recorded
+because each is a repeat of a lesson this file already holds:
+
+* **A rejected `config:` axis cascaded**, exactly as a rejected `fonts:` entry
+  once did -- one correct error plus one "unknown data source" per element
+  binding it, pointing at a correct line and blaming the wrong thing. Rejected
+  axes are now bound into scope anyway. The same cascade still exists for a
+  `palette:` entry that references `config.*`; it predates this work and was
+  left rather than widen the commit.
+* **The new toolchain-noise filter was untested.** Compiling a
+  `<watchface-config>` makes this SDK's JVM print a four-line `sun.misc.Unsafe`
+  notice with `monkeyc`'s own bare `WARNING:` prefix (verified: 4 lines for
+  `examples/config`, **0** for `examples/graph` -- the causal claim was checked,
+  not assumed), so `wfb/build.py` strips it. That filter is the one thing that
+  could silence this project's warning-free bar. It is now driven red **both**
+  ways: removed (the notice becomes a diagnostic) and widened to `^WARNING:`
+  (a real warning is swallowed).
+* **Driving a guard red needs the whole path cut, not one branch.** Disabling
+  the first branch of `series.unavailable_reason` left six tests passing,
+  because a second branch still answered. "I watched it go red" is only worth
+  something when the failure message is the one you expected.
+
+**A process rule this session had to enforce twice.** The graph agent spawned
+three "research-only" subagents; two wrote code concurrently into the shared
+tree and left `wfb/series.py` holding two conflicting definitions of the same
+dataclass. The task-2 brief therefore forbade subagents outright, and that
+prohibition belongs in any future brief: **a subagent working in this tree does
+the work itself.** This is the same hazard as the `git stash` rule above, one
+level up -- disjoint ownership is what makes parallel work safe, and spawning
+helpers discards it.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 
