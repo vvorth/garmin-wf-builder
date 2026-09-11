@@ -99,6 +99,76 @@ fr955** — the compiler generates both paths from one declaration.
 > undecided as the "Open" section below says; this amendment does not touch
 > them.
 
+> **Second amendment (2026-09-11): the Styles axis shipped too, as
+> `color_scheme:` + `config: colors:`** (`docs/research/09-data-library-and-
+> config-axes.md` §3). The "Open" bullet directly above -- "whether Styles is
+> worth exposing" -- is answered: it is, and cheaply, because it is a single
+> opaque `Number` Garmin gives no meaning to at all, unlike the two colour
+> axes which each carry a real, Garmin-defined colour.
+>
+> ```yaml
+> color_scheme:
+>   dark:
+>     label: "Dark"
+>     colors: { bg: palette.black, fg: palette.white, dim: palette.dark_gray }
+>   light:
+>     label: "Light"
+>     colors: { bg: palette.white, fg: palette.black, dim: palette.light_gray }
+>
+> config:
+>   colors:
+>     default: color_scheme.dark          # must be one of choices:
+>     choices:
+>       - color_scheme.dark
+>       - color_scheme.light
+> ```
+>
+> A colour *scheme* is several colours moving together, and no native colour
+> axis carries more than one colour -- `accentColor`/`complicationColor` are
+> each a single `Color`, and `Settings` has exactly four fields total
+> (`styleId`, `complicationSettings`, `accentColor`, `complicationColor`), so
+> there is no fifth axis to add a scheme to. `color_scheme:` therefore rides
+> **Styles**, and `config.colors.<role>` is an ordinary colour reference like
+> any other, resolved to a generated view field
+> (`_configColorsBg`) that a generated `resolveColorScheme(styleId)` assigns
+> from a plain `if (style == N)` chain, `choices:` order, index 0 first --
+> mirroring `applyConfig`'s existing two-deep-nullable-guard shape for the
+> other two axes exactly, per `docs/research/probes/config-axes/`.
+>
+> **Every `color_scheme:` entry must declare the identical role set**, or
+> `config.colors.dim` would be undefined the moment the wearer picked a
+> scheme that never declared it -- checked as a build error against the
+> *union* of every scheme's own roles, so the report always names whichever
+> scheme(s) fall short rather than depending on declaration order.
+> `config.colors` used bare (naming the scheme, not a role) and
+> `config.colors.<role>` naming an undeclared role are both errors with their
+> own domain-specific message, not a generic "unknown data source" -- the
+> obvious first failure mode for a feature whose scope-bound names live
+> nowhere but inside one design.
+>
+> **`bool(face.config)` was, until this amendment, the single on/off switch
+> for the entire on-device-config feature** across `wfb/emit/monkeyc.py`,
+> `wfb/emit/resources.py` and `wfb/lint.py` -- a design declaring only
+> `color_scheme:`/`config: colors:` and no colour axis would have silently
+> gotten no `<watchface-config>`, no delegate and no `applyConfig` at all.
+> Replaced everywhere by `Face.has_config`, and a design with only the Styles
+> axis is now covered by its own real-`monkeyc`, warning-free test
+> (`tests/test_color_scheme.py`) -- the exact gap CLAUDE.md's own account of
+> the delegate's unused `_view` field warns is easy to ship silently, because
+> every earlier test inspected generated text rather than compiling it.
+>
+> Cost, measured at a fixed path (`docs/research/probes/config-axes/README.md`
+> already established this at ~9 B data / ~61 B `.prg` per style with no code
+> growth; reconfirmed here at a different role count): a design going from no
+> `config:` at all to one two-role, two-scheme Styles axis costs **+416 B**
+> (turning the feature on: fields, `resolveColorScheme`, `applyConfig`, the
+> delegate, the `<styles>` resource); one *additional* scheme on top of that
+> costs **+9 B data, +28 B code** -- consistent with the probe's own
+> per-style figure. `docs/format.md`'s "Color scheme" section is the
+> author-facing reference; `examples/config/face.yaml` now exercises it,
+> including the static-buffer repaint case (two roles moving together inside
+> a `static:` block, confirmed by a real build rather than assumed).
+
 An author declares a property once and states where it may be edited. The
 compiler emits the right artefact for each surface and **fails the build if a
 surface is unavailable on a targeted device** rather than silently dropping it.
@@ -355,12 +425,13 @@ both map to `onPress`, rather than silently preferring one.
   for what changed and why. `docs/format.md` "Configuration" is the
   author-facing reference; `docs/limitations.md` states that no behaviour of
   the editor itself is verified anywhere in this project.
+- (§1 second amendment) The Styles axis shipped as `color_scheme:` +
+  `config: colors:` — the "is Styles worth exposing" question the Open
+  section below used to ask is answered, and closed. `docs/format.md` "Color
+  scheme" is the author-facing reference.
 
 ## Open
 
-- Whether `Styles` (the enumerated-variant axis) is worth exposing in v1. It maps
-  naturally onto "the same design with a different palette", but interacts with
-  per-device overrides in ways not yet thought through. Deferred.
 - The Data axis (per-complication-slot type choice) and a phone-side settings
-  surface, both still undecided — the §1 amendment implemented only the two
-  colour axes.
+  surface, both still undecided — the two `config:` amendments implemented
+  only the colour axes and Styles.

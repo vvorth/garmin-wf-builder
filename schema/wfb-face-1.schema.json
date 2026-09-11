@@ -64,8 +64,19 @@
         "$ref": "#/$defs/font"
       }
     },
+    "color_scheme": {
+      "description": "Named role -> colour sets, picked on-device via 'config: colors:' -- the Styles axis, the only one Garmin's native editor gives no meaning to (docs/research/09-data-library-and-config-axes.md §3). Every entry must declare the identical set of roles, or 'config.colors.<role>' would be undefined whenever the wearer picks the one that lacks it.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/colorScheme"
+      }
+    },
     "config": {
-      "description": "User-editable colours, read through the fēnix 8's native on-device watch face editor (API 5.1.0). Garmin offers exactly two colour axes -- one accent colour, one data colour -- so the axis is the key rather than an author-chosen name; declaring a third would need a feature Garmin does not have. Reference a declared entry as an ordinary colour expression, e.g. 'color: config.accent_color'. A target with no native editor (fr955) keeps the declared 'default:' -- see the suppressible 'config-unsupported' warning.",
+      "description": "User-editable colours, read through the fēnix 8's native on-device watch face editor (API 5.1.0). Garmin offers exactly two colour axes -- one accent colour, one data colour -- plus the Styles axis, which carries no colour of its own but is the only one Garmin gives no meaning to, so a declared 'color_scheme:' rides it as 'colors:'. The axis is the key rather than an author-chosen name; declaring a fourth would need a feature Garmin does not have. Reference a declared colour entry as an ordinary colour expression, e.g. 'color: config.accent_color' or 'color: config.colors.<role>'. A target with no native editor (fr955) keeps every declared default -- see the suppressible 'config-unsupported' warning.",
       "type": "object",
       "minProperties": 1,
       "additionalProperties": false,
@@ -77,6 +88,10 @@
         "data_color": {
           "description": "The one native data-colour axis (<dataColors> in the generated resource, Settings.complicationColor read back).",
           "$ref": "#/$defs/configColor"
+        },
+        "colors": {
+          "description": "The Styles axis: picks one declared 'color_scheme:' entry (<styles> in the generated resource, Settings.styleId read back). Unlike 'accent_color'/'data_color', 'default:'/'choices:' here name schemes, not colours.",
+          "$ref": "#/$defs/configColors"
         }
       }
     },
@@ -138,14 +153,14 @@
       }
     },
     "color": {
-      "description": "A literal colour, or a reference to a palette or config entry.",
+      "description": "A literal colour, or a reference to a palette or config entry. 'config.<axis>' is two segments (accent_color/data_color); 'config.colors.<role>' is three, one role of the Styles axis -- both accepted here so a misused reference (e.g. a palette entry naming one) reaches the friendlier IR-level error instead of failing schema validation with no context.",
       "type": "string",
       "anyOf": [
         {
           "pattern": "^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
         },
         {
-          "pattern": "^(palette|config)\\.[A-Za-z_][A-Za-z0-9_]*$"
+          "pattern": "^(palette\\.[A-Za-z_][A-Za-z0-9_]*|config\\.[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?)$"
         }
       ]
     },
@@ -239,6 +254,68 @@
           }
         }
       ]
+    },
+    "colorScheme": {
+      "description": "One 'color_scheme:' entry: an optional editor label plus a role -> colour mapping. Every color_scheme entry in a design must declare the identical set of roles.",
+      "type": "object",
+      "required": [
+        "colors"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "description": "Shown in the editor's Styles list. Optional -- a scheme with none produces a '<style>' with no label attribute.",
+          "type": "string",
+          "minLength": 1
+        },
+        "colors": {
+          "description": "Role name -> colour, either a literal '#RRGGBB'/'#RGB' or a 'palette.<name>' reference.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/hexColor"
+              },
+              {
+                "$ref": "#/$defs/paletteRef"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "colorSchemeRef": {
+      "description": "A reference to a named 'color_scheme:' entry, accepted from 'config: colors:'s own 'default:'/'choices:'.",
+      "type": "string",
+      "pattern": "^color_scheme\\.[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "configColors": {
+      "description": "The Styles axis: a compiled-in default scheme plus an orderable list of choices, both naming declared 'color_scheme:' entries rather than colours. Every role of every listed scheme is checked against the target's 64-colour palette rule, the same 'palette-dither' check a palette entry gets.",
+      "type": "object",
+      "required": [
+        "default",
+        "choices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "description": "Compiled into the view as every role's starting value, and the only scheme a device without the native editor (fr955) ever shows -- not a fallback path, the path. Must also appear in 'choices:', compared by scheme name, not by colour value.",
+          "$ref": "#/$defs/colorSchemeRef"
+        },
+        "choices": {
+          "description": "The editor's Styles picklist, in the order '<style id=\"N\">' numbers them from. 'default:' must be one of these, since Garmin defines no behaviour for a default that is not in the list -- there is no 'any' here, unlike the two colour axes: Styles has no equivalent of the editor's own unrestricted picker.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/colorSchemeRef"
+          },
+          "uniqueItems": true
+        }
+      }
     },
     "expression": {
       "description": "An expression over data sources, palette entries and literals. A bare number is accepted for the common case of a literal bound (max: 10000) and needs no quoting.",

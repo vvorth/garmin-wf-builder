@@ -48,7 +48,7 @@ SUPPRESSIBLE = frozenset({
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
     "antialias-dither",
-    "carousel", "color", "complication-gated", "config", "config-unsupported",
+    "carousel", "color", "color-scheme", "complication-gated", "config", "config-unsupported",
     "contrast", "dead-element",
     "element-mapping",
     "devices", "duplicate-id", "element", "expression",
@@ -71,6 +71,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_palette(resolved, bag)
     check_antialias_palette(resolved, bag)
     check_config_palette(resolved, bag)
+    check_color_scheme_palette(resolved, bag)
     check_config_support(resolved, bag)
     check_geometry(resolved, bag)
     check_text_fit(resolved, bag)
@@ -349,6 +350,22 @@ def _config_users(face: Face, name: str) -> list[Element]:
     ]
 
 
+def _config_colors_role_users(face: Face, role: str) -> list[Element]:
+    """Elements whose `color:`/`track_color:` is exactly `config.colors.<role>`.
+
+    Same exact-textual-match rule as :func:`_config_users`/`_palette_users`.
+    """
+    token = f"config.colors.{role}"
+    return [
+        element for element in face.walk()
+        if any(
+            (expression := getattr(element, field, None)) is not None
+            and expression.text == token
+            for field in _PALETTE_REFERENCING_FIELDS
+        )
+    ]
+
+
 def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
     """A declared `config:` colour is checked the same way a `palette:` entry
     is -- each channel must be 0x00/0x55/0xAA/0xFF on a 64-colour panel, or
@@ -411,6 +428,66 @@ def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
         )
 
 
+def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
+    """Every colour a `config: colors:` axis can ever put on screen, checked
+    the same way a `config:` colour axis is.
+
+    A `color_scheme:` entry has no `choices: any` equivalent -- Styles has no
+    unrestricted picker -- so every role of every scheme actually listed in
+    `config.colors`' `choices:` is checked, the same "every listed choice, not
+    only the default" scope :func:`check_config_palette` gives an explicit
+    list.  A scheme declared but never put in `choices:` is unreachable on any
+    device (`resolveColorScheme` only ever assigns for `choices:` entries), so
+    it is not checked here -- there is nothing on the wrist for the warning to
+    be about.
+    """
+    colors = resolved.device.display_colors
+    if colors is None:
+        return  # check_palette already emits the one "not checked" note per device
+    axis = resolved.face.config_colors
+    if axis is None:
+        return
+    roles = sorted(resolved.face.color_scheme[axis.default].colors)
+    for role in roles:
+        offenders = [
+            (name, resolved.face.color_scheme[name].colors[role])
+            for name in axis.choices
+        ]
+        bad = [(name, c) for name, c in offenders if not c.is_palette_legal(colors)]
+        if not bad:
+            continue
+        users = _config_colors_role_users(resolved.face, role)
+        if any("palette-dither" in element.lint_allow for element in users):
+            continue
+        nearest = ", ".join(
+            f"color_scheme.{name}.colors.{role}={c} -> {c.nearest_legal(colors)}"
+            for name, c in bad
+        )
+        if users:
+            suppress_note = (
+                f"set 'lint: {{allow: [palette-dither], reason: ...}}' on the element "
+                f"whose 'color:' or 'track_color:' is 'config.colors.{role}' to keep it"
+            )
+        else:
+            suppress_note = (
+                f"no element's 'color:' or 'track_color:' is exactly "
+                f"'config.colors.{role}', so there is nowhere to put "
+                "'lint: {allow: [palette-dither]}' for it"
+            )
+        bag.warning(
+            "palette-dither",
+            f"config.colors.{role}: {len(bad)} declared colour(s) are not one of "
+            f"{resolved.device.id}'s {colors} colours and will be dithered",
+            notes=[
+                f"off-grid -> nearest legal: {nearest}",
+                "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
+                "dithered by the firmware and looks grainy",
+                suppress_note,
+            ],
+            confidence="exact -- device display_colors",
+        )
+
+
 def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     """Does this device actually have the native on-device editor?
 
@@ -422,9 +499,10 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     declared `default:` forever, which is a real, user-facing consequence of
     ADR 0006 2's chosen scope, not a bug -- and must not be silent.
     """
-    config = resolved.face.config
-    if not config:
+    face = resolved.face
+    if not face.has_config:
         return
+    config = face.config
     device = resolved.device
     try:
         available = device.has_symbol(CONFIG_SYMBOL)
@@ -438,14 +516,23 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     if available:
         return
 
-    names = ", ".join(f"config.{name}" for name in sorted(config))
-    # `_config_users` returns raw IR Elements, from `Face.walk()`, not the
-    # `resolved.items` layout wrappers `_emit` expects -- the same reason
-    # `check_palette` (this check's own model) does not call `_emit` either,
-    # and checks `lint_allow` on the element directly instead.
+    names_list = [f"config.{name}" for name in sorted(config)]
+    role_tokens: list[str] = []
+    if face.config_colors is not None:
+        default_scheme = face.color_scheme[face.config_colors.default]
+        role_tokens = [f"config.colors.{role}" for role in sorted(default_scheme.colors)]
+        names_list += role_tokens
+    names = ", ".join(names_list)
+    # `_config_users`/`_config_colors_role_users` return raw IR Elements, from
+    # `Face.walk()`, not the `resolved.items` layout wrappers `_emit` expects
+    # -- the same reason `check_palette` (this check's own model) does not
+    # call `_emit` either, and checks `lint_allow` on the element directly
+    # instead.
     users: list[Element] = []
     for name in config:
         users.extend(_config_users(resolved.face, name))
+    for role in [t.split(".", 2)[2] for t in role_tokens]:
+        users.extend(_config_colors_role_users(resolved.face, role))
     if any("config-unsupported" in element.lint_allow for element in users):
         return
     notes = [

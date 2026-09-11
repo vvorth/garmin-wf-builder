@@ -23,7 +23,10 @@ from .. import catalog, formatting, icons, units
 from ..devices import Device
 from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
-from ..ir import CONFIG_SYMBOL, Carousel, Face, FontSpec, IconElement, Text, config_label_id
+from ..ir import (
+    CONFIG_SYMBOL, Carousel, Face, FontSpec, IconElement, Text, config_label_id,
+    config_style_label_id,
+)
 from ..palette import Color
 
 _XSD = "https://developer.garmin.com/downloads/connect-iq/resources.xsd"
@@ -269,7 +272,7 @@ def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> Res
         f"</drawables>\n"
     )
 
-    if face.config:
+    if face.has_config:
         try:
             supported = device.has_symbol(CONFIG_SYMBOL)
         except Exception:
@@ -284,17 +287,30 @@ def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> Res
 
 
 def config_resource(face: Face) -> str:
-    """`resources-<device>/configs/watchface.xml` -- ADR 0006 1, amended.
+    """`resources-<device>/configs/watchface.xml` -- ADR 0006 1, twice amended.
 
     Called only for a device with the native editor
     (`Device.has_symbol(CONFIG_SYMBOL)`); the caller (`build_bundle`) is
-    where that gate lives, so this is pure XML rendering from `face.config`.
-    Grammar: `$CIQ_SDK/bin/resources.xsd`'s `watchfaceConfigType`.
+    where that gate lives, so this is pure XML rendering from `face.config`/
+    `face.config_colors`.  Grammar: `$CIQ_SDK/bin/resources.xsd`'s
+    `watchfaceConfigType` -- an `xs:all`, so `<styles>` and the two colour
+    axes may appear in any order; this always writes `<styles>` first.
     """
     lines = [
         f"<resources {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">",
         "    <watchface-config>",
     ]
+    if face.config_colors is not None:
+        lines.append("        <styles>")
+        for index, scheme_name in enumerate(face.config_colors.choices):
+            scheme = face.color_scheme[scheme_name]
+            attrs = f' id="{index}"'
+            if scheme_name == face.config_colors.default:
+                attrs += ' default="true"'
+            if scheme.label is not None:
+                attrs += f' label="@Strings.{config_style_label_id(index)}"'
+            lines.append(f"            <style{attrs}/>")
+        lines.append("        </styles>")
     for name, entry in face.config.items():
         tag = entry.axis.resource_tag
         if entry.allow_any:
@@ -315,7 +331,8 @@ def config_resource(face: Face) -> str:
 
 
 def config_label_strings(face: Face) -> list[tuple[str, str]]:
-    """`(string id, label text)` for every labelled `config:` choice.
+    """`(string id, label text)` for every labelled `config:` choice, plus
+    every labelled `color_scheme:` entry that `config: colors:` lists.
 
     Shared across every device -- a label is authored text, not something
     that varies per target -- so these live in `shared_strings()` rather than
@@ -323,6 +340,11 @@ def config_label_strings(face: Face) -> list[tuple[str, str]]:
     already follows.
     """
     out: list[tuple[str, str]] = []
+    if face.config_colors is not None:
+        for index, scheme_name in enumerate(face.config_colors.choices):
+            scheme = face.color_scheme[scheme_name]
+            if scheme.label is not None:
+                out.append((config_style_label_id(index), scheme.label))
     for name, entry in face.config.items():
         if entry.allow_any:
             continue

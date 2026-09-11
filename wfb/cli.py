@@ -609,10 +609,11 @@ def _sources(args) -> int:
     that is not listed here, and never trust a copy of this list pasted
     into prose, which goes stale the moment the catalogue grows.
 
-    Also lists `config.*` -- the two native on-device colour axes (ADR 0006
-    1) -- even though, unlike everything above, these are not read from any
-    device API: a design that declares `config:` binds them the same way,
-    as an ordinary colour expression.
+    Also lists `config.*` -- the native on-device colour axes, including
+    Styles (`config.colors.<role>`, ADR 0006 1, twice amended) -- even
+    though, unlike everything above, these are not read from any device API:
+    a design that declares `config:` binds them the same way, as an ordinary
+    colour expression.
     """
     for namespace, paths in catalog.namespaces().items():
         print(f"\n{namespace}")
@@ -634,6 +635,9 @@ def _sources(args) -> int:
           "(<accentColors>, Settings.accentColor)")
     print(f"  {'config.data_color':<34} {'color':<8} the one data-colour axis "
           "(<dataColors>, Settings.complicationColor)")
+    print(f"  {'config.colors.<role>':<34} {'color':<8} the Styles axis -- one role of a "
+          "declared 'color_scheme:' entry, picked via 'config: colors:' (<styles>, "
+          "Settings.styleId)")
     print(f"\nicons: {', '.join(icons.names())}")
     print("\nrun `wfb complications` for the full list of on_hold: targets")
     return 0

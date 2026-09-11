@@ -1,23 +1,29 @@
-# `config:` -- two colours the wearer can change in the fēnix 8's own
+# `config:` -- the colours the wearer can change in the fēnix 8's own
 # on-device watch face editor (API 5.1.0), without touching Garmin Connect.
 #
-# Garmin's editor has exactly one accent-colour axis and one data-colour
-# axis, so `config:` accepts exactly those two keys -- `accent_color` and
-# `data_color` -- and nothing else (docs/format.md "Configuration",
-# docs/adr/0006-configuration-theming-and-modes.md 1, amended).
+# Garmin's editor has exactly one accent-colour axis, one data-colour axis,
+# and one Styles axis -- which carries no colour of its own, but is the only
+# axis Garmin gives no meaning to at all, so a declared `color_scheme:` rides
+# it as `colors:`.  `config:` accepts exactly those three keys --
+# `accent_color`, `data_color` and `colors` -- and nothing else
+# (docs/format.md "Configuration" and "Color scheme",
+# docs/adr/0006-configuration-theming-and-modes.md 1, twice amended).
 #
-# `accent_ring` below is deliberately inside `static:`, to exercise the part
-# of this feature that is easy to get wrong: a static element is painted once
-# into an offscreen buffer, so a config colour drawn there has to be
-# re-painted on a settings edit or the change would never show.  `clock`
-# below is an ordinary, non-static binding to the other axis, for contrast.
+# `accent_ring` and `background`/`steps_caption` below are deliberately
+# inside `static:`, to exercise the part of this feature that is easy to get
+# wrong: a static element is painted once into an offscreen buffer, so a
+# config colour drawn there has to be re-painted on a settings edit or the
+# change would never show -- `background`/`steps_caption` exercise this for a
+# `color_scheme:` role specifically, moving *two* colours together on one
+# settings edit, not just one.  `clock` below is an ordinary, non-static
+# binding to the data-colour axis, for contrast.
 #
 # `fr955` has no native editor at all (CLAUDE.md constraint 6: it reports
 # ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still lacks
-# it) -- it simply keeps the declared `default:` colours forever.  That is a
-# real, user-facing consequence of the chosen scope, not a bug, and the
-# suppressible `config-unsupported` warning is accepted explicitly below
-# rather than left to be discovered on the wrist.
+# it) -- it simply keeps every declared default forever, colour axes and
+# scheme roles alike.  That is a real, user-facing consequence of the chosen
+# scope, not a bug, and the suppressible `config-unsupported` warning is
+# accepted explicitly below rather than left to be discovered on the wrist.
 #
 # No behaviour of the editor's own UI is verified anywhere in this project --
 # there is no simulator in this container and no watch.  What is verified:
@@ -39,12 +45,23 @@ targets:
   - fenix8solar51mm
   - fr955
 
-# Every colour below -- palette and config alike -- is one the 64-colour MIP
-# panel can show without dithering: each channel is 0x00, 0x55, 0xAA or 0xFF.
-# The linter checks both the same way (`palette-dither`).
+# Every colour below -- palette, color_scheme and config alike -- is one the
+# 64-colour MIP panel can show without dithering: each channel is 0x00, 0x55,
+# 0xAA or 0xFF.  The linter checks all three the same way (`palette-dither`).
 palette:
   bg: "#000000"
   text: "#FFFFFF"
+
+# Two roles, moving together on one Styles pick -- `background` and
+# `steps_caption` below are both bound to a role, so switching schemes swaps
+# both colours from a single settings edit.
+color_scheme:
+  dark:
+    label: "Dark"
+    colors: { bg: palette.bg, text: palette.text }
+  light:
+    label: "Light"
+    colors: { bg: palette.text, text: palette.bg }
 
 config:
   accent_color:
@@ -56,6 +73,11 @@ config:
       - { color: "#FFFFFF", label: "White" }
       - { color: "#00FFFF", label: "Aqua" }
       - { color: "#FFAA00", label: "Amber" }
+  colors:
+    default: color_scheme.dark          # must be one of choices:
+    choices:
+      - color_scheme.dark
+      - color_scheme.light
 
 static:
   background:
@@ -63,11 +85,13 @@ static:
     shape: rectangle
     at: { anchor: center }
     size: { width: 100%, height: 100% }
-    color: palette.bg
+    color: config.colors.bg
 
   # The static half of the demonstration: painted once into the offscreen
   # buffer in onLayout, and re-painted by `applyConfig` whenever the wearer
-  # changes the accent colour, so the buffer never shows a stale value.
+  # changes the accent colour (or picks a different style -- see
+  # `background`/`steps_caption` above/below, both roles of the same
+  # scheme), so the buffer never shows a stale value.
   accent_ring:
     type: shape
     shape: arc
@@ -79,16 +103,16 @@ static:
     color: config.accent_color
     lint:
       allow: [config-unsupported]
-      reason: "fr955 has no native editor and keeps the declared accent
-        default forever, which is this example's whole point -- see the
-        header comment"
+      reason: "fr955 has no native editor and keeps every declared default
+        forever, which is this example's whole point -- see the header
+        comment"
 
   steps_caption:
     type: text
     text: "STEPS"
     font: FONT_XTINY
     at: { anchor: center, dy: 24% }
-    color: palette.text
+    color: config.colors.text
 
 # The dynamic half: an ordinary binding to the other axis, drawn fresh every
 # frame like any other element -- no static buffer involved.

@@ -94,6 +94,13 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     for name, entry in resolved.face.config.items():
         values.setdefault(f"config.{name}", entry.default.value)
 
+    # `config: colors:` renders at the default scheme's colours, for the same
+    # reason -- the preview has no editor to ask either.
+    if resolved.face.config_colors is not None:
+        default_scheme = resolved.face.color_scheme[resolved.face.config_colors.default]
+        for role, color in default_scheme.colors.items():
+            values.setdefault(f"config.colors.{role}", color.value)
+
     device = resolved.device
     scale = max(1, options.scale)
     size = (device.width * scale, device.height * scale)

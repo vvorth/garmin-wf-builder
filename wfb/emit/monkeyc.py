@@ -24,9 +24,9 @@ from ..catalog import READERS, Type
 from ..ir import (
     CONFIG_SYMBOL, Carousel, Expression, Face, Graph, IconElement, Progress, Shape, Text,
     carousel_index_field, carousel_slide_done_method, carousel_slide_field,
-    carousel_step_method, element_const_prefix, element_method_name, font_resource_id,
-    graph_built_field, graph_max_field, graph_min_field, graph_rebuild_method,
-    graph_series_field, static_group_method,
+    carousel_step_method, config_field, element_const_prefix, element_method_name,
+    font_resource_id, graph_built_field, graph_max_field, graph_min_field,
+    graph_rebuild_method, graph_series_field, static_group_method,
 )
 from ..layout import (
     PlacedCarousel, PlacedGraph, PlacedIcon, PlacedProgress, PlacedShape, PlacedText,
@@ -194,7 +194,7 @@ def needs_delegate(face: Face) -> bool:
     does.  A design with `config:` and no interactivity still needs the
     delegate purely to re-read settings when the editor reports a change.
     """
-    return bool(hold_targets(face)) or bool(face.config)
+    return bool(hold_targets(face)) or face.has_config
 
 
 def launches_a_glance(face: Face) -> bool:
@@ -274,7 +274,7 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
     """
     face = resolved.face
     targets = hold_targets(face)
-    has_config = bool(face.config)
+    has_config = face.has_config
     w = Writer()
     w.doc(header(face)).blank()
     imports = ["import Toybox.Lang;", "import Toybox.WatchUi;"]
@@ -735,7 +735,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
                 graph_modules.add("Toybox.Time")  # new Time.Duration(seconds)
 
     config_modules: set[str] = set()
-    if face.config:
+    if face.has_config:
         # `Application has :WatchFaceConfig` (onLayout's guard) needs the
         # first; `WatchFaceConfig.Settings`/`.getSettings` (applyConfig)
         # need the second.
@@ -776,7 +776,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         _emit_initialize(w, face, rings)
         if antialias_default is not None:
             _emit_antialias_helper(w)
-        if face.config:
+        if face.has_config:
             _emit_apply_config(w, face, static)
         _emit_on_layout(w, resolved, plan, static)
         _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
@@ -790,7 +790,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         for placed in graphs:
             _emit_graph_rebuild(w, placed)
         if static is not None:
-            _emit_static_methods(w, static, antialias_default, needs_repaint=bool(face.config))
+            _emit_static_methods(w, static, antialias_default, needs_repaint=face.has_config)
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
@@ -1010,13 +1010,18 @@ def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
 
 
 def _emit_config_fields(w: Writer, face: Face) -> None:
-    """One field per declared `config:` entry, initialised to its default.
+    """One field per declared `config:` colour entry, plus one field per role
+    of a declared `config: colors:` (Styles) axis -- each initialised to its
+    compiled-in default.
 
     The compiled-in default is not a fallback path -- it is *the* path: a
     device with no native editor (fr955) never calls `applyConfig` at all
-    and simply keeps running with this.
+    and simply keeps running with this.  A `config: colors:` role starts at
+    the *default scheme's* colour for that role, the same "default is the
+    path, not a fallback" reasoning applied to several colours moving
+    together instead of one.
     """
-    if not face.config:
+    if not face.has_config:
         return
     w.doc("Colours the wearer can change in the native on-device editor "
           "(fēnix 8 and\n"
@@ -1025,6 +1030,11 @@ def _emit_config_fields(w: Writer, face: Face) -> None:
           "value a device with no editor -- fr955 -- ever shows.")
     for name, entry in face.config.items():
         w.line(f"private var {entry.field} as Number = {entry.default.as_monkeyc()};")
+    if face.config_colors is not None:
+        default_scheme = face.color_scheme[face.config_colors.default]
+        for role, color in default_scheme.colors.items():
+            field = config_field(f"colors_{role}")
+            w.line(f"private var {field} as Number = {color.as_monkeyc()};")
     w.blank()
 
 
@@ -1037,7 +1047,9 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
     is `Color?` and its own `.color` is `ColorType?` again
     (`docs/research/probes/watchface-config/`) -- so each axis gets its own
     two-deep guard, matching the probe's `apply()` exactly rather than
-    inventing a shorter form.
+    inventing a shorter form.  `styleId` (the `config: colors:` axis, if
+    declared) is only nullable once, and is range-checked rather than
+    dereferenced twice -- see `_emit_resolve_color_scheme`.
     """
     w.doc(
         "Apply one WatchFaceConfig.Settings snapshot.\n"
@@ -1048,6 +1060,14 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
     from ..ir import local_name
 
     with w.block("function applyConfig(settings as WatchFaceConfig.Settings) as Void"):
+        if face.config_colors is not None:
+            style_local = local_name("config_style")
+            w.line(f"var {style_local} = settings.styleId;")
+            with w.block(
+                f"if ({style_local} != null && {style_local} >= 0 && "
+                f"{style_local} < {len(face.config_colors.choices)})"
+            ):
+                w.line(f"{RESOLVE_COLOR_SCHEME_METHOD}({style_local});")
         for name, entry in face.config.items():
             axis = entry.axis
             local = local_name(f"config_{name}")
@@ -1063,6 +1083,48 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
             w.comment("it now so a wearer's change shows without waiting for onLayout")
             w.line(f"{REPAINT_STATIC_METHOD}();")
         w.line("WatchUi.requestUpdate();")
+    w.blank()
+    if face.config_colors is not None:
+        _emit_resolve_color_scheme(w, face)
+
+
+#: Fixed generated method name -- there is at most one `config: colors:` axis
+#: per face (unlike `drawStatic<Id>`/`draw<Id>`, nothing here is derived from
+#: an author id), so it needs no per-design collision check the way those do.
+RESOLVE_COLOR_SCHEME_METHOD = "resolveColorScheme"
+
+
+def _emit_resolve_color_scheme(w: Writer, face: Face) -> None:
+    """`resolveColorScheme` -- decode one Styles id into this design's
+    `color_scheme:` roles.
+
+    A colour *scheme* is several colours moving together, which no single
+    native colour axis can carry (docs/research/09 §3), so it rides Styles --
+    the one axis Garmin gives no meaning to -- and this is the only place
+    that meaning is assigned, in `choices:` order, index 0 first.  Plain
+    sequential `if`s rather than an `if`/`else if` chain: `style` cannot equal
+    two distinct literals at once, so the two are equivalent, and independent
+    blocks are simpler for `Writer` to emit correctly.
+
+    An out-of-range id is guarded by the caller (`applyConfig`) before this is
+    ever called, and any id it does not recognise here is silently ignored --
+    the same reasoning `WfbCarousel.restore` uses for a stored index: a
+    rebuild with fewer schemes can leave a saved style id past the end.
+    """
+    assert face.config_colors is not None
+    w.doc(
+        "Decode one Styles id into this design's color_scheme roles.  styleId is\n"
+        "an opaque Number Garmin gives no meaning to -- this is the only place\n"
+        "that meaning is assigned, in 'choices:' order, index 0 first."
+    )
+    with w.block(f"private function {RESOLVE_COLOR_SCHEME_METHOD}(style as Number) as Void"):
+        for index, scheme_name in enumerate(face.config_colors.choices):
+            scheme = face.color_scheme[scheme_name]
+            with w.block(f"if (style == {index})"):
+                w.comment(f"color_scheme.{scheme_name}")
+                for role, color in scheme.colors.items():
+                    field = config_field(f"colors_{role}")
+                    w.line(f"{field} = {color.as_monkeyc()};")
     w.blank()
 
 
@@ -1085,7 +1147,7 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     face = resolved.face
     loaded = _loaded_fonts(resolved)
     event = plan.complication_readers()
-    has_config = bool(face.config)
+    has_config = face.has_config
     w.doc("Load resources once.  Loading is expensive and must not happen per frame."
           + ("\n\nThis is also where the static content is painted, once, into its\n"
              "offscreen buffer -- every later frame just blits it." if static else "")

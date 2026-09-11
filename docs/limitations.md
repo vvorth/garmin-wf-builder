@@ -295,18 +295,20 @@ exactly four axes: Styles, complication slots, **one** data colour and **one**
 accent colour. At most **four saved configurations** per face. There is no
 per-element colour editing and no arbitrary data rebinding.
 
-**The two colour axes are implemented, as `config:`** (`docs/format.md`
-"Configuration"; ADR 0006 §1, amended). The Styles axis (author-defined
-variants, selected by an opaque number) and the Data axis (per-complication-
-slot type choice) are not — see §2 below.
+**Three of the four axes are implemented, as `config:`** (`docs/format.md`
+"Configuration" and "Color scheme"; ADR 0006 §1, twice amended): the two
+colour axes, and **Styles**, which carries no colour of its own but is the
+only axis Garmin gives no meaning to at all — a declared `color_scheme:`
+(a named role -> colour set) rides it as `config.colors`. Only the **Data**
+axis (per-complication-slot type choice) is not — see §2 below.
 
 **The Forerunner 955 is excluded from it entirely.** A design targeting all three
 devices is configurable on the wrist on two of them. This is a consequence of the
 chosen scope (native editor plus phone settings, no generated on-device menu),
 not a defect — but it must never be a surprise: a target with no native editor
-keeps every `config:` entry's declared `default:` forever, and the suppressible
-`config-unsupported` warning says so at build time rather than leaving it to be
-discovered on the wrist.
+keeps every `config:` entry's declared `default:` forever — colour axes and
+color_scheme roles alike — and the suppressible `config-unsupported` warning
+says so at build time rather than leaving it to be discovered on the wrist.
 
 **No behaviour of the editor is verified anywhere in this project.** There is
 no simulator in this container and no watch (§2 below, "the simulator does not
@@ -317,8 +319,8 @@ editor's UI actually shows or does. `docs/research/probes/watchface-config/`'s
 own "What it deliberately does NOT settle" section is explicit about the same
 boundary.
 
-**What the two unimplemented axes could carry is now researched, not
-implemented** (`docs/research/09-data-library-and-config-axes.md`,
+**What the Data axis could carry is now researched, not implemented**
+(`docs/research/09-data-library-and-config-axes.md`,
 `docs/research/probes/config-axes/`). Three results bear on any future work
 here, and none of them changes what the compiler does today:
 
@@ -428,7 +430,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` and `complication_slot` elements | ADR 0004. `complication_slot`'s "cycle through several readings" half shipped as `carousel`; what is missing is a slot whose *type* the wearer picks in the on-device editor, which needs the Data axis below |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
-| The Styles and Data axes of on-device config, and phone-side settings | ADR 0006 §1. The two colour axes (`config:`, `docs/format.md` "Configuration") shipped |
+| The Data axis of on-device config, and phone-side settings | ADR 0006 §1, twice amended. The two colour axes and Styles (`config:`, `docs/format.md` "Configuration"/"Color scheme") shipped |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
@@ -615,11 +617,17 @@ them rather than to an arbitrary one:
   colour, so the allow is honoured on the first element (in draw order) whose
   `antialias:` resolves to `true` on that device -- the same "one
   representative" shape `graphics-pool` uses, chosen the same way.
-* **`config-unsupported`** is about a `config:` entry, which -- like
+* **`config-unsupported`** is about the whole `config:` block, which -- like
   `palette:` -- is a flat mapping with nowhere of its own to hang a `lint:`
-  block. The allow is honoured on any element whose `color:`/`track_color:` is
-  exactly `config.accent_color` or `config.data_color`, the same exact-text
-  match `palette-dither` uses and for the same reason.
+  block. Since a device with no editor keeps every declared default at once,
+  one `allow:` anywhere among the elements it names suppresses it entirely --
+  the allow is honoured on any element whose `color:`/`track_color:` is
+  exactly `config.accent_color`, `config.data_color`, or one role of
+  `config.colors.<role>`, the same exact-text match `palette-dither` uses and
+  for the same reason. `palette-dither` reached through a `color_scheme:`
+  role is scoped narrower, per-role like every other `palette-dither` case:
+  the allow is honoured only on an element naming that specific
+  `config.colors.<role>`.
 
 `carousel-zone`, `dead-element`, `static-overlap` and the two `hold-*` codes are
 ordinary element-scoped diagnostics, so `lint:` on the element itself reaches

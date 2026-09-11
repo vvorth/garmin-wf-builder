@@ -157,12 +157,72 @@ exactly like the short form.
 
 ---
 
+## Color scheme
+
+```yaml
+palette:
+  black:      { value: "#000000", label: "Black" }
+  white:      { value: "#FFFFFF", label: "White" }
+  dark_gray:  { value: "#555555", label: "Dark Gray" }
+  light_gray: { value: "#AAAAAA", label: "Light Gray" }
+
+color_scheme:
+  dark:
+    label: "Dark"
+    colors: { bg: palette.black, fg: palette.white, dim: palette.dark_gray }
+  light:
+    label: "Light"
+    colors: { bg: palette.white, fg: palette.black, dim: palette.light_gray }
+```
+
+A named set of role -> colour, picked on-device via `config.colors` (below).
+`label:` on the scheme itself is shown in the editor's Styles list -- optional,
+same as everywhere else a label is: a scheme with none produces a generated
+`<style>` with no `label` attribute. Each role's colour is resolved exactly
+like a `config:` axis's own `default:` -- a literal `#RRGGBB`/`#RGB` or a
+`palette.<name>` reference, never `config.*` (there is no build-time value for
+a runtime-editable field).
+
+**Every `color_scheme:` entry must declare the identical set of roles.** `dark`
+declaring `bg`/`fg`/`dim` and `light` declaring only `bg`/`fg` is an error
+naming the missing role and the scheme that lacks it -- otherwise
+`config.colors.dim` would be undefined the moment the wearer picked `light`.
+
+Reference a role as an ordinary colour expression, exactly like a palette or
+`config:` entry -- a **role**, never the scheme itself:
+
+```yaml
+color: config.colors.fg
+color: heart_rate.current > 120 ? palette.hot : config.colors.fg
+```
+
+`color: config.colors` (naming the scheme, not a role) is an error saying a
+colour scheme is not a colour and listing the declared roles; `config.colors.
+<role>` naming a role no scheme declares is an error listing the roles that
+are declared. Naming a `color_scheme.<name>` that was never declared, or was
+declared and rejected (a bad role colour, a role-set mismatch), is an error at
+the `config: colors:` `default:`/`choices:` line, naming the schemes
+`color_scheme:` actually declares.
+
+See "Configuration" below for `config: colors:` itself -- the axis that lets
+the wearer pick between declared schemes.
+
+---
+
 ## Configuration
 
 ```yaml
 palette:
   aqua: { value: "#00FFFF", label: "Aqua" }
   amber: { value: "#FFAA00", label: "Amber" }
+
+color_scheme:
+  dark:
+    label: "Dark"
+    colors: { bg: "#000000", fg: "#FFFFFF" }
+  light:
+    label: "Light"
+    colors: { bg: "#FFFFFF", fg: "#000000" }
 
 config:
   accent_color:
@@ -174,14 +234,24 @@ config:
       - palette.aqua                   # a bare palette reference ...
       - palette.amber
       - { color: "#FFFFFF", label: "White" }   # ... or the inline form
+  colors:
+    default: color_scheme.dark         # a color_scheme reference -- see above
+    choices:                           # must be one of choices:
+      - color_scheme.dark
+      - color_scheme.light
 ```
 
-Two user-editable colours, read through the fēnix 8's **native on-device watch
+Three user-editable axes, read through the fēnix 8's **native on-device watch
 face editor** (`Core_Topics/Editing_Watch_Faces_On_Device.html`, API 5.1.0).
-Both keys are optional, and `accent_color`/`data_color` are the **only** keys
-this block accepts -- Garmin's editor offers exactly one accent colour and one
-data colour, and nothing else. Declaring anything else is a schema error
-naming what is accepted.
+All three keys are optional, and `accent_color`/`data_color`/`colors` are the
+**only** keys this block accepts -- Garmin's editor offers exactly one accent
+colour, one data colour and one Styles axis, and nothing else. Declaring
+anything else is a schema error naming what is accepted.
+
+`colors` is shaped differently from the other two: its `default:`/`choices:`
+name declared `color_scheme:` entries (`color_scheme.<name>`), not colours --
+see "Color scheme" above. Everything in the rest of this section describes
+`accent_color`/`data_color`; `colors`' own rules are in "Color scheme."
 
 Each entry needs both `default:` and `choices:`. `default:` is a literal
 `#RRGGBB`/`#RGB` or a `palette.<name>` reference, compiled into the view as the
@@ -212,43 +282,54 @@ color: config.accent_color
 color: heart_rate.current > 120 ? config.accent_color : palette.dim
 ```
 
-### Only two axes, and why
+### Three axes wired up, one still open
 
 Garmin's editor has four axes total -- Styles, Data, Data Colour, Accent
-Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- but only the
-two colour axes are wired up so far. The axis is the `config:` key itself
-rather than an author-chosen name, because Garmin gives exactly one of each:
-there is no third colour axis to add, so there is nothing to validate beyond
-"is this key one of the two the editor has."
+Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- and three are
+now wired up: the two colour axes, plus **Styles**, which carries no colour of
+its own and is the only axis Garmin gives no meaning to at all
+(`docs/research/09-data-library-and-config-axes.md` §3) -- which is exactly
+why a `color_scheme:` can ride it as `config.colors`. Only the **Data** axis
+(per-complication-slot type choice) remains unimplemented. The axis is the
+`config:` key itself rather than an author-chosen name, because Garmin gives
+exactly one of each: there is no fourth colour axis to add, so there is
+nothing to validate beyond "is this key one of the three the editor has."
 
 ### What each device does with it
 
 The generated resource (`<watchface-config>`, one `<accentColors>`/
-`<dataColors>` per declared entry) is emitted **only for a device with the
-native editor** -- checked with `Device.has_symbol`, never an API-level
-compare: `fr955` reports ConnectIQ 5.2.0, above the editor's own documented
-5.1.0, and still has no editor at all (see CLAUDE.md constraint 6, and
-`docs/research/probes/watchface-config/`). Declaring `config:` forces no
+`<dataColors>`/`<styles>` per declared axis) is emitted **only for a device
+with the native editor** -- checked with `Device.has_symbol`, never an
+API-level compare: `fr955` reports ConnectIQ 5.2.0, above the editor's own
+documented 5.1.0, and still has no editor at all (see CLAUDE.md constraint 6,
+and `docs/research/probes/watchface-config/`). Declaring `config:` forces no
 `minApiLevel` bump on any device.
 
-**A device with no native editor keeps the declared `default:` forever.**
-This is a real, user-facing consequence of the chosen scope
+**A device with no native editor keeps every declared default forever** -- the
+compiled-in colours *and* the default scheme's role colours. This is a real,
+user-facing consequence of the chosen scope
 (`docs/adr/0006-configuration-theming-and-modes.md` §2), not a bug, and the
 compiler says so: the suppressible `config-unsupported` warning fires once per
-such target, naming the device and the entries affected.
+such target, naming the device and the entries (and roles) affected.
 
 ### Lint
 
 * An unknown key under `config:` -- schema error, naming what is accepted.
 * `default:`/`choices:` naming an undeclared (or declared-and-rejected)
   `palette.<name>` -- error, naming the declared palette entries.
-* `default:` not among an explicit `choices:` list -- error.
+* `default:` not among an explicit `choices:` list -- error. For `colors`,
+  this compares scheme **names**, not colour values -- two schemes may
+  legitimately share a colour for one role.
+* `colors`' `default:`/`choices:` naming an undeclared (or declared-and-
+  rejected) `color_scheme.<name>` -- error, naming the declared schemes.
 * Every declared colour goes through the same 64-colour palette-legality check
   a `palette:` entry gets: `default:` always (it is the only value a device
   with no native editor ever shows), plus every listed `choices:` colour when
-  `choices:` is an explicit list (`choices: any` has no list to check).
-  Reported as `palette-dither` against whichever element's
-  `color:`/`track_color:` is exactly `config.<name>`.
+  `choices:` is an explicit list (`choices: any` has no list to check) --
+  and, for `colors`, every role of every scheme actually listed in
+  `choices:` (a scheme never listed there is unreachable on any device, so it
+  is not checked). Reported as `palette-dither` against whichever element's
+  `color:`/`track_color:` is exactly `config.<name>`/`config.colors.<role>`.
 * `config-unsupported` (suppressible) -- at least one target has no native
   editor, so the declared defaults are all that device ever shows.
 
@@ -1726,7 +1807,7 @@ element that causes them: `palette-dither` on an element whose `color:` or
 `antialias-dither` on the first element (in document order) whose
 `antialias:` resolves to `true` on a 64-colour device, and
 `config-unsupported` on an element whose `color:`/`track_color:` is exactly
-`config.accent_color` or `config.data_color`.
+`config.accent_color`, `config.data_color` or one role of `config.colors.<role>`.
 See `docs/limitations.md` 3.
 
 ---
@@ -1735,10 +1816,10 @@ See `docs/limitations.md` 3.
 
 Present in the ADRs, absent from format 1: `image` and `complication_slot`
 elements, the `raw` escape hatch (ADR 0007), per-device `overrides` (parsed but
-not yet applied), the Styles and Data axes of on-device configuration (ADR 0006 --
-the two colour axes are implemented; see [Configuration](#configuration)
-above), and `segments`/`scale` progress styles. See
-[`docs/limitations.md`](limitations.md).
+not yet applied), the Data axis of on-device configuration (ADR 0006 -- the two
+colour axes and Styles are implemented; see [Configuration](#configuration) and
+[Color scheme](#color-scheme) above), and `segments`/`scale` progress styles.
+See [`docs/limitations.md`](limitations.md).
 
 (`complication_slot`'s "cycle through several readings" half now exists as
 `carousel`, above. What is still missing is the other half: a slot whose *type*

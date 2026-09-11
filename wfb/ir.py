@@ -16,6 +16,7 @@ Nothing here knows a screen size.  Per-device work happens in :mod:`wfb.layout`.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -227,6 +228,16 @@ class FontSpec:
 #: (CLAUDE.md constraint 6, and `docs/research/probes/watchface-config/`).
 CONFIG_SYMBOL = "Toybox.Application.WatchFaceConfig.getSettings"
 
+#: Matches `expr.check`'s own "unknown data source" message for exactly
+#: `config.colors` or `config.colors.<role>` -- the only two shapes anything
+#: under `config.colors.*` can ever fail to resolve as (see `_build_scope`,
+#: which binds nothing else there).  Group 1 is `""` for the bare axis, or
+#: `.<role>` for a bad role -- `Builder._expression` tells the two apart to
+#: give a domain-specific error instead of a generic "did you mean" guess.
+_CONFIG_COLORS_RE = re.compile(
+    r"^unknown data source 'config\.colors((?:\.[A-Za-z_][A-Za-z0-9_]*)?)'$"
+)
+
 
 @dataclass(frozen=True)
 class ConfigChoice:
@@ -285,6 +296,50 @@ class ConfigColor:
     def field(self) -> str:
         """The generated view field this axis is cached in (`_configAccentColor`)."""
         return config_field(self.name)
+
+
+@dataclass(frozen=True)
+class ColorScheme:
+    """One declared `color_scheme:` entry -- a named role -> colour set,
+    picked on-device through `config: colors:` (docs/research/09 §3).
+
+    A colour *scheme* is several colours moving together, and no native
+    colour axis carries more than one colour, so a scheme rides **Styles** --
+    the one axis Garmin gives no meaning to at all.  `colors` keeps the
+    author's own declared order (a plain dict), which is cosmetic only: the
+    generated `resolveColorScheme` assigns one field per role regardless of
+    order.
+    """
+
+    name: str
+    label: str | None
+    #: role name -> colour, in declared order.  Every accepted scheme in one
+    #: design shares an identical key set -- `Builder._build_color_scheme`
+    #: rejects any that does not, before this is ever constructed for it.
+    colors: dict[str, Color]
+    span: Span | None = None
+
+
+@dataclass(frozen=True)
+class ConfigColorAxis:
+    """The `config: colors:` axis -- a Styles-axis picker over declared
+    `color_scheme:` entries (docs/research/09 §3, ADR 0006 1's second
+    amendment).
+
+    Shaped differently from :class:`ConfigColor`/:class:`ConfigAxis` on
+    purpose: `default:`/`choices:` here name *schemes*, not colours, so
+    "default must be one of choices" is an identity comparison on the scheme
+    name rather than a colour-value one, and there is no `allow_any` --
+    Styles has no equivalent of the editor's own unrestricted colour picker.
+    """
+
+    #: A declared `color_scheme:` name (the part after `color_scheme.`).
+    default: str
+    #: Declared `color_scheme:` names, in `choices:` order -- also the order
+    #: `<style id="N">` numbers them from, and the order `resolveColorScheme`
+    #: tests `style == N` in.
+    choices: tuple[str, ...]
+    span: Span | None = None
 
 
 # --------------------------------------------------------------------------
@@ -646,10 +701,36 @@ class Face:
     #: here; a short-form entry (`name: "#RRGGBB"`) contributes nothing.
     #: `config:` already resolves a `palette.<name>` choice's label into its
     #: own `ConfigChoice.label` at build time, so nothing downstream reads
-    #: this to render `config:` -- it exists for anything else (a future
-    #: `color_scheme:`, `wfb explain`) that wants a palette entry's label
-    #: without re-parsing the source.
+    #: this to render `config:` -- it exists for anything else (`wfb
+    #: explain`) that wants a palette entry's label without re-parsing the
+    #: source.
     palette_labels: dict[str, str] = field(default_factory=dict)
+    #: `color_scheme:` entries, keyed by name.  Only accepted schemes appear
+    #: here -- one with a role-set mismatch is dropped by
+    #: `Builder._build_color_scheme` the same way a bad `config:` axis never
+    #: reaches `Face.config`.
+    color_scheme: dict[str, ColorScheme] = field(default_factory=dict)
+    #: The `config: colors:` axis, or `None` when it was never declared (or
+    #: was declared and rejected).  Unlike `config`, this is not a dict --
+    #: there is exactly one Styles axis, not a table of them.
+    config_colors: ConfigColorAxis | None = None
+
+    @property
+    def has_config(self) -> bool:
+        """Single on/off switch for the whole on-device-config feature.
+
+        Two independent things can turn it on: a declared `accent_color:`/
+        `data_color:` (`self.config`), or a declared `config: colors:`
+        (`self.config_colors`).  Every emitter site that used to test
+        `bool(face.config)` alone -- `needs_delegate`, the view's config
+        fields/`applyConfig`/`onLayout`, the static-buffer repaint flag, the
+        generated `<watchface-config>` resource, `check_config_support` --
+        now goes through this instead, so a design declaring only
+        `color_scheme:`/`config: colors:` (no colour axis at all) still gets
+        a delegate, `applyConfig` and the generated resource.  See CLAUDE.md's
+        own "Integration risk" note on this task for why every site matters.
+        """
+        return bool(self.config) or self.config_colors is not None
 
     def walk(self) -> list[Element]:
         """Every element, parents before children, in document order."""
@@ -735,6 +816,23 @@ class Builder:
         #: exists for, and for the same reason: a second 'unknown data source'
         #: error points at a correct line and blames the wrong thing.
         self.rejected_config: set[str] = set()
+        #: `color_scheme:` entries, and the same declared/rejected split
+        #: `declared_palette`/`rejected_palette` keep -- a scheme with a bad
+        #: role colour or a role-set mismatch is rejected, and `config:
+        #: colors:` referencing it by name must get exactly one error, not a
+        #: second one blaming the reference.
+        self.color_scheme: dict[str, ColorScheme] = {}
+        self.declared_color_scheme: dict[str, Span | None] = {}
+        self.rejected_color_scheme: set[str] = set()
+        #: The `config: colors:` axis, once built -- `None` until then, and
+        #: still `None` if it was declared and rejected (see
+        #: `rejected_config`, which gets `"colors"` added in that case).
+        self.config_colors: ConfigColorAxis | None = None
+        #: The roles a `config.colors.<role>` reference may name, once known
+        #: -- set in `_build_scope`, consulted only by `_expression`'s
+        #: dedicated error for a bad or missing role (see its own docstring).
+        #: `None` means "no `config: colors:` axis at all", not "zero roles".
+        self._config_colors_roles: tuple[str, ...] | None = None
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it
@@ -755,6 +853,7 @@ class Builder:
         data = self.doc.data
         self.face_antialias = bool(data.get("antialias", False))
         self._build_palette(data.get("palette") or {})
+        self._build_color_scheme(data.get("color_scheme") or {})
         self._build_config(data.get("config") or {})
         self._build_fonts(data.get("fonts") or {})
         self._build_scope()
@@ -783,6 +882,8 @@ class Builder:
             source_path=self.doc.path,
             antialias=self.face_antialias,
             config=self.config,
+            color_scheme=self.color_scheme,
+            config_colors=self.config_colors,
         )
 
     # -- palette, config, fonts, scope -------------------------------------
@@ -865,16 +966,169 @@ class Builder:
             self.bag.error("config", str(exc), span)
             return None
 
-    def _build_config(self, raw: dict) -> None:
-        """`config:` -- the native editor's two colour axes (ADR 0006 1, amended).
+    def _build_color_scheme(self, raw: dict) -> None:
+        """`color_scheme:` -- named role -> colour sets, picked on-device via
+        `config: colors:` (docs/research/09 §3, ADR 0006 1's second
+        amendment).
 
-        Only `accent_color`/`data_color` reach here: the schema's
-        `additionalProperties: false` on `config:` rejects anything else before
-        the IR ever sees it, the same division of labour `_build_fonts` and
-        `_build_palette` already rely on for their own blocks.
+        A role's colour is resolved exactly like a `config:` axis's own
+        `default:`/`choices:` colour (`_resolve_config_color`): a literal
+        hex, or a `palette.<name>` reference, with the identical
+        declared/rejected cascade behaviour a bad palette reference already
+        has everywhere else.
+
+        Every accepted scheme must declare the identical role set, checked
+        here against the union of every scheme's own roles -- a scheme
+        missing one that another has would leave `config.colors.<role>`
+        undefined whenever the wearer picks the one that lacks it.  Checked
+        with the union rather than an arbitrary "first" scheme so the report
+        does not depend on declaration order: whichever scheme(s) fall short
+        of what the others collectively declare are the ones named.
+        """
+        role_sets: dict[str, dict[str, Color]] = {}
+        for name, spec in raw.items():
+            span = self.doc.span(raw, name)
+            self.declared_color_scheme[name] = span
+            label = spec.get("label")
+            raw_colors = spec["colors"]
+            colors: dict[str, Color] = {}
+            ok = True
+            for role in raw_colors:
+                role_span = self.doc.span(raw_colors, role)
+                color = self._resolve_config_color(
+                    raw_colors[role], f"color_scheme.{name}.colors.{role}", role_span)
+                if color is None:
+                    ok = False
+                    continue
+                colors[role] = color
+            if not ok:
+                self.rejected_color_scheme.add(name)
+                continue
+            self.color_scheme[name] = ColorScheme(name=name, label=label, colors=colors, span=span)
+            role_sets[name] = colors
+
+        if len(role_sets) < 2:
+            return
+        union: set[str] = set()
+        for colors in role_sets.values():
+            union |= set(colors)
+        for name, colors in role_sets.items():
+            missing = union - set(colors)
+            if not missing:
+                continue
+            self.bag.error(
+                "color-scheme",
+                f"color_scheme.{name}: missing role(s) "
+                f"{', '.join(sorted(missing))} -- every color_scheme entry "
+                "must declare the same roles",
+                self.color_scheme[name].span,
+                notes=[
+                    f"color_scheme.{name} declares: "
+                    + (", ".join(sorted(colors)) or "(none)"),
+                    "otherwise 'config.colors.<role>' would be undefined "
+                    "whenever the wearer picks the scheme that lacks it",
+                ],
+            )
+            self.rejected_color_scheme.add(name)
+            del self.color_scheme[name]
+
+    def _scheme_reference(self, raw: object, span: Span | None) -> str | None:
+        """Resolve a `color_scheme.<name>` reference used from `config:
+        colors:`'s own `default:`/`choices:`.
+
+        Same declared/rejected cascade `_palette_reference` already has: a
+        name that was declared and then rejected (a bad role colour, a
+        role-set mismatch) gets no second error here, because the real
+        mistake already has its own error pointing at the `color_scheme:`
+        block.
+        """
+        if not (isinstance(raw, str) and raw.startswith("color_scheme.")):
+            self.bag.error(
+                "config",
+                f"config.colors: expected a 'color_scheme.<name>' reference, got {raw!r}",
+                span,
+            )
+            return None
+        key = raw[len("color_scheme."):]
+        if key in self.color_scheme:
+            return key
+        if key in self.rejected_color_scheme:
+            return None
+        known = ", ".join(f"color_scheme.{n}" for n in sorted(self.declared_color_scheme)) \
+            or "(none declared)"
+        self.bag.error(
+            "config", f"unknown color scheme {raw!r}", span,
+            notes=[f"declared color schemes: {known}"],
+        )
+        return None
+
+    def _build_config_colors(self, spec: dict, span: Span | None) -> None:
+        """`config: colors:` -- a Styles-axis picker over declared
+        `color_scheme:` entries (docs/research/09 §3).
+
+        Unlike `accent_color`/`data_color`, `default:`/`choices:` name
+        *schemes*, not colours -- so "default must be one of choices" here is
+        an identity comparison on the scheme name, not a colour-value one.
+        Garmin still defines no behaviour for a default outside the list.
+        """
+        default_span = self.doc.span(spec, "default")
+        default_name = self._scheme_reference(spec["default"], default_span)
+        if default_name is None:
+            self.rejected_config.add("colors")
+            return
+
+        raw_choices = spec["choices"]
+        choices: list[str] = []
+        ok = True
+        for index, item in enumerate(raw_choices):
+            item_span = self.doc.span(raw_choices, index)
+            name = self._scheme_reference(item, item_span)
+            if name is None:
+                ok = False
+                continue
+            choices.append(name)
+        if not ok:
+            self.rejected_config.add("colors")
+            return
+
+        if default_name not in choices:
+            self.bag.error(
+                "config",
+                f"config.colors: default {spec['default']!r} is not one of 'choices:'",
+                default_span,
+                notes=[
+                    "the on-device editor marks one listed style as the user's "
+                    "default (the generated <style default=\"true\">) -- Garmin "
+                    "defines no behaviour for a default that is not in the list",
+                    "add it to 'choices:', or change 'default:' to match a "
+                    "scheme already there",
+                    "listed schemes: "
+                    + ", ".join(f"color_scheme.{n}" for n in choices),
+                ],
+            )
+            self.rejected_config.add("colors")
+            return
+
+        self.config_colors = ConfigColorAxis(
+            default=default_name, choices=tuple(choices), span=span)
+
+    def _build_config(self, raw: dict) -> None:
+        """`config:` -- the native editor's colour axes and the Styles axis
+        (ADR 0006 1, twice amended).
+
+        `accent_color`/`data_color` read back as a single `Color`; `colors`
+        picks a declared `color_scheme:` entry instead (`_build_config_colors`)
+        -- a different enough shape that it does not fit `ConfigAxis`/
+        `ConfigColor` at all.  Only these three keys reach here: the schema's
+        `additionalProperties: false` on `config:` rejects anything else
+        before the IR ever sees it, the same division of labour `_build_fonts`
+        and `_build_palette` already rely on for their own blocks.
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
+            if name == "colors":
+                self._build_config_colors(spec, span)
+                continue
             default_span = self.doc.span(spec, "default")
             default = self._resolve_config_color(
                 spec["default"], f"config.{name}.default", default_span)
@@ -1115,14 +1369,17 @@ class Builder:
                     kind="config",
                 ),
             )
-        for name in sorted(self.rejected_config):
+        for name in sorted(self.rejected_config - {"colors"}):
             # Declared, then rejected above.  Binding it anyway keeps the one
             # real error the only error: without this, every `color:
             # config.<name>` in the design adds an "unknown data source" that
             # is true only because the compiler threw the axis away -- the
             # cascade `rejected_fonts` already exists to prevent, in the same
             # shape.  Nothing is emitted from a design that has an error, so
-            # the field name here is never reached.
+            # the field name here is never reached.  `"colors"` is excluded --
+            # it is not a single-colour axis, so it cannot use `config_field`
+            # the way every other rejected axis does, and is handled in the
+            # `config.colors.<role>` block below instead.
             self.scope.define(
                 f"config.{name}",
                 expr.Binding(
@@ -1132,6 +1389,47 @@ class Builder:
                     kind="config",
                 ),
             )
+
+        # `config.colors.<role>` -- one binding per role of a declared
+        # `config: colors:` axis, deliberately *not* one binding for the bare
+        # `config.colors` (a scheme is not a colour; see `_expression`'s
+        # dedicated error for that and for a bad role, both keyed off
+        # `self._config_colors_roles`).
+        if self.config_colors is not None:
+            default_scheme = self.color_scheme[self.config_colors.default]
+            self._config_colors_roles = tuple(sorted(default_scheme.colors))
+            for role, color in default_scheme.colors.items():
+                self.scope.define(
+                    f"config.colors.{role}",
+                    expr.Binding(
+                        expr.Value(Type.COLOR),
+                        code=config_field(f"colors_{role}"),
+                        constant=None,
+                        kind="config",
+                    ),
+                )
+        elif "colors" in self.rejected_config:
+            # The axis itself was declared and rejected (a bad default/choice
+            # reference, or a default not among choices) -- the same cascade
+            # as above, generalised to a multi-role axis: bind whatever roles
+            # a surviving `color_scheme:` entry still declares, so a
+            # `color: config.colors.<role>` reference gets the one real error
+            # already reported against `config:`, not a second one.
+            roles: set[str] = set()
+            for scheme in self.color_scheme.values():
+                roles |= set(scheme.colors)
+            if roles:
+                self._config_colors_roles = tuple(sorted(roles))
+                for role in self._config_colors_roles:
+                    self.scope.define(
+                        f"config.colors.{role}",
+                        expr.Binding(
+                            expr.Value(Type.COLOR),
+                            code=config_field(f"colors_{role}"),
+                            constant=None,
+                            kind="config",
+                        ),
+                    )
         self.scope.used.clear()
 
     # -- elements ---------------------------------------------------------
@@ -2753,11 +3051,32 @@ class Builder:
             code = expr.emit(folded, self.scope)
             resolved = expr.fold(node_ast, self.scope)
         except expr.ExprError as exc:
+            message, notes, code_ = exc.message, exc.notes, exc.code or "expression"
+            # `config.colors` (a scheme, used bare) and `config.colors.<bad
+            # role>` both reach here as an ordinary "unknown data source" --
+            # nothing under `config.colors.*` is bound in scope except the
+            # roles a real axis actually has (`_build_scope`).  Overridden
+            # with a domain-specific message rather than left as a generic
+            # typo report, which would otherwise be the only diagnostic a
+            # `color: config.colors` (missing its role) or a misspelled role
+            # ever gets -- "much less helpful", per the brief this shipped
+            # against.
+            if self._config_colors_roles is not None:
+                match = _CONFIG_COLORS_RE.match(message)
+                if match is not None:
+                    roles = ", ".join(f"config.colors.{r}" for r in self._config_colors_roles)
+                    code_ = "config"
+                    if match.group(1) == "":
+                        message = "config.colors is a colour scheme, not a colour"
+                        notes = [f"reference a role instead: {roles}"]
+                    else:
+                        message = f"config.colors has no role {match.group(1)[1:]!r}"
+                        notes = [f"declared roles: {roles}"]
             self.bag.error(
-                exc.code or "expression",
-                f"{key}: {exc.message}",
+                code_,
+                f"{key}: {message}",
                 _offset_span(span, text, exc.offset),
-                notes=exc.notes,
+                notes=notes,
             )
             self.scope.used |= before
             return None
@@ -3141,6 +3460,18 @@ def config_label_id(axis: str, index: int) -> str:
     author text.
     """
     return f"Config{_pascal(axis)}{index}"
+
+
+def config_style_label_id(index: int) -> str:
+    """The `<string>` resource id a labelled `color_scheme:` entry's Styles
+    label is emitted under (`ConfigStyle0`), referenced from `<style
+    label="@Strings...">`.
+
+    Keyed by position, the same reasoning `config_label_id` already gives:
+    two schemes could share a label, and a position-derived id matches every
+    other generated symbol in this project rather than hashing author text.
+    """
+    return f"ConfigStyle{index}"
 
 
 def _offset_span(span: Span | None, text: str, offset: int) -> Span | None:
