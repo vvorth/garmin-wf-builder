@@ -1,0 +1,357 @@
+# A denser starting point: the time, a goal ring, two data clusters and battery.
+#
+# Offsets are in %r -- percentages of the screen's minor radius -- so the design
+# keeps its proportions on both the 260x260 and 280x280 families rather than
+# drifting. Use %r for anything you think of as "this far out from the middle".
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 8189c72a-8219-4aad-abad-ff01932f291d
+  name: Enduro 3
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+antialias: true
+
+palette:
+  # old directly used
+  bg: { value: "#000000", label: "none" }
+  fg: { value: "#FFFFFF", label: "none" }
+  dim: { value: "#AAAAAA", label: "none" }
+  dark: { value: "#555555", label: "none" }
+
+  # date: { value: "#00FF00", label: "none" }
+  # separator: { value: "#555555", label: "none" }
+  dnd_on: { value: "#FF0000", label: "none" }
+  # alarm_on: { value: "#FFFF00", label: "none" }
+  notify_on: { value: "#FFAA00", label: "none" }
+  notify_text: { value: "#000000", label: "none" }
+  # arc_steps: { value: "#00FF00", label: "none" }
+  # arc_battery: { value: "#00FFFF", label: "none" }
+  # arc_move: { value: "#FFFF00", label: "none" }
+  # track: { value: "#555555", label: "none" }
+
+  # Primary Neutrals:
+  white: { value: "#FFFFFF", label: "White" }
+  black: { value: "#000000", label: "Black" }
+  light_gray: { value: "#AAAAAA", label: "Light Gray" }
+  dark_gray: { value: "#555555", label: "Dark Gray" }
+  # High-Visibility Accents (100% Saturation):
+  yellow: { value: "#FFFF00", label: "Yellow" }
+  cyan: { value: "#00FFFF", label: "Cyan" }
+  green: { value: "#00FF00", label: "Green" }
+  red: { value: "#FF0000", label: "Red" }
+  orange: { value: "#FF5500", label: "Orange" }
+  # 
+  amber: { value: "#FFAA00", label: "Amber" }
+  magenta: { value: "#FF00FF", label: "Magenta" }
+  sky_blue: { value: "#00AAFF", label: "Sky Blue" }
+  lime_green: { value: "#AAFF00", label: "Lime Green" }
+  light_blue: { value: "#55FFFF", label: "Light Blue" }
+  #avoid
+  dark_blue: { value: "#0000FF", label: "Dark Blue" }
+  # have poor reflectivity. They turn into brownish-gray smudges on MIP.
+  dark_olive: { value: "#555500", label: "Dark Olive" }
+  maroon: { value: "#550000", label: "Maroon" }
+  dark_green: { value: "#005500", label: "Dark Green" }
+# palette:
+#   bg: "#000000"
+#   text: "#FFFFFF"
+#   dim: "#AAAAAA"
+#   accent: "#00AAFF"
+#   hot: "#FF5500"
+#   track: "#555555"
+
+color_scheme:
+  dark:
+    label: "Dark"
+    colors:
+      bg: palette.black
+      fg: palette.white
+      dim: palette.light_gray
+      dark: palette.dark_gray
+      alarm: palette.yellow
+  light:
+    label: "Light"
+    colors:
+      bg: palette.white
+      fg: palette.black
+      dim: palette.dark_gray
+      dark: palette.light_gray
+      alarm: palette.amber
+
+
+config:
+  accent_color:
+    default: palette.red
+    choices: # the editor's own full colour picker
+      - palette.red
+      - palette.cyan
+      - palette.lime_green
+      - palette.orange
+      - palette.magenta
+      - palette.amber
+  data_color:
+    default: palette.lime_green              # a palette reference, or a literal hex
+    choices:                           # or an explicit list
+      - palette.sky_blue                   # a bare palette reference ...
+      - palette.amber
+      - palette.light_blue
+      - palette.orange
+      - palette.lime_green
+  colors:
+    default: color_scheme.dark          # must be one of choices:
+    choices:
+      - color_scheme.dark
+      - color_scheme.light
+      # - color_scheme.random
+
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: config.colors.bg
+
+  top_line:
+    type: shape
+    shape: line
+    at: {anchor: top, dy: 23%, dx: 30% }
+    to: {anchor: top, dy: 23%, dx: -30% }
+    thickness: 1px
+    color: config.colors.dark
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+    
+  top_line_l:
+    type: shape
+    shape: line
+    at: {anchor: top, dy: 23%, dx: -30% }
+    to: {anchor: top, dy: 12%, dx: -40% }
+    thickness: 1px
+    color: config.colors.dark
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  top_line_r:
+    type: shape
+    shape: line
+    at: {anchor: top, dy: 23%, dx: 30% }
+    to: {anchor: top, dy: 12%, dx: 40% }
+    thickness: 1px
+    color: config.colors.dark
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  top_sep:
+    type: shape
+    shape: line
+    at: {anchor: top, dy: 18% }
+    to: {anchor: top, dy: 9% }
+    thickness: 1px
+    color: config.colors.dark
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  top_mid_l:
+    type: shape
+    shape: line
+    at: {anchor: top, dy: 26%, dx: -42% }
+    to: {anchor: top, dy: 26%, dx: 5% }
+    thickness: 1px
+    color: config.colors.dark
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  top_mid_c:
+    type: shape
+    shape: line
+    at: {anchor: top, dy: 26%, dx: 5% }
+    to: {anchor: top, dy: 38%, dx: 14% }
+    thickness: 1px
+    color: config.colors.dark
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  top_mid_r:
+    type: shape
+    shape: line
+    at: {anchor: top, dy: 38%, dx: 42% }
+    to: {anchor: top, dy: 38%, dx: 14% }
+    thickness: 1px
+    color: config.colors.dark
+    lint:
+      allow: [contrast]
+      reason: "a hairline rule is meant to be barely there; full contrast
+        would make the separators compete with the data"
+
+  circle_r:
+    type: shape
+    shape: circle    # rectangle | rounded_rectangle | circle | ellipse
+    at: { anchor: center, dx: 34%, dy: 2%}    #  | arc | polygon | line
+    thickness: 2px
+    filled: false
+    radius: 12%
+    color: config.colors.dark
+
+elements:
+  arc_l:
+    type: progress
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    at: {anchor: center}
+    radius: 97%r
+    thickness: 4%r
+    start_angle: 317deg         # lower left, growing anticlockwise towards 9 o'clock
+    sweep: 41deg
+    color: config.data_color
+    track_color: config.colors.dark
+    when_absent: hide
+
+  arc_r:
+    type: progress
+    style: arc
+    value: activity.move_bar_level
+    max: 5
+    at: {anchor: center}
+    radius: 97%r
+    thickness: 4%r
+    start_angle: 43deg         # lower left, growing anticlockwise towards 9 o'clock
+    sweep: -41deg
+    color: config.data_color
+    track_color: config.colors.dark
+    when_absent: hide
+
+
+  hours:
+    type: text
+    value: time.hour
+    format: "{:02d}"
+    font: FONT_NUMBER_HOT
+    at: {anchor: left, dx: 0%, dy: 0.8%}
+    align: left
+    color: config.colors.fg
+
+  minutes:
+    type: text
+    value: time.minute
+    format: "{:02d}"
+    font: FONT_NUMBER_HOT
+    at: {anchor: left, dx: 35%, dy: 0.8%}
+    align: left
+    color: config.accent_color
+
+  circle_data:
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    at: { anchor: center, dx: 34%, dy: 2%}    #  | arc | polygon | line
+    radius: 10%
+    thickness: 1%
+    start_angle: 0deg
+    sweep: 360deg
+    color: config.data_color
+    track_color: config.colors.dark
+    when_absent: hide
+
+  circle_icon:
+    type: icon
+    icon: battery
+    size: 12%r
+    at: { anchor: center, dx: 34%, dy: -2%}    #  | arc | polygon | line
+    color: config.colors.dim
+
+  circle_text:
+    type: text
+    value: activity.steps
+    format: "te%"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 34%, dy: 4%}    #  | arc | polygon | line
+    color: config.colors.dim
+  # A stroked ring, open at the bottom. There is no filled-sector primitive in
+  # Connect IQ, so `thickness` is a pen width and there is no inner radius.
+  # step_ring:
+  #   type: progress
+  #   style: arc
+  #   value: activity.steps
+  #   max: activity.step_goal
+  #   at: {anchor: center}
+  #   radius: 88%r
+  #   thickness: 9px
+  #   start_angle: 215deg      # measured clockwise from 12 o'clock
+  #   sweep: 290deg
+  #   color: palette.accent
+  #   track_color: palette.track
+  #   when_absent: hide        # required: both bindings can be absent
+  #
+  # clock:
+  #   type: text
+  #   value: time.clock
+  #   format: "{:%h:%M}"
+  #   font: FONT_NUMBER_HOT
+  #   at: {anchor: center, dy: -12%r}
+  #   color: palette.text
+  #
+  # hr_icon:
+  #   type: icon
+  #   icon: heart
+  #   size: 11%r
+  #   at: {anchor: center, dx: -40%r, dy: 30%r}
+  #   color: palette.hot
+  #
+  # hr_value:
+  #   type: text
+  #   value: heart_rate.current
+  #   format: "{:d}"
+  #   font: FONT_TINY
+  #   at: {anchor: center, dx: -17%r, dy: 30%r}
+  #   color: palette.text
+  #   when_absent: placeholder
+  #   placeholder: "--"
+  #
+  # steps_icon:
+  #   type: icon
+  #   icon: steps
+  #   size: 11%r
+  #   at: {anchor: center, dx: 13%r, dy: 30%r}
+  #   color: palette.accent
+  #
+  # steps_value:
+  #   type: text
+  #   value: activity.steps / 1000
+  #   format: "{:.01f}"
+  #   font: FONT_TINY
+  #   at: {anchor: center, dx: 38%r, dy: 30%r}
+  #   color: palette.text
+  #   when_absent: placeholder
+  #   placeholder: "--"
+  #
+  # battery:
+  #   type: progress
+  #   style: bar
+  #   value: system.battery
+  #   max: 100
+  #   at: {anchor: center, dy: 62%r}
+  #   size: {width: 40%r, height: 5%r}
+  #   color: palette.text
+  #   track_color: palette.track
+  #
