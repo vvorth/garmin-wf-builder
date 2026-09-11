@@ -1066,6 +1066,22 @@ history — and no solar series exist at all**: see
 [`docs/limitations.md`](limitations.md) and
 `docs/research/08-graphs-and-configuration.md` §1.
 
+Naming one of those anyway is an error that **says why**, rather than
+reporting an unknown name:
+
+```
+error[graph]: 'pressure' cannot be plotted on a watch face
+  note: Toybox.SensorHistory is the only API that serves it as a history, and a
+        watch face may not declare that permission -- Core_Topics/
+        Manifest_and_Permissions.html gives SensorHistory an empty
+        'Watch Face' column
+```
+
+Each of these is a real quantity the watch measures and shows in its own
+native widgets, which is exactly why the name gets typed; "unknown series"
+would send you hunting for a spelling mistake that does not exist. A genuine
+typo still gets the suggestion (`series: step` → *did you mean: steps?*).
+
 **`range:`** is a duration (`30m`, `4h`, `7d`) or a bare integer sample
 count. `heart_rate` passes a duration straight through to
 `getHeartRateHistory`, which bins it by real time on-device — its own

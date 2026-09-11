@@ -2013,14 +2013,29 @@ class Builder:
         name = node.get("series")
         src = series.get(name) if name else None
         if src is None:
-            near = series.suggest(str(name)) if name else []
-            self.bag.error(
-                "graph",
-                f"unknown series {name!r}",
-                self.doc.span(node, "series"),
-                notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
-                + ["run `wfb series` for the full list"],
-            )
+            reason = series.unavailable_reason(str(name)) if name else None
+            if reason is not None:
+                # Not a typo -- a real quantity the platform will not serve as
+                # a history.  Saying "unknown" would send the author hunting
+                # for a spelling mistake that does not exist.
+                self.bag.error(
+                    "graph",
+                    f"{name!r} cannot be plotted on a watch face",
+                    self.doc.span(node, "series"),
+                    notes=[reason,
+                           "run `wfb series` for what a watch face can plot",
+                           "docs/research/08-graphs-and-configuration.md §1 has "
+                           "the evidence"],
+                )
+            else:
+                near = series.suggest(str(name)) if name else []
+                self.bag.error(
+                    "graph",
+                    f"unknown series {name!r}",
+                    self.doc.span(node, "series"),
+                    notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
+                    + ["run `wfb series` for the full list"],
+                )
 
         range_kind, range_value = self._graph_range(node, src)
         buckets = int(node.get("buckets", 40))

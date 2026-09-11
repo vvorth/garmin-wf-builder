@@ -249,3 +249,44 @@ def suggest(name: str, limit: int = 3) -> list[str]:
     import difflib
 
     return difflib.get_close_matches(name, SERIES, n=limit, cutoff=0.5)
+
+
+#: Series an author will reasonably reach for and **cannot have**, mapped to
+#: the reason, so the diagnostic can say why rather than only "unknown".
+#:
+#: Every one of these is a real quantity the watch measures and displays in
+#: its own native widgets, which is exactly why the name gets typed. Answering
+#: "unknown series 'pressure'" would send the author looking for a spelling
+#: mistake that does not exist -- the same failure mode `source-renamed` and
+#: `on-tap-renamed` were added to avoid. See research 08 §1 and CLAUDE.md
+#: constraint 14b.
+UNAVAILABLE: dict[str, str] = {
+    name: ("Toybox.SensorHistory is the only API that serves it as a history, "
+           "and a watch face may not declare that permission -- "
+           "Core_Topics/Manifest_and_Permissions.html gives SensorHistory an "
+           "empty 'Watch Face' column")
+    for name in (
+        "pressure", "barometric_pressure", "stress", "elevation", "altitude",
+        "body_battery", "oxygen_saturation", "pulse_ox", "temperature",
+    )
+} | {
+    name: ("there is no solar history API anywhere in Connect IQ -- solar is "
+           "only ever a current reading (System.Stats.solarIntensity, "
+           "Complications.COMPLICATION_TYPE_SOLAR_INPUT), so the chart on a "
+           "stock Garmin face is native firmware this API does not expose")
+    for name in ("solar", "solar_input", "solar_intensity", "solar_charge")
+}
+
+
+def unavailable_reason(name: str) -> str | None:
+    """Why a plausible-but-impossible series name cannot be plotted, or None.
+
+    Matched on the bare name and on its last dotted/underscored segment, so
+    `ambient.pressure` and `sensor_pressure` land here too -- an author
+    reaching for a forbidden quantity rarely guesses this module's exact
+    spelling for it.
+    """
+    if name in UNAVAILABLE:
+        return UNAVAILABLE[name]
+    tail = name.rsplit(".", 1)[-1]
+    return UNAVAILABLE.get(tail)

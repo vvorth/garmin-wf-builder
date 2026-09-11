@@ -1605,6 +1605,31 @@ def test_an_unknown_series_is_reported_with_a_suggestion(write_design, bag):
     assert "heart_rate" in " ".join(errors[0].notes)
 
 
+@pytest.mark.parametrize("name,cite", [
+    ("pressure", "SensorHistory"),
+    ("body_battery", "SensorHistory"),
+    ("stress", "SensorHistory"),
+    ("ambient.pressure", "SensorHistory"),   # matched on the trailing segment
+    ("solar", "no solar history API"),
+    ("solar_intensity", "no solar history API"),
+])
+def test_a_series_the_platform_forbids_says_why_rather_than_unknown(
+        write_design, bag, name, cite):
+    """A real quantity the watch shows natively, that a face still cannot plot.
+
+    "unknown series 'pressure'" would send an author hunting for a spelling
+    mistake that does not exist -- the failure mode `source-renamed` and
+    `on-tap-renamed` already exist to avoid.  Drives both branches: the
+    message must NOT be the "unknown series" one, and must carry the reason.
+    """
+    load(write_design(design(_graph(series=name))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "unknown series" not in errors[0].message
+    assert "cannot be plotted on a watch face" in errors[0].message
+    assert cite in " ".join(errors[0].notes)
+
+
 def test_buckets_on_a_non_heart_rate_series_is_an_error(write_design, bag):
     load(write_design(design(_graph(series="steps", range="4d", buckets="10"))), bag)
     errors = [d for d in bag.errors if d.code == "graph"]
