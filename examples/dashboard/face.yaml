@@ -69,7 +69,7 @@ palette:
   # date: { value: "#00FF00", label: "none" }
   # separator: { value: "#555555", label: "none" }
   dnd_on: { value: "#FF0000", label: "none" }
-  alarm_on: { value: "#FFFF00", label: "none" }
+  # alarm_on: { value: "#FFFF00", label: "none" }
   notify_on: { value: "#FFAA00", label: "none" }
   notify_text: { value: "#000000", label: "none" }
   # arc_steps: { value: "#00FF00", label: "none" }
@@ -101,6 +101,23 @@ palette:
   maroon: { value: "#550000", label: "Maroon" }
   dark_green: { value: "#005500", label: "Dark Green" }
 
+color_scheme:
+  dark:
+    label: "Dark"
+    colors:
+      bg: palette.black
+      fg: palette.white
+      dim: palette.light_gray
+      dark: palette.dark_gray
+      alarm: palette.yellow
+  light:
+    label: "Light"
+    colors:
+      bg: palette.white
+      fg: palette.black
+      dim: palette.dark_gray
+      dark: palette.light_gray
+      alarm: palette.amber
 
 config:
   accent_color:
@@ -120,7 +137,11 @@ config:
       - palette.light_blue
       - palette.orange
       - palette.lime_green
-
+  colors:
+    default: color_scheme.dark          # must be one of choices:
+    choices:
+      - color_scheme.dark
+      - color_scheme.light
 
 static:
   background:
@@ -128,17 +149,17 @@ static:
     shape: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
-    color: palette.bg
+    color: config.colors.bg
 
   # A separator is a chord of a circle just inside the bezel. Both ends are
   # polar, so the line reaches the rim on any screen size.
   sep_1:
     type: shape
     shape: line
-    at: {anchor: top, dy: 14%, dx: 25% }
-    to: {anchor: top, dy: 14%, dx: -25% }
+    at: {anchor: top, dy: 13%, dx: 25% }
+    to: {anchor: top, dy: 13%, dx: -25% }
     thickness: 1px
-    color: palette.dark
+    color: config.colors.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -150,7 +171,7 @@ static:
     at: {anchor: top, dy: 23%, dx: 36% }
     to: {anchor: top, dy: 23%, dx: -36% }
     thickness: 1px
-    color: palette.dark
+    color: config.colors.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -162,7 +183,7 @@ static:
     at: {anchor: top, dy: 36%, dx: 44% }
     to: {anchor: top, dy: 36%, dx: -44% }
     thickness: 1px
-    color: palette.dark
+    color: config.colors.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -174,7 +195,7 @@ static:
     at: {anchor: bottom, dy: -32%, dx:  43% }
     to: {anchor: bottom, dy: -32%, dx: -43% }
     thickness: 1px
-    color: palette.dark
+    color: config.colors.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -186,7 +207,7 @@ static:
     at: {anchor: bottom, dy: -20%, dx: 32% }
     to: {anchor: bottom, dy: -20%, dx: -32% }
     thickness: 1px
-    color: palette.dark
+    color: config.colors.dark
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -201,8 +222,8 @@ elements:
     type: text
     value: date.today
     format: "{:%a %e %b}"       # "Thu 3 Sep" -- %a and %b come back localised
-    font: FONT_XTINY
-    at: {anchor: top, dy: 9.5%}
+    font: FONT_TINY
+    at: {anchor: top, dy: 8%}
     color: config.data_color
 
   # -- SEP_1 --
@@ -227,7 +248,7 @@ elements:
     glyph: 'U+F21E'
     size: 11%r
     at: {anchor: top, dx: -28%, dy: 18%}
-    color: palette.dim
+    color: config.colors.dim
 
   hr_value:
     type: text
@@ -236,7 +257,7 @@ elements:
     font: FONT_XTINY
     at: {anchor: top, dx: -24%, dy: 18%}
     align: left
-    color: palette.dim
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
 
@@ -245,7 +266,7 @@ elements:
     icon: flame
     size: 11%r
     at: {anchor: top, dx: -8%, dy: 18%}
-    color: palette.dim
+    color: config.colors.dim
 
   calories_value:
     type: text
@@ -254,7 +275,7 @@ elements:
     font: FONT_XTINY
     at: {anchor: top, dx: -4%, dy: 18%}
     align: left
-    color: palette.dim
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
 
@@ -267,7 +288,7 @@ elements:
     font: FONT_XTINY
     at: {anchor: top, dx: 32%, dy: 18%}
     align: right
-    color: palette.dim
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
 
@@ -287,7 +308,7 @@ elements:
     format: "{:d}°"
     font: FONT_XTINY
     at: {anchor: top, dy: 30%, dx: -32%}
-    color: palette.dim
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--°"
 
@@ -297,7 +318,7 @@ elements:
     format: "{:d}%"
     font: FONT_XTINY
     at: {anchor: top, dy: 30%, dx: -15%}
-    color: palette.dim
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--%"
 
@@ -306,7 +327,7 @@ elements:
     icon_for: weather.condition_today
     size: 22%r
     at: {anchor: top, dy: 30%}
-    color: palette.fg
+    color: config.colors.fg
     # color: palette.dim
 
   weather_today_high:
@@ -315,7 +336,7 @@ elements:
     format: "{:d}°"
     font: FONT_XTINY
     at: {anchor: top, dy: 30%, dx: 15%}
-    color: palette.dim
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--°"
 
@@ -325,7 +346,7 @@ elements:
     format: "{:d}°"
     font: FONT_XTINY
     at: {anchor: top, dy: 30%, dx: 32%}
-    color: palette.dim
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--°"
 
@@ -347,7 +368,7 @@ elements:
     font: font.test
     at: {anchor: center, dx: -1%, dy: 0.8%}
     align: right
-    color: palette.fg
+    color: config.colors.fg
 
   minutes:
     type: text
@@ -375,7 +396,7 @@ elements:
     format: "{:d}fl"
     font: FONT_XTINY
     at: {anchor: top, dx: -25%, dy: 74%}
-    color: palette.dim
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
 
@@ -384,14 +405,14 @@ elements:
     icon: dnd
     size: 14%r
     at: {anchor: top, dx: -12%, dy: 74%}
-    color: "device.do_not_disturb ? palette.dnd_on : palette.dark"
+    color: "device.do_not_disturb ? palette.dnd_on : config.colors.dark"
 
   alarm_icon:
     type: icon
     icon: alarm
     size: 14%r
     at: {anchor: top, dy: 74%}
-    color: "device.alarm_count > 0 ? palette.alarm_on : palette.dark"
+    color: "device.alarm_count > 0 ? config.colors.alarm : config.colors.dark"
 
   steps_value:
     type: text
@@ -422,7 +443,7 @@ elements:
     format: "{:.0f}d"
     font: FONT_XTINY
     at: {anchor: top, dx: -15%, dy: 88%}
-    color: palette.dim
+    color: config.colors.dim
 
   # A speech-bubble badge, not a bare circle -- a circle with a number in it
   # reads as a clock face or a button, not as "you have notifications". Both
@@ -442,7 +463,7 @@ elements:
     size: 25%r
     at: {anchor: top, dy: 90%}
     # visible: device.notification_count > 0
-    color: "device.notification_count > 0 ? palette.notify_on : palette.dark"
+    color: "device.notification_count > 0 ? palette.notify_on : config.colors.dark"
     # color: palette.notify_on
     antialias: false
 
@@ -462,7 +483,7 @@ elements:
     format: "{:.0f}%"
     font: FONT_XTINY
     at: {anchor: top, dx: 15%, dy: 88%}
-    color: palette.dim
+    color: config.colors.dim
 
   # -- the arcs --------------------------------------------------------------
   # Three short arcs along the bottom rim. Each is a stroked ring: there is no
@@ -477,26 +498,13 @@ elements:
     value: activity.steps
     max: activity.step_goal
     at: {anchor: center}
-    radius: 96%r
-    thickness: 4px
+    radius: 98%r
+    thickness: 4%r
     start_angle: 212deg         # lower left, growing anticlockwise towards 9 o'clock
     sweep: 32deg
     color: config.data_color
-    track_color: palette.dark
+    track_color: config.colors.dark
     when_absent: hide
-
-  arc_battery_left:
-    type: progress
-    style: arc
-    value: system.battery
-    max: 100
-    at: {anchor: center}
-    radius: 96%r
-    thickness: 4px
-    start_angle: 180deg         # just left of 6 o'clock, growing clockwise
-    sweep: -28deg
-    color: config.data_color
-    track_color: palette.dark
 
   arc_battery_right:
     type: progress
@@ -504,12 +512,25 @@ elements:
     value: system.battery
     max: 100
     at: {anchor: center}
-    radius: 96%r
-    thickness: 4px
+    radius: 98%r
+    thickness: 4%r
+    start_angle: 180deg         # just left of 6 o'clock, growing clockwise
+    sweep: -28deg
+    color: config.data_color
+    track_color: config.colors.dark
+
+  arc_battery_left:
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    at: {anchor: center}
+    radius: 98%r
+    thickness: 4%r
     start_angle: 180deg         # just left of 6 o'clock, growing clockwise
     sweep: 28deg
     color: config.data_color
-    track_color: palette.dark
+    track_color: config.colors.dark
 
   arc_move:
     type: progress
@@ -517,10 +538,10 @@ elements:
     value: activity.move_bar_level
     max: 5
     at: {anchor: center}
-    radius: 96%r
-    thickness: 4px
+    radius: 98%r
+    thickness: 4%r
     start_angle: 148deg         # lower right, growing anticlockwise towards 3 o'clock
     sweep: -32deg
     color: config.data_color
-    track_color: palette.dark
+    track_color: config.colors.dark
     when_absent: hide
