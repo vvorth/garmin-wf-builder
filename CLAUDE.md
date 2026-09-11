@@ -1938,15 +1938,74 @@ the only mechanism in the whole document that works on **`fr955`**, and the
 only one with no combinatorial blow-up. Nothing in the schema, IR or emitter
 was touched.
 
-**A note on a gap in this file, found while writing the session below:**
-between the "two-feature session" above and this one, three more commits
-landed (`bc447a9` research, `69e70f7` a labelled `palette:` entry, `0fa726e`
-`color_scheme:`/`config.colors` on Styles, `268fb02` `config: data:` +
-`type: complication_slot`, the whole Data axis) and none of them got a
-session note here -- `docs/research/09-data-library-and-config-axes.md`, the
-commit messages themselves, and `docs/adr/0006`'s third amendment are the
-record for that work. Left as a gap rather than backfilled, to keep this
-note about what the session below actually did.
+**A four-commit session took `docs/research/09`'s recommendation and built
+it, one agent per feature, integrated and committed between each** -- the
+same orchestration the six-feature session above used, and for the same
+reason: a failure never spans two features. `bc447a9` is the research,
+`69e70f7`/`0fa726e`/`268fb02` the features, and each commit message carries
+its own detail. What is worth having here:
+
+1. **A `palette:` entry takes a long form, `{value, label}`**, and a
+   `config:` axis's `default:`/`choices:` accept a bare `palette.<name>`.
+   The label is deliberately inert everywhere else -- it surfaces only
+   through a `config:` reference, becoming the same
+   `<color label="@Strings...">` an inline `label:` already produced, so
+   `wfb/emit/resources.py` needed no change at all.
+
+2. **`color_scheme:` + `config.colors` ride the Styles axis.** A scheme is
+   several colours moving together and **no native colour axis carries more
+   than one colour** -- `Settings` has exactly four fields and
+   `resources.xsd`'s `watchfaceConfigType` is an `xs:all` of exactly four
+   optional children, so there is no background-colour axis and no fifth
+   axis of any kind. Styles is the only axis Garmin gives no meaning to, and
+   `resolveColorScheme` is the one place the generated view assigns
+   `styleId` a meaning. **Measured: a style costs ~9 B data, ~28 B code, and
+   ~61 B of `.prg`** -- so the cost of a Styles cross-product is entirely
+   UX, never memory. That number is what makes §5.1 of research 09 a
+   judgement call rather than a resource argument.
+
+3. **`config: data:` + `type: complication_slot` is the Data axis**, and the
+   finding that made it small is `Complications.Id.getType()` working on the
+   id the wearer picked: one authored template serves every choice, with the
+   icon chosen **on the watch** from the chosen type. The generated switch
+   yields a catalogue *name* and `IconGlyphs.glyph` makes it a character --
+   the same split `WfbWeather.chooseIcon` keeps, for the same reason.
+
+   **The element takes no `format:`, and that is an error that says why.**
+   `Complication.value` is a `String or Number or Float or Long or Double`
+   union whose concrete type genuinely varies by which choice the wearer
+   makes, so a format string written for one is silently wrong for another.
+
+**Three transferable lessons from those commits:**
+
+* **"Over-estimating a box is safe" does not transfer from digit counts to
+  device strings.** Padding a slot's geometry estimate for `label:`/`unit:`
+  produced a **spurious `off-screen` error on an ordinary slot**, because
+  `Complication.shortLabel`/`.unit` are unbounded localised strings, not a
+  bounded count. They are excluded from the box and the gap is documented
+  rather than papered over with a guessed padding.
+* **Monkey C has no explicitly-typed local** -- `var x as String? = null` is
+  rejected -- which is why a slot's icon lookup is a method returning
+  `String?` rather than an inline mutable local. And a repeated *field*
+  access does not narrow: `pulled.value` must be captured into a local
+  first, the same narrowing rule the static-buffer session already recorded
+  for `_staticBuffer`.
+* **`bool(face.config)` was the single on/off switch for the whole config
+  feature in nine places across three modules.** Adding an axis that is not
+  a `ConfigColor` would have silently produced no `<watchface-config>`, no
+  delegate and no `applyConfig` for a design that declared only the new
+  axis. Everything now routes through `Face.has_config`, and that exact
+  design is covered by a `slow` test on all three targets. **When a feature
+  has a truthiness-based on/off switch, adding a differently-shaped member
+  to it is the bug to look for.**
+
+**The cascade fix now has five instances** -- `fonts:`, `config:`,
+`palette:`, `color_scheme:` and a `config: data:` slot. Every one was the
+same shape: a declared-then-rejected name is absent from the expression
+scope, so each element referencing it raises a second, derived error blaming
+the element for a mistake made elsewhere. **Any new named block in this
+format needs its rejected names bound into scope from the start**, and the
+test that proves it is "one error, not N".
 
 **A session closed the two gaps `docs/adr/0006`'s third amendment (the
 `config: data:` commit above) had left open on purpose: `on_hold:` on a
