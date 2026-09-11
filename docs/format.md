@@ -129,6 +129,97 @@ Anything else is dithered by the firmware and looks grainy. The linter warns and
 names the nearest legal colour; `lint: {allow: [palette-dither], reason: "..."}`
 on an element silences it for a deliberate choice.
 
+**A `palette:` entry may not reference `config.*`.** A palette entry compiles
+to a Monkey C `const`, and a config value is not known until the watch reads
+it, so `bg: config.accent_color` is an error. Reference the config entry
+directly instead: `color: config.accent_color`.
+
+---
+
+## Configuration
+
+```yaml
+config:
+  accent_color:
+    default: "#FF8000"
+    choices: any                       # the editor's own full colour picker
+  data_color:
+    default: "#FFFFFF"
+    choices:                           # or an explicit list
+      - { color: "#FFFFFF", label: "White" }
+      - { color: "#00FFFF", label: "Aqua" }
+      - { color: "#FFAA00", label: "Amber" }
+```
+
+Two user-editable colours, read through the fēnix 8's **native on-device watch
+face editor** (`Core_Topics/Editing_Watch_Faces_On_Device.html`, API 5.1.0).
+Both keys are optional, and `accent_color`/`data_color` are the **only** keys
+this block accepts -- Garmin's editor offers exactly one accent colour and one
+data colour, and nothing else. Declaring anything else is a schema error
+naming what is accepted.
+
+Each entry needs both `default:` (a literal `#RRGGBB`/`#RGB`, compiled into the
+view as the starting value) and `choices:` -- either the literal string `any`,
+which hands the wearer the editor's own unrestricted colour picker, or an
+explicit list of `{color, label}` entries, where `label:` is optional (an
+unlabelled colour is legal -- Garmin's own sample has one). **When `choices:`
+is an explicit list, `default:` must be one of the listed colours** -- the
+editor marks one listed colour `default="true"`, and Garmin defines no
+behaviour for a default that is not in the list.
+
+Reference a declared entry as an ordinary colour expression, exactly like a
+palette entry:
+
+```yaml
+color: config.accent_color
+color: heart_rate.current > 120 ? config.accent_color : palette.dim
+```
+
+### Only two axes, and why
+
+Garmin's editor has four axes total -- Styles, Data, Data Colour, Accent
+Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- but only the
+two colour axes are wired up so far. The axis is the `config:` key itself
+rather than an author-chosen name, because Garmin gives exactly one of each:
+there is no third colour axis to add, so there is nothing to validate beyond
+"is this key one of the two the editor has."
+
+### What each device does with it
+
+The generated resource (`<watchface-config>`, one `<accentColors>`/
+`<dataColors>` per declared entry) is emitted **only for a device with the
+native editor** -- checked with `Device.has_symbol`, never an API-level
+compare: `fr955` reports ConnectIQ 5.2.0, above the editor's own documented
+5.1.0, and still has no editor at all (see CLAUDE.md constraint 6, and
+`docs/research/probes/watchface-config/`). Declaring `config:` forces no
+`minApiLevel` bump on any device.
+
+**A device with no native editor keeps the declared `default:` forever.**
+This is a real, user-facing consequence of the chosen scope
+(`docs/adr/0006-configuration-theming-and-modes.md` §2), not a bug, and the
+compiler says so: the suppressible `config-unsupported` warning fires once per
+such target, naming the device and the entries affected.
+
+### Lint
+
+* An unknown key under `config:` -- schema error, naming what is accepted.
+* `default:` not among an explicit `choices:` list -- error.
+* Every declared colour goes through the same 64-colour palette-legality check
+  a `palette:` entry gets: `default:` always (it is the only value a device
+  with no native editor ever shows), plus every listed `choices:` colour when
+  `choices:` is an explicit list (`choices: any` has no list to check).
+  Reported as `palette-dither` against whichever element's
+  `color:`/`track_color:` is exactly `config.<name>`.
+* `config-unsupported` (suppressible) -- at least one target has no native
+  editor, so the declared defaults are all that device ever shows.
+
+### What this compiler cannot tell you
+
+**No behaviour of the editor is verified anywhere in this project.** There is
+no simulator in this container and no watch (`docs/limitations.md` §2); every
+claim above is a compile-time result (schema, IR, a real `monkeyc` build) or a
+byte cost, never a description of what the editor's UI actually does.
+
 ---
 
 ## Fonts
@@ -1576,10 +1667,10 @@ off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
 `carousel-on-hold`) are **not** suppressible: silencing one produces a face
 that does not work.
 
-Thirteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+Fourteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `carousel-zone`, `hold-overlap`,
 `hold-unsupported`, `complication-gated`, `dead-element`, `graphics-pool`,
-`antialias-dither` and `static-overlap`.
+`antialias-dither`, `static-overlap` and `config-unsupported`.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
 the normative list -- this prose has drifted from it before, so check there
 rather than here if the two ever disagree. **A code that is not one of them is a
@@ -1588,12 +1679,15 @@ suggestion) versus a real code that is deliberately unsuppressible (with the
 reason). Both used to be ignored in silence, which left an author unable to tell
 a typo from a check that refuses to be silenced.
 
-Four of them are not element-scoped diagnostics, so the allow goes on the
+Five of them are not element-scoped diagnostics, so the allow goes on the
 element that causes them: `palette-dither` on an element whose `color:` or
-`track_color:` is exactly `palette.<name>`, `partial-update-budget` on any
-element drawn in `low_power` mode, `graphics-pool` on the first element
-declaring `static: true`, and `antialias-dither` on the first element (in
-document order) whose `antialias:` resolves to `true` on a 64-colour device.
+`track_color:` is exactly `palette.<name>` **or** `config.<name>`,
+`partial-update-budget` on any element drawn in `low_power` mode,
+`graphics-pool` on the first element declaring `static: true`,
+`antialias-dither` on the first element (in document order) whose
+`antialias:` resolves to `true` on a 64-colour device, and
+`config-unsupported` on an element whose `color:`/`track_color:` is exactly
+`config.accent_color` or `config.data_color`.
 See `docs/limitations.md` 3.
 
 ---
@@ -1602,8 +1696,10 @@ See `docs/limitations.md` 3.
 
 Present in the ADRs, absent from format 1: `image` and `complication_slot`
 elements, the `raw` escape hatch (ADR 0007), per-device `overrides` (parsed but
-not yet applied), the `config:` block and on-device configuration (ADR 0006), and
-`segments`/`scale` progress styles. See [`docs/limitations.md`](limitations.md).
+not yet applied), the Styles and Data axes of on-device configuration (ADR 0006 --
+the two colour axes are implemented; see [Configuration](#configuration)
+above), and `segments`/`scale` progress styles. See
+[`docs/limitations.md`](limitations.md).
 
 (`complication_slot`'s "cycle through several readings" half now exists as
 `carousel`, above. What is still missing is the other half: a slot whose *type*

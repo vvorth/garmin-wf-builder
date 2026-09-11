@@ -1,0 +1,112 @@
+# `config:` -- two colours the wearer can change in the fēnix 8's own
+# on-device watch face editor (API 5.1.0), without touching Garmin Connect.
+#
+# Garmin's editor has exactly one accent-colour axis and one data-colour
+# axis, so `config:` accepts exactly those two keys -- `accent_color` and
+# `data_color` -- and nothing else (docs/format.md "Configuration",
+# docs/adr/0006-configuration-theming-and-modes.md 1, amended).
+#
+# `accent_ring` below is deliberately inside `static:`, to exercise the part
+# of this feature that is easy to get wrong: a static element is painted once
+# into an offscreen buffer, so a config colour drawn there has to be
+# re-painted on a settings edit or the change would never show.  `clock`
+# below is an ordinary, non-static binding to the other axis, for contrast.
+#
+# `fr955` has no native editor at all (CLAUDE.md constraint 6: it reports
+# ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still lacks
+# it) -- it simply keeps the declared `default:` colours forever.  That is a
+# real, user-facing consequence of the chosen scope, not a bug, and the
+# suppressible `config-unsupported` warning is accepted explicitly below
+# rather than left to be discovered on the wrist.
+#
+# No behaviour of the editor's own UI is verified anywhere in this project --
+# there is no simulator in this container and no watch.  What is verified:
+# the design compiles warning-free on all three targets, and what it costs.
+#
+# Build it with:  ./wfb.py build examples/config/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 8f3c6e2a-1d4b-4a7e-9c5f-2b6a7d4e9f10
+  name: Config
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour below -- palette and config alike -- is one the 64-colour MIP
+# panel can show without dithering: each channel is 0x00, 0x55, 0xAA or 0xFF.
+# The linter checks both the same way (`palette-dither`).
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+
+config:
+  accent_color:
+    default: "#FF5500"
+    choices: any                        # the editor's own full colour picker
+  data_color:
+    default: "#FFFFFF"
+    choices:                            # or an explicit, labelled list
+      - { color: "#FFFFFF", label: "White" }
+      - { color: "#00FFFF", label: "Aqua" }
+      - { color: "#FFAA00", label: "Amber" }
+
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # The static half of the demonstration: painted once into the offscreen
+  # buffer in onLayout, and re-painted by `applyConfig` whenever the wearer
+  # changes the accent colour, so the buffer never shows a stale value.
+  accent_ring:
+    type: shape
+    shape: arc
+    at: { anchor: center }
+    radius: 90%r
+    thickness: 10px
+    start_angle: 0deg
+    sweep: 360deg
+    color: config.accent_color
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps the declared accent
+        default forever, which is this example's whole point -- see the
+        header comment"
+
+  steps_caption:
+    type: text
+    text: "STEPS"
+    font: FONT_XTINY
+    at: { anchor: center, dy: 24% }
+    color: palette.text
+
+# The dynamic half: an ordinary binding to the other axis, drawn fresh every
+# frame like any other element -- no static buffer involved.
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: FONT_NUMBER_HOT
+    at: { anchor: center, dy: -4% }
+    color: config.data_color
+
+  - id: steps
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 31% }
+    color: palette.text
+    when_absent: placeholder
+    placeholder: "0"

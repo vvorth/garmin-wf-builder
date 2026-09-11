@@ -314,3 +314,52 @@ elements:
     assert ("if (!(((timeHour >= 18) || (timeHour < 6)) "
             "&& ((!deviceDoNotDisturb) && (systemBattery > 20))))") in view
     assert "drawNightPanel" not in view
+
+
+# --------------------------------------------------------------------------
+# the toolchain-output noise filter
+#
+# `_strip_noise` is the only thing between `monkeyc`'s raw output and the
+# diagnostics `wfb build` reports, and this project's whole "warning-free, not
+# merely successful" bar rests on every real `WARNING:` line becoming a bag
+# diagnostic (CLAUDE.md records a feature that shipped with a real warning
+# precisely because nothing put it through the real toolchain).  A filter that
+# drifted wider would silence that bar silently, so the two halves are pinned
+# here rather than trusted: the JVM notice must go, and real diagnostics must
+# survive untouched.
+
+
+def test_the_noise_filter_strips_the_jvm_notice_and_keeps_real_diagnostics():
+    from wfb.build import _strip_noise
+
+    # The JVM's four-line deprecated-reflective-access notice, printed
+    # verbatim by this SDK whenever a <watchface-config> resource is
+    # compiled (verified: present for examples/config, absent for
+    # examples/graph), interleaved with diagnostics this project has
+    # actually hit before -- the delegate's unused `_view` field and the
+    # `setAntiAlias` indirect-lookup warning.
+    raw = "\n".join([
+        "Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=example",
+        "WARNING: A terminally deprecated method in sun.misc.Unsafe has been called",
+        "WARNING: sun.misc.Unsafe::arrayBaseOffset has been called by "
+        "com.google.protobuf.UnsafeUtil$MemoryAccessor (file:/x/monkeybrains.jar)",
+        "WARNING: Please consider reporting this to the maintainers of class "
+        "com.google.protobuf.UnsafeUtil$MemoryAccessor",
+        "WARNING: sun.misc.Unsafe::arrayBaseOffset will be removed in a future release",
+        "WARNING: fr955: /x/ConfigView.mc:8: Member variable '_view' is not used.",
+        "WARNING: fenix8solar47mm: The private symbol 'setAntiAlias' will not be "
+        "found when using the indirect lookup syntax",
+        "ERROR: fr955: /x/Foo.mc:3,4: Undefined symbol ':bar' detected.",
+        "BUILD SUCCESSFUL",
+    ])
+
+    kept = [line for line in _strip_noise(raw).splitlines() if line.strip()]
+
+    assert not [line for line in kept if "Unsafe" in line], (
+        "the JVM notice reached the diagnostics:\n" + "\n".join(kept))
+    assert not [line for line in kept if "JAVA_TOOL_OPTIONS" in line]
+    # The half that matters most: a filter is only allowed to remove noise.
+    assert any("Member variable '_view' is not used" in line for line in kept)
+    assert any("indirect lookup syntax" in line for line in kept)
+    assert any("Undefined symbol" in line for line in kept)
+    assert any("BUILD SUCCESSFUL" in line for line in kept)

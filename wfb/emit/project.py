@@ -88,9 +88,11 @@ def generate(face: Face, devices: list[Device], root: Path,
     if any(placed.kind == "icon" and placed.element.is_dynamic for placed in first.items):
         project.sources.append(monkeyc.emit_icon_glyphs(face))
     project.sources.append(monkeyc.emit_view(first))
-    if monkeyc.hold_targets(face):
+    if monkeyc.needs_delegate(face):
         # Shared across devices like the view: the hit regions it references
-        # are Layout constants, which are already per-device.
+        # are Layout constants, which are already per-device.  A `config:`-only
+        # design (no on_hold, no carousel) also needs one, purely for
+        # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
         project.sources.append(monkeyc.emit_delegate(first))
     project.barrel = _barrel_for(face, first)
     return project
@@ -153,7 +155,13 @@ def _features(face: Face) -> set[str]:
         # 1a). And deliberately not every interactive element: a carousel that
         # opens nothing rotates perfectly well below 4.2.0.
         features.add("complications")
-    return features  # on-device config arrives in Phase 3
+    # `config:` deliberately adds nothing here: the probe confirms
+    # <watchface-config> forces no minApiLevel bump
+    # (docs/research/probes/watchface-config/), and the whole feature is
+    # gated by `Device.has_symbol`, a runtime check, not a version compare
+    # (constraint 6) -- so raising the floor for every device would be wrong
+    # even for a design that never targets fr955.
+    return features
 
 
 def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:

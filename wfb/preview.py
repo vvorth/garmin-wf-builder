@@ -88,6 +88,12 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     for name, color in resolved.face.palette.items():
         values.setdefault(f"palette.{name}", color.value)
 
+    # `config:` entries render at their declared defaults -- the preview has
+    # no on-device editor to ask, and the default is the only value a target
+    # without one (fr955) ever shows anyway (ADR 0006 1).
+    for name, entry in resolved.face.config.items():
+        values.setdefault(f"config.{name}", entry.default.value)
+
     device = resolved.device
     scale = max(1, options.scale)
     size = (device.width * scale, device.height * scale)

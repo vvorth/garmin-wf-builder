@@ -608,6 +608,11 @@ def _sources(args) -> int:
     This is the authoritative, always-current list -- never bind a path
     that is not listed here, and never trust a copy of this list pasted
     into prose, which goes stale the moment the catalogue grows.
+
+    Also lists `config.*` -- the two native on-device colour axes (ADR 0006
+    1) -- even though, unlike everything above, these are not read from any
+    device API: a design that declares `config:` binds them the same way,
+    as an ordinary colour expression.
     """
     for namespace, paths in catalog.namespaces().items():
         print(f"\n{namespace}")
@@ -623,6 +628,12 @@ def _sources(args) -> int:
             suffix = f"  [{', '.join(flags)}]" if flags else ""
             ref = f"  ({source.source_ref})" if source.source_ref else ""
             print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}{ref}")
+    print("\nconfig  (declared per design in 'config:' -- fēnix 8 Solar's native "
+          "editor only, see docs/format.md)")
+    print(f"  {'config.accent_color':<34} {'color':<8} the one accent-colour axis "
+          "(<accentColors>, Settings.accentColor)")
+    print(f"  {'config.data_color':<34} {'color':<8} the one data-colour axis "
+          "(<dataColors>, Settings.complicationColor)")
     print(f"\nicons: {', '.join(icons.names())}")
     print("\nrun `wfb complications` for the full list of on_hold: targets")
     return 0

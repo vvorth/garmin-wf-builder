@@ -35,9 +35,77 @@ fr955** — the compiler generates both paths from one declaration.
 
 ### 1. Three declared config surfaces, one declaration
 
+> **Amended (2026-09-11): the colour half of this shipped, deliberately
+> narrower than the design below.** The original text imagined arbitrary
+> author-chosen property names, a `type:`/`edit:` pair per property, a phone-
+> side settings surface, and a Data (complication-slot) axis alongside the two
+> colours -- then had to *enforce* "at most one colour may be the accent, at
+> most one the data colour" as a separate rule, because nothing about that
+> shape said so on its own.
+>
+> Garmin's editor has exactly one accent-colour axis and one data-colour axis,
+> full stop -- there is no third to declare and no naming choice that changes
+> that. So the shipped format makes **the axis itself the key**:
+>
+> ```yaml
+> config:
+>   accent_color:
+>     default: "#FF8000"
+>     choices: any                       # the editor's own full colour picker
+>   data_color:
+>     default: "#FFFFFF"
+>     choices:                           # or an explicit list
+>       - { color: "#FFFFFF", label: "White" }
+>       - { color: "#00FFFF", label: "Aqua" }
+>       - { color: "#FFAA00", label: "Amber" }
+> ```
+>
+> `accent_color`/`data_color` are the only two keys the block accepts -- a
+> schema error, not a build-time uniqueness rule, is what happens to a third.
+> No `type:` (every entry here is a colour; there is nothing else to declare
+> yet), no `edit:` (there is exactly one surface implemented: the native
+> editor), no phone-side settings axis, no Data/complication-slot axis. Each
+> entry needs `default:` (a literal colour, compiled into the view as the
+> starting value -- and the *only* value a device with no native editor, i.e.
+> `fr955`, ever shows) and `choices:` (`any` for the editor's own picker, or
+> an explicit `{color, label}` list, where `default:` must be one of the
+> listed colours).
+>
+> Elements reference a declared entry as an ordinary colour expression, the
+> same as a palette entry: `color: config.accent_color`. `wfb/expr.py`'s
+> `Binding.kind == "config"` -- declared in ADR 0005 and never used until
+> now -- is what makes this a `constant=None` binding: unlike a palette entry,
+> the view field it names is user-editable at runtime, so `fold` must never
+> inline it.
+>
+> **`palette:` still may not reference `config.*`.** A palette entry compiles
+> to a Monkey C `const`; turning one into a runtime-read field is a bigger
+> change than this amendment makes, so `bg: config.accent_color` stays a build
+> error whose note points at writing `color: config.accent_color` directly
+> instead.
+>
+> Generated per device, not shared, and gated by `Device.has_symbol`, never an
+> API-level compare -- the same constraint 6 (CLAUDE.md) that `on_hold:`
+> already had to learn from: `fr955` reports ConnectIQ 5.2.0, above the
+> editor's own documented 5.1.0, and still has no editor. A target with no
+> editor keeps its declared `default:` forever, once again a real, user-facing
+> consequence of §2 below rather than a defect -- and the suppressible
+> `config-unsupported` warning says so at build time. See
+> `docs/research/probes/watchface-config/` for the probe this rests on, and
+> `docs/format.md`'s "Configuration" section for the full author-facing
+> reference.
+>
+> Styles, the Data axis, and phone-side settings are still exactly as
+> undecided as the "Open" section below says; this amendment does not touch
+> them.
+
 An author declares a property once and states where it may be edited. The
 compiler emits the right artefact for each surface and **fails the build if a
 surface is unavailable on a targeted device** rather than silently dropping it.
+
+*Original text below, superseded for the colour axes by the amendment above --
+kept because it is what was decided and imagined at the time, the same
+precedent §6's `on_tap:` correction set.*
 
 ```yaml
 config:
@@ -282,9 +350,17 @@ both map to `onPress`, rather than silently preferring one.
   amendment in §6.)
 - `docs/limitations.md` must state the four-axis cap, the four-configuration
   cap, and the fr955 exclusion.
+- (§1 amendment) The two colour axes shipped as `config:`, narrower than the
+  arbitrary-property design this ADR originally described — see the amendment
+  for what changed and why. `docs/format.md` "Configuration" is the
+  author-facing reference; `docs/limitations.md` states that no behaviour of
+  the editor itself is verified anywhere in this project.
 
 ## Open
 
 - Whether `Styles` (the enumerated-variant axis) is worth exposing in v1. It maps
   naturally onto "the same design with a different palette", but interacts with
   per-device overrides in ways not yet thought through. Deferred.
+- The Data axis (per-complication-slot type choice) and a phone-side settings
+  surface, both still undecided — the §1 amendment implemented only the two
+  colour axes.

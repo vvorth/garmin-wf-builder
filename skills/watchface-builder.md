@@ -303,6 +303,20 @@ palette:                # each channel must be 00, 55, AA or FF
   hot: "#FF5500"
   track: "#555555"
 
+config:                 # optional -- two user-editable colours, read through
+                         # the fēnix 8's native on-device editor.  accent_color
+                         # and data_color are the only two keys this block
+                         # accepts (Garmin has exactly one axis of each); a
+                         # target with no editor (fr955) keeps 'default:'
+  accent_color:
+    default: "#00AAFF"
+    choices: any         # the editor's own full colour picker
+  data_color:
+    default: "#FFFFFF"
+    choices:              # or an explicit, labelled list
+      - { color: "#FFFFFF", label: "White" }
+      - { color: "#00FFFF", label: "Aqua" }
+
 fonts:                  # optional -- omit to use built-in fonts only
   clock:
     source: assets/YourFont.ttf
@@ -366,7 +380,8 @@ elements:                 # a list, as below -- or a mapping keyed by element
     thickness: 9px
     start_angle: 210deg           # clockwise from 12 o'clock
     sweep: 300deg
-    color: palette.accent
+    color: config.accent_color    # a declared config: entry, referenced the
+                                   # same way as a palette entry
     track_color: palette.track    # optional unfilled remainder
     when_absent: hide
 
@@ -387,6 +402,17 @@ elements:                 # a list, as below -- or a mapping keyed by element
     at: {anchor: center, dx: -40%r, dy: 30%r}
     color: palette.hot
 ```
+
+**`config:`** is optional, and only worth adding when the person explicitly
+asks for an editable colour -- most designs need no `config:` block at all.
+`accent_color`/`data_color` are the only two keys it accepts (a schema error
+names any other). A target with no native editor -- `fr955` is the one that
+matters here -- keeps the declared `default:` forever; `wfb build` reports
+this with a `config-unsupported` warning rather than leaving it to be
+discovered on the wrist, and `lint: {allow: [config-unsupported], reason:
+"..."}` on the element referencing it accepts that on purpose. No behaviour of
+the editor's own UI can be checked by this tool or previewed -- only that the
+design compiles and what it costs.
 
 `wfb.icons.METRIC_ICON` also lists the conventional icon for many catalogue data
 sources (`activity.steps` → `steps`, `heart_rate.current` → `heart`, and so on) --

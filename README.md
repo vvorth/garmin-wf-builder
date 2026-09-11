@@ -222,9 +222,12 @@ only a generator can exploit. The reasoning is in [`docs/adr/`](docs/adr/).
 ## What is next
 
 Phase 3 — breadth: the remaining element types, per-device overrides, the `raw`
-escape hatch, and configuration surfaces. Complications and interactivity have
+escape hatch, and the rest of on-device configuration (the Styles and Data
+axes). Complications, interactivity and the two native colour axes have
 landed — `on_hold:` (including `on_hold: auto`) on any element, `type:
-carousel` for a row of readings the wearer moves between, and all 42
+carousel` for a row of readings the wearer moves between, `config:` for an
+accent and a data colour edited in the fēnix 8's own on-device editor, and
+all 42
 complication types as `complication.*` data sources, read by a plain pull with
 no cache anywhere in the generated face. See
 [`docs/limitations.md`](docs/limitations.md) §2 for the full list and `CLAUDE.md`

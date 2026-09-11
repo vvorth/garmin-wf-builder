@@ -31,8 +31,18 @@ BASE_API_LEVEL = "3.2.0"
 
 #: Feature -> the API level it requires.  Resolved against each device's own
 #: symbol table as well; an API level alone is never treated as sufficient.
+#:
+#: `config:` (the native on-device editor, ADR 0006 1) is deliberately absent:
+#: `docs/research/probes/watchface-config/` confirms `<watchface-config>`
+#: forces no `minApiLevel` bump, and the feature is gated entirely by
+#: `Device.has_symbol("WatchFaceConfig.getSettings")` -- a runtime check, not
+#: a version compare (constraint 6: fr955 reports 5.2.0, above the editor's
+#: documented 5.1.0, and still has no editor).  An earlier version of this
+#: dict carried a "watchface_config": "5.1.0" entry that `wfb/emit/project.py`
+#: never actually added to a design's feature set; it is not restored here
+#: because doing so would raise the floor for every device, including one
+#: that never targets fr955, for a resource that does not need it.
 FEATURE_API_LEVELS: dict[str, str] = {
-    "watchface_config": "5.1.0",
     "complications": "4.2.0",
 }
 

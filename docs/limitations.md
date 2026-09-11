@@ -295,10 +295,27 @@ exactly four axes: Styles, complication slots, **one** data colour and **one**
 accent colour. At most **four saved configurations** per face. There is no
 per-element colour editing and no arbitrary data rebinding.
 
+**The two colour axes are implemented, as `config:`** (`docs/format.md`
+"Configuration"; ADR 0006 §1, amended). The Styles axis (author-defined
+variants, selected by an opaque number) and the Data axis (per-complication-
+slot type choice) are not — see §2 below.
+
 **The Forerunner 955 is excluded from it entirely.** A design targeting all three
 devices is configurable on the wrist on two of them. This is a consequence of the
 chosen scope (native editor plus phone settings, no generated on-device menu),
-not a defect — but it must never be a surprise.
+not a defect — but it must never be a surprise: a target with no native editor
+keeps every `config:` entry's declared `default:` forever, and the suppressible
+`config-unsupported` warning says so at build time rather than leaving it to be
+discovered on the wrist.
+
+**No behaviour of the editor is verified anywhere in this project.** There is
+no simulator in this container and no watch (§2 below, "the simulator does not
+run"), so everything claimed about `config:` is a compile-time result — the
+schema accepts or rejects a design, a real `monkeyc` build succeeds or fails,
+`--build-stats`/file size report a byte cost — never a description of what the
+editor's UI actually shows or does. `docs/research/probes/watchface-config/`'s
+own "What it deliberately does NOT settle" section is explicit about the same
+boundary.
 
 ### A live watch face receives exactly one gesture: touch and hold
 
@@ -386,10 +403,10 @@ user's own playground" in CLAUDE.md), not a platform gap.
 
 | Missing | Where it is specified |
 |---|---|
-| `image` and `complication_slot` elements | ADR 0004. `complication_slot`'s "cycle through several readings" half shipped as `carousel`; what is missing is a slot whose *type* the wearer picks in the on-device editor, which needs the `config:` block below |
+| `image` and `complication_slot` elements | ADR 0004. `complication_slot`'s "cycle through several readings" half shipped as `carousel`; what is missing is a slot whose *type* the wearer picks in the on-device editor, which needs the Data axis below |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
-| The `config:` block, on-device config, phone settings | ADR 0006 |
+| The Styles and Data axes of on-device config, and phone-side settings | ADR 0006 §1. The two colour axes (`config:`, `docs/format.md` "Configuration") shipped |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
@@ -510,17 +527,20 @@ than its box, because its box is deliberately larger — it is the touch target.
 Whether that target is *usable* is a separate check (`carousel-zone`), listed
 below because half of it rests on a judgement.
 
-**Per-device API availability is checked two ways, by two different
+**Per-device API availability is checked three ways, by two different
 mechanisms, because the data supports only one of them in each case.**
 
-*By symbol table, for `on_hold:`.* `check_hold_targets` resolves
+*By symbol table, for `on_hold:` and for `config:`.* `check_hold_targets` resolves
 `WatchFaceDelegate.onPress` against each target's own `<id>.api.debug.xml` —
 the only honest way to answer it, since an API level settles nothing here: the
 sibling symbol `onTap` is documented "since 5.1.0" and genuinely absent on
 `fr955` at 5.2.0. (`onTap` is deliberately *not* consulted: it is documented
 "Only available in WatchFace config mode" and never fires on a live face, so
 checking for it would report a capability the author can never reach — see
-`docs/research/07-carousel-interaction.md` §1.)
+`docs/research/07-carousel-interaction.md` §1.) `check_config_support` resolves
+`WatchFaceConfig.getSettings` the same way, for the same reason: `fr955`
+reports ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still
+has no editor at all.
 
 *By version comparison, for complications.* `check_complication_availability`
 compares a type's `since` against the device's `Device.api_level`. This one
@@ -573,6 +593,11 @@ them rather than to an arbitrary one:
   colour, so the allow is honoured on the first element (in draw order) whose
   `antialias:` resolves to `true` on that device -- the same "one
   representative" shape `graphics-pool` uses, chosen the same way.
+* **`config-unsupported`** is about a `config:` entry, which -- like
+  `palette:` -- is a flat mapping with nowhere of its own to hang a `lint:`
+  block. The allow is honoured on any element whose `color:`/`track_color:` is
+  exactly `config.accent_color` or `config.data_color`, the same exact-text
+  match `palette-dither` uses and for the same reason.
 
 `carousel-zone`, `dead-element`, `static-overlap` and the two `hold-*` codes are
 ordinary element-scoped diagnostics, so `lint:` on the element itself reaches

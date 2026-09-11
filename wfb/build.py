@@ -230,9 +230,25 @@ def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag
 
 _NOISE = re.compile(r"^.*JAVA_TOOL_OPTIONS.*$\n?", re.M)
 
+#: The JVM's own deprecated-reflective-access notice, printed by a bundled
+#: dependency (protobuf's ``UnsafeUtil``) that the resource compiler's own
+#: internal handling of a ``<watchface-config>`` resource happens to exercise
+#: on this SDK/JVM combination (confirmed reproducible with a hand-written
+#: resource carrying none of this project's own generated content --
+#: ``docs/research/probes/watchface-config/``).  It is printed with the
+#: JDK's own bare ``WARNING:`` prefix, which collides with `monkeyc`'s own
+#: diagnostic-line convention below -- without this filter it would be
+#: reported as a diagnostic *about the design*, which it is not: it is a
+#: statement about the JVM this SDK ships with, present or absent regardless
+#: of what the design's own ``<watchface-config>`` actually says.  Same
+#: category of problem `_NOISE` above already exists for; narrowly matched on
+#: vocabulary that only this JVM notice uses, so an unrelated real warning
+#: that happens to mention neither stays reported.
+_JVM_NOISE = re.compile(r"^.*(?:sun\.misc\.Unsafe|protobuf\.UnsafeUtil).*$\n?", re.M)
+
 
 def _strip_noise(text: str) -> str:
-    return _NOISE.sub("", text)
+    return _JVM_NOISE.sub("", _NOISE.sub("", text))
 
 
 def _slug(name: str) -> str:

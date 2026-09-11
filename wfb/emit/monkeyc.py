@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from .. import __version__, catalog, complications, expr, formatting, icons, series
 from ..catalog import READERS, Type
 from ..ir import (
-    Carousel, Expression, Face, Graph, IconElement, Progress, Shape, Text,
+    CONFIG_SYMBOL, Carousel, Expression, Face, Graph, IconElement, Progress, Shape, Text,
     carousel_index_field, carousel_slide_done_method, carousel_slide_field,
     carousel_step_method, element_const_prefix, element_method_name, font_resource_id,
     graph_built_field, graph_max_field, graph_min_field, graph_rebuild_method,
@@ -84,7 +84,7 @@ def header(face: Face, extra: str = "") -> str:
 
 
 def emit_app(face: Face) -> SourceFile:
-    interactive = bool(hold_targets(face))
+    needs_it = needs_delegate(face)
     w = Writer()
     w.doc(header(face)).blank()
     w.lines("import Toybox.Application;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank()
@@ -94,14 +94,16 @@ def emit_app(face: Face) -> SourceFile:
             w.line("AppBase.initialize();")
         w.blank()
         with w.block("function getInitialView() as [Views] or [Views, InputDelegates]"):
-            if not interactive:
+            if not needs_it:
                 w.line(f"return [ new {face.entry}View() ];")
             else:
                 w.line(f"var view = new {face.entry}View();")
                 w.comment("the `has` guard is the SDK's own idiom (samples/Analog): a watch")
                 w.comment("without WatchFaceDelegate still gets the face, just not the holds")
+                w.comment("(or, for a `config:` design, the re-read on a settings edit)")
                 with w.block("if (WatchUi has :WatchFaceDelegate)"):
-                    w.comment("the delegate holds the view so a hold can move a carousel")
+                    w.comment("the delegate holds the view so a hold can move a carousel, "
+                              "or a config edit can update it")
                     w.line(f"return [ view, new {face.entry}Delegate(view) ];")
                 w.line("return [ view ];")
     return SourceFile(f"source/{face.entry}App.mc", w.render())
@@ -183,6 +185,18 @@ def carousels(face: Face) -> list:
     return [e for e in face.walk() if isinstance(e, Carousel)]
 
 
+def needs_delegate(face: Face) -> bool:
+    """Does this design need a `WatchFaceDelegate` at all?
+
+    Two independent reasons, either sufficient on its own: a hold target
+    (`on_hold:`/a carousel), or a declared `config:` block, whose
+    `onWatchFaceConfigEdited` lives on the delegate the same way `onPress`
+    does.  A design with `config:` and no interactivity still needs the
+    delegate purely to re-read settings when the editor reports a change.
+    """
+    return bool(hold_targets(face)) or bool(face.config)
+
+
 def launches_a_glance(face: Face) -> bool:
     """Does anything in this design actually emit `Complications.exitTo`?
 
@@ -198,6 +212,41 @@ def launches_a_glance(face: Face) -> bool:
                 item.launch is not None for item in element.items):
             return True
     return False
+
+
+def _emit_on_watchface_config_edited(w: Writer) -> None:
+    """`onWatchFaceConfigEdited` -- re-read settings after an on-device edit.
+
+    The typed signature is copied verbatim from
+    `docs/research/probes/watchface-config/ProbeDelegate.mc`, itself checked
+    against the SDK's own doc comment for this method
+    (`WatchFaceConfig.Delegate.Type` and `WatchFaceConfig.Id`, both API
+    5.1.0) -- this project's own rule against inventing an API applies to a
+    callback's parameter shape as much as to any call.
+
+    Only ever called on a device that actually has the editor (the callback
+    itself is never invoked otherwise), so no `Application has :WatchFaceConfig`
+    guard is needed here the way `onLayout`'s first read needs one -- unlike
+    that first read, this one only runs *because* the editor just fired it.
+    """
+    w.doc(
+        "The wearer changed something in the native editor.  Re-read the whole\n"
+        "settings snapshot and hand it to the view -- the same `applyConfig` the\n"
+        "first onLayout read already uses, so there is exactly one place that\n"
+        "turns a Settings object into view state."
+    )
+    with w.block(
+        "function onWatchFaceConfigEdited(options as {\n"
+        "        :configId as $.Toybox.Application.WatchFaceConfig.Id,\n"
+        "        :type as WatchFaceConfigType?,\n"
+        "        :committed as $.Toybox.Lang.Boolean}) as Void",
+    ):
+        w.line("var id = options[:configId] as WatchFaceConfig.Id?;")
+        with w.block("if (id != null)"):
+            w.line("var settings = WatchFaceConfig.getSettings(id);")
+            with w.block("if (settings != null)"):
+                w.line("_view.applyConfig(settings);")
+    w.blank()
 
 
 def emit_delegate(resolved: ResolvedFace) -> SourceFile:
@@ -225,9 +274,12 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
     """
     face = resolved.face
     targets = hold_targets(face)
+    has_config = bool(face.config)
     w = Writer()
     w.doc(header(face)).blank()
     imports = ["import Toybox.Lang;", "import Toybox.WatchUi;"]
+    if has_config:
+        imports.insert(0, "import Toybox.Application.WatchFaceConfig;")
     if launches_a_glance(face):
         imports.insert(0, "import Toybox.Complications;")
     w.lines(*imports).blank()
@@ -238,25 +290,30 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
         "the Layout module, so what the finger must hit is what the eye sees."
     )
     has_carousel = bool(carousels(face))
+    needs_view = has_carousel or has_config
     with w.block(f"class {face.entry}Delegate extends WatchUi.WatchFaceDelegate"):
-        if has_carousel:
-            w.doc("The view, so a carousel's selection can be moved and read back.\n"
+        if needs_view:
+            w.doc("The view, so a carousel's selection can be moved and read back, or a\n"
+                  "config edit applied to it.\n"
                   "\n"
-                  "Only declared when a carousel exists: `monkeyc -w` reports an unused\n"
-                  "member variable (verified -- \"Member variable '_view' is not used.\"\n"
-                  "on a plain `on_hold:` design with no carousel), and a generator has no\n"
-                  "excuse for output a human wouldn't have written (CLAUDE.md).  The\n"
-                  "constructor parameter stays unconditional either way: an unused\n"
-                  "*parameter* does not warn (verified the same way, standalone), so one\n"
-                  "delegate shape and one `new ...Delegate(view)` call site still serve\n"
-                  "every design -- only the field is conditional.")
+                  "Only declared when it is actually read from: `monkeyc -w` reports an\n"
+                  "unused member variable (verified -- \"Member variable '_view' is not\n"
+                  "used.\" on a plain `on_hold:` design with neither a carousel nor\n"
+                  "`config:`), and a generator has no excuse for output a human wouldn't\n"
+                  "have written (CLAUDE.md).  The constructor parameter stays\n"
+                  "unconditional either way: an unused *parameter* does not warn (verified\n"
+                  "the same way, standalone), so one delegate shape and one\n"
+                  "`new ...Delegate(view)` call site still serve every design -- only the\n"
+                  "field is conditional.")
             w.line(f"private var _view as {face.entry}View;")
             w.blank()
         with w.block(f"function initialize(view as {face.entry}View)"):
             w.line("WatchFaceDelegate.initialize();")
-            if has_carousel:
+            if needs_view:
                 w.line("_view = view;")
         w.blank()
+        if has_config:
+            _emit_on_watchface_config_edited(w)
         w.doc("A touch and hold -- the only gesture a live watch face receives.\n"
               "\n"
               "There is deliberately no onTap here: it is documented \"Only available in\n"
@@ -266,9 +323,13 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
               "Returns true when the touch was consumed, so the system does not also\n"
               "act on it.")
         with w.block("function onPress(clickEvent as ClickEvent) as Boolean"):
-            w.line("var where = clickEvent.getCoordinates();")
-            w.line("var x = where[0];")
-            w.line("var y = where[1];")
+            if not targets:
+                w.comment("this design declares no on_hold target and no carousel -- the")
+                w.comment("delegate exists only for onWatchFaceConfigEdited above")
+            else:
+                w.line("var where = clickEvent.getCoordinates();")
+                w.line("var x = where[0];")
+                w.line("var y = where[1];")
             for element in targets:
                 prefix = _const_prefix(element.id)
                 w.blank()
@@ -536,6 +597,13 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
 #: `docs/research/probes/static-buffer/`), so there is nothing to disambiguate.
 STATIC_FIELD = "_staticBuffer"
 STATIC_RENDER = "renderStatic"
+#: Re-paints the static buffer from the *current* field values -- the one
+#: caller is `applyConfig`, for a config colour drawn into static content
+#: (ADR 0006 1).  A fixed literal name, like the two above, not derived from
+#: any element id -- so unlike `static_group_method`'s "drawStatic<Id>",
+#: nothing an author writes can make this collide, and it does not need an
+#: entry in `Builder._check_symbol_collision`.
+REPAINT_STATIC_METHOD = "repaintStatic"
 
 
 @dataclass
@@ -666,9 +734,16 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
             if src.acquisition is Acquisition.HEART_RATE and placed.element.range_kind == "duration":
                 graph_modules.add("Toybox.Time")  # new Time.Duration(seconds)
 
+    config_modules: set[str] = set()
+    if face.config:
+        # `Application has :WatchFaceConfig` (onLayout's guard) needs the
+        # first; `WatchFaceConfig.Settings`/`.getSettings` (applyConfig)
+        # need the second.
+        config_modules = {"Toybox.Application", "Toybox.Application.WatchFaceConfig"}
+
     w = Writer()
     w.doc(header(face, f"Device:    {device.id}")).blank()
-    for module in sorted(set(_BASE_IMPORTS) | plan.modules | graph_modules):
+    for module in sorted(set(_BASE_IMPORTS) | plan.modules | graph_modules | config_modules):
         w.line(f"import {module};")
     w.blank()
 
@@ -690,6 +765,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     antialias_default = _antialias_default(resolved)
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
+        _emit_config_fields(w, face)
         _emit_static_field(w, static)
         _emit_carousel_fields(w, rings)
         _emit_graph_fields(w, graphs)
@@ -700,6 +776,8 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         _emit_initialize(w, face, rings)
         if antialias_default is not None:
             _emit_antialias_helper(w)
+        if face.config:
+            _emit_apply_config(w, face, static)
         _emit_on_layout(w, resolved, plan, static)
         _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
         if resolved.in_mode("low_power") and device.supports_partial_update:
@@ -712,7 +790,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         for placed in graphs:
             _emit_graph_rebuild(w, placed)
         if static is not None:
-            _emit_static_methods(w, static, antialias_default)
+            _emit_static_methods(w, static, antialias_default, needs_repaint=bool(face.config))
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
@@ -854,7 +932,8 @@ def _emit_static_blit(w: Writer, static: "StaticPlan") -> None:
 
 
 def _emit_static_methods(w: Writer, static: "StaticPlan",
-                         antialias_default: bool | None = None) -> None:
+                         antialias_default: bool | None = None,
+                         needs_repaint: bool = False) -> None:
     """`renderStatic`, plus one `drawStatic<Id>` per static *group*.
 
     `renderStatic` takes a Dc rather than the buffer, and is called with the
@@ -892,6 +971,23 @@ def _emit_static_methods(w: Writer, static: "StaticPlan",
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         for root, _members in static.groups:
             w.line(f"{static.method(root)}(dc);")
+    if needs_repaint:
+        w.blank()
+        w.doc("Re-paint the static buffer from the current field values, in place.\n"
+              "\n"
+              "Called only from `applyConfig`: a config colour drawn into static "
+              "content\n"
+              "was already baked into the buffer once in onLayout, so a wearer's "
+              "edit\n"
+              "needs this to show before the buffer is blitted again.  Narrows "
+              "through a\n"
+              "local rather than calling `.getDc()` straight off the field -- "
+              "`monkeyc`\n"
+              "cannot narrow a `Null` check across a field read (CLAUDE.md).")
+        with w.block(f"private function {REPAINT_STATIC_METHOD}() as Void"):
+            w.line(f"var buffer = {STATIC_FIELD};")
+            with w.block("if (buffer != null)"):
+                w.line(f"{STATIC_RENDER}(buffer.getDc());")
     for root, members in static.groups:
         if root.kind != "group":
             continue  # a static leaf is drawn by its own method, called above
@@ -913,6 +1009,63 @@ def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
     w.blank()
 
 
+def _emit_config_fields(w: Writer, face: Face) -> None:
+    """One field per declared `config:` entry, initialised to its default.
+
+    The compiled-in default is not a fallback path -- it is *the* path: a
+    device with no native editor (fr955) never calls `applyConfig` at all
+    and simply keeps running with this.
+    """
+    if not face.config:
+        return
+    w.doc("Colours the wearer can change in the native on-device editor "
+          "(fēnix 8 and\n"
+          "newer only).  Each starts at its declared default, which is also "
+          "the only\n"
+          "value a device with no editor -- fr955 -- ever shows.")
+    for name, entry in face.config.items():
+        w.line(f"private var {entry.field} as Number = {entry.default.as_monkeyc()};")
+    w.blank()
+
+
+def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> None:
+    """`applyConfig` -- turn one `WatchFaceConfig.Settings` snapshot into view
+    state.  Called from both `onLayout`'s first read and the delegate's
+    `onWatchFaceConfigEdited`, so there is exactly one place that does this.
+
+    Every field on the way in is nullable twice over -- `Settings.accentColor`
+    is `Color?` and its own `.color` is `ColorType?` again
+    (`docs/research/probes/watchface-config/`) -- so each axis gets its own
+    two-deep guard, matching the probe's `apply()` exactly rather than
+    inventing a shorter form.
+    """
+    w.doc(
+        "Apply one WatchFaceConfig.Settings snapshot.\n"
+        "\n"
+        "Every field is nullable twice over, so a missing value simply leaves the\n"
+        "existing (defaulted) field alone rather than being treated as an error."
+    )
+    from ..ir import local_name
+
+    with w.block("function applyConfig(settings as WatchFaceConfig.Settings) as Void"):
+        for name, entry in face.config.items():
+            axis = entry.axis
+            local = local_name(f"config_{name}")
+            w.line(f"var {local} = settings.{axis.settings_field};")
+            with w.block(f"if ({local} != null)"):
+                value_local = f"{local}Value"
+                w.line(f"var {value_local} = {local}.color;")
+                with w.block(f"if ({value_local} != null)"):
+                    w.line(f"{entry.field} = {value_local} as Number;")
+        if static is not None:
+            w.blank()
+            w.comment("a config colour may be painted into the static buffer -- repaint")
+            w.comment("it now so a wearer's change shows without waiting for onLayout")
+            w.line(f"{REPAINT_STATIC_METHOD}();")
+        w.line("WatchUi.requestUpdate();")
+    w.blank()
+
+
 def _emit_initialize(w: Writer, face: Face, rings: list) -> None:
     with w.block("function initialize()"):
         w.line("WatchFace.initialize();")
@@ -929,13 +1082,19 @@ def _emit_initialize(w: Writer, face: Face, rings: list) -> None:
 
 def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                     static: "StaticPlan | None" = None) -> None:
+    face = resolved.face
     loaded = _loaded_fonts(resolved)
     event = plan.complication_readers()
+    has_config = bool(face.config)
     w.doc("Load resources once.  Loading is expensive and must not happen per frame."
           + ("\n\nThis is also where the static content is painted, once, into its\n"
-             "offscreen buffer -- every later frame just blits it." if static else ""))
+             "offscreen buffer -- every later frame just blits it." if static else "")
+          + ("\n\nThe first config read happens here too, so the very first frame\n"
+             "already reflects the wearer's own choice rather than the compiled-in\n"
+             "default -- guarded, since a device with no native editor (fr955) has\n"
+             "no WatchFaceConfig module to call at all." if has_config else ""))
     with w.block("function onLayout(dc as Dc) as Void"):
-        if not loaded and not event and static is None:
+        if not loaded and not event and static is None and not has_config:
             w.line("// No resources to load: this face draws entirely from system fonts.")
         for name in loaded:
             resource = font_resource_id(name)
@@ -955,8 +1114,17 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
             for name in event:
                 reader = READERS[name]
                 w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
-        if static is not None:
+        if has_config:
             if loaded or event:
+                w.blank()
+            w.comment("the native on-device editor, where this device has one -- absent on")
+            w.comment("fr955, which keeps running on the compiled-in defaults above")
+            with w.block("if (Application has :WatchFaceConfig)"):
+                w.line("var settings = WatchFaceConfig.getSettings(null);")
+                with w.block("if (settings != null)"):
+                    w.line("applyConfig(settings);")
+        if static is not None:
+            if loaded or event or has_config:
                 w.blank()
             _emit_static_allocation(w, static)
     w.blank()

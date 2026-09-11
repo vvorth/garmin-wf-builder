@@ -217,6 +217,77 @@ class FontSpec:
 
 
 # --------------------------------------------------------------------------
+# on-device configuration (ADR 0006 1, amended)
+
+
+#: The runtime symbol that gates the whole feature -- a device without it
+#: (fr955) still compiles every line below; it just never calls it.  Checked
+#: with `Device.has_symbol`, never an API-level compare: fr955 reports 5.2.0,
+#: above the editor's documented 5.1.0, and still has no editor at all
+#: (CLAUDE.md constraint 6, and `docs/research/probes/watchface-config/`).
+CONFIG_SYMBOL = "Toybox.Application.WatchFaceConfig.getSettings"
+
+
+@dataclass(frozen=True)
+class ConfigChoice:
+    """One entry in an explicit `choices:` list."""
+
+    color: Color
+    label: str | None = None
+
+
+@dataclass(frozen=True)
+class ConfigAxis:
+    """What Garmin's own editor calls one colour axis, and how it reads back.
+
+    Garmin gives exactly two colour axes and no way to add a third -- the
+    Styles and Data axes are a different shape of thing (ADR 0006 1's
+    amendment) -- so this is a fixed table of two, not something a design
+    extends.
+    """
+
+    #: The `config:` key an author writes (`accent_color`/`data_color`).
+    key: str
+    #: The `<watchface-config>` child element this axis becomes.
+    resource_tag: str
+    #: The `WatchFaceConfig.Settings` field this axis reads back as.
+    settings_field: str
+
+
+#: Keyed by the author-facing name; also the iteration order both the
+#: generated resource and the generated `applyConfig` follow, so the two
+#: cannot list the two axes in different orders.
+CONFIG_AXES: dict[str, ConfigAxis] = {
+    "accent_color": ConfigAxis("accent_color", "accentColors", "accentColor"),
+    "data_color": ConfigAxis("data_color", "dataColors", "complicationColor"),
+}
+
+
+@dataclass(frozen=True)
+class ConfigColor:
+    """One declared `config:` entry -- `accent_color` or `data_color`."""
+
+    name: str
+    default: Color
+    #: `"any"`, or the explicit picklist the editor offers.
+    choices: "str | tuple[ConfigChoice, ...]"
+    span: Span | None = None
+
+    @property
+    def allow_any(self) -> bool:
+        return self.choices == "any"
+
+    @property
+    def axis(self) -> ConfigAxis:
+        return CONFIG_AXES[self.name]
+
+    @property
+    def field(self) -> str:
+        """The generated view field this axis is cached in (`_configAccentColor`)."""
+        return config_field(self.name)
+
+
+# --------------------------------------------------------------------------
 # elements
 
 
@@ -564,6 +635,12 @@ class Face:
     #: by build time; kept here mainly so a re-render (preview, a future
     #: `wfb explain`) does not need to re-derive it.
     antialias: bool = False
+    #: `config:` entries, keyed by axis name (`accent_color`/`data_color`).
+    #: Empty on every design that declares no `config:` block, which is what
+    #: keeps every existing golden file and generated project unchanged --
+    #: every emitter below treats this dict as the single on/off switch for
+    #: the whole feature.
+    config: dict[str, ConfigColor] = field(default_factory=dict)
 
     def walk(self) -> list[Element]:
         """Every element, parents before children, in document order."""
@@ -617,6 +694,7 @@ class Builder:
         self.doc = doc
         self.bag = bag
         self.palette: dict[str, Color] = {}
+        self.config: dict[str, ConfigColor] = {}
         self.fonts: dict[str, FontSpec] = {}
         #: Every name in the `fonts:` block, whether or not it survived
         #: `_build_fonts`.  A rejected entry is still a *declared* one, and
@@ -627,6 +705,12 @@ class Builder:
         #: one would otherwise raise a second, derived error blaming the
         #: element for a mistake made in the `fonts:` block.
         self.rejected_fonts: set[str] = set()
+        #: `config:` axes that were declared and then rejected.  Bound into
+        #: scope anyway (`_build_scope`) so the author gets exactly one error,
+        #: at the real mistake -- the same cascade fix `rejected_fonts` above
+        #: exists for, and for the same reason: a second 'unknown data source'
+        #: error points at a correct line and blames the wrong thing.
+        self.rejected_config: set[str] = set()
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it
@@ -647,6 +731,7 @@ class Builder:
         data = self.doc.data
         self.face_antialias = bool(data.get("antialias", False))
         self._build_palette(data.get("palette") or {})
+        self._build_config(data.get("config") or {})
         self._build_fonts(data.get("fonts") or {})
         self._build_scope()
 
@@ -672,9 +757,10 @@ class Builder:
             elements=elements,
             source_path=self.doc.path,
             antialias=self.face_antialias,
+            config=self.config,
         )
 
-    # -- palette, fonts, scope --------------------------------------------
+    # -- palette, config, fonts, scope -------------------------------------
 
     def _build_palette(self, raw: dict) -> None:
         for name, value in raw.items():
@@ -684,13 +770,75 @@ class Builder:
                     "palette",
                     f"palette entry {name!r} refers to {value!r}",
                     span,
-                    notes=["palette entries must be literal colours in this format version"],
+                    notes=[
+                        "palette entries must be literal colours in this format version",
+                        "reference a config entry directly from 'color:'/'track_color:' "
+                        "instead -- e.g. 'color: config.accent_color' -- rather than "
+                        "through a palette entry",
+                    ],
                 )
                 continue
             try:
                 self.palette[name] = Color.parse(value, what=f"palette.{name}")
             except ColorError as exc:
                 self.bag.error("palette", str(exc), span)
+
+    def _build_config(self, raw: dict) -> None:
+        """`config:` -- the native editor's two colour axes (ADR 0006 1, amended).
+
+        Only `accent_color`/`data_color` reach here: the schema's
+        `additionalProperties: false` on `config:` rejects anything else before
+        the IR ever sees it, the same division of labour `_build_fonts` and
+        `_build_palette` already rely on for their own blocks.
+        """
+        for name, spec in raw.items():
+            span = self.doc.span(raw, name)
+            try:
+                default = Color.parse(spec["default"], what=f"config.{name}.default")
+            except ColorError as exc:
+                self.bag.error("config", str(exc), self.doc.span(spec, "default"))
+                self.rejected_config.add(name)
+                continue
+
+            raw_choices = spec["choices"]
+            if raw_choices == "any":
+                self.config[name] = ConfigColor(name=name, default=default, choices="any",
+                                                span=span)
+                continue
+
+            choices: list[ConfigChoice] = []
+            ok = True
+            for index, item in enumerate(raw_choices):
+                try:
+                    color = Color.parse(item["color"], what=f"config.{name}.choices[{index}]")
+                except ColorError as exc:
+                    self.bag.error("config", str(exc), self.doc.span(item, "color"))
+                    ok = False
+                    continue
+                choices.append(ConfigChoice(color=color, label=item.get("label")))
+            if not ok:
+                self.rejected_config.add(name)
+                continue
+
+            if not any(choice.color == default for choice in choices):
+                self.bag.error(
+                    "config",
+                    f"config.{name}: default {spec['default']!r} is not one of 'choices:'",
+                    self.doc.span(spec, "default"),
+                    notes=[
+                        "the on-device editor marks one listed colour as the user's "
+                        "default (the generated <color default=\"true\">) -- Garmin "
+                        "defines no behaviour for a default that is not in the list",
+                        "add it to 'choices:', or change 'default:' to match a colour "
+                        "already there",
+                        "listed colours: " + ", ".join(str(c.color) for c in choices),
+                    ],
+                )
+                self.rejected_config.add(name)
+                continue
+
+            self.config[name] = ConfigColor(name=name, default=default,
+                                            choices=tuple(choices), span=span)
 
     def _build_fonts(self, raw: dict) -> None:
         base = self.doc.path.parent
@@ -812,7 +960,7 @@ class Builder:
         return size
 
     def _build_scope(self) -> None:
-        """Populate the expression scope: catalogue sources, then the palette.
+        """Populate the expression scope: catalogue sources, palette, config.
 
         Nullable sources bind to a *guarded local* named after the source, not
         to the raw API read.  The generator declares that local behind a null
@@ -835,6 +983,38 @@ class Builder:
                     code=f"Palette.{name.upper()}",
                     constant=color.value,
                     kind="palette",
+                ),
+            )
+        for name, entry in self.config.items():
+            self.scope.define(
+                f"config.{name}",
+                expr.Binding(
+                    expr.Value(Type.COLOR),
+                    code=entry.field,
+                    # `constant=None` is deliberate, unlike a palette entry: the
+                    # view field this reads is user-editable at runtime (on a
+                    # device with the native editor), so `fold` must never
+                    # inline it as the declared default -- `expr.fold`'s Ref
+                    # branch only substitutes when `binding.constant` is set.
+                    constant=None,
+                    kind="config",
+                ),
+            )
+        for name in sorted(self.rejected_config):
+            # Declared, then rejected above.  Binding it anyway keeps the one
+            # real error the only error: without this, every `color:
+            # config.<name>` in the design adds an "unknown data source" that
+            # is true only because the compiler threw the axis away -- the
+            # cascade `rejected_fonts` already exists to prevent, in the same
+            # shape.  Nothing is emitted from a design that has an error, so
+            # the field name here is never reached.
+            self.scope.define(
+                f"config.{name}",
+                expr.Binding(
+                    expr.Value(Type.COLOR),
+                    code=config_field(name),
+                    constant=None,
+                    kind="config",
                 ),
             )
         self.scope.used.clear()
@@ -2696,6 +2876,20 @@ def local_name(source_path: str) -> str:
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
 
+def config_field(name: str) -> str:
+    """The view field a `config:` axis is cached in (``_configAccentColor``).
+
+    Module-level rather than only a `ConfigColor` property because
+    `Builder._build_scope` has to name the field for an axis that was
+    *rejected* -- there is no `ConfigColor` for one of those, and deriving it
+    a second time inline would be the same kind of duplicated symbol
+    derivation `element_const_prefix`/`element_method_name` were moved here to
+    stop (a mismatch between two copies is a `Redefinition` from `monkeyc`
+    pointing at a generated line number).
+    """
+    return "_config" + _pascal(name)
+
+
 def element_const_prefix(element_id: str) -> str:
     """The layout-constant prefix codegen derives from an element id.
 
@@ -2819,6 +3013,19 @@ def font_resource_id(name: str) -> str:
     same way in generated code without either needing to know the other exists.
     """
     return f"Font{_pascal(name)}"
+
+
+def config_label_id(axis: str, index: int) -> str:
+    """The `<string>` resource id a labelled `config:` choice is emitted
+    under (`ConfigDataColor0`), referenced from `<color label="@Strings...">`.
+
+    Keyed by axis and position rather than by the label text itself: two
+    choices could share a label (unlikely, but nothing forbids it), and a
+    position-derived id is what every other generated symbol in this project
+    already does (`element_const_prefix` and friends) rather than hashing
+    author text.
+    """
+    return f"Config{_pascal(axis)}{index}"
 
 
 def _offset_span(span: Span | None, text: str, offset: int) -> Span | None:

@@ -20,7 +20,7 @@ from . import catalog, complications
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
-from .ir import Carousel, Element, Face, Text, authored_draw_order
+from .ir import CONFIG_SYMBOL, Carousel, Element, Face, Text, authored_draw_order
 from .layout import (
     PlacedCarousel, PlacedProgress, PlacedShape, PlacedText, ResolvedFace, inside_screen,
     inside_visible_area, inside_visible_area_for, is_full_bleed,
@@ -35,6 +35,7 @@ SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
     "hold-unsupported", "hold-overlap", "carousel-zone", "complication-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
+    "config-unsupported",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -47,7 +48,8 @@ SUPPRESSIBLE = frozenset({
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
     "antialias-dither",
-    "carousel", "color", "complication-gated", "contrast", "dead-element",
+    "carousel", "color", "complication-gated", "config", "config-unsupported",
+    "contrast", "dead-element",
     "element-mapping",
     "devices", "duplicate-id", "element", "expression",
     "font", "format", "format-version", "graph", "graphics-pool", "icon", "io",
@@ -68,6 +70,8 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     """Stage 3: everything computable from resolved geometry on one device."""
     check_palette(resolved, bag)
     check_antialias_palette(resolved, bag)
+    check_config_palette(resolved, bag)
+    check_config_support(resolved, bag)
     check_geometry(resolved, bag)
     check_text_fit(resolved, bag)
     check_glyphs(resolved, bag)
@@ -325,6 +329,148 @@ def check_antialias_palette(resolved: ResolvedFace, bag: Bag) -> None:
         ],
         confidence="exact -- device display_colors",
     ))
+
+
+def _config_users(face: Face, name: str) -> list[Element]:
+    """Elements whose `color:`/`track_color:` is exactly `config.<name>`.
+
+    Same exact-textual-match rule as :func:`_palette_users`, for the same
+    reason: the colour is either legal or it is not, independent of any one
+    conditional expression that merely mentions it.
+    """
+    token = f"config.{name}"
+    return [
+        element for element in face.walk()
+        if any(
+            (expression := getattr(element, field, None)) is not None
+            and expression.text == token
+            for field in _PALETTE_REFERENCING_FIELDS
+        )
+    ]
+
+
+def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
+    """A declared `config:` colour is checked the same way a `palette:` entry
+    is -- each channel must be 0x00/0x55/0xAA/0xFF on a 64-colour panel, or
+    the firmware dithers it.
+
+    Every colour a design can ever show through this axis is checked: the
+    compiled-in `default:` always (it is the only value a device with no
+    native editor -- fr955 -- ever shows), and -- when `choices:` is an
+    explicit list -- every listed choice too, since the wearer can pick any
+    of them on a device with the native editor.  `choices: any` skips only
+    the list half: it hands the wearer the editor's own unrestricted picker,
+    which this compiler has no list to check.
+
+    Reported the same way :func:`check_palette` reports a palette entry:
+    against whichever element's `color:`/`track_color:` is exactly
+    `config.<name>`, so `lint: {allow: [palette-dither], reason: ...}` there
+    silences it -- the same code, because it is the same firmware behaviour
+    reached from a different declaration.
+    """
+    colors = resolved.device.display_colors
+    if colors is None:
+        return  # check_palette already emits the one "not checked" note per device
+    for name, entry in resolved.face.config.items():
+        # `default:` is checked unconditionally: it is compiled in and is the
+        # only value a device with no native editor (fr955) ever shows, no
+        # matter what `choices:` says. `choices: any` skips only the *list*
+        # half -- there is no list to check when the wearer gets the
+        # editor's own unrestricted picker instead.
+        offenders = [entry.default] if entry.allow_any else (
+            [entry.default] + [c.color for c in entry.choices]
+        )
+        bad = [c for c in offenders if not c.is_palette_legal(colors)]
+        if not bad:
+            continue
+        users = _config_users(resolved.face, name)
+        if any("palette-dither" in element.lint_allow for element in users):
+            continue
+        nearest = ", ".join(f"{c} -> {c.nearest_legal(colors)}" for c in bad)
+        if users:
+            suppress_note = (
+                f"set 'lint: {{allow: [palette-dither], reason: ...}}' on the element "
+                f"whose 'color:' or 'track_color:' is 'config.{name}' to keep it"
+            )
+        else:
+            suppress_note = (
+                f"no element's 'color:' or 'track_color:' is exactly 'config.{name}', "
+                f"so there is nowhere to put 'lint: {{allow: [palette-dither]}}' for it"
+            )
+        bag.warning(
+            "palette-dither",
+            f"config.{name}: {len(bad)} declared colour(s) are not one of "
+            f"{resolved.device.id}'s {colors} colours and will be dithered",
+            notes=[
+                f"off-grid -> nearest legal: {nearest}",
+                "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
+                "dithered by the firmware and looks grainy",
+                suppress_note,
+            ],
+            confidence="exact -- device display_colors",
+        )
+
+
+def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
+    """Does this device actually have the native on-device editor?
+
+    Resolved against the device's own symbol table, not an API-level compare
+    -- constraint 6 again: fr955 reports 5.2.0, above the editor's documented
+    5.1.0, and still has no editor at all
+    (`docs/research/probes/watchface-config/`).  A device without it still
+    compiles and runs every line `config:` generates; it just keeps the
+    declared `default:` forever, which is a real, user-facing consequence of
+    ADR 0006 2's chosen scope, not a bug -- and must not be silent.
+    """
+    config = resolved.face.config
+    if not config:
+        return
+    device = resolved.device
+    try:
+        available = device.has_symbol(CONFIG_SYMBOL)
+    except Exception:
+        bag.note(
+            "config-unsupported",
+            f"{device.id}: no symbol table, so on-device config support is not checked",
+            confidence="not checked -- the device's api.debug.xml is unavailable",
+        )
+        return
+    if available:
+        return
+
+    names = ", ".join(f"config.{name}" for name in sorted(config))
+    # `_config_users` returns raw IR Elements, from `Face.walk()`, not the
+    # `resolved.items` layout wrappers `_emit` expects -- the same reason
+    # `check_palette` (this check's own model) does not call `_emit` either,
+    # and checks `lint_allow` on the element directly instead.
+    users: list[Element] = []
+    for name in config:
+        users.extend(_config_users(resolved.face, name))
+    if any("config-unsupported" in element.lint_allow for element in users):
+        return
+    notes = [
+        "the face still works: every element bound to a config.* colour "
+        "simply draws with its declared 'default:' forever on this device",
+        "this follows from ADR 0006 2's chosen scope -- the native editor is "
+        "fēnix 8 and newer only -- not from a missing feature in this compiler",
+    ]
+    if users:
+        suppress_note = (
+            "set 'lint: {allow: [config-unsupported], reason: ...}' on the "
+            f"element whose 'color:' or 'track_color:' is one of {names} to accept it"
+        )
+    else:
+        suppress_note = (
+            f"no element's 'color:'/'track_color:' is exactly one of {names}, "
+            "so there is nowhere to put 'lint: {allow: [config-unsupported]}' for it"
+        )
+    bag.warning(
+        "config-unsupported",
+        f"{device.id}: has no on-device watch face editor, so {names} "
+        f"keep their declared defaults here",
+        notes=notes + [suppress_note],
+        confidence="exact -- the device's own api.debug.xml",
+    )
 
 
 # -- check 4: geometry ------------------------------------------------------

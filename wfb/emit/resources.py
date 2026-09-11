@@ -23,7 +23,7 @@ from .. import catalog, formatting, icons, units
 from ..devices import Device
 from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
-from ..ir import Carousel, Face, FontSpec, IconElement, Text
+from ..ir import CONFIG_SYMBOL, Carousel, Face, FontSpec, IconElement, Text, config_label_id
 from ..palette import Color
 
 _XSD = "https://developer.garmin.com/downloads/connect-iq/resources.xsd"
@@ -268,15 +268,79 @@ def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> Res
         f'    <bitmap id="LauncherIcon" filename="launcher_icon.png" />\n'
         f"</drawables>\n"
     )
+
+    if face.config:
+        try:
+            supported = device.has_symbol(CONFIG_SYMBOL)
+        except Exception:
+            # `lint.check_config_support` already reported a "not checked"
+            # note against a missing symbol table; degrading to "omit the
+            # resource" here, rather than crashing the build a second time
+            # over the same missing file, matches that.
+            supported = False
+        if supported:
+            bundle.files["configs/watchface.xml"] = config_resource(face)
     return bundle
 
 
+def config_resource(face: Face) -> str:
+    """`resources-<device>/configs/watchface.xml` -- ADR 0006 1, amended.
+
+    Called only for a device with the native editor
+    (`Device.has_symbol(CONFIG_SYMBOL)`); the caller (`build_bundle`) is
+    where that gate lives, so this is pure XML rendering from `face.config`.
+    Grammar: `$CIQ_SDK/bin/resources.xsd`'s `watchfaceConfigType`.
+    """
+    lines = [
+        f"<resources {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">",
+        "    <watchface-config>",
+    ]
+    for name, entry in face.config.items():
+        tag = entry.axis.resource_tag
+        if entry.allow_any:
+            lines.append(f'        <{tag} allowAny="true"/>')
+            continue
+        lines.append(f"        <{tag}>")
+        for index, choice in enumerate(entry.choices):
+            attrs = ""
+            if choice.color == entry.default:
+                attrs += ' default="true"'
+            if choice.label is not None:
+                attrs += f' label="@Strings.{config_label_id(name, index)}"'
+            lines.append(f"            <color{attrs}>{choice.color.as_monkeyc()}</color>")
+        lines.append(f"        </{tag}>")
+    lines.append("    </watchface-config>")
+    lines.append("</resources>")
+    return "\n".join(lines) + "\n"
+
+
+def config_label_strings(face: Face) -> list[tuple[str, str]]:
+    """`(string id, label text)` for every labelled `config:` choice.
+
+    Shared across every device -- a label is authored text, not something
+    that varies per target -- so these live in `shared_strings()` rather than
+    in each device's own resource bundle, the same reasoning `AppName`
+    already follows.
+    """
+    out: list[tuple[str, str]] = []
+    for name, entry in face.config.items():
+        if entry.allow_any:
+            continue
+        for index, choice in enumerate(entry.choices):
+            if choice.label is not None:
+                out.append((config_label_id(name, index), choice.label))
+    return out
+
+
 def shared_strings(face: Face) -> str:
-    return (
-        f"<strings {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">\n"
-        f'    <string id="AppName">{escape(face.name)}</string>\n'
-        f"</strings>\n"
-    )
+    lines = [
+        f"<strings {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">",
+        f'    <string id="AppName">{escape(face.name)}</string>',
+    ]
+    for string_id, text in config_label_strings(face):
+        lines.append(f'    <string id="{string_id}">{escape(text)}</string>')
+    lines.append("</strings>")
+    return "\n".join(lines) + "\n"
 
 
 def launcher_icon(face: Face, width: int, height: int) -> Image.Image:
