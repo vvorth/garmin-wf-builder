@@ -1,0 +1,36 @@
+<resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+    <watchface-config>
+        <styles>
+            <style id="0" label="@Strings.Style0" default="true"/>
+            <style id="1" label="@Strings.Style1"/>
+            <style id="2" label="@Strings.Style2"/>
+            <style id="3" label="@Strings.Style3"/>
+            <style id="4" label="@Strings.Style4"/>
+            <style id="5" label="@Strings.Style5"/>
+            <style id="6" label="@Strings.Style6"/>
+            <style id="7" label="@Strings.Style7"/>
+            <style id="8" label="@Strings.Style8"/>
+            <style id="9" label="@Strings.Style9"/>
+            <style id="10" label="@Strings.Style10"/>
+            <style id="11" label="@Strings.Style11"/>
+        </styles>
+        <data>
+            <complication id="1">
+                <type default="true">Complications.COMPLICATION_TYPE_STEPS</type>
+                <type>Complications.COMPLICATION_TYPE_HEART_RATE</type>
+                <type>Complications.COMPLICATION_TYPE_CALORIES</type>
+                <type>Complications.COMPLICATION_TYPE_BODY_BATTERY</type>
+            </complication>
+            <complication id="2">
+                <type default="true">Complications.COMPLICATION_TYPE_HEART_RATE</type>
+                <type>Complications.COMPLICATION_TYPE_STEPS</type>
+            </complication>
+        </data>
+        <accentColors allowAny="true"/>
+        <dataColors>
+            <color default="true" label="@Strings.CWhite">0xFFFFFF</color>
+            <color label="@Strings.CAqua">0x00FFFF</color>
+            <color label="@Strings.CAmber">0xFFAA00</color>
+        </dataColors>
+    </watchface-config>
+</resources>

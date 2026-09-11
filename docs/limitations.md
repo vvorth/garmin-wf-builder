@@ -317,6 +317,28 @@ editor's UI actually shows or does. `docs/research/probes/watchface-config/`'s
 own "What it deliberately does NOT settle" section is explicit about the same
 boundary.
 
+**What the two unimplemented axes could carry is now researched, not
+implemented** (`docs/research/09-data-library-and-config-axes.md`,
+`docs/research/probes/config-axes/`). Three results bear on any future work
+here, and none of them changes what the compiler does today:
+
+* **The Data axis can never hold author-defined content.** `<complication>`'s
+  children are `Complications.COMPLICATION_TYPE_*` values or `allowAny`, per
+  `resources.xsd`. Author-defined selectable content rides **Styles**, whose
+  `styleId` Garmin gives no meaning to -- and which is a *single* number, so
+  several independent author-defined axes multiply into one flat list.
+* **There is no way to ask which saved configuration is active.**
+  `getSettings(null)` returns the active `Settings`, which carries no id, and
+  `Id` exposes only `equals`. So the four axes are per-configuration while
+  anything the face persists itself (`Application.Storage`, properties) is
+  global across all four of the wearer's saved faces.
+* **`getComplicationDrawable` is buildable**, at `+134 B data, +414 B code`,
+  from a generated `Drawable` subclass delegating back to the view's own
+  per-slot draw method. It remains unimplemented -- but the reason is now
+  "no Data axis to animate yet", not "unknown shape". Without it the editor's
+  animated highlight has nothing to animate, and the SDK sample's own comment
+  requires the view to *hide* a slot while the system pulses it.
+
 ### A live watch face receives exactly one gesture: touch and hold
 
 Not one gesture *per device* — one gesture, full stop. `WatchFaceDelegate`

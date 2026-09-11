@@ -1878,6 +1878,66 @@ the work itself.** This is the same hazard as the `git stash` rule above, one
 level up -- disjoint ownership is what makes parallel work safe, and spawning
 helpers discards it.
 
+**A research-only session answered "can a `data_library` and a colour-scheme
+axis be configured on the watch?" -- nothing shipped, and a decision is
+pending.** `docs/research/09-data-library-and-config-axes.md` is the document;
+`docs/research/probes/config-axes/` is the probe, which builds every mechanism
+at once, warning-free under `-l 3`, on all three targets at **1,241 B data +
+2,386 B code (2.8%)**.
+
+The proposal was a YAML sketch: a labelled `color:` library, named
+`color_scheme:`s, and a `config:` block with a `colors:` axis plus a `data:`
+block of several independent selectors, each choosing between reusable
+authored groups (`data_library.item1`, ...), edited through the stock fēnix
+on-watch flow (Apply / Data / Accent Color / Data Color / Bkgd. Color).
+
+Four of those five menu entries map exactly onto what Garmin offers. The fifth
+does not, and the reason is structural rather than a spelling problem:
+
+1. **There is no background-colour axis and no fifth axis of any kind.**
+   `resources.xsd`'s `watchfaceConfigType` is an `xs:all` of exactly four
+   optional children and `Settings` has exactly four fields. A colour *scheme*
+   is several colours moving together, so it cannot ride either colour axis --
+   it has to ride **Styles**, and the editor will label that menu entry
+   "Styles", not "Bkgd. Color" (`<styles>` has no label attribute; only each
+   `<style>` does).
+2. **The Data axis can never hold author-defined content.** `<complication>`
+   takes `COMPLICATION_TYPE_*` values or `allowAny`, full stop -- research 08
+   §4's conclusion, re-confirmed against the grammar rather than the prose.
+   Author-defined selection therefore competes with schemes for the *single*
+   `styleId`, and several such axes multiply into one flat combinatorial list.
+   **Measured, so the tradeoff is honest: a style costs ~9 B data and ~61 B
+   `.prg` and no code at all**, so even a 64-entry cross-product is under
+   600 B. The cost is entirely UX, not memory.
+3. **`Complications.Id.getType()` works on the id the wearer picked**, and
+   `switch`ing on it typechecks under `-l 3`. With `Complication.shortLabel`
+   and `.unit`, that collapses "N interchangeable authored groups" into **one
+   authored template per slot**, icon inferred from the chosen metric through
+   the existing `METRIC_ICON`/`IconGlyphs.glyph` machinery -- which is most of
+   why the sketch's `data_library` is bigger than the problem needs.
+4. **`getComplicationDrawable` is buildable and is what makes the "pulsing"
+   highlight the sketch describes work at all** -- +134 B data, +414 B code,
+   from a generated `Drawable` subclass delegating back to the view's own
+   per-slot draw method. The SDK sample's own comment is what makes it
+   non-optional: the view must *hide* the slot while the system animates it.
+   Research 08's "deliberately not implemented" section carries an amendment.
+5. **There is no way to ask which saved configuration is active.**
+   `getSettings(null)` returns a `Settings` with no id; `Id` exposes only
+   `equals`. So the four axes are per-configuration while anything the face
+   persists itself (`Application.Storage`, properties) is **global across all
+   four** of the wearer's saved faces. That is the strongest argument for
+   spending Styles on whatever the wearer most expects to differ between them.
+
+The recommendation on the table, awaiting the user's decision: extend
+`palette:` with an optional `{value, label}` long form rather than adding a
+second colour namespace; put `color_scheme:` on Styles, one style per scheme;
+ship `config.data.<selector>` as native complication slots with one authored
+template each; and send author-defined *layout* alternatives to phone-side
+settings (`settings.xml`/`properties.xml`, Phase 3 item 4) -- which is also
+the only mechanism in the whole document that works on **`fr955`**, and the
+only one with no combinatorial blow-up. Nothing in the schema, IR or emitter
+was touched.
+
 ### `examples/dashboard/face.yaml` is the user's own playground
 
 The user edits this file directly between sessions and has said explicitly:

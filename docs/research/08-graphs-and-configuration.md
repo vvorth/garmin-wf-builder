@@ -141,6 +141,16 @@ still emits none, and no `onTap` is ever emitted for a live gesture.
 
 ### `getComplicationDrawable` is deliberately not implemented
 
+> **Amended 2026-09-11.** Still not implemented, and the reasoning below still
+> holds for a face with no Data axis -- but "real work" is now a measured
+> quantity rather than a guess. `docs/research/probes/config-axes/` builds it
+> on all three targets at **+134 B data, +414 B code**, from a generated
+> `Drawable` subclass that delegates back to the view's own per-slot draw
+> method, so there is still one implementation of what a slot looks like. It is
+> also *not optional* if the editor's animated highlight is wanted: the SDK
+> sample's own comment says the view must hide the slot while the system pulses
+> it, or it is drawn twice. See `docs/research/09-data-library-and-config-axes.md` §4.
+
 It lets the editor animate a preview of the selected slot. Its return type
 allows `Null`, the SDK calls it "allows you to provide", and this project's
 generated view draws straight to the `Dc` rather than through `Drawable`

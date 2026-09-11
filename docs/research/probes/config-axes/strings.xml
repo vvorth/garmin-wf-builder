@@ -1,0 +1,18 @@
+<strings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+    <string id="AppName">Probe</string>
+    <string id="Style0">Dark / Ring / A</string>
+    <string id="Style1">Dark / Ring / B</string>
+    <string id="Style2">Dark / Dot / A</string>
+    <string id="Style3">Dark / Dot / B</string>
+    <string id="Style4">Light / Ring / A</string>
+    <string id="Style5">Light / Ring / B</string>
+    <string id="Style6">Light / Dot / A</string>
+    <string id="Style7">Light / Dot / B</string>
+    <string id="Style8">Slate / Ring / A</string>
+    <string id="Style9">Slate / Ring / B</string>
+    <string id="Style10">Slate / Dot / A</string>
+    <string id="Style11">Slate / Dot / B</string>
+    <string id="CWhite">White</string>
+    <string id="CAqua">Aqua</string>
+    <string id="CAmber">Amber</string>
+</strings>
