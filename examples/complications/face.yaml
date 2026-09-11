@@ -68,12 +68,12 @@ elements:
     type: icon
     icon: heart
     at: { anchor: center, dx: -26%, dy: -1% }
-    size: 9%r
+    size: 12%r
     color: palette.accent
 
   hr_value:
     type: text
-    value: heart_rate.current
+    value: complication.heart_rate
     format: "{:d}"
     font: FONT_XTINY
     at: { anchor: center, dx: -26%, dy: 10% }
@@ -90,9 +90,11 @@ elements:
   # here, it is the only way in.
   body_battery_icon:
     type: icon
-    icon: battery
+    # icon: battery
+    glyph: "U+F120F"
+    # glyph: "U+F1211"
     at: { anchor: center, dy: -1% }
-    size: 9%r
+    size: 12%r
     color: palette.accent
 
   body_battery_value:
@@ -110,7 +112,7 @@ elements:
     type: icon
     icon: weather_sunny
     at: { anchor: center, dx: 26%, dy: -1% }
-    size: 9%r
+    size: 12%r
     color: palette.accent
 
   solar_value:
@@ -128,14 +130,14 @@ elements:
     type: carousel
     at: { anchor: center, dy: 26% }
     size: { width: 52%, height: 20% }   # the TOUCH target, not the drawn extent
-    pitch: 22%r
+    pitch: 32%r
     slots: 3
-    icon_size: 9%r
+    icon_size: 16%r
     color: palette.accent
     inactive_color: palette.dim
-    value_font: FONT_SMALL
+    value_font: FONT_XTINY
     value_color: palette.fg
-    value_offset: { anchor: center, dy: 34% }
+    value_offset: { anchor: center, dy: 55% }
     animate: 0.3
     items:
       # 'activity.calories' has a conventional launch target ('calories'),

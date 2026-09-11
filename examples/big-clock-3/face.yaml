@@ -1,125 +1,67 @@
-# Dashboard -- a dense, multi-row face.
+# A denser starting point: the time, a goal ring, two data clusters and battery.
 #
-# A worked example of the techniques a complex design needs, modelled on the
-# reference face in `garmin-watchface-protomolecule`: stacked rows separated by
-# hairlines, a two-tone clock, values whose colour depends on their own state,
-# icon-and-number clusters, and progress arcs hugging the bezel.
+# Offsets are in %r -- percentages of the screen's minor radius -- so the design
+# keeps its proportions on both the 260x260 and 280x280 families rather than
+# drifting. Use %r for anything you think of as "this far out from the middle".
 #
-# Build it:  wfb build examples/dashboard/face.yaml
-#
-# ---------------------------------------------------------------------------
-# Two things to notice about how this is written.
-#
-# **Rows are positioned from the top, not the centre.** `anchor: top` with a `%`
-# offset reads as "this far down the screen", which is how a row-based design is
-# actually designed, and it matches the fractions the reference measured off its
-# own rendering. Percentages resolve against the parent box, so a row at
-# `dy: 6.6%` sits 6.6% of the screen height below the top edge on every device.
-#
-# **The separators are drawn in polar coordinates.** Each hairline is a chord of
-# a circle just inside the bezel, so both ends are placed by angle and radius
-# rather than by x and y -- which is what keeps them touching the rim on a
-# 260 px and a 280 px screen alike.
-#
-# What the reference has and this does not: a weather row with real readings,
-# a Body Battery history graph, and a daylight arc. Weather's *condition*
-# icon is real now (`icon_for: weather.condition`, row 2 below); its
-# temperature, precipitation chance and high/low still need data sources the
-# format does not expose yet, and Body Battery and the daylight arc are the
-# same story -- see docs/limitations.md. The rows below use real sources so
-# the example builds and runs; swap the remaining placeholders out as the
-# catalogue grows.
-#
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
 
 format: 1
 
 face:
-  id: c47a1f36-8b25-4e09-a3d7-5f81904bc2e6
-  name: Dashboard
+  id: cc4e6c78-e2df-42b7-b0c3-3c08d0177db8
+  name: Big Clock 3
   version: 1.0.0
+
 
 targets: [fenix8solar47mm, fenix8solar51mm, fr955, fr255, fenix6]
 
 antialias: true
 
+# Every channel is 00, 55, AA or FF -- the only values a 64-colour MIP panel
+# renders without dithering. `wfb validate` checks this and names the nearest
+# legal colour when it is wrong.
+palette:
+  bg: "#000000"
+  date: "#00FF00"
+  hours: "#FFFFFF"
+  minutes: "#00FFFF"
+  bright: "#FFFFFF"
+  dim: "#AAAAAA"
+  separator: "#555555"
+  off: "#555555"
+  dnd_on: "#FF0000"
+  alarm_on: "#FFFF00"
+  notify_on: "#FFAA00"
+  notify_text: "#000000"
+  arc_steps: "#00FF00"
+  arc_battery: "#00FFFF"
+  arc_move: "#FFFF00"
+  track: "#555555"
 
 fonts:
-  clock:
-    source: assets/OpenSans-Regular.ttf
+  # clock:
+  #   source: assets/OpenSans-Regular.ttf
     # Rasterised at this many pixels on the smallest target and scaled up for
     # the 280x280 fenix 8 Solar 51 mm, so one declaration is right on both.
-    size: 90
+    # size: 90
     # 'glyphs' is omitted on purpose: the compiler derives the set from every
     # format spec and literal this design can render, so the sheet carries the
     # handful of digits the clock actually draws rather than a character set.
-  test:
-    source: assets/ChivoMono-Bold.ttf
+  saira:
+    # source: assets/ChivoMono-Bold.ttf
+    source: assets/SairaStencil-SemiBold.ttf
     # source: assets/SairaStencil-SemiBold.ttf
     size: 70%r
+    glyphs: " 1234567890:"
+    monospace: true
+    # align: center
+    align: right
 
-
-palette:
-  # old directly used
-  bg: { value: "#000000", label: "none" }
-  fg: { value: "#FFFFFF", label: "none" }
-  dim: { value: "#AAAAAA", label: "none" }
-  dark: { value: "#555555", label: "none" }
-
-  # date: { value: "#00FF00", label: "none" }
-  # separator: { value: "#555555", label: "none" }
-  dnd_on: { value: "#FF0000", label: "none" }
-  alarm_on: { value: "#FFFF00", label: "none" }
-  notify_on: { value: "#FFAA00", label: "none" }
-  notify_text: { value: "#000000", label: "none" }
-  # arc_steps: { value: "#00FF00", label: "none" }
-  # arc_battery: { value: "#00FFFF", label: "none" }
-  # arc_move: { value: "#FFFF00", label: "none" }
-  # track: { value: "#555555", label: "none" }
-
-  # Primary Neutrals:
-  white: { value: "#FFFFFF", label: "White" }
-  black: { value: "#000000", label: "Black" }
-  light_gray: { value: "#AAAAAA", label: "Light Gray" }
-  dark_gray: { value: "#555555", label: "Dark Gray" }
-  # High-Visibility Accents (100% Saturation):
-  yellow: { value: "#FFFF00", label: "Yellow" }
-  cyan: { value: "#00FFFF", label: "Cyan" }
-  green: { value: "#00FF00", label: "Green" }
-  red: { value: "#FF0000", label: "Red" }
-  orange: { value: "#FF5500", label: "Orange" }
-  # 
-  amber: { value: "#FFAA00", label: "Amber" }
-  magenta: { value: "#FF00FF", label: "Magenta" }
-  sky_blue: { value: "#00AAFF", label: "Sky Blue" }
-  lime_green: { value: "#AAFF00", label: "Lime Green" }
-  light_blue: { value: "#55FFFF", label: "Light Blue" }
-  #avoid
-  dark_blue: { value: "#0000FF", label: "Dark Blue" }
-  # have poor reflectivity. They turn into brownish-gray smudges on MIP.
-  dark_olive: { value: "#555500", label: "Dark Olive" }
-  maroon: { value: "#550000", label: "Maroon" }
-  dark_green: { value: "#005500", label: "Dark Green" }
-
-
-config:
-  accent_color:
-    default: palette.red
-    choices: # the editor's own full colour picker
-      - palette.red
-      - palette.cyan
-      - palette.lime_green
-      - palette.orange
-      - palette.magenta
-      - palette.amber
-  data_color:
-    default: palette.lime_green              # a palette reference, or a literal hex
-    choices:                           # or an explicit list
-      - palette.sky_blue                   # a bare palette reference ...
-      - palette.amber
-      - palette.light_blue
-      - palette.orange
-      - palette.lime_green
+  test:
+    # source: assets/intro_inline.otf
+    source: assets/ChivoMono-Bold.ttf
+    size: 70%r
 
 
 static:
@@ -138,7 +80,7 @@ static:
     at: {anchor: top, dy: 14%, dx: 25% }
     to: {anchor: top, dy: 14%, dx: -25% }
     thickness: 1px
-    color: palette.dark
+    color: palette.separator
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -150,7 +92,7 @@ static:
     at: {anchor: top, dy: 23%, dx: 36% }
     to: {anchor: top, dy: 23%, dx: -36% }
     thickness: 1px
-    color: palette.dark
+    color: palette.separator
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -162,7 +104,7 @@ static:
     at: {anchor: top, dy: 36%, dx: 44% }
     to: {anchor: top, dy: 36%, dx: -44% }
     thickness: 1px
-    color: palette.dark
+    color: palette.separator
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -174,7 +116,7 @@ static:
     at: {anchor: bottom, dy: -32%, dx:  43% }
     to: {anchor: bottom, dy: -32%, dx: -43% }
     thickness: 1px
-    color: palette.dark
+    color: palette.separator
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -186,7 +128,7 @@ static:
     at: {anchor: bottom, dy: -20%, dx: 32% }
     to: {anchor: bottom, dy: -20%, dx: -32% }
     thickness: 1px
-    color: palette.dark
+    color: palette.separator
     lint:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
@@ -203,7 +145,7 @@ elements:
     format: "{:%a %e %b}"       # "Thu 3 Sep" -- %a and %b come back localised
     font: FONT_XTINY
     at: {anchor: top, dy: 9.5%}
-    color: config.data_color
+    color: palette.date
 
   # -- SEP_1 --
 
@@ -306,7 +248,7 @@ elements:
     icon_for: weather.condition_today
     size: 22%r
     at: {anchor: top, dy: 30%}
-    color: palette.fg
+    color: palette.bright
     # color: palette.dim
 
   weather_today_high:
@@ -347,7 +289,7 @@ elements:
     font: font.test
     at: {anchor: center, dx: -1%, dy: 0.8%}
     align: right
-    color: palette.fg
+    color: palette.hours
 
   minutes:
     type: text
@@ -356,7 +298,7 @@ elements:
     font: font.test
     at: {anchor: center, dx: 1%, dy: 0.8%}
     align: left
-    color: config.accent_color
+    color: palette.minutes
 
   # -- SEP_4
 
@@ -384,14 +326,14 @@ elements:
     icon: dnd
     size: 14%r
     at: {anchor: top, dx: -12%, dy: 74%}
-    color: "device.do_not_disturb ? palette.dnd_on : palette.dark"
+    color: "device.do_not_disturb ? palette.dnd_on : palette.off"
 
   alarm_icon:
     type: icon
     icon: alarm
     size: 14%r
     at: {anchor: top, dy: 74%}
-    color: "device.alarm_count > 0 ? palette.alarm_on : palette.dark"
+    color: "device.alarm_count > 0 ? palette.alarm_on : palette.off"
 
   steps_value:
     type: text
@@ -442,7 +384,7 @@ elements:
     size: 25%r
     at: {anchor: top, dy: 90%}
     # visible: device.notification_count > 0
-    color: "device.notification_count > 0 ? palette.notify_on : palette.dark"
+    color: "device.notification_count > 0 ? palette.notify_on : palette.off"
     # color: palette.notify_on
     antialias: false
 
@@ -454,7 +396,7 @@ elements:
     at: {anchor: top, dy: 88%}
     visible: device.notification_count > 0
     color: palette.notify_text
-    # color: "device.notification_count > 0 ? palette.notify_text : palette.dark"
+    # color: "device.notification_count > 0 ? palette.notify_text : palette.off"
 
   battery_percent:
     type: text
@@ -481,8 +423,8 @@ elements:
     thickness: 4px
     start_angle: 212deg         # lower left, growing anticlockwise towards 9 o'clock
     sweep: 32deg
-    color: config.data_color
-    track_color: palette.dark
+    color: palette.arc_steps
+    track_color: palette.track
     when_absent: hide
 
   arc_battery_left:
@@ -495,8 +437,8 @@ elements:
     thickness: 4px
     start_angle: 180deg         # just left of 6 o'clock, growing clockwise
     sweep: -28deg
-    color: config.data_color
-    track_color: palette.dark
+    color: palette.arc_battery
+    track_color: palette.track
 
   arc_battery_right:
     type: progress
@@ -508,8 +450,8 @@ elements:
     thickness: 4px
     start_angle: 180deg         # just left of 6 o'clock, growing clockwise
     sweep: 28deg
-    color: config.data_color
-    track_color: palette.dark
+    color: palette.arc_battery
+    track_color: palette.track
 
   arc_move:
     type: progress
@@ -521,6 +463,6 @@ elements:
     thickness: 4px
     start_angle: 148deg         # lower right, growing anticlockwise towards 3 o'clock
     sweep: -32deg
-    color: config.data_color
-    track_color: palette.dark
+    color: palette.arc_move
+    track_color: palette.track
     when_absent: hide

@@ -58,16 +58,15 @@ palette:
 fonts:
   clock:
     source: assets/OpenSans-Regular.ttf
-    size: 68
+    size: 60%r
     # No 'antialias:' of its own: it inherits the face-wide default (true),
     # so this bakes an 8-bit grey ramp instead of a 1-bit mask -- +656 B in
     # the .prg for this eleven-glyph sheet, and nothing at all against the
     # 128 KB budget, since a font is a resource rather than foreground data.
     # See docs/research/probes/antialias/README.md 6 for how that was
     # measured, and why a .prg comparison needs care.
-
-elements:
-  - id: background
+static:
+  background:
     type: shape
     shape: rectangle
     at: { anchor: center }
@@ -75,18 +74,21 @@ elements:
     color: palette.bg
     antialias: false   # override: nothing here to soften
 
+
+
+elements:
   # setPenWidth + drawArc, anti-aliased.  This is the primitive half of the
   # feature: Dc.setAntiAlias(true), guarded by `dc has :setAntiAlias`, wrapped
   # around exactly this element's own drawing and nothing else.
-  - id: ring
+  ring:
     type: progress
     style: arc
     value: activity.steps
     max: activity.step_goal
     at: { anchor: center }
-    radius: 90%r
-    thickness: 10px
-    start_angle: 180deg
+    radius: 96.5%r
+    thickness: 5%r
+    start_angle: 190deg
     sweep: 340deg
     color: palette.accent
     track_color: palette.track
@@ -98,7 +100,7 @@ elements:
         64-colour panel is an accepted tradeoff, not an oversight"
 
   # The font half: a custom bitmap font baked with an 8-bit grey ramp.
-  - id: clock
+  clock:
     type: text
     value: time.clock
     format: "{:%h:%M}"
@@ -109,18 +111,18 @@ elements:
   # The icon half: a synthetic per-glyph font, anti-aliased the same way a
   # declared 'fonts:' entry is -- this and 'clock' above are the two faces of
   # the font-baking mechanism, both inheriting the same face-wide default.
-  - id: steps_icon
+  steps_icon:
     type: icon
     icon: steps
-    at: { anchor: center, dy: 16% }
-    size: 30px
+    at: { anchor: center, dy: 18% }
+    size: 15%r
     color: palette.accent
 
-  - id: steps_value
+  steps_value:
     type: text
     value: activity.steps
     format: "{:d}"
-    font: FONT_SMALL
+    font: FONT_TINY
     at: { anchor: center, dy: 30% }
     color: palette.text
     when_absent: placeholder

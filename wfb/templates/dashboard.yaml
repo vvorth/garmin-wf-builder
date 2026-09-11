@@ -23,17 +23,18 @@ palette:
   hot: "#FF5500"
   track: "#555555"
 
-elements:
-  - id: background
+static:
+  background:
     type: shape
     shape: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
     color: palette.bg
 
+elements:
   # A stroked ring, open at the bottom. There is no filled-sector primitive in
   # Connect IQ, so `thickness` is a pen width and there is no inner radius.
-  - id: step_ring
+  step_ring:
     type: progress
     style: arc
     value: activity.steps
@@ -47,7 +48,7 @@ elements:
     track_color: palette.track
     when_absent: hide        # required: both bindings can be absent
 
-  - id: clock
+  clock:
     type: text
     value: time.clock
     format: "{:%h:%M}"
@@ -55,41 +56,41 @@ elements:
     at: {anchor: center, dy: -12%r}
     color: palette.text
 
-  - id: hr_icon
+  hr_icon:
     type: icon
     icon: heart
     size: 11%r
     at: {anchor: center, dx: -40%r, dy: 30%r}
     color: palette.hot
 
-  - id: hr_value
+  hr_value:
     type: text
     value: heart_rate.current
     format: "{:d}"
-    font: FONT_SMALL
+    font: FONT_TINY
     at: {anchor: center, dx: -17%r, dy: 30%r}
     color: palette.text
     when_absent: placeholder
     placeholder: "--"
 
-  - id: steps_icon
+  steps_icon:
     type: icon
     icon: steps
     size: 11%r
     at: {anchor: center, dx: 13%r, dy: 30%r}
     color: palette.accent
 
-  - id: steps_value
+  steps_value:
     type: text
-    value: activity.steps
-    format: "{:d}"
-    font: FONT_SMALL
+    value: activity.steps / 1000
+    format: "{:.01f}"
+    font: FONT_TINY
     at: {anchor: center, dx: 38%r, dy: 30%r}
     color: palette.text
     when_absent: placeholder
     placeholder: "--"
 
-  - id: battery
+  battery:
     type: progress
     style: bar
     value: system.battery
@@ -98,3 +99,4 @@ elements:
     size: {width: 40%r, height: 5%r}
     color: palette.text
     track_color: palette.track
+

@@ -28,15 +28,16 @@ palette:
   text: "#FFFFFF"
   dim: "#AAAAAA"
 
-elements:
-  - id: background
+static:
+  background:
     type: shape
     shape: rectangle
     at: {anchor: center}
     size: {width: 100%, height: 100%}
     color: palette.bg
 
-  - id: clock
+elements:
+  clock:
     type: text
     value: time.clock
     # %h follows the watch's own 12/24-hour setting, which %H and %I do not.
@@ -45,7 +46,7 @@ elements:
     at: {anchor: center}
     color: palette.text
 
-  - id: seconds
+  seconds:
     type: text
     value: time.second
     format: "{:02d}"

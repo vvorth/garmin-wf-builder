@@ -231,3 +231,4 @@ vendor/devices/
 
 # transfer artefact, not source
 *.bundle
+.DS_Store
