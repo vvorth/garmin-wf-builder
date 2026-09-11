@@ -301,10 +301,14 @@ per-element colour editing and no arbitrary data rebinding.
 gives no meaning to at all — a declared `color_scheme:` (a named role ->
 colour set) rides it as `config.colors` — and **Data**: `config: data:`
 declares named complication slots, and `type: complication_slot` draws one,
-choosing its icon on-device from the wearer's picked *type* alone. What
-remains unbuilt is only the editor's own **animated highlight** on a slot
-(`getComplicationDrawable`/`onTap`/`setSelectedComplication`) — see §2
-below; drawing a slot's current pick does not need it.
+choosing its icon on-device from the wearer's picked *type* alone. A slot
+also accepts `on_hold: auto` (only), opening whichever glance the wearer's
+*current* pick belongs to, and the editor's own **animated highlight** on a
+slot (`AppBase.onStart`'s edit-mode flag, `WatchFaceDelegate.onTap` +
+`setSelectedComplication`, `getComplicationDrawable` returning a generated
+`SlotDrawable`) is built and emitted automatically for any design with at
+least one `complication_slot` element — see §2 below for what "built" does
+and does not mean here.
 
 **The Forerunner 955 is excluded from it entirely.** A design targeting all three
 devices is configurable on the wrist on two of them. This is a consequence of the
@@ -341,15 +345,24 @@ still true of the shipped feature:
   `Id` exposes only `equals`. So the four axes are per-configuration while
   anything the face persists itself (`Application.Storage`, properties) is
   global across all four of the wearer's saved faces.
-* **`getComplicationDrawable` -- the editor's animated highlight -- is
-  buildable**, at `+134 B data, +414 B code`, from a generated `Drawable`
-  subclass delegating back to the view's own per-slot draw method, but
-  remains **unimplemented**: a deliberately separate task from drawing a
-  slot's current pick (which is what shipped), because it is a different seam
-  entirely. Without it the editor's own animated highlight has nothing to
-  animate, and the SDK sample's own comment requires the view to *hide* a
-  slot while the system pulses it -- neither of which the shipped
-  `complication_slot` element does or needs to.
+* **`getComplicationDrawable` -- the editor's animated highlight -- is now
+  built**: a generated `<Face>SlotDrawable` per face delegates straight back
+  to the view's own per-slot draw method, so there is exactly one
+  implementation of what a slot looks like, and the view hides the slot the
+  editor is currently animating (a private `_pulsing` field, checked at the
+  top of every `complication_slot`'s draw method) — the SDK sample's own
+  comment on this exact hazard ("This prevents the complication from being
+  drawn on the watch face while it is pulsing") is what makes this mandatory,
+  not optional. Measured on `examples/slots/face.yaml` at a fixed path,
+  `fenix8solar47mm`: the editor machinery alone (no `on_hold:`) costs +161 B
+  data / +693 B code over the same design without it; `on_hold: auto` on one
+  slot adds a further +9 B data / +90 B code on top of that. **No behaviour
+  of any of it is verified** — whether the highlight actually animates,
+  whether it lines up with what is drawn, and whether `onTap`'s hit regions
+  read correctly on a real touchscreen are all UNVERIFIED (no simulator in
+  this container, no watch — §2 below). What is verified: it compiles
+  warning-free on every target, including `fr955`, which has no editor at
+  all and never calls any of it.
 * **A slot's icon is chosen on-device from the wearer's picked *type* alone**
   (`Complications.Id.getType()`), not from the current *value* -- so a type
   whose icon depends on its value (the weather-condition complications:
@@ -453,7 +466,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
-| The editor's animated highlight on the Data axis (`getComplicationDrawable`/`onTap`/`setSelectedComplication`), and phone-side settings | ADR 0006 §1, twice amended. All four config axes (`config:`, `docs/format.md` "Configuration") shipped, `complication_slot` included -- drawing a slot's current pick does not need the animated highlight |
+| Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1, twice amended. All four config axes (`config:`, `docs/format.md` "Configuration") shipped, `complication_slot` included, and so is the editor's animated highlight on the Data axis (`AppBase.onStart`/`WatchFaceDelegate.onTap`+`getComplicationDrawable`, docs/format.md "Configuration"). Phone-side settings is the one piece of ADR 0006 §1 still unbuilt, and the only route that would give `fr955` any configuration at all |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |

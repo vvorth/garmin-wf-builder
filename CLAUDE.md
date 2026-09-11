@@ -1938,6 +1938,123 @@ the only mechanism in the whole document that works on **`fr955`**, and the
 only one with no combinatorial blow-up. Nothing in the schema, IR or emitter
 was touched.
 
+**A note on a gap in this file, found while writing the session below:**
+between the "two-feature session" above and this one, three more commits
+landed (`bc447a9` research, `69e70f7` a labelled `palette:` entry, `0fa726e`
+`color_scheme:`/`config.colors` on Styles, `268fb02` `config: data:` +
+`type: complication_slot`, the whole Data axis) and none of them got a
+session note here -- `docs/research/09-data-library-and-config-axes.md`, the
+commit messages themselves, and `docs/adr/0006`'s third amendment are the
+record for that work. Left as a gap rather than backfilled, to keep this
+note about what the session below actually did.
+
+**A session closed the two gaps `docs/adr/0006`'s third amendment (the
+`config: data:` commit above) had left open on purpose: `on_hold:` on a
+`complication_slot`, and the native editor's own animated highlight.**
+Two genuinely separate pieces, kept separate throughout -- conflating them
+is flagged as the mistake a previous pass made. `docs/research/probes/
+config-axes/SlotDrawable.mc` was the working reference for piece 2; a
+standalone scratch build against a copy of `examples/slots/`'s own generated
+sources (not committed) settled every Monkey C question -- visibility rules,
+exact types, exact API signatures -- before either piece was written into
+the generator.
+
+1. **`on_hold: auto` is the only spelling a `complication_slot` accepts.** A
+   fixed target (`on_hold: heart_rate`) is now a schema-and-IR error naming
+   why: the whole point of a slot is that its content is the wearer's
+   choice, so a hold opening a fixed, different glance would silently
+   disagree with what is on screen the moment the wearer repoints it. This
+   is a **third shape of `auto`**, not a variant of the existing one:
+   `Builder._resolve_hold_auto` already turns every other element's `auto`
+   into a fixed `wfb.complications.TYPES` name via `Source.
+   launch_complication`, at build time; a slot's is left as the literal
+   `HOLD_AUTO` sentinel and special-cased in `wfb.emit.monkeyc.emit_delegate`
+   into `Complications.exitTo(_view.holdTargetForTopReading())` -- a public
+   getter (`complication_slot_hold_method`, reserved in `Builder.
+   _check_symbol_collision` like every other derived symbol) returning the
+   slot's own current field, read fresh on every hold. Nothing about the
+   platform ever prevented this; the third amendment's own rejection note
+   said so.
+
+2. **The editor's animated highlight is now built, unconditionally, for any
+   design with at least one `complication_slot` element** -- not gated on
+   `on_hold:` at all, since the editor can animate any slot's highlight
+   whether or not that slot also launches something. Three cooperating
+   pieces, all "Only available in WatchFace config mode" per the SDK and
+   therefore self-gating on a live face (research 07 §1, reconfirmed rather
+   than re-litigated):
+
+   * `AppBase.onStart` detects `state[:launchedFromWatchFaceSettingsEditor]`,
+     verbatim from `samples/ConfigurableWatchFace/source/
+     ConfigurationWatchFaceApp.mc`. Its `_editMode` field is forwarded to the
+     view's constructor and stored nowhere else, on purpose: a written-but-
+     never-read member variable warns (verified directly -- "Member variable
+     '_editMode' is not used.", the exact class of bug CLAUDE.md already
+     records for the delegate's `_view`), and this project's complications
+     are pulled fresh every frame rather than cached or subscribed the way
+     the SDK sample's own `_editMode` skips a subscription, so there is
+     nothing else here for edit mode to change. The View's own `editMode`
+     constructor *parameter* is accepted and discarded -- verified, the same
+     as the delegate's own unused `view` parameter, that an unused parameter
+     does not warn.
+   * `WatchFaceDelegate.onTap` + `setSelectedComplication` hit-test each
+     slot's own resolved box (`_BOX_X/_Y/_WIDTH/_HEIGHT`, new `Layout`
+     constants reusing `PlacedComplicationSlot.box` -- the same estimate the
+     safe-area/overlap lints already accept, not a new geometry computation).
+   * `getComplicationDrawable` returns a generated `<Face>SlotDrawable`
+     (one small file per face, `wfb.emit.monkeyc.emit_slot_drawable`,
+     structurally identical to the probe's) that delegates straight back to
+     the view's own `drawSlot(dc, unique)` -- a small **public** dispatch
+     method, the one new public surface this needed, added specifically
+     because Monkey C's `private` genuinely blocks a cross-class call
+     (verified by building both ways: dropping the modifier turns "Cannot
+     find symbol ':drawTopReading'" into a clean build). Every per-slot draw
+     method itself stays `private` like every other element's -- only the
+     dispatcher is public, which is a smaller, more idiomatic seam than
+     making every draw method public would have been.
+
+   The view hides the slot the editor is currently animating: a private
+   `_pulsing` field (`Number`, a `config_data_ids` unique id or 0), checked
+   first in every `complication_slot`'s draw method, set only from
+   `setPulsing` inside `getComplicationDrawable`. The SDK sample's own
+   comment on `ComplicationDrawable.draw` -- "This prevents the complication
+   from being drawn on the watch face while it is pulsing" -- is what makes
+   this mandatory rather than optional; skipping it would draw the slot
+   twice during the editor's own animation.
+
+3. **Cost, measured on `examples/slots/face.yaml` at one fixed path,
+   `fenix8solar47mm`, via `--build-stats`:** the editor machinery alone
+   (both slots, neither declaring `on_hold:`) is **+161 B data, +693 B
+   code** over the same design without it (1,030/1,844 -> 1,191/2,537);
+   adding `on_hold: auto` to one slot costs a further **+9 B data, +90 B
+   code** on top of that (-> 1,200/2,627), matching a standalone
+   piece-1-only measurement exactly. Total over the design's pre-session
+   baseline: **+170 B data, +783 B code (+953 B, 2.9% of the 128 KB
+   budget)**. The probe's own isolated figure (+134 B data, +414 B code)
+   is close but not identical -- expected, since the probe's code shape
+   (inline dimensions, no dispatch table) differs from the generator's.
+
+4. **What is verified, and what absolutely is not.** Real `monkeyc`,
+   warning-free, on all three targets -- `fr955` included, which has no
+   native editor at all and simply never calls `onStart`'s flag, `onTap` or
+   `getComplicationDrawable` (confirmed by inspecting its own build: nothing
+   about the generated code differs by device here, only whether the OS ever
+   invokes these methods). **No behaviour of the editor itself is verified
+   anywhere in this project** -- no simulator in this container, no watch --
+   so whether the highlight actually animates, whether it lines up with what
+   is drawn, and whether `onTap`'s hit regions read correctly on a real
+   touchscreen are all exactly as unverified as everything else `config:`
+   has ever claimed. `docs/format.md`, `docs/limitations.md` and ADR 0006's
+   new fourth amendment all say this explicitly rather than letting a
+   confident-sounding comment imply otherwise.
+
+5. **`examples/slots/face.yaml` now declares `on_hold: auto`** on
+   `top_reading` (the explicit-`choices:` slot) and no `on_hold:` at all on
+   `bottom_reading` (the `choices: any` slot) -- deliberately exercising
+   both "has a hold target" and "interactive only through the editor, holds
+   do nothing" in one example, since the editor machinery applies to both
+   slots regardless of which one has `on_hold:`.
+
 ### `examples/dashboard/face.yaml` is the user's own playground
 
 The user edits this file directly between sessions and has said explicitly:

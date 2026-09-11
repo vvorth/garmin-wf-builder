@@ -314,11 +314,18 @@ rather than an author-chosen name for the three colour/scheme axes, because
 Garmin gives exactly one of each; `data` alone is a mapping, because Garmin's
 Data axis itself holds several independent slots.
 
-**Still not built: the editor's own animated highlight** on the Data axis
-(`getComplicationDrawable`, `onTap`, `setSelectedComplication`) -- a
-deliberately separate task (docs/research/09 §4), because it is a different
-seam (a generated `WatchUi.Drawable` subclass) from drawing a slot's current
-pick, which is what `complication_slot` does.
+**The editor's own animated highlight is now built too**, and it is
+automatic: any design with at least one `complication_slot` element gets
+`AppBase.onStart`'s edit-mode detection, `WatchFaceDelegate.onTap` +
+`setSelectedComplication` (hit-testing each slot's own resolved box), and
+`WatchFaceDelegate.getComplicationDrawable` returning a generated
+`<Face>SlotDrawable` that delegates straight back to the view's own per-slot
+draw method -- so there is exactly one implementation of what a slot looks
+like, drawn either by `onUpdate` or by the editor's own `Drawable`. A design
+with no `complication_slot` element gets none of this: `onTap` (unlike
+`onPress`) never fires on a live face (research 07 §1), so all of it would be
+dead weight there. **No behaviour of any of this is verified** -- see "What
+this compiler cannot tell you" below.
 
 ### The Data axis
 
@@ -408,8 +415,19 @@ no ordinary `value:` expression at all. Instead:
   reason); the geometry lints below size its box from the value alone (see
   "What this compiler cannot tell you").
 * A `complication_slot` **cannot be static** (its reading changes every frame,
-  and the wearer can repoint it at any time) and **does not accept
-  `on_hold:` yet** -- both errors, naming why.
+  and the wearer can repoint it at any time) -- an error, naming why.
+* **`on_hold:`** accepts exactly one value here: **`auto`**. Touch and hold
+  opens whichever glance the wearer's *current* pick belongs to
+  (`Complications.exitTo` on this slot's own field), resolved fresh on every
+  hold rather than a fixed name baked in at build time -- unlike every other
+  element's `on_hold: auto`, which resolves once, at build time, to a single
+  `wfb.complications.TYPES` name via `Source.launch_complication`. A fixed
+  target (`on_hold: heart_rate`, say) is a schema-and-IR error naming why: it
+  would silently disagree with what is on screen the moment the wearer
+  repoints the slot. To always launch one fixed glance regardless of what a
+  slot currently shows, bind a plain `text`/`icon` element to the matching
+  `complication.<name>` source and put `on_hold: <name>` there instead. No
+  `on_hold:` at all is a legitimate choice -- holding does nothing.
 
 Font baking follows the same "multi-glyph font" shape a dynamic weather icon
 already needs: the text font must carry every character *any* declared choice
@@ -471,13 +489,11 @@ affected.
 * `format:` on a `complication_slot` -- error, naming why (see "The Data
   axis").
 * `icon_size:` together with a slot whose `choices:` is `any` -- error.
-* `on_hold:` or `static:` on a `complication_slot` -- error.  `static:`
-  is a permanent one: the whole point of a slot is that its content
-  changes, and static content is painted once.  `on_hold:` is only
-  *not built yet* -- `Complications.exitTo` takes a `Complications.Id`
-  and a slot already holds one, so holding it would open whichever
-  glance the wearer's own choice belongs to.  It has nothing to do with
-  the editor's animated highlight, which never fires on a live face.
+* `static:` on a `complication_slot` -- a permanent error: the whole point of
+  a slot is that its content changes, and static content is painted once.
+* `on_hold:` on a `complication_slot` naming anything other than `auto` --
+  error, naming why (see "The Data axis" above) and pointing at the
+  alternative (a plain element bound to the matching `complication.<name>`).
 * `complication-gated` (suppressible) -- a slot's `default:`, or a listed
   `choices:` entry, needs a ConnectIQ level above a target's own ceiling
   (checked against `wfb.complications.ComplicationType.since`, the same
@@ -501,6 +517,23 @@ pushed a comfortably-fitting design off the framebuffer). So the safe-area/
 off-screen/overflow checks do not account for `label:`/`unit:` width at all --
 a slot whose label or unit runs long on the real device can overflow further
 than the compiler warned about.
+
+**The editor's animated highlight is handed the same estimated box, for the
+same reason.** `getComplicationDrawable` needs a fixed `Graphics.BoundingBox`
+up front, before anything is pulled, so it reuses the geometry lints'
+estimate rather than the actual drawn extent (which, as above, is not known
+until runtime). Whether that estimated box actually lines up with what is
+drawn under the editor's animation is unverified along with everything else
+about the editor.
+
+**`on_hold: auto` on a `complication_slot` is a third shape of `auto`,
+different from every other element's.** Every other element's `auto`
+resolves once, at build time, to a fixed `wfb.complications.TYPES` name
+(`Source.launch_complication`); a slot's resolves on-device, every hold,
+from whatever `Complications.Id` the wearer currently has it pointed at.
+Both compile to `Complications.exitTo`, but a slot's is never a build-time
+constant -- there is nothing for `wfb complications`/`wfb validate` to name
+as "the" target of a slot's hold, because there isn't one.
 
 ---
 
@@ -1951,6 +1984,15 @@ Both are errors rather than warnings: guessing here would silently open the
 wrong glance, which is exactly the class of failure this compiler exists to
 prevent. A carousel item's `launch:` accepts `auto` the same way, resolved
 from that one item's own `value:` — see `carousel` above.
+
+**A `complication_slot`'s `on_hold: auto` does not go through any of this.**
+It is the *only* value that element's `on_hold:` accepts (a fixed name is a
+build error — see "The Data axis"), and it is never resolved to a fixed
+`wfb.complications.TYPES` name at build time at all: the wearer can repoint
+the slot at any moment, so the generated code reads the slot's own current
+`Complications.Id` field fresh on every hold instead. `Source.
+launch_complication` and `hold-auto-unresolved`/`hold-auto-ambiguous` never
+apply to it.
 
 ---
 

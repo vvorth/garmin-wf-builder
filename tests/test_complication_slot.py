@@ -260,7 +260,9 @@ def test_format_is_rejected_with_a_reason(write_design):
     assert any("value.toString" in n or "union" in n for n in hits[0].notes), hits[0].notes
 
 
-def test_on_hold_is_rejected_as_not_yet_built(write_design):
+def test_on_hold_explicit_target_is_rejected(write_design):
+    """A fixed hold target on a slot would silently disagree with whatever
+    the wearer actually has it pointed at -- only 'auto' is accepted."""
     text = HEAD + DATA_BLOCK + """elements:
   - id: a
     type: complication_slot
@@ -272,7 +274,37 @@ def test_on_hold_is_rejected_as_not_yet_built(write_design):
     errors = _errors(text, write_design)
     hits = [d for d in errors if d.code == "complication-slot"]
     assert hits, errors
-    assert "'on_hold:' is not accepted" in hits[0].message
+    assert "only accepts 'auto'" in hits[0].message
+    assert "'steps'" in hits[0].message
+    assert any("bind a plain" in n for n in hits[0].notes), hits[0].notes
+
+
+def test_on_hold_auto_is_accepted(write_design, bag):
+    """`on_hold: auto` is the one spelling this element accepts, and it is
+    never resolved to a fixed `wfb.complications.TYPES` name -- unlike every
+    other element's `auto`, it stays the literal sentinel so the emitter can
+    special-case it into a dynamic `Complications.exitTo` read."""
+    from wfb.ir import HOLD_AUTO
+
+    text = HEAD + DATA_BLOCK + """elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    color: palette.fg
+    on_hold: auto
+"""
+    face = _face(text, write_design, bag)
+    element = next(e for e in face.walk() if e.id == "a")
+    assert element.on_hold == HOLD_AUTO
+
+
+def test_on_hold_absent_is_fine(write_design, bag):
+    """No `on_hold:` at all is a legitimate choice -- holding does nothing."""
+    face = _face(DESIGN, write_design, bag)
+    for element in face.walk():
+        if isinstance(element, ComplicationSlot):
+            assert element.on_hold is None
 
 
 def test_static_is_rejected(write_design):
@@ -431,6 +463,67 @@ def test_icon_lookup_is_a_generated_method_not_an_inline_local(write_design, bag
     assert complication_slot_icon_method("bottom_reading") not in view
 
 
+def test_hold_target_lookup_is_a_generated_public_method(write_design, bag, db):
+    """`on_hold: auto` on a slot compiles to a public getter returning this
+    slot's own current `Complications.Id` field -- public, unlike every draw
+    method, because the delegate is a different class and Monkey C's
+    `private` genuinely blocks a cross-class call (verified by building both
+    ways)."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+    from wfb.ir import complication_slot_hold_method
+
+    text = DESIGN.replace(
+        "    label: short",
+        "    on_hold: auto\n    label: short",
+    )
+    face = _face(text, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    view = monkeyc.emit_view(resolved).text
+    method = complication_slot_hold_method("top_reading")
+    assert f"function {method}() as Complications.Id" in view
+    assert f"private function {method}" not in view
+    assert f"return {face.config_data['top'].field};" in view
+    # `bottom_reading` declares no `on_hold:` -- no getter for it.
+    assert complication_slot_hold_method("bottom_reading") not in view
+
+
+def test_complication_slot_hold_method_symbol_is_reserved_against_collision(write_design):
+    """`complication_slot_hold_method` must be checked the same way
+    `complication_slot_icon_method` already is -- a later id that folds to
+    the same Monkey C symbol should be caught here, not four `Redefinition
+    of ...` errors deep pointing at a generated line number."""
+    from wfb.ir import complication_slot_hold_method
+
+    # `top_reading` and `topReading` fold to the same element_method_name
+    # ("drawTopReading") regardless of this feature -- reuse that existing,
+    # already-covered collision as the vehicle, and additionally confirm the
+    # hold-method name itself is what a real `on_hold: auto` slot would use,
+    # so this test would catch a second id colliding on *only* the hold
+    # method if the two id spellings ever stopped folding together first.
+    assert complication_slot_hold_method("top_reading") == complication_slot_hold_method("topReading")
+    text = HEAD + DATA_BLOCK + """elements:
+  - id: top_reading
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center, dy: -20%}
+    color: palette.fg
+    on_hold: auto
+  - id: topReading
+    type: complication_slot
+    slot: config.data.bottom
+    at: {anchor: center, dy: 20%}
+    color: palette.fg
+    on_hold: auto
+"""
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "duplicate-id"]
+    assert hits, errors
+    assert "holdTargetForTopReading" in hits[0].message
+
+
 def test_only_a_mapped_choice_appears_in_the_icon_switch(write_design, bag, db):
     """Not every complication type has a catalogue icon (docs/format.md) --
     `calories` maps to `flame`; an unmapped type simply is not one of the
@@ -545,7 +638,9 @@ def test_a_design_with_no_slots_is_untouched_by_this_feature(write_design, bag, 
     """The negative control every additive feature in this repo needs: a
     design with no `config: data:` and no `complication_slot` element must
     come out byte-identical to before -- `has_config` stays false, no
-    Complications import, no barrel."""
+    Complications import, no barrel, and none of this session's editor-only
+    machinery (onTap/getComplicationDrawable/onStart/_pulsing/SlotDrawable)
+    leaks in either."""
     from wfb.emit import monkeyc
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
@@ -556,15 +651,32 @@ def test_a_design_with_no_slots_is_untouched_by_this_feature(write_design, bag, 
     text: "hi"
     at: {anchor: center}
     color: palette.fg
+    on_hold: steps
 """
     face = _face(text, write_design, bag)
     assert not face.config_data
     assert not face.has_config
+    assert monkeyc.complication_slots(face) == []
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
     view = monkeyc.emit_view(resolved).text
     assert "Complications" not in view
     assert "complicationSettings" not in view
+    assert "_pulsing" not in view
+    assert "drawSlot" not in view
+    assert "drawableFor" not in view
+
+    app = monkeyc.emit_app(face).text
+    assert "onStart" not in app
+    assert "_editMode" not in app
+    assert f"new {face.entry}View()" in app
+
+    delegate = monkeyc.emit_delegate(resolved).text
+    assert "function onTap(" not in delegate
+    assert "getComplicationDrawable" not in delegate
+    # this design's own on_hold: steps still works -- a fixed complications.TYPES
+    # target, unrelated to the complication_slot machinery this test guards
+    assert "Complications.exitTo(new Complications.Id(Complications." in delegate
 
 
 # -- the real toolchain --------------------------------------------------------
@@ -655,3 +767,123 @@ elements:
     manifest_text = (result.output_dir / "manifest.xml").read_text(encoding="utf-8")
     assert 'minApiLevel="4.2.0"' in manifest_text
     assert '<iq:uses-permission id="ComplicationSubscriber"/>' in manifest_text
+
+
+# -- on_hold: auto + the editor-only machinery (piece 1 + piece 2) -----------
+
+
+@pytest.mark.slow
+def test_slot_with_on_hold_auto_compiles_warning_free_on_every_target(
+        write_design, tmp_path, db, toolchain):  # noqa: F811
+    """A `complication_slot` with `on_hold: auto` -- Complications.exitTo on
+    whatever the wearer currently has the slot pointed at -- plus the
+    editor-only machinery (`AppBase.onStart`, `WatchFaceDelegate.onTap`/
+    `getComplicationDrawable`, the generated SlotDrawable) every
+    complication_slot design now carries, real `monkeyc`, all three targets,
+    warning-free."""
+    from wfb.build import build as run_build
+
+    text = DESIGN.replace(
+        "    label: short",
+        "    lint:\n      allow: [config-unsupported]\n      reason: test\n"
+        "    on_hold: auto\n"
+        "    label: short",
+    ).replace(
+        "  - id: bottom_reading\n    type: complication_slot\n"
+        "    slot: config.data.bottom\n    at: {anchor: center, dy: 20%}\n"
+        "    color: palette.fg\n",
+        "  - id: bottom_reading\n    type: complication_slot\n"
+        "    slot: config.data.bottom\n    at: {anchor: center, dy: 20%}\n"
+        "    color: palette.fg\n"
+        "    lint:\n      allow: [config-unsupported]\n      reason: test\n",
+    )
+    design = write_design(text)
+    bag = Bag()
+    result = run_build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    monkeyc_warnings = [d for d in bag.items
+                        if d.severity.value == "warning" and d.code == "monkeyc"]
+    assert not monkeyc_warnings, "\n".join(d.message for d in monkeyc_warnings)
+    assert set(result.products) == {"fenix8solar47mm", "fenix8solar51mm", "fr955"}
+
+    view_text = (result.output_dir / "source" / "TestView.mc").read_text(encoding="utf-8")
+    assert "holdTargetForTopReading" in view_text
+    assert "_pulsing" in view_text
+    assert "function drawSlot(dc as Dc, unique as Number) as Void" in view_text
+
+    delegate_text = (result.output_dir / "source" / "TestDelegate.mc").read_text(encoding="utf-8")
+    assert "Complications.exitTo(_view.holdTargetForTopReading())" in delegate_text
+    assert "function onTap(clickEvent as ClickEvent) as Boolean" in delegate_text
+    assert "function getComplicationDrawable" in delegate_text
+
+    app_text = (result.output_dir / "source" / "TestApp.mc").read_text(encoding="utf-8")
+    assert "function onStart(state as Dictionary?) as Void" in app_text
+    assert "launchedFromWatchFaceSettingsEditor" in app_text
+
+    drawable_path = result.output_dir / "source" / "TestSlotDrawable.mc"
+    assert drawable_path.exists()
+
+
+@pytest.mark.slow
+def test_slot_without_on_hold_still_gets_editor_machinery_warning_free(
+        write_design, tmp_path, db, toolchain):  # noqa: F811
+    """The other half of the same coin: a `complication_slot` design with no
+    `on_hold:` anywhere still gets the editor's onTap/getComplicationDrawable
+    machinery (the editor can animate any slot, not only ones that also
+    launch something on a live face) -- and still builds warning-free."""
+    from wfb.build import build as run_build
+
+    design = write_design(DESIGN)
+    bag = Bag()
+    result = run_build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    monkeyc_warnings = [d for d in bag.items
+                        if d.severity.value == "warning" and d.code == "monkeyc"]
+    assert not monkeyc_warnings, "\n".join(d.message for d in monkeyc_warnings)
+
+    delegate_text = (result.output_dir / "source" / "TestDelegate.mc").read_text(encoding="utf-8")
+    assert "function onTap(clickEvent as ClickEvent) as Boolean" in delegate_text
+    assert "function getComplicationDrawable" in delegate_text
+    assert "holdTargetForTopReading" not in delegate_text
+    assert "Complications.exitTo" not in delegate_text
+
+
+@pytest.mark.slow
+def test_a_design_with_no_slots_at_all_still_builds_warning_free(
+        write_design, tmp_path, db, toolchain):  # noqa: F811
+    """The real-toolchain twin of
+    `test_a_design_with_no_slots_is_untouched_by_this_feature`: a design with
+    no `complication_slot` anywhere must still build, warning-free, on every
+    target -- proof that none of this session's editor-only machinery leaks
+    into, or breaks, an unrelated face."""
+    from wfb.build import build as run_build
+
+    text = HEAD + """elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    at: {anchor: center}
+    color: palette.fg
+    on_hold: current_weather
+"""
+    design = write_design(text)
+    bag = Bag()
+    result = run_build(design, output=tmp_path / "out", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    monkeyc_warnings = [d for d in bag.items
+                        if d.severity.value == "warning" and d.code == "monkeyc"]
+    assert not monkeyc_warnings, "\n".join(d.message for d in monkeyc_warnings)
+    assert set(result.products) == {"fenix8solar47mm", "fenix8solar51mm", "fr955"}
+
+    delegate_text = (result.output_dir / "source" / "TestDelegate.mc").read_text(encoding="utf-8")
+    assert "function onTap(" not in delegate_text
+    assert "getComplicationDrawable" not in delegate_text
+    assert not (result.output_dir / "source" / "TestSlotDrawable.mc").exists()
+
+    app_text = (result.output_dir / "source" / "TestApp.mc").read_text(encoding="utf-8")
+    assert "onStart" not in app_text
+    assert "_editMode" not in app_text

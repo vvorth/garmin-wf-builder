@@ -12,13 +12,21 @@
 #   `IconGlyphs.glyph()` turns that name into the drawn character, the same
 #   "which name, then which glyph" split a dynamic weather icon already uses.
 #   `label: short` and `unit: true` also draw whatever `Complication.
-#   shortLabel`/`.unit` the device supplies alongside the value.
+#   shortLabel`/`.unit` the device supplies alongside the value. It also
+#   declares `on_hold: auto` -- touch and hold opens whatever glance the
+#   wearer's *current* pick belongs to (`Complications.exitTo` on this slot's
+#   own id), resolved fresh on every hold rather than a fixed name baked in
+#   at build time. `auto` is the *only* spelling accepted here: a fixed
+#   target would silently disagree with what is on screen the moment the
+#   wearer repoints the slot -- see `wfb/ir.py`'s `Builder.
+#   _build_complication_slot` for the error this produces if you try.
 # * `bottom_reading` uses `choices: any` -- the editor's own unrestricted
 #   complication picker -- which is exactly why it may **not** declare
 #   `icon_size:`: with `allowAny` the wearer can pick a Connect IQ
 #   complication this compiler has never heard of, so the set of icons such a
 #   slot could need is unbounded and nothing can be baked ahead of time. It
-#   still draws its reading, plain, with no icon.
+#   still draws its reading, plain, with no icon, and declares no `on_hold:`
+#   at all -- holding it does nothing, which is a legitimate choice.
 #
 # Neither slot declares `format:` -- it is a schema-and-IR error on this
 # element, on purpose: `Complications.Complication.value` is a `String or
@@ -41,14 +49,20 @@
 # `monkeyc`, on all three targets -- including the generated manifest's
 # `minApiLevel="4.2.0"` and `<iq:uses-permission id="ComplicationSubscriber"/>`,
 # which a `config: data:` slot needs even though it binds no ordinary
-# `complication.<name>` data source at all. What is NOT verified anywhere in
-# this project: any behaviour of the on-device editor itself (no simulator in
-# this container, no watch) -- whether the two slots list correctly, whether
-# switching a slot's type previews instantly, and the editor's own animated
-# highlight on the slot being edited (`getComplicationDrawable`/`onTap`/
-# `setSelectedComplication`) are all a deliberately separate, not-yet-built
-# task (docs/research/09 §4). This example only exercises drawing a slot's
-# *current* pick.
+# `complication.<name>` data source at all. Both the live-face hold
+# (`top_reading`'s `on_hold: auto` -> `Complications.exitTo`) and the native
+# editor's machinery (`AppBase.onStart`'s edit-mode flag, `WatchFaceDelegate.
+# onTap`/`getComplicationDrawable`, the generated `SlotsSlotDrawable`) are
+# emitted and build warning-free on every target, `fr955` included -- it has
+# no editor at all and simply never calls any of the editor-only methods.
+# What is NOT verified anywhere in this project: any *behaviour* of the
+# on-device editor itself (no simulator in this container, no watch) --
+# whether the two slots list correctly, whether switching a slot's type
+# previews instantly, whether the animated highlight actually animates or
+# lines up with what is drawn, and whether `on_hold`'s hit region reads
+# correctly on a real touchscreen are all UNVERIFIED. What is verified is
+# only that all of it compiles warning-free and cannot crash a device with no
+# editor (`fr955`).
 #
 # Build it with:  ./wfb.py build examples/slots/face.yaml
 #
@@ -109,6 +123,7 @@ elements:
     unit: true
     when_absent: placeholder
     placeholder: "--"
+    on_hold: auto
     lint:
       allow: [config-unsupported]
       reason: "fr955 has no native editor and keeps this slot's declared

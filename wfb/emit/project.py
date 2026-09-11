@@ -93,6 +93,11 @@ def generate(face: Face, devices: list[Device], root: Path,
     if needs_icon_glyphs:
         project.sources.append(monkeyc.emit_icon_glyphs(face))
     project.sources.append(monkeyc.emit_view(first))
+    if monkeyc.complication_slots(face):
+        # The native editor's animated highlight over a complication_slot --
+        # dead weight on a design with none (research 07 §1: the callback
+        # that would ever construct one never fires outside the editor).
+        project.sources.append(monkeyc.emit_slot_drawable(face))
     if monkeyc.needs_delegate(face):
         # Shared across devices like the view: the hit regions it references
         # are Layout constants, which are already per-device.  A `config:`-only

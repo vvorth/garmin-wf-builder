@@ -237,6 +237,53 @@ fr955** — the compiler generates both paths from one declaration.
 > Data axis" is the full author-facing reference; `examples/slots/face.yaml`
 > exercises both slot shapes.
 
+> **Fourth amendment (2026-09-11): `on_hold:` and the editor's animated
+> highlight both shipped on `complication_slot`, closing the two gaps the
+> third amendment left open.**
+>
+> `on_hold: auto` is the only spelling this element accepts -- a fixed name
+> is an error naming why (it would silently disagree with what the wearer's
+> own pick shows). Unlike every other element's `auto`, which resolves once
+> at build time to a fixed `wfb.complications.TYPES` name via `Source.
+> launch_complication`, a slot's resolves on-device, on every hold, from
+> whatever `Complications.Id` the wearer currently has it pointed at --
+> `Complications.exitTo(_view.holdTargetForTopReading())`, not a name looked
+> up in a table. Nothing about the platform ever prevented this; it was
+> simply sequenced after the drawing half.
+>
+> The editor's own animated highlight -- called "not built, deliberately
+> separate" in the third amendment -- is now built too, for **any** design
+> with at least one `complication_slot` element, regardless of whether that
+> element also declares `on_hold:`: `AppBase.onStart` detects edit mode
+> (`state[:launchedFromWatchFaceSettingsEditor]`, verbatim from the SDK
+> sample), `WatchFaceDelegate.onTap` + `setSelectedComplication` hit-test
+> each slot's own resolved box, and `getComplicationDrawable` returns a
+> generated `<Face>SlotDrawable` that delegates straight back to the view's
+> own per-slot draw method -- one implementation of what a slot looks like,
+> two callers. The view hides the slot the editor is animating (a `_pulsing`
+> field, checked first in every `complication_slot`'s draw method), matching
+> the SDK sample's own comment on why that is mandatory rather than optional.
+> A design with no `complication_slot` gets none of this: `onTap` never
+> fires on a live face (research 07 §1), so it would be dead weight there.
+>
+> Cost, measured on `examples/slots/face.yaml` at a fixed path,
+> `fenix8solar47mm`: the editor machinery alone (both slots, neither with
+> `on_hold:`) is **+161 B data, +693 B code** over the same design without
+> it; adding `on_hold: auto` to one slot costs a further **+9 B data, +90 B
+> code** on top of that -- matching the third amendment's per-style-sized
+> costs in kind, if not in exact figure (this is new code, not a resource
+> entry). **No behaviour of any of it is verified** -- whether the highlight
+> actually animates, whether it lines up with what is drawn, and whether
+> `onTap`'s hit regions read correctly on a real touchscreen are all
+> UNVERIFIED, same as every other editor claim in this ADR. What is verified:
+> real `monkeyc`, warning-free, on all three targets, `fr955` included --
+> which has no editor at all and never calls any of `onStart`'s flag,
+> `onTap` or `getComplicationDrawable`.
+>
+> `docs/format.md`'s "Configuration → The Data axis" carries the full
+> author-facing description; `examples/slots/face.yaml` now declares
+> `on_hold: auto` on one of its two slots.
+
 An author declares a property once and states where it may be edited. The
 compiler emits the right artefact for each surface and **fails the build if a
 surface is unavailable on a targeted device** rather than silently dropping it.
@@ -500,17 +547,20 @@ both map to `onPress`, rather than silently preferring one.
 - (§1 third amendment) The Data axis shipped as `config: data:` +
   `type: complication_slot` — all four of Garmin's axes are now declared.
   `docs/format.md` "Configuration → The Data axis" is the author-facing
-  reference; the editor's own animated highlight on a slot remains a
-  separate, unbuilt task (see the amendment and `docs/limitations.md`).
+  reference; the editor's own animated highlight on a slot was, at that
+  point, a separate, unbuilt task (see the amendment and
+  `docs/limitations.md`).
+- (§1 fourth amendment) `on_hold: auto` and the editor's own animated
+  highlight (`AppBase.onStart`/`WatchFaceDelegate.onTap`+
+  `getComplicationDrawable`) both shipped on `complication_slot`, closing the
+  gap the third amendment left open. `docs/format.md` "Configuration → The
+  Data axis" carries the update; no behaviour of the editor is verified,
+  same as every other `config:` claim.
 
 ## Open
 
-- A phone-side settings surface, still undecided — the three `config:`
-  amendments implemented the two colour axes, Styles and Data, which is all
-  four of Garmin's native-editor axes; phone settings would be a separate
-  mechanism (`settings.xml`/`properties.xml`) and is the only route that
-  reaches `fr955`.
-- The editor's own animated highlight on a Data-axis slot
-  (`getComplicationDrawable`/`onTap`/`setSelectedComplication`) — buildable
-  (docs/research/09 §4), deliberately not built alongside `complication_slot`
-  because it is a different seam (a generated `WatchUi.Drawable` subclass).
+- A phone-side settings surface, still undecided — the four `config:`
+  amendments implemented the two colour axes, Styles and Data (drawing and
+  interactivity alike), which is all four of Garmin's native-editor axes;
+  phone settings would be a separate mechanism (`settings.xml`/
+  `properties.xml`) and is the only route that reaches `fr955`.

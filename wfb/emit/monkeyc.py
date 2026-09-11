@@ -22,12 +22,12 @@ from dataclasses import dataclass
 from .. import __version__, catalog, complications, expr, formatting, icons, series
 from ..catalog import READERS, Type
 from ..ir import (
-    CONFIG_SYMBOL, Carousel, ComplicationSlot, Expression, Face, Graph, IconElement,
-    Progress, Shape, Text, carousel_index_field, carousel_slide_done_method,
-    carousel_slide_field, carousel_step_method, complication_slot_icon_method,
-    config_data_ids, config_field, element_const_prefix, element_method_name,
-    font_resource_id, graph_built_field, graph_max_field, graph_min_field,
-    graph_rebuild_method, graph_series_field, static_group_method,
+    CONFIG_SYMBOL, HOLD_AUTO, Carousel, ComplicationSlot, Expression, Face, Graph,
+    IconElement, Progress, Shape, Text, carousel_index_field, carousel_slide_done_method,
+    carousel_slide_field, carousel_step_method, complication_slot_hold_method,
+    complication_slot_icon_method, config_data_ids, config_field, element_const_prefix,
+    element_method_name, font_resource_id, graph_built_field, graph_max_field,
+    graph_min_field, graph_rebuild_method, graph_series_field, static_group_method,
 )
 from ..layout import (
     COMPLICATION_SLOT_ICON_GAP, PlacedCarousel, PlacedComplicationSlot, PlacedGraph,
@@ -85,20 +85,55 @@ def header(face: Face, extra: str = "") -> str:
 
 
 def emit_app(face: Face) -> SourceFile:
+    """`source/<Face>App.mc` -- the application entry point.
+
+    `onStart`/`_editMode` are only emitted when the design has at least one
+    `complication_slot` (`_editor_slot_pairs`): detecting edit mode is
+    otherwise pointless, since nothing else reads it.  Exactly the SDK
+    sample's own `ConfigurationWatchFaceApp.onStart`, reading
+    `state[:launchedFromWatchFaceSettingsEditor]` -- **not** a level compare
+    or a `has` guard, because `onStart`'s own `state` dictionary is the only
+    place this flag is ever delivered.
+    """
     needs_it = needs_delegate(face)
+    has_slots = bool(_editor_slot_pairs(face))
     w = Writer()
     w.doc(header(face)).blank()
     w.lines("import Toybox.Application;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank()
     w.doc(f"The application entry point for {face.name!r}.")
     with w.block(f"class {face.entry}App extends Application.AppBase"):
+        if has_slots:
+            w.doc(
+                "Whether the watch face was started by the native config editor.\n"
+                "\n"
+                "Read exactly once, by getInitialView just below -- which is what "
+                "keeps\nthis from being a written-but-never-read field (verified: "
+                "that warns\n\"Member variable '_editMode' is not used.\"; a value "
+                "read back by a\nconstructor call, even one the view itself then "
+                "discards, does not)."
+            )
+            w.line("private var _editMode as Boolean = false;")
+            w.blank()
         with w.block("function initialize()"):
             w.line("AppBase.initialize();")
         w.blank()
+        if has_slots:
+            w.doc(
+                "Detect edit mode before the initial view is retrieved -- the SDK's "
+                "own\nConfigurationWatchFaceApp.onStart, verbatim."
+            )
+            with w.block("function onStart(state as Dictionary?) as Void"):
+                with w.block("if (state != null)"):
+                    w.line("var editing = state[:launchedFromWatchFaceSettingsEditor] as Boolean?;")
+                    with w.block("if (editing != null && editing)"):
+                        w.line("_editMode = true;")
+            w.blank()
         with w.block("function getInitialView() as [Views] or [Views, InputDelegates]"):
+            view_ctor = f"new {face.entry}View(_editMode)" if has_slots else f"new {face.entry}View()"
             if not needs_it:
-                w.line(f"return [ new {face.entry}View() ];")
+                w.line(f"return [ {view_ctor} ];")
             else:
-                w.line(f"var view = new {face.entry}View();")
+                w.line(f"var view = {view_ctor};")
                 w.comment("the `has` guard is the SDK's own idiom (samples/Analog): a watch")
                 w.comment("without WatchFaceDelegate still gets the face, just not the holds")
                 w.comment("(or, for a `config:` design, the re-read on a settings edit)")
@@ -199,6 +234,19 @@ def carousels(face: Face) -> list:
     return [e for e in face.walk() if isinstance(e, Carousel)]
 
 
+def complication_slots(face: Face) -> list:
+    """Every `complication_slot` element, in draw order.
+
+    Drives the editor-only machinery (`AppBase.onStart`'s edit-mode flag,
+    `WatchFaceDelegate.onTap`/`getComplicationDrawable`, the generated
+    `SlotDrawable`) -- all of it gated on this being non-empty, never on
+    `face.config_data` alone, since a declared `config: data:` slot with no
+    `complication_slot` element drawing it would otherwise pull in a whole
+    editor-highlight seam for nothing on screen to highlight.
+    """
+    return [e for e in face.walk() if isinstance(e, ComplicationSlot)]
+
+
 def needs_delegate(face: Face) -> bool:
     """Does this design need a `WatchFaceDelegate` at all?
 
@@ -285,10 +333,28 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
     middle.  That is the whole reason ADR 0006 §6's "hold-to-cycle and
     hold-to-launch conflict" is no longer a conflict: geometry separates them,
     so the compiler lays out zones rather than rejecting the combination.
+
+    A `complication_slot` on `on_hold: auto` is a third shape again: unlike
+    every other target, the type this opens is not known at build time -- the
+    wearer can repoint the slot at any moment -- so this reads it back
+    through `Complications.exitTo(_view.<holdMethod>())` rather than indexing
+    `wfb.complications.TYPES` with a fixed name (`Builder._resolve_hold_auto`'s
+    own docstring explains why a slot's `auto` is never resolved to one).
+
+    **`onTap`/`getComplicationDrawable` are the one exception to "no onTap",
+    and only when the design has at least one `complication_slot`.**  Both
+    are documented "Only available in WatchFace config mode" -- they never
+    fire on a face merely being looked at, on any device (research 07 §1) --
+    so they exist here purely to serve the native editor's own animated
+    highlight over a slot, which is a wholly different thing from the "no
+    onTap on a live face" rule above.  `docs/research/09-data-library-and-
+    config-axes.md` §4 and `docs/research/probes/config-axes/` are the
+    research and the working reference this follows.
     """
     face = resolved.face
     targets = hold_targets(face)
     has_config = face.has_config
+    slot_pairs = _editor_slot_pairs(face)
     w = Writer()
     w.doc(header(face)).blank()
     imports = ["import Toybox.Lang;", "import Toybox.WatchUi;"]
@@ -328,11 +394,17 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
         w.blank()
         if has_config:
             _emit_on_watchface_config_edited(w)
+        if slot_pairs:
+            _emit_on_tap(w, slot_pairs)
+            _emit_get_complication_drawable(w)
         w.doc("A touch and hold -- the only gesture a live watch face receives.\n"
               "\n"
-              "There is deliberately no onTap here: it is documented \"Only available in\n"
-              "WatchFace config mode\" and never fires during normal display, on any\n"
-              "device.\n"
+              "There is deliberately no onTap here for a live face: it is documented\n"
+              "\"Only available in WatchFace config mode\" and never fires during normal\n"
+              "display, on any device." +
+              ("  The onTap above exists purely to serve the\n"
+               "native editor's own animated highlight over a complication_slot, which\n"
+               "is a different thing entirely.\n" if slot_pairs else "\n") +
               "\n"
               "Returns true when the touch was consumed, so the system does not also\n"
               "act on it.")
@@ -358,6 +430,13 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
                     with w.block(condition):
                         _emit_carousel_zones(w, element, prefix)
                     continue
+                if isinstance(element, ComplicationSlot):
+                    w.comment(f"`{element.id}` -> whatever the wearer picked for "
+                              f"config.data.{element.slot}")
+                    with w.block(condition):
+                        w.line(f"Complications.exitTo(_view.{complication_slot_hold_method(element.id)}());")
+                        w.line("return true;")
+                    continue
                 launch = complications.TYPES[element.on_hold]
                 w.comment(f"`{element.id}` -> {element.on_hold}")
                 with w.block(condition):
@@ -368,6 +447,106 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
             w.line("return false;")
     return SourceFile(f"source/{face.entry}Delegate.mc", w.render())
 
+
+def _editor_slot_pairs(face: Face) -> list:
+    """Every `complication_slot` element this design actually draws, paired
+    with its declared slot's `<complication id=...>` unique id
+    (`wfb.ir.config_data_ids`) -- one pair per distinct slot *name*, in
+    document order.
+
+    Backs every editor-only piece (`onTap`'s hit-test, `getComplicationDrawable`'s
+    dispatch, the generated `SlotDrawable`): all three need "which element
+    goes with which unique id", and deduplicating by slot name here, once, is
+    what keeps two elements bound to the same slot -- legal, if unusual, and
+    not otherwise checked anywhere in this project -- from generating two
+    `case`/`if` labels for one id.
+    """
+    ids = config_data_ids(face)
+    seen: set[str] = set()
+    pairs = []
+    for element in complication_slots(face):
+        if element.slot in seen:
+            continue
+        seen.add(element.slot)
+        unique = ids.get(element.slot)
+        if unique is not None:
+            pairs.append((element, unique))
+    return pairs
+
+
+def _emit_on_tap(w: Writer, pairs: list) -> None:
+    """`onTap` -- fires only inside the on-device config editor (research 07
+    §1), and only ever emitted when the design has at least one
+    `complication_slot` to tell the editor about.  Hit-tests each slot's own
+    resolved box (`_BOX_*`, the same estimate the editor's Drawable is given
+    in `getComplicationDrawable`) and reports it with `setSelectedComplication`,
+    a `WatchFaceDelegate` method every design inherits -- no import needed.
+    """
+    w.doc(
+        "Only fires inside the on-device config editor (research 07 1a) -- tells\n"
+        "it which complication_slot was pointed at, exactly the SDK sample's own\n"
+        "ConfigurationWatchFaceDelegate.onTap.  Never fires while the face is\n"
+        "simply being looked at, on any device."
+    )
+    with w.block("function onTap(clickEvent as ClickEvent) as Boolean"):
+        w.line("var where = clickEvent.getCoordinates();")
+        w.line("var x = where[0];")
+        w.line("var y = where[1];")
+        for element, unique in pairs:
+            prefix = _const_prefix(element.id)
+            w.blank()
+            w.comment(f"`{element.id}` (config.data.{element.slot})")
+            condition = (
+                f"if (x >= Layout.{prefix}_BOX_X && "
+                f"x < Layout.{prefix}_BOX_X + Layout.{prefix}_BOX_WIDTH\n"
+                f"        && y >= Layout.{prefix}_BOX_Y && "
+                f"y < Layout.{prefix}_BOX_Y + Layout.{prefix}_BOX_HEIGHT)"
+            )
+            with w.block(condition):
+                w.line(f"setSelectedComplication({unique});")
+                w.line("return true;")
+        w.blank()
+        w.line("return false;")
+    w.blank()
+
+
+def _emit_get_complication_drawable(w: Writer) -> None:
+    """`getComplicationDrawable` -- fires only inside the on-device config
+    editor, to hand back a `Drawable` the system animates ("pulses") while
+    the wearer picks a new value for one slot.
+
+    Delegates straight to the view: `_view.setPulsing` hides the slot from
+    the view's own `onUpdate` (the SDK sample's own comment on
+    `ComplicationDrawable.draw` -- "This prevents the complication from being
+    drawn on the watch face while it is pulsing" -- is what makes this
+    necessary, not optional), and `_view.drawableFor` builds the generated
+    `SlotDrawable` that delegates straight back to the view's own per-slot
+    draw method, so there is exactly one implementation of what a slot looks
+    like.  UNVERIFIED: whether the highlight actually animates, and whether
+    it lines up with what is drawn -- no simulator runs in this container and
+    there is no watch (CLAUDE.md).  What is verified is that this compiles
+    warning-free under `-l 3` on all three targets, including `fr955`, which
+    has no editor and therefore never calls this at all.
+    """
+    w.doc(
+        "Only fires inside the on-device config editor: hands back a Drawable the\n"
+        "system animates while the wearer picks a new value for one slot.\n"
+        "\n"
+        "UNVERIFIED whether the highlight actually animates or lines up with what\n"
+        "is drawn -- no simulator runs in this container and there is no watch.\n"
+        "What is verified: this compiles warning-free on every target, including\n"
+        "fr955, which has no editor and so never calls this at all."
+    )
+    with w.block(
+        "function getComplicationDrawable(complication as ComplicationRef)\n"
+        "        as Drawable or WatchUi.ComplicationDrawableRef or Null",
+    ):
+        w.line("var unique = complication.uniqueIdentifier;")
+        with w.block("if (unique == null)"):
+            w.line("return null;")
+        w.line("_view.setPulsing(unique);")
+        w.line("return _view.drawableFor(unique);")
+    w.blank()
 
 def _emit_carousel_zones(w: Writer, element: Carousel, prefix: str) -> None:
     """The three zones inside one carousel's box.
@@ -602,6 +781,18 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         out.append((f"{prefix}_CX", placed.anchor_point[0],
                     "the icon+reading pair is centred here at runtime"))
         out.append((f"{prefix}_CY", placed.anchor_point[1], ""))
+        # The editor's animated highlight needs a fixed box at build time --
+        # `getComplicationDrawable` hands the system a `Drawable` up front,
+        # before anything is pulled -- so this reuses the same estimated
+        # `box` the safe-area/overlap lints already accept as good enough for
+        # a slot's real, content-dependent extent (`PlacedComplicationSlot`'s
+        # own docstring).  Emitted for every slot regardless of `on_hold:`:
+        # the editor can animate any slot, not only ones that also launch
+        # something on a live face.
+        out.append((f"{prefix}_BOX_X", placed.box.x, "the editor's animated highlight box (estimated)"))
+        out.append((f"{prefix}_BOX_Y", placed.box.y, ""))
+        out.append((f"{prefix}_BOX_WIDTH", placed.box.width, ""))
+        out.append((f"{prefix}_BOX_HEIGHT", placed.box.height, ""))
     return out
 
 
@@ -787,17 +978,20 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     sleep_flag = always_on or bool(animated)
     static = static_plan(resolved)
     antialias_default = _antialias_default(resolved)
+    slot_pairs = _editor_slot_pairs(face)
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
         _emit_config_fields(w, face)
         _emit_static_field(w, static)
         _emit_carousel_fields(w, rings)
         _emit_graph_fields(w, graphs)
+        if slot_pairs:
+            _emit_pulsing_field(w)
         if sleep_flag:
             w.doc(_sleep_flag_doc(always_on, bool(animated)))
             w.line("private var _sleeping as Boolean = false;")
             w.blank()
-        _emit_initialize(w, face, rings)
+        _emit_initialize(w, face, rings, has_slots=bool(slot_pairs))
         if antialias_default is not None:
             _emit_antialias_helper(w)
         if face.has_config:
@@ -816,6 +1010,10 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         for placed in resolved.items:
             if isinstance(placed, PlacedComplicationSlot) and placed.icon_font_key is not None:
                 _emit_complication_slot_icon_method(w, resolved, placed)
+            if isinstance(placed, PlacedComplicationSlot) and placed.element.on_hold == HOLD_AUTO:
+                _emit_complication_slot_hold_method(w, placed)
+        if slot_pairs:
+            _emit_complication_slot_editor_methods(w, face, slot_pairs)
         if static is not None:
             _emit_static_methods(w, static, antialias_default, needs_repaint=face.has_config)
         for placed in resolved.items:
@@ -1183,8 +1381,37 @@ def _emit_resolve_color_scheme(w: Writer, face: Face) -> None:
     w.blank()
 
 
-def _emit_initialize(w: Writer, face: Face, rings: list) -> None:
-    with w.block("function initialize()"):
+def _emit_initialize(w: Writer, face: Face, rings: list, has_slots: bool = False) -> None:
+    """The view's constructor.
+
+    `editMode` is accepted, not stored, when the design has at least one
+    `complication_slot`: `getComplicationDrawable`/`onTap` are self-gating --
+    the system simply never calls them outside the editor -- and this
+    project pulls every complication fresh every frame rather than caching
+    or subscribing the way the SDK sample's own `_editMode` flag skips a
+    subscription, so there is nothing left here for it to gate.  An unused
+    *parameter* does not warn (verified, the same as the delegate's own
+    `view` parameter), which is what lets `AppBase.onStart` detect edit mode
+    at all without forcing an unused *field* here too (verified the other
+    way: a written-but-never-read member variable does warn -- "Member
+    variable '_editMode' is not used." -- so the App class reads its own
+    field back by passing it on to this constructor, and this constructor's
+    signature is the whole reason that counts as a read).
+    """
+    if has_slots:
+        w.doc(
+            "`editMode` is accepted, not stored: getComplicationDrawable/onTap\n"
+            "(the delegate) are self-gating -- the system simply never calls them\n"
+            "outside the native editor -- and every complication here is pulled\n"
+            "fresh every frame rather than cached or subscribed, so there is\n"
+            "nothing else in this view for edit mode to change.  An unused\n"
+            "*parameter* does not warn (verified, same as the delegate's own\n"
+            "`view` parameter); a written-but-never-read *field* does (verified\n"
+            "the other way -- \"Member variable '_editMode' is not used.\"), which\n"
+            "is why AppBase.onStart's own flag is forwarded here rather than kept."
+        )
+    signature = "function initialize(editMode as Boolean)" if has_slots else "function initialize()"
+    with w.block(signature):
         w.line("WatchFace.initialize();")
         restored = [p for p in rings if p.element.persist]
         if restored:
@@ -1817,6 +2044,169 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     w.line("            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);")
 
 
+def _emit_pulsing_field(w: Writer) -> None:
+    """`_pulsing` -- which complication_slot the native editor is currently
+    animating (a `config_data_ids` unique id), or 0 for none.
+
+    Read by every `complication_slot`'s own draw method
+    (`_emit_complication_slot`'s guard) and written only from `setPulsing`,
+    itself called only from the delegate's `getComplicationDrawable` -- which
+    fires solely inside the on-device config editor (research 07 §1), so this
+    stays 0 for the entire life of the app on a device with no editor, or
+    while the face is simply being looked at.
+    """
+    w.doc(
+        "Which complication_slot the native editor is animating right now (a\n"
+        "config_data_ids unique id), or 0 for none.  Read by every\n"
+        "complication_slot's own draw method so the system does not see it drawn\n"
+        "twice while it pulses."
+    )
+    w.line("private var _pulsing as Number = 0;")
+    w.blank()
+
+
+def _emit_complication_slot_editor_methods(w: Writer, face: Face, pairs: list) -> None:
+    """`setPulsing`/`drawSlot`/`drawableFor` -- the view's half of the native
+    editor's animated highlight (`onTap`/`getComplicationDrawable` live on
+    the delegate).  Only ever emitted when ``pairs`` (`_editor_slot_pairs`)
+    is non-empty.
+
+    `drawSlot` is the one new *public* surface a `complication_slot`'s own
+    draw method needs: Monkey C's `private` genuinely blocks a cross-class
+    call (verified by building both ways -- dropping the modifier turns
+    "Cannot find symbol ':drawTopReading'" into a clean build) -- so rather
+    than making every per-slot draw method public, one small dispatcher is,
+    and the per-slot methods stay private like every other element's.
+    """
+    w.doc(
+        "The native editor is telling this view which slot it is about to "
+        "animate.\n\nOnly ever called from getComplicationDrawable, which "
+        "fires solely inside\nthe on-device config editor (research 07 1a)."
+    )
+    with w.block("function setPulsing(unique as Number) as Void"):
+        w.line("_pulsing = unique;")
+    w.blank()
+
+    w.doc(
+        "Draw one complication_slot by its config_data_ids unique id -- the "
+        "one\npublic entry point the generated SlotDrawable needs, so every "
+        "per-slot\ndraw method itself can stay private like every other "
+        "element's."
+    )
+    with w.block("function drawSlot(dc as Dc, unique as Number) as Void"):
+        with w.block("switch (unique)"):
+            for element, unique_id in pairs:
+                w.line(f"case {unique_id}: {element_method_name(element.id)}(dc); break;")
+    w.blank()
+
+    w.doc(
+        "Build the Drawable the editor animates for one slot, from that slot's "
+        "own\nresolved box -- the same estimate the safe-area/overlap lints "
+        "already\naccept, since the real drawn extent depends on content this "
+        "element does\nnot know until the device pulls it.\n\n"
+        "UNVERIFIED whether the box the editor animates actually lines up with "
+        "what\nis drawn -- no simulator runs in this container and there is no "
+        "watch."
+    )
+    with w.block(
+        "function drawableFor(unique as Number) as WatchUi.ComplicationDrawableRef or Null",
+    ):
+        w.line("var drawable = null;")
+        with w.block("switch (unique)"):
+            for element, unique_id in pairs:
+                prefix = _const_prefix(element.id)
+                w.line(f"case {unique_id}: drawable = new {face.entry}SlotDrawable(self, {unique_id},")
+                w.line(f"    Layout.{prefix}_BOX_X, Layout.{prefix}_BOX_Y,")
+                w.line(f"    Layout.{prefix}_BOX_WIDTH, Layout.{prefix}_BOX_HEIGHT); break;")
+        with w.block("if (drawable == null)"):
+            w.line("return null;")
+        w.line("return new WatchUi.ComplicationDrawableRef(")
+        w.line("    { :drawable => drawable, :boundingBox => drawable.boundingBox() });")
+    w.blank()
+
+
+def emit_slot_drawable(face: Face) -> SourceFile:
+    """`source/<Face>SlotDrawable.mc` -- the generated stand-in for one
+    `complication_slot`, handed to the native editor so it can animate
+    ("pulse") the slot the wearer is about to change.
+
+    Delegates straight back to the view's own `drawSlot`, so there is exactly
+    one implementation of what a slot looks like -- this class exists only
+    because `getComplicationDrawable` needs *something* satisfying
+    `WatchUi.Drawable` to hand back, not because the drawing lives here.
+    Only ever generated, and only ever constructed, when the design has at
+    least one `complication_slot` element (`_editor_slot_pairs`): the whole
+    file is dead weight on a passive face, since `getComplicationDrawable`
+    itself never fires there (research 07 §1).
+
+    Shape verified against `docs/research/probes/config-axes/SlotDrawable.mc`,
+    which built warning-free under `-l 3` on all three targets, including
+    `fr955`.
+    """
+    w = Writer()
+    w.doc(header(face)).blank()
+    w.lines("import Toybox.Graphics;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank()
+    w.doc(
+        "A generated stand-in for one complication_slot, handed to the editor so\n"
+        "it can animate (\"pulse\") the slot the wearer is about to change.  It\n"
+        "delegates straight back to the view's own drawSlot, so there is exactly\n"
+        "one implementation of what a slot looks like.\n"
+        "\n"
+        "UNVERIFIED whether the animation this exists to support actually "
+        "happens\nor lines up with what is drawn -- no simulator runs in this "
+        "container and\nthere is no watch.  What is verified: this compiles "
+        "warning-free on every\ntarget, including fr955, which has no editor "
+        "and so never constructs one."
+    )
+    with w.block(f"class {face.entry}SlotDrawable extends WatchUi.Drawable"):
+        w.line(f"private var _view as {face.entry}View;")
+        w.line("private var _unique as Number;")
+        w.blank()
+        with w.block(
+            f"function initialize(view as {face.entry}View, unique as Number,\n"
+            "                    x as Number, y as Number, w as Number, h as Number)",
+        ):
+            w.line("Drawable.initialize({ :locX => x, :locY => y, :width => w, :height => h });")
+            w.line("_view = view;")
+            w.line("_unique = unique;")
+        w.blank()
+        with w.block("function boundingBox() as Graphics.BoundingBox"):
+            w.line("var box = new Graphics.BoundingBox();")
+            w.line("box.addRectangle(locX.toNumber(), locY.toNumber(), "
+                   "width.toNumber(), height.toNumber());")
+            w.line("return box;")
+        w.blank()
+        with w.block("function draw(dc as Dc) as Void"):
+            with w.block("if (!isVisible)"):
+                w.line("return;")
+            w.line("_view.drawSlot(dc, _unique);")
+    return SourceFile(f"source/{face.entry}SlotDrawable.mc", w.render())
+
+
+def _emit_complication_slot_hold_method(w: Writer, placed: PlacedComplicationSlot) -> None:
+    """`holdTargetFor<Id>()` -- the public getter `on_hold: auto` on a
+    `complication_slot` compiles to, returning this slot's own current
+    `Complications.Id` field directly.
+
+    Public, unlike every draw method: the delegate is a different class and
+    Monkey C's `private` genuinely blocks a cross-class call (verified by
+    building both ways).  Only emitted for a slot that actually declares
+    `on_hold: auto` -- `Builder._build_complication_slot` restricts a slot to
+    exactly that or nothing, so there is no fixed `wfb.complications.TYPES`
+    name to resolve here the way a `Text`/`Progress`/`IconElement`'s `auto`
+    resolves one; the delegate reads this id and hands it straight to
+    `Complications.exitTo`.
+    """
+    element = placed.element
+    field = config_field(f"data_{element.slot}")
+    w.blank()
+    w.doc(f"`{element.id}`'s current pick, for the delegate's 'on_hold: auto' ->\n"
+          "Complications.exitTo.  Whatever the wearer has this slot pointed at right\n"
+          "now, read fresh -- never a fixed type baked in at build time.")
+    with w.block(f"function {complication_slot_hold_method(element.id)}() as Complications.Id"):
+        w.line(f"return {field};")
+
+
 def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
                                         placed: PlacedComplicationSlot) -> None:
     """`iconFor<Id>(t)` -- one slot's `Complications.Type` -> catalogue name
@@ -1876,13 +2266,28 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     is pulled, so unlike every other element this cannot be precomputed at
     build time (ADR 0004's one deliberate exception, and for exactly that
     reason).
+
+    Every `complication_slot` -- not only ones with `on_hold:` -- starts with
+    a `_pulsing` guard: the native editor can animate *any* slot's highlight
+    (`getComplicationDrawable`), and the SDK sample's own comment on this
+    exact hazard is what makes skipping the normal draw mandatory while that
+    happens -- "This prevents the complication from being drawn on the watch
+    face while it is pulsing."  A design with `complication_slot` elements
+    always has at least one, so this function running at all is exactly the
+    condition under which the guard applies -- see `_emit_pulsing_field`.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
     face = resolved.face
     slot = face.config_data[element.slot]
     field = config_field(f"data_{element.slot}")
+    unique = config_data_ids(face)[element.slot]
 
+    w.comment("the editor is animating this exact slot right now -- skip it, or the")
+    w.comment("system draws it twice while it pulses (SDK sample's own comment)")
+    with w.block(f"if (_pulsing == {unique})"):
+        w.line("return;")
+    w.blank()
     w.comment(f"slot: config.data.{element.slot}")
     w.line(f"var chosenId = {field};")
 

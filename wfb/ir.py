@@ -1732,11 +1732,13 @@ class Builder:
             # only collides after an unrelated edit is the worst kind.
             candidates.append(static_group_method(element_id))
         if node.get("type") == "complication_slot":
-            # Only emitted when `icon_size:` is set, but reserved for every
-            # `complication_slot` regardless -- the same "an unrelated later
-            # edit must not introduce a collision" reasoning as the group
-            # case just above.
+            # Only emitted when `icon_size:` is set (icon method) or
+            # `on_hold: auto` is declared (hold method), but both reserved
+            # for every `complication_slot` regardless -- the same "an
+            # unrelated later edit must not introduce a collision" reasoning
+            # as the group case just above.
             candidates.append(complication_slot_icon_method(element_id))
+            candidates.append(complication_slot_hold_method(element_id))
         collisions: list[tuple[str, str, Span | None]] = []
         for symbol in candidates:
             claimed = self.seen_symbols.get(symbol)
@@ -1861,6 +1863,18 @@ class Builder:
                        "own value"],
             )
             element.on_hold = None
+        if isinstance(element, ComplicationSlot):
+            # `Builder._build_complication_slot` has already restricted this
+            # element to `on_hold: auto` or nothing -- and unlike every other
+            # element's `auto`, a slot's is never resolved to a fixed
+            # `wfb.complications.TYPES` name here: the wearer can repoint the
+            # slot at any moment, so the launch target has to be read fresh
+            # from the slot's own field on the device, not baked in at build
+            # time.  `wfb.emit.monkeyc.emit_delegate` special-cases
+            # `ComplicationSlot` for exactly this reason, so `HOLD_AUTO` is
+            # left in place rather than turned into a `complications.TYPES`
+            # key the way it would be for a `Text`/`Progress`/`IconElement`.
+            return
         if element.on_hold == HOLD_AUTO:
             element.on_hold = self._resolve_auto_target(
                 element.id, "on_hold", self._hold_auto_sources(element), element.span)
@@ -2915,21 +2929,36 @@ class Builder:
         )
         self._resolve_font(node, element)
 
-        if element.on_hold is not None:
+        if element.on_hold is not None and element.on_hold != HOLD_AUTO:
+            # A slot always shows whatever the wearer picked, so a *fixed*
+            # hold target would silently disagree with what is on screen the
+            # moment the wearer repoints it -- exactly the "an icon means
+            # what its shape says" trap CLAUDE.md already records for content
+            # bugs, transplanted onto a launch target instead of a picture.
+            # `auto` is the only spelling that cannot go stale, because it is
+            # resolved on-device from this slot's own current id
+            # (`Complications.exitTo` on `config_field("data_" + slot)`), not
+            # from `Source.launch_complication` at build time the way every
+            # other element's `auto` is (`Builder._hold_auto_sources`
+            # deliberately does not cover `ComplicationSlot` for exactly this
+            # reason -- see `Builder._resolve_hold_auto`).
             self.bag.error(
                 "complication-slot",
-                f"{element.id}: 'on_hold:' is not accepted on a 'complication_slot' yet",
+                f"{element.id}: 'on_hold:' on a complication_slot only accepts "
+                f"'auto', not {element.on_hold!r}",
                 element.span,
                 notes=[
-                    "nothing about the platform prevents it -- `Complications.exitTo` "
-                    "takes a `Complications.Id`, and this slot already holds one, so "
-                    "holding it would open whichever glance the wearer's own choice "
-                    "belongs to.  It is simply not built yet",
-                    "this is unrelated to the editor's animated highlight "
-                    "(getComplicationDrawable/onTap), which fires only inside the "
-                    "on-device editor and never on a face being looked at "
-                    "(docs/research/07-carousel-interaction.md §1)",
-                    "drop 'on_hold:' for now",
+                    "a slot already draws whatever complication the wearer chose in "
+                    "the native editor -- opening a fixed, different glance on hold "
+                    "would silently disagree with what is on screen the moment the "
+                    "wearer repoints it",
+                    "'on_hold: auto' opens the glance the wearer's own current pick "
+                    "belongs to (Complications.exitTo on this slot's own id), "
+                    "resolved fresh on every hold rather than fixed at build time",
+                    "to always launch one fixed glance regardless of what this slot "
+                    "shows, bind a plain 'text'/'icon' element to the matching "
+                    "'complication.<name>' source and put 'on_hold: <name>' there "
+                    "instead",
                 ],
             )
             element.on_hold = None
@@ -3756,6 +3785,23 @@ def complication_slot_icon_method(element_id: str) -> str:
     `icon_size:` cannot make an existing id collide with itself.
     """
     return "iconFor" + _element_suffix(element_id)
+
+
+def complication_slot_hold_method(element_id: str) -> str:
+    """The public method `on_hold: auto` on a `complication_slot` compiles to
+    (``holdTargetForTopReading``), returning this slot's own current
+    `Complications.Id` so the delegate can hand it straight to
+    `Complications.exitTo` without baking in a fixed type at build time.
+
+    Public, unlike every draw method, for the same reason `carousel_step_
+    method` is: the delegate is a different class and Monkey C's `private`
+    genuinely blocks a cross-class call (verified by building both ways --
+    "Cannot find symbol" without the modifier dropped).  Only emitted for a
+    slot that actually declares `on_hold: auto`, but derived here regardless
+    of that, for the same "an unrelated later edit must not introduce a
+    collision" reasoning `complication_slot_icon_method` already gives.
+    """
+    return "holdTargetFor" + _element_suffix(element_id)
 
 
 def carousel_step_method(element_id: str) -> str:
