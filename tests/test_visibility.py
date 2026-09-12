@@ -101,14 +101,14 @@ def _resolved(write_design, bag, db, elements: str):
     face = _face(write_design, bag, elements)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    return resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return resolve(face, device, bake_fonts(face, device))
 
 
 def _view(write_design, bag, db, tmp_path, elements: str) -> str:
     face = _face(write_design, bag, elements)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = bake_fonts(face, device, device.minor_radius)
+    baked = bake_fonts(face, device)
     project = generate(face, [device], tmp_path, {device.id: baked})
     return project.files()["source/TestView.mc"]
 

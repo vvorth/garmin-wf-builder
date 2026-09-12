@@ -40,7 +40,7 @@ elements:
 """), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = bake_fonts(face, device, device.minor_radius)
+    baked = bake_fonts(face, device)
     bundle = build_bundle(face, device, baked)
     return bundle.files["fonts/fonts.xml"]
 
@@ -83,7 +83,7 @@ palette: {{bg: "#000000", fg: "#FFFFFF"}}
 fonts:
   small:
     source: {ttf}
-    size: 20
+    size: 20px
 elements:
   - id: bg
     type: shape
@@ -139,10 +139,7 @@ elements:
 """, name=f"{device_id}-{size}.yaml".replace("%", "pct")), bag)
     assert face is not None, bag.render()
     device = db.get(device_id)
-    # The reference is the smallest target's minor radius, exactly as
-    # `wfb.build`/`wfb.emit.project` compute it for a real build.
-    reference = min(db.get(t).minor_radius for t in face.targets)
-    return bake_fonts(face, device, reference)["clock"].size
+    return bake_fonts(face, device)["clock"].size
 
 
 def test_a_percent_r_font_size_bakes_per_device(write_design, bag, db, repo_root):
@@ -162,32 +159,10 @@ def test_a_percent_r_font_size_bakes_per_device(write_design, bag, db, repo_root
 
 
 def test_a_px_font_size_is_the_same_on_every_device(write_design, bag, db, repo_root):
-    """`px` is verbatim -- that is the whole difference from the bare number,
-    which is 'pixels on the smallest target' and grows with the screen."""
+    """`px` is verbatim on every device -- the exact effect the removed
+    `scale: false` used to give a bare number."""
     for device_id in ("fenix8solar47mm", "fenix8solar51mm", "fr955"):
         assert _baked_size(write_design, bag, db, repo_root, "12px", device_id) == 12
-
-
-def test_a_bare_number_size_still_scales_with_the_screen(write_design, bag, db, repo_root):
-    """The legacy meaning, unchanged: 68 px on the smallest target, scaled by
-    the ratio of minor radii on a larger one (68 * 140/130 = 73.2)."""
-    def size(device_id):
-        return _baked_size(write_design, bag, db, repo_root, "68", device_id)
-
-    assert size("fenix8solar47mm") == 68
-    assert size("fenix8solar51mm") == 73
-    assert size("fr955") == 68
-
-
-def test_a_bare_number_with_scale_false_is_verbatim(write_design, bag, db, repo_root):
-    """`scale: false` is still the way to pin a bare number, and still means
-    what it meant -- it is only a *length* that may not be combined with it."""
-    def size(device_id):
-        return _baked_size(write_design, bag, db, repo_root, "68", device_id,
-                           extra="    scale: false")
-
-    assert size("fenix8solar47mm") == 68
-    assert size("fenix8solar51mm") == 68
 
 
 # -- a monospaced font --------------------------------------------------------
@@ -204,7 +179,7 @@ palette: {{bg: "#000000", fg: "#FFFFFF"}}
 fonts:
   clock:
     source: {ttf}
-    size: 40
+    size: 30%r
 {extra}
 elements:
   - id: clock
@@ -217,8 +192,7 @@ elements:
 """, name=f"mono-{device_id}-{abs(hash(extra))}.yaml"), bag)
     assert face is not None, bag.render()
     device = db.get(device_id)
-    reference = min(db.get(t).minor_radius for t in face.targets)
-    return bake_fonts(face, device, reference)["clock"]
+    return bake_fonts(face, device)["clock"]
 
 
 def test_monospace_reaches_the_bake(write_design, bag, db, repo_root):
@@ -262,5 +236,5 @@ elements:
     device = db.get("fenix8solar47mm")
     specs = icon_font_specs(face, device)
     assert specs and all(not spec.monospace for spec in specs.values())
-    baked = bake_fonts(face, device, device.minor_radius)
+    baked = bake_fonts(face, device)
     assert all(not font.monospace for name, font in baked.items())

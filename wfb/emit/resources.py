@@ -202,23 +202,22 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
             )),
             glyphs=glyphs,
             antialias=antialias,
-            scale=False,  # already resolved to this device's final pixel size
             span=None,
         )
         for key, (length, glyphs, reference, antialias) in by_key.items()
     }
 
 
-def bake_fonts(face: Face, device: Device, reference_minor: float) -> dict[str, BakedFont]:
+def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
     """Rasterise every declared font, plus every icon font this design needs,
     at this device's size."""
     sets = glyph_set(face)
     baked: dict[str, BakedFont] = {}
     for name, spec in face.fonts.items():
-        # One resolver for both spellings of `size:` -- and, through
-        # `wfb.units.pixel_size`, the same one the synthetic icon fonts below
-        # go through, so `12px` means the same thing on a font and on an icon.
-        size = spec.pixel_size(device.minor_radius, reference_minor)
+        # `size:` is a `Length`, resolved through `wfb.units.pixel_size` --
+        # the same resolver the synthetic icon fonts below go through, so
+        # `12px` means the same thing on a font and on an icon.
+        size = spec.pixel_size(device.minor_radius)
         font, sheet = bake(
             spec.source,
             name=name,

@@ -36,7 +36,7 @@ def check(write_design, bag, db):
         face = load(write_design(BASE.format(palette=palette, extra=extra)), bag)
         assert face is not None, bag.render()
         device = db.get("fenix8solar47mm")
-        resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+        resolved = resolve(face, device, bake_fonts(face, device))
         lint.run(resolved, bag)
         return bag
 
@@ -255,7 +255,7 @@ palette:
 fonts:
   clock:
     source: {ttf}
-    size: 40
+    size: 40px
     glyphs: "0123456789"
 elements:
   - id: clock
@@ -269,7 +269,7 @@ elements:
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     lint.run(resolved, bag)
     missing = next(d for d in bag.errors if d.code == "missing-glyph")
     assert "':'" in missing.message
@@ -703,7 +703,7 @@ def test_every_target_delivers_a_hold_so_nothing_is_reported(write_design, bag, 
     for device_id in ("fenix8solar47mm", "fenix8solar51mm", "fr955"):
         device = db.get(device_id)
         quiet = Bag()
-        lint.run(resolve(face, device, bake_fonts(face, device, device.minor_radius)), quiet)
+        lint.run(resolve(face, device, bake_fonts(face, device)), quiet)
         assert not [d for d in quiet.items
                     if d.code in ("hold-unsupported", "hold-overlap")], quiet.render()
 
@@ -726,7 +726,7 @@ def test_a_device_without_onpress_is_reported_from_its_own_symbol_table(
     face = load(write_design(design(HELD)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = bake_fonts(face, device, device.minor_radius)
+    baked = bake_fonts(face, device)
     resolved = resolve(face, device, baked)
     monkeypatch.setattr(type(device), "has_symbol", lambda self, symbol: False)
     lint.check_hold_targets(resolved, bag)
@@ -804,7 +804,7 @@ def _resolved_for(write_design, bag, db, src: str, device_id: str, name: str = "
     face = load(write_design(src, name), bag)
     assert face is not None, bag.render()
     device = db.get(device_id)
-    return resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return resolve(face, device, bake_fonts(face, device))
 
 
 def test_a_complication_above_the_devices_ceiling_warns_on_that_device(write_design, bag, db):

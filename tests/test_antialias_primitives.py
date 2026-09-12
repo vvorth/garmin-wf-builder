@@ -72,8 +72,7 @@ def _view_text(text, write_design, db, tmp_path):
     face = _face(text, write_design, Bag())
     devices = [db.get(d) for d in face.targets if d in db.ids()]
     assert len(devices) == 3, "this gate is about all three targets"
-    reference = min(d.minor_radius for d in devices)
-    baked = {d.id: bake_fonts(face, d, reference) for d in devices}
+    baked = {d.id: bake_fonts(face, d) for d in devices}
     files = generate(face, devices, tmp_path, baked).files()
     (view_path,) = [p for p in files if p.endswith("View.mc")]
     return files[view_path]
@@ -295,7 +294,7 @@ def _resolved(text, write_design, db, device_id="fenix8solar47mm"):
 
     face = _face(text, write_design, Bag())
     device = db.get(device_id)
-    return resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return resolve(face, device, bake_fonts(face, device))
 
 
 def test_antialias_dither_fires_on_a_64_colour_device(write_design, db):

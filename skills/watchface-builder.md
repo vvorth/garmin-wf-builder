@@ -203,11 +203,11 @@ near `210deg` and sweeps about `300deg`.
 8. **A `size:` that names a font — an `icon`'s, or a `fonts:` entry's — is
    `px` or `%r` only**, never `%` or `pt`. The sheet has to be baked before
    layout runs, so its size cannot depend on a parent box or on a font, neither
-   of which is known yet. Prefer `%r`, which follows each device's own screen.
-   A `fonts:` entry may also take a bare number (`size: 68`), which means
-   pixels on the *smallest* target and is scaled up from there; it still works,
-   but `%r` says the same thing per device without an unnamed reference screen,
-   and `scale:` may not be combined with a length.
+   of which is known yet. Prefer `%r`, which follows each device's own screen
+   and scales automatically; use `px` only when you deliberately want the same
+   pixel count on every target. There is no bare-number spelling and no
+   `scale:` key — `%r` *is* the transparent per-device scaling that used to
+   need both.
 
 ---
 
@@ -320,8 +320,8 @@ config:                 # optional -- two user-editable colours, read through
 fonts:                  # optional -- omit to use built-in fonts only
   clock:
     source: assets/YourFont.ttf
-    size: 18%r          # of this device's minor radius -- or 12px, or a bare
-                        # number for 'pixels on the smallest target' (rule 8)
+    size: 18%r          # of this device's minor radius -- or 12px for a fixed
+                        # pixel count on every device (rule 8)
     monospace: true     # optional: one cell width for every glyph, so a clock
                         # does not shift as its digits change (align: center)
 

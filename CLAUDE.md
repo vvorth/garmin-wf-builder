@@ -528,6 +528,11 @@ that a passing test would not have.
    `icons.pixel_size` moved to `wfb/units.py` and is now the single
    `Length -> px` resolver for both the icon and font paths.
 
+   **Superseded**: the bare-number spelling described in this paragraph, and
+   the `scale:` key that went with it, were removed outright in a later
+   session. See the note immediately before "`examples/dashboard/face.yaml`
+   is the user's own playground" below.
+
    **Deliberately not unified: `icons.bake_size`'s ink-height normalisation
    stays icon-only**, and its docstring now says why. It searches for the
    nominal size whose *one glyph's* ink bbox hits a target height — right for
@@ -2374,6 +2379,59 @@ complications/`; a real `monkeyc` build of `examples/complications/` (its
 carousel section replaced with an equivalent `text` element demonstrating
 the same `on_hold:`/`auto` resolution) is `BUILD SUCCESSFUL` and
 warning-free, measured, on all three targets.
+
+**A later session deleted the bare-number spelling of a `fonts:` entry's
+`size:` outright, on the user's explicit instruction, along with the
+`scale:` key that went with it.** `fonts.<name>.size` is now a `Length`
+always -- `%r` is the transparent per-device scaling the bare number plus
+`scale: true` used to give, and `px` is the verbatim pixel count `scale:
+false` used to give. `scale:` is not a recognised key any more at all --
+writing it is an ordinary unknown-key schema error, the same "the rename
+shim is gone, this is just not a key any more" precedent `on_tap:` set
+(`tests/test_semantics.py::
+test_the_old_on_tap_spelling_is_now_an_ordinary_unknown_key`), not a
+bespoke diagnostic, since removing it from the schema is what makes it
+unreachable at the semantic layer in the first place. A bare number is
+different: `$defs/length` (and therefore the JSON Schema) still accepts a
+bare number syntactically, so `wfb/ir.py`'s `Builder._font_size` is where it
+is actually caught, with an error naming the exact conversion rule --
+`size / (smallest target's minor radius) * 100`, expressed as a `%r` length
+-- since this stage of the compiler has no device knowledge (the module
+docstring: "nothing here knows a screen size") to hand back a computed
+number.
+
+The equivalence was established numerically before anything was deleted:
+`scaled_font_size(size, minor, reference) = max(6, round(size * minor /
+reference))` and `pixel_size(Length("%r", v), minor) = max(1, round(v / 100
+* minor))` agree exactly, to the pixel, on every target, once `v = size /
+reference * 100` is carried to enough decimal places and the `max(6, ...)`
+floor does not bite (checked: it never does for any real design in this
+repo). The three designs using the bare form were converted by this exact
+rule: `examples/slice/face.yaml`'s `size: 68` (curated, its output is in
+`tests/golden/`) became `size: 52.3076923077%r`, and
+`examples/dashboard/face.yaml`'s `size: 90` (live) and
+`examples/big-clock-3/face.yaml`'s commented-out `size: 90` both became
+`size: 69.2307692308%r` -- all three against a 130 px reference minor radius
+(`fenix8solar47mm`/`fr955`). Baked pixel sizes were computed before and
+after on every target (`fenix8solar47mm`: 68/90, `fenix8solar51mm`: 73/97,
+`fr955`: 68/90) and matched exactly; `tests/golden/` did not move; a real
+`monkeyc` build of `examples/slice/` is `BUILD SUCCESSFUL` and
+warning-free on all three targets; `pytest -m "not slow"` is 889 passed, 5
+failed -- the same five pre-existing baseline failures this file already
+documents, no more.
+
+**`examples/dashboard/face.yaml`'s one `size:` line was changed with the
+user's own agreement** -- told in advance that the design would stop
+parsing otherwise, and that only that line (and its neighbouring comment)
+would move. Nothing else in the file was touched; its pre-existing
+`test_example_is_clean_on_every_target[dashboard]` failure is unchanged.
+The `reference_minor = min(d.minor_radius for d in devices)` plumbing in
+`wfb/build.py`'s `resolve_all`, `wfb/emit/project.py`'s `generate`, and
+`wfb/emit/resources.py`'s `bake_fonts` existed for no other purpose than
+feeding the legacy scaling and is gone with it; `FontSpec.scale`,
+`FontSpec.size_is_length`, `wfb/units.py`'s `scaled_font_size`, and
+`schema/wfb-face-1.schema.json`'s `$defs/fontSize` and `scale` property are
+all deleted too.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 

@@ -176,7 +176,7 @@ elements:
     face = load(path, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = bake_fonts(face, device, device.minor_radius)
+    baked = bake_fonts(face, device)
 
     # The IR element carries `size` (a Length) and `codepoint`; `font_key` is a
     # pure function of both, so this is the same lookup the resolver does.

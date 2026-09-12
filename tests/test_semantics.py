@@ -397,7 +397,7 @@ def test_a_nullable_reader_is_narrowed_before_its_field_is_read(write_design, ba
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
     assert "(activityInfo != null) ? activityInfo.currentHeartRate : null" in view
@@ -481,7 +481,7 @@ def test_text_fallback_is_emitted_not_dropped(write_design, bag, db):
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
     assert "when_absent: fallback" in view
@@ -516,7 +516,7 @@ def test_progress_fallback_replaces_the_fraction(write_design, bag, db):
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
     assert "when_absent: fallback" in view
@@ -606,7 +606,7 @@ def test_active_minutes_week_guards_its_nullable_intermediate(write_design, bag,
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
     assert "var activityActiveMinutesWeekObj = activity.activeMinutesWeek;" in view
@@ -639,7 +639,7 @@ def test_placeholder_does_not_leave_a_shared_nullable_colour_unguarded(write_des
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
     assert "if (heartRateCurrent == null) {\n            return;" in view
@@ -724,7 +724,7 @@ def test_always_on_elements_are_drawn_while_asleep(write_design, bag, db):
 """)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
     assert "private var _sleeping as Boolean = false;" in view
@@ -745,7 +745,7 @@ def test_a_design_with_no_always_on_elements_is_unchanged(write_design, bag, db,
     face = load(write_design(minimal), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
     assert "_sleeping" not in view
@@ -761,7 +761,7 @@ def _view(face, db, tmp, extra_device=None):
     from wfb.emit.resources import bake_fonts
 
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], tmp / "build", baked)
     return next(v for k, v in project.files().items() if k.endswith("View.mc"))
 
@@ -993,7 +993,7 @@ def test_on_hold_compiles_to_exit_to(write_design, bag, db):
     face = load(path, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     files = generate(face, [device], path.parent / "b", baked).files()
     delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
     assert "Complications.exitTo(new Complications.Id(" \
@@ -1016,7 +1016,7 @@ def test_a_passive_face_gets_no_delegate_and_no_permission(write_design, bag, db
     face = load(path, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     files = generate(face, [device], path.parent / "b", baked).files()
     assert not [k for k in files if k.endswith("Delegate.mc")]
     assert "ComplicationSubscriber" not in files["manifest.xml"]
@@ -1032,7 +1032,7 @@ def test_on_hold_derives_the_permission_and_api_level(write_design, bag, db):
     path = write_design(design(HELD))
     face = load(path, bag)
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     manifest = generate(face, [device], path.parent / "b", baked).files()["manifest.xml"]
     assert 'uses-permission id="ComplicationSubscriber"' in manifest
     assert 'minApiLevel="4.2.0"' in manifest
@@ -1067,7 +1067,7 @@ def test_on_hold_on_a_group_covers_the_whole_box_not_one_child(write_design, bag
     face = load(path, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     files = generate(face, [device], path.parent / "b", baked).files()
     delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
     assert "HR_GROUP_HOLD_X" in delegate
@@ -1088,7 +1088,7 @@ def _generated(write_design, bag, db, source: str) -> dict:
     face = load(path, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     return generate(face, [device], path.parent / "b", baked).files()
 
 
@@ -1248,25 +1248,38 @@ def test_a_font_size_may_not_use_percent_or_pt(write_design, bag, repo_root, siz
 
 
 @pytest.mark.parametrize("size", ['"18%r"', '"12px"'])
-@pytest.mark.parametrize("scale", ["true", "false"])
-def test_scale_with_a_length_font_size_is_an_error(write_design, bag, repo_root,
-                                                   size, scale):
-    """The unit already decides.  `scale` is only meaningful for the bare
-    number, whose 'pixels on the smallest target' meaning needs a reference
-    device to scale away from; a length has no such reference to scale from.
-    """
-    design_text = _font_design(size, extra=f"    scale: {scale}").replace(
+def test_scale_on_a_font_is_an_ordinary_unknown_key(write_design, bag, repo_root, size):
+    """`scale:` was only ever meaningful for the removed bare-number spelling,
+    whose 'pixels on the smallest target' meaning needed a reference device to
+    scale away from -- `%r` and `px` each already say whether the size is
+    per-device, so the key has nothing left to do. It is no longer in the
+    schema at all, the same 'rename shim is gone, this is just not a key any
+    more' precedent `on_tap:` set."""
+    design_text = _font_design(size, extra="    scale: true").replace(
         "examples/", f"{repo_root}/examples/")
+    load(write_design(design_text), bag)
+    schema_errors = [d for d in bag.errors if d.code == "schema"]
+    assert schema_errors, bag.render()
+    assert "scale" in bag.render()
+
+
+@pytest.mark.parametrize("size", ["18", "-5"])
+def test_a_bare_number_font_size_is_an_error(write_design, bag, repo_root, size):
+    """The legacy spelling -- pixels on the smallest target, scaled per device
+    -- is gone.  The error has to name the exact `%r` conversion rule and
+    point at `px` for the verbatim case, since this stage of the compiler has
+    no device knowledge to compute an actual number from."""
+    design_text = _font_design(size).replace("examples/", f"{repo_root}/examples/")
     load(write_design(design_text), bag)
     errors = [d for d in bag.errors if d.code == "font"]
     assert errors, bag.render()
-    assert "scale" in errors[0].message
+    assert "bare number" in errors[0].message
+    assert any("%r" in note and "minor radius" in note for note in errors[0].notes)
+    assert any("px" in note for note in errors[0].notes)
 
 
-@pytest.mark.parametrize("size", ["0", "-5", '"0%r"', '"-3px"'])
+@pytest.mark.parametrize("size", ['"0%r"', '"-3px"'])
 def test_a_font_size_must_be_positive(write_design, bag, repo_root, size):
-    """One rule for both spellings: the schema only says 'a number or a
-    length', so this is the compiler's job in either case."""
     design_text = _font_design(size).replace("examples/", f"{repo_root}/examples/")
     load(write_design(design_text), bag)
     errors = [d for d in bag.errors if d.code == "font"]
@@ -1275,29 +1288,17 @@ def test_a_font_size_must_be_positive(write_design, bag, repo_root, size):
 
 
 @pytest.mark.parametrize("size,expected", [
-    ('"18%r"', ("%r", 18.0)), ('"12px"', ("px", 12.0)), ("68", None),
+    ('"18%r"', ("%r", 18.0)), ('"12px"', ("px", 12.0)),
 ])
-def test_a_font_size_keeps_the_spelling_it_was_written_in(write_design, bag,
-                                                          repo_root, size, expected):
-    """A bare number is deliberately *not* normalised into a `Length`: the two
-    mean different things (reference-device pixels that scale, versus this
-    device's pixels), so collapsing them would silently move one of them.
-    """
+def test_a_font_size_is_a_length(write_design, bag, repo_root, size, expected):
     from wfb.units import Length
 
     design_text = _font_design(size).replace("examples/", f"{repo_root}/examples/")
     face = load(write_design(design_text), bag)
     assert face is not None, bag.render()
     spec = face.fonts["clock"]
-    if expected is None:
-        assert not spec.size_is_length and spec.size == 68.0
-        assert spec.scale is True
-    else:
-        assert spec.size_is_length and isinstance(spec.size, Length)
-        assert (spec.size.unit, spec.size.value) == expected
-        # Left false so nothing downstream can consult it and get a "scaled"
-        # answer for a size that is already per-device by construction.
-        assert spec.scale is False
+    assert isinstance(spec.size, Length)
+    assert (spec.size.unit, spec.size.value) == expected
 
 
 # -- a monospaced font --------------------------------------------------------
@@ -1307,7 +1308,7 @@ def test_align_without_monospace_is_an_error(write_design, bag, repo_root):
     """A proportional font has no cell for the ink to sit in, so `align:` would
     be silently doing nothing -- which is exactly the class of bug this
     compiler exists to turn into a line number."""
-    design_text = _font_design("33", extra="    align: right").replace(
+    design_text = _font_design('"33%r"', extra="    align: right").replace(
         "examples/", f"{repo_root}/examples/")
     load(write_design(design_text), bag)
     errors = [d for d in bag.errors if d.code == "font"]
@@ -1319,7 +1320,7 @@ def test_align_without_monospace_is_an_error(write_design, bag, repo_root):
 def test_monospace_carries_its_alignment_onto_the_spec(write_design, bag, repo_root,
                                                        align, expected):
     extra = "    monospace: true" + (f"\n{align}" if align else "")
-    design_text = _font_design("33", extra=extra).replace(
+    design_text = _font_design('"33%r"', extra=extra).replace(
         "examples/", f"{repo_root}/examples/")
     face = load(write_design(design_text), bag)
     assert face is not None, bag.render()
@@ -1328,7 +1329,7 @@ def test_monospace_carries_its_alignment_onto_the_spec(write_design, bag, repo_r
 
 
 def test_a_font_is_proportional_unless_it_asks_not_to_be(write_design, bag, repo_root):
-    design_text = _font_design("33").replace("examples/", f"{repo_root}/examples/")
+    design_text = _font_design('"33%r"').replace("examples/", f"{repo_root}/examples/")
     face = load(write_design(design_text), bag)
     assert face is not None, bag.render()
     assert face.fonts["clock"].monospace is False

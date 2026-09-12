@@ -29,9 +29,11 @@ palette:
 fonts:
   clock:
     source: assets/OpenSans-Regular.ttf
-    # Rasterised at this many pixels on the smallest target and scaled up for
-    # the 280x280 fenix 8 Solar 51 mm, so one declaration is right on both.
-    size: 68
+    # 52.3076923077%r is the exact equivalent of the old bare 'size: 68' --
+    # 68px on the smallest target (130px minor radius), expressed as a
+    # fraction of the screen's minor radius so it scales per device on its
+    # own (68 / 130 * 100).
+    size: 52.3076923077%r
     # 'glyphs' is omitted on purpose: the compiler derives the set from the
     # format specs below, so the sheet carries eleven glyphs, not a charset.
 

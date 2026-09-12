@@ -164,24 +164,22 @@ class Expression:
 class FontSpec:
     name: str
     source: Path
-    #: The declared size, in one of its two spellings.
+    #: The declared size, always a :class:`~wfb.units.Length`: `12px` is twelve
+    #: pixels on every device, `18%r` is a fraction of each device's own minor
+    #: radius.  Restricted to :data:`wfb.units.SIZE_UNITS` -- the same `px`/`%r`
+    #: an `icon`'s `size:` allows, and for the same reason (the sheet is
+    #: rasterised before any element is placed, so there is no parent box to
+    #: take a `%` of and no font in scope to take a `pt` of).
     #:
-    #: A bare number is the legacy form and keeps its exact meaning: em pixels
-    #: on the *reference* device (the smallest target), scaled per device when
-    #: :attr:`scale` is true.
-    #:
-    #: A :class:`~wfb.units.Length` is the newer, recommended one: `12px` is
-    #: twelve pixels on every device, `18%r` is a fraction of each device's own
-    #: minor radius.  Restricted to :data:`wfb.units.SIZE_UNITS` -- the same
-    #: `px`/`%r` an `icon`'s `size:` allows, and for the same reason (the sheet
-    #: is rasterised before any element is placed, so there is no parent box to
-    #: take a `%` of and no font in scope to take a `pt` of).  A `Length`
-    #: forbids :attr:`scale`, because its unit has already said whether the
-    #: number is per-device.
-    size: float | Length
+    #: There used to be a second spelling, a bare number meaning em pixels on
+    #: the *reference* device (the smallest target) scaled per device by a
+    #: `scale:` flag.  Removed: `%r` is that same transparent scaling, spelled
+    #: directly instead of through an unnamed reference screen, and `px` is
+    #: what `scale: false` used to give.  `Builder._font_size` is where a bare
+    #: number is now rejected, with the exact `%r` conversion.
+    size: Length
     glyphs: str | None
     antialias: bool
-    scale: bool
     span: Span | None
     #: Bake every glyph at one shared advance, so a clock does not shift as its
     #: digits change (`wfb.fonts.bmfont.bake`).
@@ -194,26 +192,13 @@ class FontSpec:
     def resource_id(self) -> str:
         return font_resource_id(self.name)
 
-    @property
-    def size_is_length(self) -> bool:
-        return isinstance(self.size, Length)
-
-    def pixel_size(self, minor_radius: float, reference_minor: float | None = None) -> int:
+    def pixel_size(self, minor_radius: float) -> int:
         """The nominal em size this font's sheet is rasterised at, on a device
-        whose screen has this minor radius.
-
-        ``reference_minor`` is the smallest target's minor radius, which the
-        legacy bare-number form scales against (`wfb.units.scaled_font_size`).
-        Pass ``None`` where no such reference is in scope -- `wfb.layout`'s
-        fallback for a font that was never baked -- and a bare number is taken
-        verbatim, exactly as it was before this method existed.  A `Length`
-        never needs it: its unit already says whether it is per-device.
+        whose screen has this minor radius.  The size is always a `Length`
+        now, so its own unit already says whether it is per-device -- there is
+        no reference device to consult any more.
         """
-        if isinstance(self.size, Length):
-            return units.pixel_size(self.size, minor_radius)
-        if self.scale and reference_minor is not None:
-            return units.scaled_font_size(self.size, minor_radius, reference_minor)
-        return round(self.size)
+        return units.pixel_size(self.size, minor_radius)
 
 
 # --------------------------------------------------------------------------
@@ -1356,27 +1341,14 @@ class Builder:
             if size is None:
                 self.rejected_fonts.add(name)
                 continue
-            scale = bool(spec.get("scale", True))
-            if isinstance(size, Length):
-                if "scale" in spec:
-                    self.bag.error(
-                        "font",
-                        f"font {name!r}: 'scale' cannot be combined with a size "
-                        f"given as a length ({size})",
-                        self.doc.span(spec, "scale"),
-                        notes=[
-                            "the unit already decides: 'px' is the same pixel count on "
-                            "every device, '%r' is a fraction of each device's own screen",
-                            "drop 'scale', or go back to a bare number for the "
-                            "reference-device-plus-scale-factor meaning",
-                        ],
-                    )
-                    self.rejected_fonts.add(name)
-                    continue
-                # Meaningless for a length, and left false so nothing downstream
-                # can consult it and get a "scaled" answer for a size that is
-                # already per-device by construction.
-                scale = False
+            # `scale:` is no longer a key the schema recognises at all -- it
+            # is only meaningful for the removed bare-number spelling, and
+            # `%r`/`px` each already say whether a length is per-device. A
+            # design still writing it gets the ordinary unknown-key schema
+            # error before this stage ever runs, the same "the rename shim is
+            # gone, this is just not a key any more" precedent `on_tap:` set
+            # (`tests/test_semantics.py::
+            # test_the_old_on_tap_spelling_is_now_an_ordinary_unknown_key`).
             monospace = bool(spec.get("monospace", False))
             if "align" in spec and not monospace:
                 self.bag.error(
@@ -1398,37 +1370,47 @@ class Builder:
                 size=size,
                 glyphs=spec.get("glyphs"),
                 # R5: a font with no `antialias:` of its own follows the
-                # face-wide default rather than a hardcoded False, exactly
-                # the same inherit-once-and-freeze a font's `size:` gets from
-                # its own `scale:` -- there is nothing further beneath a
-                # `fonts:` entry to inherit from, so this is resolved here,
-                # not deferred to a tree walk the way an element's is.
+                # face-wide default rather than a hardcoded False -- there is
+                # nothing further beneath a `fonts:` entry to inherit from, so
+                # this is resolved here, not deferred to a tree walk the way an
+                # element's is.
                 antialias=bool(spec.get("antialias", self.face_antialias)),
-                scale=scale,
                 span=span,
                 monospace=monospace,
                 align=str(spec.get("align", "center")),
             )
 
-    def _font_size(self, name: str, spec: dict) -> float | Length | None:
-        """`fonts.<name>.size`, in whichever of its two spellings was used.
+    def _font_size(self, name: str, spec: dict) -> Length | None:
+        """`fonts.<name>.size`, as a `Length`.
 
-        A bare number stays a `float` -- deliberately not normalised into a
-        `Length`, because the two mean genuinely different things: the number
-        is pixels *on the reference device* and is scaled from there, while
-        `12px` is twelve pixels everywhere.  Collapsing them would have to pick
-        one of those meanings and silently change every design written against
-        the other.
+        A bare number used to be a second, legacy spelling -- pixels on the
+        *smallest* target, scaled per device by the ratio of minor radii
+        (`scale: true`, the default) or taken verbatim (`scale: false`).  It
+        is rejected here, with the exact conversion named, rather than
+        accepted and silently reinterpreted: this stage of the compiler has
+        no device knowledge at all (the module docstring: "nothing here
+        knows a screen size"), so it cannot look up a target's minor radius
+        and hand back a computed number -- only the rule to apply by hand.
         """
         raw = spec["size"]
         if isinstance(raw, (int, float)) and not isinstance(raw, bool):
-            if float(raw) <= 0:
-                self.bag.error(
-                    "font", f"font {name!r}: size must be greater than zero",
-                    self.doc.span(spec, "size"),
-                )
-                return None
-            return float(raw)
+            self.bag.error(
+                "font",
+                f"font {name!r}: size must be a length such as '18%r' or "
+                f"'12px', not a bare number ({raw!r})",
+                self.doc.span(spec, "size"),
+                notes=[
+                    f"size: {raw!r} used to mean {raw!r}px on the smallest "
+                    "target, scaled per device by the ratio of minor radii "
+                    "-- the exact equivalent is (size / <smallest target's "
+                    "minor radius, in px> * 100)%r, e.g. 68 on a 130px minor "
+                    "radius (fenix8solar47mm, fr955) is 52.3076923077%r",
+                    "for the same pixel count on every device instead -- "
+                    "what 'scale: false' used to give you -- use 'px', "
+                    f"e.g. '{raw!r}px'",
+                ],
+            )
+            return None
         try:
             size = Length.parse(raw, what=f"font {name!r}: size")
         except UnitError as exc:

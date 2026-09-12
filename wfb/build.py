@@ -120,12 +120,11 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
     lint.check_permissions(face, bag)
     lint.check_lint_allow(face, bag)
 
-    reference_minor = min(d.minor_radius for d in devices)
     resolved: dict[str, ResolvedFace] = {}
     baked: dict[str, dict[str, BakedFont]] = {}
     for device in devices:
         try:
-            fonts = bake_fonts(face, device, reference_minor)
+            fonts = bake_fonts(face, device)
         except (OSError, ValueError) as exc:
             bag.error("font", f"{device.id}: {exc}")
             continue

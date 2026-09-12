@@ -127,23 +127,6 @@ def pixel_size(length: "Length | None", minor_radius: float, default: float = 24
                                        minor_radius=minor_radius)))
 
 
-def scaled_font_size(size: float, minor_radius: float, reference_minor: float) -> int:
-    """Scale a bare-number font size to this device's screen (ADR 0004 §3b).
-
-    The legacy spelling of `fonts.<name>.size`, kept exactly as it was: the
-    number is pixels on the *smallest* target and every larger screen gets it
-    scaled by the ratio of minor radii.  A sheet baked for 260x260 is wrong on
-    the 280x280 fenix 8 Solar 51 mm -- the drift the sibling Dashboard project
-    already has by hand.
-
-    `size: 18%r` says the same thing directly and per device, without the
-    reference screen having to be inferred from the target list, which is why
-    it is now the recommended spelling.  This one stays because designs are
-    written against it and its meaning must not move.
-    """
-    return max(6, round(size * (minor_radius / reference_minor)))
-
-
 @dataclass(frozen=True)
 class Angle:
     """Degrees, 12 o'clock = 0, clockwise positive."""

@@ -79,7 +79,7 @@ def resolved_for(write_design, bag, db):
         face = load(write_design(design), bag)
         assert face is not None, bag.render()
         device = db.get(device_id)
-        fonts = bake_fonts(face, device, device.minor_radius)
+        fonts = bake_fonts(face, device)
         return resolve(face, device, fonts)
 
     return _resolve
@@ -158,7 +158,7 @@ def test_explicit_z_overrides_document_order(write_design, bag, db):
     design = DESIGN.replace("  - id: background\n", "  - id: background\n    z: 5\n")
     face = load(write_design(design), bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     assert resolved.items[-1].id == "background"
 
 
@@ -173,11 +173,11 @@ def test_text_extent_comes_from_real_font_metrics(write_design, bag, db, repo_ro
     color: palette.fg
 """
     ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
-    design = design.replace("targets:", f"fonts:\n  clock:\n    source: {ttf}\n    size: 60\ntargets:")
+    design = design.replace("targets:", f"fonts:\n  clock:\n    source: {ttf}\n    size: 60px\ntargets:")
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     clock = find(resolved, "clock")
     assert clock.widest == "23:59"
     assert clock.width_is_estimated is False
@@ -195,7 +195,7 @@ def test_low_power_clip_is_the_tight_union(write_design, bag, db):
     )
     face = load(write_design(design), bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     clip = resolved.clip_for("low_power")
     assert clip is not None
     # Only the badge is low-power, so the clip must be tiny, not the screen.
@@ -242,14 +242,14 @@ def test_low_power_clip_ignores_a_wrapping_groups_box(write_design, bag, db):
     ungrouped_face = load(write_design(ungrouped), bag)
     assert ungrouped_face is not None, bag.render()
     ungrouped_resolved = resolve(
-        ungrouped_face, device, bake_fonts(ungrouped_face, device, device.minor_radius)
+        ungrouped_face, device, bake_fonts(ungrouped_face, device)
     )
     ungrouped_clip = ungrouped_resolved.clip_for("low_power")
 
     grouped_face = load(write_design(grouped), bag)
     assert grouped_face is not None, bag.render()
     grouped_resolved = resolve(
-        grouped_face, device, bake_fonts(grouped_face, device, device.minor_radius)
+        grouped_face, device, bake_fonts(grouped_face, device)
     )
     grouped_clip = grouped_resolved.clip_for("low_power")
 
@@ -309,7 +309,7 @@ elements:
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     status = find(resolved, "status")
     assert status.widest == "Not Available"
 
@@ -344,8 +344,7 @@ elements:
     sizes = {}
     for device_id in ("fenix8solar47mm", "fenix8solar51mm"):
         device = db.get(device_id)
-        reference = min(db.get(t).minor_radius for t in face.targets)
-        fonts = bake_fonts(face, device, reference)
+        fonts = bake_fonts(face, device)
         placed = find(resolve(face, device, fonts), "clock")
         sizes[device_id] = placed.font_px
     assert sizes == {"fenix8solar47mm": 23, "fenix8solar51mm": 25}
@@ -368,7 +367,7 @@ palette: {{bg: "#000000", fg: "#FFFFFF"}}
 fonts:
   clock:
     source: {ttf}
-    size: 40
+    size: 40px
 {extra}
 elements:
   - id: clock
@@ -380,7 +379,7 @@ elements:
 """, name=f"box-{abs(hash(extra))}.yaml"), bag)
         assert face is not None, bag.render()
         device = db.get("fenix8solar47mm")
-        fonts = bake_fonts(face, device, device.minor_radius)
+        fonts = bake_fonts(face, device)
         return find(resolve(face, device, fonts), "clock").box, fonts["clock"]
 
     proportional, _ = box("")

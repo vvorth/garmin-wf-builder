@@ -91,7 +91,7 @@ def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
 
     face = _face(text, write_design, bag)
     device = db.get(device_id)
-    return face, resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return face, resolve(face, device, bake_fonts(face, device))
 
 
 def _lint(text, write_design, db, device_id="fenix8solar47mm"):
@@ -523,7 +523,7 @@ def _view(text, write_design, db, device_id="fenix8solar47mm"):
     bag = Bag()
     face = _face(text, write_design, bag)
     device = db.get(device_id)
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     return emit_view(resolved).text
 
 
@@ -571,7 +571,7 @@ def test_only_color_scheme_no_colour_axes_still_gets_the_full_feature(write_desi
     from wfb.layout import resolve
 
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     delegate = emit_delegate(resolved).text
     assert "function onWatchFaceConfigEdited" in delegate
     assert "_view.applyConfig(settings);" in delegate
@@ -661,7 +661,7 @@ def test_preview_renders_at_the_default_scheme(write_design, db):
     bag = Bag()
     face = _face(DESIGN, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     image = render(resolved)
     assert image.size == (device.width * 2, device.height * 2)
 

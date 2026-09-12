@@ -54,7 +54,7 @@ def test_template_is_clean_on_every_target(tmp_path, bag, db, name):
         if device_id not in db.ids():
             continue
         device = db.get(device_id)
-        resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+        resolved = resolve(face, device, bake_fonts(face, device))
         lint.run(resolved, bag)
     noisy = [d for d in bag.items if d.severity.value in ("error", "warning")]
     assert not noisy, bag.render()
@@ -106,7 +106,7 @@ def test_example_is_clean_on_every_target(design, bag, db):
         if device_id not in db.ids():
             continue
         device = db.get(device_id)
-        resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+        resolved = resolve(face, device, bake_fonts(face, device))
         lint.run(resolved, bag)
     noisy = [d for d in bag.items if d.severity.value in ("error", "warning")]
     assert not noisy, bag.render()

@@ -63,7 +63,7 @@ def _project_files(write_design, bag, db, tmp_path, elements: str) -> dict[str, 
     face = load(write_design(DESIGN.format(elements=elements)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = bake_fonts(face, device, device.minor_radius)
+    baked = bake_fonts(face, device)
     project = generate(face, [device], tmp_path, {device.id: baked})
     return project.files()
 
@@ -146,7 +146,7 @@ def test_barrel_includes_weather_module_and_not_cache(write_design, bag, db):
     face = load(write_design(DESIGN.format(elements=ONE_ICON)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = bake_fonts(face, device, device.minor_radius)
+    baked = bake_fonts(face, device)
     resolved = resolve(face, device, baked)
     barrel = _barrel_for(face, resolved)
     assert "WfbWeather.mc" in barrel

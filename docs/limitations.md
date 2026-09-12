@@ -147,8 +147,8 @@ where that line goes.
 
 ### A font's `size:` cannot be `%` or `pt`, and is not normalised to ink height
 
-`fonts.<name>.size` takes a bare number or a `px`/`%r` length (`docs/format.md`
-§Fonts), and not the other two units the coordinate model has. This is a real
+`fonts.<name>.size` takes a `px`/`%r` length (`docs/format.md` §Fonts), and not
+the other two units the coordinate model has. This is a real
 restriction, and it is structural rather than an omission: a bitmap sheet is
 rasterised **before** any element is placed, so a `%` has no parent box to be a
 fraction of, and a `pt` — which is defined as a multiple of a font's own pixel

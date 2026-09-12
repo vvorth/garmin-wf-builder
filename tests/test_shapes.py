@@ -79,7 +79,7 @@ def resolved_for(write_design, bag, db):
         face = load(write_design(text), bag)
         assert face is not None, bag.render()
         device = db.get(device_id)
-        return resolve(face, device, bake_fonts(face, device, device.minor_radius))
+        return resolve(face, device, bake_fonts(face, device))
 
     return _resolve
 
@@ -93,8 +93,7 @@ def generated_for(write_design, bag, db):
         if not ids:
             pytest.skip("none of the design's targets are installed")
         devices = [db.get(d) for d in ids]
-        reference = min(d.minor_radius for d in devices)
-        baked = {d.id: bake_fonts(face, d, reference) for d in devices}
+        baked = {d.id: bake_fonts(face, d) for d in devices}
         return generate(face, devices, tmp, baked)
 
     return _generate

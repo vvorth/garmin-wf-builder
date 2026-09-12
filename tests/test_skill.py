@@ -99,7 +99,7 @@ def test_the_reference_card_is_a_valid_design(text, tmp_path, bag, db):
     for device_id in face.targets:
         if device_id in db.ids():
             device = db.get(device_id)
-            resolve(face, device, bake_fonts(face, device, device.minor_radius))
+            resolve(face, device, bake_fonts(face, device))
     assert bag.ok(), bag.render()
 
 

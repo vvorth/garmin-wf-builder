@@ -19,7 +19,7 @@ def resolved(repo_root, db, bag):
     face = load(design, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    return resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return resolve(face, device, bake_fonts(face, device))
 
 
 def test_preview_is_the_devices_own_size(resolved):
@@ -88,7 +88,7 @@ def test_a_progress_fallback_renders_the_same_fraction_the_device_draws(
     face = load(path, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     # No reading for either bound source: the fallback is the only thing left.
     options = PreviewOptions(scale=1, mask_shape=False,
                              sample={"activity.steps": None, "activity.step_goal": None})
@@ -140,7 +140,7 @@ elements:
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
 
     def colors_in(element_id: str) -> set:
@@ -198,7 +198,7 @@ def test_a_graph_actually_draws_something_in_every_style(write_design, bag, db, 
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
 
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
     fg = face.palette["fg"]
     colors = {pixel for pixel in image.get_flattened_data()}
@@ -215,7 +215,7 @@ def test_a_graphs_geometry_matches_its_resolved_box(write_design, bag, db):
         GRAPH_DESIGN.format(style="bars", style_key="bar_width: 4px")), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     placed = next(p for p in resolved.items if isinstance(p, PlacedGraph))
 
     image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
@@ -346,7 +346,7 @@ def _render_label(write_design, bag, db, content: str, sample: dict | None = Non
     face = load(write_design(_FLOAT_TEXT_DESIGN.format(content=content)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     return render(resolved, PreviewOptions(scale=1, mask_shape=False,
                                            quantise=False, sample=sample))
 

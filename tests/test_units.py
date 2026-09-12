@@ -6,7 +6,7 @@ import pytest
 
 from wfb.units import (
     ANCHORS, SIZE_UNITS, Angle, Axis, Box, Duration, IntBox, Length, UnitError,
-    pixel_size, scaled_font_size,
+    pixel_size,
 )
 
 
@@ -144,11 +144,3 @@ def test_size_units_are_exactly_the_context_free_ones():
     """`%` needs a parent box and `pt` needs a font, neither of which exists
     when a bitmap sheet is rasterised."""
     assert set(SIZE_UNITS) == {"px", "%r"}
-
-
-@pytest.mark.parametrize(
-    "size,minor_radius,reference,expected",
-    [(68, 130.0, 130.0, 68), (68, 140.0, 130.0, 73), (2, 130.0, 260.0, 6)],
-)
-def test_scaled_font_size_scales_by_minor_radius(size, minor_radius, reference, expected):
-    assert scaled_font_size(size, minor_radius, reference) == expected

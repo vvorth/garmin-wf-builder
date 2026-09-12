@@ -81,7 +81,7 @@ def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
 
     face = _face(text, write_design, bag)
     device = db.get(device_id)
-    return face, resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return face, resolve(face, device, bake_fonts(face, device))
 
 
 def _lint(text, write_design, db, device_id="fenix8solar47mm"):
@@ -504,7 +504,7 @@ def _view(text, write_design, db, tmp_path, device_id="fenix8solar47mm"):
     bag = Bag()
     face = _face(text, write_design, bag)
     device = db.get(device_id)
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     return emit_view(resolved).text
 
 
@@ -562,7 +562,7 @@ def test_the_delegate_gets_onwatchfaceconfigedited_and_a_view_field(write_design
     bag = Bag()
     face = _face(DESIGN, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     delegate = emit_delegate(resolved).text
     assert "private var _view as TestView;" in delegate
     assert "function onWatchFaceConfigEdited(options as {" in delegate
@@ -591,7 +591,7 @@ def test_a_design_with_no_config_gets_no_onwatchfaceconfigedited(write_design, d
     bag = Bag()
     face = _face(text, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     delegate = emit_delegate(resolved).text
     assert "onWatchFaceConfigEdited" not in delegate
     assert "WatchFaceConfig" not in delegate
@@ -661,7 +661,7 @@ def test_preview_renders_at_the_declared_defaults(write_design, db):
     bag = Bag()
     face = _face(DESIGN, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     image = render(resolved)
     assert image.size == (device.width * 2, device.height * 2)
 

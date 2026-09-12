@@ -82,7 +82,7 @@ def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
 
     face = _face(text, write_design, bag)
     device = db.get(device_id)
-    return face, resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return face, resolve(face, device, bake_fonts(face, device))
 
 
 def _lint(text, write_design, db, device_id="fenix8solar47mm"):
@@ -453,7 +453,7 @@ def test_icon_lookup_is_a_generated_method_not_an_inline_local(write_design, bag
 
     face = _face(DESIGN, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
     method = complication_slot_icon_method("top_reading")
     assert f"private function {method}(t as Complications.Type) as String?" in view
@@ -480,7 +480,7 @@ def test_hold_target_lookup_is_a_generated_public_method(write_design, bag, db):
     )
     face = _face(text, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
     method = complication_slot_hold_method("top_reading")
     assert f"function {method}() as Complications.Id" in view
@@ -534,7 +534,7 @@ def test_only_a_mapped_choice_appears_in_the_icon_switch(write_design, bag, db):
 
     face = _face(DESIGN, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
     assert "COMPLICATION_TYPE_STEPS: return \"steps\"" in view
     assert "COMPLICATION_TYPE_HEART_RATE: return \"heart\"" in view
@@ -548,7 +548,7 @@ def test_apply_config_matches_settings_by_unique_identifier(write_design, bag, d
 
     face = _face(DESIGN, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
     assert "settings.complicationSettings" in view
     assert "ref.uniqueIdentifier" in view
@@ -626,7 +626,7 @@ def test_preview_renders_without_crashing(write_design, bag, db):
 
     face = _face(DESIGN, write_design, bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     image = render(resolved)
     assert image.size == (device.width * 2, device.height * 2)
 
@@ -658,7 +658,7 @@ def test_a_design_with_no_slots_is_untouched_by_this_feature(write_design, bag, 
     assert not face.has_config
     assert monkeyc.complication_slots(face) == []
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     view = monkeyc.emit_view(resolved).text
     assert "Complications" not in view
     assert "complicationSettings" not in view

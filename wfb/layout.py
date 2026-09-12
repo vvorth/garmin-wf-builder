@@ -598,11 +598,8 @@ class Resolver:
 
         A real build always bakes every declared font, so this is the path a
         caller who resolved layout with an empty ``fonts`` dict takes -- a unit
-        test, or a geometry-only pass.  A `Length` size resolves exactly here,
-        since its unit already refers to this device; a bare number is taken
-        verbatim, because the reference device it would scale against is a
-        property of the *target list*, which is not in scope.  Unchanged from
-        before `size:` grew the `Length` spelling.
+        test, or a geometry-only pass.  `size:` is always a `Length` now, and
+        its unit already refers to this device, so it resolves exactly here.
         """
         return spec.pixel_size(self.minor_radius)
 

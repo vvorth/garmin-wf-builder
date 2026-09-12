@@ -542,7 +542,7 @@ as "the" target of a slot's hold, because there isn't one.
 fonts:
   clock:
     source: assets/OpenSans-Regular.ttf   # relative to the design file
-    size: 18%r                            # or 68, or 12px -- see below
+    size: 18%r                            # or 12px -- see below
     glyphs: "0123456789:"                 # optional -- see below
     antialias: false
     monospace: false                      # one cell width for every glyph
@@ -552,32 +552,37 @@ fonts:
 The compiler rasterises the TrueType source into a BMFont sheet at build time,
 per device.
 
-### `size:` has two spellings
+### `size:` is a `Length`
 
 | Written | Means | Per device |
 |---|---|---|
 | `size: 18%r` | 18% of **this device's own minor radius** | 23 px on a 260×260 screen, 25 px on a 280×280 one |
 | `size: 12px` | exactly twelve pixels | 12 px everywhere |
-| `size: 68` | 68 px **on the smallest target**, scaled from there by the ratio of minor radii | 68 px on 260×260, 73 px on 280×280 (unless `scale: false`) |
 
 **Prefer `%r`.** It says the thing a design actually means — "this font is a
 fixed fraction of the dial" — directly, per device, in the same unit `at:`,
-`radius:` and an `icon`'s `size:` already use. The bare number says it
-indirectly, by naming a size on a *reference* device the declaration never
-mentions: change the target list so a smaller screen joins it and every
-bare-number font in the design silently rebakes.
+`radius:` and an `icon`'s `size:` already use, and it scales transparently: a
+device joining or leaving the target list never changes what an existing
+device renders. `px` is for the rarer case where you deliberately want the
+same pixel count everywhere.
 
-The bare number is not deprecated and its meaning has not moved — designs are
-written against it, and `scale: false` still pins it to a literal pixel count
-on every device.
+There used to be a third way to write this — a bare number (`size: 68`),
+meaning pixels on the *smallest* target and scaled from there by the ratio of
+minor radii, plus a `scale:` key to turn that scaling off. Both are gone: `%r`
+*is* that scaling, spelled per device instead of through an unnamed reference
+screen, and `px` is what `scale: false` used to give you. `scale:` is no
+longer a recognised key at all (an ordinary unknown-key error). `size: 68` is
+a build error naming the conversion rule — `size / (smallest target's minor
+radius) * 100`, expressed as a `%r` length — since this stage of the compiler
+has no device knowledge to compute an actual number from; e.g. 68 on a 130 px
+minor radius (the fēnix 8 Solar 47 mm / fr955) is `52.3076923077%r`, carried to
+enough decimal places to bake to the identical pixel size on every device.
+Converting an old design by hand is mechanical and lossless, not a redesign.
 
 * **Only `px` and `%r` are allowed.** `%` is of a parent box and `pt` is of a
   font, and a sheet is rasterised before any element is placed — there is no box
   yet, and for a font's own size `pt` would be measuring against itself. Both
   are a build error naming `%r`.
-* **`scale:` may not be combined with a length.** The unit has already said
-  whether the size is per-device; `scale:` is only meaningful for the bare
-  number, which needs a reference device to scale away from.
 * **A font's declared size is the nominal em size**, handed to the rasteriser as
   written. It is deliberately *not* normalised to a measured ink height the way
   an `icon`'s `size:` is: an icon draws one glyph on its own, where ink height

@@ -152,8 +152,7 @@ def _generate(design: Path, db, tmp_path):
     assert face is not None, bag.render()
     devices = [db.get(d) for d in face.targets if d in db.ids()]
     assert len(devices) == 3, "this gate is about all three targets"
-    reference = min(d.minor_radius for d in devices)
-    baked = {d.id: bake_fonts(face, d, reference) for d in devices}
+    baked = {d.id: bake_fonts(face, d) for d in devices}
     return generate(face, devices, tmp_path, baked).files()
 
 

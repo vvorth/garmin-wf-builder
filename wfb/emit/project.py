@@ -60,7 +60,6 @@ def generate(face: Face, devices: list[Device], root: Path,
     """Build the project in memory.  :func:`write` puts it on disk."""
     from ..layout import resolve
 
-    reference_minor = min(d.minor_radius for d in devices)
     project = GeneratedProject(face=face, devices=devices, root=root)
 
     project.sources.append(monkeyc.emit_app(face))
@@ -75,7 +74,7 @@ def generate(face: Face, devices: list[Device], root: Path,
     for device in devices:
         fonts = (baked or {}).get(device.id)
         if fonts is None:
-            fonts = resources.bake_fonts(face, device, reference_minor)
+            fonts = resources.bake_fonts(face, device)
         resolved = resolve(face, device, fonts)
         project.resolved[device.id] = resolved
         project.sources.append(monkeyc.emit_layout(resolved))

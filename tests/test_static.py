@@ -133,8 +133,7 @@ def _generate(text, write_design, db, root):
     face = _face(text, write_design, Bag())
     devices = [db.get(d) for d in face.targets if d in db.ids()]
     assert len(devices) == 3, "this gate is about all three targets"
-    reference = min(d.minor_radius for d in devices)
-    baked = {d.id: bake_fonts(face, d, reference) for d in devices}
+    baked = {d.id: bake_fonts(face, d) for d in devices}
     return generate(face, devices, root, baked).files()
 
 
@@ -314,7 +313,7 @@ def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
 
     face = _face(text, write_design, bag)
     device = db.get(device_id)
-    return face, resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return face, resolve(face, device, bake_fonts(face, device))
 
 
 def _lint(text, write_design, db, device_id="fenix8solar47mm"):
@@ -523,7 +522,7 @@ def test_ir_draw_order_matches_the_resolved_one(design, bag, db):
         if device_id not in db.ids():
             continue
         device = db.get(device_id)
-        resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+        resolved = resolve(face, device, bake_fonts(face, device))
         assert [p.id for p in resolved.items if p.kind != "group"] == expected
 
 
@@ -538,7 +537,7 @@ def _view(text, write_design, db, tmp_path, device_id="fenix8solar47mm"):
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     device = db.get(device_id)
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    baked = {device.id: bake_fonts(face, device)}
     return generate(face, [device], tmp_path, baked).files()["source/TestView.mc"]
 
 
@@ -655,7 +654,7 @@ def test_the_graphics_pool_note_reports_the_estimate(write_design, db):
     bag = Bag()
     face = load(write_design(BLOCK_FORM), bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     lint.check_graphics_pool(resolved, bag)
     found = [d for d in bag.items if d.code == "graphics-pool"]
     assert len(found) == 1
@@ -682,7 +681,7 @@ def test_the_graphics_pool_check_warns_when_the_pool_is_small(write_design, db, 
     bag = Bag()
     face = load(write_design(BLOCK_FORM), bag)
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     monkeypatch.setattr(Device, "graphics_pool_bytes",
                         property(lambda self: 100 * 1024))
     lint.check_graphics_pool(resolved, bag)
@@ -705,7 +704,7 @@ def test_the_graphics_pool_warning_is_suppressible(write_design, db, monkeypatch
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    resolved = resolve(face, device, bake_fonts(face, device))
     monkeypatch.setattr(Device, "graphics_pool_bytes",
                         property(lambda self: 100 * 1024))
     lint.check_graphics_pool(resolved, bag)

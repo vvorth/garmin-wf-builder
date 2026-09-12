@@ -82,7 +82,7 @@ def _build(write_design, bag, db, tmp_path, elements: str):
     face = load(write_design(DESIGN.format(elements=elements)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
-    baked = bake_fonts(face, device, device.minor_radius)
+    baked = bake_fonts(face, device)
     project = generate(face, [device], tmp_path, {device.id: baked})
     return face, project
 

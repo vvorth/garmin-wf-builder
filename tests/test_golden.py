@@ -47,8 +47,7 @@ def generated(pytestconfig, slice_design, tmp_path_factory):
     if not ids:
         pytest.skip("none of the design's targets are installed")
     devices = [db.get(d) for d in ids]
-    reference = min(d.minor_radius for d in devices)
-    baked = {d.id: bake_fonts(face, d, reference) for d in devices}
+    baked = {d.id: bake_fonts(face, d) for d in devices}
     return generate(face, devices, tmp_path_factory.mktemp("build"), baked)
 
 
