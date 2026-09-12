@@ -3,6 +3,8 @@
 import pytest
 
 from tests.test_diagnostics import load
+from wfb import formatting
+from wfb.catalog import Type
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
@@ -259,3 +261,146 @@ def test_a_graphs_geometry_matches_its_resolved_box(write_design, bag, db):
     # wfb.layout resolved.
     for x in range(placed.box.x, placed.box.right):
         assert image.getpixel((x, placed.box.y - 2)) == (bg.r, bg.g, bg.b)
+
+
+# -- formatting.render parity -------------------------------------------------
+#
+# `wfb.formatting.render` is the host-side twin of `wfb.formatting.emit`: both
+# now walk the same tables (`parse`, `parse_time`, `_NUMERIC_SPEC_RE`), which is
+# what makes it impossible for `wfb preview` and the generated Monkey C to show
+# a different string for the same declaration. Before this, `wfb/preview.py`
+# had a *third*, hand-written ladder (`_render_numeric`/`_apply_spec`) that
+# fell back to plain `str(value)` whenever Python's `format()` did not like the
+# spec -- which is exactly what happens for `{:d}` on a Float, since
+# `format(8.5, 'd')` raises `ValueError`. Confirmed against the actual old
+# code before it was removed:
+#
+#     def _apply_spec(spec, value):
+#         if not spec:
+#             return str(value)
+#         try:
+#             return format(value, spec)
+#         except (ValueError, TypeError):
+#             return str(value)
+#
+#     _apply_spec('d', 8.5)               -> '8.5'   (WRONG: silent fallback)
+#     formatting.emit('{:d}', 'x', FLOAT)  -> 'x.toNumber().format("%d")' -> 8
+#
+# Each row below is (spec, value_type, value, values, expected) where
+# `expected` is *not* derived by running Python's `format()` -- it is the
+# device's own answer, worked out by hand from `_emit_numeric`/`_emit_time`/
+# `_emit_date`'s own Monkey C (`.toNumber()`, `.format("%...")`, string
+# concatenation), so a parity bug in `render` can't hide by agreeing with
+# itself.
+_TIME_VALUES = {"time.hour": 7, "time.minute": 5, "time.second": 9}
+_TIME_VALUES_12H = {**_TIME_VALUES, "device.is_24_hour": False}
+_DATE_VALUES = {"date.weekday": "Wed", "date.day": 3, "date.month": "Sep",
+                "date.month_number": 9, "date.year": 2026}
+
+PARITY_CASES = [
+    # -- the bug: {:d} on a Float must truncate like Monkey C's .toNumber(),
+    # not raise-and-fall-back-to-str() like Python's own format() does.
+    ("{:d}", Type.FLOAT, 8.5, None, "8"),
+    # truncation, not rounding: .toNumber() truncates toward zero, so 8.9 -> 8.
+    ("{:d}", Type.FLOAT, 8.9, None, "8"),
+    ("{:d}", Type.FLOAT, -8.9, None, "-8"),
+    ("{:d}", Type.NUMBER, 8, None, "8"),
+    ("{:02d}", Type.NUMBER, 3, None, "03"),
+    ("{:.1f}", Type.FLOAT, 3.14159, None, "3.1"),
+    # a written-out zero precision is still zero decimals, not the "precision
+    # or 1" default -- the regex group is the *string* "0", which is truthy.
+    ("{:.0f}", Type.FLOAT, 8.6, None, "9"),
+    ("{}", Type.NUMBER, 42, None, "42"),
+    ("{}", Type.FLOAT, 3.5, None, "3.5"),
+    ("{:s}", Type.NUMBER, 42, None, "42"),
+    # a literal suffix alongside the field.
+    ("{:d}%", Type.NUMBER, 87, None, "87%"),
+    ("{:%H:%M}", Type.TIME, None, _TIME_VALUES, "07:05"),
+    ("{:%h:%M}", Type.TIME, None, _TIME_VALUES, "07:05"),
+    ("{:%h:%M}", Type.TIME, None, _TIME_VALUES_12H, "7:05"),
+    ("{:%a %e %b}", Type.DATE, None, _DATE_VALUES, "Wed 3 Sep"),
+]
+
+
+@pytest.mark.parametrize("spec,value_type,value,values,expected", PARITY_CASES)
+def test_render_matches_the_devices_own_answer(spec, value_type, value, values, expected):
+    assert formatting.render(spec, value, value_type, values) == expected
+
+
+def test_the_bug_reproduces_against_the_old_apply_spec():
+    """Confirms the disagreement this task fixes, against the *old* logic
+    (kept here verbatim rather than re-imported, since the buggy function no
+    longer exists in `wfb/preview.py`) -- this is the red failure the fix
+    corrects, not a currently-passing assertion about `render`."""
+
+    def old_apply_spec(spec, value):
+        if not spec:
+            return str(value)
+        try:
+            return format(value, spec)
+        except (ValueError, TypeError):
+            return str(value)
+
+    assert old_apply_spec("d", 8.5) == "8.5"
+    assert formatting.emit("{:d}", "x", Type.FLOAT) == 'x.toNumber().format("%d")'
+    # The device truncates to 8; the fixed renderer must agree, not the old
+    # code's silent "8.5".
+    assert formatting.render("{:d}", 8.5, Type.FLOAT) == "8"
+    assert formatting.render("{:d}", 8.5, Type.FLOAT) != old_apply_spec("d", 8.5)
+
+
+def test_an_unparseable_numeric_spec_raises_rather_than_guessing():
+    """`render` mirrors `emit`'s own refusal instead of falling back to
+    `str(value)` -- the fallback is exactly the bug above, generalised."""
+    with pytest.raises(formatting.FormatError):
+        formatting.render("{:q}", 8.5, Type.FLOAT)
+
+
+# -- end to end: a Float formatted `{:d}` must preview as the device would --
+
+_FLOAT_TEXT_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: label
+    type: text
+    {content}
+    font: FONT_TINY
+    at: {{anchor: center}}
+    color: palette.fg
+"""
+
+
+def _render_label(write_design, bag, db, content: str, sample: dict | None = None):
+    face = load(write_design(_FLOAT_TEXT_DESIGN.format(content=content)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
+    return render(resolved, PreviewOptions(scale=1, mask_shape=False,
+                                           quantise=False, sample=sample))
+
+
+def test_preview_renders_8_not_8_5_for_a_float_formatted_d(write_design, bag, db):
+    """End to end: `system.battery` (Type.FLOAT) at 8.5, formatted `{:d}`,
+    must preview identically to the literal text "8" -- not "8.5" -- because
+    that is what `.toNumber().format("%d")` draws on the wrist. Comparing
+    whole images (rather than guessing at a bounding box) is exact: the same
+    font, size, colour and anchor render pixel-for-pixel identically for the
+    same string, and differently for a different one.
+    """
+    formatted = _render_label(
+        write_design, bag, db,
+        content='value: system.battery\n    format: "{:d}"',
+        sample={"system.battery": 8.5},
+    )
+    literal_8 = _render_label(write_design, bag, db, content='text: "8"')
+    literal_8_5 = _render_label(write_design, bag, db, content='text: "8.5"')
+
+    assert list(formatted.get_flattened_data()) == list(literal_8.get_flattened_data())
+    assert list(formatted.get_flattened_data()) != list(literal_8_5.get_flattened_data())

@@ -496,10 +496,9 @@ class _Renderer:
         if item.value is None:
             return ""
         spec = item.format or "{}"
-        if item.value.value.type is Type.TIME:
-            return _render_time(spec, self.values)
-        if item.value.value.type is Type.DATE:
-            return _render_date(spec, self.values)
+        value_type = item.value.value.type
+        if value_type in (Type.TIME, Type.DATE):
+            return formatting.render(spec, None, value_type, self.values)
         value = expr.evaluate(item.value.ast, self.values) if item.value.ast else None
         if value is None:
             if item.when_absent == "placeholder":
@@ -508,7 +507,7 @@ class _Renderer:
                 value = expr.evaluate(item.fallback.ast, self.values)
             if value is None:
                 return ""
-        return _render_numeric(spec, value)
+        return formatting.render(spec, value, value_type)
 
     def _complication_slot(self, placed: PlacedComplicationSlot) -> None:
         """A `complication_slot`, previewed at its slot's *default* choice.
@@ -605,10 +604,9 @@ class _Renderer:
         if element.value is None:
             return None
         spec = element.format or "{}"
-        if element.value.value.type is Type.TIME:
-            return _render_time(spec, self.values)
-        if element.value.value.type is Type.DATE:
-            return _render_date(spec, self.values)
+        value_type = element.value.value.type
+        if value_type in (Type.TIME, Type.DATE):
+            return formatting.render(spec, None, value_type, self.values)
         value = expr.evaluate(element.value.ast, self.values) if element.value.ast else None
         if value is None:
             if element.when_absent == "placeholder":
@@ -619,7 +617,7 @@ class _Renderer:
                     return None
             else:
                 return None
-        return _render_numeric(spec, value)
+        return formatting.render(spec, value, value_type)
 
     def _blit_bitmap_text(self, font: BakedFont, text: str, placed: PlacedText,
                           color: tuple[int, int, int]) -> None:
@@ -739,73 +737,6 @@ def _synthetic_series(n: int) -> list[float | None]:
         return []
     gap = n // 3 if n >= 6 else -1
     return [None if i == gap else 50.0 + 40.0 * math.sin(i * 0.6) for i in range(n)]
-
-
-def _render_time(spec: str, values: dict) -> str:
-    hour = int(values.get("time.hour", 10))
-    minute = int(values.get("time.minute", 9))
-    second = int(values.get("time.second", 0))
-    is24 = bool(values.get("device.is_24_hour", True))
-    out = ""
-    for part in formatting.parse_time(formatting._strip_braces(spec)):
-        if part.code is None:
-            out += part.text
-        elif part.code == "H":
-            out += f"{hour:02d}"
-        elif part.code == "I":
-            out += f"{(hour % 12) or 12:02d}"
-        elif part.code == "l":
-            out += f"{(hour % 12) or 12:d}"
-        elif part.code == "h":
-            out += f"{hour:02d}" if is24 else f"{(hour % 12) or 12:d}"
-        elif part.code == "M":
-            out += f"{minute:02d}"
-        elif part.code == "S":
-            out += f"{second:02d}"
-        elif part.code == "p":
-            out += "AM" if hour < 12 else "PM"
-    return out
-
-
-def _render_date(spec: str, values: dict) -> str:
-    out = ""
-    for part in formatting.parse_time(formatting._strip_braces(spec), formatting.DATE_CODES):
-        if part.code is None:
-            out += part.text
-        elif part.code == "a":
-            out += str(values.get("date.weekday", "Wed"))
-        elif part.code == "d":
-            out += f"{int(values.get('date.day', 3)):02d}"
-        elif part.code == "e":
-            out += f"{int(values.get('date.day', 3))}"
-        elif part.code == "b":
-            out += str(values.get("date.month", "Sep"))
-        elif part.code == "m":
-            out += f"{int(values.get('date.month_number', 9)):02d}"
-        elif part.code == "Y":
-            out += f"{int(values.get('date.year', 2026)):04d}"
-        elif part.code == "y":
-            out += f"{int(values.get('date.year', 2026)) % 100:02d}"
-    return out
-
-
-def _render_numeric(spec: str, value) -> str:
-    out = ""
-    for part in formatting.parse(spec):
-        if isinstance(part, formatting.Literal):
-            out += part.text
-        else:
-            out += _apply_spec(part.spec, value)
-    return out
-
-
-def _apply_spec(spec: str, value) -> str:
-    if not spec:
-        return str(value)
-    try:
-        return format(value, spec)
-    except (ValueError, TypeError):
-        return str(value)
 
 
 def _quantise_mip64(image: Image.Image) -> Image.Image:

@@ -16,6 +16,7 @@ builder should get it right once.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -182,7 +183,7 @@ def _emit_numeric(spec: str, value_code: str, value_type: Type) -> str:
 
 def _emit_time(spec: str, *, clock: str, settings: str) -> str:
     pieces: list[str] = []
-    for part in parse_time(_strip_braces(spec)):
+    for part in parse_time(strip_braces(spec)):
         if part.code is None:
             pieces.append(_quote(part.text))
         elif part.code == "H":
@@ -209,7 +210,7 @@ def _emit_date(spec: str, *, date: str) -> str:
     they need no conversion; the numeric fields do.
     """
     pieces: list[str] = []
-    for part in parse_time(_strip_braces(spec), DATE_CODES):
+    for part in parse_time(strip_braces(spec), DATE_CODES):
         if part.code is None:
             pieces.append(_quote(part.text))
         elif part.code == "a":
@@ -229,7 +230,7 @@ def _emit_date(spec: str, *, date: str) -> str:
     return " + ".join(pieces) if pieces else '""'
 
 
-def _strip_braces(spec: str) -> str:
+def strip_braces(spec: str) -> str:
     parts = parse(spec)
     for part in parts:
         if isinstance(part, Field):
@@ -240,6 +241,126 @@ def _strip_braces(spec: str) -> str:
 def _quote(text: str) -> str:
     escaped = text.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
+
+
+# --------------------------------------------------------------------------
+# host-side rendering: what `wfb preview` shows
+
+
+def render(spec: str, value, value_type: Type, values: dict | None = None) -> str:
+    """The host-side rendering of ``spec`` for ``value`` -- what `wfb preview`
+    draws in place of the Monkey C `emit` produces for the same declaration.
+
+    Shares `_emit_time`/`_emit_date`/`_emit_numeric`'s own tables and spec
+    parsing (`parse`, `parse_time`, `_NUMERIC_SPEC_RE`) rather than a second,
+    hand-written ladder, which is what makes this answer and the device's
+    unable to disagree -- the bug this function replaces was exactly that
+    disagreement: `{:d}` on a Float rendered `8.5` here and `8` on the wrist,
+    because Python's `format(8.5, 'd')` raises and the old code silently fell
+    back to `str(value)`.
+
+    ``values`` supplies the clock/date fields, by the same keys
+    `wfb.preview.SAMPLE` uses: ``time.hour``, ``time.minute``, ``time.second``,
+    ``device.is_24_hour``, ``date.weekday``, ``date.day``, ``date.month``,
+    ``date.month_number``, ``date.year`` -- read only when ``value_type`` is
+    TIME or DATE, so a numeric caller may omit it.
+
+    An unparseable numeric spec raises `FormatError`, the same as `emit`.
+    Every spec that reaches here has already passed `wfb.ir`'s
+    `_check_format` before either preview or codegen ever sees it, so this
+    should be unreachable in practice; raising rather than falling back to
+    `str(value)` keeps that invariant instead of letting a preview quietly
+    show something the device would never produce.
+    """
+    values = values or {}
+    if value_type is Type.DATE:
+        return _render_date(spec, values)
+    if value_type is Type.TIME:
+        return _render_time(spec, values)
+    return _render_numeric(spec, value)
+
+
+def _render_time(spec: str, values: dict) -> str:
+    hour = int(values.get("time.hour", 10))
+    minute = int(values.get("time.minute", 9))
+    second = int(values.get("time.second", 0))
+    is24 = bool(values.get("device.is_24_hour", True))
+    out = ""
+    for part in parse_time(strip_braces(spec)):
+        if part.code is None:
+            out += part.text
+        elif part.code == "H":
+            out += f"{hour:02d}"
+        elif part.code == "I":
+            out += f"{(hour % 12) or 12:02d}"
+        elif part.code == "l":
+            out += f"{(hour % 12) or 12:d}"
+        elif part.code == "h":
+            out += f"{hour:02d}" if is24 else f"{(hour % 12) or 12:d}"
+        elif part.code == "M":
+            out += f"{minute:02d}"
+        elif part.code == "S":
+            out += f"{second:02d}"
+        elif part.code == "p":
+            out += "AM" if hour < 12 else "PM"
+    return out
+
+
+def _render_date(spec: str, values: dict) -> str:
+    out = ""
+    for part in parse_time(strip_braces(spec), DATE_CODES):
+        if part.code is None:
+            out += part.text
+        elif part.code == "a":
+            out += str(values.get("date.weekday", "Wed"))
+        elif part.code == "d":
+            out += f"{int(values.get('date.day', 3)):02d}"
+        elif part.code == "e":
+            out += f"{int(values.get('date.day', 3))}"
+        elif part.code == "b":
+            out += str(values.get("date.month", "Sep"))
+        elif part.code == "m":
+            out += f"{int(values.get('date.month_number', 9)):02d}"
+        elif part.code == "Y":
+            out += f"{int(values.get('date.year', 2026)):04d}"
+        elif part.code == "y":
+            out += f"{int(values.get('date.year', 2026)) % 100:02d}"
+    return out
+
+
+def _render_numeric(spec: str, value) -> str:
+    out = ""
+    for part in parse(spec):
+        if isinstance(part, Literal):
+            out += part.text
+        else:
+            out += _render_numeric_field(part.spec, value)
+    return out
+
+
+def _render_numeric_field(spec: str, value) -> str:
+    """Mirror `_emit_numeric` field-for-field, so this can never show a digit
+    the device would not: same truncation for `{:d}` on a Float (Monkey C's
+    `.toNumber()` truncates toward zero, i.e. `math.trunc`, not `round`), same
+    zero/width handling, same `precision or 1` default -- including that a
+    written-out `0` precision (`{:.0f}`) stays zero decimals, since the regex
+    group is the *string* `"0"`, which is truthy.
+    """
+    if spec == "":
+        return str(value)
+    m = _NUMERIC_SPEC_RE.match(spec)
+    if not m:
+        raise FormatError(
+            f"{'{'}:{spec}{'}'} is not a supported format -- use {{:d}}, {{:02d}}, {{:.1f}} or {{}}"
+        )
+    kind = m.group("kind")
+    if kind == "s":
+        return str(value)
+    zero, width, precision = m.group("zero"), m.group("width"), m.group("precision")
+    flags = f"{'0' if zero else ''}{width or ''}"
+    if kind == "d":
+        return format(math.trunc(value), f"{flags}d")
+    return format(float(value), f"{flags}.{precision or 1}f")
 
 
 # --------------------------------------------------------------------------
@@ -257,13 +378,13 @@ def widest(spec: str, source: Source | None, value_type: Type,
     """
     if value_type is Type.DATE:
         out = ""
-        for part in parse_time(_strip_braces(spec), DATE_CODES):
+        for part in parse_time(strip_braces(spec), DATE_CODES):
             out += part.text if part.code is None else DATE_CODES[part.code][1]
         return out
 
     if is_time_spec(spec):
         out = ""
-        for part in parse_time(_strip_braces(spec)):
+        for part in parse_time(strip_braces(spec)):
             out += part.text if part.code is None else TIME_CODES[part.code][1]
         return out
 

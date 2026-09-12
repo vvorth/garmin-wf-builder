@@ -3430,7 +3430,7 @@ class Builder:
             # the wrong one silently renders nonsense (%M is minute, not month).
             codes = formatting.DATE_CODES if bound.value.type is Type.DATE else formatting.TIME_CODES
             try:
-                formatting.parse_time(formatting._strip_braces(spec), codes)
+                formatting.parse_time(formatting.strip_braces(spec), codes)
             except formatting.FormatError as exc:
                 self.bag.error("format", str(exc), span)
 
