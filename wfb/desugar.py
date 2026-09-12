@@ -30,11 +30,12 @@ the key that named it, and with the injected ``id`` key recorded in the body's
 own ``lc`` so ``doc.span(node, "id")`` -- which is what ``wfb/ir.py`` already
 calls for a duplicate id -- lands on the author's key rather than on nothing.
 
-Deliberately **not** rewritten: a ``carousel``'s ``items:``.  Those are slots,
-not elements; they have no id, and turning their (nonexistent) keys into ids
-would silently mangle a real design.  Only two places in the schema take a list
-of elements -- the top-level ``elements:`` and a ``group``'s ``children:`` --
-and this pass rewrites exactly those two.
+Only two places in the schema take a list of elements -- the top-level
+``elements:`` and a ``group``'s ``children:`` -- and this pass rewrites
+exactly those two, recursing only into a body whose ``type`` is ``group``. A
+non-element list field elsewhere in the format (e.g. a `shape: polygon`'s
+`points:`) is never touched, because nothing here scans for such fields --
+the recursion is keyed on `type: group`, not on any particular field name.
 
 The second rewrite is the top-level ``static:`` block:
 
@@ -192,8 +193,7 @@ def _rewrite(doc: YamlDocument, parent: Any, key: str, bag: Bag) -> bool:
             node = converted
     if isinstance(node, list):
         for body in node:
-            # A group is the only element that owns further elements.  A
-            # carousel's `items:` are slots and are left exactly as written.
+            # A group is the only element that owns further elements.
             if isinstance(body, dict) and body.get("type") == "group":
                 ok = _rewrite(doc, body, "children", bag) and ok
     return ok

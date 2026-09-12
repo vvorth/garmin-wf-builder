@@ -57,20 +57,3 @@ def test_the_barrel_never_embeds_a_raw_glyph():
     catalogue names, never a drawn character."""
     text = BARREL.read_text(encoding="utf-8")
     assert all(ord(c) < 128 for c in text), "WfbWeather.mc contains a non-ASCII character"
-
-
-# -- WfbCarousel ------------------------------------------------------------
-
-
-def test_the_carousel_barrel_wraps_and_clamps(repo_root):
-    """Two things the module is *for*, both easy to get subtly wrong by hand.
-
-    `step` must wrap at both ends -- Monkey C's `%` keeps the sign of its left
-    operand, so stepping back from 0 without the `+ count` gives -1 and reads
-    off the end of the generated switch.  `restore` must clamp, because a
-    rebuild with fewer items leaves a stored index past the end.
-    """
-    source = (repo_root / "runtime-lib" / "WfbCarousel.mc").read_text(encoding="utf-8")
-    assert "(index + direction + count) % count" in source
-    assert "stored < 0 || stored >= count" in source
-    assert "instanceof Number" in source

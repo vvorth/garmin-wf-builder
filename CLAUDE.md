@@ -464,6 +464,17 @@ dependency order:
    note below, `docs/format.md`'s `carousel` section, and
    `examples/carousel/`.
 
+   **Superseded: this element was removed, see below.** `type: carousel`
+   shipped, worked, and was later deleted outright on the user's decision —
+   it was the largest single feature by surface area and the only element
+   opting out of nearly every shared mechanism (own touch model, own
+   runtime barrel, own absence rule, own font path, own layout-box
+   distinction, own lint check, hard exclusions from `static:`/`antialias:`,
+   and the only element that persisted state — which leaks between the
+   wearer's four saved configurations, per research 09 §5.4, with no fix
+   available). See the deletion session note near the end of this section
+   and `docs/adr/0006-configuration-theming-and-modes.md`'s fifth amendment.
+
    Still missing from §6: the *other* half of `complication_slot` — a slot
    whose **type** the wearer changes in the on-device editor, which needs the
    `config:` block (item 4 above), not this.
@@ -1346,6 +1357,13 @@ reproduced, and the research overturned a shipped feature.**
 `docs/research/07-carousel-interaction.md` is the document; the probe that
 backs it is `docs/research/probes/carousel/`. Read §1 before touching anything
 interactive.
+
+**Superseded: the element this session and the next one built,
+`type: carousel`, was later removed outright — see the deletion session note
+near the end of this section and `docs/adr/0006-configuration-theming-and-
+modes.md`'s fifth amendment.** The research itself is unaffected and still
+load-bearing (§1's `onTap` finding drives every element's `on_hold:` today);
+only the cycling element built on top of it is gone.
 
 The headline: **`WatchFaceDelegate.onTap` never fires on a live watch face, on
 any device.** Its SDK entry carries the sentence "Only available in WatchFace
@@ -2251,6 +2269,111 @@ freed enough to continue, and `/etc/sandbox-persistent.sh` now sets
 `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPYCACHEPREFIX=/tmp/pycache` so the
 repo stops accumulating bytecode. The underlying 19 GB is on the host side of
 the mount, outside the sandbox.
+
+**A session deleted `type: carousel` entirely, on the user's explicit
+decision — not a deprecation: no compatibility shim, no `-renamed` error, no
+schema remnant.** A design using `carousel` now fails with the ordinary
+"unknown element type" schema error, the same as any other invented type.
+See `docs/adr/0006-configuration-theming-and-modes.md`'s fifth amendment for
+the decision record, and every carousel paragraph earlier in this Phase 3
+section now carries a "**Superseded: this element was removed, see below**"
+marker rather than being deleted — the reasoning behind building it in the
+first place is still instructive, the same precedent the `on_tap:`→
+`on_hold:` correction and the refresh-tier deletion both set.
+
+Why it went: it was the largest single feature by surface area, and it opted
+out of nearly every shared mechanism the rest of the compiler gives every
+element for free — its own touch model (three coordinate zones off
+`ClickEvent.getCoordinates()` rather than a plain `on_hold:` target), its own
+runtime barrel file (`WfbCarousel.mc`), its own absence rule (the only
+element that skipped the ordinary element-level null guard, applying each
+item's `when_absent:` inside its own `case` instead), its own font
+resolution path (`value_font:`, resolved separately from every other
+element's `font:`), its own layout-box distinction (`PlacedCarousel.
+content_box` vs. `box`, which existed only so the safe-area lint would not
+fire on a deliberately oversized touch region), its own lint check
+(`carousel-zone`/`_outer_zones`/`MIN_ZONE_WIDTH`), and hard exclusions from
+`static:` and from element-level `antialias:`. It was also the only element
+that persisted state, and `docs/research/09-data-library-and-config-axes.md`
+§5.4 already established that `Application.Storage` is **global across all
+four of the wearer's saved configurations** — so the selected item leaked
+between saved faces on a real device, a genuine behavioural wart with no fix
+available on this platform.
+
+What came out, measured by `git diff --stat`: **38 files touched, roughly
+1,900 net lines removed** (363 insertions, 2,265 deletions) — the single
+largest deletion this project has made. `wfb/ir.py` lost `Carousel`/
+`CarouselItem`, `_build_carousel`/`_carousel_item`/`_check_item_absence`/
+`_resolve_carousel_font`, the `carousel_step_method`/`carousel_index_field`/
+`carousel_slide_field`/`carousel_slide_done_method` symbol derivers, and the
+`carousel-on-hold` check (381 lines). `wfb/layout.py` lost `PlacedCarousel`/
+`PlacedCarouselItem`, `_resolve_carousel`, `_carousel_value_font`,
+`_carousel_item_widest`, and the `content_box` special case in
+`inside_visible_area_for` (178 lines — `content_box` had no other user, so it
+is gone outright, not narrowed). `wfb/emit/monkeyc.py` lost `_emit_carousel`,
+`_emit_carousel_glyph_switch`, `_emit_carousel_item_text`,
+`_emit_carousel_fields`, `_emit_carousel_step`, `_emit_carousel_zones`,
+`carousels()`, and every carousel term in `needs_delegate`,
+`launches_a_glance`, the delegate's `_view` field condition (now `has_config`
+alone, since a `complication_slot`'s slot_pairs are non-empty only when
+`config_data` is), and the sleep-flag condition (now `always_on` alone, since
+only the carousel's animation needed the sleep guard independent of
+`always_on`). `wfb/lint.py` lost `check_carousel_zones`, `_outer_zones`, and
+`MIN_ZONE_WIDTH`, and `carousel`/`carousel-zone`/`carousel-on-hold` came out
+of `SUPPRESSIBLE`/`ALL_CODES`. `runtime-lib/WfbCarousel.mc` is deleted
+outright, not deprecated. `examples/carousel/` is gone; `examples/
+complications/face.yaml`, which used to demonstrate a carousel item's
+`launch: auto`, was rewritten to demonstrate the same `on_hold:`/`auto`
+resolution on a plain `text` element instead, since that mechanism survives
+carousel's removal untouched. `schema/wfb-face-1.schema.json`'s
+`$defs/carouselElement` and its branch in `$defs/element` are gone; the
+schema-hygiene tests (`test_every_schema_def_is_referenced` and the
+common-properties-are-`$ref`s one) both still pass, confirming no `$defs`
+entry was left orphaned.
+
+One real design decision fell out of the deletion rather than being an
+afterthought: `wfb/emit/monkeyc.py`'s `_view` field on the delegate used to
+be conditioned on `has_carousel or has_config`; since a `complication_slot`
+element can only exist when a `config: data:` slot declares it (which
+already sets `face.has_config`), dropping `has_carousel` and keeping
+`has_config` alone is not a narrowing — `slot_pairs` (the complication_slot
+editor machinery) was already implied by `has_config` before this session,
+confirmed by re-reading `_build_complication_slot`'s own validation rather
+than assumed.
+
+Test fallout, all handled per CLAUDE.md's existing rule ("delete the
+carousel-specific ones; do not weaken tests that merely mention it in
+passing"): whole tests deleted across `tests/test_semantics.py` (the entire
+`carousel:` section, ADR 0006 §6), `test_lint.py` (the "carousel zones"
+section and the complication-gating-via-carousel-item test),
+`test_visibility.py`, `test_static.py`, `test_preview.py`, and
+`test_weather_barrel.py` (`WfbCarousel.mc`'s own drift test, since the file
+it tested is gone); `tests/test_desugar.py`'s fixtures and discriminator
+tests were rewritten to use a plain non-group element instead of a carousel
+to prove the same "not every list field is a list of elements" point, since
+that was never actually about carousels specifically — the rewrite recurses
+only into a body whose `type` is `group`, so any other element type proves
+the same thing; `tests/test_catalog.py`'s `FIXED_ELEMENT_METHOD_LOCALS`
+dropped `item`/`x`/`valueFont`/`glyphFont`, the four reserved names that
+existed solely for carousel-emitted code and are no longer written anywhere.
+Passing mentions in docstrings and comments (in `test_antialias_primitives.py`,
+`test_complication_slot.py`, `test_config.py`, `test_color_scheme.py`, and
+several `wfb/` modules) were reworded rather than deleted, since the tests
+and code themselves test something else and merely used carousel as the
+illustrative example.
+
+Verification: `pytest -m "not slow"` is 897 passed, 5 failed -- the same five
+pre-existing baseline failures this file already documents, no more; the
+`slow` tests covering `slice`/`complications`/`config` example compilation,
+plus the two tests this session's rewrites touch directly
+(`test_a_plain_hold_design_compiles_without_warnings`,
+`test_the_two_forms_compile_to_identical_prg_files`), all pass -- the full
+`slow` suite was not re-run in this session; `wfb validate` and `wfb build
+--no-compile` both still work on `examples/slice/` and `examples/
+complications/`; a real `monkeyc` build of `examples/complications/` (its
+carousel section replaced with an equivalent `text` element demonstrating
+the same `on_hold:`/`auto` resolution) is `BUILD SUCCESSFUL` and
+warning-free, measured, on all three targets.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 

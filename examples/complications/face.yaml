@@ -1,7 +1,7 @@
 # Demonstrates the surface added when the refresh-tier concept was deleted
 # and Complications became a full 42-type data-source namespace: two
-# `complication.*` bindings, `on_hold: auto` resolving a launch target from
-# an element's own value, and a carousel item using `launch: auto` too.
+# `complication.*` bindings, and `on_hold: auto` resolving a launch target
+# from an element's own value.
 #
 # Build it with:  ./wfb.py build examples/complications/face.yaml
 #
@@ -125,39 +125,21 @@ elements:
     when_absent: placeholder
     placeholder: "--"
 
-  # -- a carousel, with 'launch: auto' on one item ---------------------------
-  data:
-    type: carousel
+  # -- steps: a direct read, with an explicit (not 'auto') launch target -----
+  steps_icon:
+    type: icon
+    icon: steps
     at: { anchor: center, dy: 26% }
-    size: { width: 52%, height: 20% }   # the TOUCH target, not the drawn extent
-    pitch: 32%r
-    slots: 3
-    icon_size: 16%r
+    size: 12%r
     color: palette.accent
-    inactive_color: palette.dim
-    value_font: FONT_XTINY
-    value_color: palette.fg
-    value_offset: { anchor: center, dy: 55% }
-    animate: 0.3
-    items:
-      # 'activity.calories' has a conventional launch target ('calories'),
-      # so 'auto' resolves it the same way 'on_hold: auto' does above --
-      # scoped to this one item, not the carousel as a whole (a carousel
-      # element cannot itself take 'on_hold:').
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: fallback
-        fallback: "0"
-        launch: auto           # resolves to 'calories'
 
-      - value: activity.steps
-        format: "{:d}"
-        when_absent: placeholder
-        placeholder: "--"
-        launch: steps           # named explicitly, for contrast with 'auto'
-
-      # No 'launch:': a hold on the centre zone while this item is selected
-      # consumes the touch and opens nothing.
-      - icon: battery
-        value: system.battery
-        format: "{:.0f}%"
+  steps_value:
+    type: text
+    value: activity.steps
+    format: "{:d}"
+    font: FONT_XTINY
+    at: { anchor: center, dy: 37% }
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+    on_hold: steps             # named explicitly, for contrast with 'auto'

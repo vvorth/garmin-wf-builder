@@ -329,7 +329,7 @@
       }
     },
     "complicationRef": {
-      "description": "A reference to a 'wfb.complications' type, accepted from a 'config: data:' slot's own 'default:'/'choices:' -- the same table 'on_hold:' and a carousel item's 'launch:' resolve against (run 'wfb complications' for the full list).",
+      "description": "A reference to a 'wfb.complications' type, accepted from a 'config: data:' slot's own 'default:'/'choices:' -- the same table 'on_hold:' resolves against (run 'wfb complications' for the full list).",
       "type": "string",
       "pattern": "^complication\\.[A-Za-z_][A-Za-z0-9_]*$"
     },
@@ -596,9 +596,6 @@
         },
         {
           "$ref": "#/$defs/iconElement"
-        },
-        {
-          "$ref": "#/$defs/carouselElement"
         },
         {
           "$ref": "#/$defs/graphElement"
@@ -1082,145 +1079,6 @@
         }
       ]
     },
-    "carouselElement": {
-      "type": "object",
-      "required": [
-        "id",
-        "type",
-        "items"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/identifier"
-        },
-        "type": {
-          "const": "carousel"
-        },
-        "items": {
-          "description": "The data items, in rotation order. At least two.",
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "icon": {
-                "description": "A name from the built-in icon catalogue, or any single glyph from the vendored icon font. Omit it and the conventional icon for `value:`'s data source is used, where the catalogue has one.",
-                "type": "string"
-              },
-              "glyph": {
-                "description": "A codepoint the catalogue does not name, written \"U+XXXX\". Mutually exclusive with icon.",
-                "type": "string",
-                "pattern": "^[Uu]\\+[0-9A-Fa-f]{1,6}$"
-              },
-              "value": {
-                "$ref": "#/$defs/expression"
-              },
-              "format": {
-                "type": "string"
-              },
-              "when_absent": {
-                "enum": [
-                  "hide",
-                  "placeholder",
-                  "fallback"
-                ],
-                "description": "Required when `value:` can be absent. On a carousel item 'hide' blanks this item's reading and leaves its icon drawn; the row does not collapse."
-              },
-              "placeholder": {
-                "type": "string"
-              },
-              "fallback": {
-                "$ref": "#/$defs/expression"
-              },
-              "launch": {
-                "description": "A complication type this item's centre-hold opens (`wfb complications`). Omit it and a centre-hold on this item does nothing. Also accepts 'auto': resolved at build time from this item's own value: binding via Source.launch_complication, scoped to this one item -- not the carousel as a whole -- erroring if that binding resolves no conventional target or more than one.",
-                "type": "string"
-              }
-            }
-          }
-        },
-        "size": {
-          "$ref": "#/$defs/size"
-        },
-        "pitch": {
-          "$ref": "#/$defs/length",
-          "description": "Centre-to-centre spacing between slots."
-        },
-        "slots": {
-          "description": "How many items are drawn at once: 1 shows only the selected one, 3 and 5 show its neighbours dimmed.",
-          "enum": [
-            1,
-            3,
-            5
-          ]
-        },
-        "icon_size": {
-          "$ref": "#/$defs/length",
-          "description": "Visual height of every item's icon. px or %r only."
-        },
-        "color": {
-          "$ref": "#/$defs/colorExpression",
-          "description": "The selected item's icon colour. Must not be nullable."
-        },
-        "inactive_color": {
-          "$ref": "#/$defs/colorExpression",
-          "description": "The neighbouring items' colour. Defaults to `color`, which draws the row flat."
-        },
-        "value_font": {
-          "description": "A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...), for the selected item's reading.",
-          "type": "string"
-        },
-        "value_color": {
-          "$ref": "#/$defs/colorExpression"
-        },
-        "value_offset": {
-          "$ref": "#/$defs/position",
-          "description": "Where the selected item's reading is drawn, relative to the carousel's own box."
-        },
-        "animate": {
-          "description": "Seconds the slide runs. 0 disables it. Skipped while the watch is asleep either way -- WatchUi.animate crashes the app in low power mode.",
-          "type": "number",
-          "minimum": 0,
-          "maximum": 2
-        },
-        "persist": {
-          "description": "Remember the selection across restarts, in Application.Storage.",
-          "type": "boolean"
-        },
-        "at": {
-          "$ref": "#/$defs/position"
-        },
-        "modes": {
-          "$ref": "#/$defs/modes"
-        },
-        "z": {
-          "$ref": "#/$defs/zOrder"
-        },
-        "on_tap": {
-          "$ref": "#/$defs/onTapRemoved"
-        },
-        "on_hold": {
-          "$ref": "#/$defs/onHold"
-        },
-        "visible": {
-          "$ref": "#/$defs/visible"
-        },
-        "static": {
-          "$ref": "#/$defs/staticFlag"
-        },
-        "antialias": {
-          "$ref": "#/$defs/antialias"
-        },
-        "lint": {
-          "$ref": "#/$defs/lint"
-        },
-        "overrides": {
-          "$ref": "#/$defs/overrides"
-        }
-      }
-    },
     "graphElement": {
       "type": "object",
       "required": [
@@ -1431,11 +1289,11 @@
     },
     "staticFlag": {
       "default": false,
-      "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a carousel may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, and every element in a static subtree must declare the same 'modes:'. Static content is always drawn first, wherever it is written: the buffer is opaque and full-screen, so nothing can be under it, and the compiler hoists it to the front of draw order rather than rejecting the design -- where that swaps two overlapping elements round it warns (suppressible 'static-overlap'). See docs/format.md and docs/research/probes/static-buffer/.",
+      "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a graph or complication_slot may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, and every element in a static subtree must declare the same 'modes:'. Static content is always drawn first, wherever it is written: the buffer is opaque and full-screen, so nothing can be under it, and the compiler hoists it to the front of draw order rather than rejecting the design -- where that swaps two overlapping elements round it warns (suppressible 'static-overlap'). See docs/format.md and docs/research/probes/static-buffer/.",
       "type": "boolean"
     },
     "antialias": {
-      "description": "Override the face-wide 'antialias:' default for this element. On a 'group' this is also the default for its whole subtree -- not a conjunction the way 'visible:' is, so a descendant's own 'antialias:' still wins outright over its group's. On 'shape' and 'progress' this flags the element's own Dc primitive drawing; on 'icon' and a 'carousel''s per-item icons it flags the baked icon font -- two mechanisms gated in two different ways by the SDK (a resource attribute for a font, a runtime Dc call for a primitive), so they share this one key but not an implementation. Not accepted on 'text': a text element draws through a font declared in 'fonts:', one bitmap resource shared by every element that references it, so anti-aliasing cannot vary per element -- put it on that font's own 'antialias:' instead.",
+      "description": "Override the face-wide 'antialias:' default for this element. On a 'group' this is also the default for its whole subtree -- not a conjunction the way 'visible:' is, so a descendant's own 'antialias:' still wins outright over its group's. On 'shape' and 'progress' this flags the element's own Dc primitive drawing; on 'icon' it flags the baked icon font -- two mechanisms gated in two different ways by the SDK (a resource attribute for a font, a runtime Dc call for a primitive), so they share this one key but not an implementation. Not accepted on 'text': a text element draws through a font declared in 'fonts:', one bitmap resource shared by every element that references it, so anti-aliasing cannot vary per element -- put it on that font's own 'antialias:' instead.",
       "type": "boolean"
     },
     "overrides": {

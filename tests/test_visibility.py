@@ -418,33 +418,6 @@ def test_preview_applies_a_group_condition_to_the_subtree(write_design, bag, db)
 # -- other element kinds ----------------------------------------------------
 
 
-CAROUSEL = """
-  - id: row
-    type: carousel
-    at: {anchor: center}
-    size: {width: 90%, height: 25%}
-    pitch: 28%
-    color: palette.fg
-    visible: "not device.do_not_disturb"
-    items:
-      - value: activity.steps
-        format: "{:d}"
-        when_absent: hide
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: hide
-"""
-
-
-def test_a_carousel_is_hidden_as_a_whole(write_design, bag, db, tmp_path):
-    """A carousel deliberately skips the *element-level null* guard (one absent
-    reading blanks one slot), but `visible:` is about the row, not a reading,
-    so it lands before that early return like it does everywhere else."""
-    view = _view(write_design, bag, db, tmp_path, CAROUSEL)
-    body = view.split("private function drawRow")[1]
-    assert body.index("// visible: not device.do_not_disturb") < body.index("switch")
-
-
 def test_visible_works_on_a_shape_and_an_icon(write_design, bag, db, tmp_path):
     view = _view(write_design, bag, db, tmp_path, """
   - id: dot
@@ -475,7 +448,7 @@ def test_the_generated_doc_comment_says_when_the_element_draws(
             "(absent readings count as hidden).") in view
 
 
-@pytest.mark.parametrize("kind", ["group", "shape", "text", "progress", "icon", "carousel", "graph"])
+@pytest.mark.parametrize("kind", ["group", "shape", "text", "progress", "icon", "graph"])
 def test_the_schema_offers_visible_on_every_element_type(repo_root, kind):
     import json
 

@@ -91,7 +91,7 @@ PROGRESS_STYLE_KEYS = {
 
 #: The element types this format version understands.
 ELEMENT_TYPES = (
-    "group", "shape", "text", "progress", "icon", "carousel", "graph", "complication_slot",
+    "group", "shape", "text", "progress", "icon", "graph", "complication_slot",
 )
 
 #: Names authors reach for that belong to a discriminated pair, or to another

@@ -350,12 +350,9 @@ def test_renamed_to_helper():
 #:     icon's baked font) -- never both in one element, but both are this
 #:     same kind of scope.
 #:   - "text": `_emit_text`'s `when_absent: placeholder`/`fallback`
-#:     branches, and `_emit_carousel`'s own selected-item reading.
+#:     branches.
 #:   - "fraction": `_emit_progress`'s `when_absent: fallback` branch.
 #:   - "filled": `_emit_progress`'s rectangle-style fill width.
-#:   - "item", "x": `_emit_carousel`'s per-slot loop (`element.slots > 1`).
-#:   - "valueFont": `_emit_carousel`'s centred reading's font.
-#:   - "glyphFont": `_emit_carousel_glyph_switch`'s per-item icon font.
 #: A future catalogue entry landing on one of these would be exactly the
 #: same class of `Redefinition of variable` this test exists to catch,
 #: just against a name the emitter chose rather than one another catalogue
@@ -363,7 +360,7 @@ def test_renamed_to_helper():
 #: literal `var` scattered across a helper this list doesn't cover), that is
 #: a real gap in this guard -- see this test's own docstring.
 FIXED_ELEMENT_METHOD_LOCALS = {
-    "dc", "font", "text", "fraction", "filled", "item", "x", "valueFont", "glyphFont",
+    "dc", "font", "text", "fraction", "filled",
 }
 
 

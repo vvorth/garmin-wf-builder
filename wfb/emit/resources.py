@@ -24,7 +24,7 @@ from ..devices import Device
 from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
 from ..ir import (
-    CONFIG_SYMBOL, Carousel, ComplicationSlot, Face, FontSpec, IconElement, Text,
+    CONFIG_SYMBOL, ComplicationSlot, Face, FontSpec, IconElement, Text,
     config_data_ids, config_label_id, config_style_label_id,
 )
 from ..palette import Color
@@ -90,27 +90,6 @@ def glyph_set(face: Face) -> dict[str, str]:
                 bucket |= set(_COMPLICATION_TEXT_ALPHABET)
             if element.unit:
                 bucket |= set("".join(complications.UNIT_SUFFIX.values()))
-            continue
-        if isinstance(element, Carousel) and element.value_font_is_custom:
-            # A carousel draws one item's reading at a time, but any of them
-            # could be selected, so the font has to carry every item's glyphs.
-            bucket = needed.setdefault(element.value_font, set())
-            for item in element.items:
-                if item.value is None:
-                    continue
-                source = catalog.get(item.value.sources[0]) if item.value.sources else None
-                spec = item.format or "{}"
-                bucket |= formatting.glyphs(spec, source, item.value.value.type,
-                                            item.value.scale)
-                if item.placeholder:
-                    bucket |= set(item.placeholder)
-                if item.when_absent == "fallback" and item.fallback is not None:
-                    fb = item.fallback
-                    if fb.value.type is catalog.Type.STRING and fb.constant is not None:
-                        bucket |= set(str(fb.constant))
-                    else:
-                        fb_source = catalog.get(fb.sources[0]) if fb.sources else None
-                        bucket |= formatting.glyphs(spec, fb_source, fb.value.type, fb.scale)
             continue
         if not isinstance(element, Text) or not element.font_is_custom:
             continue
@@ -203,20 +182,6 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
             key = icons.font_key(element.icon_size, f"slot_{element.slot}",
                                  element.resolved_antialias)
             by_key[key] = (element.icon_size, glyphs, reference, element.resolved_antialias)
-            continue
-        if isinstance(element, Carousel):
-            # Every item's glyph, each in its own single-glyph font for the
-            # same per-codepoint bake-size reason a standalone icon has: the
-            # aggregated icon sets pad glyphs differently inside the em-square,
-            # so one nominal size does not give them all the same ink height.
-            # `element.resolved_antialias` is one flag for the whole carousel
-            # -- there is no per-item `antialias:` in the format -- so every
-            # item's font is baked with it.
-            for item in element.items:
-                key = icons.font_key(element.icon_size, item.codepoint,
-                                     element.resolved_antialias)
-                by_key[key] = (element.icon_size, item.codepoint, item.codepoint,
-                               element.resolved_antialias)
             continue
         if not isinstance(element, IconElement):
             continue

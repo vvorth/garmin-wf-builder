@@ -545,7 +545,7 @@ def test_applyconfig_reads_styleid_and_dispatches(write_design, db):
     assert "settings.styleId" in apply_config
     assert "resolveColorScheme(" in apply_config
     # range-checked, not trusted -- a rebuild with fewer schemes can leave a
-    # saved id past the end (the same reasoning WfbCarousel.restore uses).
+    # saved id past the end.
     assert ">= 0" in apply_config and "< 2" in apply_config
 
 

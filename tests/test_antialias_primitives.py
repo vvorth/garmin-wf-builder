@@ -195,9 +195,9 @@ def test_an_element_overriding_true_under_a_false_default_toggles_around_its_own
     assert "applyAntiAlias(dc, false);" in on_update  # the face default, reset once
 
 
-def test_text_icon_and_carousel_never_emit_antialias_calls(write_design, db, tmp_path):
-    """Only `shape` and `progress` draw primitives; `text`/`icon`/`carousel`
-    draw glyphs, whose anti-aliasing is the font-baking half Task A already
+def test_text_and_icon_never_emit_antialias_calls(write_design, db, tmp_path):
+    """Only `shape` and `progress` draw primitives; `text`/`icon` draw
+    glyphs, whose anti-aliasing is the font-baking half Task A already
     shipped, so their own draw methods must stay untouched even when the face
     default is `true`."""
     design = (
@@ -463,9 +463,9 @@ elements:
 def test_antialias_scenarios_compile_warning_free(design, write_design, tmp_path, bag, db):
     """Real `monkeyc`, all three targets, asserted against the bag rather than
     a proxy for it -- `wfb/build.py` turns each `WARNING:` line into a bag
-    diagnostic (CLAUDE.md's own carousel/on_hold precedent for exactly this
-    gap: every other test here inspects generated *text*, and text passing
-    does not mean the real compiler is silent).
+    diagnostic (CLAUDE.md's own on_hold precedent for exactly this gap: every
+    other test here inspects generated *text*, and text passing does not mean
+    the real compiler is silent).
     """
     from wfb.build import Toolchain, build
 

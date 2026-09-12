@@ -30,10 +30,9 @@ from .yamlsrc import YamlDocument
 
 MODES = ("active", "low_power", "always_on")
 
-#: `on_hold: auto` / a carousel item's `launch: auto` -- resolved later, once
-#: the element (or item) has a value binding to resolve *from* (SPEC.md D3).
-#: A plain string rather than a dedicated sentinel object so it survives
-#: unchanged through `Element.on_hold`/`CarouselItem.launch`, both typed
+#: `on_hold: auto` -- resolved later, once the element has a value binding to
+#: resolve *from* (SPEC.md D3).  A plain string rather than a dedicated
+#: sentinel object so it survives unchanged through `Element.on_hold`, typed
 #: `str | None` -- and safe to compare against, because `"auto"` is not and
 #: will not become a real `wfb.complications.TYPES` key (constant names are
 #: SCREAMING_SNAKE_CASE lowercased, and Garmin's own type table has no
@@ -431,17 +430,17 @@ class Element:
     static_rank: int | None = None
     #: `antialias:` as the author wrote it, or `None` to inherit -- from the
     #: enclosing group's own value, or from `Face.antialias` when there is
-    #: none.  Accepted only on `group`, `shape`, `progress`, `icon` and
-    #: `carousel`: `text` draws through a `fonts:` resource shared by every
-    #: element that references it, so anti-aliasing cannot vary per element
-    #: there (`Builder._reject_text_antialias`).
+    #: none.  Accepted only on `group`, `shape`, `progress` and `icon`: `text`
+    #: draws through a `fonts:` resource shared by every element that
+    #: references it, so anti-aliasing cannot vary per element there
+    #: (`Builder._reject_text_antialias`).
     antialias: bool | None = None
     #: The resolved value -- never `None` once `Builder._resolve_antialias`
     #: has run over the whole tree.  What every downstream stage reads: on
     #: `shape`/`progress` this is the flag for anti-aliased `Dc` primitive
     #: drawing (a later stage of this work, not emitted yet -- see
-    #: docs/limitations.md); on `icon`, and on a `carousel`'s per-item icon
-    #: fonts, it is threaded into `wfb.icons.font_key` and the baked sheet.
+    #: docs/limitations.md); on `icon` it is threaded into
+    #: `wfb.icons.font_key` and the baked sheet.
     #: On a `group` nothing reads it directly -- the field exists there only
     #: as the default source `_resolve_antialias` hands to the subtree.
     resolved_antialias: bool = False
@@ -609,84 +608,13 @@ class ComplicationSlot(Element):
     unit: bool = False
     #: `hide` (default) | `placeholder`.  Unlike every other element's
     #: `when_absent:`, "hide" here blanks only the *reading* and leaves the
-    #: icon drawn -- the same carve-out a carousel item's own `when_absent:`
-    #: makes, and for the same reason: the icon says which metric the slot is
-    #: pointed at, which is still true even on a frame the reading itself
-    #: could not be pulled.
+    #: icon drawn: the icon says which metric the slot is pointed at, which
+    #: is still true even on a frame the reading itself could not be pulled.
     when_absent: str = "hide"
     placeholder: str | None = None
 
     def _own_expressions(self) -> list[Expression]:
         return [e for e in (self.color,) if e]
-
-
-@dataclass
-class CarouselItem:
-    """One slot in a :class:`Carousel` -- an icon, a reading, and a way out.
-
-    Deliberately not an `Element`: an item has no `at:` of its own.  The
-    carousel positions every item from one `pitch:`, which is the whole point
-    of it being one element rather than a group of hand-placed ones, and it is
-    also what makes the rotation animation a single offset rather than N.
-    """
-
-    #: The glyph drawn in this slot, already resolved from `icon:`/`glyph:`.
-    codepoint: str
-    #: What the author wrote, kept for diagnostics and generated comments.
-    icon: str | None
-    value: Expression | None = None
-    format: str | None = None
-    when_absent: str | None = None
-    placeholder: str | None = None
-    fallback: Expression | None = None
-    #: A `wfb.complications` name, opened by a hold on the centre zone.  None
-    #: means this item simply consumes the hold and does nothing, which is a
-    #: legitimate choice for a reading no glance owns.
-    launch: str | None = None
-    span: Span | None = None
-
-    def expressions(self) -> list[Expression]:
-        return [e for e in (self.value, self.fallback) if e]
-
-
-@dataclass
-class Carousel(Element):
-    """A row of data items, the centred one showing its reading.
-
-    Modelled on the stock Forerunner face.  The gesture story is the whole
-    reason this is one element: a live watch face receives **only** touch and
-    hold (`docs/research/07-carousel-interaction.md` §1), so previous, next and
-    "open the glance" have to be told apart by *where* the hold landed.  The
-    compiler already knows the resolved box, so it cuts it into three zones and
-    the author never writes a coordinate.
-    """
-
-    items: list[CarouselItem] = field(default_factory=list)
-    size: Size = field(default_factory=Size)
-    #: Centre-to-centre spacing between slots.
-    pitch: Length | None = None
-    #: How many slots are drawn: 1 (no neighbours), 3, or 5.
-    slots: int = 3
-    icon_size: Length | None = None
-    color: Expression | None = None
-    #: The neighbouring slots' colour.  Falls back to `color` when unset, which
-    #: draws the row flat -- legible, just less obviously a carousel.
-    inactive_color: Expression | None = None
-    value_font: str = "FONT_SMALL"
-    value_font_is_custom: bool = False
-    value_color: Expression | None = None
-    value_offset: Position | None = None
-    #: Seconds the slide animation runs.  0 disables it; it is skipped while
-    #: asleep either way, because `WatchUi.animate` crashes the app in low
-    #: power mode (`docs/research/07-carousel-interaction.md` §3).
-    animate: float = 0.3
-    persist: bool = True
-
-    def _own_expressions(self) -> list[Expression]:
-        out = [e for e in (self.color, self.inactive_color, self.value_color) if e]
-        for item in self.items:
-            out.extend(item.expressions())
-        return out
 
 
 @dataclass
@@ -1715,7 +1643,6 @@ class Builder:
             "text": self._build_text,
             "progress": self._build_progress,
             "icon": self._build_icon,
-            "carousel": self._build_carousel,
             "graph": self._build_graph,
             "complication_slot": self._build_complication_slot,
         }
@@ -1843,7 +1770,7 @@ class Builder:
         return None
 
     def _resolve_hold_auto(self, element: Element) -> None:
-        """Resolve `on_hold: auto` and a carousel item's `launch: auto`.
+        """Resolve `on_hold: auto`.
 
         Deferred here, called from `_build_element` right after the
         kind-specific builder returns -- exactly where `_check_tiers` used to
@@ -1852,33 +1779,11 @@ class Builder:
         (called from `common`, before the builder runs) has no value binding
         yet to resolve `auto` from.
 
-        By the time this returns, `element.on_hold` (and every carousel
-        item's `launch`) is either a real `wfb.complications.TYPES` key or
-        `None` -- never the `HOLD_AUTO` sentinel -- so
-        `wfb/emit/monkeyc.py`, which indexes `complications.TYPES` with it
-        directly, needs no change at all.
+        By the time this returns, `element.on_hold` is either a real
+        `wfb.complications.TYPES` key or `None` -- never the `HOLD_AUTO`
+        sentinel -- so `wfb/emit/monkeyc.py`, which indexes
+        `complications.TYPES` with it directly, needs no change at all.
         """
-        if isinstance(element, Carousel) and element.on_hold is not None:
-            # A carousel's whole box is cut into three hold zones
-            # (`_emit_carousel_zones`), so there is no leftover hold for an
-            # element-level `on_hold:` to mean anything -- the emitter branches
-            # to the zones and never reads the field.  Until this check it was
-            # accepted in silence and dropped, which is precisely how a design
-            # loses something it asked for (ADR 0009).  `auto` lands here too
-            # and gets this message rather than the generic "nothing to resolve
-            # from", which would be true but unhelpful.
-            self.bag.error(
-                "carousel-on-hold",
-                f"{element.id}: a carousel cannot take 'on_hold:'",
-                element.span,
-                notes=["a carousel already uses the whole hold gesture: left and "
-                       "right cycle the row, and the centre opens the selected "
-                       "item's target",
-                       "put 'launch:' on the item that should open something "
-                       "instead -- 'launch: auto' resolves it from that item's "
-                       "own value"],
-            )
-            element.on_hold = None
         if isinstance(element, ComplicationSlot):
             # `Builder._build_complication_slot` has already restricted this
             # element to `on_hold: auto` or nothing -- and unlike every other
@@ -1894,14 +1799,6 @@ class Builder:
         if element.on_hold == HOLD_AUTO:
             element.on_hold = self._resolve_auto_target(
                 element.id, "on_hold", self._hold_auto_sources(element), element.span)
-        if isinstance(element, Carousel):
-            for index, item in enumerate(element.items):
-                if item.launch != HOLD_AUTO:
-                    continue
-                sources = item.value.sources if item.value is not None else ()
-                item.launch = self._resolve_auto_target(
-                    f"{element.id}: item {index}", "launch", sources,
-                    item.span or element.span)
 
     @staticmethod
     def _hold_auto_sources(element: Element) -> tuple[str, ...]:
@@ -2115,7 +2012,6 @@ class Builder:
         from that one decision plus "the buffer is filled exactly once":
 
         * a binding would make the content change, and the buffer would not;
-        * a carousel holds a selection, which is a binding by another name;
         * `low_power` would charge the blit against the partial-update budget by
           clip *area* (CLAUDE.md constraint 4), which is the whole screen here;
         * a nested `static:` is a second buffer for content the outer one
@@ -2164,27 +2060,12 @@ class Builder:
         ok = True
         for root in roots:
             for element in walk_elements([root]):
-                if isinstance(element, Carousel):
-                    self.bag.error(
-                        "static",
-                        f"{element.id!r} is a carousel and cannot be static",
-                        element.span,
-                        notes=["a carousel remembers which item is centred and "
-                               "redraws when the wearer moves it -- a buffer "
-                               "filled once would freeze it",
-                               f"take it out of {root.id!r}"
-                               if element is not root else
-                               "drop `static: true` from it"],
-                    )
-                    ok = False
-                    continue
                 if isinstance(element, Graph):
                     # A graph's series isn't an `Expression` -- it is
                     # recomputed on-device every minute -- so the generic
                     # "nothing here may read a data source" check just below
-                    # would never see it. Checked explicitly for the same
-                    # reason a carousel is: a buffer filled once would freeze
-                    # a picture that is supposed to move.
+                    # would never see it. Checked explicitly: a buffer filled
+                    # once would freeze a picture that is supposed to move.
                     self.bag.error(
                         "static",
                         f"{element.id!r} is a graph and cannot be static",
@@ -2203,9 +2084,9 @@ class Builder:
                     # fresh `WfbComplications.valueOf` pull every frame, and
                     # the wearer can repoint the slot at a different metric on
                     # a device with the native editor at any time -- so the
-                    # same "would freeze it" reasoning as a carousel/graph
-                    # applies, for the same reason the generic source check
-                    # below would never catch it.
+                    # same "would freeze it" reasoning as a graph applies, for
+                    # the same reason the generic source check below would
+                    # never catch it.
                     self.bag.error(
                         "static",
                         f"{element.id!r} is a complication_slot and cannot be static",
@@ -2643,235 +2524,6 @@ class Builder:
             size=size,
             color=self._color_expression(node, "color"),
         )
-
-    def _build_carousel(self, node: dict, common: dict, path: tuple) -> Element:
-        """`type: carousel` -- a row of readings, one of them selected.
-
-        ADR 0006 §6 as amended: the item list is fixed by the design, the
-        *selection* belongs to the wearer, and a hold moves it.  Everything an
-        item needs is validated here rather than in the emitter, because the
-        generated `switch` over items has no natural place to report an error
-        against the author's own line.
-        """
-        icon_size = self._length(node, "icon_size")
-        if icon_size is not None and icon_size.unit not in units.SIZE_UNITS:
-            self.bag.error(
-                "carousel",
-                f"icon_size must be px or %r, not {icon_size.unit}",
-                self.doc.span(node, "icon_size"),
-                notes=["an icon's font is baked once, before layout runs, so its size "
-                       "cannot depend on a parent box (%) or an element's own font (pt)"],
-            )
-            icon_size = None
-
-        raw_items = node.get("items") or []
-        # Three by default -- the selected item plus a neighbour either side --
-        # but never more than there are items, so a two-item carousel is not an
-        # error just for taking the default.
-        slots = int(node.get("slots", min(3, max(1, len(raw_items)))))
-        items = [self._carousel_item(raw, index, node)
-                 for index, raw in enumerate(raw_items)]
-
-        element = Carousel(
-            **common,
-            items=items,
-            size=self._size(node.get("size")),
-            pitch=self._length(node, "pitch"),
-            slots=slots,
-            icon_size=icon_size,
-            color=self._color_expression(node, "color"),
-            inactive_color=self._color_expression(node, "inactive_color"),
-            value_color=self._color_expression(node, "value_color"),
-            value_offset=(self._position(node.get("value_offset"), node, "value_offset")
-                          if "value_offset" in node else None),
-            animate=float(node.get("animate", 0.3)),
-            persist=bool(node.get("persist", True)),
-        )
-        self._resolve_carousel_font(node, element)
-
-        if len(items) < 2:
-            self.bag.error(
-                "carousel",
-                f"{element.id}: a carousel needs at least two items, got {len(items)}",
-                self.doc.span(node, "items"),
-                notes=["with one item there is nothing to rotate to -- use an 'icon' "
-                       "plus a 'text' element instead, which costs less"],
-            )
-        if slots > len(items):
-            # Drawing more slots than there are items would show the same item
-            # twice in one row, which reads as a rendering bug rather than a
-            # short list.
-            self.bag.error(
-                "carousel",
-                f"{element.id}: slots ({slots}) exceeds the number of items ({len(items)})",
-                self.doc.span(node, "slots"),
-                notes=[f"with {len(items)} items, at most {len(items)} slots can show "
-                       "distinct readings; a wider row would repeat one"],
-            )
-        for key, bound in (("color", element.color),
-                           ("inactive_color", element.inactive_color),
-                           ("value_color", element.value_color)):
-            if bound is not None and bound.nullable:
-                self.bag.error(
-                    "carousel",
-                    f"{element.id}: {key!r} reads {bound.text!r}, which can be absent",
-                    self.doc.span(node, key),
-                    notes=["a carousel colour has no 'when_absent:' of its own -- an "
-                           "item's policy governs that item's reading, not the whole "
-                           "row's appearance",
-                           "guard it in the expression instead, e.g. "
-                           "\"x != null and x > 100 ? palette.hot : palette.fg\""],
-                )
-        return element
-
-    def _carousel_item(self, raw: dict, index: int, parent: dict) -> CarouselItem:
-        span = self.doc.span(raw)
-        chosen = [k for k in ("icon", "glyph") if k in raw]
-        if len(chosen) > 1:
-            self.bag.error(
-                "carousel",
-                f"item {index}: 'icon' and 'glyph' are mutually exclusive",
-                span,
-            )
-        codepoint = icons.FALLBACK_CODEPOINT
-        label: str | None = None
-        if "glyph" in raw:
-            label = str(raw["glyph"]).upper()
-            parsed = icons.parse_codepoint(str(raw["glyph"]))
-            if parsed is None or not icons.font_has(parsed):
-                self.bag.error(
-                    "carousel",
-                    f"item {index}: no glyph at {label}",
-                    self.doc.span(raw, "glyph"),
-                    notes=["write it 'U+XXXX'; checked against the vendored font's own "
-                           "character map"],
-                )
-            else:
-                codepoint = parsed
-        elif "icon" in raw:
-            label = str(raw["icon"])
-            resolved = icons.resolve_codepoint(label)
-            if resolved is None:
-                self.bag.error(
-                    "carousel",
-                    f"item {index}: unknown icon {label!r}",
-                    self.doc.span(raw, "icon"),
-                    notes=["run `wfb sources` for the catalogue, or use 'glyph: \"U+XXXX\"'"],
-                )
-            else:
-                codepoint = resolved
-
-        value = self._expression(raw, "value") if "value" in raw else None
-        if label is None and value is not None and value.sources:
-            # No icon named: fall back to the conventional one for the source
-            # (`wfb.icons.icon_for_source`), which is the whole reason that
-            # table exists.  A carousel row is exactly the place an author
-            # should not have to name nine icons by hand.
-            suggested = icons.METRIC_ICON.get(value.sources[0])
-            if suggested is not None:
-                label = suggested
-                codepoint = icons.resolve_codepoint(suggested) or codepoint
-        if label is None:
-            self.bag.error(
-                "carousel",
-                f"item {index}: needs an 'icon:' or 'glyph:'",
-                span,
-                notes=["the icon is only inferred from 'value:' when the catalogue has "
-                       "a conventional one for that source"],
-            )
-
-        launch = raw.get("launch")
-        if launch is not None:
-            launch = str(launch)
-            # `auto` is resolved later, once `value` (just above) is a real
-            # Expression -- see `Builder._resolve_hold_auto` -- not checked
-            # against the complication table here.
-            if launch != HOLD_AUTO and complications.get(launch) is None:
-                near = complications.suggest(launch)
-                self.bag.error(
-                    "carousel",
-                    f"item {index}: unknown launch target {launch!r}",
-                    self.doc.span(raw, "launch"),
-                    notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
-                    + [f"run `wfb complications` for the full list of "
-                       f"{len(complications.TYPES)} launch targets"],
-                )
-                launch = None
-
-        item = CarouselItem(
-            codepoint=codepoint,
-            icon=label,
-            value=value,
-            format=raw.get("format"),
-            when_absent=raw.get("when_absent"),
-            placeholder=raw.get("placeholder"),
-            fallback=self._expression(raw, "fallback") if "fallback" in raw else None,
-            launch=launch,
-            span=span,
-        )
-        if value is not None:
-            self._check_item_absence(raw, index, item, value)
-            self._check_format(raw, value, item.format)
-        return item
-
-    def _check_item_absence(self, raw: dict, index: int, item: CarouselItem,
-                            bound: Expression) -> None:
-        """ADR 0005 §3, scoped to one carousel item.
-
-        Deliberately not :meth:`_check_absence`: that one reasons about *the
-        element's* other bindings ("this policy still does work because the
-        colour is nullable too"), which is the wrong scope here.  An item's
-        policy governs an item's reading and nothing else -- a carousel colour
-        is rejected outright if it is nullable, precisely so this stays a
-        per-item question.
-        """
-        if not bound.nullable:
-            if item.when_absent is not None:
-                self.bag.note(
-                    "when-absent",
-                    f"item {index}: 'when_absent' has no effect -- "
-                    f"{bound.text} is never absent",
-                    self.doc.span(raw, "when_absent"),
-                )
-            return
-        if item.when_absent is None:
-            self.bag.error(
-                "when-absent",
-                f"item {index}: {bound.text!r} can be absent, so 'when_absent:' is required",
-                self.doc.span(raw, "value"),
-                notes=[
-                    "every ActivityMonitor field is nullable and sensors are simply "
-                    "missing on some devices, so absence is the normal case",
-                    "on a carousel item, 'hide' leaves the slot's icon drawn and its "
-                    "reading blank -- the row does not collapse",
-                    "choose one of: hide | placeholder (with 'placeholder:') | fallback "
-                    "(with 'fallback:')",
-                ],
-            )
-            return
-        if item.when_absent == "placeholder" and item.placeholder is None:
-            self._require(raw, "placeholder",
-                          "when_absent: placeholder needs a 'placeholder:' string")
-        if item.when_absent == "fallback" and item.fallback is None:
-            self._require(raw, "fallback",
-                          "when_absent: fallback needs a 'fallback:' expression")
-        if item.when_absent == "fallback" and item.fallback is not None \
-                and item.fallback.nullable:
-            self.bag.error(
-                "when-absent",
-                f"item {index}: the fallback expression can itself be absent",
-                self.doc.span(raw, "fallback"),
-                notes=["a fallback must always produce a value"],
-            )
-
-    def _resolve_carousel_font(self, node: dict, element: Carousel) -> None:
-        """`value_font:` -- literally the same resolution `text`'s `font:` uses."""
-        raw = node.get("value_font")
-        if raw is None:
-            return
-        resolved = self._font_reference(str(raw), self.doc.span(node, "value_font"))
-        if resolved is not None:
-            element.value_font, element.value_font_is_custom = resolved
 
     def _build_complication_slot(self, node: dict, common: dict, path: tuple) -> Element:
         """`type: complication_slot` -- the element half of the native Data
@@ -3550,9 +3202,8 @@ class Builder:
     def _font_reference(self, name: str, span: Span | None) -> tuple[str, bool] | None:
         """Resolve a `font:`/`value_font:` name to ``(reference, is_custom)``.
 
-        Shared by `text`'s `font:` and `carousel`'s `value_font:`, which had
-        the same fifteen lines twice and so could disagree about what a font
-        name means.
+        Shared by every element's `font:` (`text`, `complication_slot`), so
+        they cannot disagree about what a font name means.
 
         Returns ``None`` when the name does not resolve.  The one subtlety is
         what happens for a font that *was* declared and then rejected by
@@ -3827,47 +3478,15 @@ def complication_slot_hold_method(element_id: str) -> str:
     `Complications.Id` so the delegate can hand it straight to
     `Complications.exitTo` without baking in a fixed type at build time.
 
-    Public, unlike every draw method, for the same reason `carousel_step_
-    method` is: the delegate is a different class and Monkey C's `private`
-    genuinely blocks a cross-class call (verified by building both ways --
-    "Cannot find symbol" without the modifier dropped).  Only emitted for a
-    slot that actually declares `on_hold: auto`, but derived here regardless
-    of that, for the same "an unrelated later edit must not introduce a
-    collision" reasoning `complication_slot_icon_method` already gives.
+    Public, unlike every draw method, because the delegate is a different
+    class and Monkey C's `private` genuinely blocks a cross-class call
+    (verified by building both ways -- "Cannot find symbol" without the
+    modifier dropped).  Only emitted for a slot that actually declares
+    `on_hold: auto`, but derived here regardless of that, for the same "an
+    unrelated later edit must not introduce a collision" reasoning
+    `complication_slot_icon_method` already gives.
     """
     return "holdTargetFor" + _element_suffix(element_id)
-
-
-def carousel_step_method(element_id: str) -> str:
-    """The public method the delegate calls to move a carousel (``stepTempLow``).
-
-    Public, unlike every draw method, because it is called from the delegate.
-    Derived here rather than in the emitter for the same reason the others are:
-    :meth:`Builder._check_symbol_collision` has to be able to see every symbol
-    an id produces, in one place.
-    """
-    return "step" + _element_suffix(element_id)
-
-
-def carousel_index_field(element_id: str) -> str:
-    """The view field holding a carousel's selected index (``tempLowIndex``)."""
-    return _lower_first(_element_suffix(element_id)) + "Index"
-
-
-def carousel_slide_field(element_id: str) -> str:
-    """The view field holding a carousel's slide offset (``tempLowSlide``).
-
-    Public on the view, which is not a style choice: ``WatchUi.animate`` takes
-    a ``Symbol`` and looks the property up indirectly, and a ``private`` member
-    is not found that way -- monkeyc warns about exactly this, verified on a
-    real build (`docs/research/07-carousel-interaction.md` §5).
-    """
-    return _lower_first(_element_suffix(element_id)) + "Slide"
-
-
-def carousel_slide_done_method(element_id: str) -> str:
-    """The animation-complete callback for a carousel (``onTempLowSlideDone``)."""
-    return "on" + _element_suffix(element_id) + "SlideDone"
 
 
 def graph_series_field(element_id: str) -> str:

@@ -567,8 +567,8 @@ def test_the_delegate_gets_onwatchfaceconfigedited_and_a_view_field(write_design
     assert "private var _view as TestView;" in delegate
     assert "function onWatchFaceConfigEdited(options as {" in delegate
     assert "_view.applyConfig(settings);" in delegate
-    # a config-only design (no on_hold, no carousel) still emits onPress,
-    # returning false unconditionally rather than reading clickEvent at all
+    # a config-only design (no on_hold) still emits onPress, returning false
+    # unconditionally rather than reading clickEvent at all
     on_press = delegate.split("function onPress")[1]
     assert "clickEvent.getCoordinates()" not in on_press
     assert "return false;" in on_press

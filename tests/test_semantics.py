@@ -1082,6 +1082,18 @@ def test_on_hold_on_a_group_covers_the_whole_box_not_one_child(write_design, bag
 # `on_hold: auto` -- resolved from the element's own value binding (D3)
 
 
+def _generated(write_design, bag, db, source: str) -> dict:
+    from wfb.emit import generate
+    from wfb.emit.resources import bake_fonts
+
+    path = write_design(design(source))
+    face = load(path, bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
+    return generate(face, [device], path.parent / "b", baked).files()
+
+
 def test_on_hold_auto_resolves_a_direct_read_source(write_design, bag, db):
     """`activity.steps` has no complication of its own -- it is a direct
     Activity.Info read -- but `Source.launch_complication` names the
@@ -1194,229 +1206,6 @@ def test_on_hold_auto_ignores_color_and_max(write_design, bag):
 """)), bag)
     assert not any(d.code in ("hold-auto-ambiguous", "hold-auto-unresolved")
                    for d in bag.errors), bag.render()
-
-
-def test_carousel_item_launch_auto_resolves(write_design, bag, db):
-    """A carousel item's `launch: auto` resolves the same way, but per item
-    -- scoped to that one item's own `value:`, not the whole row."""
-    files = _generated(write_design, bag, db, """
-  - id: data
-    type: carousel
-    at: {anchor: center}
-    size: {width: 62%, height: 22%}
-    pitch: 22%r
-    icon_size: 9%r
-    color: palette.fg
-    items:
-      - value: activity.steps
-        format: "{:d}"
-        when_absent: hide
-        launch: auto
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: hide
-        launch: auto
-""")
-    delegate = next(v for k, v in files.items() if k.endswith("Delegate.mc"))
-    assert "Complications.exitTo(new Complications.Id(" \
-           "Complications.COMPLICATION_TYPE_STEPS))" in delegate
-    assert "Complications.exitTo(new Complications.Id(" \
-           "Complications.COMPLICATION_TYPE_CALORIES))" in delegate
-
-
-def test_carousel_item_launch_auto_unresolved_names_the_item(write_design, bag):
-    load(write_design(design("""
-  - id: data
-    type: carousel
-    at: {anchor: center}
-    size: {width: 62%, height: 22%}
-    pitch: 22%r
-    icon_size: 9%r
-    color: palette.fg
-    items:
-      - value: weather.condition_today
-        format: "{:d}"
-        when_absent: hide
-        launch: auto
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: hide
-""")), bag)
-    hits = [d for d in bag.errors if d.code == "hold-auto-unresolved"]
-    assert hits, bag.render()
-    assert "item 0" in hits[0].message
-
-
-# --------------------------------------------------------------------------
-# `carousel:` -- a row of readings the wearer selects from (ADR 0006 6)
-
-
-CAROUSEL = """
-  - id: data
-    type: carousel
-    at: {anchor: center}
-    size: {width: 62%, height: 22%}
-    pitch: 22%r
-    icon_size: 9%r
-    color: palette.fg
-    items:
-      - value: heart_rate.current
-        format: "{:d}"
-        when_absent: placeholder
-        placeholder: "--"
-        launch: heart_rate
-      - value: activity.steps
-        format: "{:d}"
-        when_absent: hide
-      - icon: battery
-        value: system.battery
-        format: "{:.0f}%"
-"""
-
-
-def _generated(write_design, bag, db, source: str) -> dict:
-    from wfb.emit import generate
-    from wfb.emit.resources import bake_fonts
-
-    path = write_design(design(source))
-    face = load(path, bag)
-    assert face is not None, bag.render()
-    device = db.get("fenix8solar47mm")
-    baked = {device.id: bake_fonts(face, device, device.minor_radius)}
-    return generate(face, [device], path.parent / "b", baked).files()
-
-
-def test_a_carousel_infers_each_item_icon_from_its_data_source(write_design, bag):
-    """`METRIC_ICON` exists precisely so a row of readings does not make the
-    author name nine icons by hand."""
-    face = load(write_design(design(CAROUSEL)), bag)
-    assert bag.ok(), bag.render()
-    carousel = face.elements[0]
-    assert [item.icon for item in carousel.items] == ["heart", "steps", "battery"]
-
-
-def test_a_carousel_item_needs_its_own_when_absent(write_design, bag):
-    """Scoped to the item, not the element: one absent reading blanks one
-    slot, so the policy belongs where the reading does."""
-    load(write_design(design(CAROUSEL.replace("        when_absent: hide\n", ""))), bag)
-    hits = [d for d in bag.errors if d.code == "when-absent"]
-    assert hits, bag.render()
-    assert "item 1" in hits[0].message
-    assert any("the row does not collapse" in n for n in hits[0].notes), hits[0].notes
-
-
-def test_a_carousel_needs_at_least_two_items(write_design, bag):
-    single = """
-  - id: data
-    type: carousel
-    at: {anchor: center}
-    size: {width: 62%, height: 22%}
-    color: palette.fg
-    items:
-      - icon: battery
-        value: system.battery
-        format: "{:.0f}%"
-"""
-    load(write_design(design(single)), bag)
-    hits = [d for d in bag.errors if d.code == "carousel"]
-    assert hits and "at least two items" in hits[0].message, bag.render()
-
-
-def test_more_slots_than_items_is_rejected(write_design, bag):
-    """Five slots over three items would draw one of them twice in one row,
-    which reads as a rendering bug rather than a short list."""
-    load(write_design(design(CAROUSEL.replace("    pitch: 22%r",
-                                              "    pitch: 22%r\n    slots: 5"))), bag)
-    hits = [d for d in bag.errors if d.code == "carousel"]
-    assert hits and "exceeds the number of items" in hits[0].message, bag.render()
-
-
-def test_a_carousel_colour_may_not_be_nullable(write_design, bag):
-    """There is no `when_absent:` for the row's own appearance -- an item's
-    policy governs that item's reading, and nothing else."""
-    conditional = '    color: "heart_rate.current > 100 ? palette.bg : palette.fg"'
-    load(write_design(design(CAROUSEL.replace("    color: palette.fg", conditional))), bag)
-    hits = [d for d in bag.errors if d.code == "carousel"]
-    assert hits and "can be absent" in hits[0].message, bag.render()
-    assert any("guard it in the expression" in n for n in hits[0].notes), hits[0].notes
-
-
-def test_each_item_applies_its_own_absence_policy(write_design, bag, db):
-    """The whole row must not hide because one reading is missing -- which is
-    what the element-level guard every other element gets would have done."""
-    view = next(v for k, v in _generated(write_design, bag, db, CAROUSEL).items()
-                if k.endswith("View.mc"))
-    body = view[view.index("private function drawData"):]
-    # No element-level early return: an absent reading blanks one slot.
-    assert "return;" not in body.split("// the icon row")[0].split("{", 1)[1]
-    assert 'text = "--";' in body          # item 0: placeholder
-    assert 'text = "";' in body            # item 1: hide
-    assert "heartRateCurrent != null" in body and "activitySteps != null" in body
-
-
-def test_a_carousel_persists_its_selection_and_guards_the_slide(write_design, bag, db):
-    """`WatchUi.animate` is documented to crash the app in low power mode, so
-    the slide is guarded on the sleep state rather than assumed safe."""
-    view = next(v for k, v in _generated(write_design, bag, db, CAROUSEL).items()
-                if k.endswith("View.mc"))
-    assert 'dataIndex = WfbCarousel.restore("data", 3);' in view
-    assert 'WfbCarousel.remember("data", dataIndex);' in view
-    assert "if (!_sleeping) {" in view
-    assert "WatchUi.animate(self, :dataSlide" in view
-    # public, because animate() looks the property up through a Symbol
-    assert "public var dataSlide as Number = 0;" in view
-
-
-def test_a_hold_is_split_into_three_zones(write_design, bag, db):
-    """One gesture, three meanings, told apart by coordinate -- which is why
-    ADR 0006 6's hold-to-cycle/hold-to-launch conflict is not one."""
-    delegate = next(v for k, v in _generated(write_design, bag, db, CAROUSEL).items()
-                    if k.endswith("Delegate.mc"))
-    assert "if (x < Layout.DATA_PREV_EDGE)" in delegate
-    assert "_view.stepData(-1);" in delegate
-    assert "if (x >= Layout.DATA_NEXT_EDGE)" in delegate
-    assert "_view.stepData(1);" in delegate
-    assert "switch (_view.dataIndex)" in delegate
-    # only item 0 declares a launch:, so it is the only case
-    assert "COMPLICATION_TYPE_HEART_RATE" in delegate
-    assert delegate.count("Complications.exitTo") == 1
-
-
-def test_a_carousel_that_launches_nothing_needs_no_permission(write_design, bag, db):
-    """A carousel is interactive without necessarily opening anything, and it
-    would be wrong to declare ComplicationSubscriber for a call never made."""
-    files = _generated(write_design, bag, db,
-                       CAROUSEL.replace("        launch: heart_rate\n", ""))
-    assert "ComplicationSubscriber" not in files["manifest.xml"]
-    assert 'minApiLevel="4.2.0"' not in files["manifest.xml"]
-    assert "import Toybox.Complications;" not in \
-        next(v for k, v in files.items() if k.endswith("Delegate.mc"))
-
-
-def test_each_item_gets_its_own_icon_font(write_design, bag, db):
-    """`bake_size` picks a nominal size per glyph, because the vendored font's
-    icon sets pad their glyphs differently inside the em-square."""
-    view = next(v for k, v in _generated(write_design, bag, db, CAROUSEL).items()
-                if k.endswith("View.mc"))
-    loaded = [line for line in view.splitlines() if "WatchUi.loadResource" in line]
-    assert len(loaded) == 3, loaded
-
-
-def test_a_carousel_may_not_take_an_element_level_on_hold(write_design, bag):
-    """A carousel's whole box is already three hold zones, so an `on_hold:` on
-    the element itself has nowhere to fire.
-
-    It used to validate clean and then be dropped by the emitter, which never
-    reads the field -- a design silently losing something it asked for, which
-    is the failure ADR 0009 makes unknown keys an error to prevent.
-    """
-    face = load(write_design(design(CAROUSEL.replace(
-        "    type: carousel\n", "    type: carousel\n    on_hold: steps\n"))), bag)
-    assert any(d.code == "carousel-on-hold" for d in bag.errors), bag.render()
-    if face is not None:
-        row = next(e for e in face.elements if e.id == "data")
-        # and it must not survive into codegen as a phantom hold target
-        assert row.on_hold is None
 
 
 # -- a font's `size:` as a length ---------------------------------------------

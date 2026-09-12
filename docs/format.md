@@ -390,8 +390,7 @@ no ordinary `value:` expression at all. Instead:
   `placeholder:`) -- and unlike every other element, `hide` blanks only the
   *reading*, leaving the icon drawn: the icon says which metric the slot is
   pointed at, which stays true even on a frame the reading itself could not be
-  pulled. The same carve-out a `carousel` item's own `when_absent:` already
-  makes, for the same reason.
+  pulled.
 * **`icon_size:`** (omit to draw no icon) chooses the icon **on-device**, from
   the wearer's picked *type* alone -- `Complications.Id.getType()`, `switch`ed
   against a table of catalogue names (`wfb.icons.COMPLICATION_ICON`), then
@@ -707,9 +706,6 @@ line:
   duplicate keys and the loader reports it, which is a small bonus of this
   form — a duplicate element id is unwriteable rather than diagnosed.
 
-A `carousel`'s `items:` are **not** affected. They are slots, not elements;
-they have no id and are always a sequence.
-
 **Which to use.** The project recommends the **list form**, and everything it
 generates — `wfb new`'s templates, the skill, every other example — emits it.
 Two concrete reasons:
@@ -866,7 +862,7 @@ Everything else the compiler rejects, and why:
 | rejected | because |
 |---|---|
 | any data binding in the subtree, `visible:` included | the buffer is filled once and never refilled; the reading would freeze at whatever it was on the first frame |
-| a `carousel` | it remembers which item is centred and redraws when the wearer moves it |
+| a `graph` or `complication_slot` | its content is recomputed or repointed on-device; a buffer filled once would freeze it |
 | `modes:` containing `low_power` | `onPartialUpdate` is charged by clip *area*, and the buffer is the whole screen. `active` and `always_on` are both fine |
 | `static:` inside a static subtree | the outer one already draws it |
 | two static elements with different `modes:` | there is one buffer, and a buffer is blitted as a whole |
@@ -946,8 +942,8 @@ entirely different ways:
   and `renderStatic`; an element whose own `antialias:` differs from the face
   default sets and restores it around its own drawing only, so guard early
   returns above it never leave the wrong state behind for the next element.
-  `text`, `icon` and `carousel` never emit any of this -- they draw glyphs,
-  and a glyph's anti-aliasing is the font-baking half above.
+  `text` and `icon` never emit any of this -- they draw glyphs, and a
+  glyph's anti-aliasing is the font-baking half above.
 
 **Inheritance is a default, not a conjunction.** A `group`'s own `antialias:`
 becomes what its subtree inherits, and a descendant's own `antialias:` always
@@ -957,7 +953,7 @@ conjoining an ancestor's condition into a descendant's is exactly the point.
 Leaving it unset anywhere in the chain falls through to the next enclosing
 group, and ultimately to the face-wide default.
 
-**Accepted on `group`, `shape`, `progress`, `icon` and `carousel` only.** Not
+**Accepted on `group`, `shape`, `progress` and `icon` only.** Not
 on `text`: a `text` element draws through a font named in `fonts:`, and that
 font is one bitmap resource shared by every element that references it, so
 anti-aliasing cannot vary per element the way it can on a shape's own outline
@@ -1362,98 +1358,6 @@ group's condition is conjoined into each descendant's own at build time (a group
 emits no code of its own, so there is nothing else it could mean), which is why
 nesting composes: an inner group's condition and the outer one both have to hold
 for a leaf to draw. See "`visible:`" above.
-
-### `carousel`
-
-```yaml
-- id: data
-  type: carousel
-  at: { anchor: center, dy: 20% }
-  size: { width: 62%, height: 22% }   # the TOUCH target, not the drawn extent
-  pitch: 22%r                         # centre-to-centre slot spacing
-  slots: 3                            # 1 | 3 | 5; defaults to min(3, items)
-  icon_size: 9%r
-  color: palette.accent               # the selected item
-  inactive_color: palette.dim         # its neighbours
-  value_font: FONT_SMALL
-  value_color: palette.fg
-  value_offset: { anchor: center, dy: 34% }
-  animate: 0.3                        # seconds; 0 disables the slide
-  persist: true                       # remember the selection across restarts
-  items:
-    - value: heart_rate.current       # icon inferred from the source
-      format: "{:d}"
-      when_absent: placeholder
-      placeholder: "--"
-      launch: heart_rate              # centre-hold opens this glance
-    - value: activity.steps
-      format: "{:d}"
-      when_absent: fallback
-      fallback: "0"
-      launch: steps
-    - icon: battery                   # or name one explicitly
-      value: system.battery
-      format: "{:.0f}%"               # no launch: centre-hold opens nothing
-```
-
-A row of readings the **wearer** picks between, modelled on the stock
-Forerunner face. The centred item is drawn in `color:` with its reading below
-(or wherever `value_offset:` puts it); its neighbours are drawn in
-`inactive_color:`. A hold moves the selection, which slides into place and is
-remembered across restarts.
-
-**One gesture, three meanings, told apart by geometry.** A live watch face
-receives only touch and hold — see "Interactivity" below — so the element's own
-box is cut into equal thirds:
-
-```
-        +---------------+---------------+---------------+
-hold →  |   previous    |  open glance  |     next      |
-        +---------------+---------------+---------------+
-```
-
-That is why `size:` is the **touch target rather than the drawn extent**: the
-row paints only its icons and the reading, and sizing the box generously costs
-nothing but makes the zones easier to hit. `wfb validate` checks both halves of
-that — `carousel-zone` warns when a third is under 40px wide (a judgement, not
-a Garmin number, and the message says so) and when a zone reaches under a round
-screen's bezel, where a finger cannot land at all.
-
-**Icons are inferred where the catalogue has a convention.** Omit `icon:` and
-the item uses the conventional glyph for its data source (`activity.steps` →
-`steps`, and so on). Name one explicitly with `icon:`, or reach for any
-codepoint with `glyph: "U+XXXX"`, exactly as on an `icon` element.
-
-**`when_absent:` is per item, and it does not hide the row.** One absent
-reading blanks *that item's* reading and leaves its icon drawn — the row does
-not collapse and the zones do not move, which is the only behaviour that makes
-sense for something the wearer is navigating. The carousel's own colours may
-therefore **not** be nullable: there is no `when_absent:` for the row's
-appearance, so guard a conditional colour inside the expression instead.
-
-**`launch:` is optional per item, and also accepts `auto`.** With a name, a
-centre-hold opens that complication's glance (`wfb complications` lists the
-names). With `launch: auto`, the compiler resolves the target itself from
-*that item's own* `value:` binding, via `Source.launch_complication` — see
-"`on_hold: auto` / `launch: auto`" under Interactivity below for how that
-resolution works and what it does when it cannot decide. Without `launch:` at
-all, the hold is consumed and nothing opens, which is the honest outcome for a
-reading no glance owns. A carousel where no item declares a launch target
-needs no `ComplicationSubscriber` permission and no raised `minApiLevel`.
-
-**A carousel element may not itself take `on_hold:`.** Its whole box is
-already three hold zones — left/right cycle the row, centre opens the
-selected item's `launch:` — so there is nothing left for an element-level
-hold to mean. This used to validate cleanly and be silently dropped by the
-emitter; it is now the `carousel-on-hold` build error, pointing at per-item
-`launch:` instead.
-
-**The slide only runs while the watch is awake.** `WatchUi.animate` is
-documented to *crash the app* if called from a watch face in low power mode, so
-the generated code guards on the sleep state and rotates instantly while
-asleep. Since a touch is one of the things that keeps the face awake, the
-animation window and the interaction coincide in practice — but it is a guard,
-not an assumption. `animate: 0` opts out entirely.
 
 ### `graph`
 
@@ -1959,13 +1863,6 @@ Regions are tested in draw order and the first match wins, so two overlapping
 regions make the second unreachable. That is a warning (`hold-overlap`), not
 something you have to notice on the wrist.
 
-**One hold can still mean more than one thing, by landing somewhere else.**
-`ClickEvent.getCoordinates()` is the only degree of freedom the platform
-offers, and `carousel` (above) uses it: three zones across one element's box,
-so previous, next and "open the glance" all come off the same gesture. ADR 0006
-§6 originally expected these to conflict; separating them by geometry is what
-dissolved that.
-
 Binding `on_hold:` adds the `ComplicationSubscriber` permission and raises
 `minApiLevel` to 4.2.0 automatically — `exitTo`'s own level. Nothing emitted
 references `onTap`, so its 5.1.0 never enters into it.
@@ -2005,8 +1902,7 @@ source reference is not what the element is *about*. It resolves through
 
 Both are errors rather than warnings: guessing here would silently open the
 wrong glance, which is exactly the class of failure this compiler exists to
-prevent. A carousel item's `launch:` accepts `auto` the same way, resolved
-from that one item's own `value:` — see `carousel` above.
+prevent.
 
 **A `complication_slot`'s `on_hold: auto` does not go through any of this.**
 It is the *only* value that element's `on_hold:` accepts (a fixed name is a
@@ -2029,12 +1925,11 @@ lint:
 
 `reason` is required — a suppression without a stated reason is how linters get
 disabled wholesale. Errors that reflect hard platform limits (missing glyphs,
-off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
-`carousel-on-hold`) are **not** suppressible: silencing one produces a face
-that does not work.
+off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`) are **not**
+suppressible: silencing one produces a face that does not work.
 
-Fourteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
-`contrast`, `partial-update-budget`, `carousel-zone`, `hold-overlap`,
+Thirteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+`contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `complication-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap` and `config-unsupported`.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
@@ -2073,7 +1968,6 @@ styles. See [`docs/limitations.md`](limitations.md).
 say otherwise, contradicting [Configuration](#configuration) above.)
 
 (All four on-device configuration axes are now implemented -- see
-[Configuration](#configuration) and [Color scheme](#color-scheme) above.
-`complication_slot`'s "cycle through several readings" half exists as
-`carousel`, above; its "a slot whose *type* the wearer picks in the on-device
-editor" half is `type: complication_slot` plus `config: data:`.)
+[Configuration](#configuration) and [Color scheme](#color-scheme) above:
+a slot whose *type* the wearer picks in the on-device editor is
+`type: complication_slot` plus `config: data:`.)

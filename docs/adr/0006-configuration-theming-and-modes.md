@@ -498,6 +498,31 @@ third for previous, the right third for next, the middle for `exitTo`. The
 compiler lays out zones and warns when one is too small to hit; it rejects
 nothing. See research 07 §2.
 
+> **Fifth amendment: the cycling element built from the above,
+> `type: carousel`, was removed outright, on the user's decision.** It
+> shipped, worked, and was deleted anyway — not because it was broken, but
+> because it turned out to be the single largest feature by surface area
+> while opting out of nearly every shared mechanism this compiler otherwise
+> gives every element: its own touch model (the three-zone geometry
+> described just above, rather than a plain `on_hold:` target), its own
+> runtime barrel file (`WfbCarousel.mc`), its own absence rule (the only
+> element that skipped the ordinary element-level null guard in favour of a
+> per-item one), its own font-resolution path, its own layout-box
+> distinction (`content_box` vs. `box`, which existed only so the safe-area
+> lint would not fire on a deliberately oversized touch target), its own
+> lint check (`carousel-zone`), and hard exclusions from `static:` and from
+> element-level `antialias:`. It was also the only element that persisted
+> state, and `docs/research/09-data-library-and-config-axes.md` §5.4
+> established that `Application.Storage` is **global across all four of the
+> wearer's saved configurations** — so the selected item leaked between
+> saved faces, a real behavioural wart with no fix available on this
+> platform. Every one of those special cases is now simply gone rather than
+> maintained for one element. `docs/format.md`'s `carousel` section, the
+> `carousel-zone` lint, `examples/carousel/`, and the runtime barrel file are
+> all deleted; `on_hold:` (§6 above, unaffected) remains every other
+> element's whole interactivity story. See CLAUDE.md's Phase 3 notes for the
+> session that removed it and the measured size of the deletion.
+
 ---
 
 *Original text, superseded above:*
@@ -556,6 +581,12 @@ both map to `onPress`, rather than silently preferring one.
   gap the third amendment left open. `docs/format.md` "Configuration → The
   Data axis" carries the update; no behaviour of the editor is verified,
   same as every other `config:` claim.
+- (§6 fifth amendment) `type: carousel`, the cycling element §6's geometry
+  correction made possible, shipped and was then removed outright on the
+  user's decision — the largest single feature by surface area, and the
+  only element that opted out of the null guard, font resolution, layout-box
+  and static/antialias rules every other element shares. See the amendment
+  for the reasons and CLAUDE.md for the deletion session.
 
 ## Open
 

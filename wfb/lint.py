@@ -21,10 +21,10 @@ from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import (
-    CONFIG_SYMBOL, Carousel, ComplicationSlot, Element, Face, Text, authored_draw_order,
+    CONFIG_SYMBOL, ComplicationSlot, Element, Face, Text, authored_draw_order,
 )
 from .layout import (
-    PlacedCarousel, PlacedProgress, PlacedShape, PlacedText, ResolvedFace, inside_screen,
+    PlacedProgress, PlacedShape, PlacedText, ResolvedFace, inside_screen,
     inside_visible_area, inside_visible_area_for, is_full_bleed,
 )
 from .palette import Color
@@ -35,7 +35,7 @@ from .units import IntBox
 #: produces a face that does not work.
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
-    "hold-unsupported", "hold-overlap", "carousel-zone", "complication-gated",
+    "hold-unsupported", "hold-overlap", "complication-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported",
 })
@@ -50,7 +50,7 @@ SUPPRESSIBLE = frozenset({
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
     "antialias-dither",
-    "carousel", "color", "color-scheme", "complication-gated", "complication-slot",
+    "color", "color-scheme", "complication-gated", "complication-slot",
     "config", "config-unsupported",
     "contrast", "dead-element",
     "element-mapping",
@@ -58,7 +58,7 @@ ALL_CODES = frozenset({
     "font", "format", "format-version", "graph", "graphics-pool", "icon", "io",
     "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
-    "carousel-zone", "carousel-on-hold", "hold-overlap", "hold-unsupported",
+    "hold-overlap", "hold-unsupported",
     "hold-auto-ambiguous", "hold-auto-unresolved",
     "palette-dither", "partial-update", "partial-update-budget", "permission",
     "on-hold", "on-tap-renamed", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
@@ -82,7 +82,6 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_contrast(resolved, bag)
     check_partial_update_budget(resolved, bag)
     check_hold_targets(resolved, bag)
-    check_carousel_zones(resolved, bag)
     check_dead_element(resolved, bag)
     check_complication_availability(resolved, bag)
     check_graphics_pool(resolved, bag)
@@ -885,15 +884,6 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
         ))
 
 
-# -- carousel zones ---------------------------------------------------------
-
-
-#: Below this many pixels wide, a hold zone is hard to hit reliably.  Garmin
-#: publishes no minimum touch size, so this is a judgement rather than a
-#: platform fact, and the diagnostic says so in its own confidence line.
-MIN_ZONE_WIDTH = 40
-
-
 def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
     """A `visible:` that folded to a constant `false` -- the element never draws.
 
@@ -935,67 +925,6 @@ def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
         # Everything under a dead group is dead for the same one reason.
         while index < len(items) and items[index].depth > placed.depth:
             index += 1
-
-
-def check_carousel_zones(resolved: ResolvedFace, bag: Bag) -> None:
-    """Can the wearer actually reach all three of a carousel's zones?
-
-    A carousel's box is its touch target, and it is checked here rather than
-    by :func:`check_geometry`, which deliberately looks at the *drawn* extent
-    instead (`PlacedCarousel.content_box`).  Two ways a generous-looking box
-    is not generous in practice: it is narrow enough that a third of it is a
-    sliver, or it is so wide that the outer thirds sit under the bezel of a
-    round screen -- where a finger cannot land at all.
-    """
-    device = resolved.device
-    for placed in resolved.items:
-        if not isinstance(placed, PlacedCarousel):
-            continue
-        zone_width = placed.box.width / 3.0
-        if zone_width < MIN_ZONE_WIDTH:
-            _emit(bag, placed, Diagnostic(
-                Severity.WARNING,
-                "carousel-zone",
-                f"{placed.id}: each hold zone is only {zone_width:.0f}px wide on "
-                f"{device.id}",
-                placed.element.span,
-                notes=["the box is split into thirds -- previous, open, next -- so a "
-                       f"box under {MIN_ZONE_WIDTH * 3}px wide makes them hard to hit "
-                       "apart",
-                       "widen 'size:'; it is the touch target, and it does not have to "
-                       "match what the row paints"],
-                confidence="approximate -- Garmin publishes no minimum touch size, so "
-                           f"{MIN_ZONE_WIDTH}px is this compiler's judgement",
-            ))
-            continue
-        outer = _outer_zones(placed)
-        unreachable = [name for name, box in outer
-                       if inside_visible_area(box, device) is False]
-        if unreachable:
-            _emit(bag, placed, Diagnostic(
-                Severity.WARNING,
-                "carousel-zone",
-                f"{placed.id}: the {' and '.join(unreachable)} "
-                f"zone{'s' if len(unreachable) > 1 else ''} "
-                f"{'reach' if len(unreachable) > 1 else 'reaches'} under "
-                f"{device.id}'s bezel",
-                placed.element.span,
-                notes=["a hold can only land on the part of the panel the wearer can "
-                       "see and touch, so part of that zone is dead",
-                       "narrow 'size:', or move the carousel toward the centre"],
-                confidence="exact for round and rectangle screens",
-            ))
-
-
-def _outer_zones(placed: PlacedCarousel) -> list[tuple[str, IntBox]]:
-    """The previous/next zones, as boxes.  The middle one is never the problem:
-    it is by construction the part of the row closest to the screen centre."""
-    box = placed.box
-    return [
-        ("previous", IntBox(box.x, box.y, placed.prev_edge - box.x, box.height)),
-        ("next", IntBox(placed.next_edge, box.y,
-                        box.right - placed.next_edge, box.height)),
-    ]
 
 
 # -- hold targets -----------------------------------------------------------
@@ -1105,7 +1034,7 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
     crash: **read** it (`complication.<name>` in `value:`/`color:`/etc, via
     `Complications.getComplication` returning null -- the ordinary "absence is
     normal" contract every nullable source already has) or **hold to launch
-    it** (`on_hold:`/a carousel item's `launch:`, via
+    it** (`on_hold:`, via
     `Complications.subscribeToUpdates` returning `false` or throwing
     `ComplicationNotFoundException` -- both already caught, uniformly, by
     `WfbComplications.mc`'s `subscribe()`). Either way the face still works;
@@ -1128,10 +1057,6 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
                     candidates.append((placed, name, expression.span or element.span, "read"))
         if element.on_hold is not None and complications.get(element.on_hold) is not None:
             candidates.append((placed, element.on_hold, element.span, "hold"))
-        if isinstance(element, Carousel):
-            for item in element.items:
-                if item.launch is not None and complications.get(item.launch) is not None:
-                    candidates.append((placed, item.launch, item.span or element.span, "hold"))
         if isinstance(element, ComplicationSlot):
             # `default:` is checked unconditionally -- it is compiled in and
             # is the only type a device with no native editor (fr955) ever

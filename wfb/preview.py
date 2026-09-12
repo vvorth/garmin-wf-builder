@@ -24,9 +24,9 @@ from PIL import Image, ImageDraw
 from . import catalog, complications, expr, formatting, icons
 from .catalog import Type
 from .fonts import BakedFont, fallback
-from .ir import Carousel, Progress, Shape, Text
+from .ir import Progress, Shape, Text
 from .layout import (
-    COMPLICATION_SLOT_ICON_GAP, PlacedCarousel, PlacedComplicationSlot, PlacedGraph,
+    COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, PlacedGraph,
     PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
 from .palette import MIP64_LEVELS, Color
@@ -164,8 +164,6 @@ class _Renderer:
             self._progress(placed)
         elif isinstance(placed, PlacedIcon):
             self._icon(placed)
-        elif isinstance(placed, PlacedCarousel):
-            self._carousel(placed)
         elif isinstance(placed, PlacedGraph):
             self._graph(placed)
         elif isinstance(placed, PlacedComplicationSlot):
@@ -425,89 +423,6 @@ class _Renderer:
             self.draw.rectangle(
                 [left, top, left + placed.bar_width * s - 1, (y + h) * s - 1], fill=color
             )
-
-    def _carousel(self, placed: PlacedCarousel) -> None:
-        """The carousel as the wearer would first see it: item 0 centred.
-
-        A preview cannot show a selection the wearer has not made yet, and
-        guessing one would make the image disagree with the watch on first
-        launch.  `Application.Storage` starts empty, `WfbCarousel.restore`
-        returns 0, so item 0 is what the device actually draws.
-        """
-        element = placed.element
-        if not placed.items:
-            return
-        s = self.scale
-        count = len(placed.items)
-        reach = element.slots // 2
-        active = self._color(element.color)
-        inactive = (self._color(element.inactive_color)
-                    if element.inactive_color is not None else active)
-
-        for slot in range(-reach, reach + 1):
-            item = placed.items[slot % count]
-            font = self.resolved.fonts.get(item.font_key)
-            sheet = getattr(font, "sheet_image", None) if font else None
-            glyph = font.glyphs.get(item.codepoint) if font else None
-            if sheet is None or glyph is None:
-                continue
-            cx = placed.row_center[0] + slot * placed.pitch
-            width, height = font.measure(item.codepoint)
-            self._paste_glyph(sheet, glyph,
-                              (cx - width / 2) * s,
-                              (placed.row_center[1] - height / 2) * s,
-                              active if slot == 0 else inactive)
-
-        text = self._carousel_value(element.items[0])
-        if not text:
-            return
-        color = (self._color(element.value_color)
-                 if element.value_color is not None else active)
-        value_font = (self.resolved.fonts.get(placed.value_font_reference)
-                      if placed.value_font_is_custom else None)
-        reading = PlacedText(
-            element=element, box=placed.box, center=placed.value_anchor,
-            anchor_point=placed.value_anchor,
-            justify=("TEXT_JUSTIFY_CENTER", "TEXT_JUSTIFY_VCENTER"),
-            font_reference=placed.value_font_reference,
-            font_is_custom=placed.value_font_is_custom,
-            font_px=placed.value_font_px,
-            widest=placed.value_widest,
-            measured_width=placed.value_measured_width,
-        )
-        if value_font is not None:
-            self._blit_bitmap_text(value_font, text, reading, color)
-        else:
-            self._approximate_carousel_value(text, reading, color)
-
-    def _approximate_carousel_value(self, text: str, reading: PlacedText, color) -> None:
-        """`_approximate_text` reads `align`/`vertical_align` off the element,
-        which a carousel does not have -- its reading is always centred on its
-        own anchor.  Same stand-in face, same measured extent."""
-        s = self.scale
-        face = fallback.font_for_height(reading.font_px * s)
-        if face is None:
-            return
-        self.draw.text((reading.anchor_point[0] * s, reading.anchor_point[1] * s),
-                       text, fill=color, font=face, anchor="mm")
-
-    def _carousel_value(self, item) -> str:
-        """One item's reading, applying the same `when_absent:` the device does."""
-        if item.value is None:
-            return ""
-        spec = item.format or "{}"
-        value_type = item.value.value.type
-        if value_type in (Type.TIME, Type.DATE):
-            return formatting.render(spec, None, value_type, self.values)
-        value = expr.evaluate(item.value.ast, self.values) if item.value.ast else None
-        if value is None:
-            if item.when_absent == "placeholder":
-                return item.placeholder or ""
-            if item.when_absent == "fallback" and item.fallback and item.fallback.ast:
-                value = expr.evaluate(item.fallback.ast, self.values)
-            if value is None:
-                return ""
-        return formatting.render(spec, value, value_type)
 
     def _complication_slot(self, placed: PlacedComplicationSlot) -> None:
         """A `complication_slot`, previewed at its slot's *default* choice.

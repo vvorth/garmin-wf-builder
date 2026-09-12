@@ -183,10 +183,7 @@ schema/               the published JSON Schema (a shipped artefact)
 examples/slice/       the Phase 2 example face -- the smallest end-to-end path
 examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
                       conditional colours, a badge and three arcs
-examples/carousel/    a data carousel -- a row of readings the wearer moves
-                      through by touch and hold, one of three zones per press
-examples/complications/  complication.* bindings, on_hold: auto and a
-                      carousel item's launch: auto
+examples/complications/  complication.* bindings and on_hold: auto
 examples/static/      a `static:` block: fixed furniture painted once into an
                       offscreen buffer and blitted every frame
 tests/                ? tests; only the `slow` ones need the Garmin toolchain
@@ -224,9 +221,8 @@ only a generator can exploit. The reasoning is in [`docs/adr/`](docs/adr/).
 Phase 3 — breadth: the remaining element types, per-device overrides, the `raw`
 escape hatch, and the rest of on-device configuration (the Styles and Data
 axes). Complications, interactivity and the two native colour axes have
-landed — `on_hold:` (including `on_hold: auto`) on any element, `type:
-carousel` for a row of readings the wearer moves between, `config:` for an
-accent and a data colour edited in the fēnix 8's own on-device editor, and
+landed — `on_hold:` (including `on_hold: auto`) on any element, `config:` for
+an accent and a data colour edited in the fēnix 8's own on-device editor, and
 all 42
 complication types as `complication.*` data sources, read by a plain pull with
 no cache anywhere in the generated face. See

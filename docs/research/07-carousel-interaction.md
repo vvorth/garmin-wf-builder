@@ -1,3 +1,12 @@
+> **The `type: carousel` element this document's research led to was later
+> removed outright**, on the user's decision — see `docs/adr/
+> 0006-configuration-theming-and-modes.md`'s fifth amendment for why, and
+> CLAUDE.md's Phase 3 notes for the deletion session. The research below is
+> still true and still load-bearing elsewhere in this project — in
+> particular §1's finding that `WatchFaceDelegate.onTap` never fires on a
+> live watch face drives the `on_hold:` design used by every interactive
+> element. Only the specific element built from it is gone.
+
 # 0.7 — A data carousel, and what the platform will actually give you
 
 The request: reproduce the horizontal data carousel from the **stock fr955

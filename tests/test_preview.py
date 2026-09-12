@@ -156,41 +156,6 @@ elements:
     assert intermediate, f"anti-aliased icon has no intermediate grey: {smooth_colors}"
 
 
-def test_the_preview_draws_a_carousel_as_the_device_first_will(repo_root, bag, db):
-    """Item 0 centred, neighbours dimmed.
-
-    Not a guess: `Application.Storage` starts empty, `WfbCarousel.restore`
-    returns 0, so item 0 is exactly what the watch draws on first launch --
-    which is what keeps this image and the generated code in agreement, the
-    only reason the two share resolved geometry at all.
-    """
-    from wfb.emit.resources import bake_fonts
-    from wfb.layout import PlacedCarousel, resolve
-    from wfb.preview import PreviewOptions, render
-
-    design = repo_root / "examples" / "carousel" / "face.yaml"
-    face = load(design, bag)
-    assert face is not None, bag.render()
-    device = db.get("fenix8solar47mm")
-    resolved = resolve(face, device, bake_fonts(face, device, device.minor_radius))
-    carousel = next(p for p in resolved.items if isinstance(p, PlacedCarousel))
-
-    image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
-    accent = face.palette["accent"]
-    dim = face.palette["dim"]
-
-    def ink(cx: int) -> set:
-        return {image.getpixel((x, y))
-                for x in range(cx - carousel.icon_px // 2, cx + carousel.icon_px // 2)
-                for y in range(carousel.row_center[1] - carousel.icon_px // 2,
-                               carousel.row_center[1] + carousel.icon_px // 2)}
-
-    centre = carousel.row_center[0]
-    assert (accent.r, accent.g, accent.b) in ink(centre), "the selected item is accented"
-    assert (dim.r, dim.g, dim.b) in ink(centre - carousel.pitch), "neighbours are dimmed"
-    assert (dim.r, dim.g, dim.b) in ink(centre + carousel.pitch)
-
-
 GRAPH_DESIGN = """
 format: 1
 face:

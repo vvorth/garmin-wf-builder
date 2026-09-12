@@ -23,7 +23,6 @@ BARREL_FILES = {
     "WfbArc.mc": "arcs -- a `progress` ring and a plain `shape: arc` alike",
     "WfbWeather.mc": "weather-condition icon glyphs",
     "WfbComplications.mc": "safe complication subscription and pull",
-    "WfbCarousel.mc": "carousel selection and persistence",
     "WfbSeries.mc": "graph time-series acquisition, binning and drawing",
 }
 
@@ -101,7 +100,7 @@ def generate(face: Face, devices: list[Device], root: Path,
     if monkeyc.needs_delegate(face):
         # Shared across devices like the view: the hit regions it references
         # are Layout constants, which are already per-device.  A `config:`-only
-        # design (no on_hold, no carousel) also needs one, purely for
+        # design (no on_hold) also needs one, purely for
         # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
         project.sources.append(monkeyc.emit_delegate(first))
     project.barrel = _barrel_for(face, first)
@@ -163,13 +162,11 @@ def _features(face: Face) -> set[str]:
         # until runtime, so `face.requirements().readers` above never sees it.
         features.add("complications")
     if monkeyc.launches_a_glance(face):
-        # `Complications.exitTo` is what an `on_hold:`, and a carousel item's
-        # `launch:`, compiles to -- API 4.2.0, the same floor a complication
-        # *reader* needs, for the same module. Deliberately not onTap's own
-        # 5.1.0: nothing the generator emits references onTap at all, because
-        # onTap never fires outside the on-device config editor (research 07
-        # 1a). And deliberately not every interactive element: a carousel that
-        # opens nothing rotates perfectly well below 4.2.0.
+        # `Complications.exitTo` is what an `on_hold:` compiles to -- API
+        # 4.2.0, the same floor a complication *reader* needs, for the same
+        # module. Deliberately not onTap's own 5.1.0: nothing the generator
+        # emits references onTap at all, because onTap never fires outside
+        # the on-device config editor (research 07 1a).
         features.add("complications")
     # `config:` deliberately adds nothing here: the probe confirms
     # <watchface-config> forces no minApiLevel bump
@@ -208,8 +205,6 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
                 needed.add("WfbTime.mc")
         elif kind == "icon" and placed.element.is_dynamic:
             needed.add("WfbWeather.mc")
-        elif kind == "carousel":
-            needed.add("WfbCarousel.mc")
         elif kind == "graph":
             needed.add("WfbSeries.mc")
     return sorted(needed)

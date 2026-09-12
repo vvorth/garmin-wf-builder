@@ -736,83 +736,6 @@ def test_a_device_without_onpress_is_reported_from_its_own_symbol_table(
     assert any("no tap to fall back to" in note for note in hits[0].notes), hits[0].notes
 
 
-# -- carousel zones ---------------------------------------------------------
-
-
-CAROUSEL_DESIGN = """
-format: 1
-face:
-  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
-  name: Test
-targets: [fenix8solar47mm]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-elements:
-  - id: data
-    type: carousel
-    at: {anchor: center, dy: DY}
-    size: {width: WIDTH, height: 22%}
-    pitch: 22%r
-    icon_size: 9%r
-    color: palette.fg
-    items:
-      - value: activity.steps
-        format: "{:d}"
-        when_absent: hide
-      - icon: battery
-        value: system.battery
-        format: "{:.0f}%"
-      - icon: flame
-        value: activity.calories
-        format: "{:d}"
-        when_absent: hide
-"""
-
-
-def _carousel(write_design, bag, db, width: str, dy: str = "0%"):
-    from wfb.emit.resources import bake_fonts
-    from wfb.layout import resolve
-
-    src = CAROUSEL_DESIGN.replace("WIDTH", width).replace("DY", dy)
-    face = load(write_design(src), bag)
-    assert face is not None, bag.render()
-    device = db.get("fenix8solar47mm")
-    return resolve(face, device, bake_fonts(face, device, device.minor_radius))
-
-
-def test_a_generous_carousel_box_is_not_a_safe_area_warning(write_design, bag, db):
-    """A carousel's box is its *touch target*, deliberately larger than what it
-    paints, so `check_geometry` reads `content_box` instead.  Sizing the target
-    generously must not read as a layout mistake -- the reachability question
-    is asked separately, by `check_carousel_zones`."""
-    resolved = _carousel(write_design, bag, db, "62%")
-    lint.run(resolved, bag)
-    assert not [d for d in bag.items if d.code in ("safe-area", "carousel-zone")], \
-        bag.render()
-
-
-def test_a_narrow_carousel_warns_that_its_zones_are_hard_to_hit(write_design, bag, db):
-    """The box is split into thirds, so a narrow one gives three slivers."""
-    resolved = _carousel(write_design, bag, db, "30%")
-    lint.check_carousel_zones(resolved, bag)
-    hits = [d for d in bag.items if d.code == "carousel-zone"]
-    assert hits, bag.render()
-    assert "hold zone" in hits[0].message
-    assert "judgement" in (hits[0].confidence or ""), hits[0].confidence
-
-
-def test_a_carousel_whose_outer_zones_are_under_the_bezel_warns(write_design, bag, db):
-    """A hold can only land where the wearer can see and touch, so a zone past
-    the bezel of a round screen is dead however wide it measures."""
-    resolved = _carousel(write_design, bag, db, "96%", dy="30%")
-    lint.check_carousel_zones(resolved, bag)
-    hits = [d for d in bag.items if d.code == "carousel-zone"]
-    assert hits, bag.render()
-    assert "bezel" in hits[0].message
-    assert hits[0].confidence.startswith("exact"), hits[0].confidence
-
-
 # -- complication gating (F3) -------------------------------------------------
 #
 # `complication.sleep_score` -> `COMPLICATION_TYPE_SLEEP_SCORE` needs
@@ -937,52 +860,6 @@ def test_a_hold_target_above_the_devices_ceiling_warns_and_says_it_is_a_no_op(
     assert "6.0.2" in hits[0].message and "5.2.0" in hits[0].message
     assert any("no-op" in note for note in hits[0].notes), hits[0].notes
     assert not any("null" in note for note in hits[0].notes), hits[0].notes
-
-
-def test_a_carousel_launch_item_above_the_devices_ceiling_also_warns(write_design, bag, db):
-    """Same mechanism, the carousel item's own `launch:` rather than an
-    element-level `on_hold:` -- a carousel cannot take `on_hold:` itself
-    (`carousel-on-hold`), so this is the only way the hold direction reaches
-    a carousel."""
-    design = """
-format: 1
-face:
-  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
-  name: Test
-targets: [fenix8solar47mm, fr955]
-palette:
-  bg: "#000000"
-  fg: "#FFFFFF"
-  dim: "#555555"
-elements:
-  - id: background
-    type: shape
-    shape: rectangle
-    at: {anchor: center}
-    size: {width: 100%, height: 100%}
-    color: palette.bg
-  - id: data
-    type: carousel
-    at: {anchor: center}
-    size: {width: 62%, height: 22%}
-    pitch: 22%r
-    icon_size: 9%r
-    color: palette.fg
-    inactive_color: palette.dim
-    items:
-      - value: activity.steps
-        format: "{:d}"
-        when_absent: hide
-        launch: sleep_score
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: hide
-"""
-    resolved = _resolved_for(write_design, bag, db, design, "fr955")
-    lint.check_complication_availability(resolved, bag)
-    hits = [d for d in bag.items if d.code == "complication-gated"]
-    assert hits, bag.render()
-    assert "holding to launch" in hits[0].message
 
 
 def test_complication_gated_is_suppressible_on_the_bound_element(write_design, bag, db):

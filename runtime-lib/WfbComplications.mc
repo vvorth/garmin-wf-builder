@@ -67,10 +67,9 @@ module WfbComplications {
 
     //! A `complication_slot` element's `unit: true` -- `Complication.unit` is
     //! typed `Complications.Unit or Lang.String or Null`: either the SDK's own
-    //! enum (a plain Number under the hood, checked with `instanceof Number`
-    //! the same way `WfbCarousel.mc` narrows a stored `Object`) or a literal
-    //! string a *user* complication supplied directly, which is returned as
-    //! written. `wfb.complications.UNIT_SUFFIX` is this switch's Python twin,
+    //! enum (a plain Number under the hood, checked with `instanceof Number`)
+    //! or a literal string a *user* complication supplied directly, which is
+    //! returned as written. `wfb.complications.UNIT_SUFFIX` is this switch's Python twin,
     //! transcribed from the same `Toybox/Complications.html` "Unit" table --
     //! `tests/test_complication_slot.py` parses this file and checks every
     //! case against it directly, so the two cannot silently drift apart.

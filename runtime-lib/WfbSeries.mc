@@ -6,7 +6,7 @@ import Toybox.Time;
 //! Time-series acquisition, binning and drawing for a `type: graph` element.
 //!
 //! What is fixed across every design lives here, the same split
-//! `WfbArc.mc`/`WfbCarousel.mc` already draw: heart-rate acquisition and
+//! `WfbArc.mc` already draws: heart-rate acquisition and
 //! binning, and the generic min/max over an array, are one shape shared by
 //! every graph -- Monkey C offers no way to pass a field name, so the
 //! per-series array loops (`day.steps` vs. `day.calories`, `hour.temperature`

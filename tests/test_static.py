@@ -308,28 +308,6 @@ def test_a_nested_static_names_the_outer_one(write_design):
     assert "inside the static subtree of 'static'" in errors[0].message
 
 
-def test_a_carousel_cannot_be_static(write_design):
-    text = HEAD + """elements:
-  - id: data
-    type: carousel
-    static: true
-    at: {anchor: center}
-    size: {width: 80%, height: 20%}
-    color: palette.fg
-    inactive_color: palette.bg
-    items:
-      - value: activity.steps
-        format: "{:d}"
-        when_absent: hide
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: hide
-"""
-    errors = _errors(text, write_design)
-    assert [d.code for d in errors] == ["static"]
-    assert "is a carousel and cannot be static" in errors[0].message
-
-
 def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve

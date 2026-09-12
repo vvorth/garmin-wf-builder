@@ -61,10 +61,6 @@ def permissions(face: Face) -> list[str]:
     available to a Watch Face -- checked, not assumed). A design can therefore
     need that permission while reading no complication value at all.
 
-    A `carousel` item's `launch:` is the same call reached a different way --
-    a hold on the centre zone rather than on the element -- so it implies the
-    same permission.
-
     A `config: data:` slot needs it too, for the same reason it is not a
     catalogue reader `face.requirements()` would otherwise see: which type
     the wearer picked is not known until runtime, so

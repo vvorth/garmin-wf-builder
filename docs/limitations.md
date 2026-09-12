@@ -582,11 +582,6 @@ the visible area (round and rectangle only); glyph coverage of a subsetted
 font; contrast arithmetic. (There is no longer a refresh-tier check to list
 here -- the tier concept itself was deleted; see §2 above.)
 
-A `carousel` is the one element checked against its **drawn** extent rather
-than its box, because its box is deliberately larger — it is the touch target.
-Whether that target is *usable* is a separate check (`carousel-zone`), listed
-below because half of it rests on a judgement.
-
 **Per-device API availability is checked three ways, by two different
 mechanisms, because the data supports only one of them in each case.**
 
@@ -627,7 +622,6 @@ partly enforced" below, the same gap from the catalogue's side.
 | **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is **always an estimate** — Garmin publishes each `FONT_*` symbol's pixel *height* per device and language, but not its per-glyph advances, and the real typefaces (Pridi, Roboto Condensed, Bionic, ...) are not available on the host or in the SDK. The estimate scales a real scalable stand-in face to the device's published height and measures per character (`wfb/fonts/fallback.py`), which is why it needs that per-device height to be correct in the first place — a flat 0.55 em/character coefficient is a last-resort fallback used only if even that stand-in face fails to load. Every system-font measurement is labelled `(estimated)` in the generated code regardless. |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
 | **`graphics-pool`** | The pool size is exact (`graphicsResourcePoolSize`, straight from the device file) and so is the pixel count. **Bytes per pixel is not.** The SDK publishes no figure for a `BufferedBitmap`, so this uses the display's own `bitsPerPixel` as a proxy and ignores per-surface overhead; the check labels itself an estimate. It also does not account for the fonts and bitmaps the face loads at runtime, which share the same pool -- so the *fraction* it reports is a floor, not a total. |
-| **`carousel-zone`, narrow-zone half** | Splitting the box into thirds is exact; the **40px minimum** each third is measured against is not a Garmin number — Garmin publishes no minimum touch size — so it is this compiler's judgement and the message says so. The other half of the check, whether a zone reaches under a round screen's bezel, *is* exact resolved geometry. |
 
 ### Suppression, and what it can reach
 
@@ -665,8 +659,8 @@ them rather than to an arbitrary one:
   the allow is honoured only on an element naming that specific
   `config.colors.<role>`.
 
-`carousel-zone`, `dead-element`, `static-overlap` and the two `hold-*` codes are
-ordinary element-scoped diagnostics, so `lint:` on the element itself reaches
+`dead-element`, `static-overlap` and the two `hold-*` codes are ordinary
+element-scoped diagnostics, so `lint:` on the element itself reaches
 them -- for `static-overlap`, on the element that ends up on top.
 
 A code in `allow:` that this compiler does not emit, or that is deliberately not
@@ -711,8 +705,7 @@ It would also not buy correctness. `onPress` runs at touch time, not at draw
 time, so a re-evaluated condition answers about a different moment than the pixels
 the wearer is looking at; the two can disagree either way. The failure mode as it
 stands is bounded and recoverable — a hold on an empty patch of screen opens a
-glance, and back returns — so this is documented rather than gated. A `carousel`
-is the same: its three hold zones stay live while the row is hidden.
+glance, and back returns — so this is documented rather than gated.
 
 ### Not checked at all
 

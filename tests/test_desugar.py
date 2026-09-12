@@ -5,8 +5,8 @@ The gate that actually matters is
 are meant to mean the same thing are only proved to mean the same thing when
 the compiler's own output for them is identical, byte for byte, on every
 target.  Everything else here is about the two ways this could go quietly
-wrong -- a span that stops pointing at the author's line, and a carousel's
-`items:` being mistaken for a list of elements.
+wrong -- a span that stops pointing at the author's line, and a non-element
+list field being mistaken for a list of elements.
 """
 
 from __future__ import annotations
@@ -65,23 +65,14 @@ LIST_FORM = HEAD + """elements:
         when_absent: placeholder
         placeholder: "--"
   - id: data
-    type: carousel
-    at: {anchor: center, dy: 30%}
-    size: {width: 52%, height: 20%}
-    pitch: 22%r
-    icon_size: 9%r
-    color: palette.accent
-    inactive_color: palette.fg
-    value_font: FONT_SMALL
-    value_color: palette.fg
-    value_offset: {anchor: center, dy: 34%}
-    items:
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: fallback
-        fallback: "0"
-      - value: system.battery
-        format: "{:.0f}%"
+    type: text
+    value: activity.calories
+    format: "{:d}"
+    font: FONT_SMALL
+    at: {anchor: center, dy: 34%}
+    color: palette.fg
+    when_absent: fallback
+    fallback: "0"
 """
 
 MAPPING_FORM = HEAD + """elements:
@@ -113,25 +104,14 @@ MAPPING_FORM = HEAD + """elements:
         when_absent: placeholder
         placeholder: "--"
   data:
-    type: carousel
-    at: {anchor: center, dy: 30%}
-    size: {width: 52%, height: 20%}
-    pitch: 22%r
-    icon_size: 9%r
-    color: palette.accent
-    inactive_color: palette.fg
-    value_font: FONT_SMALL
-    value_color: palette.fg
-    value_offset: {anchor: center, dy: 34%}
-    items:
-      # NOT rewritten: a carousel's items are slots, not elements.  They have
-      # no id, and nothing here is keyed.
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: fallback
-        fallback: "0"
-      - value: system.battery
-        format: "{:.0f}%"
+    type: text
+    value: activity.calories
+    format: "{:d}"
+    font: FONT_SMALL
+    at: {anchor: center, dy: 34%}
+    color: palette.fg
+    when_absent: fallback
+    fallback: "0"
 """
 
 
@@ -195,77 +175,17 @@ def test_the_two_forms_generate_byte_identical_output(write_design, db, tmp_path
     assert "manifest.xml" in from_list and "monkey.jungle" in from_list
 
 
-def test_a_carousel_keeps_its_items_a_plain_list(write_design, bag):
-    """`items:` are slots with no id.  Rewriting them would mangle the row."""
-    doc, ok = _document(write_design, MAPPING_FORM, bag)
-    assert ok, bag.render()
-    carousel = doc.data["elements"][2]
-    assert carousel["id"] == "data"
-    items = carousel["items"]
-    assert isinstance(items, list) and len(items) == 2
-    assert [item.get("value") for item in items] == [
-        "activity.calories", "system.battery",
-    ]
-    assert not any("id" in item for item in items)
-
-
-#: A carousel whose `items:` are written as a mapping.  Nonsense -- a slot has
-#: no id -- and the point is that it is *rejected*, not silently rewritten into
-#: a list of elements carrying invented ids.
-CAROUSEL_ITEMS_AS_MAPPING = MAPPING_FORM.replace("""    items:
-      # NOT rewritten: a carousel's items are slots, not elements.  They have
-      # no id, and nothing here is keyed.
-      - value: activity.calories
-        format: "{:d}"
-        when_absent: fallback
-        fallback: "0"
-      - value: system.battery
-        format: "{:.0f}%"
-""", """    items:
-      calories:
-        value: activity.calories
-        format: "{:d}"
-        when_absent: fallback
-        fallback: "0"
-      battery:
-        value: system.battery
-        format: "{:.0f}%"
-""")
-
-
-def test_a_carousel_items_mapping_is_rejected_not_rewritten(write_design, bag):
-    """The discriminating test for "not a carousel's items".
-
-    A `carousel` and a `group` both own a list of mappings; only the group's
-    are elements.  If this pass ever started rewriting `items:` too, the
-    mangling would be silent -- ids invented for slots that have none -- so
-    what is asserted here is that the mapping survives untouched and the schema
-    then says plainly that `items:` must be a list.
-    """
-    assert CAROUSEL_ITEMS_AS_MAPPING != MAPPING_FORM, "the fixture did not apply"
-    doc, ok = _document(write_design, CAROUSEL_ITEMS_AS_MAPPING, bag)
-    assert ok, bag.render()
-    items = doc.data["elements"][2]["items"]
-    assert isinstance(items, dict), "a carousel's items were rewritten"
-    assert not any("id" in body for body in items.values())
-
-    assert load(write_design(CAROUSEL_ITEMS_AS_MAPPING), bag) is None
-    assert any(d.code == "schema" for d in bag.errors), bag.render()
-
-
-def test_the_real_example_still_holds_its_carousel(pytestconfig, bag):
-    """`examples/complications/` is the mapping form in anger, and it carries a
-    carousel -- so the same rewrite runs over a real design with both shapes in
-    it, not only over a fixture written to order."""
+def test_the_real_example_still_desugars(pytestconfig, bag):
+    """`examples/complications/` is the mapping form in anger -- so the same
+    rewrite runs over a real design, not only over a fixture written to
+    order."""
     design = pytestconfig.rootpath / "examples" / "complications" / "face.yaml"
     if not design.exists():
         pytest.skip("the example is missing")
     doc = yamlsrc.load(design, bag)
     assert doc is not None and desugar.desugar(doc, bag), bag.render()
     assert isinstance(doc.data["elements"], list)
-    carousel = [e for e in doc.data["elements"] if e.get("type") == "carousel"]
-    assert len(carousel) == 1
-    assert not any("id" in item for item in carousel[0]["items"])
+    assert all("id" in e for e in doc.data["elements"])
 
 
 # -- spans --------------------------------------------------------------------
@@ -304,8 +224,8 @@ def test_every_element_points_at_the_key_that_named_it(write_design, bag):
 def test_a_semantic_error_inside_a_mapping_form_element_still_points_at_it(
         write_design, bag):
     """The rewrite must not cost the author the spans the list form gives."""
-    design = MAPPING_FORM.replace("color: palette.accent\n    inactive_color",
-                                  "color: palette.missing\n    inactive_color")
+    design = MAPPING_FORM.replace("color: palette.fg\n    when_absent: fallback",
+                                  "color: palette.missing\n    when_absent: fallback")
     assert load(write_design(design), bag) is None
     diag = next(d for d in bag.errors if d.code == "expression")
     assert diag.span is not None
