@@ -1720,13 +1720,6 @@ class Builder:
         undefined symbol, so catching it here points at the author's line
         instead of a generated one.
 
-        `on_tap:` was this key's name until the gesture was researched
-        properly (`docs/research/07-carousel-interaction.md` 1a): a live watch
-        face never receives a tap, because `WatchFaceDelegate.onTap` fires
-        only inside the on-device config editor.  The old spelling is still
-        accepted by the schema purely so the rename can be reported here,
-        against the author's own line.
-
         `on_hold: auto` is validated here only as far as recognising the
         sentinel and passing it through unresolved -- this runs from
         `common`, *before* the kind-specific builder gives the element a
@@ -1736,17 +1729,6 @@ class Builder:
         (deleted along with the per-source refresh-cadence concept -- see
         CLAUDE.md's Phase 3 notes on this session).
         """
-        if "on_tap" in node:
-            self.bag.error(
-                "on-tap-renamed",
-                "'on_tap:' has been renamed to 'on_hold:'",
-                self.doc.span(node, "on_tap"),
-                notes=["a live watch face never receives a tap -- "
-                       "WatchFaceDelegate.onTap fires only in the on-device config "
-                       "editor, so this was always delivered by touch and hold",
-                       "the value is unchanged; only the key name moves"],
-            )
-            return None
         raw = node.get("on_hold")
         if raw is None:
             return None
@@ -2330,7 +2312,7 @@ class Builder:
         outline or an icon's own, per-glyph font.  The schema still parses
         `antialias:` here rather than rejecting it as an unknown key, purely
         so this can name the actual font instead of jsonschema's generic
-        "unknown key" message -- the same trick `on_tap:` uses to report its
+        "unknown key" message -- the same trick a discriminated-pair key uses
         own rename against the author's line, and for the same reason: by
         the time `_resolve_font` above has run, `element.font` is the real
         answer, not a guess.

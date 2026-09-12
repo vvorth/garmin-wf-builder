@@ -158,8 +158,7 @@ def test_low_power_may_bind_a_dynamic_weather_icon(write_design, bag):
 def test_body_battery_current_names_its_replacement(write_design, bag):
     """`body_battery.current` moved to `complication.body_battery`: complications
     now have their own namespace, always read through Toybox.Complications,
-    rather than piggybacking on ActivityMonitor's tier. Precedent:
-    `on_tap:` -> `on_hold:`'s rename diagnostic."""
+    rather than piggybacking on ActivityMonitor's tier."""
     load(write_design(design("""
   - id: bb
     type: text
@@ -969,20 +968,19 @@ def test_on_hold_must_name_a_real_complication_type(write_design, bag):
     assert any("heart_rate" in n for n in hits[0].notes), hits[0].notes
 
 
-def test_the_old_on_tap_spelling_names_its_replacement(write_design, bag):
-    """`on_tap:` was the name until the gesture was researched properly.
+def test_the_old_on_tap_spelling_is_now_an_ordinary_unknown_key(write_design, bag):
+    """The rename shim is gone; `on_tap:` is just not a key any more.
 
-    A live watch face never receives a tap, so the key was claiming something
-    the platform does not do. The schema still accepts the old spelling for
-    exactly one reason: so the rename can be reported here, against the
-    author's own line, instead of as a generic 'additional property' error
-    from JSON Schema that names no replacement.
+    It was carried in all seven element branches of the schema for one
+    purpose -- reporting its own rename -- long after anything could still be
+    written against it.  What is left is the ordinary unknown-key error, which
+    already lists the keys that *are* allowed, `on_hold` among them.
     """
     load(write_design(design(HELD.replace("on_hold:", "on_tap:"))), bag)
-    hits = [d for d in bag.errors if d.code == "on-tap-renamed"]
-    assert hits, bag.render()
-    assert "on_hold" in hits[0].message
-    assert any("config editor" in note for note in hits[0].notes), hits[0].notes
+    assert not [d for d in bag.errors if d.code == "on-tap-renamed"], bag.render()
+    schema = [d for d in bag.errors if d.code == "schema"]
+    assert schema, bag.render()
+    assert "on_tap" in bag.render()
 
 
 def test_on_hold_compiles_to_exit_to(write_design, bag, db):
@@ -1407,8 +1405,8 @@ def test_a_series_the_platform_forbids_says_why_rather_than_unknown(
     """A real quantity the watch shows natively, that a face still cannot plot.
 
     "unknown series 'pressure'" would send an author hunting for a spelling
-    mistake that does not exist -- the failure mode `source-renamed` and
-    `on-tap-renamed` already exist to avoid.  Drives both branches: the
+    mistake that does not exist -- the failure mode `source-renamed`
+    already exists to avoid.  Drives both branches: the
     message must NOT be the "unknown series" one, and must carry the reason.
     """
     load(write_design(design(_graph(series=name))), bag)

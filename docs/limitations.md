@@ -393,6 +393,7 @@ stock Garmin face's tap behaviour is modelled on native firmware this API does
 not expose. `docs/research/07-carousel-interaction.md` §1 has the evidence.
 
 This project's `on_hold:` was called `on_tap:` until that was established.
+The shim that reported the rename has since been removed.
 
 ### Animation exists, but only while the watch is awake
 

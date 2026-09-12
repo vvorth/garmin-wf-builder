@@ -1849,8 +1849,9 @@ resolved against that device's own symbol table rather than its API level,
 because an API level does not settle it. All three of this project's targets
 have it, `fr955` included.
 
-> `on_tap:` was this key's name until that was researched properly. The old
-> spelling is now an error that names its replacement; the value is unchanged.
+> `on_tap:` was this key's name until that was researched properly. The rename
+> shim that reported it has since been removed, so the old spelling is simply
+> not a key: you get the ordinary unknown-key error, which lists `on_hold`.
 
 **The hit region is the element's own drawn box** — what the finger must hit is
 what the eye sees, which is checkable in `wfb preview`. Nothing is inflated to

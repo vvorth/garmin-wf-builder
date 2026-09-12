@@ -167,7 +167,7 @@ def test_the_element_branches_share_one_definition_of_each_common_property():
     defs = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))["$defs"]
     branches = [name for name in defs if name.endswith("Element")]
     assert branches, "no element branches found -- has the schema been restructured?"
-    shared = ("z", "on_tap", "on_hold", "static", "visible", "overrides", "antialias")
+    shared = ("z", "on_hold", "static", "visible", "overrides", "antialias")
     for branch in branches:
         for prop in shared:
             body = defs[branch].get("properties", {}).get(prop)

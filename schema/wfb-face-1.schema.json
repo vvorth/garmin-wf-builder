@@ -632,9 +632,6 @@
         "z": {
           "$ref": "#/$defs/zOrder"
         },
-        "on_tap": {
-          "$ref": "#/$defs/onTapRemoved"
-        },
         "on_hold": {
           "$ref": "#/$defs/onHold"
         },
@@ -735,9 +732,6 @@
         "z": {
           "$ref": "#/$defs/zOrder"
         },
-        "on_tap": {
-          "$ref": "#/$defs/onTapRemoved"
-        },
         "on_hold": {
           "$ref": "#/$defs/onHold"
         },
@@ -829,9 +823,6 @@
         },
         "z": {
           "$ref": "#/$defs/zOrder"
-        },
-        "on_tap": {
-          "$ref": "#/$defs/onTapRemoved"
         },
         "on_hold": {
           "$ref": "#/$defs/onHold"
@@ -935,9 +926,6 @@
         "z": {
           "$ref": "#/$defs/zOrder"
         },
-        "on_tap": {
-          "$ref": "#/$defs/onTapRemoved"
-        },
         "on_hold": {
           "$ref": "#/$defs/onHold"
         },
@@ -1038,9 +1026,6 @@
         },
         "z": {
           "$ref": "#/$defs/zOrder"
-        },
-        "on_tap": {
-          "$ref": "#/$defs/onTapRemoved"
         },
         "on_hold": {
           "$ref": "#/$defs/onHold"
@@ -1159,9 +1144,6 @@
         "z": {
           "$ref": "#/$defs/zOrder"
         },
-        "on_tap": {
-          "$ref": "#/$defs/onTapRemoved"
-        },
         "on_hold": {
           "$ref": "#/$defs/onHold"
         },
@@ -1253,9 +1235,6 @@
         "z": {
           "$ref": "#/$defs/zOrder"
         },
-        "on_tap": {
-          "$ref": "#/$defs/onTapRemoved"
-        },
         "on_hold": {
           "$ref": "#/$defs/onHold"
         },
@@ -1278,10 +1257,6 @@
     },
     "zOrder": {
       "type": "integer"
-    },
-    "onTapRemoved": {
-      "description": "Removed: renamed to on_hold. Accepted here only so that `wfb validate` can report the rename against your own line instead of a generic \"additional property\" error.",
-      "type": "string"
     },
     "onHold": {
       "description": "Touch and hold this element to launch the glance or app that owns this complication type -- Complications.exitTo, the only exit a watch face has. Run `wfb complications` for the names. Hold is the only gesture a live watch face receives on any device: WatchFaceDelegate.onTap fires solely inside the on-device config editor. Also accepts 'auto': resolved at build time from this element's own value binding (a text's value: or icon_for:, a progress's value: -- never color:/track_color:/max:) via Source.launch_complication, erroring if that binding resolves no conventional target or more than one. On a complication_slot, only 'auto' is accepted (a fixed name is an error naming why) -- it opens whichever glance the wearer's own *current* pick belongs to, resolved on-device on every hold rather than to a fixed name at build time.",

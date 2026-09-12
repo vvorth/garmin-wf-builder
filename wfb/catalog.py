@@ -599,8 +599,7 @@ CATALOG: dict[str, Source] = {
 #: renamed once `complication.*` became the one and only way to read a
 #: complication (see module docstring's "one rule, no exceptions"). Kept so
 #: an author's old design gets a diagnostic naming the replacement rather
-#: than a bare "unknown data source" -- the same precedent as `on_tap:` ->
-#: `on_hold:` (`wfb/ir.py`'s `on-tap-renamed`). No example YAML in this repo
+#: than a bare "unknown data source". No example YAML in this repo
 #: binds any of these (checked before the rename).
 RENAMED_SOURCES: dict[str, str] = {
     "body_battery.current": "complication.body_battery",
