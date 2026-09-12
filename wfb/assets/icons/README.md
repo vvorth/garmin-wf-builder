@@ -38,9 +38,9 @@ Pictogrammers project; Weather Icons by Erik Flowers, SIL OFL 1.1.
 ## Adding an icon to the catalogue
 
 Any glyph in this font can be used directly in a design without a code change
-at all -- `icon:` accepts a single literal character, checked against this
-font's own character map at build time, in addition to the maintained names in
-`wfb/icon_catalog.py`. Adding a *name* for one (so `wfb sources`/`wfb new`
+at all -- `glyph: "U+XXXX"` takes any codepoint, checked against this font's
+own character map at build time, in addition to the maintained names in
+`wfb/icon_catalog.py` that `icon:` takes. Adding a *name* for one (so `wfb sources`/`wfb new`
 document it, and so an author does not have to go hunting for a codepoint)
 means adding one `Icon(...)` entry to `wfb/icon_catalog.py`'s single
 `CATALOG` -- there is one catalogue for every icon, general-purpose and

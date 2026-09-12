@@ -26,10 +26,12 @@ separates "which name" (:data:`wfb.icons.GARMIN_WEATHER_CONDITION_ICON`) from
 "which glyph" (this file, via ``CATALOG[name].codepoint``).
 
 A name in :data:`CATALOG` is the documented, common-case way to reach a glyph.
-It is not the only way: :func:`wfb.icons.resolve_codepoint` also accepts a
-single literal character, checked against the font's own character map -- the
-same relationship ``color:`` has between a named palette entry and a literal
-hex value.
+It is not the only way: an author can write ``glyph: "U+F09B"`` for any
+codepoint in the font, checked against its own character map -- the same
+relationship ``color:`` has between a named palette entry and a literal hex
+value.  Note the escape-hatch spelling is the *codepoint*, never a pasted
+character: the paragraph below applies to a design file exactly as it applies
+to this one.
 
 Every codepoint below is written as ``\uXXXX``/``\U000XXXXX`` rather than
 pasted as a raw character, and *only* that way -- no exceptions, including the

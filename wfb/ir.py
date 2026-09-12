@@ -2441,8 +2441,8 @@ class Builder:
                 self.doc.span(node, "icon"),
                 notes=[
                     "the catalogue has: " + ", ".join(icons.names()),
-                    "or use any single character from the vendored icon font "
-                    "directly -- see wfb/assets/icons/README.md",
+                    "for a glyph the catalogue does not name, write "
+                    "'glyph: \"U+XXXX\"' instead -- see wfb/assets/icons/README.md",
                 ],
             )
             codepoint = icons.FALLBACK_CODEPOINT
@@ -2458,10 +2458,11 @@ class Builder:
     def _build_glyph_icon(self, node: dict, common: dict, size) -> Element:
         """`glyph: "U+F0BC"` -- a codepoint the catalogue does not name.
 
-        The same escape hatch `icon:`'s bare-character form offers, spelled so
-        that it survives a code review: `U+F0BC` is greppable and visible,
+        The only way to reach a glyph the catalogue does not name, and spelled
+        so that it survives a code review: `U+F0BC` is greppable and visible,
         where the character itself renders as a blank box (or nothing) in most
-        editors and diffs.  Everything downstream -- baking, sizing, the
+        editors and diffs.  `icon:` briefly accepted a pasted character too;
+        that was removed, for the reason this docstring gives.  Everything downstream -- baking, sizing, the
         per-codepoint font key -- is identical once it is a character, because
         this is exactly what a catalogue name resolves to.
         """

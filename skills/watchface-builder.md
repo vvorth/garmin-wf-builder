@@ -397,7 +397,7 @@ elements:                 # a list, as below -- or a mapping keyed by element
   - id: hr_icon                   # a glyph from the vendored icon font; small
     type: icon                    # resource cost, takes a colour at runtime
     icon: heart                   # alarm | battery | distance | dnd | flame | floors | heart | notification | phone | steps | weather_cloudy | weather_cloudy_heavy | weather_cloudy_light | weather_dust | weather_fog | weather_hail | weather_haze | weather_hurricane | weather_hurricane_warning | weather_ice | weather_lightning | weather_rain | weather_rain_heavy | weather_rain_light | weather_sandstorm | weather_sleet | weather_smoke | weather_snow | weather_snow_heavy | weather_strong_wind | weather_sunny | weather_sunny_overcast | weather_thunderstorm | weather_thunderstorm_showers | weather_tornado | weather_unknown | weather_volcano | weather_windy | weather_wintry_mix
-                                   # -- or any single glyph pasted directly, e.g. icon: ""
+                                   # -- or any codepoint: glyph: "U+F004"
     size: 11%r                    # px or %r only -- never % or pt (rule 8)
     at: {anchor: center, dx: -40%r, dy: 30%r}
     color: palette.hot

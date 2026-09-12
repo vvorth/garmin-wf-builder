@@ -2,8 +2,8 @@ r"""Icon sizing, resolution and the weather-condition lookup.
 
 The catalogue *data* -- every name, its codepoint, its description -- lives in
 :mod:`wfb.icon_catalog`, imported here as :data:`CATALOG`. This module is
-everything you do *with* that data: resolving a name (or a raw pasted glyph)
-to a codepoint, baking it at the right size, keying the generated font
+everything you do *with* that data: resolving a name or a ``U+XXXX``
+codepoint to a glyph, baking it at the right size, keying the generated font
 resource, and mapping a `Toybox.Weather.CONDITION_*` value to a catalogue
 name. See :mod:`wfb.icon_catalog`'s own docstring for why the two are split
 and for the `\uXXXX` escape convention every codepoint in this project follows.
@@ -107,26 +107,26 @@ def font_has(character: str) -> bool:
 
 
 def resolve_codepoint(name: str) -> str | None:
-    """A catalogue name's glyph, or a literal character the font itself contains.
+    """A catalogue name's glyph, or ``None`` if the catalogue does not name it.
 
-    The second form is the escape hatch: the font has over ten thousand glyphs
-    and the maintained catalogue only names the common ones, so an author who
-    knows the codepoint they want (from
-    https://www.nerdfonts.com/cheat-sheet, say) can paste the character
-    directly rather than waiting for it to be added here.
+    This used to also accept a literal character pasted into the YAML, as the
+    escape hatch for the ~10,000 glyphs the maintained catalogue does not name.
+    ``glyph: "U+F09B"`` replaced it and is strictly better: the codepoint is
+    greppable, visible in a diff, and survives a copy-paste, where the
+    character itself renders as a blank box or as nothing at all in most
+    editors -- and, worse, a paste that silently fails still parses as valid
+    YAML. That is the exact hazard :mod:`wfb.icon_catalog`'s docstring bans
+    for this project's own source; there was no reason to keep offering it to
+    authors.
     """
     icon = CATALOG.get(name)
-    if icon is not None:
-        return icon.codepoint
-    if len(name) == 1 and ord(name) > 0x7F and name in _available_glyphs():
-        return name
-    return None
+    return icon.codepoint if icon is not None else None
 
 
 @lru_cache(maxsize=1)
 def _available_glyphs() -> frozenset[str]:
-    """Every character the vendored font can draw -- the raw-glyph escape hatch's
-    universe, and what :func:`resolve_codepoint` checks a literal character against.
+    """Every character the vendored font can draw -- what :func:`font_has`
+    checks a `glyph: "U+XXXX"` codepoint against.
 
     Includes codepoints above the Basic Multilingual Plane (Material Design
     Icons, used by this catalogue, lives entirely above it). An earlier version

@@ -48,23 +48,28 @@ def test_resolve_codepoint_finds_catalogue_entries():
     assert icons.resolve_codepoint("heart") == icons.CATALOG["heart"].codepoint
 
 
-def test_resolve_codepoint_accepts_a_raw_glyph_from_the_font():
-    """The escape hatch: any of the font's ~10,000 glyphs, not just the six
-    maintained names, by pasting the character directly."""
+def test_resolve_codepoint_no_longer_accepts_a_pasted_character():
+    """The pasted-character escape hatch is gone; `glyph: "U+XXXX"` replaced it.
+
+    A character in the font that the catalogue does not name used to resolve
+    to itself.  It now does not: the codepoint spelling is greppable, visible
+    in a diff, and survives a copy-paste -- and a paste that silently fails
+    still parses as valid YAML, which is exactly the hazard
+    `wfb.icon_catalog`'s docstring bans for this project's own source.
+    """
     # fa-question (U+F128) is in the vendored font and is not in CATALOG.
-    raw = ""
+    raw = "\uf128"
     assert raw not in {i.codepoint for i in icons.CATALOG.values()}
-    assert icons.resolve_codepoint(raw) == raw
+    assert icons.font_has(raw), "still reachable, but only through glyph:"
+    assert icons.resolve_codepoint(raw) is None
 
 
 def test_resolve_codepoint_rejects_a_character_the_font_does_not_have():
-    assert icons.resolve_codepoint("￿") is None
+    assert icons.resolve_codepoint("\uffff") is None
 
 
 def test_resolve_codepoint_rejects_plain_ascii():
-    """A single ASCII letter is not a raw-glyph request -- it is almost
-    certainly a typo of a catalogue name, and the font has no ASCII glyphs at
-    all (it is an icon-only "Symbols" build) to fall back to."""
+    """A single ASCII letter is almost certainly a typo of a catalogue name."""
     assert icons.resolve_codepoint("h") is None
     assert icons.resolve_codepoint("") is None
 
@@ -272,7 +277,7 @@ elements:
     assert any(d.code == "icon" for d in bag.errors)
     notes = " ".join(n for d in bag.errors for n in d.notes)
     assert "heart" in notes  # the catalogue is listed
-    assert "vendored icon font" in notes  # and the raw-glyph escape hatch
+    assert "glyph:" in notes  # and the escape hatch for a name it does not have
 
 
 def test_percent_size_is_rejected_with_an_explanation(write_design, bag):

@@ -1253,13 +1253,13 @@ Unicode's own notation:
   color: palette.dim
 ```
 
-`glyph:` is the **recommended** way to use an icon the catalogue does not name.
-`icon:` also accepts a bare character pasted straight into the YAML, and that
-still works, but prefer `glyph:`: `U+F09B` is greppable, reviewable in a diff
-and survives copy-paste, where the character itself renders as a blank box —
-or as nothing at all — in most editors. That is the same hazard
-`wfb/icon_catalog.py` warns about for this project's own source, and it applies
-just as much to a design file.
+`glyph:` is the **only** way to use an icon the catalogue does not name.
+`icon:` once accepted a bare character pasted straight into the YAML; that was
+removed. `U+F09B` is greppable, reviewable in a diff and survives copy-paste,
+where the character itself renders as a blank box — or as nothing at all — in
+most editors, and a paste that silently fails still parses as valid YAML. That
+is the same hazard `wfb/icon_catalog.py` warns about for this project's own
+source, and it applies just as much to a design file.
 
 `icon:`, `glyph:` and `icon_for:` are mutually exclusive — an icon element uses
 exactly one. Writing `glyph:` for a codepoint the catalogue *does* name is
