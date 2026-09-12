@@ -283,6 +283,97 @@ def test_the_power_budget_warning_can_be_suppressed_on_a_low_power_element(check
     assert "partial-update-budget" not in codes(bag)
 
 
+def test_no_low_power_elements_means_no_partial_update_diagnostics(check):
+    bag = check()  # BASE's own background is `active` only
+    assert "partial-update-budget" not in codes(bag)
+    assert "partial-update" not in codes(bag)
+
+
+def test_a_small_weather_binding_in_low_power_warns_even_with_a_tiny_clip(check):
+    """Bug 2: gating the whole check on `fraction > 0.25` misses the case its
+    own notes claim it covers -- a small low-power element that reads
+    `Weather.getCurrentConditions()`/a `Complications` lookup every second.
+    Before this trigger existed, this exact design linted clean (see the
+    orchestrator's session notes: reproduced with `old_check`, a stand-in for
+    the pre-fix clip-fraction-only body, which emits nothing here).
+    """
+    bag = check("""
+  - id: temp
+    type: text
+    value: weather.temperature
+    format: "{:d}"
+    when_absent: hide
+    at: {anchor: center}
+    modes: [active, low_power]
+    color: palette.fg
+""")
+    warning = next(d for d in bag.items if d.code == "partial-update-budget")
+    assert "temp" in warning.message
+    assert "weather.temperature" in warning.message
+    assert "HEURISTIC" in warning.confidence
+
+
+def test_the_expensive_source_warning_names_the_element_and_can_be_suppressed(check):
+    bag = check("""
+  - id: temp
+    type: text
+    value: weather.temperature
+    format: "{:d}"
+    when_absent: hide
+    at: {anchor: center}
+    modes: [active, low_power]
+    color: palette.fg
+    lint:
+      allow: [partial-update-budget]
+      reason: "known and accepted"
+""")
+    assert "partial-update-budget" not in codes(bag)
+
+
+def test_a_low_power_graph_element_warns_regardless_of_clip_size(check):
+    bag = check("""
+  - id: hr_graph
+    type: graph
+    series: heart_rate
+    range: 1h
+    style: line
+    thickness: 2px
+    color: palette.fg
+    at: {anchor: center}
+    size: {width: 20%, height: 10%}
+    modes: [active, low_power]
+""")
+    warning = next(d for d in bag.items if d.code == "partial-update-budget")
+    assert "hr_graph" in warning.message
+    assert "graph" in warning.message
+
+
+def test_clip_fraction_and_expensive_source_do_not_both_fire(check):
+    """One diagnostic per face: once the clip-fraction branch has already
+    fired for a face, an expensive-source element sharing that same clip
+    must not also get the per-source warning."""
+    bag = check("""
+  - id: wide
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 90%, height: 60%}
+    color: palette.fg
+    modes: [active, low_power]
+  - id: temp
+    type: text
+    value: weather.temperature
+    format: "{:d}"
+    when_absent: hide
+    at: {anchor: center}
+    modes: [active, low_power]
+    color: palette.fg
+""")
+    warnings = [d for d in bag.items if d.code == "partial-update-budget"]
+    assert len(warnings) == 1
+    assert "clip" in warnings[0].message
+
+
 # -- check 7 ---------------------------------------------------------------
 
 

@@ -202,6 +202,75 @@ def test_low_power_clip_is_the_tight_union(write_design, bag, db):
     assert clip.area < 0.05 * device.width * device.height
 
 
+def test_low_power_clip_ignores_a_wrapping_groups_box(write_design, bag, db):
+    """Defect 1: `Resolver._group_box` resolves a size-less group to its
+    *entire* parent box, and a group paints nothing -- so wrapping a
+    low-power element in one must not inflate `clip_for` to that box.
+
+    Regression form: the same content, grouped and ungrouped, must produce
+    the identical clip. Run against the unfixed `ResolvedFace.clip_for`
+    (built from `in_mode`, groups included) this fails with 260x260 for the
+    grouped design vs. 26x22 for the ungrouped one.
+    """
+    ungrouped = DESIGN.replace(
+        "    at: {anchor: center, dy: 25%}\n    color: palette.fg",
+        "    at: {anchor: center, dy: 25%}\n    color: palette.fg\n    modes: [active, low_power]",
+    )
+    grouped = DESIGN.replace(
+        """  - id: badge
+    type: icon
+    icon: steps
+    size: 20px
+    at: {anchor: center, dy: 25%}
+    color: palette.fg
+""",
+        """  - id: badge_group
+    type: group
+    modes: [active, low_power]
+    children:
+      - id: badge
+        type: icon
+        icon: steps
+        size: 20px
+        at: {anchor: center, dy: 25%}
+        color: palette.fg
+        modes: [active, low_power]
+""",
+    )
+    device = db.get("fenix8solar47mm")
+
+    ungrouped_face = load(write_design(ungrouped), bag)
+    assert ungrouped_face is not None, bag.render()
+    ungrouped_resolved = resolve(
+        ungrouped_face, device, bake_fonts(ungrouped_face, device, device.minor_radius)
+    )
+    ungrouped_clip = ungrouped_resolved.clip_for("low_power")
+
+    grouped_face = load(write_design(grouped), bag)
+    assert grouped_face is not None, bag.render()
+    grouped_resolved = resolve(
+        grouped_face, device, bake_fonts(grouped_face, device, device.minor_radius)
+    )
+    grouped_clip = grouped_resolved.clip_for("low_power")
+
+    assert ungrouped_clip is not None
+    # Sanity: the ungrouped clip really is tiny, matching the existing
+    # `test_low_power_clip_is_the_tight_union` expectation -- not the screen.
+    assert ungrouped_clip.area < 0.05 * device.width * device.height
+    assert grouped_clip == ungrouped_clip
+
+
+def test_drawn_in_mode_excludes_groups(resolved_for):
+    """`drawn_in_mode` is `in_mode` minus groups -- the accessor `clip_for`
+    (and the partial-update-budget lint's element count) now use, so what
+    actually draws is never confused with a container that merely gates."""
+    resolved = resolved_for("fenix8solar47mm")
+    assert all(p.kind != "group" for p in resolved.drawn_in_mode("active"))
+    assert resolved.drawn_in_mode("active") == [
+        p for p in resolved.in_mode("active") if p.kind != "group"
+    ]
+
+
 def test_widest_text_accounts_for_a_longer_fallback(write_design, bag, db):
     """Bug 1: `fallback:` is drawn through the same format spec as the real
     value (see `_emit_text` in `wfb.emit.monkeyc`), so a font baked from the

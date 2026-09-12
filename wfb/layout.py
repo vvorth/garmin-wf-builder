@@ -245,14 +245,34 @@ class ResolvedFace:
     def in_mode(self, mode: str) -> list[Placed]:
         return [p for p in self.items if mode in p.element.modes]
 
+    def drawn_in_mode(self, mode: str) -> list[Placed]:
+        """``in_mode`` minus groups -- everything that actually paints in ``mode``.
+
+        A group is a pure layout container: it emits no draw method and paints
+        nothing of its own (``wfb/emit/monkeyc.py`` skips ``kind == "group"``
+        everywhere it walks ``items``). Its box is therefore not evidence of
+        anything being drawn there -- and it can be actively misleading, since a
+        group with no explicit ``size:`` resolves to its *entire* parent box
+        (``Resolver._group_box``). A caller asking "what actually draws in this
+        mode" -- a clip rectangle, an element count -- wants this, not
+        ``in_mode``.
+        """
+        return [p for p in self.in_mode(mode) if p.kind != "group"]
+
     def clip_for(self, mode: str) -> IntBox | None:
         """The tightest rectangle covering everything drawn in ``mode``.
 
         ``setClip`` is charged by *region area* -- every pixel in the clip counts
         as modified whenever any does -- so this being tight is what keeps
         ``onPartialUpdate`` inside its budget.
+
+        Built from :meth:`drawn_in_mode`, not :meth:`in_mode`: a group paints
+        nothing, so its box must not inflate the clip (see ``drawn_in_mode``'s
+        docstring -- this was a real bug, fixed after being reproduced: a
+        low-power element wrapped in a size-less group blew the clip up to the
+        full screen).
         """
-        boxes = [p.box for p in self.in_mode(mode)]
+        boxes = [p.box for p in self.drawn_in_mode(mode)]
         if not boxes:
             return None
         clip = boxes[0]

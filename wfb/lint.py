@@ -733,6 +733,31 @@ def _backdrop(resolved: ResolvedFace) -> Color | None:
 # -- check 9: partial-update budget (heuristic) -----------------------------
 
 
+def _expensive_low_power_reader(element: Element) -> str | None:
+    """The first ``weather.*``/``complication.*`` path this element binds, if any.
+
+    Both readers are genuinely expensive to call every second: a
+    ``complication.*`` path goes through ``Complications.getComplication``, and
+    ``weather.*`` goes through ``Weather.getCurrentConditions``/
+    ``getDailyForecast`` -- real API calls, not a local field read. Identified
+    by ``catalog.Reader``, not by string-matching the path, so a future reader
+    sharing the same cost (another 42-entry generated family, say) is caught by
+    construction rather than by remembering to update a prefix list here.
+    """
+    for expression in element.expressions():
+        for path in expression.sources:
+            source = catalog.get(path)
+            if source is None:
+                continue
+            reader = catalog.READERS.get(source.reader)
+            if reader is not None and (
+                reader.complication_type is not None
+                or source.reader in ("weather_current", "weather_daily")
+            ):
+                return path
+    return None
+
+
 def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
     """Warn on relative grounds -- the numeric budget is not published.
 
@@ -741,12 +766,23 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
     partial updates permanently.  So a large clip is worth flagging even without
     an exact threshold -- but the message must not pretend to one.
 
-    Like :func:`check_palette`, this is about the whole face's clip rectangle
-    rather than one element, so there is no single natural place to hang
-    ``lint: {allow: ...}``.  The candidates that *do* exist are the elements
-    the clip was actually built from -- everything drawn in ``low_power`` mode
-    -- so suppression is honoured there: acknowledging the cost on any one of
-    them acknowledges the shared clip they all pay into.
+    Two independent triggers, checked in order, **at most one of which fires
+    for a given face** -- a small clip that happens to read
+    ``Weather.getCurrentConditions()`` every second is exactly the case a pure
+    clip-area check misses, so it needs its own trigger rather than being
+    folded into the area threshold, but the two must not both fire and
+    describe the same underlying cost twice:
+
+    1. **Clip-area, face-wide** (as before). Like :func:`check_palette`, this is
+       about the whole face's clip rectangle rather than one element, so there
+       is no single natural place to hang ``lint: {allow: ...}`` -- the
+       candidates that *do* exist are the elements the clip was actually built
+       from, so suppression is honoured there.
+    2. **Known-expensive reads, per element.** A ``weather.*``/``complication.*``
+       binding, or a ``graph`` element, drawn in ``low_power`` is expensive
+       regardless of how tight its own clip is -- reported against that
+       specific element, so ``lint: {allow: [partial-update-budget]}`` on it
+       silences just that one.
     """
     clip = resolved.clip_for("low_power")
     if clip is None:
@@ -762,9 +798,9 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
             confidence="exact -- device displayType",
         )
         return
-    low_power = resolved.in_mode("low_power")
+    low_power = resolved.drawn_in_mode("low_power")
     fraction = clip.area / (device.width * device.height)
-    operations = len([p for p in low_power if p.kind != "group"])
+    operations = len(low_power)
     if fraction > 0.25:
         if any("partial-update-budget" in p.element.lint_allow for p in low_power):
             return
@@ -785,12 +821,63 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
                    "minute, not read fresh, but the drawing itself still runs every "
                    "partial update), on a low_power element is the expensive case to "
                    "look at first",
-                   "group the low-power elements closer together to tighten the clip",
+                   "position the low-power elements physically close together to tighten "
+                   "the clip -- wrapping them in a 'group' does not: a group paints "
+                   "nothing and, with no explicit 'size:', resolves to its entire parent "
+                   "box, so grouping can make the clip bigger, never smaller",
                    "set 'lint: {allow: [partial-update-budget], reason: ...}' on any "
                    "one of the elements drawn in low-power mode to keep it"],
             confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
                        "flags relative cost, not a measured overrun",
         )
+        return
+
+    # Trigger 2: a read that is known-expensive regardless of clip size.  Not
+    # "you have overrun" -- there is no measurement here either -- just "this
+    # specific read is the expensive kind", independent of the clip-fraction
+    # heuristic above.
+    for placed in low_power:
+        if placed.kind == "graph":
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "partial-update-budget",
+                f"{placed.id}: a 'graph' element draws in low-power mode -- its drawing "
+                f"runs every onPartialUpdate, once a second, even though the series "
+                f"itself only rebuilds on-device once a minute",
+                placed.element.span,
+                notes=["exceeding the power budget calls onPowerBudgetExceeded and "
+                       "disables partial updates PERMANENTLY for the rest of the app's "
+                       "lifecycle -- not just for the frame that overran",
+                       "move this element out of 'modes: [low_power]', or accept the "
+                       "cost with 'lint: {allow: [partial-update-budget], reason: ...}'"],
+                confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
+                           "flags a known-expensive draw, not a measured overrun",
+            ))
+            continue
+        path = _expensive_low_power_reader(placed.element)
+        if path is None:
+            continue
+        source = catalog.get(path)
+        call = ("Weather.getCurrentConditions()/getDailyForecast()"
+                if source.reader.startswith("weather") else
+                "Complications.getComplication()")
+        _emit(bag, placed, Diagnostic(
+            Severity.WARNING,
+            "partial-update-budget",
+            f"{placed.id}: binds {path!r} in low-power mode, which reads {call} on "
+            f"every onPartialUpdate, once a second",
+            placed.element.span,
+            notes=["since the per-source refresh-tier cache was removed, this is a "
+                   "real API call every time, not a cached field read",
+                   "exceeding the power budget calls onPowerBudgetExceeded and "
+                   "disables partial updates PERMANENTLY for the rest of the app's "
+                   "lifecycle -- not just for the frame that overran",
+                   "bind a cheaper source here, move this element out of "
+                   "'modes: [low_power]', or accept the cost with "
+                   "'lint: {allow: [partial-update-budget], reason: ...}'"],
+            confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
+                       "flags a known-expensive read, not a measured overrun",
+        ))
 
 
 # -- carousel zones ---------------------------------------------------------
