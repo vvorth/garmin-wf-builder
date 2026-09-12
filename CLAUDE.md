@@ -392,9 +392,19 @@ messages**.
 The skill is **model-agnostic and lives at `skills/watchface-builder.md`** — one
 self-contained document for any assistant with file access and a shell.
 `.claude/skills/watchface-from-image/SKILL.md` is a thin adapter that delegates to
-it, so the two cannot drift; `tests/test_skill.py` enforces that the adapter
-stays thin and that every font, icon, template and command the document names
-actually exists.
+it, so the two cannot drift.
+
+> **`tests/test_skill.py` was deleted on the user's instruction.** It checked
+> that the adapter stayed thin and that every font, icon, template and command
+> the skill document names actually exists -- 15 tests running on every
+> `pytest` invocation for an **experimental** feature, which is not where this
+> project wants to spend time or tokens. The consequence is real and accepted:
+> the skill document is now unguarded prose, so a renamed icon, a deleted
+> template or a changed command name will silently make it wrong. If the skill
+> ever stops being experimental, that guard is worth restoring -- it caught
+> drift more than once. Until then, re-read `skills/watchface-builder.md` by
+> hand after any change to the icon catalogue, `wfb/templates/` or the CLI's
+> command names.
 
 Two supporting changes make it portable: `wfb doctor` reports what is installed
 and what to do about what is not, and `wfb.py` re-executes itself under the
