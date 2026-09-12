@@ -2141,6 +2141,117 @@ per-configuration while a property is **global across all four** of the
 wearer's saved faces. That is the main reason to prefer a native axis
 whenever both could work.
 
+**A review session read the whole compiler looking for inconsistency and
+iterative legacy rather than building a feature, and fixed four commits'
+worth.** Everything below was reproduced against the real tool before it was
+believed, and every changed diagnostic was driven red first. The remaining
+findings were handed to the user as a list to decide on, not acted upon.
+
+1. **A `group` widened the low-power clip to the whole screen.**
+   `ResolvedFace.in_mode` returned every `Placed`, groups included, and
+   `clip_for` unioned their boxes -- and a `group` with no `size:` resolves to
+   the whole parent box. Wrapping one low-power badge in a size-less group
+   took the clip from **26x22 to 260x260**. That is constraint 4 at its worst:
+   `setClip` is charged by region area and an overrun disables partial updates
+   **permanently**. `ResolvedFace.drawn_in_mode` is the fix; `in_mode` is left
+   alone because its four other callers use it as a truthy "does this face use
+   this mode at all". The inconsistency was visible in one screenful --
+   `check_partial_update_budget` already filtered groups by hand for its
+   element count while using the unfiltered clip in the same function.
+
+2. **`check_partial_update_budget` never fired in the case it claimed to
+   cover.** It gated on `fraction > 0.25` while its own notes called it "the
+   ONLY thing standing between an author and reading
+   `Weather.getCurrentConditions()` inside `onPartialUpdate`" -- and a small
+   `weather.*` text in `low_power` clips ~6% and produced **zero
+   diagnostics**. Since the refresh-tier deletion removed the hard error, the
+   answer really was nothing. There is now a second, clip-independent trigger
+   on a `weather_*`/complication reader or a `graph` drawn in `low_power`,
+   reported against the offending element. Its old advice -- "group the
+   low-power elements closer together to tighten the clip" -- was *causing*
+   finding 1 and now says to position them close instead.
+
+3. **Preview and device disagreed about `{:d}` on a Float** (`8.5` vs `8`),
+   because format specs were the one part of rendering that was not shared:
+   three walkers over one pair of code tables, and `preview._apply_spec`
+   swallowed the `ValueError` Python's `format(8.5, "d")` raises and returned
+   `str(value)`. `formatting.render()` now sits beside `emit` and `widest` and
+   mirrors `_emit_numeric` case for case. The guard is a parity table whose
+   expected strings are the hand-derived **Monkey C** answers, not Python's.
+   `widest` is untouched -- the golden files and every font subset depend on
+   it exactly as it is. `_strip_braces` is public, since `wfb/ir.py` was
+   reaching through the underscore too.
+
+4. **`overrides:` validated anything and applied nothing.** `$defs/overrides`
+   is `{additionalProperties: {type: object}}`, nothing reads
+   `Element.overrides`, and a design naming a device that does not exist with
+   keys no element has passed `wfb validate` with **no diagnostics**. Writing
+   one is now an error until ADR 0004 4 is built; an empty block stays legal.
+
+5. **`when_absent: placeholder` on a `progress` was unsatisfiable** -- the
+   enum offered it, the IR then demanded a `placeholder:` string, and
+   `progressElement` has no such property under `additionalProperties: false`.
+   Removed from that one enum: there is no substitute *text* for a fill
+   fraction, which is what `fallback:` is for.
+
+6. **The generated `onPartialUpdate` asserted a guarantee that was deleted** --
+   "only frame-tier sources are read here -- the compiler rejects anything
+   slower" sat directly above a real `Weather.getCurrentConditions()` call.
+   ADR 0003's premise is that this output is read by a human, so a stale
+   reassurance in it is worse than no comment.
+
+7. **Five hand-rolled copies of "is this suppressed".** The element-scoped
+   checks could not use `_emit` (it takes a `Placed`, they hold IR
+   `Element`s), so each wrote `any(code in element.lint_allow for ...)` --
+   dropping the `code in SUPPRESSIBLE` half. This is the same debt CLAUDE.md
+   already recorded once, patched then by hand-rolling rather than by giving
+   those checks an emit path. `_suppressed_element` is now the one definition;
+   `_emit_for_element` carries the declaration-scoped case. Inert today (all
+   three codes are suppressible) and correct the day one is withdrawn.
+
+Smaller, in the same commits: a graph called `System.getClockTime()` **twice
+per graph per frame** on adjacent lines while `ReadPlan` had already hoisted
+one into the same method (`examples/graph`: 7 calls -> 4, and a
+minute-boundary race gone); `_emit_element_method`'s `PlacedCarousel` branch
+was unreachable; eight function-local `from ..ir import local_name` guarded
+against a circular import that does not exist; the three `_users` lint helpers
+were the same nine lines three times; and `docs/format.md`'s "Not yet
+implemented" listed `getComplicationDrawable`/`onTap`/`setSelectedComplication`,
+all three of which shipped, contradicting its own Configuration section.
+
+**Deliberately not merged**, and the reasoning is the transferable part: the
+three dither checks (`check_palette`, `check_config_palette`,
+`check_color_scheme_palette`) share their suppress-note and emit helpers but
+stay three functions. They iterate three genuinely different things -- a flat
+mapping, an axis's default plus optional choices, every role of every scheme
+in `choices:` -- and folding that into one shape needs a mode flag that costs
+more clarity than the duplication did.
+
+**Still open, handed to the user as a list rather than acted on** (several are
+"remove this feature?" questions, not defects): element-kind dispatch is
+written out **seven** times, four of them `isinstance` ladders that must be
+edited together for a new element type; `layout`'s widest-text family and
+`resources.glyph_sets` are two independent traversals of "what can this
+element render", free to drift; "does this design touch Complications" is
+computed in three places; the rejected-name cascade fix is hand-written five
+times (`fonts`, `config`, `palette`, `color_scheme`, `config: data:`);
+`catalog.Source.requires` is still set on one source and read by nothing;
+groups live in `resolved.items` and every consumer must remember
+`kind != "group"` (11+ sites -- finding 1 is what happens when one forgets);
+and `test_example_is_clean_on_every_target` globs `examples/*/face.yaml`, so
+the user's own playground designs are automatically enrolled in a
+must-be-pristine suite with no way to mark one as scratch. That last one is
+why five tests are red on `main` and only one of them (`dashboard`) is
+sanctioned.
+
+**An environment note.** The disk holding this repo filled to zero mid-session
+and a `git commit` failed with `fatal: sha1 file '.git/index.lock' write
+error. Out of diskspace`. Deleting gitignored `__pycache__`/`.pytest_cache`
+freed enough to continue, and `/etc/sandbox-persistent.sh` now sets
+`PYTHONDONTWRITEBYTECODE=1` and `PYTHONPYCACHEPREFIX=/tmp/pycache` so the
+repo stops accumulating bytecode. The underlying 19 GB is on the host side of
+the mount, outside the sandbox.
+
 ### `examples/dashboard/face.yaml` is the user's own playground
 
 The user edits this file directly between sessions and has said explicitly:
