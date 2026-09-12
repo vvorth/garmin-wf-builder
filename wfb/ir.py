@@ -3431,8 +3431,18 @@ class Builder:
         text = str(raw)
         before = set(self.scope.used)
         self.scope.used.clear()
+        syntax_error = False
         try:
-            node_ast = expr.parse(text)
+            try:
+                node_ast = expr.parse(text)
+            except expr.ExprError:
+                # A *syntax* failure, as opposed to an unknown source or a type
+                # error below.  Worth telling apart: `value: XX%` is almost
+                # always someone reaching for literal text, while
+                # `value: activity.stepss` is a real typo in a real expression
+                # and must not be told to use `text:` instead.
+                syntax_error = True
+                raise
             value = expr.check(node_ast, self.scope)
             # Emit from a fold that keeps palette names; derive the build-time
             # constant, which the linter needs, from a fold that resolves them.
@@ -3461,6 +3471,14 @@ class Builder:
                     else:
                         message = f"config.colors has no role {match.group(1)[1:]!r}"
                         notes = [f"declared roles: {roles}"]
+            if syntax_error and key == "value":
+                notes = list(notes) + [
+                    "'value:' is an expression over data sources, not literal text -- "
+                    "for a fixed string use 'text:' instead:\n"
+                    '    text: "XX%"',
+                    "note that YAML strips the quotes, so `value: 'XX%'` reaches the "
+                    "expression parser as a bare XX%",
+                ]
             self.bag.error(
                 code_,
                 f"{key}: {message}",

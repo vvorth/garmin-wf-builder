@@ -1131,6 +1131,29 @@ See `examples/shapes/face.yaml` for all seven on one face.
   when_absent: hide
 ```
 
+**A text element takes either `value:` or `text:`, never both.**
+
+| | what it is | example |
+|---|---|---|
+| `value:` | an **expression** over data sources, rendered through `format:` | `value: activity.steps` |
+| `text:` | a **literal string**, drawn exactly as written | `text: "XX%"` |
+
+```yaml
+- id: unit
+  type: text
+  text: "XX%"               # literal -- no `value:`, no `format:`
+  font: FONT_XTINY
+  at: { anchor: center }
+  color: palette.text
+```
+
+The trap worth knowing: **YAML strips quotes before this compiler sees them**,
+so `value: 'XX%'` arrives as a bare `XX%`, which the expression parser reads as
+the name `XX` followed by the `%` operator and then nothing -- hence
+`expected a value but found 'end of expression'`. Use `text:` for a literal;
+`value:` is for data. (A quoted *expression* literal, `value: "'XX%'"`, also
+works, but `text:` is what it is for.)
+
 **`align`/`vertical_align` say which part of the text's own box lands on `at`'s
 resolved point** -- `at`/`anchor`/`dx`/`dy` only ever compute *one point*; these
 two say what of the element is centred, started, or ended there, independently

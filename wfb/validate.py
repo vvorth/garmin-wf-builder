@@ -215,6 +215,14 @@ def _narrow(error: ValidationError) -> Iterable[ValidationError]:
     branches are regrouped here and the ones whose ``type`` discriminator did not
     match are dropped.
     """
+    if error.validator == "oneOf" and not error.context:
+        # Every branch *passed*.  jsonschema calls this "is valid under each
+        # of {...}, {...}" and renders the whole element dict, which tells an
+        # author nothing.  The shape that reaches here is a pair of
+        # mutually-exclusive keys (`text:` vs `value:` on a text element), so
+        # name them instead.
+        yield _exclusive(error)
+        return
     if error.validator not in ("oneOf", "anyOf") or not error.context:
         yield error
         return
@@ -246,6 +254,33 @@ def _narrow(error: ValidationError) -> Iterable[ValidationError]:
             if _is_discriminator(sub):
                 continue
             yield from _narrow(sub)
+
+
+def _exclusive(error: ValidationError) -> ValidationError:
+    """Name the mutually-exclusive keys behind a "valid under each of" oneOf.
+
+    Fires only when every branch of the `oneOf` is a bare ``{"required": [...]}``
+    and more than one of those keys is actually present -- which is exactly the
+    "author wrote both spellings" case, and nothing else.  Anything wider is
+    left alone rather than given a confident, wrong message.
+    """
+    branches = error.validator_value if isinstance(error.validator_value, list) else []
+    names: list[str] = []
+    for branch in branches:
+        if not isinstance(branch, dict) or set(branch) != {"required"}:
+            return error
+        required = branch["required"]
+        if len(required) != 1:
+            return error
+        names.append(required[0])
+    present = [n for n in names if isinstance(error.instance, dict) and n in error.instance]
+    if len(present) < 2:
+        return error
+    joined = " and ".join(f"{n!r}" for n in present)
+    either = " or ".join(f"{n!r}" for n in present)
+    error.message = f"{joined} cannot both be set -- use {either}, not both"
+    error.validator = "exclusive-keys"
+    return error
 
 
 def _is_discriminator(sub: ValidationError) -> bool:
@@ -296,7 +331,15 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
     notes: list[str] = []
     description = (error.schema or {}).get("description") if isinstance(error.schema, dict) else None
 
-    if error.validator == "required-one-of":
+    if error.validator == "exclusive-keys":
+        message = error.message
+        if isinstance(error.instance, dict) and {"text", "value"} <= set(error.instance):
+            notes.append(
+                "'text:' is a literal string, drawn exactly as written; 'value:' is "
+                "an expression over data sources, formatted by 'format:'"
+            )
+            notes.append("for a fixed label, keep 'text:' and delete 'value:'")
+    elif error.validator == "required-one-of":
         message = error.message
     elif error.validator == "required":
         missing = error.message.split("'")[1]

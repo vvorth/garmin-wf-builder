@@ -1797,3 +1797,85 @@ def test_a_graph_design_compiles_warning_free_on_every_target(
     assert not warnings, "\n".join(d.message for d in warnings)
     assert set(result.products) == {"fenix8solar47mm", "fenix8solar51mm", "fr955"}
 
+
+
+# -- literal text vs an expression ------------------------------------------
+#
+# A real report: `value: 'XX%'` failed with "expected a value but found 'end of
+# expression'", and the author could not find the literal-text spelling.  YAML
+# strips the quotes before this compiler sees them, so the expression parser
+# receives a bare `XX%` -- the name `XX`, the `%` operator, then nothing.  Both
+# diagnostics below exist to say that out loud rather than leave it to be
+# puzzled out.
+
+_PROSE_VALUE = """
+  - id: unit
+    type: text
+    value: 'XX%'
+    color: palette.fg
+    at: {anchor: center}
+"""
+
+_BOTH_SPELLINGS = """
+  - id: unit
+    type: text
+    text: "XX%"
+    value: activity.steps
+    color: palette.fg
+    at: {anchor: center}
+"""
+
+_LITERAL = """
+  - id: unit
+    type: text
+    text: "XX%"
+    color: palette.fg
+    at: {anchor: center}
+"""
+
+
+def test_a_literal_string_in_value_points_at_text(write_design, bag):
+    load(write_design(design(_PROSE_VALUE)), bag)
+    errors = [d for d in bag.errors if d.code == "expression"]
+    assert errors, bag.render()
+    notes = " ".join(errors[0].notes)
+    assert "'text:' instead" in notes, notes
+    assert "YAML strips the quotes" in notes, notes
+
+
+def test_a_genuine_expression_typo_is_not_told_to_use_text(write_design, bag):
+    """The note above must be narrow.  An unknown *source* is a real mistake in
+    a real expression, and telling that author to write `text:` instead would
+    send them the wrong way entirely -- so it keys off a syntax failure, not
+    any expression error."""
+    load(write_design(design("""
+  - id: steps
+    type: text
+    value: activity.stepss
+    when_absent: hide
+    color: palette.fg
+    at: {anchor: center}
+""")), bag)
+    errors = [d for d in bag.errors if d.code == "expression"]
+    assert errors, bag.render()
+    notes = " ".join(errors[0].notes)
+    assert "text:" not in notes, notes
+    assert "did you mean" in notes, notes
+
+
+def test_text_and_value_together_name_both_keys(write_design, bag):
+    """jsonschema calls this "is valid under each of {...}, {...}" and renders
+    the whole element dict, which tells an author nothing at all."""
+    load(write_design(design(_BOTH_SPELLINGS)), bag)
+    errors = [d for d in bag.errors if d.code == "schema"]
+    assert errors, bag.render()
+    assert "cannot both be set" in errors[0].message, errors[0].message
+    assert "'text'" in errors[0].message and "'value'" in errors[0].message
+    notes = " ".join(errors[0].notes)
+    assert "literal string" in notes, notes
+
+
+def test_a_literal_text_element_is_accepted(write_design, bag):
+    face = load(write_design(design(_LITERAL)), bag)
+    assert bag.ok(), bag.render()
+    assert face is not None
