@@ -41,32 +41,26 @@ face:
 
 targets: [fenix8solar47mm, fenix8solar51mm, fr955, fr255, fenix6]
 
-antialias: true
-
-
 fonts:
   clock:
     source: assets/OpenSans-Regular.ttf
-    # 69.2307692308%r is the exact equivalent of the old bare 'size: 90' --
-    # 90px on the smallest target (130px minor radius), expressed as a
-    # fraction of the screen's minor radius so it scales per device on its
-    # own (90 / 130 * 100). The bare-number spelling was removed.
-    size: 69.2307692308%r
+    size: 70%r
     # 'glyphs' is omitted on purpose: the compiler derives the set from every
     # format spec and literal this design can render, so the sheet carries the
     # handful of digits the clock actually draws rather than a character set.
+    antialias: true
   test:
     source: assets/ChivoMono-Bold.ttf
     # source: assets/SairaStencil-SemiBold.ttf
     size: 70%r
-
+    antialias: true
 
 palette:
   # old directly used
-  bg: { value: "#000000", label: "none" }
-  fg: { value: "#FFFFFF", label: "none" }
-  dim: { value: "#AAAAAA", label: "none" }
-  dark: { value: "#555555", label: "none" }
+  # bg: { value: "#000000", label: "none" }
+  # fg: { value: "#FFFFFF", label: "none" }
+  # dim: { value: "#AAAAAA", label: "none" }
+  # dark: { value: "#555555", label: "none" }
 
   # date: { value: "#00FF00", label: "none" }
   # separator: { value: "#555555", label: "none" }
@@ -90,7 +84,7 @@ palette:
   green: { value: "#00FF00", label: "Green" }
   red: { value: "#FF0000", label: "Red" }
   orange: { value: "#FF5500", label: "Orange" }
-  # 
+  #
   amber: { value: "#FFAA00", label: "Amber" }
   magenta: { value: "#FF00FF", label: "Magenta" }
   sky_blue: { value: "#00AAFF", label: "Sky Blue" }
@@ -126,21 +120,32 @@ config:
     default: palette.red
     choices: # the editor's own full colour picker
       - palette.red
+      - palette.maroon
       - palette.cyan
-      - palette.lime_green
-      - palette.orange
-      - palette.magenta
-      - palette.amber
-  data_color:
-    default: palette.lime_green              # a palette reference, or a literal hex
-    choices:                           # or an explicit list
-      - palette.sky_blue                   # a bare palette reference ...
-      - palette.amber
       - palette.light_blue
-      - palette.orange
+      - palette.green
+      - palette.dark_green
       - palette.lime_green
+      - palette.yellow
+      - palette.orange
+      - palette.amber
+      - palette.magenta
+  data_color:
+    default: palette.lime_green # a palette reference, or a literal hex
+    choices: # or an explicit list
+      - palette.red
+      - palette.maroon
+      - palette.cyan
+      - palette.light_blue
+      - palette.green
+      - palette.dark_green
+      - palette.lime_green
+      - palette.yellow
+      - palette.orange
+      - palette.amber
+      - palette.magenta
   colors:
-    default: color_scheme.dark          # must be one of choices:
+    default: color_scheme.dark # must be one of choices:
     choices:
       - color_scheme.dark
       - color_scheme.light
@@ -149,8 +154,8 @@ static:
   background:
     type: shape
     shape: rectangle
-    at: {anchor: center}
-    size: {width: 100%, height: 100%}
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
     color: config.colors.bg
 
   # A separator is a chord of a circle just inside the bezel. Both ends are
@@ -158,8 +163,8 @@ static:
   sep_1:
     type: shape
     shape: line
-    at: {anchor: top, dy: 13%, dx: 25% }
-    to: {anchor: top, dy: 13%, dx: -25% }
+    at: { anchor: top, dy: 11%, dx: 25% }
+    to: { anchor: top, dy: 11%, dx: -25% }
     thickness: 1px
     color: config.colors.dark
     lint:
@@ -170,8 +175,8 @@ static:
   sep_2:
     type: shape
     shape: line
-    at: {anchor: top, dy: 23%, dx: 36% }
-    to: {anchor: top, dy: 23%, dx: -36% }
+    at: { anchor: top, dy: 21%, dx: 36% }
+    to: { anchor: top, dy: 21%, dx: -36% }
     thickness: 1px
     color: config.colors.dark
     lint:
@@ -182,8 +187,8 @@ static:
   sep_3:
     type: shape
     shape: line
-    at: {anchor: top, dy: 36%, dx: 44% }
-    to: {anchor: top, dy: 36%, dx: -44% }
+    at: { anchor: top, dy: 34%, dx: 44% }
+    to: { anchor: top, dy: 34%, dx: -44% }
     thickness: 1px
     color: config.colors.dark
     lint:
@@ -194,8 +199,8 @@ static:
   sep_4:
     type: shape
     shape: line
-    at: {anchor: bottom, dy: -32%, dx:  43% }
-    to: {anchor: bottom, dy: -32%, dx: -43% }
+    at: { anchor: bottom, dy: -32%, dx: 43% }
+    to: { anchor: bottom, dy: -32%, dx: -43% }
     thickness: 1px
     color: config.colors.dark
     lint:
@@ -206,8 +211,8 @@ static:
   sep_5:
     type: shape
     shape: line
-    at: {anchor: bottom, dy: -20%, dx: 32% }
-    to: {anchor: bottom, dy: -20%, dx: -32% }
+    at: { anchor: bottom, dy: -20%, dx: 32% }
+    to: { anchor: bottom, dy: -20%, dx: -32% }
     thickness: 1px
     color: config.colors.dark
     lint:
@@ -215,18 +220,16 @@ static:
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
 
-
-
 elements:
-
   # -- row 1: the date -------------------------------------------------------
   date:
     type: text
     value: date.today
-    format: "{:%a %e %b}"       # "Thu 3 Sep" -- %a and %b come back localised
-    font: FONT_TINY
-    at: {anchor: top, dy: 8%}
-    color: config.data_color
+    format: "{:%a %e %b}" # "Thu 3 Sep" -- %a and %b come back localised
+    font: FONT_XTINY
+    at: { anchor: top, dy: 7% }
+    color: palette.green
+    # color: config.data_color
 
   # -- SEP_1 --
 
@@ -247,9 +250,9 @@ elements:
   hr_icon:
     type: icon
     # icon: heart
-    glyph: 'U+F21E'
+    glyph: "U+F21E"
     size: 11%r
-    at: {anchor: top, dx: -28%, dy: 18%}
+    at: { anchor: top, dx: -28%, dy: 16% }
     color: config.colors.dim
 
   hr_value:
@@ -257,45 +260,52 @@ elements:
     value: heart_rate.current
     format: "{:d}"
     font: FONT_XTINY
-    at: {anchor: top, dx: -24%, dy: 18%}
+    at: { anchor: top, dx: -24%, dy: 16% }
     align: left
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
 
-  calories_icon:
-    type: icon
-    icon: flame
-    size: 11%r
-    at: {anchor: top, dx: -8%, dy: 18%}
-    color: config.colors.dim
-
-  calories_value:
-    type: text
-    value: "activity.calories / 10000.0"
-    format: "{:.1f}k"
-    font: FONT_XTINY
-    at: {anchor: top, dx: -4%, dy: 18%}
-    align: left
-    color: config.colors.dim
-    when_absent: placeholder
-    placeholder: "--"
+  # calories_icon:
+  #   type: icon
+  #   icon: flame
+  #   size: 11%r
+  #   at: { anchor: top, dx: -8%, dy: 16% }
+  #   color: config.colors.dim
+  #
+  # calories_value:
+  #   type: text
+  #   value: "activity.calories / 10000.0"
+  #   format: "{:.1f}k"
+  #   font: FONT_XTINY
+  #   at: { anchor: top, dx: -4%, dy: 16% }
+  #   align: left
+  #   color: config.colors.dim
+  #   when_absent: placeholder
+  #   placeholder: "--"
 
   # No icon for distance -- a unit suffix is enough on its own, the same way
   # the reference's temperature readings need only a "°" to be unambiguous.
   distance_value:
     type: text
-    value: "activity.distance / 100000.0"   # centimetres -> kilometres
+    value: "activity.distance / 100000.0" # centimetres -> kilometres
     format: "{:.1f}km"
     font: FONT_XTINY
-    at: {anchor: top, dx: 32%, dy: 18%}
+    at: { anchor: top, dx: 24%, dy: 16% }
     align: right
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
 
-  # -- SEP_2
+  distance_icon:
+    type: icon
+    # icon: heart
+    glyph: "U+F08F0"
+    size: 11%r
+    at: { anchor: top, dx: 28%, dy: 16% }
+    color: config.colors.dim
 
+  # -- SEP_2
 
   # -- row 3: weather -------------------------------------
 
@@ -309,7 +319,7 @@ elements:
     value: weather.feels_like_temperature
     format: "{:d}°"
     font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: -32%}
+    at: { anchor: top, dy: 28%, dx: -32% }
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--°"
@@ -319,7 +329,7 @@ elements:
     value: weather.precipitation_chance_today
     format: "{:d}%"
     font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: -15%}
+    at: { anchor: top, dy: 28%, dx: -15% }
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--%"
@@ -328,16 +338,15 @@ elements:
     type: icon
     icon_for: weather.condition_today
     size: 22%r
-    at: {anchor: top, dy: 30%}
+    at: { anchor: top, dy: 28% }
     color: config.colors.fg
-    # color: palette.dim
 
   weather_today_high:
     type: text
     value: weather.high_temperature_today
     format: "{:d}°"
     font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: 15%}
+    at: { anchor: top, dy: 28%, dx: 15% }
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--°"
@@ -347,7 +356,7 @@ elements:
     value: weather.low_temperature_today
     format: "{:d}°"
     font: FONT_XTINY
-    at: {anchor: top, dy: 30%, dx: 32%}
+    at: { anchor: top, dy: 28%, dx: 32% }
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--°"
@@ -368,7 +377,7 @@ elements:
     value: time.hour
     format: "{:02d}"
     font: font.test
-    at: {anchor: center, dx: -1%, dy: 0.8%}
+    at: { anchor: center, dx: -1%, dy: 0.8% }
     align: right
     color: config.colors.fg
 
@@ -377,7 +386,7 @@ elements:
     value: time.minute
     format: "{:02d}"
     font: font.test
-    at: {anchor: center, dx: 1%, dy: 0.8%}
+    at: { anchor: center, dx: 1%, dy: 0.8% }
     align: left
     color: config.accent_color
 
@@ -392,37 +401,58 @@ elements:
   # Both take their colour from an expression, so the on/off state is visible
   # without a second element: the compiler folds this into a Monkey C ternary
   # over the value it has already read.
-  floors_value:
+
+  # floors_value:
+  #   type: text
+  #   value: activity.floors_climbed
+  #   format: "{:d}fl"
+  #   font: FONT_XTINY
+  #   at: {anchor: top, dx: -25%, dy: 74%}
+  #   color: config.colors.dim
+  #   when_absent: placeholder
+  #   placeholder: "--"
+
+  body_battery_icon:
+    type: icon
+    glyph: "U+F064C"
+    size: 14%r
+    at: { anchor: top, dx: -30%, dy: 74% }
+    color: config.colors.dim
+
+
+  body_batter_value:
     type: text
-    value: activity.floors_climbed
-    format: "{:d}fl"
+    value: complication.body_battery
+    format: "{:d}"
     font: FONT_XTINY
-    at: {anchor: top, dx: -25%, dy: 74%}
+    at: { anchor: top, dx: -25%, dy: 74% }
+    align: left
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
 
-  dnd_icon:
-    type: icon
-    icon: dnd
-    size: 14%r
-    at: {anchor: top, dx: -12%, dy: 74%}
-    color: "device.do_not_disturb ? palette.dnd_on : config.colors.dark"
+  # dnd_icon:
+  #   type: icon
+  #   icon: dnd
+  #   size: 14%r
+  #   at: {anchor: top, dx: -12%, dy: 74%}
+  #   color: "device.do_not_disturb ? palette.dnd_on : config.colors.dark"
 
-  alarm_icon:
+  steps_icon:
     type: icon
-    icon: alarm
+    glyph: "U+E241"
     size: 14%r
-    at: {anchor: top, dy: 74%}
-    color: "device.alarm_count > 0 ? config.colors.alarm : config.colors.dark"
+    at: { anchor: top, dx: 30%, dy: 74% }
+    color: config.colors.dim
 
   steps_value:
     type: text
     value: "activity.steps / 1000.0"
-    format: "{:.1f}k"           # always one decimal, so the width holds still
+    format: "{:.1f}k" # always one decimal, so the width holds still
     font: FONT_XTINY
-    at: {anchor: top, dx: 25%, dy: 74%}
-    color: palette.dim
+    at: { anchor: top, dx: 25%, dy: 74% }
+    align: right
+    color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
 
@@ -439,31 +469,26 @@ elements:
   # below that centre -- so the text baseline for the whole row (the count,
   # and the two flanking readouts, so all three line up) sits a little above
   # the row's nominal position, on the badge body's own centre line.
-  battery_days:
-    type: text
-    value: system.battery_in_days
-    format: "{:.0f}d"
-    font: FONT_XTINY
-    at: {anchor: top, dx: -15%, dy: 88%}
-    color: config.colors.dim
+  # battery_days:
+  #   type: text
+  #   value: system.battery_in_days
+  #   format: "{:.0f}d"
+  #   font: FONT_XTINY
+  #   at: {anchor: top, dx: -15%, dy: 88%}
+  #   color: config.colors.dim
 
-  # A speech-bubble badge, not a bare circle -- a circle with a number in it
-  # reads as a clock face or a button, not as "you have notifications". Both
-  # the bubble and the count take their colour from the same condition, so an
-  # idle badge shows an empty grey bubble rather than a stray "0".
-  # notification_badge_static:
-  #   type: icon
-  #   icon: notification
-  #   size: 25%r
-  #   at: {anchor: top, dy: 90%}
-  #   color: palette.off
-  #   static: true
+  dnd_icon:
+    type: icon
+    icon: dnd
+    size: 14%r
+    at: { anchor: top, dx: -15%, dy: 88% }
+    color: "device.do_not_disturb ? palette.dnd_on : config.colors.dark"
 
   notification_badge:
     type: icon
     icon: notification
-    size: 25%r
-    at: {anchor: top, dy: 90%}
+    size: 26%r
+    at: { anchor: top, dy: 89.5% }
     # visible: device.notification_count > 0
     color: "device.notification_count > 0 ? palette.notify_on : config.colors.dark"
     # color: palette.notify_on
@@ -474,18 +499,18 @@ elements:
     value: device.notification_count
     format: "{:d}"
     font: FONT_TINY
-    at: {anchor: top, dy: 88%}
+    at: { anchor: top, dy: 88% }
     visible: device.notification_count > 0
     color: palette.notify_text
     # color: "device.notification_count > 0 ? palette.notify_text : palette.dark"
 
-  battery_percent:
-    type: text
-    value: system.battery
-    format: "{:.0f}%"
-    font: FONT_XTINY
-    at: {anchor: top, dx: 15%, dy: 88%}
-    color: config.colors.dim
+  alarm_icon:
+    type: icon
+    icon: alarm
+    size: 14%r
+    at: { anchor: top, dy: 88%, dx: 15% }
+    color: "device.alarm_count > 0 ? config.colors.alarm : config.colors.dark"
+
 
   # -- the arcs --------------------------------------------------------------
   # Three short arcs along the bottom rim. Each is a stroked ring: there is no
@@ -494,15 +519,15 @@ elements:
   # read against how long the track is.
   #
   # Angles are clockwise from 12 o'clock, so 180deg is the bottom of the screen.
-  arc_steps:
+  arc_body_battery:
     type: progress
     style: arc
-    value: activity.steps
-    max: activity.step_goal
-    at: {anchor: center}
-    radius: 98%r
+    value: complication.body_battery
+    max: 100
+    at: { anchor: center }
+    radius: 97%r
     thickness: 4%r
-    start_angle: 212deg         # lower left, growing anticlockwise towards 9 o'clock
+    start_angle: 212deg # lower left, growing anticlockwise towards 9 o'clock
     sweep: 32deg
     color: config.data_color
     track_color: config.colors.dark
@@ -513,10 +538,10 @@ elements:
     style: arc
     value: system.battery
     max: 100
-    at: {anchor: center}
-    radius: 98%r
+    at: { anchor: center }
+    radius: 97%r
     thickness: 4%r
-    start_angle: 180deg         # just left of 6 o'clock, growing clockwise
+    start_angle: 180deg # just left of 6 o'clock, growing clockwise
     sweep: -28deg
     color: config.data_color
     track_color: config.colors.dark
@@ -526,24 +551,25 @@ elements:
     style: arc
     value: system.battery
     max: 100
-    at: {anchor: center}
-    radius: 98%r
+    at: { anchor: center }
+    radius: 97%r
     thickness: 4%r
-    start_angle: 180deg         # just left of 6 o'clock, growing clockwise
+    start_angle: 180deg # just left of 6 o'clock, growing clockwise
     sweep: 28deg
     color: config.data_color
     track_color: config.colors.dark
 
-  arc_move:
+  arc_steps:
     type: progress
     style: arc
-    value: activity.move_bar_level
-    max: 5
-    at: {anchor: center}
-    radius: 98%r
+    value: activity.steps
+    max: activity.step_goal
+    at: { anchor: center }
+    radius: 97%r
     thickness: 4%r
-    start_angle: 148deg         # lower right, growing anticlockwise towards 3 o'clock
+    start_angle: 148deg # lower right, growing anticlockwise towards 3 o'clock
     sweep: -32deg
     color: config.data_color
     track_color: config.colors.dark
     when_absent: hide
+
