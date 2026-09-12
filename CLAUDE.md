@@ -2114,6 +2114,33 @@ the generator.
    do nothing" in one example, since the editor machinery applies to both
    slots regardless of which one has `on_hold:`.
 
+**Phone-side settings are started and deliberately frozen, on branch
+`wip/phone-settings`.** This was item 5 of research 09's recommendation --
+`properties.xml`/`settings.xml`, a `<settingConfig type="list">` per
+selector, and **the only mechanism in the whole document that configures
+`fr955`**, which today has no configuration of any kind. The agent building
+it was cut off by a rate limit partway, and the user chose to freeze rather
+than finish.
+
+What is on that branch: roughly 1,000 lines across `wfb/ir.py`,
+`wfb/emit/{monkeyc,resources,project,manifest}.py`, `wfb/layout.py`,
+`wfb/lint.py` and the schema. What is **not** there: docs, tests, a worked
+example, and any verification at all beyond the pre-existing suite still
+passing. **Treat none of it as working.** Nothing was driven red, no real
+`monkeyc` build was run against it, and the format shape in research 09 §5.2
+is a proposal rather than a decision.
+
+It is a branch rather than a stash on purpose -- a stash is easy to lose and
+invisible to anyone who does not run `git stash list`. `backup/pre-integrate`
+is a second safety pointer, at this session's pre-rebase tip.
+
+**The limitation that must go in the docs when this is finished** (research
+09 §5.4, already established, do not rediscover): there is no way to ask
+which saved watch-face configuration is active, so the four native axes are
+per-configuration while a property is **global across all four** of the
+wearer's saved faces. That is the main reason to prefer a native axis
+whenever both could work.
+
 ### `examples/dashboard/face.yaml` is the user's own playground
 
 The user edits this file directly between sessions and has said explicitly:
