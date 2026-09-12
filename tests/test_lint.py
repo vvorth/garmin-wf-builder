@@ -1,11 +1,13 @@
 """ADR 0008 checks, and the confidence each one is allowed to claim."""
 
 import re
+from types import SimpleNamespace
 
 import pytest
 
 from tests.test_diagnostics import load
 from wfb import build, lint
+from wfb.diagnostics import Bag, Diagnostic, Severity
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 
@@ -122,6 +124,70 @@ def test_a_dithered_track_color_can_also_be_suppressed(check):
         palette='  bg: "#000000"\n  fg: "#123456"',
     )
     assert "palette-dither" not in codes(bag)
+
+
+# -- the element-scoped emit path (`_suppressed_element`/`_emit_for_element`) --
+
+
+def test_emit_for_element_refuses_to_suppress_a_non_suppressible_code():
+    """The half of the contract the five declaration-scoped checks used to
+    drop by hand-rolling `if any(code in element.lint_allow for ...): continue`:
+    that test alone says nothing about whether the code is suppressible at
+    all.  `off-screen` is a real, hard-platform-limit code deliberately
+    absent from `SUPPRESSIBLE` -- an element naming it in `lint_allow` must
+    not silence a diagnostic routed through `_emit_for_element`.
+    """
+    assert "off-screen" not in lint.SUPPRESSIBLE
+    element = SimpleNamespace(lint_allow={"off-screen"})
+    bag = Bag()
+    lint._emit_for_element(bag, [element], Diagnostic(
+        Severity.ERROR, "off-screen", "test message",
+    ))
+    assert "off-screen" in codes(bag)
+
+
+def test_suppressed_by_any_agrees_with_suppressed_element():
+    """`_suppressed_by_any` is `_suppressed_element` applied to a list of
+    candidate users -- both must reach the same answer for the same element
+    and code, since they are meant to be the one place that knows what
+    'suppressed' means (element-scoped and declaration-scoped alike)."""
+    allowed = SimpleNamespace(lint_allow={"palette-dither"})
+    not_allowed = SimpleNamespace(lint_allow=set())
+    assert lint._suppressed_element(allowed, "palette-dither")
+    assert not lint._suppressed_element(not_allowed, "palette-dither")
+    assert lint._suppressed_by_any([not_allowed, allowed], "palette-dither")
+    assert not lint._suppressed_by_any([not_allowed], "palette-dither")
+    assert not lint._suppressed_by_any([], "palette-dither")
+
+
+def test_a_declaration_scoped_warning_stops_honouring_lint_allow_if_withdrawn_from_suppressible(
+    check, monkeypatch,
+):
+    """Reproduces Bug 1 (CLAUDE.md) against `check_palette` directly: before
+    `_emit_for_element` existed, this check tested only
+    `"palette-dither" in element.lint_allow`, with no reference to
+    `SUPPRESSIBLE` at all.  Withdrawing the code from `SUPPRESSIBLE` here --
+    as if it had never been made suppressible -- must still make the warning
+    fire even though the element's own `lint: {allow: [palette-dither]}` is
+    unchanged; the old hand-rolled check could not have told the difference
+    and would have kept it silent.
+    """
+    monkeypatch.setattr(lint, "SUPPRESSIBLE", lint.SUPPRESSIBLE - {"palette-dither"})
+    bag = check(
+        """
+  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 5px
+    color: palette.fg
+    lint:
+      allow: [palette-dither]
+      reason: "probing"
+""",
+        palette='  bg: "#000000"\n  fg: "#123456"',
+    )
+    assert "palette-dither" in codes(bag)
 
 
 # -- check 4 ---------------------------------------------------------------

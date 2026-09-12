@@ -92,12 +92,38 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
 
 
+def _suppressed_element(element: Element, code: str) -> bool:
+    """The one place that knows what "suppressed" means: the code names a
+    real suppressible diagnostic, and this exact element accepted it."""
+    return code in element.lint_allow and code in SUPPRESSIBLE
+
+
 def _suppressed(placed, code: str) -> bool:
-    return code in placed.element.lint_allow and code in SUPPRESSIBLE
+    return _suppressed_element(placed.element, code)
 
 
 def _emit(bag: Bag, placed, diag: Diagnostic) -> None:
     if _suppressed(placed, diag.code):
+        return
+    bag.add(diag)
+
+
+def _suppressed_by_any(users: list[Element], code: str) -> bool:
+    """For a diagnostic about a shared declaration (a `palette:` entry, a
+    `config:` axis, a colour-scheme role) rather than one placed element:
+    there is no element of its own to hang `lint: {allow: [...]}` on, so
+    suppression is honoured on whichever element(s) actually reference the
+    declaration -- a dithered colour dithers everywhere it is drawn, so
+    acknowledging it once, on any one use, is acknowledging the colour
+    itself.
+    """
+    return any(_suppressed_element(user, code) for user in users)
+
+
+def _emit_for_element(bag: Bag, users: list[Element], diag: Diagnostic) -> None:
+    """Like `_emit`, but for a declaration with several (or zero) candidate
+    users instead of one placed element -- see `_suppressed_by_any`."""
+    if _suppressed_by_any(users, diag.code):
         return
     bag.add(diag)
 
@@ -194,18 +220,19 @@ def check_lint_allow(face: Face, bag: Bag) -> None:
 _PALETTE_REFERENCING_FIELDS = ("color", "track_color")
 
 
-def _palette_users(face: Face, name: str) -> list[Element]:
-    """Elements whose ``color:``/``track_color:`` is exactly ``palette.<name>``.
+def _users_of(face: Face, token: str) -> list[Element]:
+    """Elements whose ``color:``/``track_color:`` is exactly ``token``.
 
     This is deliberately an exact textual match on the author's own expression
     text, not a search through folded constants -- a conditional expression
-    that merely *mentions* the entry (``hr.current > 100 ? palette.fg : ...``)
-    does not count, because the dithering the warning is about is a property
-    of the named colour itself, not of any one place it is used, and claiming
-    to trace it through arbitrary expressions would overclaim what this check
-    can actually verify.
+    that merely *mentions* the reference (``hr.current > 100 ? palette.fg :
+    ...``) does not count, because the dithering these checks are about is a
+    property of the named colour itself, not of any one place it is used, and
+    claiming to trace it through arbitrary expressions would overclaim what
+    this check can actually verify.  Shared by :func:`_palette_users`,
+    :func:`_config_users` and :func:`_config_colors_role_users`, which differ
+    only in which token they build.
     """
-    token = f"palette.{name}"
     return [
         element for element in face.walk()
         if any(
@@ -214,6 +241,54 @@ def _palette_users(face: Face, name: str) -> list[Element]:
             for field in _PALETTE_REFERENCING_FIELDS
         )
     ]
+
+
+def _palette_users(face: Face, name: str) -> list[Element]:
+    """Elements whose ``color:``/``track_color:`` is exactly ``palette.<name>``."""
+    return _users_of(face, f"palette.{name}")
+
+
+def _dither_suppress_note(users: list[Element], token: str) -> str:
+    """The two variants of "how to accept this dithered colour" note, shared
+    by every dither check below: point at an existing user if one exists, or
+    say honestly that there is nowhere yet to put the suppression -- the
+    note must never claim a suppression mechanism that does not exist.
+    """
+    if users:
+        return (
+            f"set 'lint: {{allow: [palette-dither], reason: ...}}' on the element "
+            f"whose 'color:' or 'track_color:' is '{token}' to keep it"
+        )
+    return (
+        f"no element's 'color:' or 'track_color:' is exactly '{token}', "
+        f"so there is nowhere to put 'lint: {{allow: [palette-dither]}}' for it"
+    )
+
+
+def _emit_dither(
+    bag: Bag, users: list[Element], message: str, nearest_note: str, token: str,
+) -> None:
+    """The common back half of `check_palette`/`check_config_palette`/
+    `check_color_scheme_palette`: build the notes every dither warning shares
+    and emit through :func:`_emit_for_element`, since none of the three has a
+    single element of its own to hang `lint:` on -- suppression is honoured
+    on whichever element(s) actually reference the declaration via `color:`
+    or `track_color:`. That is the right scope: a dithered colour dithers
+    every place it is drawn, so acknowledging it once, on any one use, is
+    acknowledging the colour itself.
+    """
+    _emit_for_element(bag, users, Diagnostic(
+        Severity.WARNING,
+        "palette-dither",
+        message,
+        notes=[
+            nearest_note,
+            "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
+            "dithered by the firmware and looks grainy",
+            _dither_suppress_note(users, token),
+        ],
+        confidence="exact -- device display_colors",
+    ))
 
 
 def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
@@ -239,30 +314,13 @@ def check_palette(resolved: ResolvedFace, bag: Bag) -> None:
         if color.is_palette_legal(colors):
             continue
         users = _palette_users(resolved.face, name)
-        if any("palette-dither" in element.lint_allow for element in users):
-            continue
         nearest = color.nearest_legal(colors)
-        if users:
-            suppress_note = (
-                f"set 'lint: {{allow: [palette-dither], reason: ...}}' on the element "
-                f"whose 'color:' or 'track_color:' is 'palette.{name}' to keep it"
-            )
-        else:
-            suppress_note = (
-                f"no element's 'color:' or 'track_color:' is exactly 'palette.{name}', "
-                f"so there is nowhere to put 'lint: {{allow: [palette-dither]}}' for it"
-            )
-        bag.warning(
-            "palette-dither",
+        _emit_dither(
+            bag, users,
             f"palette.{name} = {color} is not one of {resolved.device.id}'s "
             f"{colors} colours and will be dithered",
-            notes=[
-                f"nearest legal colour: {nearest}",
-                "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
-                "dithered by the firmware and looks grainy",
-                suppress_note,
-            ],
-            confidence="exact -- device display_colors",
+            f"nearest legal colour: {nearest}",
+            f"palette.{name}",
         )
 
 
@@ -342,15 +400,7 @@ def _config_users(face: Face, name: str) -> list[Element]:
     reason: the colour is either legal or it is not, independent of any one
     conditional expression that merely mentions it.
     """
-    token = f"config.{name}"
-    return [
-        element for element in face.walk()
-        if any(
-            (expression := getattr(element, field, None)) is not None
-            and expression.text == token
-            for field in _PALETTE_REFERENCING_FIELDS
-        )
-    ]
+    return _users_of(face, f"config.{name}")
 
 
 def _config_colors_role_users(face: Face, role: str) -> list[Element]:
@@ -358,15 +408,7 @@ def _config_colors_role_users(face: Face, role: str) -> list[Element]:
 
     Same exact-textual-match rule as :func:`_config_users`/`_palette_users`.
     """
-    token = f"config.colors.{role}"
-    return [
-        element for element in face.walk()
-        if any(
-            (expression := getattr(element, field, None)) is not None
-            and expression.text == token
-            for field in _PALETTE_REFERENCING_FIELDS
-        )
-    ]
+    return _users_of(face, f"config.colors.{role}")
 
 
 def _slot_users(face: Face, name: str) -> list[Element]:
@@ -410,30 +452,13 @@ def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
         if not bad:
             continue
         users = _config_users(resolved.face, name)
-        if any("palette-dither" in element.lint_allow for element in users):
-            continue
         nearest = ", ".join(f"{c} -> {c.nearest_legal(colors)}" for c in bad)
-        if users:
-            suppress_note = (
-                f"set 'lint: {{allow: [palette-dither], reason: ...}}' on the element "
-                f"whose 'color:' or 'track_color:' is 'config.{name}' to keep it"
-            )
-        else:
-            suppress_note = (
-                f"no element's 'color:' or 'track_color:' is exactly 'config.{name}', "
-                f"so there is nowhere to put 'lint: {{allow: [palette-dither]}}' for it"
-            )
-        bag.warning(
-            "palette-dither",
+        _emit_dither(
+            bag, users,
             f"config.{name}: {len(bad)} declared colour(s) are not one of "
             f"{resolved.device.id}'s {colors} colours and will be dithered",
-            notes=[
-                f"off-grid -> nearest legal: {nearest}",
-                "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
-                "dithered by the firmware and looks grainy",
-                suppress_note,
-            ],
-            confidence="exact -- device display_colors",
+            f"off-grid -> nearest legal: {nearest}",
+            f"config.{name}",
         )
 
 
@@ -466,34 +491,16 @@ def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
         if not bad:
             continue
         users = _config_colors_role_users(resolved.face, role)
-        if any("palette-dither" in element.lint_allow for element in users):
-            continue
         nearest = ", ".join(
             f"color_scheme.{name}.colors.{role}={c} -> {c.nearest_legal(colors)}"
             for name, c in bad
         )
-        if users:
-            suppress_note = (
-                f"set 'lint: {{allow: [palette-dither], reason: ...}}' on the element "
-                f"whose 'color:' or 'track_color:' is 'config.colors.{role}' to keep it"
-            )
-        else:
-            suppress_note = (
-                f"no element's 'color:' or 'track_color:' is exactly "
-                f"'config.colors.{role}', so there is nowhere to put "
-                "'lint: {allow: [palette-dither]}' for it"
-            )
-        bag.warning(
-            "palette-dither",
+        _emit_dither(
+            bag, users,
             f"config.colors.{role}: {len(bad)} declared colour(s) are not one of "
             f"{resolved.device.id}'s {colors} colours and will be dithered",
-            notes=[
-                f"off-grid -> nearest legal: {nearest}",
-                "each channel must be 0x00, 0x55, 0xAA or 0xFF; anything else is "
-                "dithered by the firmware and looks grainy",
-                suppress_note,
-            ],
-            confidence="exact -- device display_colors",
+            f"off-grid -> nearest legal: {nearest}",
+            f"config.colors.{role}",
         )
 
 
@@ -536,9 +543,9 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     names = ", ".join(names_list)
     # `_config_users`/`_config_colors_role_users`/`_slot_users` return raw IR
     # Elements, from `Face.walk()`, not the `resolved.items` layout wrappers
-    # `_emit` expects -- the same reason `check_palette` (this check's own
-    # model) does not call `_emit` either, and checks `lint_allow` on the
-    # element directly instead.
+    # `_emit` expects -- so this routes through `_emit_for_element` instead,
+    # which takes that same list of candidate elements directly and suppresses
+    # if any of them accepts the code.
     users: list[Element] = []
     for name in config:
         users.extend(_config_users(resolved.face, name))
@@ -546,8 +553,6 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
         users.extend(_config_colors_role_users(resolved.face, role))
     for name in face.config_data:
         users.extend(_slot_users(resolved.face, name))
-    if any("config-unsupported" in element.lint_allow for element in users):
-        return
     notes = [
         "the face still works: every element bound to a config.* colour, or "
         "drawing a config.data.* slot, simply keeps its declared default "
@@ -567,13 +572,14 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
             f"{names}, so there is nowhere to put "
             "'lint: {allow: [config-unsupported]}' for it"
         )
-    bag.warning(
+    _emit_for_element(bag, users, Diagnostic(
+        Severity.WARNING,
         "config-unsupported",
         f"{device.id}: has no on-device watch face editor, so {names} "
         f"keep their declared defaults here",
         notes=notes + [suppress_note],
         confidence="exact -- the device's own api.debug.xml",
-    )
+    ))
 
 
 # -- check 4: geometry ------------------------------------------------------
@@ -802,9 +808,8 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
     fraction = clip.area / (device.width * device.height)
     operations = len(low_power)
     if fraction > 0.25:
-        if any("partial-update-budget" in p.element.lint_allow for p in low_power):
-            return
-        bag.warning(
+        _emit_for_element(bag, [p.element for p in low_power], Diagnostic(
+            Severity.WARNING,
             "partial-update-budget",
             f"low-power updates clip {fraction * 100:.0f}% of the screen "
             f"({clip.width}x{clip.height}px) and draw {operations} element(s) each second",
@@ -829,7 +834,7 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
                    "one of the elements drawn in low-power mode to keep it"],
             confidence="HEURISTIC -- Garmin does not publish the numeric budget; this "
                        "flags relative cost, not a measured overrun",
-        )
+        ))
         return
 
     # Trigger 2: a read that is known-expensive regardless of clip size.  Not
