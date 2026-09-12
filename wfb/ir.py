@@ -1676,6 +1676,22 @@ class Builder:
         self.seen_ids[element_id] = span
         if not self._check_symbol_collision(element_id, node, span):
             return None
+        if node.get("overrides"):
+            # Parsed and stored since Phase 2, applied by nothing (ADR 0004 4 is
+            # still unbuilt).  Accepting it silently is the worst of the three
+            # options: a misspelled device id and an invented key both validate
+            # clean, and the author is left believing a per-device tweak landed.
+            self.bag.error(
+                "overrides",
+                f"{element_id}: per-device 'overrides:' is not implemented yet, "
+                "so this would be silently ignored",
+                self.doc.span(node, "overrides") or span,
+                notes=["ADR 0004 4 specifies it; nothing reads it yet -- see "
+                       "docs/limitations.md 2",
+                       "until it lands, express a per-device difference with a "
+                       "relative unit (%r, %) rather than a fixed px"],
+            )
+            return None
 
         common = dict(
             id=element_id,

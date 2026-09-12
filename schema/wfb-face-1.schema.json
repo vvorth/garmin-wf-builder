@@ -923,9 +923,9 @@
           "$ref": "#/$defs/colorExpression"
         },
         "when_absent": {
+          "description": "Required for a nullable value or max. A progress element has no placeholder: there is no substitute *text* for a fill fraction, so the choice is hide or a fallback expression.",
           "enum": [
             "hide",
-            "placeholder",
             "fallback"
           ]
         },

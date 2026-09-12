@@ -61,7 +61,7 @@ ALL_CODES = frozenset({
     "carousel-zone", "carousel-on-hold", "hold-overlap", "hold-unsupported",
     "hold-auto-ambiguous", "hold-auto-unresolved",
     "palette-dither", "partial-update", "partial-update-budget", "permission",
-    "on-hold", "on-tap-renamed", "raw-color", "safe-area", "schema", "source-renamed",
+    "on-hold", "on-tap-renamed", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
     "target",
     "static", "static-overlap",
     "text-antialias",

@@ -1879,3 +1879,74 @@ def test_a_literal_text_element_is_accepted(write_design, bag):
     face = load(write_design(design(_LITERAL)), bag)
     assert bag.ok(), bag.render()
     assert face is not None
+
+
+# -- `overrides:` is not implemented, and now says so -------------------------
+
+
+def test_overrides_is_rejected_rather_than_silently_ignored(write_design, bag):
+    """ADR 0004 4 is unbuilt, so accepting the key is worse than refusing it.
+
+    Before this error existed, the design below validated with *no diagnostics
+    at all*: a device id that does not exist and a key that is not a property
+    of any element both sailed through, because `$defs/overrides` is
+    `{additionalProperties: {type: object}}` and nothing downstream ever reads
+    `Element.overrides`.
+    """
+    load(write_design(design("""
+  - id: ring
+    type: shape
+    shape: circle
+    radius: 40%r
+    color: palette.fg
+    at: {anchor: center}
+    overrides:
+      notADeviceAtAll:
+        radius: 999%r
+        totally_bogus_key: [1, 2, 3]
+""")), bag)
+    errors = [d for d in bag.errors if d.code == "overrides"]
+    assert len(errors) == 1, bag.render()
+    assert "not implemented" in errors[0].message
+
+
+def test_an_empty_overrides_block_is_not_an_error(write_design, bag):
+    """`overrides: {}` asks for nothing, so there is nothing to warn about."""
+    face = load(write_design(design("""
+  - id: ring
+    type: shape
+    shape: circle
+    radius: 40%r
+    color: palette.fg
+    at: {anchor: center}
+    overrides: {}
+""")), bag)
+    assert face is not None, bag.render()
+    assert not [d for d in bag.errors if d.code == "overrides"]
+
+
+def test_progress_cannot_ask_for_a_placeholder_it_has_no_key_for(write_design, bag):
+    """The enum used to offer a policy the schema made unsatisfiable.
+
+    `when_absent: placeholder` needed a `placeholder:` string, and
+    `progressElement` has no such property with `additionalProperties: false`
+    -- so the author was given an error with no legal way out.  There is no
+    substitute *text* for a fill fraction; `fallback:` is the real answer.
+    """
+    load(write_design(design("""
+  - id: ring
+    type: progress
+    style: arc
+    radius: 40%r
+    thickness: 4px
+    start_angle: 0
+    sweep: 180
+    value: activity.steps
+    max: 10000
+    color: palette.fg
+    at: {anchor: center}
+    when_absent: placeholder
+""")), bag)
+    schema = [d for d in bag.errors if d.code == "schema"]
+    assert schema, bag.render()
+    assert "placeholder" in bag.render()

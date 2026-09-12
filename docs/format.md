@@ -2064,11 +2064,13 @@ See `docs/limitations.md` 3.
 ## Not yet implemented
 
 Present in the ADRs, absent from format 1: `image` elements, the `raw` escape
-hatch (ADR 0007), per-device `overrides` (parsed but not yet applied), the
-editor's animated highlight on the Data axis (`getComplicationDrawable`,
-`onTap`, `setSelectedComplication` -- docs/research/09 §4; drawing a slot's
-current pick is implemented, see [Configuration](#configuration) above), and
-`segments`/`scale` progress styles. See [`docs/limitations.md`](limitations.md).
+hatch (ADR 0007), per-device `overrides` (ADR 0004 §4 -- writing one is now an
+error rather than a silently-ignored key), and `segments`/`scale` progress
+styles. See [`docs/limitations.md`](limitations.md).
+
+(The editor's animated highlight on the Data axis -- `getComplicationDrawable`,
+`onTap`, `setSelectedComplication` -- **is** implemented; this paragraph used to
+say otherwise, contradicting [Configuration](#configuration) above.)
 
 (All four on-device configuration axes are now implemented -- see
 [Configuration](#configuration) and [Color scheme](#color-scheme) above.

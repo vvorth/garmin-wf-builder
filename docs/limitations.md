@@ -465,7 +465,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 |---|---|
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
-| Per-device `overrides` (parsed and validated, not yet applied) | ADR 0004 §4 |
+| Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
 | Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1, twice amended. All four config axes (`config:`, `docs/format.md` "Configuration") shipped, `complication_slot` included, and so is the editor's animated highlight on the Data axis (`AppBase.onStart`/`WatchFaceDelegate.onTap`+`getComplicationDrawable`, docs/format.md "Configuration"). Phone-side settings is the one piece of ADR 0006 §1 still unbuilt, and the only route that would give `fr955` any configuration at all |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |

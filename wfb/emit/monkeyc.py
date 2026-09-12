@@ -26,7 +26,7 @@ from ..ir import (
     IconElement, Progress, Shape, Text, carousel_index_field, carousel_slide_done_method,
     carousel_slide_field, carousel_step_method, complication_slot_hold_method,
     complication_slot_icon_method, config_data_ids, config_field, element_const_prefix,
-    element_method_name, font_resource_id, graph_built_field, graph_max_field,
+    element_method_name, font_resource_id, graph_built_field, graph_max_field, local_name,
     graph_min_field, graph_rebuild_method, graph_series_field, static_group_method,
 )
 from ..layout import (
@@ -1288,7 +1288,6 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
         "Every field is nullable twice over, so a missing value simply leaves the\n"
         "existing (defaulted) field alone rather than being treated as an error."
     )
-    from ..ir import local_name
 
     with w.block("function applyConfig(settings as WatchFaceConfig.Settings) as Void"):
         if face.config_colors is not None:
@@ -1539,8 +1538,11 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
         "The clip is the tightest box around them because setClip is charged by\n"
         f"region area: {fraction:.0f}% of the screen here.  Overrunning the power\n"
         "budget calls onPowerBudgetExceeded and disables partial updates for the\n"
-        "rest of the app's lifecycle, so only frame-tier sources are read here --\n"
-        "the compiler rejects anything slower."
+        "rest of the app's lifecycle.  Nothing here is rate-limited by the\n"
+        "compiler: since the refresh-tier concept was deleted, any source a\n"
+        "low_power element binds -- weather.* and complication.* included --\n"
+        "is read on every one of these updates.  The suppressible\n"
+        "partial-update-budget lint is the only thing watching that."
     )
     with w.block("function onPartialUpdate(dc as Dc) as Void"):
         w.line(
@@ -1700,8 +1702,6 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             _emit_progress(w, placed, value_guards)
         elif isinstance(placed, PlacedIcon):
             _emit_icon(w, placed)
-        elif isinstance(placed, PlacedCarousel):
-            _emit_carousel(w, placed, plan)
         elif isinstance(placed, PlacedGraph):
             _emit_graph(w, placed)
         if overrides_antialias:
@@ -2030,7 +2030,6 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
         w.line("return;  // the icon font resource failed to load")
     w.blank()
     if element.is_dynamic:
-        from ..ir import local_name
 
         condition_local = local_name(element.value_for.sources[0])
         w.comment(f"{element.value_for.text!r} -> a name (WfbWeather) -> a glyph (IconGlyphs)")
@@ -2453,7 +2452,6 @@ def _emit_carousel_item_text(w: Writer, item, plan: "ReadPlan") -> None:
     Scoped to the item on purpose: this is the whole reason a carousel skips
     the element-level guard every other element gets.
     """
-    from ..ir import local_name
 
     if item.value is None:
         w.line('text = "";')
@@ -2522,8 +2520,9 @@ def _emit_graph(w: Writer, placed: PlacedGraph) -> None:
     built = graph_built_field(element.id)
     w.comment("the sample interval here is minutes, so rebuilding more often than")
     w.comment("once a minute could not show anything new (WfbSeries.mc's docstring)")
-    with w.block(f"if (System.getClockTime().min != {built})"):
-        w.line(f"{built} = System.getClockTime().min;")
+    w.line("var graphMinute = System.getClockTime().min;")
+    with w.block(f"if (graphMinute != {built})"):
+        w.line(f"{built} = graphMinute;")
         w.line(f"{graph_rebuild_method(element.id)}();")
     w.blank()
 
@@ -2784,8 +2783,8 @@ class ReadPlan:
         readers = self._readers_for_mode.get(mode) or []
         if not readers:
             return
-        tier_note = "frame-tier reads only" if mode != "active" else "data for this frame"
-        w.comment(tier_note)
+        w.comment("data for this frame" if mode == "active"
+                  else f"data for this frame ({mode}); every reader is a plain pull")
         for name in readers:
             # Every reader is a plain pull, complications included: the value
             # each one returns is already the platform's own cached reading
@@ -2813,7 +2812,6 @@ class ReadPlan:
         :meth:`value_guards`/:meth:`other_guards` for one that has one
         (Bug 5): the policy governs the value, not a colour.
         """
-        from ..ir import local_name
 
         names: list[str] = []
         visible = self._visible_bound[placed.id]
@@ -2828,7 +2826,6 @@ class ReadPlan:
 
     def value_guards(self, placed) -> list[str]:
         """Locals reached through the element's own *value* expression(s)."""
-        from ..ir import local_name
 
         return [local_name(path) for path in self._value_bound[placed.id]
                 if catalog.CATALOG[path].guard_needed]
@@ -2841,7 +2838,6 @@ class ReadPlan:
         unlike a value, an unavailable reading has no substitute, so there is
         no `when_absent:` to consult here.
         """
-        from ..ir import local_name
 
         return [local_name(path) for path in self._visible_bound[placed.id]
                 if catalog.CATALOG[path].guard_needed]
@@ -2854,7 +2850,6 @@ class ReadPlan:
         `heartRateCurrent` at its own call site, which a placeholder guarding
         only the text's dereference does nothing to protect.
         """
-        from ..ir import local_name
 
         return [local_name(path) for path in self._other_bound[placed.id]
                 if catalog.CATALOG[path].guard_needed]
@@ -2885,7 +2880,6 @@ class ReadPlan:
         return ()
 
     def declarations(self, placed) -> list[tuple[str, str]]:
-        from ..ir import local_name
 
         out: list[tuple[str, str]] = []
         for path in self._bound[placed.id]:
