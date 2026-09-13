@@ -31,6 +31,7 @@ with no warnings.
 | If you want… | Read |
 |---|---|
 | to take over this project | **`CLAUDE.md`** — full handoff context |
+| the full session-by-session history behind it | [`docs/history.md`](docs/history.md) |
 | to write a design | [`docs/format.md`](docs/format.md), and the schema in [`schema/`](schema/) |
 | what the platform will not do | [`docs/limitations.md`](docs/limitations.md) |
 | to run it without installing anything | [`docs/container.md`](docs/container.md) |
