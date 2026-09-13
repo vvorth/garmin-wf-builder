@@ -1,0 +1,13 @@
+# Keeps bulky or historical material out of broad searches (ripgrep, and the
+# Grep tool built on it). Every path here is still readable by explicit path,
+# and `rg -uu` / `rg --no-ignore` searches it deliberately.
+#
+# The narrative -- read for a specific past decision, never as search noise.
+docs/history.md
+# Generated / vendored / measured data
+tests/golden/
+docs/research/probes/
+docs/research/data/
+vendor/
+build/
+examples/*/assets/
