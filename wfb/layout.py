@@ -151,8 +151,74 @@ class PlacedGraph(Placed):
 #: small constant rather than a fraction of the icon's own size, the same way
 #: `PlacedShape`'s outline padding is a fixed `+1`/`+2` rather than scaled --
 #: there is no `size:`-like key in the format to derive one from, and getting
-#: this exact does not change what the element *is*.
+#: this exact does not change what the element *is*.  Stays the fallback for
+#: a design that never authors `icon_gap:` (plan 03 §6.1/§6.3): the literal
+#: `4` a generated view embeds today, kept byte-identical rather than
+#: promoted to a per-device constant when nothing asked for one.
 COMPLICATION_SLOT_ICON_GAP = 4
+
+
+@dataclass(frozen=True)
+class SlotPairGeometry:
+    """The icon+reading pair's combined extent, and each piece's offset from
+    the pair's own top-left corner (plan 03 §6.3) -- shared by
+    `Resolver._resolve_complication_slot` (the estimated box the geometry
+    lints size against), `wfb.preview._complication_slot` (the pixels
+    actually drawn, from real measured extents) and mirrored, not called, in
+    hand-written Monkey C by `wfb.emit.monkeyc._emit_complication_slot`: the
+    real text is not known until the value is pulled at runtime (ADR 0004's
+    one deliberate exception), so the device computes the equivalent
+    arithmetic itself from `Dc.getTextWidthInPixels`/`Dc.getFontHeight`
+    rather than being handed these numbers.
+    """
+
+    width: int
+    height: int
+    icon_x: int
+    icon_y: int
+    text_x: int
+    text_y: int
+
+
+def complication_slot_pair_geometry(
+    position: str, icon_w: int, icon_h: int, text_w: int, text_h: int, gap: int,
+) -> SlotPairGeometry:
+    """The icon+reading pair's combined box, and each piece's offset within
+    it, for one `icon_position:` (`left` (default) | `right` | `top` |
+    `bottom`) -- plan 03 §6.3, the one place this geometry is computed in
+    Python.
+
+    `icon_w`/`icon_h` are `(0, 0)` when the slot draws no icon at all (no
+    declared choice resolves one, or the wearer's live pick does not on the
+    device side) -- the gap then drops too and the text centres alone in
+    every position, matching today's `left`-only behaviour.
+    """
+    has_icon = icon_w > 0 or icon_h > 0
+    gap = gap if has_icon else 0
+    if position in ("top", "bottom"):
+        width = max(icon_w, text_w)
+        height = icon_h + gap + text_h
+        icon_x = (width - icon_w) // 2 if has_icon else 0
+        text_x = (width - text_w) // 2
+        if position == "top":
+            icon_y = 0
+            text_y = icon_h + gap
+        else:
+            text_y = 0
+            icon_y = text_h + gap
+        return SlotPairGeometry(width, height, icon_x, icon_y, text_x, text_y)
+
+    width = text_w + (icon_w + gap if has_icon else 0)
+    height = max(icon_h, text_h)
+    icon_y = (height - icon_h) // 2
+    text_y = (height - text_h) // 2
+    if position == "right":
+        text_x = 0
+        icon_x = text_w + gap
+    else:  # "left" (default)
+        icon_x = 0
+        text_x = icon_w + gap if has_icon else 0
+    return SlotPairGeometry(width, height, icon_x, icon_y, text_x, text_y)
 
 
 @dataclass
@@ -179,9 +245,16 @@ class PlacedComplicationSlot(Placed):
     #: The synthetic multi-glyph icon font this slot's icon draws from
     #: (`wfb.icons.font_key`), or `None` when this slot draws no icon at all
     #: -- `icon_size:` was omitted, or none of its declared choices has an
-    #: entry in `wfb.icons.COMPLICATION_ICON`.
+    #: entry in `ConfigDataSlot.icons`.
     icon_font_key: str | None = None
     icon_px: int = 0
+    #: `element.icon_position`, carried onto the placed element so the
+    #: emitter and preview do not have to reach back into the IR for it.
+    icon_position: str = "left"
+    #: The resolved pixel gap: `COMPLICATION_SLOT_ICON_GAP` when
+    #: `element.icon_gap` is `None` (unauthored), or `element.icon_gap`
+    #: resolved for this device otherwise.
+    icon_gap_px: int = COMPLICATION_SLOT_ICON_GAP
 
 
 @dataclass
@@ -483,9 +556,20 @@ class Resolver:
         ahead of time: the text font/estimated extent (`_complication_slot_
         widest`, the same "widest plausible rendering" idea `_widest_text`
         already uses), and -- when `icon_size:` is set -- one shared,
-        multi-glyph icon font covering every declared choice that has an
-        entry in `wfb.icons.COMPLICATION_ICON`, keyed by this slot's own name
-        so two different slots never collide into one font resource.
+        multi-glyph icon font covering every icon `slot.icons` can resolve
+        (the declared choices plus any per-choice override, or -- since
+        2026-09-13 -- the whole of `wfb.icons.COMPLICATION_ICON` for
+        `choices: any`), keyed by this slot's own name so two different
+        slots never collide into one font resource.
+
+        The estimated box's extent, for any `icon_position:`, comes from
+        `complication_slot_pair_geometry` -- the one place this geometry is
+        computed (plan 03 §6.3) -- using `icon_px` (the *declared* visual
+        icon height, not the measured glyph height) as the icon's height,
+        matching this element's own long-standing `left`-position height
+        estimate (`max(line_height, icon_px, 1)`) so a design that changes
+        none of `icon_position:`/`icon_gap:` keeps generating the exact same
+        numbers it did before either key existed.
         """
         cx, cy = self._point(element.at, parent)
         font_px, reference, is_custom, baked = self._font_for(element)
@@ -502,12 +586,12 @@ class Resolver:
         if element.icon_size is not None:
             slot = self.face.config_data.get(element.slot)
             reference_glyph: str | None = None
-            if slot is not None and not slot.allow_any:
-                mapped = {name: icons.COMPLICATION_ICON[name] for name in slot.choices
-                         if name in icons.COMPLICATION_ICON}
+            if slot is not None:
+                mapped = slot.icons
                 if mapped:
-                    icon_name = mapped.get(slot.default) or sorted(mapped.values())[0]
-                    reference_glyph = icons.CATALOG[icon_name].codepoint
+                    default_icon = mapped.get(slot.default)
+                    reference_icon = default_icon or sorted(mapped.values(), key=lambda si: si.key)[0]
+                    reference_glyph = reference_icon.codepoint
             if reference_glyph is not None:
                 icon_px = units.pixel_size(element.icon_size, self.device.minor_radius)
                 icon_font_key = icons.font_key(
@@ -518,14 +602,21 @@ class Resolver:
                 else:
                     icon_width = icon_px
 
-        total_width = text_width + (icon_width + COMPLICATION_SLOT_ICON_GAP if icon_font_key else 0)
-        height = max(line_height, icon_px, 1)
-        box = Box(cx - total_width / 2, cy - height / 2, total_width, height)
+        gap_px = (units.pixel_size(element.icon_gap, self.device.minor_radius)
+                 if element.icon_gap is not None else COMPLICATION_SLOT_ICON_GAP)
+        geometry = complication_slot_pair_geometry(
+            element.icon_position,
+            icon_width if icon_font_key else 0, icon_px if icon_font_key else 0,
+            text_width, line_height, gap_px,
+        )
+        height = max(geometry.height, 1)
+        box = Box(cx - geometry.width / 2, cy - height / 2, geometry.width, height)
         return PlacedComplicationSlot(
             element, box.rounded(), (round(cx), round(cy)), depth,
             anchor_point=(round(cx), round(cy)),
             font_reference=reference, font_is_custom=is_custom, font_px=font_px,
             widest=widest, icon_font_key=icon_font_key, icon_px=icon_px,
+            icon_position=element.icon_position, icon_gap_px=gap_px,
         )
 
     def _complication_slot_widest(self, element: ComplicationSlot) -> str:

@@ -251,6 +251,44 @@ def test_icon_for_source_returns_none_for_an_unaliased_source():
     assert icons.icon_for_source("activity.step_goal") is None
 
 
+# -- COMPLICATION_ICON: all 42 types mapped (plan 03 §6.4/§6.7) -------------
+
+
+def test_complication_icon_covers_every_native_type():
+    """Driven red by temporarily removing one entry: with `del
+    icons.COMPLICATION_ICON["stress"]` this assertion fails, proving it
+    actually exercises the coverage it claims rather than trivially
+    passing."""
+    from wfb import complications
+
+    assert set(icons.COMPLICATION_ICON) == set(complications.TYPES)
+
+
+def test_complication_icon_values_all_resolve_in_the_catalogue():
+    for type_name, icon_name in icons.COMPLICATION_ICON.items():
+        assert icon_name in icons.CATALOG, (
+            f"COMPLICATION_ICON[{type_name!r}] names {icon_name!r}, not in CATALOG")
+
+
+def test_complication_icon_coverage_actually_fails_without_a_mapping():
+    """The contrast `test_complication_icon_covers_every_native_type` claims,
+    proven directly rather than by inspection (CLAUDE.md: 'a test must be
+    able to fail against a knowingly broken implementation')."""
+    from wfb import complications
+
+    broken = dict(icons.COMPLICATION_ICON)
+    del broken["stress"]
+    assert set(broken) != set(complications.TYPES)
+
+
+def test_every_catalogue_codepoint_is_unique():
+    """Two names racing for the same glyph would make one of them draw the
+    other's icon, silently -- a content bug in the same family CLAUDE.md
+    already records for `body_battery`/`battery` and `pulse_ox`/`heart`."""
+    codepoints = [icon.codepoint for icon in icons.CATALOG.values()]
+    assert len(codepoints) == len(set(codepoints)), "a codepoint is shared by two names"
+
+
 def test_an_unknown_icon_name_is_a_build_error_not_a_silent_blank(write_design, bag, db):
     from tests.test_diagnostics import load
 

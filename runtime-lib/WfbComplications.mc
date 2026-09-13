@@ -65,6 +65,50 @@ module WfbComplications {
         }
     }
 
+    //! A pulled `Complication.value` as display text. A Number, Long or
+    //! String reads fine through `toString()`; a Float or Double does not,
+    //! because `Float.toString()` always prints six decimals. That was seen
+    //! in the simulator (2026-09-13): steps at or above 10,000 arrive as the
+    //! Float 12.879 with unit "K" and drew as "12.879000K". `decimalText`
+    //! handles those. `wfb.complications.format_value` is its Python twin,
+    //! which the host preview uses.
+    function formatValue(value as Complications.Value) as String {
+        if (value instanceof Lang.Float) {
+            return decimalText(value.toDouble());
+        }
+        if (value instanceof Lang.Double) {
+            return decimalText(value);
+        }
+        return value.toString();
+    }
+
+    //! Three significant figures without ever dropping an integer digit,
+    //! then trailing zeros removed: 12.879 -> "12.9", 9.876 -> "9.88",
+    //! 21.5 -> "21.5", 101325.0 -> "101325", 10.0 -> "10".
+    function decimalText(value as Lang.Double) as String {
+        var magnitude = (value < 0) ? -value : value;
+        var decimals = 2;
+        if (magnitude >= 100) {
+            decimals = 0;
+        } else if (magnitude >= 10) {
+            decimals = 1;
+        }
+        var text = value.format("%." + decimals + "f");
+        if (decimals == 0) {
+            return text;
+        }
+        var chars = text.toCharArray();
+        var keep = chars.size();
+        while (keep > 0 && chars[keep - 1] == '0') {
+            keep -= 1;
+        }
+        if (keep > 0 && chars[keep - 1] == '.') {
+            keep -= 1;
+        }
+        var trimmed = text.substring(0, keep);
+        return (trimmed != null) ? trimmed : text;
+    }
+
     //! A `complication_slot` element's `unit: true` -- `Complication.unit` is
     //! typed `Complications.Unit or Lang.String or Null`: either the SDK's own
     //! enum (a plain Number under the hood, checked with `instanceof Number`)

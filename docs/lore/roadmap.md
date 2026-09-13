@@ -116,10 +116,15 @@ and the ADR each is specified in):
     `docs/plans/02-style-layouts.md` (with `docs/plans/01-background-color.md`
     for why). Needs analog hands (`type: hand`, no plan yet) for its
     motivating example; nothing in the format rotates by time today.
-12. **Complication-slot icons cover 8 of 42 types** and silently draw text
-    only for the rest; icon and text share one colour, fixed left/4 px.
-    Findings and options (per-choice `icon:` in YAML recommended, plus a lint):
-    `docs/plans/03-complication-slot-icons.md`.
+12. **Built 2026-09-13** (`docs/plans/03-complication-slot-icons.md`, §6 is
+    what shipped): complication-slot icons now cover all 42 native types
+    (`wfb.icons.COMPLICATION_ICON`), with per-choice `icon:`/`glyph:`/
+    `icon: none` overrides in `config: data:`'s `choices:`, and
+    `icon_position:` (`left`/`right`/`top`/`bottom`)/`icon_gap:`/
+    `icon_color:` on the element. `choices: any` + `icon_size:` is also now
+    accepted, and builds once the monkeyc string-hash collision it exposed
+    is avoided (`docs/lore/toolchain.md`, `wfb/emit/strhash.py`).
+    Unverified on-device (no simulator, no watch).
 
 **A previously-recorded loose end, now resolved — noted so nobody goes
 looking for the problem again:** commit `614d100` added

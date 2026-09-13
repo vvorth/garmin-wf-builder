@@ -109,6 +109,77 @@ CATALOG: dict[str, Icon] = {
         Icon("phone", "\U000f011c",
              'a phone, for phone-connected status (Material Design md-cellphone)'),  # preview: 󰄜
 
+        # -- complication-type icons added 2026-09-13, all 42 types mapped ------
+        # (docs/plans/03-complication-slot-icons.md §6.4, user direction: "map
+        # all available complications to some icon"). Every codepoint below was
+        # looked up against the vendored font's own cmap before being written
+        # here, the same discipline every other entry in this file follows.
+        Icon("body_battery", "\U000f1211",
+             "a battery with a heart cut into it, for Body Battery -- deliberately "
+             "not the plain 'battery' glyph, which means device charge "
+             "(Material Design md-battery_heart_variant)"),  # preview: 󱈑
+        Icon("stress", "\U000f1340",
+             "a head with a lightning flash, for the stress score "
+             "(Material Design md-head_flash)"),  # preview: 󱍀
+        Icon("sunrise", "\U000f059c",
+             "the sun rising over a horizon line (Material Design md-weather_sunset_up)"),  # preview: 󰖜
+        Icon("sunset", "\U000f059b",
+             "the sun setting below a horizon line (Material Design md-weather_sunset_down)"),  # preview: 󰖛
+        Icon("altitude", "\U000f02f5",
+             "layered mountains, for altitude/elevation (Material Design md-image_filter_hdr)"),  # preview: 󰋵
+        Icon("pressure", "\U000f029a",
+             "a gauge dial, for sea-level pressure (Material Design md-gauge)"),  # preview: 󰊚
+        Icon("temperature", "\U000f050f",
+             "a thermometer, for a single current-temperature reading (Material "
+             "Design md-thermometer)"),  # preview: 󰔏
+        Icon("temperature_range", "\U000f0510",
+             "a thermometer with tick lines, for a high/low temperature range "
+             "(Material Design md-thermometer_lines)"),  # preview: 󰔐
+        Icon("calendar_event", "\U000f00f0",
+             "a calendar page with a clock, for a scheduled event (Material "
+             "Design md-calendar_clock)"),  # preview: 󰃰
+        Icon("calendar", "\U000f0e17",
+             "a calendar page, for a plain date (Material Design md-calendar_month)"),  # preview: 󰸗
+        Icon("calendar_day", "\U000f00f6",
+             "a calendar page marked 'today', for a weekday+day-of-month reading "
+             "(Material Design md-calendar_today)"),  # preview: 󰃶
+        Icon("intensity", "\U000f046e",
+             "a running figure, for intensity minutes (Material Design md-run_fast)"),  # preview: 󰑮
+        Icon("run", "\U000f070e",
+             "a running figure, for running VO2 max (Material Design md-run)"),  # preview: 󰜎
+        Icon("bike", "\U000f00a3",
+             "a bicycle, for cycling VO2 max (Material Design md-bike)"),  # preview: 󰂣
+        Icon("lungs", "\U000f1084",
+             "a pair of lungs, for respiration rate (Material Design md-lungs)"),  # preview: 󱂄
+        Icon("pulse_ox", "\U000f058e",
+             "a water-drop percentage glyph, for blood oxygen saturation -- "
+             "deliberately not the 'heart' glyph, which means heart rate "
+             "(Material Design md-water_percent)"),  # preview: 󰖎
+        Icon("recovery", "\U000f051f",
+             "a sand timer, for recovery time (Material Design md-timer_sand)"),  # preview: 󰔟
+        Icon("training", "\U000f012a",
+             "a line chart, for training status (Material Design md-chart_line)"),  # preview: 󰄪
+        Icon("finish_flag", "\U000f023c",
+             "a checkered flag, for a race time predictor (Material Design "
+             "md-flag_checkered)"),  # preview: 󰈼
+        Icon("pace", "\U000f04c5",
+             "a speedometer, for a race pace predictor (Material Design "
+             "md-speedometer)"),  # preview: 󰓅
+        Icon("sleep", "\U000f02e3",
+             "a bed, for the sleep score (Material Design md-bed)"),  # preview: 󰋣
+        Icon("solar", "\U000f05a8",
+             "a bright sun, for solar input (Material Design md-white_balance_sunny)"),  # preview: 󰖨
+        Icon("wheelchair", "\U000f05a4",
+             "a wheelchair figure, for wheelchair pushes (Material Design "
+             "md-wheelchair_accessibility)"),  # preview: 󰖤
+        Icon("golf", "\U000f0823",
+             "a golf flag, for the last golf round score (Material Design md-golf)"),  # preview: 󰠣
+        Icon("weather", "\U000f0595",
+             "a generic partly-cloudy glyph, for a complication_slot's fixed, "
+             "type-keyed weather icon -- deliberately not the value-keyed "
+             "condition icon 'icon_for: weather.condition' resolves on-device "
+             "(Material Design md-weather_partly_cloudy)"),  # preview: 󰖕
+
         # -- weather, day glyphs -----------------------------------------------
         Icon("weather_sunny", "\ue30d",
              'weather: sunny (Weather Icons weather-day_sunny)'),  # preview: 

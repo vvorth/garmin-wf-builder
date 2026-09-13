@@ -660,7 +660,10 @@ def _complications(args) -> int:
     `default:`/`choices:` name -- this is the one table all three draw from.
 
     Printed for each: the name a design writes, the Monkey C constant it
-    compiles to, and the API level that type was introduced at. An API
+    compiles to, the API level that type was introduced at, and the
+    catalogue icon a `complication_slot`'s `icon_size:` draws for it by
+    default (`wfb.icons.COMPLICATION_ICON`, all 42 types since 2026-09-13 --
+    a `choices:` mapping-form entry can override this per design). An API
     level is not a promise the watch has it; a hold on a type the watch
     does not know simply does nothing, which is why `wfb validate` also
     checks each target's own symbol table (and, for a slot, each target's
@@ -672,13 +675,16 @@ def _complications(args) -> int:
     derives its own requirements. A `config: data:` slot does too, even
     though it reads no catalogue source directly.
     """
-    from . import complications
+    from . import complications, icons
 
     width = max(len(name) for name in complications.names())
+    icon_width = max(len(icons.COMPLICATION_ICON.get(name, "")) for name in complications.names())
     for name in complications.names():
         entry = complications.TYPES[name]
         since = "" if entry.since == complications.EXIT_TO_API_LEVEL else f"  (since {entry.since})"
-        print(f"  {name:<{width}}  Complications.{entry.constant}{since}")
+        icon_name = icons.COMPLICATION_ICON.get(name, "")
+        print(f"  {name:<{width}}  Complications.{entry.constant}  "
+              f"icon: {icon_name:<{icon_width}}{since}")
     print(f"\n{len(complications.TYPES)} complication types. "
           f"Use one as `on_hold:` on any element:")
     print("    - id: hr\n      type: icon\n      icon: heart\n      on_hold: heart_rate")

@@ -91,6 +91,39 @@ glitch.
 - A Styles config entry costs about 9 B data, 28 B code, ~61 B of `.prg` —
   so a Styles cross-product (several `color_scheme:`s, say) is a UX cost to
   weigh, never a memory one.
+- **2026-09-13: `monkeyc` 9.2.0 labels each string constant by its Java
+  `String.hashCode()`, and crashes when two *different* strings share one.**
+  The symptom is only "A critical error has occurred"; with
+  `--debug-log-level 3 --debug-log-output` it is `ERROR: assembler:
+  Redefinition of label (data) str___<N>`
+  (`com.garmin.monkeybrains.compiler2.CompilerException`, from
+  `Compiler2.assembleProject`), where `N` is the hash. VERIFIED: the label
+  printed, `str___1798574`, is exactly the hash of both the `distance` glyph
+  (U+F08F0) and the `temperature` glyph (U+F050F), and a slot whose
+  `choices:` lists just those two types crashes on its own. A glyph above the
+  BMP is two UTF-16 units `(hi, lo)` hashing to `31*hi + lo`, so two
+  Material Design glyphs 993 codepoints apart often collide; any two strings
+  in the program can, in principle.
+  - **The first diagnosis was wrong and is recorded so nobody repeats it.**
+    The session that hit this bisected by *number of slot choices* and
+    concluded "38 types build, 39 crash, not purely a count". The count was
+    a proxy: the choices that tipped it over happened to add the second
+    colliding glyph, and the substitution that "avoided" it dropped
+    `distance`. The label number recurring across unrelated projects was
+    the clue, because it is the hash of the string, not of the project.
+  - **What the compiler does about it** (`wfb/emit/strhash.py`): after
+    generating a project, `wfb.emit.project` hashes every string literal in
+    the generated sources and the copied barrel. A colliding glyph in
+    `IconGlyphs.mc` is emitted as `(0xf050f).toChar().toString()` instead
+    of a literal (`Lang.Number.toChar`, API 1.3.0, in `api.debug.xml`), so
+    only the colliding keys change and every other design generates
+    byte-identical output. A collision it cannot rewrite (for example two
+    static `icon:` elements, whose glyphs are literals in the view) is a
+    `string-label` build error naming both strings, instead of a monkeyc
+    crash. `choices: any` + `icon_size:` (all 42 types) builds warning-free
+    on all three targets this way. **Unverified on a device:** that
+    `toChar` on a supplementary-plane codepoint draws the right glyph (no
+    simulator, no watch).
 
 ---
 

@@ -162,7 +162,7 @@ def emit_palette(face: Face) -> SourceFile:
     return SourceFile("source/Palette.mc", w.render())
 
 
-def emit_icon_glyphs(face: Face) -> SourceFile:
+def emit_icon_glyphs(face: Face, via_char: frozenset[str] = frozenset()) -> SourceFile:
     """`source/IconGlyphs.mc`: catalogue name -> drawn glyph, for a dynamic
     (`icon_for:`) icon.
 
@@ -176,44 +176,66 @@ def emit_icon_glyphs(face: Face) -> SourceFile:
     (`chooseIcon`), and this is the one place, for every icon in the
     catalogue and not just weather ones, where a name becomes a character.
 
-    Scoped to the names a dynamic icon could actually produce in this design
+    Scoped to the keys a dynamic icon could actually produce in this design
     -- every catalogue entry `icon_for:`'s underlying source table
     (`wfb.icons.GARMIN_WEATHER_CONDITION_ICON`) can select, plus, for every
-    `complication_slot` with `icon_size:`, every catalogue name that slot's
-    declared choices can resolve to (`wfb.icons.COMPLICATION_ICON`) -- not
-    the whole catalogue, so a design using only one of the two dynamic-icon
-    features does not bake a lookup table for the other's names too.
+    `complication_slot` with `icon_size:`, every key `slot.icons`
+    (`wfb.ir.ConfigDataSlot.icons`) can resolve to for that slot -- a
+    catalogue name for an ordinary mapping, or the canonical `"U+XXXX"`
+    spelling for a per-choice `glyph:` override -- not the whole catalogue,
+    so a design using only one of the two dynamic-icon features does not
+    bake a lookup table for the other's keys too.
+
+    A key in `via_char` gets its glyph built at runtime,
+    `(0xF050F).toChar().toString()`, instead of written as a string literal.
+    `wfb.emit.project.generate` passes the keys whose glyph literal would
+    share a `str___<hash>` label with another string in the program, which
+    crashes monkeyc -- see `wfb.emit.strhash`.
     """
-    names: set[str] = set()
-    if any(isinstance(e, IconElement) and e.is_dynamic for e in face.walk()):
-        names |= set(icons.GARMIN_WEATHER_CONDITION_ICON.values())
-    for element in face.walk():
-        if not (isinstance(element, ComplicationSlot) and element.icon_size is not None):
-            continue
-        slot = face.config_data.get(element.slot)
-        if slot is None or slot.allow_any:
-            continue
-        names |= {icons.COMPLICATION_ICON[name] for name in slot.choices
-                 if name in icons.COMPLICATION_ICON}
-    names = sorted(names)
+    entries = icon_glyph_entries(face)
     w = Writer()
     w.doc(header(face)).blank()
     w.lines("import Toybox.Lang;").blank()
     w.doc(
-        "Catalogue name -> drawn glyph, for a dynamic (`icon_for:`) icon.\n"
+        "Catalogue name (or a per-choice 'glyph:' override's canonical U+XXXX\n"
+        "spelling) -> drawn glyph, for a dynamic (`icon_for:`) icon.\n"
         "\n"
-        "Generated directly from wfb.icon_catalog.CATALOG -- see wfb/icons.py's\n"
-        "module docstring for why this table, rather than WfbWeather.mc, is where\n"
-        "a name becomes a character."
+        "Generated directly from wfb.icon_catalog.CATALOG (plus any per-choice\n"
+        "override) -- see wfb/icons.py's module docstring for why this table,\n"
+        "rather than WfbWeather.mc, is where a name becomes a character."
     )
     with w.block("module IconGlyphs"):
         with w.block("function glyph(name as String) as String"):
             with w.block("switch (name)"):
-                for name in names:
-                    codepoint = icons.CATALOG[name].codepoint
-                    w.line(f'case "{name}": return "{codepoint}";')
+                for key in sorted(entries):
+                    if key in via_char:
+                        w.comment("built at runtime: as a literal, this glyph would share monkeyc's")
+                        w.comment("str___<hash> label with another string (wfb/emit/strhash.py)")
+                        w.line(f'case "{key}": return ({ord(entries[key]):#x}).toChar().toString();')
+                    else:
+                        w.line(f'case "{key}": return "{entries[key]}";')
                 w.line(f'default: return "{icons.FALLBACK_CODEPOINT}";')
     return SourceFile("source/IconGlyphs.mc", w.render())
+
+
+def icon_glyph_entries(face: Face) -> dict[str, str]:
+    """Every key `IconGlyphs.glyph` must answer in this design -> its glyph.
+
+    See `emit_icon_glyphs` for which keys, and why only those.
+    """
+    entries: dict[str, str] = {}  # key -> codepoint
+    if any(isinstance(e, IconElement) and e.is_dynamic for e in face.walk()):
+        for name in set(icons.GARMIN_WEATHER_CONDITION_ICON.values()):
+            entries[name] = icons.CATALOG[name].codepoint
+    for element in face.walk():
+        if not (isinstance(element, ComplicationSlot) and element.icon_size is not None):
+            continue
+        slot = face.config_data.get(element.slot)
+        if slot is None:
+            continue
+        for slot_icon in slot.icons.values():
+            entries[slot_icon.key] = slot_icon.codepoint
+    return entries
 
 
 def hold_targets(face: Face) -> list:
@@ -717,6 +739,16 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         out.append((f"{prefix}_BOX_Y", placed.box.y, ""))
         out.append((f"{prefix}_BOX_WIDTH", placed.box.width, ""))
         out.append((f"{prefix}_BOX_HEIGHT", placed.box.height, ""))
+        if placed.element.icon_gap is not None:
+            # Only emitted when the author actually wrote 'icon_gap:' --
+            # otherwise the generated view keeps embedding the literal
+            # COMPLICATION_SLOT_ICON_GAP it always has, byte-identical to
+            # before this key existed (plan 03 §6.3).  Resolved per device
+            # ('%r' is a different pixel count per screen) the same reason
+            # `wfb.icons.font_key` keys by the *declared* size, not the
+            # resolved one.
+            out.append((f"{prefix}_ICON_GAP", placed.icon_gap_px,
+                        "icon_gap: resolved for this device"))
     return out
 
 
@@ -2052,8 +2084,13 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
     element = placed.element
     face = resolved.face
     slot = face.config_data[element.slot]
-    mapped = {name: icons.COMPLICATION_ICON[name] for name in slot.choices
-             if name in icons.COMPLICATION_ICON}
+    mapped = slot.icons
+    # `slot.choices` is an ordered tuple for an explicit list, but the
+    # literal string "any" for 'choices: any' (allowed together with
+    # `icon_size:` since 2026-09-13) -- iterating that would walk its three
+    # characters, not a type list, so the switch's case order falls back to
+    # a stable alphabetical one there instead, over every mapped type.
+    names = slot.choices if not slot.allow_any else sorted(mapped)
     w.blank()
     w.doc(f"`{element.id}`'s icon, chosen from the wearer's picked type alone -- not\n"
           "from the pulled value, so it still shows even on a frame the reading itself\n"
@@ -2061,12 +2098,12 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
     method = complication_slot_icon_method(element.id)
     with w.block(f"private function {method}(t as Complications.Type) as String?"):
         with w.block("switch (t)"):
-            for name in slot.choices:
-                icon_name = mapped.get(name)
-                if icon_name is None:
+            for name in names:
+                icon = mapped.get(name)
+                if icon is None:
                     continue
                 ctype = complications.TYPES[name]
-                w.line(f'case Complications.{ctype.constant}: return "{icon_name}";')
+                w.line(f'case Complications.{ctype.constant}: return "{icon.key}";')
             w.line("default: return null;")
     w.blank()
     # `IconGlyphs.glyph` turns the catalogue name into the actual character --
@@ -2168,28 +2205,119 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
                 w.line(f"var label = pulled.{attr};")
                 with w.block("if (label != null)"):
                     w.line('text = label + " ";')
-            w.line("text += value.toString();")
+            w.line("text += WfbComplications.formatValue(value);")
             if element.unit:
                 w.line("text += WfbComplications.unitSuffix(pulled.unit);")
     w.blank()
 
-    w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
-    w.line("var iconWidth = 0;")
-    if icon_font_expr is not None:
-        with w.block(f"if (iconGlyph != null && {icon_font_expr} != null)"):
-            w.line(
-                f"iconWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr}) + "
-                f"{COMPLICATION_SLOT_ICON_GAP};"
-            )
-    w.line("var totalWidth = iconWidth + textWidth;")
-    w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
-    if icon_font_expr is not None:
-        with w.block(f"if (iconGlyph != null && {icon_font_expr} != null)"):
-            w.line(f"dc.drawText(startX, Layout.{prefix}_CY, {icon_font_expr}, iconGlyph,")
+    text_color_expr = _color(element.color)
+    icon_color_expr = _color(element.icon_color) if element.icon_color is not None else None
+    fast_path = (
+        placed.icon_position == "left"
+        and element.icon_gap is None
+        and icon_color_expr is None
+    )
+
+    if fast_path:
+        # Byte-identical to every build before 'icon_position:'/'icon_gap:'/
+        # 'icon_color:' existed (plan 03 §6.3) -- none of the three is
+        # authored, so this is exactly today's code, verbatim.
+        w.line(f"dc.setColor({text_color_expr}, Graphics.COLOR_TRANSPARENT);")
+        w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
+        w.line("var iconWidth = 0;")
+        if icon_font_expr is not None:
+            with w.block(f"if (iconGlyph != null && {icon_font_expr} != null)"):
+                w.line(
+                    f"iconWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr}) + "
+                    f"{COMPLICATION_SLOT_ICON_GAP};"
+                )
+        w.line("var totalWidth = iconWidth + textWidth;")
+        w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
+        if icon_font_expr is not None:
+            with w.block(f"if (iconGlyph != null && {icon_font_expr} != null)"):
+                w.line(f"dc.drawText(startX, Layout.{prefix}_CY, {icon_font_expr}, iconGlyph,")
+                w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
+        w.line(f"dc.drawText(startX + iconWidth, Layout.{prefix}_CY, {font_expr}, text,")
+        w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
+        return
+
+    # General path: any position other than the default 'left', or an
+    # authored 'icon_gap:'/'icon_color:' on 'left' itself.  Mirrors
+    # `wfb.layout.complication_slot_pair_geometry` -- not calling it, since
+    # the real text is not known until the value above is pulled (ADR 0004's
+    # one deliberate exception) -- through `Dc.getTextWidthInPixels`/
+    # `Dc.getFontHeight` instead of the build-time measurements that
+    # function's Python twin uses.
+    gap_expr = (f"Layout.{prefix}_ICON_GAP" if element.icon_gap is not None
+               else str(COMPLICATION_SLOT_ICON_GAP))
+    icon_present_guard = (f"iconGlyph != null && {icon_font_expr} != null"
+                         if icon_font_expr is not None else None)
+    w.line(f"dc.setColor({text_color_expr}, Graphics.COLOR_TRANSPARENT);")
+
+    def _set_icon_color() -> None:
+        if icon_color_expr is not None:
+            w.line(f"dc.setColor({icon_color_expr}, Graphics.COLOR_TRANSPARENT);")
+
+    def _reset_text_color() -> None:
+        if icon_color_expr is not None and icon_font_expr is not None:
+            w.line(f"dc.setColor({text_color_expr}, Graphics.COLOR_TRANSPARENT);")
+
+    if placed.icon_position in ("left", "right"):
+        w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
+        w.line("var iconGlyphWidth = 0;")
+        if icon_present_guard is not None:
+            with w.block(f"if ({icon_present_guard})"):
+                w.line(f"iconGlyphWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr});")
+        w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
+               if icon_present_guard is not None else "var gap = 0;")
+        w.line("var totalWidth = iconGlyphWidth + gap + textWidth;")
+        w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
+        if placed.icon_position == "left":
+            if icon_present_guard is not None:
+                with w.block(f"if ({icon_present_guard})"):
+                    _set_icon_color()
+                    w.line(f"dc.drawText(startX, Layout.{prefix}_CY, {icon_font_expr}, iconGlyph,")
+                    w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
+            _reset_text_color()
+            w.line(f"dc.drawText(startX + iconGlyphWidth + gap, Layout.{prefix}_CY, {font_expr}, text,")
             w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
-    w.line(f"dc.drawText(startX + iconWidth, Layout.{prefix}_CY, {font_expr}, text,")
-    w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
+        else:  # right
+            w.line(f"dc.drawText(startX, Layout.{prefix}_CY, {font_expr}, text,")
+            w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
+            if icon_present_guard is not None:
+                with w.block(f"if ({icon_present_guard})"):
+                    _set_icon_color()
+                    w.line(f"dc.drawText(startX + textWidth + gap, Layout.{prefix}_CY, "
+                           f"{icon_font_expr}, iconGlyph,")
+                    w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
+    else:  # "top" / "bottom"
+        w.line(f"var textHeight = dc.getFontHeight({font_expr});")
+        w.line("var iconHeight = 0;")
+        if icon_present_guard is not None:
+            with w.block(f"if ({icon_present_guard})"):
+                w.line(f"iconHeight = dc.getFontHeight({icon_font_expr});")
+        w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
+               if icon_present_guard is not None else "var gap = 0;")
+        w.line("var totalHeight = iconHeight + gap + textHeight;")
+        w.line(f"var startY = Layout.{prefix}_CY - totalHeight / 2;")
+        if placed.icon_position == "top":
+            if icon_present_guard is not None:
+                with w.block(f"if ({icon_present_guard})"):
+                    _set_icon_color()
+                    w.line(f"dc.drawText(Layout.{prefix}_CX, startY, {icon_font_expr}, iconGlyph,")
+                    w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
+            _reset_text_color()
+            w.line(f"dc.drawText(Layout.{prefix}_CX, startY + iconHeight + gap, {font_expr}, text,")
+            w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
+        else:  # bottom
+            w.line(f"dc.drawText(Layout.{prefix}_CX, startY, {font_expr}, text,")
+            w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
+            if icon_present_guard is not None:
+                with w.block(f"if ({icon_present_guard})"):
+                    _set_icon_color()
+                    w.line(f"dc.drawText(Layout.{prefix}_CX, startY + textHeight + gap, "
+                           f"{icon_font_expr}, iconGlyph,")
+                    w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
 
 
 def _emit_graph_fields(w: Writer, graphs: list) -> None:

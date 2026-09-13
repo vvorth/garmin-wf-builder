@@ -39,6 +39,20 @@ MODES = ("active", "low_power", "always_on")
 #: `COMPLICATION_TYPE_AUTO`).
 HOLD_AUTO = "auto"
 
+#: Sentinels for `Builder._resolve_choice_icon_override`'s three-way result --
+#: a per-choice icon override in a `config: data:` slot's `choices:` mapping
+#: form (plan 03 §6.1) is either "not declared at all" (this dict entry does
+#: not exist; fall back to `wfb.icons.COMPLICATION_ICON`), "declared and
+#: invalid" (already reported; drop the whole slot like every other rejected
+#: `config: data:` entry), or a real `icons.SlotIcon | None` value (`None`
+#: itself being the third, legitimate case: `icon: none`).  Two distinct
+#: sentinel objects rather than reusing `None` for "not declared" -- `None`
+#: already means something on the *inside* of this three-way result (the
+#: explicit "no icon" a `{type, icon: none}` choice asks for), so it cannot
+#: also mean "no override key was present" without conflating the two.
+_NO_ICON_OVERRIDE = object()
+_ICON_OVERRIDE_ERROR = object()
+
 #: Which geometry keys each `shape:` actually reads.  Anything outside its own
 #: row is parsed by the schema and then dropped on the floor -- the bug
 #: `filled:` had on a rectangle for several phases, and the reason a
@@ -347,6 +361,14 @@ class ConfigDataSlot:
     #: `"any"`, or the explicit picklist the editor offers, as
     #: `wfb.complications.TYPES` keys in `choices:` order.
     choices: "str | tuple[str, ...]"
+    #: Per-choice icon override (plan 03 §6.1/§6.2): `wfb.complications.
+    #: TYPES` key -> `wfb.icons.SlotIcon`, or `None` for an explicit
+    #: `icon: none` that removes any catalogue default for that type.  A type
+    #: absent from this dict declared no override at all -- `.icons` falls
+    #: back to `wfb.icons.COMPLICATION_ICON` for it.  Always empty when
+    #: `choices: any` (there is no fixed choice list in the design for an
+    #: override to attach to).
+    icon_overrides: dict[str, "icons.SlotIcon | None"] = field(default_factory=dict)
     span: Span | None = None
 
     @property
@@ -358,6 +380,48 @@ class ConfigDataSlot:
         """The generated view field this slot's chosen `Complications.Id` is
         cached in (`_configDataTop`)."""
         return config_field(f"data_{self.name}")
+
+    @property
+    def icons(self) -> dict[str, "icons.SlotIcon"]:
+        """`wfb.complications.TYPES` key -> icon, for every choice that ends
+        up with one -- the single resolution point plan 03 §6.2 asks for.
+
+        Before this existed, `{name: icons.COMPLICATION_ICON[name] for name
+        in slot.choices if name in icons.COMPLICATION_ICON}` was copied into
+        `wfb.layout`, `wfb.emit.resources`, `wfb.emit.monkeyc` (twice) and
+        `wfb.preview` -- five places that had to agree, by inspection, that
+        they resolved a slot's icon the same way. This is now the one place.
+
+        A per-choice override in `icon_overrides` wins outright over the
+        catalogue default; an explicit `icon: none` override removes the
+        entry rather than falling back to one. `choices: any` (**allowed
+        together with `icon_size:` since 2026-09-13**, plan 03 §6.6 --
+        previously rejected, see `wfb.ir.Builder._build_complication_slot`'s
+        comment at the removed check for the superseded reasoning) resolves
+        against the *whole* of `wfb.icons.COMPLICATION_ICON` -- every native
+        type this compiler knows an icon for -- since there is no author
+        `choices:` list to intersect against; a Connect IQ-app complication,
+        or any native type a future SDK adds that this table does not yet
+        know, simply is not a key here and draws no icon, the same
+        "unmapped means text-only, not an error" contract every other
+        unmapped type already has.
+        """
+        if self.allow_any:
+            return {
+                name: icons.SlotIcon(catalogue_name, icons.CATALOG[catalogue_name].codepoint)
+                for name, catalogue_name in icons.COMPLICATION_ICON.items()
+            }
+        result: dict[str, icons.SlotIcon] = {}
+        for name in self.choices:
+            if name in self.icon_overrides:
+                override = self.icon_overrides[name]
+                if override is not None:
+                    result[name] = override
+                continue
+            catalogue_name = icons.COMPLICATION_ICON.get(name)
+            if catalogue_name is not None:
+                result[name] = icons.SlotIcon(catalogue_name, icons.CATALOG[catalogue_name].codepoint)
+        return result
 
 
 # --------------------------------------------------------------------------
@@ -569,8 +633,10 @@ class ComplicationSlot(Element):
     why: `Complications.Complication.value` is a `String or Number or Float
     or Long or Double` union whose concrete shape genuinely varies by which
     choice the wearer picked, so a format string written for one choice
-    would be silently wrong for another.  This element always renders
-    `value.toString()`, plus whatever `label:`/`unit:` add.
+    would be silently wrong for another.  This element renders the value
+    through `WfbComplications.formatValue` (`toString()`, except a Float or
+    Double, which is rounded to three significant figures), plus whatever
+    `label:`/`unit:` add.
     """
 
     #: The declared `config: data:` slot name this element shows (the part
@@ -581,10 +647,31 @@ class ComplicationSlot(Element):
     font_is_custom: bool = False
     #: Visual height of the icon chosen from the wearer's pick, or `None` to
     #: draw no icon at all.  Resolved on-device from `Complications.Id.
-    #: getType()` through `wfb.icons.COMPLICATION_ICON` -- see
-    #: `wfb.emit.monkeyc._emit_complication_slot`.
+    #: getType()` through `slot.icons` (`wfb.ir.ConfigDataSlot.icons`,
+    #: itself built from `wfb.icons.COMPLICATION_ICON` plus any per-choice
+    #: override) -- see `wfb.emit.monkeyc._emit_complication_slot`.
     icon_size: Length | None = None
     color: Expression | None = None
+    #: `left` (default) | `right` | `top` | `bottom` -- where the icon sits
+    #: relative to the reading (plan 03 §6.1/§6.3).  Rejected, together with
+    #: `icon_gap:`/`icon_color:`, when `icon_size:` is not declared at all
+    #: (`Builder._build_complication_slot`) -- none of the three means
+    #: anything without an icon to place, colour or space.
+    icon_position: str = "left"
+    #: Pixel/`%r` gap between icon and reading, or `None` for today's fixed
+    #: `wfb.layout.COMPLICATION_SLOT_ICON_GAP` (4px).  Kept `None` rather
+    #: than always resolving to that constant so a design that never
+    #: mentions `icon_gap:` gets byte-identical generated code to before
+    #: this key existed -- the literal `4` stays inline; only an *authored*
+    #: gap becomes a per-device `Layout.<ID>_ICON_GAP` constant, the same
+    #: "declared vs. resolved, and only when it matters" reasoning
+    #: `wfb.icons.font_key` already applies to a font size.
+    icon_gap: Length | None = None
+    #: The icon's own colour, or `None` to share `color:` (today's only
+    #: behaviour, and what an unauthored design keeps generating).  Must not
+    #: be nullable, exactly like `color:` -- there is no `when_absent:` for
+    #: either colour, only for the pulled reading.
+    icon_color: Expression | None = None
     #: `none` (default) | `short` | `long` -- `Complication.shortLabel`/
     #: `.longLabel`, read alongside the value, never authored.
     label: str = "none"
@@ -599,7 +686,7 @@ class ComplicationSlot(Element):
     placeholder: str | None = None
 
     def _own_expressions(self) -> list[Expression]:
-        return [e for e in (self.color,) if e]
+        return [e for e in (self.color, self.icon_color) if e]
 
 
 @dataclass
@@ -1177,14 +1264,55 @@ class Builder:
                 continue
 
             choices: list[str] = []
+            icon_overrides: dict[str, icons.SlotIcon | None] = {}
+            seen: dict[str, int] = {}
             ok = True
             for index, item in enumerate(raw_choices):
                 item_span = self.doc.span(raw_choices, index)
-                resolved = self._complication_reference(
-                    item, f"config.data.{name}.choices[{index}]", item_span)
-                if resolved is None:
+                if isinstance(item, dict):
+                    # The mapping form (plan 03 §6.1): `{type: complication.
+                    # <name>, icon: ...}` or `{..., glyph: ...}` -- carries
+                    # information the bare string form cannot express, so
+                    # this is not a desugar rewrite of it (docs/lore/
+                    # codegen.md's desugar note does not apply here).
+                    type_span = self.doc.span(item, "type") if "type" in item else item_span
+                    resolved = self._complication_reference(
+                        item.get("type"), f"config.data.{name}.choices[{index}].type",
+                        type_span)
+                    if resolved is None:
+                        ok = False
+                        continue
+                    override = self._resolve_choice_icon_override(
+                        item, f"config.data.{name}.choices[{index}]", item_span)
+                    if override is _ICON_OVERRIDE_ERROR:
+                        ok = False
+                        continue
+                    if override is not _NO_ICON_OVERRIDE:
+                        icon_overrides[resolved] = override
+                else:
+                    resolved = self._complication_reference(
+                        item, f"config.data.{name}.choices[{index}]", item_span)
+                    if resolved is None:
+                        ok = False
+                        continue
+                if resolved in seen:
+                    self.bag.error(
+                        "config",
+                        f"config.data.{name}.choices: complication.{resolved} is "
+                        "listed more than once",
+                        item_span,
+                        notes=[
+                            f"already listed at choices[{seen[resolved]}]",
+                            "a type can appear at most once in 'choices:', "
+                            "regardless of which shape (a bare reference or "
+                            "{type, icon}/{type, glyph}) each appearance uses -- "
+                            "the schema's own 'uniqueItems' cannot see through "
+                            "the two different shapes",
+                        ],
+                    )
                     ok = False
                     continue
+                seen[resolved] = index
                 choices.append(resolved)
             if not ok:
                 self.rejected_config_data.add(name)
@@ -1209,7 +1337,8 @@ class Builder:
                 continue
 
             self.config_data[name] = ConfigDataSlot(
-                name=name, default=default, choices=tuple(choices), span=span)
+                name=name, default=default, choices=tuple(choices),
+                icon_overrides=icon_overrides, span=span)
 
     def _resolve_slot_reference(self, raw: str, span: Span | None) -> ConfigDataSlot | None:
         """Resolve a `complication_slot`'s `slot: config.data.<name>` reference.
@@ -2355,6 +2484,123 @@ class Builder:
                                          (element.color, element.track_color))
         return element
 
+    def _resolve_icon_name(self, name: str, span: Span | None) -> str | None:
+        """A catalogue name -> its codepoint, or `None` plus a reported error.
+
+        The shared "unknown icon" diagnostic: originally `_build_icon`'s own
+        inline check, factored out so a `complication_slot` choice's
+        `icon:` override (`_resolve_choice_icon_override`) reports the exact
+        same message rather than a second, slightly-different one for what
+        is the same mistake either place it is made.
+        """
+        codepoint = icons.resolve_codepoint(name)
+        if codepoint is None:
+            self.bag.error(
+                "icon",
+                f"unknown icon {name!r}",
+                span,
+                notes=[
+                    "the catalogue has: " + ", ".join(icons.names()),
+                    "for a glyph the catalogue does not name, write "
+                    "'glyph: \"U+XXXX\"' instead -- see wfb/assets/icons/README.md",
+                ],
+            )
+        return codepoint
+
+    def _resolve_icon_glyph(self, raw: str, span: Span | None) -> str | None:
+        """`"U+F0BC"` -> the character, or `None` plus a reported error.
+
+        The shared `glyph:` diagnostics: originally `_build_glyph_icon`'s own
+        inline checks, factored out for the same reason `_resolve_icon_name`
+        was -- a `complication_slot` choice's `glyph:` override
+        (`_resolve_choice_icon_override`) needs the identical "not that
+        notation" / "not in the font" messages, not a second copy of them.
+        The "this glyph is already a catalogue name" note is a `bag.note`,
+        not an error, so it does not affect the caller's success/failure
+        return either way.
+        """
+        character = icons.parse_codepoint(raw)
+        if character is None:
+            self.bag.error(
+                "icon",
+                f"glyph must be a codepoint written 'U+XXXX', not {raw!r}",
+                span,
+                notes=["e.g. glyph: \"U+F0BC\" -- 1 to 6 hex digits, case-insensitive",
+                       "to use a name from the built-in catalogue, write 'icon:' instead"],
+            )
+            return None
+        if not icons.font_has(character):
+            self.bag.error(
+                "icon",
+                f"the icon font has no glyph at {raw.upper()}",
+                span,
+                notes=[
+                    "checked against the vendored font's own character map, the same "
+                    "way a custom text font's coverage is checked",
+                    "https://www.nerdfonts.com/cheat-sheet lists the codepoints this "
+                    "font actually carries",
+                ],
+            )
+            return None
+        named = icons.name_for_codepoint(character)
+        if named is not None:
+            self.bag.note(
+                "icon",
+                f"glyph {raw.upper()} is in the catalogue as {named!r} -- "
+                f"'icon: {named}' says the same thing and survives a font update",
+                span,
+            )
+        return character
+
+    def _resolve_choice_icon_override(
+        self, item: dict, what: str, fallback_span: Span | None,
+    ) -> "icons.SlotIcon | None | object":
+        """A `config: data:` choice's own `icon:`/`glyph:`, if it declares
+        one (plan 03 §6.1/§6.2).
+
+        Returns `_NO_ICON_OVERRIDE` when the choice names neither key (fall
+        back to `wfb.icons.COMPLICATION_ICON`), `_ICON_OVERRIDE_ERROR` when
+        one was named and did not resolve (already reported; the caller
+        rejects the whole slot the same way any other bad choice does),
+        `None` for an explicit `icon: none` (remove any catalogue default),
+        or a real `icons.SlotIcon`.  Reuses `_resolve_icon_name`/
+        `_resolve_icon_glyph` -- the exact validation (and messages) a plain
+        `icon` element's own `icon:`/`glyph:` get -- rather than a second,
+        parallel set of diagnostics for what is the same two keys.
+        """
+        has_icon = "icon" in item
+        has_glyph = "glyph" in item
+        if not has_icon and not has_glyph:
+            return _NO_ICON_OVERRIDE
+        if has_icon and has_glyph:
+            self.bag.error(
+                "config",
+                f"{what}: 'icon:' and 'glyph:' are mutually exclusive",
+                fallback_span,
+                notes=["'icon:' names a catalogue entry; 'glyph:' is any codepoint "
+                       "in the vendored icon font -- pick one"],
+            )
+            return _ICON_OVERRIDE_ERROR
+        if has_icon:
+            raw_icon = item["icon"]
+            span = self.doc.span(item, "icon") or fallback_span
+            if raw_icon == "none":
+                return None
+            if not isinstance(raw_icon, str):
+                self.bag.error(
+                    "config", f"{what}.icon: expected a string, got {raw_icon!r}", span)
+                return _ICON_OVERRIDE_ERROR
+            codepoint = self._resolve_icon_name(raw_icon, span)
+            if codepoint is None:
+                return _ICON_OVERRIDE_ERROR
+            return icons.SlotIcon(raw_icon, codepoint)
+        raw_glyph = str(item["glyph"])
+        span = self.doc.span(item, "glyph") or fallback_span
+        character = self._resolve_icon_glyph(raw_glyph, span)
+        if character is None:
+            return _ICON_OVERRIDE_ERROR
+        return icons.SlotIcon(icons.codepoint_key(character), character)
+
     def _build_icon(self, node: dict, common: dict, path: tuple) -> Element:
         name = node.get("icon")
         has_icon_for = "icon_for" in node
@@ -2415,18 +2661,8 @@ class Builder:
         if has_glyph:
             return self._build_glyph_icon(node, common, size)
 
-        codepoint = icons.resolve_codepoint(name) if name is not None else None
+        codepoint = self._resolve_icon_name(name, self.doc.span(node, "icon"))
         if codepoint is None:
-            self.bag.error(
-                "icon",
-                f"unknown icon {name!r}",
-                self.doc.span(node, "icon"),
-                notes=[
-                    "the catalogue has: " + ", ".join(icons.names()),
-                    "for a glyph the catalogue does not name, write "
-                    "'glyph: \"U+XXXX\"' instead -- see wfb/assets/icons/README.md",
-                ],
-            )
             codepoint = icons.FALLBACK_CODEPOINT
 
         return IconElement(
@@ -2450,38 +2686,9 @@ class Builder:
         """
         raw = str(node.get("glyph"))
         span = self.doc.span(node, "glyph")
-        character = icons.parse_codepoint(raw)
+        character = self._resolve_icon_glyph(raw, span)
         if character is None:
-            self.bag.error(
-                "icon",
-                f"glyph must be a codepoint written 'U+XXXX', not {raw!r}",
-                span,
-                notes=["e.g. glyph: \"U+F0BC\" -- 1 to 6 hex digits, case-insensitive",
-                       "to use a name from the built-in catalogue, write 'icon:' instead"],
-            )
             character = icons.FALLBACK_CODEPOINT
-        elif not icons.font_has(character):
-            self.bag.error(
-                "icon",
-                f"the icon font has no glyph at {raw.upper()}",
-                span,
-                notes=[
-                    "checked against the vendored font's own character map, the same "
-                    "way a custom text font's coverage is checked",
-                    "https://www.nerdfonts.com/cheat-sheet lists the codepoints this "
-                    "font actually carries",
-                ],
-            )
-            character = icons.FALLBACK_CODEPOINT
-        else:
-            named = icons.name_for_codepoint(character)
-            if named is not None:
-                self.bag.note(
-                    "icon",
-                    f"glyph {raw.upper()} is in the catalogue as {named!r} -- "
-                    f"'icon: {named}' says the same thing and survives a font update",
-                    span,
-                )
         return IconElement(
             **common,
             icon=raw.upper(),
@@ -2498,8 +2705,8 @@ class Builder:
         -- a fixed source, a static type -- does not exist here: which
         `complication.<name>` the wearer picked is only known on-device.  So
         this validates the *slot reference* and the authoring keys that do
-        not depend on the choice (`icon_size:`/`choices: any`, `format:`),
-        and leaves everything about the pulled value itself to
+        not depend on the choice (`icon_size:`, `format:`), and leaves
+        everything about the pulled value itself to
         `wfb.emit.monkeyc._emit_complication_slot`, which reads it fresh
         every frame the same way any other `complication.*` source does.
         """
@@ -2516,22 +2723,63 @@ class Builder:
                        "cannot depend on a parent box (%) or an element's own font (pt)"],
             )
             icon_size = None
-        if icon_size is not None and slot is not None and slot.allow_any:
+        # 'icon_size:' + 'choices: any' was rejected until 2026-09-13
+        # (docs/plans/03-complication-slot-icons.md §6.6): the set of icons
+        # an unbounded picker could need was unbounded, and nothing could be
+        # baked ahead of time. Lifted by user direction once every native
+        # type had a catalogue icon (`wfb.icons.COMPLICATION_ICON` now covers
+        # all 42) -- 'any' now resolves against that whole table
+        # (`ConfigDataSlot.icons`), and a Connect IQ-app complication (or any
+        # native type a future SDK adds that this table does not yet know)
+        # simply is not one of the switch's cases and draws no icon, the
+        # same "unmapped means text-only" contract every other slot already
+        # has for an individual choice.
+
+        icon_position = node.get("icon_position", "left")
+        icon_gap = self._length(node, "icon_gap")
+        if icon_gap is not None and icon_gap.unit not in units.SIZE_UNITS:
             self.bag.error(
                 "complication-slot",
-                f"{common['id']}: 'icon_size:' cannot be combined with a slot "
-                f"whose 'choices:' is 'any' ({slot_raw!r})",
-                self.doc.span(node, "icon_size"),
-                notes=[
-                    "'choices: any' hands the wearer the editor's own unrestricted "
-                    "complication picker, so the set of types -- and therefore icons "
-                    "-- a slot could need is unbounded, and nothing can be baked "
-                    "ahead of time",
-                    "drop 'icon_size:' (the slot then draws no icon), or give this "
-                    "slot an explicit 'choices:' list instead of 'any'",
-                ],
+                f"icon_gap must be px or %r, not {icon_gap.unit}",
+                self.doc.span(node, "icon_gap"),
+                notes=["the same restriction 'icon_size:' has -- an icon's font is "
+                       "baked once, before layout runs, so the gap that sits "
+                       "against it cannot depend on a parent box (%) or an "
+                       "element's own font (pt)"],
             )
-            icon_size = None
+            icon_gap = None
+        if icon_gap is not None and icon_gap.value < 0:
+            self.bag.error(
+                "complication-slot",
+                f"icon_gap must not be negative, got {icon_gap.value:g}{icon_gap.unit}",
+                self.doc.span(node, "icon_gap"),
+            )
+            icon_gap = None
+
+        icon_color = self._color_expression(node, "icon_color")
+
+        # None of 'icon_position:'/'icon_gap:'/'icon_color:' means anything
+        # without an icon to place, space or colour -- checked against
+        # whether the author wrote 'icon_size:' at all, not against whatever
+        # it resolved to, so a *different* mistake in 'icon_size:' (a bad
+        # unit, say) is reported once, not doubled up with a second "needs
+        # icon_size:" complaint about the same missing icon.
+        if "icon_size" not in node:
+            for key in ("icon_position", "icon_gap", "icon_color"):
+                if key not in node:
+                    continue
+                self.bag.error(
+                    "complication-slot",
+                    f"{common['id']}: '{key}:' needs 'icon_size:'",
+                    self.doc.span(node, key),
+                    notes=[f"'{key}:' only means something for the icon this slot draws, "
+                           "and there is no icon to place, space or colour without "
+                           "'icon_size:'",
+                           f"add 'icon_size:', or drop '{key}:'"],
+                )
+            icon_position = "left"
+            icon_gap = None
+            icon_color = None
 
         if "format" in node:
             self.bag.error(
@@ -2543,7 +2791,8 @@ class Builder:
                     "Float or Long or Double union whose concrete type genuinely "
                     "varies by which choice the wearer picks -- a format string "
                     "written for one choice would be silently wrong for another",
-                    "this element always renders 'value.toString()'; use 'label:' "
+                    "this element renders the value as the watch reports it "
+                    "(a Float rounded to three significant figures); use 'label:' "
                     "and/or 'unit:' for the extra context a format string would "
                     "otherwise add",
                 ],
@@ -2555,6 +2804,9 @@ class Builder:
             slot=(slot.name if slot is not None else str(slot_raw)),
             icon_size=icon_size,
             color=color,
+            icon_position=icon_position,
+            icon_gap=icon_gap,
+            icon_color=icon_color,
             label=node.get("label", "none"),
             unit=bool(node.get("unit", False)),
             when_absent=node.get("when_absent", "hide"),
@@ -2607,6 +2859,20 @@ class Builder:
                     "a complication_slot's colour has no 'when_absent:' of its own "
                     "-- 'when_absent:'/'placeholder:' governs the pulled reading, "
                     "not the element's appearance",
+                    "guard it in the expression instead, e.g. "
+                    "\"x != null and x > 100 ? palette.hot : palette.fg\"",
+                ],
+            )
+
+        if icon_color is not None and icon_color.nullable:
+            self.bag.error(
+                "complication-slot",
+                f"{element.id}: 'icon_color:' reads {icon_color.text!r}, which can be absent",
+                self.doc.span(node, "icon_color"),
+                notes=[
+                    "a complication_slot's colours have no 'when_absent:' of their "
+                    "own -- 'when_absent:'/'placeholder:' governs the pulled "
+                    "reading, not the element's appearance",
                     "guard it in the expression instead, e.g. "
                     "\"x != null and x > 100 ? palette.hot : palette.fg\"",
                 ],

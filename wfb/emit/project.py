@@ -11,7 +11,7 @@ from ..devices import Device
 from ..fonts import BakedFont
 from ..ir import Face
 from ..layout import ResolvedFace
-from . import jungle, manifest, monkeyc, resources
+from . import jungle, manifest, monkeyc, resources, strhash
 
 RUNTIME_LIB = Path(__file__).resolve().parent.parent.parent / "runtime-lib"
 
@@ -39,6 +39,10 @@ class GeneratedProject:
     strings_text: str = ""
     barrel: list[str] = field(default_factory=list)
     resolved: dict[str, ResolvedFace] = field(default_factory=dict)
+    #: String literals that would still share a monkeyc `str___<hash>` label
+    #: after `_avoid_string_label_collisions` -- `wfb.build` reports each as an
+    #: error, because monkeyc would otherwise crash on them.
+    string_collisions: list[strhash.Collision] = field(default_factory=list)
 
     def files(self) -> dict[str, str]:
         """Every text file this project consists of, for golden-file tests."""
@@ -103,7 +107,41 @@ def generate(face: Face, devices: list[Device], root: Path,
         # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
         project.sources.append(monkeyc.emit_delegate(first))
     project.barrel = _barrel_for(face, first)
+    _avoid_string_label_collisions(project)
     return project
+
+
+def _program_texts(project: GeneratedProject) -> dict[str, str]:
+    """Every Monkey C source monkeyc will assemble into one program."""
+    texts = {source.path: source.text for source in project.sources}
+    for name in project.barrel:
+        texts[f"runtime-lib/{name}"] = (RUNTIME_LIB / name).read_text(encoding="utf-8")
+    return texts
+
+
+def _avoid_string_label_collisions(project: GeneratedProject) -> None:
+    """Keep two different string literals from sharing one monkeyc label.
+
+    monkeyc labels a string constant by its Java hash and crashes when two
+    different strings share one (`wfb.emit.strhash`). The only literals this
+    compiler can move out of the way without changing behaviour are the
+    glyphs in `IconGlyphs.mc`: any glyph involved in a collision is rebuilt
+    at runtime with `Number.toChar` instead. Anything left over is recorded
+    on the project for `wfb.build` to report.
+    """
+    found = strhash.collisions(_program_texts(project))
+    if not found:
+        return
+    index = next((i for i, source in enumerate(project.sources)
+                  if source.path == "source/IconGlyphs.mc"), None)
+    if index is not None:
+        colliding = {text for collision in found for text in collision.strings}
+        entries = monkeyc.icon_glyph_entries(project.face)
+        via_char = frozenset(key for key, glyph in entries.items() if glyph in colliding)
+        if via_char:
+            project.sources[index] = monkeyc.emit_icon_glyphs(project.face, via_char)
+            found = strhash.collisions(_program_texts(project))
+    project.string_collisions = found
 
 
 def write(project: GeneratedProject, *, clean: bool = True) -> list[Path]:

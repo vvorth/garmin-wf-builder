@@ -222,9 +222,10 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `wfb install`/`package`/`migrate`.
 - **Planned, not built:**
   - Styles that switch widget layouts (`docs/plans/02`), which needs analog
-    hands for its motivating example;
-  - complication-slot icons, which cover only 8 of 42 types
-    (`docs/plans/03`).
+    hands for its motivating example.
+  - **Built 2026-09-13** (`docs/plans/03`): complication-slot icons cover
+    all 42 native types, plus per-choice overrides and `icon_position:`/
+    `icon_gap:`/`icon_color:`, and `choices: any` + `icon_size:`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.

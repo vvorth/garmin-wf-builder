@@ -162,23 +162,25 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
             if element.icon_size is None:
                 continue
             slot = face.config_data.get(element.slot)
-            if slot is None or slot.allow_any:
-                continue  # rejected slot, or 'choices: any' (icon_size: is an error there)
-            mapped = {name: icons.COMPLICATION_ICON[name] for name in slot.choices
-                     if name in icons.COMPLICATION_ICON}
+            if slot is None:
+                continue  # rejected slot
+            mapped = slot.icons  # 'choices: any' resolves against the whole
+                                 # of COMPLICATION_ICON since 2026-09-13 --
+                                 # see ConfigDataSlot.icons's own docstring.
             if not mapped:
                 # None of this slot's choices has a catalogue icon -- it
                 # simply draws none, which is a documented, legitimate
                 # outcome (`wfb.icons.COMPLICATION_ICON`'s own docstring),
                 # not something to bake a font for.
                 continue
-            icon_names = sorted(set(mapped.values()))
-            glyphs = "".join(sorted({icons.CATALOG[n].codepoint for n in icon_names}))
+            glyphs = "".join(sorted({si.codepoint for si in mapped.values()}))
             # The default choice's own icon normalises the shared nominal
             # size, the same "pick one reference glyph" trade-off
             # `WEATHER_BAKE_REFERENCE_GLYPH` makes for the weather set --
             # documented in `docs/format.md`'s `complication_slot` section.
-            reference = icons.CATALOG[mapped.get(slot.default) or icon_names[0]].codepoint
+            default_icon = mapped.get(slot.default)
+            reference_icon = default_icon or sorted(mapped.values(), key=lambda si: si.key)[0]
+            reference = reference_icon.codepoint
             key = icons.font_key(element.icon_size, f"slot_{element.slot}",
                                  element.resolved_antialias)
             by_key[key] = (element.icon_size, glyphs, reference, element.resolved_antialias)

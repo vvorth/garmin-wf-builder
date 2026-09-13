@@ -228,6 +228,28 @@ UNIT_SUFFIX: dict[str, str] = {
 }
 
 
+def format_value(value: object) -> str:
+    """A pulled complication value as the watch draws it.
+
+    The Python twin of ``runtime-lib/WfbComplications.mc``'s
+    ``formatValue``/``decimalText``, used by the host preview. A float gets
+    three significant figures without ever dropping an integer digit, then
+    loses its trailing zeros (12.879 -> "12.9", 101325.0 -> "101325");
+    everything else is ``str()``. Floats need this because Monkey C's
+    ``Float.toString()`` always prints six decimals: steps at or above 10,000
+    arrive in the simulator as the Float 12.879 with unit "K" and drew as
+    "12.879000K".
+    """
+    if not isinstance(value, float):
+        return str(value)
+    magnitude = abs(value)
+    decimals = 0 if magnitude >= 100 else 1 if magnitude >= 10 else 2
+    text = f"{value:.{decimals}f}"
+    if decimals:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
 def get(name: str) -> ComplicationType | None:
     return TYPES.get(name)
 

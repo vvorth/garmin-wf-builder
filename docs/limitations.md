@@ -366,10 +366,26 @@ still true of the shipped feature:
 * **A slot's icon is chosen on-device from the wearer's picked *type* alone**
   (`Complications.Id.getType()`), not from the current *value* -- so a type
   whose icon depends on its value (the weather-condition complications:
-  `current_weather`, `forecast_weather_*day`) has no icon in a slot, even
-  though the same condition already has one when read as `weather.condition`
-  and drawn by a dynamic `icon_for:` icon. The reading itself still renders as
-  plain text either way.
+  `current_weather`, `forecast_weather_*day`) draws one fixed, type-keyed
+  icon (`wfb.icon_catalog.CATALOG["weather"]`) rather than the value-keyed
+  condition icon `icon_for: weather.condition` resolves on-device -- that
+  remains future work. Every other native type has a catalogue icon as of
+  2026-09-13 (plan 03 §6.4: `wfb.icons.COMPLICATION_ICON` covers all 42), an
+  author can override any choice's icon per-design (`choices:`'s
+  mapping-form `icon:`/`glyph:`/`icon: none`, plan 03 §6.1/§6.2), and
+  `icon_position:`/`icon_gap:`/`icon_color:` place, space and colour it (plan
+  03 §6.1/§6.3) -- `docs/format.md`'s "The Data axis" has the full account.
+* **`choices: any` + `icon_size:` is accepted** (lifted 2026-09-13, plan
+  03 §6.6, once every native type had a catalogue icon). A Connect IQ-app
+  complication picked there draws no icon.
+* **monkeyc 9.2.0 crashes on two different string literals with the same
+  Java hash code** (`docs/lore/toolchain.md`). The compiler rewrites a
+  colliding `IconGlyphs` glyph to `Number.toChar` at runtime, and reports
+  any other collision as a `string-label` build error. The known remaining
+  case is two static `icon` elements whose glyphs collide (for example
+  `distance` and `temperature`); change one of them. **Unverified on a
+  device:** that a `toChar`-built supplementary-plane glyph draws
+  correctly.
 * **A slot's geometry lints are sized from its value alone, never `label:`/
   `unit:`.** Both are localised device strings with no documented upper
   bound; padding for them was tried and produced a spurious `off-screen`

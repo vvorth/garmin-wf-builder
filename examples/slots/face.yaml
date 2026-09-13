@@ -8,9 +8,23 @@
 # * `top_reading` has an explicit `choices:` list (steps, heart rate,
 #   calories) and `icon_size:`, so its icon is chosen **on-device** from
 #   `Complications.Id.getType()` -- a generated `switch` maps the wearer's
-#   pick to a catalogue name (`wfb.icons.COMPLICATION_ICON`), and
-#   `IconGlyphs.glyph()` turns that name into the drawn character, the same
-#   "which name, then which glyph" split a dynamic weather icon already uses.
+#   pick to a catalogue name (`wfb.icons.COMPLICATION_ICON`, all 42 native
+#   types since 2026-09-13), and `IconGlyphs.glyph()` turns that name into the
+#   drawn character, the same "which name, then which glyph" split a dynamic
+#   weather icon already uses.
+#   - Per-choice icon overrides (plan 03 §6.1/§6.2): `steps` keeps its
+#     catalogue default (`steps`); `heart_rate` swaps its default (`heart`)
+#     for a custom glyph from the vendored font, `glyph: "U+F05F6"` (Material
+#     Design `md-heart_pulse`, which the catalogue does not name); `calories`
+#     draws no icon at all with `icon: none`, even though the catalogue maps
+#     it to `flame`. Overrides live on the choice, so every element drawing
+#     this slot shares them.
+#   - On the element: `icon_size: 8%r` is the icon's height, `icon_position:
+#     right` puts it after the reading, `icon_gap: 2px` tightens the space
+#     between them (the default is 4px), and `icon_color: palette.accent`
+#     draws the icon in the accent colour while the reading stays
+#     `palette.fg`. The last three are rejected with an explanation unless
+#     `icon_size:` is also declared.
 #   `label: short` and `unit: true` also draw whatever `Complication.
 #   shortLabel`/`.unit` the device supplies alongside the value. It also
 #   declares `on_hold: auto` -- touch and hold opens whatever glance the
@@ -21,11 +35,17 @@
 #   wearer repoints the slot -- see `wfb/ir.py`'s `Builder.
 #   _build_complication_slot` for the error this produces if you try.
 # * `bottom_reading` uses `choices: any` -- the editor's own unrestricted
-#   complication picker -- which is exactly why it may **not** declare
-#   `icon_size:`: with `allowAny` the wearer can pick a Connect IQ
-#   complication this compiler has never heard of, so the set of icons such a
-#   slot could need is unbounded and nothing can be baked ahead of time. It
-#   still draws its reading, plain, with no icon, and declares no `on_hold:`
+#   complication picker -- and still declares `icon_size:`. **Superseded
+#   2026-09-13** (plan 03 §6.6): `any` used to forbid `icon_size:` outright,
+#   since the set of icons an unbounded picker could need was unbounded and
+#   nothing could be baked ahead of time. Now that every native complication
+#   type has a catalogue icon, `any` resolves against the whole of
+#   `wfb.icons.COMPLICATION_ICON`: all 42 icons are baked, and a Connect IQ
+#   app's own complication, which the compiler cannot know, draws its reading
+#   with no icon. (Building this exposed a monkeyc crash on two string
+#   literals with the same Java hash, such as the `distance` and
+#   `temperature` glyphs; the compiler now avoids it by building a colliding
+#   glyph at runtime. See `docs/lore/toolchain.md`.) It declares no `on_hold:`
 #   at all -- holding it does nothing, which is a legitimate choice.
 #
 # Neither slot declares `format:` -- it is a schema-and-IR error on this
@@ -33,7 +53,8 @@
 # Number or Float or Long or Double` union whose concrete type genuinely
 # varies by which choice the wearer makes, so a format string written for one
 # choice would be silently wrong for another. Both slots render
-# `value.toString()` and fall back to `placeholder:` while the platform has
+# the value as the watch reports it (a Float rounded to three significant
+# figures: 12.879 -> 12.9) and fall back to `placeholder:` while the platform has
 # not (yet) delivered a reading -- `when_absent: hide` (the default) would
 # instead blank just the *reading* and leave the icon drawn, which is what a
 # `complication_slot` does differently from every other element's `hide`.
@@ -59,10 +80,12 @@
 # on-device editor itself (no simulator in this container, no watch) --
 # whether the two slots list correctly, whether switching a slot's type
 # previews instantly, whether the animated highlight actually animates or
-# lines up with what is drawn, and whether `on_hold`'s hit region reads
-# correctly on a real touchscreen are all UNVERIFIED. What is verified is
-# only that all of it compiles warning-free and cannot crash a device with no
-# editor (`fr955`).
+# lines up with what is drawn, whether `icon_position: right`'s icon+reading
+# pair actually looks right on the wrist, and whether `on_hold`'s hit region
+# reads correctly on a real touchscreen are all UNVERIFIED. What is verified
+# is only that all of it compiles warning-free, that `wfb preview` renders
+# the expected layout, and that none of it crashes a device with no editor
+# (`fr955`).
 #
 # Build it with:  ./wfb.py build examples/slots/face.yaml
 #
@@ -83,6 +106,7 @@ targets:
 palette:
   bg: "#000000"
   fg: "#FFFFFF"
+  accent: "#00AAFF"   # 64-colour MIP safe: each channel 00/55/AA/FF
 
 config:
   data:
@@ -90,8 +114,8 @@ config:
       default: complication.steps
       choices:
         - complication.steps
-        - complication.heart_rate
-        - complication.calories
+        - { type: complication.heart_rate, glyph: "U+F05F6" }  # custom glyph
+        - { type: complication.calories, icon: none }          # no icon
     bottom:
       default: complication.body_battery
       choices: any          # the editor's own full complication picker
@@ -117,7 +141,11 @@ elements:
     slot: config.data.top
     at: { anchor: center, dy: -28% }
     font: FONT_SMALL
-    icon_size: 8%r
+    icon_size: 18%r
+    icon_position: right
+    icon_gap: 2%r
+    # icon_gap: 2px
+    icon_color: palette.accent
     color: palette.fg
     label: short
     unit: true
@@ -135,6 +163,8 @@ elements:
     slot: config.data.bottom
     at: { anchor: center, dy: 28% }
     font: FONT_SMALL
+    icon_gap: 2%r
+    icon_size: 18%r
     color: palette.fg
     when_absent: placeholder
     placeholder: "--"

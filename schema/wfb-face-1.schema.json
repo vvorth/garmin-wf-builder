@@ -347,7 +347,7 @@
           "$ref": "#/$defs/complicationRef"
         },
         "choices": {
-          "description": "'any' hands the wearer the editor's own unrestricted complication picker (allowAny=\"true\", no listed types) -- and forbids 'icon_size:' on any element referencing this slot, since the set of icons such a slot could need is then unbounded. An explicit list becomes the editor's picklist; 'default:' must be one of the listed types in that case.",
+          "description": "'any' hands the wearer the editor's own unrestricted complication picker (allowAny=\"true\", no listed types). Superseded 2026-09-13: 'any' used to also forbid 'icon_size:' on any element referencing this slot, since the set of icons an unbounded picker could need was unbounded -- lifted once every native complication type had a catalogue icon (wfb.icons.COMPLICATION_ICON covers all 42 now), so 'icon_size:' is accepted there too: it resolves against the whole of that table, and a Connect IQ-app complication (outside it) simply draws no icon. An explicit list becomes the editor's picklist; 'default:' must be one of the listed types in that case, compared by resolved type regardless of which item shape named it.",
           "oneOf": [
             {
               "const": "any"
@@ -356,13 +356,42 @@
               "type": "array",
               "minItems": 1,
               "items": {
-                "$ref": "#/$defs/complicationRef"
+                "$ref": "#/$defs/configDataChoice"
               },
               "uniqueItems": true
             }
           ]
         }
       }
+    },
+    "configDataChoice": {
+      "description": "One 'choices:' entry in an explicit 'config: data:' list: either a bare 'complication.<name>' reference (today's only form), or a mapping naming the same reference plus a per-choice icon override -- 'icon:' (a catalogue name, or the literal 'none' to explicitly draw no icon for this choice) or 'glyph:' (any codepoint in the vendored icon font, 'U+XXXX'), mutually exclusive with each other. Absent from a plain bare reference, this per-choice icon overrides wfb.icons.COMPLICATION_ICON's catalogue default for that one type; every other choice keeps using the catalogue default (or draws none, if the table does not map it). A type listed more than once across the whole 'choices:' list -- in either shape -- is an IR error: this schema's own per-item validation cannot see a duplicate that uses a different shape the second time.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/complicationRef"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/complicationRef"
+            },
+            "icon": {
+              "description": "A built-in catalogue name for this choice's icon, or the literal 'none' to explicitly draw no icon for it (distinct from simply not mentioning this choice's icon at all, which keeps the catalogue default). Mutually exclusive with 'glyph:'.",
+              "type": "string"
+            },
+            "glyph": {
+              "description": "A codepoint in the vendored icon font that the catalogue does not name, written in Unicode notation: \"U+F0BC\". Mutually exclusive with 'icon:'. Checked against the font's own character map at build time, exactly like a plain 'icon' element's own 'glyph:'.",
+              "type": "string",
+              "pattern": "^[Uu]\\+[0-9A-Fa-f]{1,6}$"
+            }
+          }
+        }
+      ]
     },
     "expression": {
       "description": "An expression over data sources, palette entries and literals. A bare number is accepted for the common case of a literal bound (max: 10000) and needs no quoting.",
@@ -1147,7 +1176,7 @@
       }
     },
     "complicationSlotElement": {
-      "description": "The native Data axis: a slot the wearer re-points at a different Garmin metric, on the watch, with the editor's own instant preview. Draws an icon chosen at runtime from the wearer's pick (only for a subset of complication types -- run 'wfb complications'/see wfb.icons.COMPLICATION_ICON) plus the reading itself, always rendered 'value.toString()' since the concrete value type genuinely varies by choice -- see 'format:' below.",
+      "description": "The native Data axis: a slot the wearer re-points at a different Garmin metric, on the watch, with the editor's own instant preview. Draws an icon chosen at runtime from the wearer's pick (every native complication type has one -- run 'wfb complications'/see wfb.icons.COMPLICATION_ICON) plus the reading itself, rendered as the watch reports it (toString(), except a Float or Double, rounded to three significant figures with trailing zeros removed), since the concrete value type genuinely varies by choice -- see 'format:' below.",
       "type": "object",
       "required": [
         "id",
@@ -1173,11 +1202,29 @@
         },
         "icon_size": {
           "$ref": "#/$defs/length",
-          "description": "Visual height of the icon chosen from the wearer's pick. Omit to draw no icon. px or %r only, and not accepted when the slot's own 'choices:' is 'any' -- the set of icons such a slot could need is then unbounded."
+          "description": "Visual height of the icon chosen from the wearer's pick. Omit to draw no icon. px or %r only. Superseded 2026-09-13: this used to also be rejected when the slot's own 'choices:' is 'any', since the set of icons such a slot could need was unbounded -- lifted once every native complication type had a catalogue icon (wfb.icons.COMPLICATION_ICON covers all 42 now); 'any' now resolves against that whole table, and a type it does not map (a Connect IQ-app complication) simply draws no icon."
         },
         "color": {
           "$ref": "#/$defs/colorExpression",
           "description": "Must not be nullable -- there is no 'when_absent:' for this element's own appearance, only for the pulled reading."
+        },
+        "icon_position": {
+          "description": "Where the icon sits relative to the reading. Needs 'icon_size:' -- an error naming why, without it. Default left.",
+          "enum": [
+            "left",
+            "right",
+            "top",
+            "bottom"
+          ],
+          "default": "left"
+        },
+        "icon_gap": {
+          "$ref": "#/$defs/length",
+          "description": "The space between icon and reading. px or %r only, and must not be negative. Needs 'icon_size:' -- an error naming why, without it. Default 4px (today's fixed gap)."
+        },
+        "icon_color": {
+          "$ref": "#/$defs/colorExpression",
+          "description": "The icon's own colour, distinct from the reading's 'color:'. Must not be nullable, for the same reason 'color:' must not be. Needs 'icon_size:' -- an error naming why, without it. Defaults to 'color:' (today's only behaviour: one colour for the icon and the reading alike)."
         },
         "label": {
           "description": "none (default): just the value. short/long: Complication.shortLabel/.longLabel, drawn before the value when the device supplies one.",

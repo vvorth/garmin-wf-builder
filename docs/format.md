@@ -337,7 +337,8 @@ config:
       choices:
         - complication.steps
         - complication.heart_rate
-        - complication.calories
+        - { type: complication.calories, icon: none }
+        - { type: complication.stress, glyph: "U+F1340" }
     bottom:
       default: complication.body_battery
       choices: any
@@ -349,6 +350,9 @@ elements:
     at: { anchor: center, dy: -20% }
     font: FONT_SMALL
     icon_size: 8%r          # omit to draw no icon
+    icon_position: right    # left (default) | right | top | bottom
+    icon_gap: 2px            # px or %r; default 4px, today's fixed gap
+    icon_color: palette.accent  # defaults to color: when omitted
     color: palette.fg
     label: short             # none (default) | short | long
     unit: true                # append Complication.unit's suffix
@@ -364,6 +368,23 @@ resolved exactly like `on_hold:` against :mod:`wfb.complications`' table (run
 `default:` must belong to) or the literal string `any`, handing the wearer the
 editor's own unrestricted complication picker.
 
+**A `choices:` list item** is either a bare `complication.<name>` reference
+(today's only form) or a mapping naming the same reference plus a per-choice
+icon override (plan 03 §6.1/§6.2): `{ type: complication.<name>, icon:
+<catalogue name> }`, `{ type: complication.<name>, icon: none }` (explicitly
+draw no icon for this one choice, even though the catalogue maps it), or
+`{ type: complication.<name>, glyph: "U+XXXX" }` (any codepoint the vendored
+font has, for a glyph the catalogue does not name). `icon:`/`glyph:` are
+mutually exclusive and validated exactly like a plain `icon` element's own
+`icon:`/`glyph:` -- an unknown catalogue name is an error with suggestions, a
+glyph outside the font's character map is an error, and a glyph that
+duplicates a catalogue entry gets the same "say `icon: <name>` instead" note.
+A choice with neither key keeps the catalogue default
+(`wfb.icons.COMPLICATION_ICON`), same as the bare form. **A type listed more
+than once across the whole `choices:` list -- in either shape -- is an IR
+error**: the schema's own `uniqueItems` only catches two identical bare
+entries, not a bare reference and a mapping-form entry naming the same type.
+
 `type: complication_slot` draws one slot, naming it as `slot:
 config.data.<name>`. Unlike every other element, **which complication is
 showing is not known at build time** -- the wearer picks it on-device, and
@@ -377,7 +398,13 @@ no ordinary `value:` expression at all. Instead:
   or Float or Long or Double` union whose concrete type genuinely varies by
   which choice the wearer makes -- a format string written for one choice
   would be silently wrong for another. `format:` is a schema error naming
-  this reason. The value always renders `value.toString()`.
+  this reason. The value renders through `WfbComplications.formatValue`:
+  `toString()` for a Number, Long or String; a Float or Double is rounded to
+  three significant figures without dropping integer digits, then loses its
+  trailing zeros (12.879 -> `12.9`, 101325.0 -> `101325`). Floats need this
+  because Monkey C's `Float.toString()` always prints six decimals. Observed
+  in the simulator (2026-09-13): steps at or above 10,000 arrive as a Float in
+  thousands with the unit string `"K"`, so they draw as `12.9K`.
 * **`label:`** (`none` default, `short`, `long`) draws `Complication.
   shortLabel`/`.longLabel` before the value, when the device supplies one.
 * **`unit:`** (`false` default) appends `Complication.unit`'s suffix after the
@@ -393,26 +420,57 @@ no ordinary `value:` expression at all. Instead:
   pulled.
 * **`icon_size:`** (omit to draw no icon) chooses the icon **on-device**, from
   the wearer's picked *type* alone -- `Complications.Id.getType()`, `switch`ed
-  against a table of catalogue names (`wfb.icons.COMPLICATION_ICON`), then
-  `IconGlyphs.glyph()` turns the name into a character, exactly the same
-  "which name, then which glyph" split a dynamic weather icon uses. **Not
-  every complication type has an icon** -- a type this table does not map
-  (because no catalogue glyph reads unambiguously as that metric, or because
-  its icon would depend on the pulled *value* rather than the type, like the
-  weather-condition types) simply draws no icon; the reading still renders
-  normally. Run `wfb sources`/read `wfb/icons.py`'s `COMPLICATION_ICON` for
-  the current mapping. **Not accepted together with `choices: any`** -- with
-  `allowAny` the wearer may pick any type on the watch, including a Connect
-  IQ complication, so the set of icons a slot could need is unbounded and
-  nothing can be baked ahead of time; drop `icon_size:` or list explicit
-  `choices:` instead.
+  against a table of catalogue names (`wfb.icons.COMPLICATION_ICON`, or a
+  per-choice override), then `IconGlyphs.glyph()` turns the name (or a
+  `glyph:` override's canonical `U+XXXX` spelling) into a character, exactly
+  the same "which name, then which glyph" split a dynamic weather icon uses.
+  **All 42 native complication types have a catalogue icon** as of
+  2026-09-13 (plan 03 §6.4) -- an author can still suppress one explicitly
+  with a per-choice `icon: none`, and a Connect IQ-app complication (outside
+  `wfb.complications.TYPES` entirely) simply draws no icon, since this
+  compiler cannot know what it is. Run `wfb complications` for the current
+  mapping (it lists each type's catalogue icon alongside its Monkey C
+  constant).
+  **`choices: any` + `icon_size:` is now accepted** (superseded 2026-09-13,
+  plan 03 §6.6 -- it used to be an error, because the set of icons an
+  unbounded picker could need was unbounded and nothing could be baked ahead
+  of time; lifted once every native type had a catalogue icon, since `any`
+  now simply resolves against the whole of `wfb.icons.COMPLICATION_ICON`).
+  It builds warning-free on all three targets. A Connect IQ-app
+  complication picked in such a slot draws its reading with no icon.
+  (monkeyc 9.2.0 crashes when two different string literals share a Java
+  hash code, and some icon glyphs do, such as `distance` and
+  `temperature`. The compiler handles that for slot and weather icons
+  itself; see `docs/lore/toolchain.md`. The one case it cannot fix is
+  reported as a `string-label` build error, listed below.)
+* **`icon_position:`** (`left` default, `right`, `top`, `bottom`) places the
+  icon relative to the reading; **`icon_gap:`** (px or `%r`, non-negative;
+  default 4px, today's fixed gap) sets the space between them. Both need
+  `icon_size:` -- an error naming why, without it, since neither means
+  anything with no icon to place or space. `top`/`bottom` stack the pair
+  vertically and centre both horizontally, using `Dc.getFontHeight` for each
+  piece's height -- the gap is measured between the two font *line boxes*,
+  not the ink, so a system font's internal leading adds to it (not
+  corrected). When the wearer's current pick has no icon (an explicit
+  `icon: none`, or the whole slot mapped nothing), the gap drops too and the
+  reading centres alone, in every position.
+* **`icon_color:`** the icon's own colour, distinct from `color:` (the
+  reading's). Must not be nullable, for the same reason `color:` must not be.
+  Needs `icon_size:` -- an error naming why, without it. Defaults to
+  `color:` when omitted -- one shared colour for icon and reading alike,
+  today's only behaviour, and what an unauthored design keeps generating
+  byte-for-byte.
 * The icon and the reading are centred together, as one pair, on this
-  element's own anchor -- at **runtime**, via `Dc.getTextWidthInPixels`,
-  because the actual text is not known until the value is pulled. This is the
-  one element in the format whose drawn position is not fully resolved at
-  build time (ADR 0004's one deliberate exception, and for exactly that
-  reason); the geometry lints below size its box from the value alone (see
-  "What this compiler cannot tell you").
+  element's own anchor -- at **runtime**, via `Dc.getTextWidthInPixels`/
+  `Dc.getFontHeight`, because the actual text is not known until the value
+  is pulled. This is the one element in the format whose drawn position is
+  not fully resolved at build time (ADR 0004's one deliberate exception, and
+  for exactly that reason); the geometry lints below size its box from the
+  value alone (see "What this compiler cannot tell you"). The pair's
+  geometry -- for every `icon_position:` -- is computed by one pure function,
+  `wfb.layout.complication_slot_pair_geometry`, shared by the layout
+  resolver (the estimated box) and `wfb preview`, and mirrored (not called
+  -- the real text is not known at build time) by the generated Monkey C.
 * A `complication_slot` **cannot be static** (its reading changes every frame,
   and the wearer can repoint it at any time) -- an error, naming why.
 * **`on_hold:`** accepts exactly one value here: **`auto`**. Touch and hold
@@ -475,7 +533,9 @@ affected.
   and, for `colors`, every role of every scheme actually listed in
   `choices:` (a scheme never listed there is unreachable on any device, so it
   is not checked). Reported as `palette-dither` against whichever element's
-  `color:`/`track_color:` is exactly `config.<name>`/`config.colors.<role>`.
+  `color:`/`track_color:`/`icon_color:` is exactly
+  `config.<name>`/`config.colors.<role>` (a plain `palette.<name>` reference
+  is checked the same way, against the same three fields).
 * `config-unsupported` (suppressible) -- at least one target has no native
   editor, so the declared defaults are all that device ever shows (now
   including every slot's default).
@@ -487,7 +547,25 @@ affected.
   rejected) `config.data.<name>` -- error, naming the declared slots.
 * `format:` on a `complication_slot` -- error, naming why (see "The Data
   axis").
-* `icon_size:` together with a slot whose `choices:` is `any` -- error.
+* `icon_size:` together with a slot whose `choices:` is `any` -- **superseded
+  2026-09-13** (plan 03 §6.6): this used to be an error; lifted once every
+  native type had a catalogue icon. It is accepted and builds.
+* `string-label` -- two different string literals in the generated program
+  share a Java hash code, which monkeyc 9.2.0 crashes on (see "The Data
+  axis" and `docs/lore/toolchain.md`). A colliding slot or weather icon
+  glyph is fixed automatically, so this error only reaches you for a
+  collision the compiler cannot rewrite, such as two static `icon` elements
+  showing `distance` and `temperature`. It names both strings; change one.
+* `icon_position:`/`icon_gap:`/`icon_color:` without `icon_size:` -- error,
+  naming why (none of the three means anything with no icon to place, space
+  or colour).
+* `icon_gap:` in a unit other than px/`%r`, or negative -- error, the same
+  restriction `icon_size:` has.
+* A per-choice `icon:`/`glyph:` naming an unknown catalogue entry, an
+  out-of-font codepoint, or both keys at once -- error, the same messages a
+  plain `icon` element's own `icon:`/`glyph:` get.
+* A `complication.<name>` type listed more than once in one slot's
+  `choices:`, in either shape -- error, naming where it was already listed.
 * `static:` on a `complication_slot` -- a permanent error: the whole point of
   a slot is that its content changes, and static content is painted once.
 * `on_hold:` on a `complication_slot` naming anything other than `auto` --
@@ -1834,9 +1912,10 @@ heart_rate` opens the heart-rate glance whether or not the design displays a
 heart rate.
 
 `wfb complications` lists every name, the Monkey C constant it compiles to,
-and the API level that type was introduced at. The list is generated from the
-SDK's own `COMPLICATION_TYPE_*` table, so it cannot drift from what the
-platform actually offers.
+the API level that type was introduced at, and (since 2026-09-13) the
+catalogue icon a `complication_slot`'s `icon_size:` draws for it by default.
+The list is generated from the SDK's own `COMPLICATION_TYPE_*` table, so it
+cannot drift from what the platform actually offers.
 
 **Touch and hold is the only gesture there is — on every device.** This is not
 a limitation of the compiler or of one watch. `WatchFaceDelegate.onPress` is

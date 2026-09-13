@@ -21,13 +21,13 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from . import catalog, complications, expr, formatting, icons
+from . import catalog, complications, expr, formatting
 from .catalog import Type
 from .fonts import BakedFont, fallback
 from .ir import Progress, Shape, Text
 from .layout import (
-    COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, PlacedGraph,
-    PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedComplicationSlot, PlacedGraph, PlacedIcon, PlacedProgress,
+    PlacedShape, PlacedText, ResolvedFace, complication_slot_pair_geometry,
 )
 from .palette import MIP64_LEVELS, Color
 
@@ -428,15 +428,16 @@ class _Renderer:
             return
         ctype = complications.TYPES[slot.default]
         color = self._color(element.color)
+        icon_color = self._color(element.icon_color) if element.icon_color is not None else color
         s = self.scale
 
         icon_font = None
         icon_glyph = None
         if placed.icon_font_key is not None:
-            icon_name = icons.COMPLICATION_ICON.get(slot.default)
-            if icon_name is not None:
+            icon = slot.icons.get(slot.default)
+            if icon is not None:
                 icon_font = self.resolved.fonts.get(placed.icon_font_key)
-                icon_glyph = icons.CATALOG[icon_name].codepoint
+                icon_glyph = icon.codepoint
 
         text = self._complication_slot_text(element, ctype)
         text_font = (self.resolved.fonts.get(placed.font_reference)
@@ -444,32 +445,49 @@ class _Renderer:
         if text_font is not None:
             text_width, text_height = text_font.measure(text)
         else:
-            text_width, text_height = fallback.measure(text, placed.font_px)
+            # `fallback.measure`'s second return is whether real metrics were
+            # used, not a height -- `wfb.layout.Resolver._resolve_complication_
+            # slot` uses the declared font size itself as the line-height
+            # estimate for exactly this case, and this mirrors it.
+            text_width, _ = fallback.measure(text, placed.font_px)
+            text_height = placed.font_px
 
-        icon_width = 0.0
+        icon_width = 0
+        icon_height = 0
         icon_sheet = None
         glyph_obj = None
-        icon_height = 0.0
         if icon_font is not None and icon_glyph is not None:
             icon_sheet = getattr(icon_font, "sheet_image", None)
             glyph_obj = icon_font.glyphs.get(icon_glyph)
             if icon_sheet is not None and glyph_obj is not None:
-                iw, ih = icon_font.measure(icon_glyph)
-                icon_width = iw + COMPLICATION_SLOT_ICON_GAP
-                icon_height = ih
+                icon_width, icon_height = icon_font.measure(icon_glyph)
+            else:
+                icon_sheet = None
+                glyph_obj = None
 
+        # One shared geometry function for every position (plan 03 §6.3) --
+        # `wfb.layout.complication_slot_pair_geometry`, the same one
+        # `Resolver._resolve_complication_slot` uses to size the estimated
+        # box, called here with the *actual* measured extents this preview
+        # already has (unlike layout, which only has an estimate).
+        geometry = complication_slot_pair_geometry(
+            placed.icon_position, icon_width, icon_height, text_width, text_height,
+            placed.icon_gap_px,
+        )
         ax, ay = placed.anchor_point
-        start_x = ax - (icon_width + text_width) / 2
+        origin_x = ax - geometry.width / 2
+        origin_y = ay - geometry.height / 2
 
         if icon_sheet is not None and glyph_obj is not None:
-            self._paste_glyph(icon_sheet, glyph_obj, start_x * s,
-                              (ay - icon_height / 2) * s, color)
+            self._paste_glyph(icon_sheet, glyph_obj,
+                              (origin_x + geometry.icon_x) * s,
+                              (origin_y + geometry.icon_y) * s, icon_color)
 
-        pen_x = start_x + icon_width
+        pen_x = origin_x + geometry.text_x
+        top = origin_y + geometry.text_y
         if text_font is not None:
             sheet = getattr(text_font, "sheet_image", None)
             if sheet is not None:
-                top = ay - text_font.line_height / 2
                 for char in text:
                     glyph = text_font.glyphs.get(char)
                     if glyph is None:
@@ -479,7 +497,7 @@ class _Renderer:
                 return
         face = fallback.font_for_height(placed.font_px * s)
         if face is not None:
-            self.draw.text((pen_x * s, ay * s), text, fill=color, font=face, anchor="lm")
+            self.draw.text((pen_x * s, top * s), text, fill=color, font=face, anchor="la")
 
     def _complication_slot_text(self, element, ctype) -> str:
         """An illustrative reading for `ctype`, formatted the same way
@@ -493,7 +511,7 @@ class _Renderer:
             text += "Now "
         elif element.label == "long":
             text += "Current "
-        text += str(value)
+        text += complications.format_value(value)
         if element.unit and ctype.unit:
             text += f" {ctype.unit}"
         return text

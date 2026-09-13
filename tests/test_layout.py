@@ -424,3 +424,53 @@ def test_a_bars_graph_resolves_its_own_bar_width(resolved_for):
     )
     placed = find(resolved_for("fenix8solar47mm", design), "hr_graph")
     assert placed.bar_width == 4
+
+
+# -- complication_slot_pair_geometry (plan 03 §6.3) --------------------------
+
+
+from wfb.layout import complication_slot_pair_geometry  # noqa: E402
+
+
+def test_geometry_left_matches_todays_layout():
+    """`left`, the default: icon at the origin, text after it plus the gap --
+    exactly the box `wfb.emit.monkeyc._emit_complication_slot`'s fast path
+    has always drawn."""
+    g = complication_slot_pair_geometry("left", 10, 12, 30, 14, 4)
+    assert (g.width, g.height) == (10 + 4 + 30, max(12, 14))
+    assert (g.icon_x, g.text_x) == (0, 10 + 4)
+    assert g.icon_y == (14 - 12) // 2  # centred on the taller piece (text)
+    assert g.text_y == 0
+
+
+def test_geometry_right_mirrors_left():
+    g = complication_slot_pair_geometry("right", 10, 12, 30, 14, 4)
+    assert (g.width, g.height) == (30 + 4 + 10, max(12, 14))
+    assert (g.text_x, g.icon_x) == (0, 30 + 4)
+
+
+def test_geometry_top_stacks_vertically_and_centres_horizontally():
+    g = complication_slot_pair_geometry("top", 10, 12, 30, 14, 4)
+    assert (g.width, g.height) == (30, 12 + 4 + 14)
+    assert g.icon_y == 0
+    assert g.text_y == 12 + 4
+    assert g.icon_x == (30 - 10) // 2
+    assert g.text_x == (30 - 30) // 2 == 0
+
+
+def test_geometry_bottom_is_top_upside_down():
+    g = complication_slot_pair_geometry("bottom", 10, 12, 30, 14, 4)
+    assert (g.width, g.height) == (30, 12 + 4 + 14)
+    assert g.text_y == 0
+    assert g.icon_y == 14 + 4
+
+
+@pytest.mark.parametrize("position", ["left", "right", "top", "bottom"])
+def test_geometry_drops_the_gap_when_there_is_no_icon(position):
+    """`icon_w`/`icon_h` both zero means no icon at all -- the gap drops in
+    every position, and the text ends up as if drawn alone."""
+    g = complication_slot_pair_geometry(position, 0, 0, 30, 14, 4)
+    if position in ("left", "right"):
+        assert g.width == 30
+    else:
+        assert g.height == 14

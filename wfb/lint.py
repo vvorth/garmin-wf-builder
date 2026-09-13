@@ -63,7 +63,7 @@ ALL_CODES = frozenset({
     "palette-dither", "partial-update", "partial-update-budget", "permission",
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
     "target",
-    "static", "static-overlap",
+    "static", "static-overlap", "string-label",
     "text-antialias",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
@@ -213,10 +213,11 @@ def check_lint_allow(face: Face, bag: Bag) -> None:
 
 
 #: Element fields that can carry a bare ``palette.<name>`` reference.  Not
-#: every element kind has both -- ``Text``/``Shape``/``IconElement`` have only
-#: ``color``, ``Progress`` also has ``track_color`` -- ``getattr`` covers the
+#: every element kind has all three -- ``Text``/``Shape``/``IconElement``
+#: have only ``color``, ``Progress`` also has ``track_color``,
+#: ``ComplicationSlot`` also has ``icon_color`` -- ``getattr`` covers the
 #: gap without needing an isinstance check per kind here.
-_PALETTE_REFERENCING_FIELDS = ("color", "track_color")
+_PALETTE_REFERENCING_FIELDS = ("color", "track_color", "icon_color")
 
 
 def _users_of(face: Face, token: str) -> list[Element]:

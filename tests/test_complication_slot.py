@@ -210,6 +210,142 @@ elements:
     assert "unknown complication type" in errors[0].message
 
 
+# -- per-choice icon overrides (plan 03 §6.1/§6.2) ----------------------------
+
+
+PER_CHOICE_DATA_BLOCK = """config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - {type: complication.heart_rate, icon: flame}
+        - {type: complication.calories, icon: none}
+        - {type: complication.body_battery, glyph: "U+F0004"}
+    bottom:
+      default: complication.body_battery
+      choices: any
+"""
+
+
+def test_per_choice_icon_override_wins_over_the_catalogue_default(write_design, bag):
+    text = HEAD + PER_CHOICE_DATA_BLOCK + BODY
+    face = _face(text, write_design, bag)
+    slot = face.config_data["top"]
+    resolved = slot.icons
+    assert resolved["steps"].key == "steps"  # catalogue default, unaffected
+    assert resolved["heart_rate"].key == "flame"  # overridden
+    assert resolved["heart_rate"].codepoint == icons.CATALOG["flame"].codepoint
+
+
+def test_per_choice_icon_none_removes_the_catalogue_default(write_design, bag):
+    text = HEAD + PER_CHOICE_DATA_BLOCK + BODY
+    face = _face(text, write_design, bag)
+    slot = face.config_data["top"]
+    assert "calories" not in slot.icons  # icon: none -- explicitly no icon
+    assert "calories" in icons.COMPLICATION_ICON  # the catalogue does map it
+
+
+def test_per_choice_glyph_override_uses_the_canonical_codepoint_spelling(write_design, bag):
+    text = HEAD + PER_CHOICE_DATA_BLOCK + BODY
+    face = _face(text, write_design, bag)
+    slot = face.config_data["top"]
+    resolved = slot.icons["body_battery"]
+    assert resolved.key == "U+F0004"
+    assert resolved.codepoint == "\U000f0004"
+
+
+def test_per_choice_icon_and_glyph_together_is_an_error(write_design):
+    text = HEAD + """config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - {type: complication.heart_rate, icon: flame, glyph: "U+F1340"}
+""" + BODY
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "config"]
+    assert hits, errors
+    assert "mutually exclusive" in hits[0].message
+
+
+def test_per_choice_unknown_icon_name_is_an_error_with_suggestions(write_design):
+    text = HEAD + """config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - {type: complication.heart_rate, icon: hart}
+""" + BODY
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "icon"]
+    assert hits, errors
+    assert "unknown icon" in hits[0].message
+    assert any("heart" in n for n in hits[0].notes), hits[0].notes
+
+
+def test_per_choice_glyph_not_in_the_font_is_an_error(write_design):
+    text = HEAD + """config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - {type: complication.heart_rate, glyph: "U+FFFF"}
+""" + BODY
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "icon"]
+    assert hits, errors
+    assert "no glyph at" in hits[0].message
+
+
+def test_a_type_listed_twice_across_shapes_is_an_error(write_design):
+    """The schema's own 'uniqueItems' cannot see through a bare reference and
+    a mapping-form entry naming the same type -- this is an IR check."""
+    text = HEAD + """config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - {type: complication.steps, icon: flame}
+""" + BODY
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "config"]
+    assert hits, errors
+    assert "listed more than once" in hits[0].message
+    assert "complication.steps" in hits[0].message
+
+
+def test_a_rejected_choice_icon_does_not_cascade(write_design):
+    """The same 'one error, not N' discipline as
+    `test_a_rejected_slot_does_not_cascade`, for a bad per-choice icon."""
+    text = HEAD + """config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - {type: complication.heart_rate, icon: not-a-real-icon}
+elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center, dy: -20%}
+    color: palette.fg
+  - id: b
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center, dy: 20%}
+    color: palette.fg
+"""
+    errors = _errors(text, write_design)
+    assert len(errors) == 1, errors
+    assert errors[0].code == "icon"
+
+
 # -- complication_slot element errors -----------------------------------------
 
 
@@ -229,7 +365,12 @@ def test_unknown_slot_reference_is_an_error(write_design):
         hits[0].notes
 
 
-def test_icon_size_with_choices_any_is_an_error(write_design):
+def test_icon_size_is_now_allowed_with_choices_any(write_design, bag):
+    """Superseded 2026-09-13 (plan 03 §6.6): 'icon_size:' + 'choices: any'
+    used to be an error (see the account this test replaced, in git
+    history) because the set of icons an unbounded picker could need was
+    unbounded. Lifted once every native type had a catalogue icon -- 'any'
+    now resolves against the whole of 'wfb.icons.COMPLICATION_ICON'."""
     text = HEAD + DATA_BLOCK + """elements:
   - id: a
     type: complication_slot
@@ -238,10 +379,12 @@ def test_icon_size_with_choices_any_is_an_error(write_design):
     icon_size: 8%r
     color: palette.fg
 """
-    errors = _errors(text, write_design)
-    hits = [d for d in errors if d.code == "complication-slot"]
-    assert hits, errors
-    assert "icon_size" in hits[0].message and "'any'" in hits[0].message
+    face = _face(text, write_design, bag)
+    element = next(e for e in face.walk() if e.id == "a")
+    assert element.icon_size is not None
+    slot = face.config_data["bottom"]
+    assert slot.allow_any
+    assert set(slot.icons) == set(icons.COMPLICATION_ICON)
 
 
 def test_format_is_rejected_with_a_reason(write_design):
@@ -359,6 +502,144 @@ def test_when_absent_placeholder_needs_a_placeholder(write_design):
 """
     errors = _errors(text, write_design)
     assert any("needs a 'placeholder:'" in d.message for d in errors), errors
+
+
+# -- icon_position:/icon_gap:/icon_color: (plan 03 §6.1/§6.3) -----------------
+
+
+def test_icon_position_and_gap_and_color_resolve(write_design, bag):
+    text = HEAD + DATA_BLOCK + """elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    icon_position: right
+    icon_gap: 2px
+    icon_color: palette.bg
+    color: palette.fg
+"""
+    face = _face(text, write_design, bag)
+    element = next(e for e in face.walk() if e.id == "a")
+    assert element.icon_position == "right"
+    assert element.icon_gap is not None and element.icon_gap.value == 2
+    assert element.icon_color is not None and element.icon_color.text == "palette.bg"
+
+
+@pytest.mark.parametrize("key,value", [
+    ("icon_position", "top"),
+    ("icon_gap", "2px"),
+    ("icon_color", "palette.bg"),
+])
+def test_icon_position_gap_color_need_icon_size(write_design, key, value):
+    text = HEAD + DATA_BLOCK + f"""elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {{anchor: center}}
+    color: palette.fg
+    {key}: {value}
+"""
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "complication-slot"]
+    assert hits, errors
+    assert f"'{key}:' needs 'icon_size:'" in hits[0].message
+
+
+def test_icon_gap_percent_unit_is_rejected(write_design):
+    text = HEAD + DATA_BLOCK + """elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    icon_gap: 5%
+    color: palette.fg
+"""
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "complication-slot"]
+    assert hits, errors
+    assert "icon_gap must be px or %r" in hits[0].message
+
+
+def test_icon_gap_negative_is_rejected(write_design):
+    text = HEAD + DATA_BLOCK + """elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    icon_gap: -2px
+    color: palette.fg
+"""
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "complication-slot"]
+    assert hits, errors
+    assert "must not be negative" in hits[0].message
+
+
+def test_icon_color_nullable_is_an_error(write_design):
+    text = HEAD + DATA_BLOCK + """elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    icon_color: "heart_rate.current > 100 ? palette.fg : palette.fg"
+    color: palette.fg
+"""
+    errors = _errors(text, write_design)
+    hits = [d for d in errors if d.code == "complication-slot"]
+    assert hits and "icon_color" in hits[0].message and "can be absent" in hits[0].message, errors
+
+
+def test_icon_color_defaults_to_color_when_unauthored(write_design, bag):
+    text = HEAD + DATA_BLOCK + """elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    color: palette.fg
+"""
+    face = _face(text, write_design, bag)
+    element = next(e for e in face.walk() if e.id == "a")
+    assert element.icon_color is None
+
+
+def test_a_dithered_icon_color_is_caught_by_the_palette_lint(write_design, db):
+    """`icon_color:` must be one of the fields `check_palette`'s `_users_of`
+    walks -- proven by actually dithering it, not just reading the code."""
+    text = HEAD.replace('fg: "#FFFFFF"', 'fg: "#123456"') + DATA_BLOCK + """elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    icon_color: palette.fg
+    color: palette.bg
+"""
+    bag = _lint(text, write_design, db)
+    hits = [d for d in bag.items if d.code == "palette-dither"]
+    assert hits, bag.render()
+
+
+def test_a_dithered_icon_color_can_be_suppressed_on_its_own_element(write_design, db):
+    text = HEAD.replace('fg: "#FFFFFF"', 'fg: "#123456"') + DATA_BLOCK + """elements:
+  - id: a
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    icon_color: palette.fg
+    color: palette.bg
+    lint:
+      allow: [palette-dither]
+      reason: "probing"
+"""
+    bag = _lint(text, write_design, db)
+    hits = [d for d in bag.items if d.code == "palette-dither"]
+    assert not hits, bag.render()
 
 
 # -- lint: config-unsupported, extended to name slots -------------------------
@@ -541,6 +822,113 @@ def test_only_a_mapped_choice_appears_in_the_icon_switch(write_design, bag, db):
     assert "COMPLICATION_TYPE_CALORIES: return \"flame\"" in view
 
 
+def test_choices_any_icon_switch_covers_every_native_type(write_design, bag, db):
+    """Since 2026-09-13, 'icon_size:' + 'choices: any' resolves against the
+    whole of `wfb.icons.COMPLICATION_ICON` (plan 03 §6.6) -- the generated
+    switch gets one case per native type this compiler knows an icon for."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    text = HEAD + DATA_BLOCK + """elements:
+  - id: bottom_reading
+    type: complication_slot
+    slot: config.data.bottom
+    at: {anchor: center}
+    icon_size: 8%r
+    color: palette.fg
+"""
+    face = _face(text, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+    for name, icon_name in icons.COMPLICATION_ICON.items():
+        ctype = complications.TYPES[name]
+        assert f'COMPLICATION_TYPE_{ctype.name.upper()}: return "{icon_name}"' in view \
+            or f'Complications.{ctype.constant}: return "{icon_name}"' in view
+
+
+# -- codegen: byte-identical output, and each `icon_position:` branch --------
+
+
+def test_unauthored_left_position_generates_byte_identical_code(write_design, bag, db):
+    """The bar plan 03 §6.3/§6.7 sets: a design that authors none of
+    'icon_position:'/'icon_gap:'/'icon_color:' must keep generating today's
+    exact code -- the literal fixed gap, the combined 'iconWidth' variable,
+    one 'dc.setColor' call shared by icon and text."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = _face(DESIGN, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+    assert "var iconWidth = 0;" in view
+    assert "iconWidth = dc.getTextWidthInPixels(iconGlyph, iconFont) + 4;" in view
+    assert "var totalWidth = iconWidth + textWidth;" in view
+    assert "dc.drawText(startX + iconWidth, Layout." in view
+    # no general-path artifacts anywhere
+    assert "iconGlyphWidth" not in view
+    assert "_ICON_GAP" not in view
+
+
+@pytest.mark.parametrize("position,marker", [
+    ("right", "dc.drawText(startX + textWidth + gap, Layout."),
+    ("top", "Graphics.TEXT_JUSTIFY_CENTER"),
+    ("bottom", "Graphics.TEXT_JUSTIFY_CENTER"),
+])
+def test_each_new_icon_position_gets_its_own_generated_branch(
+        write_design, bag, db, position, marker):
+    """A test pinning each position's generated branch (plan 03 §6.3)."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    text = DESIGN.replace("    icon_size: 8%r\n", f"    icon_size: 8%r\n    icon_position: {position}\n")
+    face = _face(text, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+    assert marker in view
+
+
+def test_authored_gap_becomes_a_per_device_layout_constant(write_design, bag, db):
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    text = DESIGN.replace("    icon_size: 8%r\n", "    icon_size: 8%r\n    icon_gap: 2%r\n")
+    face = _face(text, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+    assert "_ICON_GAP" in view
+
+
+def test_icon_color_draws_the_icon_in_its_own_colour(write_design, bag, db):
+    """A test that fails if the icon is drawn in the text colour when
+    `icon_color:` differs (plan 03's added scope)."""
+    from wfb.emit import monkeyc
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    text = DESIGN.replace(
+        "    icon_size: 8%r\n",
+        "    icon_size: 8%r\n    icon_color: palette.bg\n",
+    )
+    face = _face(text, write_design, bag)
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    view = monkeyc.emit_view(resolved).text
+    # two distinct setColor calls: one for the icon (palette.bg -> BG), one
+    # reset back to the text colour (palette.fg -> FG) before drawing text.
+    assert "dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);" in view
+    assert "dc.setColor(Palette.FG, Graphics.COLOR_TRANSPARENT);" in view
+    set_color_calls = [line for line in view.splitlines() if "dc.setColor(" in line]
+    assert len(set_color_calls) >= 2
+
+
 def test_apply_config_matches_settings_by_unique_identifier(write_design, bag, db):
     from wfb.emit import monkeyc
     from wfb.emit.resources import bake_fonts
@@ -617,6 +1005,48 @@ def test_unit_suffix_barrel_matches_the_python_table(write_design, bag):
         r'case Complications\.(UNIT_\w+):\s*return\s*"([^"]*)";', source))
     assert cases, "no unitSuffix cases found -- did the barrel change shape?"
     assert cases == complications.UNIT_SUFFIX
+
+
+@pytest.mark.parametrize("value, shown", [
+    (12.879, "12.9"),      # steps >= 10,000, as the simulator reports them (unit "K")
+    (9.876, "9.88"),
+    (21.5, "21.5"),
+    (101325.0, "101325"),
+    (10.0, "10"),
+    (9.999, "10"),         # rounds up past a threshold, then trims
+    (0.5, "0.5"),
+    (-3.25, "-3.25"),
+    (9876, "9876"),        # a Number is untouched
+    ("Mon 28", "Mon 28"),  # so is a String
+])
+def test_format_value_rounds_floats_and_trims_zeros(value, shown):
+    assert complications.format_value(value) == shown
+
+
+def test_slot_reading_goes_through_format_value(write_design, bag, db):
+    """`Float.toString()` prints six decimals ("12.879000K" in the simulator),
+    so the reading must never be drawn through it directly."""
+    from wfb.emit import monkeyc
+
+    _, resolved = _resolved(DESIGN, write_design, bag, db)
+    view = monkeyc.emit_view(resolved).text
+    assert "text += WfbComplications.formatValue(value);" in view
+    assert "value.toString()" not in view
+
+
+def test_format_value_barrel_matches_the_python_twin():
+    """The preview's `format_value` and the barrel's `decimalText` must use
+    the same thresholds and default, or the preview lies about the watch."""
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parent.parent / "runtime-lib"
+              / "WfbComplications.mc").read_text(encoding="utf-8")
+    body = source[source.index("function decimalText"):source.index("function unitSuffix")]
+    assert "var decimals = 2;" in body
+    assert "if (magnitude >= 100) {\n            decimals = 0;" in body
+    assert "} else if (magnitude >= 10) {\n            decimals = 1;" in body
+    assert complications.format_value(99.99) == "100"   # one decimal, rounds to 100.0, trimmed
+    assert complications.format_value(5.0) == "5"
 
 
 def test_preview_renders_without_crashing(write_design, bag, db):

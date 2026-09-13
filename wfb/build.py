@@ -22,6 +22,7 @@ from . import desugar, lint, validate, yamlsrc
 from .devices import Device, DeviceDatabase, DeviceError
 from .diagnostics import Bag, BuildError
 from .emit import GeneratedProject, generate
+from .emit import strhash
 from .emit.project import write as write_project
 from .fonts import BakedFont
 from .ir import Face, build as build_ir
@@ -159,6 +160,22 @@ def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None 
 
     build_dir = (output / _slug(face.name)).resolve()
     project = generate(face, devices, build_dir, baked)
+    for collision in project.string_collisions:
+        shown = " and ".join(
+            f"{strhash.describe(text)} ({', '.join(paths)})"
+            for text, paths in collision.strings.items())
+        bag.error(
+            "string-label",
+            f"monkeyc cannot compile this design: {shown} share the string "
+            f"label str___{collision.hash}",
+            notes=[
+                "monkeyc names each string constant by its Java hash code and crashes "
+                "(\"A critical error has occurred\") when two different strings share one",
+                "change one of the two strings, or pick a different icon for one of them",
+            ],
+        )
+    if project.string_collisions:
+        return None
     try:
         write_project(project, clean=clean)
     except OSError as exc:

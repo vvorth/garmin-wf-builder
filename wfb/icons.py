@@ -36,11 +36,33 @@ condition alike -- is written exactly once, in `wfb/icon_catalog.py`.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 from .icon_catalog import CATALOG, Icon
 from .units import Length
+
+
+@dataclass(frozen=True)
+class SlotIcon:
+    """One resolved icon for one `complications.TYPES` key, as
+    `wfb.ir.ConfigDataSlot.icons` returns it (plan 03 §6.2).
+
+    ``key`` is what the generated per-slot switch (`wfb.emit.monkeyc.
+    _emit_complication_slot_icon_method`) returns -- either a
+    :data:`CATALOG` name (the ordinary case, and every entry
+    :data:`COMPLICATION_ICON` supplies) or the canonical ``"U+XXXX"``
+    spelling (:func:`codepoint_key`) for a per-choice ``glyph:`` override --
+    and ``codepoint`` is the character itself, exactly as a `SourceFile`
+    consumer (baking, measuring, drawing) needs regardless of which of the
+    two `key` is. Kept as one small pair rather than two parallel dicts so
+    every consumer that used to write `icons.CATALOG[name].codepoint` after
+    looking a name up now gets both at once, from one place.
+    """
+
+    key: str
+    codepoint: str
 
 #: The vendored font every icon glyph comes from.
 FONT_PATH = Path(__file__).resolve().parent / "assets" / "icons" / "SymbolsNerdFont-Regular.ttf"
@@ -85,6 +107,24 @@ def parse_codepoint(text: str) -> str | None:
         return chr(int(match.group(1), 16))
     except (ValueError, OverflowError):
         return None
+
+
+def codepoint_key(character: str) -> str:
+    """The canonical ``"U+XXXX"`` spelling for a character.
+
+    Used wherever a glyph, not a catalogue name, has to serve as a stable
+    dict/switch key -- a `complication_slot` choice's ``glyph:`` override
+    (`wfb.ir.ConfigDataSlot.icons`, plan 03 §6.2) is the first user: the
+    per-slot icon switch returns this string, and `IconGlyphs.glyph()` gains
+    a matching ``case`` for it, generated from the same
+    :data:`wfb.icon_catalog.CATALOG`-shaped table every other dynamic icon
+    already uses. Always at least 4 hex digits, uppercase, zero-padded --
+    deterministic regardless of how the author spelled it (``"u+f1341"`` and
+    ``"U+F1341"`` both produce ``"U+F1341"``), so two authors' equivalent
+    ``glyph:`` overrides collapse to one generated switch case rather than
+    two differently-spelled ones.
+    """
+    return f"U+{ord(character):04X}"
 
 
 def name_for_codepoint(character: str) -> str | None:
@@ -480,9 +520,27 @@ def icon_for_source(source_path: str) -> Icon | None:
 # dynamic icon.
 # ============================================================================
 
-#: `wfb.complications.TYPES` key -> a :data:`CATALOG` name. **Not every one of
-#: the 42 types is here, deliberately.** Three reasons a type is left out,
-#: each real rather than an oversight:
+#: `wfb.complications.TYPES` key -> a :data:`CATALOG` name.
+#:
+#: **Superseded 2026-09-13** (plan 03 §6.4, user direction: "map all
+#: available complications to some icon ... i will review and adjust
+#: later"): every one of the 42 types is now mapped. The original account
+#: below -- kept in place per house style, since it was the real reasoning
+#: at the time and explains *why* each of these 24 additions needed its own
+#: new catalogue entry rather than reusing one of the original 8 -- no
+#: longer describes this table's shape, but still describes the standard
+#: each new entry had to clear: no reusing an unrelated glyph (the
+#: `body_battery`-is-not-`battery`, `pulse_ox`-is-not-`heart` caution
+#: applies to every new entry just as much as the original 8), and the two
+#: weather-reading types (`current_weather`/`forecast_weather_*day`) still
+#: get one fixed, *type*-keyed icon (`wfb.icon_catalog.CATALOG["weather"]`)
+#: rather than the value-keyed condition icon `icon_for: weather.condition`
+#: resolves on-device -- that reason for a gap was real and stays real; the
+#: user's direction was to close every *other* kind of gap, not that one.
+#:
+#: Original account (2026-09 pre-dated entry, describing the 8-of-42 table):
+#: **Not every one of the 42 types is here, deliberately.** Three reasons a
+#: type is left out, each real rather than an oversight:
 #:
 #: * **The icon would depend on the pulled *value*, not the type.**
 #:   `current_weather`/`forecast_weather_*day` report a `Weather.CONDITION_*`
@@ -503,9 +561,15 @@ def icon_for_source(source_path: str) -> Icon | None:
 #:   policy `wfb.icon_catalog`'s own docstring already states -- not
 #:   something this table should paper over with an unrelated glyph.
 #:
-#: An unmapped type simply draws no icon for that slot -- the reading itself
-#: still renders normally -- which is a legitimate, documented outcome, not a
-#: build error: `docs/format.md`'s `complication_slot` section says so.
+#: The weather types keep drawing a fixed, generic glyph (`weather`) for
+#: every one of `current_weather`/`forecast_weather_1day`/`2day`/`3day` --
+#: the *value*-keyed condition icon those types would ideally show is still
+#: future work, tracked the same way it always was.
+#:
+#: `wfb.ir.ConfigDataSlot.icons` is the one place this table (plus any
+#: per-choice override) actually gets resolved into what a design draws --
+#: see that property's docstring, not this dict directly, from anywhere
+#: outside this module.
 COMPLICATION_ICON: dict[str, str] = {
     "battery": "battery",
     "steps": "steps",
@@ -515,6 +579,40 @@ COMPLICATION_ICON: dict[str, str] = {
     "heart_rate": "heart",
     "weekly_run_distance": "distance",
     "weekly_bike_distance": "distance",
+    "body_battery": "body_battery",
+    "stress": "stress",
+    "sunrise": "sunrise",
+    "sunset": "sunset",
+    "altitude": "altitude",
+    "sea_level_pressure": "pressure",
+    "current_temperature": "temperature",
+    "high_low_temperature": "temperature_range",
+    "calendar_events": "calendar_event",
+    "date": "calendar",
+    "weekday_monthday": "calendar_day",
+    "intensity_minutes": "intensity",
+    "vo2max_run": "run",
+    "vo2max_bike": "bike",
+    "respiration_rate": "lungs",
+    "pulse_ox": "pulse_ox",
+    "recovery_time": "recovery",
+    "training_status": "training",
+    "race_predictor_5k": "finish_flag",
+    "race_predictor_10k": "finish_flag",
+    "race_predictor_half_marathon": "finish_flag",
+    "race_predictor_marathon": "finish_flag",
+    "race_pace_predictor_5k": "pace",
+    "race_pace_predictor_10k": "pace",
+    "race_pace_predictor_half_marathon": "pace",
+    "race_pace_predictor_marathon": "pace",
+    "sleep_score": "sleep",
+    "solar_input": "solar",
+    "wheelchair_pushes": "wheelchair",
+    "last_golf_round_score": "golf",
+    "current_weather": "weather",
+    "forecast_weather_1day": "weather",
+    "forecast_weather_2day": "weather",
+    "forecast_weather_3day": "weather",
 }
 
 

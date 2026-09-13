@@ -2301,3 +2301,84 @@ not a generated product. Data Color stays a data colour.
   keys, and a lint for unmapped choices. Not chosen yet.
 
 **Open for the user:** the open-questions sections of Plans 02 and 03.
+
+## 2026-09-13 — Complication-slot icons built (plan 03 §6)
+
+Implemented plan 03 §6 end to end: `wfb.icons.COMPLICATION_ICON` now maps all
+42 native complication types (24 new catalogue entries in
+`wfb/icon_catalog.py`, every codepoint verified against the vendored font's
+own cmap, none colliding); `config: data:`'s `choices:` accepts a mapping-form
+item (`{type, icon}`/`{type, icon: none}`/`{type, glyph}`) that overrides a
+choice's icon per design, validated by the same code a plain `icon` element's
+own `icon:`/`glyph:` use; and `type: complication_slot` gained
+`icon_position:` (`left`/`right`/`top`/`bottom`), `icon_gap:` and
+`icon_color:`. One new helper, `ConfigDataSlot.icons -> dict[type,
+icons.SlotIcon]`, replaced five copies of the same comprehension across
+`wfb/layout.py`, `wfb/emit/resources.py`, `wfb/emit/monkeyc.py` (twice) and
+`wfb/preview.py`. A new pure function, `wfb.layout.
+complication_slot_pair_geometry`, is the one place the icon+reading pair's
+box is computed for every position; the generated Monkey C mirrors it at
+runtime (the real text is not known until pulled) rather than calling it.
+Generated output for the unauthored case (`left`, no gap, no `icon_color`) is
+byte-identical to before — proven by the golden-file tests staying green and
+by a dedicated test asserting the fast-path code text.
+
+**Mid-build scope addition, from the user:** include `icon_position: bottom`
+(mirrors `top`); allow `icon_size:` together with `choices: any` (previously
+an error — lifted since every native type now has a catalogue icon, so `any`
+resolves against the whole table); add `icon_color:`. All three shipped.
+
+**A `monkeyc` crash, first misdiagnosed, then root-caused.** Building
+`choices: any` + `icon_size:` crashed real `monkeyc` 9.2.0 on every target
+(`Redefinition of label (data) str___1798574`, from
+`Compiler2.assembleProject`). The build subagent bisected it by number of
+choices, concluded "38 types build, 39 crash, not purely a count", and
+documented the combination as unshippable. On review, the label number
+recurring across unrelated projects gave it away: `1798574` is the Java
+`String.hashCode()` of both the `distance` glyph (U+F08F0) and the new
+`temperature` glyph (U+F050F). A slot with just those two choices crashes
+the same way. monkeyc labels string constants by hash and cannot cope with
+two different strings sharing one. **Fix:** `wfb/emit/strhash.py` finds
+collisions across every generated source and the barrel; a colliding
+`IconGlyphs` glyph is emitted as `(0x…).toChar().toString()`
+(`Lang.Number.toChar`, API 1.3.0), and anything else is a new
+`string-label` build error rather than a monkeyc crash. Both paths are
+driven red in `tests/test_strhash.py`. `examples/slots/face.yaml`'s
+`bottom_reading` now declares `icon_size:` with `choices: any` and builds
+warning-free on all three targets (6,253 B on `fenix8solar47mm`). The
+lesson, recorded in `docs/lore/toolchain.md`: when a bisection says "count
+threshold, but not purely", look for a content collision. The scratch
+design for `right`/`top`/a `%r` gap/a `glyph:` override also builds
+warning-free on all three targets.
+
+**Verification:** fast suite 1,027 passed / 5 known pre-existing failures
+(unchanged set); every new diagnostic driven red, including a coverage test
+for all 42 types (driven red by removing one entry) and the catalogue's own
+codepoint-uniqueness test; real `monkeyc` builds of `examples/slots/face.yaml`
+and the scratch design warning-free on all three targets, with
+`--build-stats` before (3,827 B fenix8solar47mm) and after (3,786 B with
+`top_reading`'s changes alone, where the per-choice `icon: none` override
+removes a switch case; 6,253 B once `bottom_reading` gained `icon_size:`
+over `choices: any`, i.e. about 2.5 KB for all 42 icons); `wfb preview` inspected for all four `icon_position:` values,
+matching the authored layout; a 42-row contact sheet of every mapped icon at
+16px/40px committed at `docs/plans/03-icon-sheet.png`.
+
+**Unverified, as with every `config:` feature so far:** any actual on-device
+behaviour (no simulator in this container, no watch).
+
+**Follow-up the same day, from the user's first simulator run.** The
+`slots` top slot on steps drew `STEPS 9876` below 10,000 but
+`STEPS 12.879000K` above it: the simulator reports steps at or above 10,000
+as the Float 12.879 with the unit string `"K"` (the SDK's Type table
+documents steps as a plain Number), and Monkey C's `Float.toString()`
+always prints six decimals. The reading now goes through a new barrel
+helper, `WfbComplications.formatValue`: `toString()` for a Number, Long or
+String, while a Float or Double is rounded to three significant figures
+without dropping integer digits, then trimmed of trailing zeros (so
+`12.9K`). `wfb.complications.format_value` is its Python twin, used by the
+preview, and a test pins the barrel's thresholds to it. The `slots` example
+now also shows a per-choice `glyph:` override (`heart_rate` ->
+`U+F05F6`, `md-heart_pulse`) and `icon_color: palette.accent`. It builds
+warning-free on all three targets at 6,638 B on `fenix8solar47mm`. Whether
+`12.9K` and the accent icon look right on the watch still needs the user's
+simulator.
