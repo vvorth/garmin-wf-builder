@@ -51,7 +51,8 @@ fonts:
     antialias: true
   test:
     source: assets/ChivoMono-Bold.ttf
-    # source: assets/SairaStencil-SemiBold.ttf
+    # source: custom-fonts/SairaStencilOne-Regular.ttf
+    # source: assets/intro_inline.otf
     size: 70%r
     antialias: true
 
