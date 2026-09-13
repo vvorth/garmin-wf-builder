@@ -190,18 +190,13 @@ class _Renderer:
                 self.draw.rounded_rectangle(box, radius=radius, outline=fill,
                                             width=max(1, placed.thickness * s))
         elif element.shape == "arc":
-            # Same conversion the generated code gets from WfbArc.drawSpan:
-            # Pillow's arc runs clockwise from 3 o'clock, the format's angles run
-            # clockwise from 12, so shift by 90 and order the endpoints so Pillow
-            # takes the short way round -- exactly as `_progress` does.
+            # Same whole-degree rule the generated code gets from
+            # WfbArc.drawSpan -- see `arc_span`.
             cx, cy = placed.center[0] * s, placed.center[1] * s
             r = placed.radius * s
-            start = placed.start_angle - 90.0
-            sweep = max(-359.9, min(359.9, placed.sweep))
-            end = start + sweep
-            a, b = (start, end) if sweep >= 0 else (end, start)
-            if r > 0 and sweep != 0:
-                self.draw.arc([cx - r, cy - r, cx + r, cy + r], a, b,
+            span = arc_span(placed.start_angle, placed.sweep)
+            if r > 0 and span is not None:
+                self.draw.arc([cx - r, cy - r, cx + r, cy + r], *span,
                               fill=fill, width=max(1, placed.thickness * s))
         elif element.shape == "ellipse":
             cx, cy = placed.center
@@ -271,21 +266,14 @@ class _Renderer:
             cx, cy, r = placed.center[0] * s, placed.center[1] * s, placed.radius * s
             width = max(1, placed.thickness * s)
             box = [cx - r, cy - r, cx + r, cy + r]
-            # Pillow's arc runs clockwise from 3 o'clock; the author's angles run
-            # clockwise from 12 o'clock, so shift by 90 degrees.
-            start = placed.start_angle - 90.0
-
-            def span(sweep: float) -> tuple[float, float]:
-                """Order the endpoints so Pillow takes the short way round."""
-                end = start + sweep
-                return (start, end) if sweep >= 0 else (end, start)
-
-            if element.track_color is not None:
-                a, b = span(placed.sweep)
-                self.draw.arc(box, a, b, fill=self._color(element.track_color), width=width)
-            if fraction > 0:
-                a, b = span(placed.sweep * fraction)
-                self.draw.arc(box, a, b, fill=self._color(element.color), width=width)
+            # The whole-degree rule WfbArc.drawSpan applies on the device --
+            # see `arc_span`.
+            track = arc_span(placed.start_angle, placed.sweep)
+            if element.track_color is not None and track is not None:
+                self.draw.arc(box, *track, fill=self._color(element.track_color), width=width)
+            fill = arc_span(placed.start_angle, placed.sweep * fraction) if fraction > 0 else None
+            if fill is not None:
+                self.draw.arc(box, *fill, fill=self._color(element.color), width=width)
             return
 
         box = self._rect(placed.box)
@@ -633,6 +621,31 @@ class _Renderer:
             return (255, 255, 255)
         color = Color.parse(int(value))
         return (color.r, color.g, color.b)
+
+
+def _round_away(degrees: float) -> int:
+    """Round half away from zero -- `WfbArc.roundAway`, not Python's banker's `round`."""
+    return int(degrees - 0.5) if degrees < 0 else int(degrees + 0.5)
+
+
+def arc_span(start_angle: float, sweep: float) -> tuple[int, int] | None:
+    """The Pillow ``(start, end)`` for an arc, or None when nothing is drawn.
+
+    The host twin of `runtime-lib/WfbArc.mc`'s `drawSpan`. `Dc.drawArc` only
+    takes whole degrees and draws a complete circle when start equals end, so
+    the device decides on the *rounded* sweep: under half a degree draws
+    nothing, and only a sweep of 360 or more is the full ring. The preview
+    applies the same rule so it cannot show a sliver the watch will not draw.
+    ``start_angle`` is the author's clockwise-from-12 angle; Pillow runs
+    clockwise from 3 o'clock, hence the 90-degree shift, and the endpoints are
+    ordered so Pillow takes the short way round.
+    """
+    whole = max(-360, min(360, _round_away(sweep)))
+    if whole == 0:
+        return None
+    start = _round_away(start_angle) - 90
+    end = start + whole
+    return (start, end) if whole > 0 else (end, start)
 
 
 def _synthetic_series(n: int) -> list[float | None]:

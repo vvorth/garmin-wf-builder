@@ -73,6 +73,7 @@ there.
   - [Review session: seven more logical-error findings, all fixed](#review-session-seven-more-logical-error-findings-all-fixed)
   - [`type: carousel` is deleted entirely](#type-carousel-is-deleted-entirely)
   - [The bare-number font `size:` + `scale:` spelling is deleted outright](#the-bare-number-font-size--scale-spelling-is-deleted-outright)
+  - [A barely-started progress arc drew the whole ring on a real watch](#a-barely-started-progress-arc-drew-the-whole-ring-on-a-real-watch)
 
 ---
 
@@ -2204,3 +2205,42 @@ feeding the legacy scaling and is gone with it; `FontSpec.scale`,
 `schema/wfb-face-1.schema.json`'s `$defs/fontSize` and `scale` property are
 all deleted too.
 
+### A barely-started progress arc drew the whole ring on a real watch
+
+**Reported from a real fēnix 8 Solar 47mm**, running `examples/dashboard`: one
+of the four bezel arcs painted a complete circle round the face, in the
+data colour. The data colour narrowed it to a *fill*, not a track (tracks
+draw in `colors.dark`).
+
+**Cause.** `Dc.drawArc` takes whole degrees and draws a complete circle when
+start equals end. `WfbArc.drawSpan` guarded that for a full sweep (clamping
+to ±359.9) but converted start and end to whole degrees *separately*, with
+`toNumber()` truncating towards zero, at the call site. A fill under one
+degree therefore collapsed: `arc_steps` (148deg, sweep -32deg -> Garmin start
+302.0) with a 2% fill gave end 302.64, truncated to 302 == start. Only an
+anticlockwise (negative) sweep could do it -- a clockwise one's end is
+`start - x`, which truncates to `start - 1`, a 1-degree stub. So on the
+dashboard it was `arc_steps` for the first ~3% of the step goal each day
+(any `0 < steps < goal/32`), and in principle `arc_battery_right` below 3.6%.
+At exactly 0 steps `drawProgress` returned early, which is why it was not
+visible straight after midnight.
+
+**Fix.** `drawSpan` now decides on the whole-degree sweep: round half away
+from zero (`roundAway`; plain `toNumber` would round the two directions
+differently), return when that is 0, clamp to ±360, and derive start and
+end from integers. ±360 is now the *only* way to get the full circle, and it
+is intentional. `wfb/preview.py` gained `arc_span`, the host twin, used by
+both `shape: arc` and `progress` arcs -- the old preview drew a sub-degree
+sliver where the watch drew a full ring, so it could never have shown this.
+
+**Verification, and its limit.** Monkey C cannot run here (no simulator), so
+`tests/test_arc_barrel.py` parses the real barrel for the statements
+carrying the rule and exercises a line-for-line Python transcription, plus a
+transcription of the old code as a control, a sweep over start/sweep in
+tenths of a degree, device-vs-preview agreement, and a preview render at 50
+vs 2,000 steps. Driven red both ways: the source check fails against the
+`HEAD` barrel, the 50-step render fails against the `HEAD` preview. A real
+`monkeyc` build of the dashboard for `fenix8solar47mm` is compiler-warning-
+free (9,829 B). `pytest -m "not slow"`: 966 passed, 4 failed -- the known
+`test_example_is_clean_on_every_target` set (antialias, big-clock-3,
+dashboard, enduro). **Not yet confirmed on the watch.**
