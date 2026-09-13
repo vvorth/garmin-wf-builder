@@ -2244,3 +2244,60 @@ vs 2,000 steps. Driven red both ways: the source check fails against the
 free (9,829 B). `pytest -m "not slow"`: 966 passed, 4 failed -- the known
 `test_example_is_clean_on_every_target` set (antialias, big-clock-3,
 dashboard, enduro). **Not yet confirmed on the watch.**
+
+---
+
+## 2026-09-13 — Planning: Styles as layouts + colour schemes; complication-slot icons (no code)
+
+A docs-only session. No compiler code changed and no build was run.
+
+**The ask.** The user observed that `config: colors:` (a `color_scheme:` on
+the Styles axis) is really the stock face's *Bkgd. Color*. On a stock face,
+*Style* instead switches **which widgets are drawn** (digital clock vs analog
+hands). They asked for plans for both, with two candidate YAML shapes: a
+container per style, or a per-element membership property.
+
+**Re-verified against SDK 9.2.0, not just cited from research 09:** there is
+no background-colour axis. `resources.xsd` `watchfaceConfigType` is an
+`xs:all` of exactly `styles`/`data`/`accentColors`/`dataColors`.
+`WatchFaceConfig.Settings` has exactly `styleId`/`complicationSettings`/
+`accentColor`/`complicationColor`. `api.debug.xml` has exactly four
+`WATCH_FACE_CONFIG_TYPE_*`. Group labels are not author-controllable.
+
+**A wrong turn, corrected in conversation.** The first draft of Plan 01
+recommended moving the scheme onto the Data Color axis (swatch picker; the
+returned colour matched to the *nearest* declared swatch, because equality of
+`Color.color` is undocumented). The user then proposed "rename Styles to
+color schemes and put real styles on the free fourth option". That was
+answered: **there is no free option**. Data is the fourth and already carries
+`config: data:` slots (the user had not used it), and a YAML rename does not
+add an axis. **The user decided:** colours and layouts share Styles as
+**explicitly listed entries**, each naming a layout, a scheme, or both. It is
+not a generated product. Data Color stays a data colour.
+
+**Written:**
+
+- `docs/plans/01-background-color.md`: the option analysis (keep on
+  Styles / ride a colour axis / phone settings / derived roles), with the
+  decision recorded at the top and the superseded recommendation left in
+  place, marked.
+- `docs/plans/02-style-layouts.md`: rewritten after the decision.
+  `layouts:` (widget sets; container form A desugars to per-element
+  `layouts: [..]` form B, like `static:` and the mapping form);
+  `config: style:` entries `{label, layout, colors}` **replacing
+  `config: colors:` outright**; guards test `_configLayout`, not the entry;
+  layout membership is not a binding (static allowed, reusing
+  `applyConfig`'s `repaintStatic`); holds are layout-aware (unlike
+  `visible:`); pairwise lints skip disjoint layouts; `excludeAnnotations` is
+  noted as a later way to strip layouts on fr955. Phase 1 is a pure
+  re-spelling of shipped colour behaviour. **Flagged prerequisite: the format
+  cannot draw analog hands** (no time-bound angle anywhere).
+- `docs/plans/03-complication-slot-icons.md`: how `icon_size:` works
+  (getType → generated switch → `IconGlyphs.glyph`; one `setColor`; runtime
+  centring; 4 px gap), and its limits: **only 8 of 42 types map to an icon,
+  the rest silently draw text only**; no `icon_color`/position/gap; rejected
+  with `choices: any`; heights normalised to the default choice. Options: a
+  bigger catalogue, per-choice `icon:` in YAML (the leaning), presentation
+  keys, and a lint for unmapped choices. Not chosen yet.
+
+**Open for the user:** the open-questions sections of Plans 02 and 03.

@@ -50,6 +50,8 @@ schema in `schema/`, and the example face in `examples/slice/`. `docs/format.md`
 is the format reference; `docs/limitations.md` records what the platform and the
 linter will not do; `docs/container.md` covers the Docker image, which builds
 faces with nothing installed on the host but Docker and the device definitions.
+`docs/plans/` holds proposals that are written but not built (numbered, each
+with its status at the top) -- check it before designing a feature from scratch.
 
 ---
 
@@ -249,6 +251,16 @@ These are the findings that shaped every decision. Full detail and citations in
    `Number` Garmin gives no meaning to. And a style is *global*, so the naive
    "one `styleId`, therefore one selectable area" is wrong: every area on the
    face can respond to the same number independently. See research 08 §4.
+
+   **9c. All four axes are already spoken for -- there is no free one for
+   layouts.** Styles carries colour schemes, Data carries `config: data:`
+   complication slots, plus the two colour axes. Renaming a YAML key does not
+   add an axis (the editor's group label is Garmin's). **Decided 2026-09-13:**
+   colours *and* widget layouts share Styles as **explicitly listed entries**
+   (each names a layout, a colour scheme, or both); background colour does not
+   move to Data Color. Not built -- see `docs/plans/01-background-color.md`
+   (the decision and the rejected options) and `docs/plans/02-style-layouts.md`
+   (the design: `layouts:`, `config: style:` replacing `config: colors:`).
 
 10. **`alphaBlendingSupport: false`** on all three targets. No transparency.
 
@@ -510,6 +522,15 @@ and the ADR each is specified in):
    configuration in the repo at all, and `mypy` is not even a dev dependency.
 10. **`wfb install`, `package`, `migrate`** — named in the original brief,
     not built.
+11. **Styles that change which widgets are drawn** (digital vs analog), and
+    colour schemes re-spelled as Styles entries -- planned, not built:
+    `docs/plans/02-style-layouts.md` (with `docs/plans/01-background-color.md`
+    for why). Needs analog hands (`type: hand`, no plan yet) for its
+    motivating example; nothing in the format rotates by time today.
+12. **Complication-slot icons cover 8 of 42 types** and silently draw text
+    only for the rest; icon and text share one colour, fixed left/4 px.
+    Findings and options (per-choice `icon:` in YAML recommended, plus a lint):
+    `docs/plans/03-complication-slot-icons.md`.
 
 **A previously-recorded loose end, now resolved — noted so nobody goes
 looking for the problem again:** commit `614d100` added
