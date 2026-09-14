@@ -2622,7 +2622,7 @@ The instructions were the same shape as plan 04: research, design,
 requirements, subagents build it, the orchestrator integrates and commits.
 
 **Research and design** are in plan 05, deleted once built. Read it with
-`git show <this-commit>:docs/plans/05-patterns.md` for the plan as built
+`git show f9115ca:docs/plans/05-patterns.md` for the plan as built
 (§9 lists the choices made without a round-trip). The probe,
 `docs/research/probes/pattern-cost/`, measured four ways to draw a 60-tick
 minute ring and found the gap between "bake every copy as its own element"
