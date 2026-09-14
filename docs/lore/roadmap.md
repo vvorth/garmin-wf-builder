@@ -18,12 +18,14 @@ disagree, `docs/limitations.md` is right and this needs updating.
 
 **Shipped** (each is a session in `docs/history.md`, in dependency order):
 
-- All eight element types: `group`, `shape` (`rectangle`, `rounded_rectangle`,
+- All nine element types: `group`, `shape` (`rectangle`, `rounded_rectangle`,
   `circle`, `line`, `arc`, `ellipse`, `polygon`), `text`, `progress` (`arc`,
   `bar`), `icon`, `graph` (`line`, `area`, `bars`), `complication_slot`,
   `hands` (analog hands, plan 04, 2026-09-14 -- four rotatable primitives
   per hand, rotated on the device by the time, the one exception to "the
-  device does no layout arithmetic").
+  device does no layout arithmetic"), `pattern` (plan 05, 2026-09-14 -- a
+  template repeated radially or linearly, transformed on the device per
+  copy, the second exception).
 - `static:` (paint-once buffering, opaque, later given an ordering rule instead
   of a hard error), `antialias:` (font resource + primitive runtime, two
   unrelated mechanisms under one key), `visible:`, `monospace:` + `align:` on
@@ -160,6 +162,19 @@ and the ADR each is specified in):
     the worked example. Unverified on-device (no simulator, no watch): what
     any of it looks like, and whether the second hand actually vanishes on
     the first sleeping frame.
+14. **Built 2026-09-14** (plan 05): patterns, the ninth element type.
+    `type: pattern` repeats a template of 1–16 parts -- the hand-part
+    vocabulary plus an `arc` centred on the origin -- either turned about
+    `at:` (`pattern: radial`: `count`, `step` defaulting to 360°/count,
+    `start`) or stepped along a whole-pixel `{dx, dy}` (`pattern:
+    linear`), with `skip:`/`skip_every:` to leave copies out. The watch
+    loops over the copies and transforms the resolved template, because
+    baking them measured about 30x the memory
+    (`docs/research/probes/pattern-cost/`; ADR 0004 §7). Hands' rotate
+    helpers moved into the shared `runtime-lib/WfbGeom.mc`.
+    `examples/patterns/face.yaml` is the worked example. Not built: text
+    parts (numerals), `pattern: grid`, data-driven colours
+    (`docs/limitations.md` §2). Unverified on-device.
 
 **A previously-recorded loose end, now resolved — noted so nobody goes
 looking for the problem again:** commit `614d100` added

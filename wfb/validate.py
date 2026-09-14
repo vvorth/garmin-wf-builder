@@ -68,14 +68,26 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
 
     # An unknown element `type:` makes every oneOf branch fail for the same
     # uninformative reason, so it is caught first and named directly.
-    bad_types = _check_element_types(doc, bag) + _check_hand_frame(doc, bag)
+    bad_types = (
+        _check_element_types(doc, bag) + _check_hand_frame(doc, bag)
+        + _check_pattern_frame(doc, bag)
+    )
 
     validator = Draft202012Validator(load_schema())
     errors = sorted(validator.iter_errors(doc.data), key=lambda e: list(e.absolute_path))
     for error in errors:
-        if any(_under(list(error.absolute_path), prefix) for prefix in bad_types):
-            continue
+        # Checked per *narrowed* (leaf) error, not the raw one straight out of
+        # `iter_errors`: an element lives inside the `element` oneOf, so a
+        # violation nested inside it (a pattern part's `anchor:`, say) only
+        # gets its own full path once `_narrow` has picked the one branch the
+        # author meant -- the outer oneOf failure's own `absolute_path` is
+        # just the element's, too shallow to match a `_check_pattern_frame`/
+        # `_check_hand_frame` entry for a key several levels deeper.  `hands:`
+        # and a whole bad `type:` are unaffected: neither sits inside a
+        # oneOf, so `_narrow` hands either straight back unchanged.
         for narrowed in _narrow(error):
+            if any(_under(list(narrowed.absolute_path), prefix) for prefix in bad_types):
+                continue
             _report(doc, bag, narrowed)
     return len(bag.errors) == before
 
@@ -92,7 +104,7 @@ PROGRESS_STYLE_KEYS = {
 #: The element types this format version understands.
 ELEMENT_TYPES = (
     "group", "shape", "text", "progress", "icon", "graph", "complication_slot",
-    "hands",
+    "hands", "pattern",
 )
 
 #: Names authors reach for that belong to a discriminated pair, or to another
@@ -341,6 +353,117 @@ def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list]:
                 if isinstance(points, list):
                     for i, point in enumerate(points):
                         position(point, here + ["points", i])
+    return bad
+
+
+def _pattern_step_unit(value: object) -> str | None:
+    """`pt` when ``value`` is a length string in that unit -- the only one a
+    linear pattern's ``{dx, dy}`` step refuses.  Unlike a hand-frame length,
+    `px`, `%` and `%r` are all fine here: a step is resolved against the
+    parent box, not a boxless frame (plan 05 §5.1)."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if text.endswith("pt"):
+        return "pt"
+    return None
+
+
+def _check_pattern_frame(doc: YamlDocument, bag: Bag) -> list[list]:
+    """The same friendly explanation `_check_hand_frame` gives a hand part,
+    for a pattern's template (plan 05 §5.2: a pattern part is authored
+    exactly like a hand part -- px/%r only, no `anchor:`) plus one more of
+    its own: a linear pattern's `step:` refuses `pt` (no font in scope),
+    though `%`/`%r` are fine there since a step resolves against the parent
+    box, unlike a part's own position.
+
+    Returns the value paths already accounted for, so the schema's own
+    (blunter) error for each is dropped -- same contract as
+    `_check_hand_frame`.
+    """
+    bad: list[list] = []
+
+    def length(container: dict, key: str, path: list) -> None:
+        unit = _hand_unit(container.get(key))
+        if unit is None:
+            return
+        bag.error(
+            "schema",
+            f"{_dotted(path)}: {container[key]!r} -- a pattern part's "
+            f"lengths are px or %r only; {_HAND_UNIT_REFUSALS[unit]}",
+            doc.span(container, key),
+            notes=["every coordinate in a pattern part is measured from the "
+                   "pattern's own 'at:'; %r (the screen's minor radius) "
+                   "scales it with the dial"],
+        )
+        bad.append(path)
+
+    def position(raw: object, path: list) -> None:
+        if not isinstance(raw, dict):
+            return
+        if "anchor" in raw:
+            bag.error(
+                "schema",
+                f"{_dotted(path)}: 'anchor:' is not accepted in a pattern "
+                "part -- its coordinates are measured from the pattern's "
+                "own 'at:', and there is no box to anchor to",
+                doc.span(raw, "anchor"),
+                notes=["{dx, dy} or {angle, radius} are offsets from 'at:'"],
+            )
+            bad.append(path)
+        for key in _HAND_POSITION_LENGTHS:
+            length(raw, key, path + [key])
+
+    def visit(elements, path: list) -> None:
+        if not isinstance(elements, list):
+            return
+        for index, element in enumerate(elements):
+            if not isinstance(element, dict):
+                continue
+            here = path + [index]
+            if element.get("type") == "pattern":
+                step = element.get("step")
+                if isinstance(step, dict):
+                    for key in ("dx", "dy"):
+                        if _pattern_step_unit(step.get(key)) == "pt":
+                            # Recorded as the whole `step` object, not
+                            # `step.dx`: `step:` is an angle-or-{dx, dy}
+                            # oneOf with no discriminator, so the schema's
+                            # own error for it narrows only as far as
+                            # `step` itself, never down to the one bad key.
+                            step_path = here + ["step"]
+                            bag.error(
+                                "schema",
+                                f"{_dotted(step_path + [key])}: {step[key]!r} -- a "
+                                "linear pattern's step is px, % or %r, not "
+                                "pt: there is no font in scope to measure a "
+                                "pt against",
+                                doc.span(step, key),
+                                notes=["px, %r and a bare number are also "
+                                       "fine here"],
+                            )
+                            bad.append(step_path)
+                parts = element.get("parts")
+                if isinstance(parts, list):
+                    for i, part in enumerate(parts):
+                        if not isinstance(part, dict):
+                            continue
+                        part_path = here + ["parts", i]
+                        for key in _HAND_PART_LENGTHS:
+                            length(part, key, part_path + [key])
+                        for key in _HAND_PART_POSITIONS:
+                            position(part.get(key), part_path + [key])
+                        size = part.get("size")
+                        if isinstance(size, dict):
+                            for key in ("width", "height"):
+                                length(size, key, part_path + ["size", key])
+                        points = part.get("points")
+                        if isinstance(points, list):
+                            for i2, point in enumerate(points):
+                                position(point, part_path + ["points", i2])
+            visit(element.get("children"), here + ["children"])
+
+    visit(doc.data.get("elements"), ["elements"])
     return bad
 
 

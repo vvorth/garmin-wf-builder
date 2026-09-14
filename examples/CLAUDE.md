@@ -6,7 +6,10 @@ axis (`config: data:`), `config/` the colour axes and `color_scheme:`,
 `styles/` `layouts:` and `config: style:` (widget-set switching, not just
 colour), and `analog/` analog hands (plan 04, 2026-09-14) -- two hand sets
 in two layouts, an off-centre small-seconds subdial, all four rotatable
-part shapes, and a `config.*` hand colour. The Phase 2 slice is no longer an
+part shapes, and a `config.*` hand colour, and `patterns/` `type: pattern`
+(plan 05, 2026-09-14) -- radial and linear repeats, every part shape
+including `arc`, `start:`, `skip:`/`skip_every:`, in and out of `static:`.
+The Phase 2 slice is no longer an
 example: it is the test fixture `tests/fixtures/slice/`.
 
 `big-clock-3` and `enduro` carry genuine, user-authored lint

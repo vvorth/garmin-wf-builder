@@ -38,7 +38,7 @@ only. Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 | 0 research (`docs/research/00`–`09`) | complete, reviewed |
 | 1 ADRs (`docs/adr/0001`–`0009`) | complete, reviewed |
 | 2 thin vertical slice | complete; the `.prg` runs in the user's host simulator |
-| 3 breadth | in progress: all 8 element types (analog hands added 2026-09-14, plan 04), `static:`, `antialias:`, all four `config:` axes, `on_hold:` shipped — see §6 |
+| 3 breadth | in progress: all 9 element types (analog hands and patterns added 2026-09-14, plans 04–05), `static:`, `antialias:`, all four `config:` axes, `on_hold:` shipped — see §6 |
 
 Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
@@ -221,6 +221,15 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
 - **Recently built:**
+  - **Built 2026-09-14** (plan 05): patterns. `type: pattern` repeats a
+    template of 1–16 parts (the hand vocabulary plus an `arc` centred on
+    the origin), `pattern: radial` (`count`, `step` angle defaulting to
+    360/count, `start`) or `pattern: linear` (`count`, `step: {dx, dy}`
+    in whole pixels), with `skip:`/`skip_every:`. The device loops and
+    transforms the resolved template (ADR 0004 amended again, measured in
+    `docs/research/probes/pattern-cost/`); the rotate helpers now live in
+    the shared `runtime-lib/WfbGeom.mc`. Example:
+    `examples/patterns/face.yaml`.
   - **Built 2026-09-14** (plan 04): analog hands. `hands:` declares
     named hour/minute/second sets, each hand 1–16 parts of four kinds
     (`polygon`/`rectangle`/`line`/`circle`) drawn at 12 o'clock with the

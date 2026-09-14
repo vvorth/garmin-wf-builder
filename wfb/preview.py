@@ -27,7 +27,7 @@ from .fonts import BakedFont, fallback
 from .ir import Progress, Shape, Text
 from .layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
-    PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
     complication_slot_pair_geometry,
 )
 from .palette import MIP64_LEVELS, Color
@@ -287,6 +287,8 @@ class _Renderer:
             self._complication_slot(placed)
         elif isinstance(placed, PlacedHands):
             self._hands(placed)
+        elif isinstance(placed, PlacedPattern):
+            self._pattern(placed)
 
     # -- elements ---------------------------------------------------------
 
@@ -396,6 +398,48 @@ class _Renderer:
                 self.draw.ellipse(box, fill=fill)
             else:
                 self.draw.ellipse(box, outline=fill, width=max(1, part.thickness * s))
+
+    def _pattern(self, placed: PlacedPattern) -> None:
+        """`type: pattern` -- one template, drawn once per copy through
+        :meth:`PlacedPattern.transform` (plan 05 §5.3/§6.2): the very same
+        `(ox, oy, sin, cos)` the generated draw method computes on the
+        device, so this preview and codegen cannot disagree about where a
+        copy lands. Copies draw ascending, parts in list order within a
+        copy (§5.3) -- the same nested-loop order the generated code uses.
+        A polygon/line/circle part reuses `_hand_part` (a pattern part is
+        authored exactly like a hand part, §5.2); an `arc` part has no
+        rotate-the-vertices equivalent -- its *start angle* turns with the
+        copy instead (`_pattern_arc`).
+        """
+        s = self.scale
+        for index in placed.copies:
+            ox, oy, sin_t, cos_t = placed.transform(index)
+            cx, cy = ox * s, oy * s
+            for part in placed.parts:
+                if part.shape == "arc":
+                    self._pattern_arc(part, ox, oy, index, placed, s)
+                else:
+                    self._hand_part(part, cx, cy, s, sin_t, cos_t)
+
+    def _pattern_arc(self, part, ox: float, oy: float, index: int,
+                     placed: PlacedPattern, s: int) -> None:
+        """An `arc` template part -- always centred on the copy's own
+        origin (plan 05 D3, `at:` is rejected on it), so there are no
+        vertices to rotate: only its *start angle* turns with the copy,
+        exactly as `WfbArc.drawSpan` is called on the device (plan 05
+        §6.4): `part.start_angle + start + index * step`, which collapses
+        to plain `part.start_angle` for a linear pattern (`placed.start`/
+        `placed.step` are both `0` there, D3/§5.3). Drawn through the same
+        whole-degree `arc_span` rule a `shape: arc` element uses.
+        """
+        fill = self._color(part.color)
+        cx, cy = ox * s, oy * s
+        r = part.radius * s
+        author_start = part.start_angle + placed.start + index * placed.step
+        span = arc_span(author_start, part.sweep)
+        if r > 0 and span is not None:
+            self.draw.arc([cx - r, cy - r, cx + r, cy + r], *span,
+                          fill=fill, width=max(1, part.thickness * s))
 
     def _text(self, placed: PlacedText) -> None:
         element = placed.element

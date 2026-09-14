@@ -22,10 +22,11 @@ from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import (
     CONFIG_SYMBOL, ComplicationSlot, Element, Face, HandsElement, LayoutDecl,
-    StyleEntry, Text, authored_draw_order, never_together,
+    PatternElement, StyleEntry, Text, authored_draw_order, never_together,
 )
 from .layout import (
-    ANTIALIASED_PRIMITIVES, PlacedHands, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    ANTIALIASED_PRIMITIVES, PlacedHands, PlacedPattern, PlacedProgress, PlacedShape,
+    PlacedText, ResolvedFace,
     inside_screen, inside_visible_area, inside_visible_area_for, is_full_bleed,
 )
 from .palette import Color
@@ -62,7 +63,8 @@ ALL_CODES = frozenset({
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "hold-overlap", "hold-unsupported",
     "hold-auto-ambiguous", "hold-auto-unresolved",
-    "palette-dither", "partial-update", "partial-update-budget", "permission",
+    "palette-dither", "partial-update", "partial-update-budget", "pattern",
+    "pattern-step", "permission",
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
     "target",
     "static", "static-overlap", "string-label",
@@ -89,6 +91,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_graphics_pool(resolved, bag)
     check_static_overlap(resolved, bag)
     check_alpha(resolved, bag)
+    check_pattern_step(resolved, bag)
     for warning in resolved.warnings:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
 
@@ -349,18 +352,22 @@ def _users_of(face: Face, token: str) -> list[Element]:
     into `HandsElement.colors` at build time (`Builder._build_hands_element`)
     -- so it is matched by exact text there instead, the plan 04 §6 promise
     that "every check that reads a shape's `.color` also reads the part
-    colours."
+    colours."  A `PatternElement` *does* have its own `color:` (the default
+    every part without one inherits, plan 05 §6.1), but a part may override
+    it -- so it is matched the same way, through its own `.colors`, checked
+    first so its `color:` field is never read through the generic branch
+    below and short-circuit a part's override out of the match.
     """
     out = []
     for element in face.walk():
-        if any(
+        if isinstance(element, (HandsElement, PatternElement)):
+            if any(color.text == token for color in element.colors):
+                out.append(element)
+        elif any(
             (expression := getattr(element, field, None)) is not None
             and expression.text == token
             for field in _PALETTE_REFERENCING_FIELDS
         ):
-            out.append(element)
-        elif isinstance(element, HandsElement) and any(
-                color.text == token for color in element.colors):
             out.append(element)
     return out
 
@@ -1496,6 +1503,43 @@ def check_alpha(resolved: ResolvedFace, bag: Bag) -> None:
     # Nothing in format 1 expresses transparency yet; this check exists so the
     # gate is in place before any property that implies it is added.
     return
+
+
+# -- pattern-step -------------------------------------------------------------
+
+
+def check_pattern_step(resolved: ResolvedFace, bag: Bag) -> None:
+    """A linear pattern's `step:` that rounds to `{0, 0}` px on this device
+    (plan 05 §5.4 item 7) -- every copy lands on top of copy 0, the same
+    "draws nothing distinguishable" failure a radial `step: 0deg` is a
+    build-time error for (`Builder._build_pattern_element`).  This one can
+    only be caught per device: `step: {dx: 1%}` is a real, nonzero gap on a
+    280x280 screen and rounds away to nothing on a screen too small (or an
+    axis too short) for 1% of it to reach a whole pixel.
+
+    An ERROR, not a suppressible lint: like the build-time radial checks
+    this mirrors, a design that hits it does not work, so there is nothing
+    for `lint: {allow: ...}` to accept.
+    """
+    for placed in resolved.items:
+        if not isinstance(placed, PlacedPattern) or placed.element.pattern != "linear":
+            continue
+        if placed.dx != 0 or placed.dy != 0:
+            continue
+        step = placed.element.step
+        authored = f"{{dx: {step.dx}, dy: {step.dy}}}" if step is not None else "{}"
+        _emit(bag, placed, Diagnostic(
+            Severity.ERROR,
+            "pattern-step",
+            f"{placed.id}: 'step: {authored}' rounds to {{0, 0}}px on "
+            f"{resolved.device.id} -- every copy lands on copy 0",
+            placed.element.span,
+            notes=["a step this small only reaches a whole pixel on a larger "
+                   "screen, or a larger fraction of the parent box -- use a "
+                   "larger 'step:', or 'px' instead of '%'/'%r' if the gap "
+                   "should not scale with the screen"],
+            confidence="exact -- resolved geometry",
+        ))
 
 
 # -- check 7: memory (measured, post-build) ---------------------------------

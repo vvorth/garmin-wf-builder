@@ -1163,7 +1163,7 @@ entirely different ways:
   attribute itself on devices too old to render it (Forerunner 45, Forerunner
   920XT, Edge 130), which is not a concern for any of this project's three
   targets in any case.
-* **A `shape`, `progress`, `graph` or `hands` element's own drawing** is a
+* **A `shape`, `progress`, `graph`, `hands` or `pattern` element's own drawing** is a
   runtime `Dc` call,
   `setAntiAlias`, gated per device with a `has :setAntiAlias` check --
   `doc/docs/Core_Topics/Graphics.html` gives this idiom verbatim, and the
@@ -1187,7 +1187,7 @@ Leaving it unset anywhere in the chain falls through to the next enclosing
 group, and ultimately to the face-wide default.
 
 **Accepted on every element type except `text`**: `group`, `shape`,
-`progress`, `graph` and `hands` (the runtime half), and `icon` and
+`progress`, `graph`, `hands` and `pattern` (the runtime half), and `icon` and
 `complication_slot` (the baked-font half, for the icon each draws).
 *Corrected 2026-09-14: this sentence previously read "`group`, `shape`,
 `progress` and `icon` only", which was already narrower than the schema.*
@@ -1250,7 +1250,7 @@ suppressible `antialias-dither` check fires once per device, against the
 first element (in draw order) whose `antialias:` resolves to `true` there, on
 any device whose panel shows only 64 colours -- all three of this project's
 current targets, so it fires on every face that turns the feature on for a
-`shape`, `progress`, `graph` or `hands` element. See "Lint suppression" below and
+`shape`, `progress`, `graph`, `hands` or `pattern` element. See "Lint suppression" below and
 `docs/limitations.md`. Accept the tradeoff explicitly with
 `lint: {allow: [antialias-dither], reason: ...}`, as the removed
 `examples/antialias/` did.
@@ -1922,6 +1922,149 @@ starts with its second hand hidden (`_sleeping` starts `false`), what
 rotated polygon edges look like on the 64-colour panel, and the per-frame
 CPU cost of the rotation. See [`docs/limitations.md`](limitations.md).
 
+### `pattern`
+
+```yaml
+static:
+  minute_ticks:
+    type: pattern
+    pattern: radial            # radial | linear
+    at: {anchor: center}       # the centre every copy turns about
+    count: 60                  # 1 to 360 copies
+    # step: 6deg               # default: 360deg / count
+    # start: 0deg              # where copy 0 points (default 12 o'clock)
+    skip_every: 5              # leave copies 0, 5, 10, ... to the hour ticks
+    color: palette.gray        # the default for every part without its own
+    antialias: true
+    parts:                     # copy 0, drawn at 12 o'clock; origin = at:
+      - {shape: line, at: {dy: -94%r}, to: {dy: -88%r}, thickness: 1px}
+
+elements:
+  week_dots:
+    type: pattern
+    pattern: linear
+    at: {anchor: center, dx: -30%r, dy: 36%r}   # copy 0's origin
+    count: 7
+    step: {dx: 10%r}                             # copy i sits at at + i * step
+    color: palette.cyan
+    parts:
+      - {shape: circle, radius: 2%r}
+```
+
+A pattern is **one template drawn many times**: 1 to 16 primitives (its
+`parts:`) and a rule for where each copy goes. Hour and minute ticks, a
+segmented ring and a row of dots are each one element instead of sixty.
+
+**The template is authored like a hand** (see [Analog hands](#analog-hands)):
+it is copy 0, drawn **as it looks at 12 o'clock**, in a frame whose
+**origin is the pattern's `at:`**. `dx` is positive to the right and `dy`
+positive *down*, so a tick near the rim sits at negative `dy`. Part
+positions take `px` and `%r` only, and no `anchor:` (the origin is the
+anchor). A polar `{angle, radius}` position works too. Every part length
+resolves to whole pixels at build time, rounded half away from zero, the
+same as a hand part.
+
+| `pattern:` | copy `i` is | `step:` | `start:` |
+|---|---|---|---|
+| `radial` | the template turned **clockwise** by `start + i × step` about `at:` | an angle; default `360deg / count`; negative turns counter-clockwise | the angle of copy 0; default `0deg` |
+| `linear` | the template moved to `at + i × step` | **required**: `{dx, dy}`, lengths as in `at:` (`px`, `%`, `%r`; not `pt`), either may be omitted | an error: there is nothing to turn |
+
+A linear `step:` is resolved to **whole pixels once**, so every gap is the
+same size. The price is that the whole row may be up to half a pixel per copy
+longer or shorter than `count × step`, which is less visible than uneven
+gaps.
+
+**Leaving copies out.** `skip: [0, 6]` skips those copy indices (0-based).
+`skip_every: 5` skips every copy whose index is a multiple of 5. The two
+combine. This is how a minute ring leaves room for the hour ticks without a
+second rule.
+
+**Parts** are the four hand primitives, plus `arc`:
+
+| `shape:` | keys | per copy |
+|---|---|---|
+| `polygon` | `points` (3–64) | each vertex transformed, `fillPolygon` |
+| `rectangle` | `at` (its centre, default the origin), `size` | **becomes a 4-point polygon at build time**, because a turned rectangle is a polygon |
+| `line` | `at` (start, default the origin), `to`, `thickness` (default 1px) | both ends transformed, `drawLine` |
+| `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`) | the centre transformed, `fillCircle`/`drawCircle` |
+| `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
+
+`rounded_rectangle` and `ellipse` are rejected, because no `Dc` call draws
+either one turned. `text` and `icon` are rejected too (see [Not yet
+implemented](#not-yet-implemented)). So is `filled: false` on
+`polygon`/`rectangle`, because there is no `drawPolygon`. `at:` on an `arc`
+part is rejected: an off-centre arc would have to move its centre as well
+as its angle, and nothing needed it yet. A key a part's shape does not read
+is an error, as everywhere else.
+
+**Colours** work as on a hand. The element's `color:` is the default, and a
+part's own `color:` overrides it. A part left with neither is an error. A
+colour may be a palette entry, a literal, `config.*`, or a conditional over
+those. **It may not read data**, because a pattern has no `when_absent:` to
+fall back to.
+
+**Draw order** is copy by copy, in ascending index, with a copy's parts in
+list order.
+
+**It takes the common keys** `id`, `type`, `at`, `modes`, `z`, `visible`,
+`static`, `antialias`, `lint` and `overrides`. `size:` does not exist,
+because the extent comes from the ink. `on_hold:` is not accepted; hold a
+`group` around the pattern instead. `modes:` may not contain `low_power`.
+A fixed pattern gains nothing from `onPartialUpdate`, and its clip would be
+its whole extent.
+
+**`static:` is where most patterns belong.** Colours cannot read data, so
+there is nothing to freeze. The loop then runs once, when the buffer is
+filled, instead of once a second.
+
+**`antialias:` works exactly as on a `shape`.** The element's own value,
+or the one it inherits from its group or the face, brackets the whole
+pattern. It counts toward `antialias-dither` like any other primitive. A
+turned tick is where anti-aliasing helps most: without it, a rotated edge
+stair-steps.
+
+**How it is drawn: the watch loops.** The template (every part, and the
+origin) is resolved to per-device `Layout` constants like any other
+element. The generated method loops over the copies and transforms the
+template once per copy: one `sin`/`cos` pair for a radial copy, an integer
+add for a linear one. It uses the same rotate-and-draw helpers as analog
+hands (`runtime-lib/WfbGeom.mc`) and the same `WfbArc.drawSpan` as every
+other arc. Baking the copies at build time was measured and rejected:
+sixty minute ticks as separate elements add about 5 KB to the 128 KB
+budget, and the loop adds about 170 B whatever the count
+(`docs/research/probes/pattern-cost/`). This is the second exception to
+"the watch does no layout arithmetic" (ADR 0004, amended). Hands were the
+first.
+
+**Checks.** These are build errors, each reported on your own line:
+
+* a radial `step:` that is not an angle, or is `0deg`;
+* a linear `step:` that is not `{dx, dy}`, or is missing;
+* `start:` on a linear pattern;
+* radial copies that land on each other, `|step| × (count − 1) ≥ 360°`;
+* a `skip:` index that is out of range or repeated, a `skip_every:`
+  larger than `count`, and skipping every copy.
+
+Per device, the `pattern-step` lint is an error when a linear step rounds
+to `{0, 0}` pixels, which would stack every copy on the first.
+
+The element's extent is the bounding box of every drawn copy's ink. For a
+radial pattern it is also the disc of its farthest ink from the centre.
+`circular_extent()` checks a full-dial tick ring as the disc it is, the
+same way it checks hands, so a ring does not warn as cropped.
+
+See `examples/patterns/face.yaml` for every part shape, both kinds,
+`start:`, `skip:` and `skip_every:`, a two-part template, and patterns in
+and out of `static:`.
+
+**What is verified, and what is not.** Verified: warning-free builds under
+`-l 3` on all three targets, and `wfb preview`, which transforms the same
+resolved template with the same formula. Not verified, because nothing
+here runs a simulator or a watch: what the ticks look like on the panel,
+how the firmware rasterises the Float coordinates a turned copy produces,
+and the loop's CPU cost when a pattern is not in `static:`. See
+[`docs/limitations.md`](limitations.md).
+
 ---
 
 ## Data binding
@@ -2420,6 +2563,13 @@ above -- with these pieces still open: `seconds: always` (a second hand
 while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
 (an authored-expression angle rather than the clock), 24-hour hands, and a
 `wfb new -t analog` template. See `docs/limitations.md` §2.)
+
+(**Patterns are implemented** -- see [`pattern`](#pattern) above -- with
+these pieces still open: `text` parts (hour numerals, which need
+per-copy text), `pattern: grid`, data-driven pattern colours, `on_hold:`
+and `low_power` on a pattern, per-copy variation other than skipping,
+`rounded_rectangle`/`ellipse` parts in a linear pattern, and an arc part
+off the pattern's centre. See `docs/limitations.md` §2.)
 
 (The editor's animated highlight on the Data axis -- `getComplicationDrawable`,
 `onTap`, `setSelectedComplication` -- **is** implemented; this paragraph used to

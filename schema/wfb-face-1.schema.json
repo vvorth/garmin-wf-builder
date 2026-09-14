@@ -32,7 +32,7 @@
       "uniqueItems": true
     },
     "antialias": {
-      "description": "Face-wide default for anti-aliasing. Defaults to false, matching the platform's own default -- a crisp 1-bit bitmap font, and non-anti-aliased Dc primitives (a guarded 'dc has :setAntiAlias' call around a shape, progress, graph or hands element's own drawing). Every font, icon and primitive-drawing element inherits this unless it declares its own 'antialias:' (a group's own value becomes the default for its subtree in turn, so only the nearest enclosing declaration matters). Anti-aliasing a font costs runtime RAM the resource compiler does not report anywhere the build can measure (SDK: Resources, Fonts); anti-aliasing a shape, progress, graph or hands element on a 64-colour panel (every currently supported target) dithers its soft edge, reported by the suppressible 'antialias-dither' lint -- turn it on only where the softer edge is worth either cost.",
+      "description": "Face-wide default for anti-aliasing. Defaults to false, matching the platform's own default -- a crisp 1-bit bitmap font, and non-anti-aliased Dc primitives (a guarded 'dc has :setAntiAlias' call around a shape, progress, graph, hands or pattern element's own drawing). Every font, icon and primitive-drawing element inherits this unless it declares its own 'antialias:' (a group's own value becomes the default for its subtree in turn, so only the nearest enclosing declaration matters). Anti-aliasing a font costs runtime RAM the resource compiler does not report anywhere the build can measure (SDK: Resources, Fonts); anti-aliasing a shape, progress, graph, hands or pattern element on a 64-colour panel (every currently supported target) dithers its soft edge, reported by the suppressible 'antialias-dither' lint -- turn it on only where the softer edge is worth either cost.",
       "type": "boolean",
       "default": false
     },
@@ -680,6 +680,9 @@
         },
         {
           "$ref": "#/$defs/handsElement"
+        },
+        {
+          "$ref": "#/$defs/patternElement"
         }
       ]
     },
@@ -1566,6 +1569,194 @@
         }
       ]
     },
+    "patternElement": {
+      "description": "One template of 1-16 primitives (plan 05: 'pattern'), drawn repeatedly -- turned about 'at:' ('pattern: radial') or stepped along {dx, dy} ('pattern: linear'). No 'size:' (the extent is computed from the drawn ink, not authored), no 'on_hold:' (a repeated template has no single fixed hit region -- hold a 'group' around it instead) -- accepted here, like every other element, only so the compiler can say so against your own line instead of a generic 'unknown key'. 'static: true' is accepted: a pattern's colours may not read data (see 'patternPart'), so nothing here can change frame to frame -- unlike 'hands', whose angle is the clock.",
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "pattern",
+        "count",
+        "parts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "pattern"
+        },
+        "pattern": {
+          "description": "'radial': copies turn about 'at:', 'step' degrees apart. 'linear': copies step along {dx, dy} from 'at:'.",
+          "enum": [
+            "radial",
+            "linear"
+          ]
+        },
+        "at": {
+          "description": "Radial: the centre every copy turns about. Linear: copy 0's own origin. An ordinary position, resolved against the parent box exactly like any other element's 'at:'.",
+          "$ref": "#/$defs/position"
+        },
+        "count": {
+          "description": "How many copies. Dc draws one primitive per call -- there is no repeat/instancing call on this platform (docs/plans/05-patterns.md 1) -- so this is also how many times the device loops and rotates or translates the template.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 360
+        },
+        "step": {
+          "description": "Radial: the angle between consecutive copies, default 360deg / count; negative turns counter-clockwise; 0deg is an error. Linear: required, {dx, dy} -- either may be omitted (0). Writing an angle on a linear pattern, a {dx, dy} on a radial one, or omitting it on a linear one, are each build-time errors, not schema errors -- both shapes are accepted here so the compiler can name the real mistake against your own line.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/angle"
+            },
+            {
+              "$ref": "#/$defs/patternStep"
+            }
+          ]
+        },
+        "start": {
+          "description": "Radial only: the angle of copy 0, default 0deg (12 o'clock). An error on a linear pattern -- {dx, dy} already places copy 0 via 'at:'.",
+          "$ref": "#/$defs/angle"
+        },
+        "skip": {
+          "description": "Copy indices (0-based, each less than 'count:', no duplicates) that are left undrawn -- room for another pattern's copies, e.g. the hour ticks' places in a 60-copy minute ring.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "skip_every": {
+          "description": "Copies whose index is a multiple of this are left undrawn (0, N, 2N, ...) -- 2 to 'count:'.",
+          "type": "integer",
+          "minimum": 2
+        },
+        "color": {
+          "description": "Default colour for every part that declares none of its own.",
+          "$ref": "#/$defs/colorExpression"
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/patternPart"
+          }
+        },
+        "modes": {
+          "$ref": "#/$defs/modes"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "static": {
+          "$ref": "#/$defs/staticFlag"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        }
+      }
+    },
+    "patternPart": {
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin) and 'size'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true) and 'thickness' (only when 'filled: false'); arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:', because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3). 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon.",
+      "type": "object",
+      "required": [
+        "shape"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "description": "polygon/rectangle/line/circle/arc are the five primitives a pattern can repeat. rounded_rectangle, ellipse, text and icon are recognised here only so the compiler can reject each with its own platform reason (docs/format.md, 'pattern') instead of a bare 'not one of ...'.",
+          "enum": [
+            "polygon",
+            "rectangle",
+            "line",
+            "circle",
+            "arc",
+            "rounded_rectangle",
+            "ellipse",
+            "text",
+            "icon"
+          ]
+        },
+        "points": {
+          "description": "A polygon part's vertices, 3 to 64, each a handPosition measured from the origin.",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/handPosition"
+          }
+        },
+        "at": {
+          "$ref": "#/$defs/handPosition"
+        },
+        "size": {
+          "$ref": "#/$defs/handSize"
+        },
+        "to": {
+          "$ref": "#/$defs/handPosition"
+        },
+        "thickness": {
+          "$ref": "#/$defs/handLength"
+        },
+        "radius": {
+          "$ref": "#/$defs/handLength"
+        },
+        "filled": {
+          "type": "boolean",
+          "default": true
+        },
+        "color": {
+          "description": "Overrides the pattern's own default colour for this part only. Same data-binding restriction as the pattern's own 'color:'.",
+          "$ref": "#/$defs/colorExpression"
+        },
+        "start_angle": {
+          "description": "'shape: arc' only. The arc's own start angle as authored for copy 0; a radial pattern turns it with each copy (12 o'clock = 0, clockwise). Default 0deg.",
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "description": "'shape: arc' only. How far the arc spans, clockwise positive, default 360deg (a full ring) when omitted.",
+          "$ref": "#/$defs/angle"
+        }
+      }
+    },
+    "patternStep": {
+      "description": "The offset between consecutive copies of a linear pattern: {dx, dy}, either may be omitted (0). Resolved against the parent box on the axis each measures ('dx' against width, 'dy' against height), then rounded to whole pixels once, so every gap between copies is identical (docs/plans/05-patterns.md D4).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dx": {
+          "$ref": "#/$defs/patternLength"
+        },
+        "dy": {
+          "$ref": "#/$defs/patternLength"
+        }
+      }
+    },
+    "patternLength": {
+      "description": "px, % (of the parent box on the axis being resolved) or %r (of the screen's minor radius) -- not pt: a linear pattern's step has no font in scope to measure against. A bare number means px.",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|%|px)?\\s*$"
+        }
+      ]
+    },
     "zOrder": {
       "type": "integer"
     },
@@ -1579,7 +1770,7 @@
       "type": "boolean"
     },
     "antialias": {
-      "description": "Override the face-wide 'antialias:' default for this element. On a 'group' this is also the default for its whole subtree -- not a conjunction the way 'visible:' is, so a descendant's own 'antialias:' still wins outright over its group's. On 'shape', 'progress', 'graph' and 'hands' this flags the element's own Dc primitive drawing (for 'hands', every hand of the set); on 'icon' and 'complication_slot' it flags the baked icon font -- two mechanisms gated in two different ways by the SDK (a resource attribute for a font, a runtime Dc call for a primitive), so they share this one key but not an implementation. Not accepted on 'text': a text element draws through a font declared in 'fonts:', one bitmap resource shared by every element that references it, so anti-aliasing cannot vary per element -- put it on that font's own 'antialias:' instead.",
+      "description": "Override the face-wide 'antialias:' default for this element. On a 'group' this is also the default for its whole subtree -- not a conjunction the way 'visible:' is, so a descendant's own 'antialias:' still wins outright over its group's. On 'shape', 'progress', 'graph', 'hands' and 'pattern' this flags the element's own Dc primitive drawing (for 'hands', every hand of the set; for 'pattern', every copy); on 'icon' and 'complication_slot' it flags the baked icon font -- two mechanisms gated in two different ways by the SDK (a resource attribute for a font, a runtime Dc call for a primitive), so they share this one key but not an implementation. Not accepted on 'text': a text element draws through a font declared in 'fonts:', one bitmap resource shared by every element that references it, so anti-aliasing cannot vary per element -- put it on that font's own 'antialias:' instead.",
       "type": "boolean"
     },
     "overrides": {

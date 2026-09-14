@@ -237,7 +237,7 @@ def test_a_hands_element_alone_turning_antialias_on_emits_the_helper_and_toggles
     draw_hands = _draw_main_hands(text)
     assert "applyAntiAlias(dc, true);" in draw_hands
     assert "applyAntiAlias(dc, false);" in draw_hands  # restored to the face default
-    assert draw_hands.index("applyAntiAlias(dc, true);") < draw_hands.index("WfbHands.fillRotated")
+    assert draw_hands.index("applyAntiAlias(dc, true);") < draw_hands.index("WfbGeom.fillRotated")
     on_update = text.split("function onUpdate(dc as Dc) as Void")[1].split("\n\n")[0]
     assert "applyAntiAlias(dc, false);" in on_update  # the face default, reset once
     draw_background = text.split("private function drawBackground")[1].split("\n\n")[0]

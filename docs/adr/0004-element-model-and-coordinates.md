@@ -251,6 +251,35 @@ renderer can be trusted. It is a capability hand authors do not have.
 > the same reason `WfbArc.mc`'s own `roundAway` already has one twin, not
 > a shared import across layers that must not depend on each other).
 
+### 7. Patterns — the second runtime transform, and the ninth element type
+
+> **Amendment (2026-09-14, plan 05).** `type: pattern` repeats one template
+> of up to 16 primitives, either turned about a centre (`pattern: radial`)
+> or stepped along a line (`pattern: linear`). It is the second exception to
+> "the device performs no layout arithmetic", and it is an exception for a
+> different reason than hands. A pattern's copies *do* have build-time
+> values. Baking them costs too much memory:
+> `docs/research/probes/pattern-cost/` measured a 60-tick minute ring at
+> +4,960 B as 60 `shape` elements and +1,369 B as one baked coordinate
+> array, against **+170 B** for a loop that rotates the template on the
+> watch, whatever the count. At 3.8% of the 131,072 B budget for a single
+> ring, baking was not a real option.
+>
+> Everything else still follows this ADR. The template (in the hand frame:
+> origin = the element's `at:`, `px`/`%r` only) and the origin resolve to
+> whole pixels per device into `Layout` constants. A linear step resolves
+> to whole pixels once. Angles, the copy count and the skipped indices are
+> device-independent literals. The watch adds only the transform: one
+> `sin`/`cos` pair per radial copy, or an integer multiply-add per linear
+> copy. It goes through the helpers analog hands already use, moved for
+> that reason into a shared `runtime-lib/WfbGeom.mc`. For a pattern in
+> `static:` the loop runs once, when the buffer is filled.
+>
+> The preview and the extent computation apply the same transform to the
+> same resolved template (`PlacedPattern.transform`), so this section's
+> anti-drift argument (Consequences, second bullet) still holds. The format
+> is documented in `docs/format.md` under "`pattern`".
+
 ## Consequences
 
 - The IR carries **resolved absolute pixels per target device**, computed from
@@ -259,6 +288,9 @@ renderer can be trusted. It is a capability hand authors do not have.
   cost, **except analog hands' own rotation** (§6, amended 2026-09-14): the
   angle is the time, so it cannot be a build-time constant, and the device
   performs that one multiply-add per vertex instead.
+  **Patterns** (§7, amended 2026-09-14) are the second exception: the watch
+  turns or steps a pattern's resolved template once per copy, because baking
+  the copies was measured at roughly 30x the memory.
 - The preview renderer consumes the **same resolved IR**, so preview and device
   cannot disagree about position. This is the anti-drift mechanism Phase 3.8 asks
   for, and it works only because layout is resolved before codegen.

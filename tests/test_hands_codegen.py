@@ -126,9 +126,13 @@ def test_onupdate_reads_the_clock_once_for_every_hands_element(view_text):
 
 
 def test_barrel_includes_wfbhands(resolved, tmp_path, db):
+    """Hands pulls both `WfbHands.mc` (the three angle functions) and
+    `WfbGeom.mc` (the rotate-and-draw helpers, moved there in plan 05 §6.3
+    so patterns can share them) -- never one without the other."""
     baked = {resolved.device.id: resolved.fonts}
     project = generate(resolved.face, [resolved.device], tmp_path, baked)
     assert "WfbHands.mc" in project.barrel
+    assert "WfbGeom.mc" in project.barrel
 
 
 # -- designs with no hands stay exactly as before -----------------------------

@@ -20,8 +20,8 @@ from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
     ComplicationSlot, Element, Expression, Face, FontSpec, Graph, Group,
-    HandsElement, IconElement, Position, Progress, Shape, Size, Text,
-    draw_sort_key,
+    HandsElement, IconElement, PatternElement, Position, Progress, Shape, Size,
+    Text, draw_sort_key,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
 
@@ -172,13 +172,16 @@ class PlacedGraph(Placed):
 
 @dataclass(frozen=True)
 class ResolvedHandPart:
-    """One hand part, resolved for one device: whole pixels, in the hand's
-    own frame (origin = the axis, pointing at 12 o'clock) -- the shape the
-    watch rotates at runtime (plan 04 §5.3).  One class covers all three
-    runtime shapes (``polygon``, ``line``, ``circle``) the same way
-    :class:`PlacedShape` covers every ``shape:``; a rectangle part is folded
-    into ``polygon`` here (`Resolver._resolve_hand_part`), because a rotated
-    rectangle is a polygon (§5.2).
+    """One hand part, or one pattern template part (plan 05), resolved for
+    one device: whole pixels, in the shared frame (origin = the axis /
+    the pattern's own ``at:``, pointing at 12 o'clock) -- the shape the
+    watch rotates (or translates) at runtime (plan 04 §5.3).  One class
+    covers every runtime shape (``polygon``, ``line``, ``circle``, ``arc``)
+    the same way :class:`PlacedShape` covers every ``shape:``; a rectangle
+    part is folded into ``polygon`` here (`Resolver._resolve_hand_part`),
+    because a rotated rectangle is a polygon (§5.2).  A hand never produces
+    an ``"arc"`` part -- `wfb.ir.HAND_PART_REJECTED_SHAPES` refuses it before
+    this is reached -- so ``start_angle``/``sweep`` are pattern-only.
     """
 
     shape: str
@@ -190,12 +193,21 @@ class ResolvedHandPart:
     y1: int = 0
     x2: int = 0
     y2: int = 0
-    #: ``circle``: centre and radius; ``line``/unfilled ``circle``: pen width.
+    #: ``circle``/``arc``: centre (``arc``'s is always the origin, x=y=0) and
+    #: radius; ``line``/unfilled ``circle``/``arc``: pen width.
     x: int = 0
     y: int = 0
     radius: int = 0
     thickness: int = 1
     filled: bool = True
+    #: ``arc`` only.  Author degrees (12 o'clock = 0, clockwise) -- a radial
+    #: pattern's runtime rotation adds ``start + i * step`` to ``start_angle``
+    #: (plan 05 §5.3); a linear one leaves it as authored.  The `0.0` default
+    #: is never actually relied on: `Resolver._resolve_hand_part` always sets
+    #: both explicitly for a real ``arc`` part (`sweep` defaulting to `360deg`
+    #: there, not here, when the author omitted it).
+    start_angle: float = 0.0
+    sweep: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -222,13 +234,91 @@ class PlacedHands(Placed):
     reach: float = 0.0
 
 
+@dataclass
+class PlacedPattern(Placed):
+    """A `type: pattern` element, resolved: the resolved template, which
+    copies are actually drawn, and the repeat rule -- radial (turn about
+    `center`) or linear (step by `dx`/`dy`) (plan 05 §6.2).
+
+    ``box`` is the bounding box of the ink of every *drawn* copy (computed by
+    :meth:`Resolver._resolve_pattern` from :meth:`transform`), and ``center``
+    is the origin every copy is measured from -- radial's centre of rotation,
+    or linear's own copy-0 origin -- the same shape every other ``Placed``
+    subclass follows.
+    """
+
+    #: The template, copy 0 as authored (rectangle folded into polygon).
+    parts: tuple[ResolvedHandPart, ...] = ()
+    #: Drawn copy indices, ascending -- `PatternElement.drawn_indices()`.
+    copies: tuple[int, ...] = ()
+    #: Radial only, degrees: copy 0's angle, and the angle between copies.
+    start: float = 0.0
+    step: float = 0.0
+    #: Linear only, whole pixels: the offset between consecutive copies.
+    dx: int = 0
+    dy: int = 0
+    #: Radial only: the farthest ink of any part from `center`, rotation
+    #: -invariant so it needs no per-copy loop (`circular_extent` reads this
+    #: instead of `box`, the same reasoning `PlacedHands.reach` follows). 0
+    #: for a linear pattern, which reports no disc.
+    reach: float = 0.0
+
+    def transform(self, index: int) -> tuple[float, float, float, float]:
+        """``(ox, oy, sin, cos)`` for copy ``index``: radial =
+        ``(cx, cy, sin(theta), cos(theta))``; linear =
+        ``(cx + i*dx, cy + i*dy, 0.0, 1.0)``.  The one formula the preview and
+        the extent computation share (plan 05 §6.2) -- apply it to a
+        template point ``(x, y)`` as ``ox + x*cos - y*sin, oy + x*sin +
+        y*cos`` (§5.3's rotation, which collapses to a plain translation when
+        ``sin``/``cos`` are ``0``/``1``).
+        """
+        if self.element.pattern == "radial":
+            theta = math.radians(self.start + index * self.step)
+            return float(self.center[0]), float(self.center[1]), math.sin(theta), math.cos(theta)
+        return float(self.center[0] + index * self.dx), float(self.center[1] + index * self.dy), 0.0, 1.0
+
+
+def _pattern_part_ink(
+    part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float,
+) -> tuple[float, float, float, float]:
+    """``(min_x, min_y, max_x, max_y)`` of one resolved pattern part's ink
+    for one copy, given that copy's :meth:`PlacedPattern.transform` (plan 05
+    §5.5): polygon vertices; a line's ends padded by half its pen width; a
+    circle's centre padded by its radius (plus half the pen width when
+    outlined); an arc's full circle -- always centred on the copy's own
+    origin -- padded by half its pen width, conservatively ignoring
+    `start_angle`/`sweep`.
+    """
+    def tf(x: float, y: float) -> tuple[float, float]:
+        return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
+
+    if part.shape == "polygon":
+        pts = [tf(x, y) for x, y in part.points]
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        return min(xs), min(ys), max(xs), max(ys)
+    if part.shape == "line":
+        x1, y1 = tf(part.x1, part.y1)
+        x2, y2 = tf(part.x2, part.y2)
+        pad = part.thickness / 2.0
+        return min(x1, x2) - pad, min(y1, y2) - pad, max(x1, x2) + pad, max(y1, y2) + pad
+    if part.shape == "circle":
+        px, py = tf(part.x, part.y)
+        pad = part.radius + (0.0 if part.filled else part.thickness / 2.0)
+        return px - pad, py - pad, px + pad, py + pad
+    # arc: always centred on the copy's own origin (plan 05 D3).
+    px, py = tf(0.0, 0.0)
+    pad = part.radius + part.thickness / 2.0
+    return px - pad, py - pad, px + pad, py + pad
+
+
 #: The placed kinds whose own drawing `antialias:` reaches as a runtime
 #: `Dc.setAntiAlias` -- primitives, not glyphs (`text`/`icon` anti-alias in
 #: their baked font instead).  One tuple, read by the emitter's "is the
 #: feature used" gate, its per-element toggle, and the `antialias-dither`
 #: lint: three private copies once drifted, so a hands-only anti-aliased face
 #: emitted no `setAntiAlias` at all, and a graph-only one never linted.
-ANTIALIASED_PRIMITIVES = (PlacedShape, PlacedProgress, PlacedGraph, PlacedHands)
+ANTIALIASED_PRIMITIVES = (PlacedShape, PlacedProgress, PlacedGraph, PlacedHands, PlacedPattern)
 
 
 #: Fixed pixel gap between a complication_slot's icon and its reading.  A
@@ -449,6 +539,8 @@ class Resolver:
                 self.items.append(self._resolve_complication_slot(element, parent, depth))
             elif isinstance(element, HandsElement):
                 self.items.append(self._resolve_hands(element, parent, depth))
+            elif isinstance(element, PatternElement):
+                self.items.append(self._resolve_pattern(element, parent, depth))
 
     # -- per-kind ---------------------------------------------------------
 
@@ -840,6 +932,21 @@ class Resolver:
                 thickness=thickness,
             ), reach
 
+        if part.shape == "arc":
+            # A hand never produces this shape (rejected in `wfb.ir`); a
+            # pattern's template does (plan 05 §5.2).  Always centred on the
+            # origin (x=y=0, D3), so its reach is exactly the pen's own
+            # extent -- no `at:` to add a distance-from-origin term.
+            radius = _round_away(self._hand_len(part.radius))
+            thickness = max(1, _round_away(self._hand_len(part.thickness, default=1)))
+            start_angle = (part.start_angle or Angle(0.0)).degrees
+            sweep = (part.sweep or Angle(360.0)).degrees
+            reach = radius + thickness / 2.0
+            return ResolvedHandPart(
+                "arc", part.color, x=0, y=0, radius=radius, thickness=thickness,
+                start_angle=start_angle, sweep=sweep,
+            ), reach
+
         # circle
         cx, cy = self._hand_point(part.at)
         radius = _round_away(self._hand_len(part.radius))
@@ -851,6 +958,68 @@ class Resolver:
             x=_round_away(cx), y=_round_away(cy), radius=radius,
             thickness=thickness, filled=part.filled,
         ), reach
+
+    def _resolve_pattern(self, element: PatternElement, parent: Box, depth: int) -> Placed:
+        """`type: pattern` -- the template resolved once, in its own frame
+        (`_resolve_hand_part`, reused: a pattern part is authored exactly
+        like a hand part, plan 05 §5.2), plus which copies are drawn and the
+        repeat rule.  The repeat transform itself -- turning or stepping the
+        template -- is the one piece of layout arithmetic the device
+        performs (ADR 0004, amended a second time), same bargain as hands.
+
+        Radial's `reach` is rotation-invariant (distance from the centre of
+        rotation is unchanged by rotating about it), so it comes straight
+        from the per-part reach `_resolve_hand_part` already returns, the
+        same shortcut `_resolve_hands` takes -- independent of which copies
+        are actually drawn, since every drawn copy shares one template.
+        `box`, unlike `reach`, really does depend on which copies draw and
+        where, so it is computed by applying :meth:`PlacedPattern.transform`
+        to every drawn copy's ink (§5.5).
+        """
+        cx, cy = self._point(element.at, parent)
+        center = (round(cx), round(cy))
+
+        parts: list[ResolvedHandPart] = []
+        reach = 0.0
+        for part in element.parts:
+            resolved_part, part_reach = self._resolve_hand_part(part)
+            parts.append(resolved_part)
+            reach = max(reach, part_reach)
+
+        if element.pattern == "radial":
+            start, step = element.start_angle, element.step_angle
+            dx = dy = 0
+        else:
+            start = step = 0.0
+            reach = 0.0  # only a radial pattern reports a disc (§5.5)
+            step_position = element.step or Position()
+            dx = _round_away(self._len(step_position.dx, parent, Axis.X, 0))
+            dy = _round_away(self._len(step_position.dy, parent, Axis.Y, 0))
+
+        placed = PlacedPattern(
+            element, IntBox(0, 0, 0, 0), center, depth,
+            parts=tuple(parts), copies=element.drawn_indices(),
+            start=start, step=step, dx=dx, dy=dy, reach=reach,
+        )
+
+        min_x = min_y = math.inf
+        max_x = max_y = -math.inf
+        for index in placed.copies:
+            ox, oy, sin_t, cos_t = placed.transform(index)
+            for part in parts:
+                lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(part, ox, oy, sin_t, cos_t)
+                min_x, min_y = min(min_x, lo_x), min(min_y, lo_y)
+                max_x, max_y = max(max_x, hi_x), max(max_y, hi_y)
+        if min_x > max_x:
+            # Unreachable once the schema and `wfb.ir` have run (`parts:`
+            # needs at least one entry, and every copy skipped is a build
+            # error) -- kept so a malformed element resolves to something
+            # rather than crash.
+            box = Box(cx, cy, 0, 0)
+        else:
+            box = Box(min_x, min_y, max_x - min_x, max_y - min_y)
+        placed.box = box.rounded()
+        return placed
 
     def _hand_point(self, at: Position) -> tuple[float, float]:
         """A part position within a hand's own frame -- there is no anchor
@@ -1006,6 +1175,8 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
         return (placed.center[0], placed.center[1], reach)
     if isinstance(placed, PlacedHands):
         return (placed.center[0], placed.center[1], placed.reach)
+    if isinstance(placed, PlacedPattern) and placed.element.pattern == "radial":
+        return (placed.center[0], placed.center[1], placed.reach)
     return None
 
 
@@ -1066,7 +1237,8 @@ def safe_area(device: Device) -> Box | None:
 
 __all__ = [
     "Placed", "PlacedShape", "PlacedText", "PlacedProgress", "PlacedIcon",
-    "PlacedGraph", "PlacedComplicationSlot", "PlacedHands", "ResolvedHand",
+    "PlacedGraph", "PlacedComplicationSlot", "PlacedHands", "PlacedPattern",
+    "ResolvedHand",
     "ResolvedHandPart",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
     "inside_visible_area_for", "circular_extent", "garmin_arc",

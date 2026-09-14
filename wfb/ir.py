@@ -16,6 +16,7 @@ Nothing here knows a screen size.  Per-device work happens in :mod:`wfb.layout`.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -117,6 +118,35 @@ HAND_PART_REJECTED_SHAPES = {
            "approximate a wedge with 'polygon', or use 'circle' for a disc",
     "text": "a bitmap font cannot rotate",
     "icon": "a bitmap font cannot rotate",
+}
+
+#: The same precedent, for a `type: pattern` template part (plan 05 §5.2) --
+#: the hand vocabulary plus `arc`, which a pattern's copies can rotate the
+#: start angle of (`WfbArc.drawSpan` already takes a plain Float start), so it
+#: is a real, drawable shape here rather than a `HAND_PART_REJECTED_SHAPES`
+#: entry.  `rounded_rectangle`/`ellipse`/`text`/`icon` keep the same
+#: platform reasons a hand part gives -- no `Dc` call draws any of the three
+#: rotated *or* translated, and a bitmap font cannot do either.
+PATTERN_PART_GEOMETRY_KEYS = {
+    "polygon": frozenset({"points"}),
+    "rectangle": frozenset({"at", "size"}),
+    "line": frozenset({"at", "to"}),
+    "circle": frozenset({"at", "radius"}),
+    #: No `at` -- an arc part is always centred on the copy's own origin
+    #: (docs/plans/05-patterns.md D3); `_check_hand_part_keys` reports a use
+    #: of `at` here through the same "key not used by this shape" mechanism
+    #: as any other part, with one extra note explaining why.
+    "arc": frozenset({"radius", "start_angle", "sweep"}),
+}
+_ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
+
+PATTERN_PART_REJECTED_SHAPES = {
+    "rounded_rectangle": "no Dc call draws a rotated or translated rounded "
+                          "rectangle -- approximate it with 'polygon'",
+    "ellipse": "no Dc call draws a rotated or translated ellipse -- "
+               "approximate it with 'polygon'",
+    "text": "a bitmap font cannot rotate or translate through this loop",
+    "icon": "a bitmap font cannot rotate or translate through this loop",
 }
 
 #: Which geometry key each `graph` `style:` actually reads -- the same
@@ -694,6 +724,11 @@ class HandPart:
     #: time a `HandPart` exists this is never `None`.
     color: Expression | None = None
     span: Span | None = None
+    #: `arc` only (`type: pattern`'s template, plan 05 §5.2 -- a hand part
+    #: rejects `arc` outright, so these stay `None` there).  Author degrees,
+    #: same convention `Shape.start_angle`/`.sweep` use.
+    start_angle: Angle | None = None
+    sweep: Angle | None = None
 
 
 @dataclass
@@ -749,6 +784,53 @@ class HandsElement(Element):
     #: Every effective colour (hand-level default, and each part's own
     #: override) this element's set uses, deduplicated in first-use order.
     colors: tuple[Expression, ...] = ()
+
+    def _own_expressions(self) -> list[Expression]:
+        return list(self.colors)
+
+
+@dataclass
+class PatternElement(Element):
+    """`type: pattern` -- one template of 1-16 primitives, drawn repeatedly:
+    turned about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
+    (`pattern: linear`) (plan 05).  The template is authored exactly like a
+    hand part (`Builder._build_hand_part`, parameterised by context), and
+    the repeat itself is the one piece of layout arithmetic the *device*
+    performs, the same bargain ADR 0004 already struck for hands -- `step_angle`/
+    `start_angle` are plain device-independent degrees, already defaulted,
+    so `wfb.layout` never has to ask "was `step:` written" again.
+    """
+
+    pattern: str = "radial"
+    count: int = 1
+    #: Radial only: `step:` as authored, or `360deg / count` when omitted --
+    #: already resolved, so nothing downstream re-derives the default.
+    step_angle: float = 0.0
+    #: Radial only: `start:`, default `0deg`.
+    start_angle: float = 0.0
+    #: Linear only: `step: {dx, dy}` -- an ordinary `Position` used for its
+    #: `dx`/`dy` alone (no anchor, no polar form reaches here).
+    step: Position | None = None
+    skip: tuple[int, ...] = ()
+    skip_every: int | None = None
+    parts: list[HandPart] = field(default_factory=list)
+    #: The element's own `color:` -- the default every part without one of
+    #: its own inherits, before overrides (mirrors `Hand.color`).
+    color: Expression | None = None
+    #: Every effective colour (the element default, and each part's own
+    #: override) this pattern uses, deduplicated in first-use order --
+    #: `HandsElement.colors`'s own precedent.
+    colors: tuple[Expression, ...] = ()
+
+    def drawn_indices(self) -> tuple[int, ...]:
+        """Copy indices actually drawn, ascending: `0..count-1` minus `skip`
+        and minus every multiple of `skip_every` (§5.1).  A pattern with
+        nothing left to draw is a build error (`Builder._build_pattern_element`),
+        so this is never empty for an element that reached the IR."""
+        return tuple(
+            i for i in range(self.count)
+            if i not in self.skip and (self.skip_every is None or i % self.skip_every != 0)
+        )
 
     def _own_expressions(self) -> list[Expression]:
         return list(self.colors)
@@ -2134,69 +2216,86 @@ class Builder:
             return None
         return Hand(parts=parts, color=hand_color)
 
-    def _reject_hand_data_color(self, color: Expression, where: str, span: Span | None) -> bool:
-        """A hand colour "may not read a data source" (§5.4) -- a hand is
-        about the time, and has no `when_absent:` to fall back through if
-        the reading it named turned out absent.  Returns whether the colour
-        was rejected.
+    def _reject_hand_data_color(
+        self, color: Expression, where: str, span: Span | None, *, noun: str = "hand",
+    ) -> bool:
+        """A hand (or pattern) colour "may not read a data source" (§5.4,
+        plan 05 §5.2) -- a hand is about the time and a pattern has no
+        `when_absent:` to fall back through if the reading it named turned
+        out absent, in either case with nothing to substitute.  Returns
+        whether the colour was rejected.
         """
         if not color.sources:
             return False
         self.bag.error(
-            "hands",
-            f"{where}.color: a hand colour cannot read data ({_and_paths(color.sources)})",
+            "hands" if noun == "hand" else "pattern",
+            f"{where}.color: a {noun} colour cannot read data ({_and_paths(color.sources)})",
             span or color.span,
             notes=["allowed: palette entries, literal colours and config.* "
                    "(accent_color, data_color, colors.<role>) -- and conditionals "
                    "over those",
-                   "a hand has no 'when_absent:', and a hand is about the time, "
-                   "not a reading"],
+                   f"a {noun} has no 'when_absent:' to fall back through if the "
+                   "reading it named turned out absent"],
         )
         return True
 
     def _build_hand_part(
         self, node: dict, where: str, index: int,
-        hand_color: Expression | None, color_declared_and_failed: bool,
+        default_color: Expression | None, color_declared_and_failed: bool,
+        *, context: str = "hand",
     ) -> HandPart | None:
-        """One primitive of a hand -- the same per-shape precedent as
-        `_build_shape`/`_check_shape_keys`, scoped to the four rotatable
-        primitives (§5.2)."""
+        """One primitive of a hand, or of a `type: pattern` template -- the
+        same per-shape precedent as `_build_shape`/`_check_shape_keys`,
+        scoped to the rotatable-or-translatable primitives (§5.2, plan 05
+        §5.2).  `context` selects which vocabulary applies: a hand part
+        rejects `arc` outright (no runtime support for a rotating start
+        angle existed until the pattern barrel added it); a pattern part
+        accepts it.  Hand behaviour is unchanged by this parameter -- every
+        table it reads defaults to the hand's own, so `context="hand"`
+        (every existing caller) takes exactly the code path it always did.
+        """
+        is_hand = context == "hand"
+        noun = "hand" if is_hand else "pattern"
+        rejected_shapes = HAND_PART_REJECTED_SHAPES if is_hand else PATTERN_PART_REJECTED_SHAPES
+        geometry_keys = HAND_PART_GEOMETRY_KEYS if is_hand else PATTERN_PART_GEOMETRY_KEYS
         part_where = f"{where}.parts[{index}]"
         shape = node.get("shape")
         span = self.doc.span(node) if isinstance(node, dict) else None
-        if isinstance(node, dict) and shape in HAND_PART_REJECTED_SHAPES:
+        if isinstance(node, dict) and shape in rejected_shapes:
             self.bag.error(
                 "element",
-                f"{part_where}: 'shape: {shape}' is not accepted on a hand part -- "
-                f"{HAND_PART_REJECTED_SHAPES[shape]}",
+                f"{part_where}: 'shape: {shape}' is not accepted on a {noun} part -- "
+                f"{rejected_shapes[shape]}",
                 self.doc.span(node, "shape") or span,
-                notes=["the four rotatable primitives are: polygon, rectangle, line, circle"],
+                notes=["the rotatable primitives are: " + ", ".join(sorted(geometry_keys))],
             )
             return None
-        if not isinstance(node, dict) or shape not in HAND_PART_GEOMETRY_KEYS:
+        if not isinstance(node, dict) or shape not in geometry_keys:
             # Unreachable once the schema has run (shape is a closed enum);
             # kept so a malformed node from a future schema slip fails loudly
             # here rather than with an AttributeError three lines down.
-            self.bag.error("hands", f"{part_where}: not a valid hand part", span)
+            self.bag.error("hands" if is_hand else "pattern",
+                           f"{part_where}: not a valid {noun} part", span)
             return None
 
         ok = True
         part_color = self._color_expression(node, "color") if "color" in node else None
         if part_color is not None and self._reject_hand_data_color(
-                part_color, part_where, self.doc.span(node, "color")):
+                part_color, part_where, self.doc.span(node, "color"), noun=noun):
             part_color = None
             ok = False
         elif "color" in node and part_color is None:
             ok = False  # _color_expression already reported the real mistake
-        effective_color = part_color if part_color is not None else hand_color
+        effective_color = part_color if part_color is not None else default_color
         if effective_color is None and not color_declared_and_failed \
                 and not ("color" in node and part_color is None):
+            owner = "its hand" if is_hand else "this pattern"
             self.bag.error(
-                "hands",
-                f"{part_where}: no colour -- neither this part nor its hand "
+                "hands" if is_hand else "pattern",
+                f"{part_where}: no colour -- neither this part nor {owner} "
                 "declares 'color:'",
                 span,
-                notes=["set 'color:' on the part, or on the hand as a default "
+                notes=[f"set 'color:' on the part, or on the {noun} as a default "
                        "every part without one inherits"],
             )
             ok = False
@@ -2210,6 +2309,8 @@ class Builder:
         thickness = self._length(node, "thickness")
         radius = self._length(node, "radius")
         filled = bool(node.get("filled", True))
+        start_angle = self._angle(node, "start_angle") if shape == "arc" else None
+        sweep = self._angle(node, "sweep") if shape == "arc" else None
 
         if shape == "polygon" and len(points) < 3:
             self._require(node, "points", f"{part_where}: a polygon part needs points")
@@ -2223,14 +2324,17 @@ class Builder:
         if shape == "circle" and radius is None:
             self._require(node, "radius", f"{part_where}: a circle part needs a radius")
             ok = False
+        if shape == "arc" and radius is None:
+            self._require(node, "radius", f"{part_where}: an arc part needs a radius")
+            ok = False
 
-        if not self._check_hand_part_keys(node, shape, part_where):
+        if not self._check_hand_part_keys(node, shape, part_where, context=context):
             ok = False
 
         if "filled" in node and shape in HAND_PART_NO_UNFILLED and not filled:
             self.bag.error(
                 "element",
-                f"{part_where}: 'filled: false' is not accepted on a hand "
+                f"{part_where}: 'filled: false' is not accepted on a {noun} "
                 f"'shape: {shape}' part -- Toybox.Graphics.Dc has fillPolygon "
                 "but no drawPolygon",
                 self.doc.span(node, "filled") or span,
@@ -2246,34 +2350,52 @@ class Builder:
             shape=shape, points=points, at=at, size=size, to=to,
             thickness=thickness, radius=radius, filled=filled,
             color=effective_color, span=span,
+            start_angle=start_angle, sweep=sweep,
         )
 
-    def _check_hand_part_keys(self, node: dict, shape: str, part_where: str) -> bool:
+    def _check_hand_part_keys(
+        self, node: dict, shape: str, part_where: str, *, context: str = "hand",
+    ) -> bool:
         """Reject a geometry key this part's `shape:` does not read, plus the
         separately-handled `thickness`/`filled` rules -- the same "a key a
         part's shape does not read is an error" precedent as
-        `Builder._check_shape_keys` (§5.2, §5.11)."""
+        `Builder._check_shape_keys` (§5.2, §5.11).  Also how an `arc`
+        pattern part's `at:` is refused (plan 05 D3): `at` is not in
+        `PATTERN_PART_GEOMETRY_KEYS["arc"]`, so it falls out of the same
+        "key belongs to another shape" sweep as any other misplaced key,
+        with one extra note explaining the platform reason.
+        """
+        is_hand = context == "hand"
+        noun = "hand" if is_hand else "pattern"
+        geometry_keys = HAND_PART_GEOMETRY_KEYS if is_hand else PATTERN_PART_GEOMETRY_KEYS
+        all_keys = _ALL_HAND_PART_GEOMETRY_KEYS if is_hand else _ALL_PATTERN_PART_GEOMETRY_KEYS
         ok = True
-        for key in sorted(_ALL_HAND_PART_GEOMETRY_KEYS - HAND_PART_GEOMETRY_KEYS[shape]):
+        for key in sorted(all_keys - geometry_keys[shape]):
             if key not in node:
                 continue
-            owners = sorted(s for s, keys in HAND_PART_GEOMETRY_KEYS.items() if key in keys)
+            owners = sorted(s for s, keys in geometry_keys.items() if key in keys)
+            notes = [
+                f"'shape: {shape}' reads: "
+                + (", ".join(sorted(geometry_keys[shape])) or "(no geometry keys)"),
+                f"{key!r} belongs to " + " and ".join(f"'shape: {s}'" for s in owners),
+            ]
+            if not is_hand and shape == "arc" and key == "at":
+                notes.append("an arc part is always centred on the copy's own "
+                             "origin -- there is no separate centre to offset")
             self.bag.error(
                 "element",
-                f"{part_where}: {key!r} is not used by a hand 'shape: {shape}' part",
+                f"{part_where}: {key!r} is not used by a {noun} 'shape: {shape}' part",
                 self.doc.span(node, key) or self.doc.span(node),
-                notes=[
-                    f"'shape: {shape}' reads: "
-                    + (", ".join(sorted(HAND_PART_GEOMETRY_KEYS[shape])) or "(no geometry keys)"),
-                    f"{key!r} belongs to " + " and ".join(f"'shape: {s}'" for s in owners),
-                ],
+                notes=notes,
             )
             ok = False
         filled = bool(node.get("filled", True))
-        thickness_ok = shape == "line" or (shape == "circle" and not filled)
+        thickness_always = {"line"} if is_hand else {"line", "arc"}
+        thickness_ok = shape in thickness_always or (shape == "circle" and not filled)
         if "thickness" in node and not thickness_ok:
             reason = ("a filled 'shape: circle' part" if shape == "circle"
-                      else f"a hand 'shape: {shape}' part")
+                      else f"a {noun} 'shape: {shape}' part")
+            only = "'line'" + (" and 'arc'" if not is_hand else "")
             self.bag.error(
                 "element",
                 f"{part_where}: 'thickness' is not used by {reason}",
@@ -2281,15 +2403,17 @@ class Builder:
                 notes=["thickness is the pen width of an outline; add 'filled: false' "
                        "to a circle part to outline it, or drop 'thickness'"]
                       if shape == "circle" else
-                      ["only 'line' and an unfilled 'circle' part read 'thickness'"],
+                      [f"only {only} and an unfilled 'circle' part read 'thickness'"],
             )
             ok = False
         if "filled" in node and shape not in HAND_PART_FILLED_SHAPES:
             self.bag.error(
                 "element",
-                f"{part_where}: 'filled' is not used by a hand 'shape: {shape}' part",
+                f"{part_where}: 'filled' is not used by a {noun} 'shape: {shape}' part",
                 self.doc.span(node, "filled") or self.doc.span(node),
-                notes=["a line has no notion of being filled or not"],
+                notes=["a line has no notion of being filled or not"] if shape == "line" else
+                      ["an arc has no notion of being filled or not -- "
+                       "Toybox.Graphics.Dc has no filled-arc primitive"],
             )
             ok = False
         return ok
@@ -2488,6 +2612,7 @@ class Builder:
             "graph": self._build_graph,
             "complication_slot": self._build_complication_slot,
             "hands": self._build_hands_element,
+            "pattern": self._build_pattern_element,
         }
         builder = builders.get(node["type"])
         if builder is None:  # unreachable once the schema has run
@@ -3210,6 +3335,202 @@ class Builder:
                     colors.append(part.color)
 
         return HandsElement(**common, hands=name, seconds=seconds, colors=tuple(colors))
+
+    def _build_pattern_element(self, node: dict, common: dict, path: tuple) -> Element | None:
+        """`type: pattern` -- one template, drawn `count:` times, turned
+        about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
+        (`pattern: linear`) (plan 05).
+
+        Every check here is a build-time error, each driven red by its own
+        test (§5.4): a mismatched `step:`/`start:` shape for this pattern
+        kind, a zero or self-overlapping radial step, an out-of-range or
+        exhaustive `skip:`/`skip_every:`, `low_power`, and the part rules
+        `_build_hand_part` already enforces.  Every branch below returns
+        `None` on its own violation rather than falling through to the next
+        check, so a design with exactly one mistake gets exactly one error
+        (`docs/lore/codegen.md`, "one error, not N").
+        """
+        element_id = common["id"]
+        pattern_kind = node["pattern"]
+        count = node["count"]
+
+        if "low_power" in common["modes"]:
+            self.bag.error(
+                "pattern",
+                f"{element_id}: 'modes:' may not include 'low_power' on a pattern",
+                self.doc.span(node, "modes") or common["span"],
+                notes=["a fixed pattern gains nothing from onPartialUpdate -- its "
+                       "geometry never changes -- and its clip would be its whole "
+                       "extent"],
+            )
+            return None
+
+        step_raw = node.get("step")
+        if pattern_kind == "radial":
+            if isinstance(step_raw, dict):
+                self.bag.error(
+                    "pattern",
+                    f"{element_id}.step: 'pattern: radial' takes an angle for "
+                    "'step:' (default 360deg / count), not {dx, dy}",
+                    self.doc.span(node, "step"),
+                    notes=["'{dx, dy}' is for 'pattern: linear'"],
+                )
+                return None
+            if step_raw is None:
+                step_degrees = 360.0 / count
+            else:
+                step_angle = self._angle(node, "step")
+                if step_angle is None:
+                    return None  # _angle already reported the real mistake
+                step_degrees = step_angle.degrees
+            start_angle = self._angle(node, "start") if "start" in node else None
+            if "start" in node and start_angle is None:
+                return None  # _angle already reported the real mistake
+            start_degrees = start_angle.degrees if start_angle is not None else 0.0
+
+            if step_degrees == 0.0:
+                self.bag.error(
+                    "pattern",
+                    f"{element_id}.step: 'step: 0deg' draws every copy on top "
+                    "of copy 0",
+                    self.doc.span(node, "step") or common["span"],
+                    notes=["a radial pattern's whole point is turning between "
+                           "copies -- give it a nonzero step, or write one "
+                           "element if a single copy is all you want"],
+                )
+                return None
+            if count > 1:
+                span = abs(step_degrees) * (count - 1)
+                if span >= 360.0 - 1e-9:
+                    wrap_index = min(count - 1, math.ceil(360.0 / abs(step_degrees)))
+                    self.bag.error(
+                        "pattern",
+                        f"{element_id}: copies 0 and {wrap_index} land on the same "
+                        f"angle -- 'step:' x (count - 1) = {span:g}deg reaches a "
+                        "full turn",
+                        self.doc.span(node, "step") or common["span"],
+                        notes=[f"count: {count}, step: {step_degrees:g}deg -- "
+                               "reduce count or step so the copies do not wrap "
+                               "past 360deg"],
+                    )
+                    return None
+            step_position = None
+        else:
+            if "start" in node:
+                self.bag.error(
+                    "pattern",
+                    f"{element_id}.start: not accepted on 'pattern: linear' -- "
+                    "only a radial pattern has a start copy angle",
+                    self.doc.span(node, "start"),
+                    notes=["'step: {dx, dy}' already places copy 0 relative to 'at:'"],
+                )
+                return None
+            if step_raw is None:
+                self.bag.error(
+                    "pattern",
+                    f"{element_id}.step: a linear pattern needs a "
+                    "'step: {dx, dy}' between copies",
+                    self.doc.span(node) or common["span"],
+                    notes=["radial's angle default (360deg / count) has no linear "
+                           "equivalent -- there is no natural spacing to assume"],
+                )
+                return None
+            if not isinstance(step_raw, dict):
+                self.bag.error(
+                    "pattern",
+                    f"{element_id}.step: 'pattern: linear' takes {{dx, dy}} for "
+                    "'step:', not an angle",
+                    self.doc.span(node, "step"),
+                    notes=["an angle 'step:' is for 'pattern: radial'"],
+                )
+                return None
+            step_position = self._position(step_raw, node, "step")
+            step_degrees = 0.0
+            start_degrees = 0.0
+
+        skip = tuple(sorted({int(i) for i in (node.get("skip") or [])}))
+        out_of_range = [i for i in skip if i >= count]
+        if out_of_range:
+            self.bag.error(
+                "pattern",
+                f"{element_id}.skip: index" + ("es" if len(out_of_range) > 1 else "")
+                + f" {', '.join(str(i) for i in out_of_range)} out of range for "
+                f"'count: {count}' (0..{count - 1})",
+                self.doc.span(node, "skip"),
+            )
+            return None
+        skip_every = node.get("skip_every")
+        if skip_every is not None and skip_every > count:
+            self.bag.error(
+                "pattern",
+                f"{element_id}.skip_every: {skip_every} is greater than "
+                f"'count: {count}', so it skips nothing",
+                self.doc.span(node, "skip_every"),
+            )
+            return None
+        drawn = tuple(
+            i for i in range(count)
+            if i not in skip and (skip_every is None or i % skip_every != 0)
+        )
+        if not drawn:
+            self.bag.error(
+                "pattern",
+                f"{element_id}: 'skip:'/'skip_every:' leave every copy undrawn",
+                self.doc.span(node, "skip_every") or self.doc.span(node, "skip")
+                or common["span"],
+                notes=["remove the element, or skip fewer copies"],
+            )
+            return None
+
+        ok = True
+        element_color: Expression | None = None
+        color_declared_and_failed = False
+        if "color" in node:
+            element_color = self._color_expression(node, "color")
+            if element_color is None:
+                ok = False
+                color_declared_and_failed = True
+            else:
+                rejected = self._reject_hand_data_color(
+                    element_color, element_id, self.doc.span(node, "color"), noun="pattern")
+                if rejected:
+                    element_color = None
+                    ok = False
+                    color_declared_and_failed = True
+
+        parts: list[HandPart] = []
+        for index, raw_part in enumerate(node.get("parts") or []):
+            part = self._build_hand_part(
+                raw_part, element_id, index, element_color, color_declared_and_failed,
+                context="pattern",
+            )
+            if part is None:
+                ok = False
+                continue
+            parts.append(part)
+        if not ok:
+            return None
+
+        colors: list[Expression] = []
+        if element_color is not None and element_color not in colors:
+            colors.append(element_color)
+        for part in parts:
+            if part.color is not None and part.color not in colors:
+                colors.append(part.color)
+
+        return PatternElement(
+            **common,
+            pattern=pattern_kind,
+            count=count,
+            step_angle=step_degrees,
+            start_angle=start_degrees,
+            step=step_position,
+            skip=skip,
+            skip_every=skip_every,
+            parts=parts,
+            color=element_color,
+            colors=tuple(colors),
+        )
 
     def _build_text(self, node: dict, common: dict, path: tuple) -> Element:
         value = self._expression(node, "value") if "value" in node else None

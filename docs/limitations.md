@@ -83,6 +83,20 @@ has no `when_absent:`. **12-hour dial only**: the hour hand turns twice a
 day; there is no 24-hour (GMT) hand. **Hands cannot be held** (`on_hold:`
 is not a key on `type: hands`), although a `group` around them can be.
 
+**Patterns turn in Monkey C too** (`type: pattern`, 2026-09-14, plan 05).
+A radial pattern's copies are the build-time-resolved template rotated on
+the watch, one `sin`/`cos` pair per copy, and a linear pattern's are
+translated by a whole-pixel step. Both go through the same
+`runtime-lib/WfbGeom.mc` helpers hands use. Baking the copies instead was
+measured and costs roughly 30x more of the 128 KB budget
+(`docs/research/probes/pattern-cost/`). The time is paid once for a
+pattern in `static:`, and once a frame for one outside it. That per-frame
+cost is unmeasured. The part vocabulary is the hands' four primitives plus
+an `arc` centred on the pattern's centre. How the firmware rasterises the
+Float coordinates of a turned copy without anti-aliasing is unobserved,
+the same open question hands have. **Pattern colours cannot read data**,
+for the same reason hand colours cannot.
+
 ### `SensorHistory` is closed to a watch face, and solar has no history API at all
 
 The obvious route to pressure, stress, elevation and Body Battery **as a
@@ -539,6 +553,11 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | A gauge needle (an author-expression angle, not the clock) | plan 04 §11 -- the rotation machinery is the same as an analog hand's; the format question (one authored angle vs. three fixed clock formulas) is not |
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | plan 04 §11 |
 | `wfb new -t analog` template | plan 04 §11 |
+| `text` parts in a `pattern` (hour numerals: each copy would need its own text, and a bitmap font cannot turn) | plan 05 §9 D5 |
+| `pattern: grid` (rows × columns) | plan 05 §9 D5 -- two nested linear steps; nothing has asked for it yet |
+| Data-driven pattern colours, per-copy colours, and per-copy variation other than `skip:`/`skip_every:` | plan 05 §9 D5 -- a pattern has no `when_absent:`; a longer or differently coloured copy is a second pattern element today |
+| `on_hold:` and `low_power` on a `pattern` | plan 05 §5.1, §5.4 -- hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
+| `rounded_rectangle`/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |
 
 **None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
 verified anywhere in this project** (plan 02 §9,

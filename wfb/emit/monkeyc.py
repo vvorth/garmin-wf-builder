@@ -17,20 +17,23 @@ for emitting code that fails strict checking.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from .. import __version__, catalog, complications, expr, formatting, icons, series
 from ..catalog import READERS, Type
 from ..ir import (
     CONFIG_SYMBOL, HOLD_AUTO, ComplicationSlot, Expression, Face, Graph,
-    HandsElement, IconElement, Progress, Shape, Text, complication_slot_hold_method,
-    complication_slot_icon_method, config_data_ids, config_field, element_const_prefix,
-    element_method_name, font_resource_id, graph_built_field, graph_max_field, local_name,
-    graph_min_field, graph_rebuild_method, graph_series_field, static_group_method,
+    HandsElement, IconElement, PatternElement, Position, Progress, Shape, Text,
+    complication_slot_hold_method, complication_slot_icon_method, config_data_ids,
+    config_field, element_const_prefix, element_method_name, font_resource_id,
+    graph_built_field, graph_max_field, local_name, graph_min_field, graph_rebuild_method,
+    graph_series_field, static_group_method,
 )
 from ..layout import (
     ANTIALIASED_PRIMITIVES, COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, PlacedGraph,
-    PlacedHands, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedHands, PlacedIcon, PlacedPattern, PlacedProgress, PlacedShape, PlacedText,
+    ResolvedFace,
 )
 from ..series import Acquisition
 from ..units import IntBox
@@ -572,6 +575,7 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
     needs_graphics = any(
         (isinstance(p, PlacedShape) and p.element.shape == "polygon")
         or (isinstance(p, PlacedHands) and _hands_needs_graphics(p))
+        or (isinstance(p, PlacedPattern) and _pattern_needs_graphics(p))
         for p in resolved.items
     )
     imports = ["import Toybox.Graphics;", "import Toybox.Lang;"] if needs_graphics \
@@ -626,6 +630,33 @@ def _hands_needs_graphics(placed: "PlacedHands") -> bool:
         if any(part.shape == "polygon" for part in hand.parts):
             return True
     return False
+
+
+def _pattern_needs_graphics(placed: "PlacedPattern") -> bool:
+    """Does this `type: pattern` draw at least one polygon part (a rectangle
+    part folded in) -- the same "needs `Array<Graphics.Point2D>`" test
+    `_hands_needs_graphics` runs for a hand, generalised: a pattern has one
+    flat template rather than up to three named hands."""
+    return any(part.shape == "polygon" for part in placed.parts)
+
+
+def _pattern_needs_math(placed: "PlacedPattern") -> bool:
+    """Does this pattern's device loop compute a `sin`/`cos` pair at all?
+
+    Only a **radial** pattern turns; a linear one only ever translates
+    (plan 05 §5.3), so it never needs trigonometry.  And even a radial
+    pattern skips it when every part is an `arc`: an arc's start angle
+    turns by plain degree subtraction through `WfbArc.drawSpan`'s own
+    `startDegrees` parameter (§6.4), not by rotating a coordinate -- so an
+    all-arc radial pattern (`segments` in `examples/patterns/face.yaml`)
+    needs no `sin`/`cos` and therefore no `Toybox.Math` either.  Shared by
+    the view's import gate and :func:`_emit_pattern` itself so the two
+    cannot drift into disagreeing about whether the loop declares `angle`/
+    `sin`/`cos`.
+    """
+    if placed.element.pattern != "radial":
+        return False
+    return any(part.shape != "arc" for part in placed.parts)
 
 
 def _hold_constants(placed) -> list[tuple[str, float, str]]:
@@ -785,37 +816,60 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
                 continue
             hand_prefix = f"{prefix}_{hand_name.upper()}"
             for index, part in enumerate(hand.parts):
-                out.extend(_hand_part_constants(f"{hand_prefix}_{index}", hand_name, index, part))
+                out.extend(_hand_part_constants(
+                    f"{hand_prefix}_{index}", f"{hand_name} hand", index, part))
+    elif isinstance(placed, PlacedPattern):
+        note = ("the centre every copy turns about" if placed.element.pattern == "radial"
+                else "copy 0's origin")
+        out.append((f"{prefix}_X", placed.center[0], note))
+        out.append((f"{prefix}_Y", placed.center[1], ""))
+        if placed.element.pattern == "linear":
+            out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
+            out.append((f"{prefix}_DY", placed.dy, ""))
+        for index, part in enumerate(placed.parts):
+            out.extend(_hand_part_constants(f"{prefix}_{index}", "template", index, part))
     return out
 
 
 def _hand_part_constants(
-    part_prefix: str, hand_name: str, index: int, part,
+    part_prefix: str, owner: str, index: int, part,
 ) -> list[tuple[str, float | McLiteral, str]]:
-    """The `Layout` constants for one resolved hand part (plan 04 §6):
-    `<P>_<HAND>_<i>_POINTS` for a polygon (a rectangle part already folded
-    into one by `wfb.layout`), or `_X1/_Y1/_X2/_Y2/_THICKNESS` for a line,
-    or `_X/_Y/_RADIUS[/_THICKNESS]` for a circle -- one comment naming the
-    part's own shape, the same "why" every other constant block gets.
+    """The `Layout` constants for one resolved hand part, or one resolved
+    pattern template part (plan 05 §6.4, reusing this precedent):
+    `<P>_<i>_POINTS` for a polygon (a rectangle part already folded into
+    one by `wfb.layout`), `_X1/_Y1/_X2/_Y2/_THICKNESS` for a line,
+    `_X/_Y/_RADIUS[/_THICKNESS]` for a circle, or `_RADIUS/_THICKNESS` for
+    an arc (pattern-only -- a hand never produces this shape, §5.2) -- one
+    comment naming the part's own shape, the same "why" every other
+    constant block gets.  ``owner`` is the human-readable thing this part
+    belongs to (``"hour hand"``, or ``"template"`` for a pattern, which has
+    only the one), folded into that comment.
     """
     if part.shape == "polygon":
         points = ", ".join(f"[{x}, {y}]" for x, y in part.points)
         return [(
             f"{part_prefix}_POINTS",
             McLiteral("Array<Graphics.Point2D>", f"[{points}]"),
-            f"{hand_name} hand, part {index}: a {len(part.points)}-vertex polygon",
+            f"{owner}, part {index}: a {len(part.points)}-vertex polygon",
         )]
     if part.shape == "line":
         return [
-            (f"{part_prefix}_X1", part.x1, f"{hand_name} hand, part {index}: a line"),
+            (f"{part_prefix}_X1", part.x1, f"{owner}, part {index}: a line"),
             (f"{part_prefix}_Y1", part.y1, ""),
             (f"{part_prefix}_X2", part.x2, ""),
             (f"{part_prefix}_Y2", part.y2, ""),
             (f"{part_prefix}_THICKNESS", part.thickness, "pen width"),
         ]
+    if part.shape == "arc":
+        # Always centred on the origin (x=y=0, plan 05 D3) -- no _X/_Y.
+        return [
+            (f"{part_prefix}_RADIUS", part.radius, f"{owner}, part {index}: an arc"),
+            (f"{part_prefix}_THICKNESS", part.thickness,
+             "pen width; there is no filled-arc primitive"),
+        ]
     # circle
     out = [
-        (f"{part_prefix}_X", part.x, f"{hand_name} hand, part {index}: a circle"),
+        (f"{part_prefix}_X", part.x, f"{owner}, part {index}: a circle"),
         (f"{part_prefix}_Y", part.y, ""),
         (f"{part_prefix}_RADIUS", part.radius, ""),
     ]
@@ -990,12 +1044,20 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         config_modules.add("Toybox.Complications")
 
     hands_items = [p for p in resolved.items if isinstance(p, PlacedHands)]
-    hands_modules: set[str] = set()
+    trig_modules: set[str] = set()
     if hands_items:
         # The view computes each hand's own sin/cos directly (the probe's
         # shape), not just the barrel -- so Toybox.Math is imported here too,
         # not only in WfbHands.mc (plan 04 §6).
-        hands_modules.add("Toybox.Math")
+        trig_modules.add("Toybox.Math")
+    pattern_items = [p for p in resolved.items if isinstance(p, PlacedPattern)]
+    if any(_pattern_needs_math(p) for p in pattern_items):
+        # Same reasoning, plan 05 §6.4/§6.5: a radial pattern with at least
+        # one non-arc part computes its own sin/cos in the loop, so Math
+        # has to be in scope here too -- not only when hands are also on
+        # the design.  `_pattern_needs_math` is the one place this decision
+        # is made, shared with `_emit_pattern` itself.
+        trig_modules.add("Toybox.Math")
     hands_awake_second = any(
         p.second is not None and p.element.seconds == "awake" for p in hands_items
     )
@@ -1003,7 +1065,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     w = Writer()
     w.doc(header(face, f"Device:    {device.id}")).blank()
     for module in sorted(set(_BASE_IMPORTS) | plan.modules | graph_modules
-                         | config_modules | hands_modules):
+                         | config_modules | trig_modules):
         w.line(f"import {module};")
     w.blank()
 
@@ -1796,6 +1858,8 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             _emit_graph(w, placed)
         elif isinstance(placed, PlacedHands):
             _emit_hands(w, placed)
+        elif isinstance(placed, PlacedPattern):
+            _emit_pattern(w, placed)
         if overrides_antialias:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 
@@ -2034,33 +2098,239 @@ def _emit_one_hand(w: Writer, prefix: str, hand_name: str, angle_fn: str, hand,
             w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
             current = color
         if part.shape == "polygon":
-            w.line(f"WfbHands.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
+            w.line(f"WfbGeom.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
         elif part.shape == "line":
             w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
             w.line(
-                f"WfbHands.drawLineRotated(dc, Layout.{part_prefix}_X1, "
+                f"WfbGeom.drawLineRotated(dc, Layout.{part_prefix}_X1, "
                 f"Layout.{part_prefix}_Y1,"
             )
             w.line(
-                f"                         Layout.{part_prefix}_X2, "
+                f"                        Layout.{part_prefix}_X2, "
                 f"Layout.{part_prefix}_Y2, cx, cy, sin, cos);"
             )
             w.line("dc.setPenWidth(1);")
         elif part.filled:
             w.line(
-                f"WfbHands.fillCircleRotated(dc, Layout.{part_prefix}_X, "
+                f"WfbGeom.fillCircleRotated(dc, Layout.{part_prefix}_X, "
                 f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
             )
-            w.line("                           cx, cy, sin, cos);")
+            w.line("                          cx, cy, sin, cos);")
         else:
             w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
             w.line(
-                f"WfbHands.drawCircleRotated(dc, Layout.{part_prefix}_X, "
+                f"WfbGeom.drawCircleRotated(dc, Layout.{part_prefix}_X, "
                 f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
             )
-            w.line("                           cx, cy, sin, cos);")
+            w.line("                          cx, cy, sin, cos);")
             w.line("dc.setPenWidth(1);")
     return True
+
+
+# --------------------------------------------------------------------------
+# type: pattern (plan 05)
+
+
+def _mc_float(value: float) -> str:
+    """A bare `Float` literal for inline use in the view, not a `Layout`
+    constant (`_mc_number` handles those, with a trailing `f`).  A Python
+    float's own `repr` always carries a decimal point, which is what makes
+    a literal like `0.10471975511965977` unambiguously `Float` rather than
+    `Number` to the Monkey C parser with no suffix needed at all -- plan 05
+    §6.4's own radial-angle example spells it exactly this way.
+    """
+    text = repr(float(value))
+    return text if "." in text or "e" in text else text + ".0"
+
+
+def _pattern_skip_condition(element: "PatternElement") -> str:
+    """The loop's skip test, in one fixed order: `skip_every:` first, then
+    every explicit `skip:` index it does not already cover (plan 05 §6.4)
+    -- an index `skip_every:` already catches would otherwise test true a
+    second time for no reason.  Empty when nothing is skipped, which is
+    what lets :func:`_emit_pattern` omit the `if` entirely.
+    """
+    terms: list[str] = []
+    if element.skip_every is not None:
+        terms.append(f"i % {element.skip_every} == 0")
+    for index in element.skip:
+        if element.skip_every is None or index % element.skip_every != 0:
+            terms.append(f"i == {index}")
+    return " || ".join(terms)
+
+
+def _pattern_angle_expr(element: "PatternElement") -> tuple[str, str]:
+    """The radial loop's `angle` expression (radians, bare `Float`
+    literals) and the degrees comment beside it (plan 05 §6.4):
+    `<start> + i * <step>`, with the start term dropped from the *code*
+    when `start: 0deg` (the common case) -- the comment always spells out
+    both numbers, so the general rule stays visible even then.
+    """
+    step_rad = _mc_float(math.radians(element.step_angle))
+    comment = f"({element.start_angle:g} + {element.step_angle:g} i) degrees"
+    if element.start_angle == 0.0:
+        return f"i * {step_rad}", comment
+    start_rad = _mc_float(math.radians(element.start_angle))
+    return f"{start_rad} + i * {step_rad}", comment
+
+
+def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index: int,
+                       part, radial: bool, hoist_pen: bool) -> None:
+    """One template part, drawn for the current copy `i` (plan 05 §6.4):
+    rotated about `(cx, cy)` through `WfbGeom` for a radial pattern,
+    translated by `(ox, oy)` for a linear one -- the same two drawing
+    shapes `_emit_one_hand` already uses for a hand, generalised from
+    "the axis" to "this copy's origin".  An `arc` part is the one shape
+    neither calling convention covers on its own: it always goes through
+    `WfbArc.drawSpan`, radial or linear alike, with the centre as its only
+    per-copy input (plan 05 D3 -- an arc part is never `at:`-offset).
+    """
+    part_prefix = f"{prefix}_{index}"
+    if part.shape == "polygon":
+        if radial:
+            w.line(f"WfbGeom.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
+        else:
+            w.line(f"WfbGeom.fillTranslated(dc, Layout.{part_prefix}_POINTS, ox, oy);")
+        return
+    if part.shape == "line":
+        if not hoist_pen:
+            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+        if radial:
+            w.line(
+                f"WfbGeom.drawLineRotated(dc, Layout.{part_prefix}_X1, "
+                f"Layout.{part_prefix}_Y1,"
+            )
+            w.line(
+                f"                        Layout.{part_prefix}_X2, "
+                f"Layout.{part_prefix}_Y2, cx, cy, sin, cos);"
+            )
+        else:
+            w.line(f"dc.drawLine(ox + Layout.{part_prefix}_X1, oy + Layout.{part_prefix}_Y1,")
+            w.line(f"            ox + Layout.{part_prefix}_X2, oy + Layout.{part_prefix}_Y2);")
+        if not hoist_pen:
+            w.line("dc.setPenWidth(1);")
+        return
+    if part.shape == "circle":
+        if part.filled:
+            if radial:
+                w.line(
+                    f"WfbGeom.fillCircleRotated(dc, Layout.{part_prefix}_X, "
+                    f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
+                )
+                w.line("                          cx, cy, sin, cos);")
+            else:
+                w.line(
+                    f"dc.fillCircle(ox + Layout.{part_prefix}_X, "
+                    f"oy + Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS);"
+                )
+            return
+        if not hoist_pen:
+            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+        if radial:
+            w.line(
+                f"WfbGeom.drawCircleRotated(dc, Layout.{part_prefix}_X, "
+                f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
+            )
+            w.line("                          cx, cy, sin, cos);")
+        else:
+            w.line(
+                f"dc.drawCircle(ox + Layout.{part_prefix}_X, "
+                f"oy + Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS);"
+            )
+        if not hoist_pen:
+            w.line("dc.setPenWidth(1);")
+        return
+    # arc: always centred on the copy's own origin (D3).  A radial pattern
+    # turns the author start angle by plain degree subtraction -- the same
+    # arithmetic `wfb.layout.garmin_arc` performs at build time for a
+    # standalone `shape: arc`, just with `i * step` folded in at runtime --
+    # so copy 0 of a radial pattern's arc reaches `WfbArc.drawSpan` with
+    # exactly the numbers a `shape: arc` of the same angles would.  A
+    # linear pattern never turns at all, so its arc keeps copy 0's angles
+    # unchanged at every copy, and only its centre moves.
+    g0 = _mc_float(90.0 - (part.start_angle + element.start_angle))
+    sweep = _mc_float(part.sweep)
+    if radial:
+        step_deg = _mc_float(element.step_angle)
+        start_arg = f"{g0} - i * {step_deg}"
+        cx_arg, cy_arg = "cx", "cy"
+    else:
+        start_arg = g0
+        cx_arg, cy_arg = "ox", "oy"
+    w.line(
+        f"WfbArc.drawSpan(dc, {cx_arg}, {cy_arg}, Layout.{part_prefix}_RADIUS, "
+        f"Layout.{part_prefix}_THICKNESS,"
+    )
+    w.line(f"                {start_arg}, {sweep});")
+
+
+def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
+    """`type: pattern` -- loop over the drawn copies, turning (radial) or
+    translating (linear) the template resolved once at build time (plan 05
+    §5.3, §6.4).  The same bargain `_emit_hands` already struck for analog
+    hands: the device performs the one piece of layout arithmetic ADR 0004
+    leaves it (a rotation or a translation), everything else is a `Layout`
+    constant.
+    """
+    element = placed.element
+    prefix = _const_prefix(placed.id)
+    parts = placed.parts
+    radial = element.pattern == "radial"
+    needs_trig = _pattern_needs_math(placed)
+
+    if radial:
+        w.line(f"var cx = Layout.{prefix}_X;")
+        w.line(f"var cy = Layout.{prefix}_Y;")
+
+    # Colour: one distinct part colour is set once, before the loop; several
+    # are set inside it, only on each change (the same rule `_emit_one_hand`
+    # already follows within one hand).
+    colors = [_color(part.color) for part in parts]
+    distinct_colors = list(dict.fromkeys(colors))
+    hoist_color = len(distinct_colors) == 1
+
+    # Pen width: hoisted when every line/outlined-circle part shares one
+    # width and there is no arc part -- `WfbArc.drawSpan` resets the pen to
+    # 1 itself on every call, which would undo a hoisted width on the very
+    # next copy.
+    pen_parts = [(i, part) for i, part in enumerate(parts)
+                if part.shape == "line" or (part.shape == "circle" and not part.filled)]
+    has_arc = any(part.shape == "arc" for part in parts)
+    hoist_pen = (
+        bool(pen_parts) and not has_arc
+        and len({p.thickness for _, p in pen_parts}) == 1
+    )
+
+    if hoist_color:
+        w.line(f"dc.setColor({distinct_colors[0]}, Graphics.COLOR_TRANSPARENT);"
+              "  // hoisted: one colour")
+    if hoist_pen:
+        hoist_index = pen_parts[0][0]
+        w.line(f"dc.setPenWidth(Layout.{prefix}_{hoist_index}_THICKNESS);"
+              "  // hoisted: one pen, no arc")
+
+    skip_condition = _pattern_skip_condition(element)
+    with w.block(f"for (var i = 0; i < {element.count}; i++)"):
+        if skip_condition:
+            with w.block(f"if ({skip_condition})"):
+                w.line("continue;")
+        if radial:
+            if needs_trig:
+                angle_expr, angle_comment = _pattern_angle_expr(element)
+                w.line(f"var angle = {angle_expr};  // {angle_comment}")
+                w.line("var sin = Math.sin(angle);")
+                w.line("var cos = Math.cos(angle);")
+        else:
+            w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
+            w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
+        current_color = distinct_colors[0] if hoist_color else None
+        for index, (color, part) in enumerate(zip(colors, parts)):
+            if not hoist_color and color != current_color:
+                w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+                current_color = color
+            _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen)
+    if hoist_pen:
+        w.line("dc.setPenWidth(1);")
 
 
 def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: list[str]) -> None:
@@ -3191,6 +3461,17 @@ def _describe(placed) -> str:
         drawn = [n for n in ("hour", "minute", "second") if getattr(placed, n, None) is not None]
         seconds_note = f", seconds: {element.seconds}" if element.seconds else ""
         return f"analog hands (hands.{element.hands}): {_and_list(drawn)}{seconds_note}"
+    if isinstance(element, PatternElement):
+        total = element.count
+        drawn_count = len(placed.copies)
+        note = "" if drawn_count == total else f" ({drawn_count} drawn)"
+        if element.pattern == "radial":
+            return f"a radial pattern: {total} copies, {element.step_angle:g} degrees apart{note}"
+        step = element.step or Position()
+        offsets = [f"{axis} {length}" for axis, length in
+                  (("dx", step.dx), ("dy", step.dy)) if length is not None]
+        step_desc = ", ".join(offsets) if offsets else "0px"
+        return f"a linear pattern: {total} copies, step {step_desc}{note}"
     return element.kind
 
 

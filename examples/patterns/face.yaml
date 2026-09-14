@@ -1,0 +1,152 @@
+# Patterns (docs/format.md "`pattern`"): one template of primitives, drawn
+# many times -- turned about a centre (`pattern: radial`) or stepped along a
+# line (`pattern: linear`).
+#
+# What this design exercises:
+#
+# * **A 60-copy minute ring with `skip_every: 5`** (`minute_ticks`): the
+#   step defaults to 360deg / 60 = 6deg, and every fifth copy is left out
+#   so the hour ticks can draw there instead.
+# * **A 12-copy hour ring with an explicit `skip: [0]`** (`hour_ticks`),
+#   made of a `rectangle` part -- folded into a polygon at build time,
+#   since a turned rectangle is a polygon.
+# * **A linear pattern of two** (`twelve`): the doubled marker at
+#   12 o'clock, where the hour ring skipped its copy 0.
+# * **Arc parts** (`segments`): twelve 24-degree arcs with 6-degree gaps --
+#   a segmented ring, the thing a single `drawArc` cannot draw.
+# * **`start:`** (`diagonals`): four triangles, the first turned to 45deg,
+#   each a `polygon` part pointing outwards.
+# * **A multi-part linear pattern outside `static:`** (`week_dots`): a
+#   filled dot inside an outlined ring, seven times, redrawn every frame
+#   like any other element.
+# * **Anti-aliasing** on the three radial rings (soft rotated edges), and
+#   the face default (crisp) on everything else.
+#
+# Every pattern but `week_dots` is in `static:`, so its loop runs once,
+# when the buffer is filled, not once a second.
+#
+# What is verified: the design builds warning-free through the real
+# `monkeyc` on all three targets (`--build-stats` recorded in
+# `docs/history.md`, 2026-09-14 "Patterns built"). What is NOT verified
+# anywhere in this project: what it looks like on a panel -- there is no
+# simulator and no watch in this container. `wfb preview` draws the same
+# resolved geometry through the same transform, without anti-aliasing.
+#
+# Build it with:     ./wfb.py build examples/patterns/face.yaml
+# Preview it with:   ./wfb.py preview examples/patterns/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: b1ca254a-1574-4ae0-a988-ce23d4750126
+  name: Patterns
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour is one the 64-colour MIP panel shows without dithering:
+# each channel is 0x00, 0x55, 0xAA or 0xFF.
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  gray: "#AAAAAA"
+  slate: "#5555AA"
+  orange: "#FF5500"
+  cyan: "#00AAFF"
+
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.black
+
+  minute_ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center } # the centre every copy turns about
+    count: 60 # step defaults to 360deg / 60 = 6deg
+    skip_every: 5 # copies 0, 5, 10, ... are the hour ticks' places
+    color: palette.gray
+    antialias: true
+    lint:
+      allow: [antialias-dither]
+      reason: "A soft edge on the 64-colour MIP panel dithers; accepted so
+        the turned ticks do not stair-step. Reported against this element,
+        the first to draw anti-aliased, for the whole device."
+    parts: # copy 0, as it looks at 12 o'clock; origin = at:
+      - { shape: line, at: { dy: -94%r }, to: { dy: -88%r }, thickness: 1px }
+
+  hour_ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    step: 30deg
+    skip: [0] # 12 o'clock gets the doubled marker below
+    color: palette.white
+    antialias: true
+    parts:
+      - { shape: rectangle, at: { dy: -88%r }, size: { width: 3%r, height: 12%r } }
+
+  twelve:
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dx: -3%r, dy: -88%r } # copy 0's origin
+    count: 2
+    step: { dx: 6%r } # copy 1 is 6%r to the right
+    color: palette.orange
+    parts:
+      - { shape: rectangle, size: { width: 3%r, height: 12%r } }
+
+  segments:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12 # 30deg apart
+    color: palette.slate
+    antialias: true
+    parts:
+      # centred on the pattern's centre; the start angle turns with the copy
+      - { shape: arc, radius: 72%r, thickness: 4px, start_angle: 3deg, sweep: 24deg }
+
+  diagonals:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 4 # 90deg apart
+    start: 45deg # copy 0 points at half past one
+    color: palette.orange
+    parts:
+      - shape: polygon # a small triangle pointing outwards
+        points:
+          - { dx: -3%r, dy: -56%r }
+          - { dy: -64%r }
+          - { dx: 3%r, dy: -56%r }
+
+elements:
+  clock:
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: -8% }
+    color: palette.white
+
+  # Not static: drawn every frame, like any other element.
+  week_dots:
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dx: -30%r, dy: 36%r } # copy 0's origin
+    count: 7
+    step: { dx: 10%r }
+    color: palette.cyan
+    parts:
+      - { shape: circle, radius: 2%r }
+      - { shape: circle, radius: 4%r, filled: false, thickness: 1px, color: palette.gray }

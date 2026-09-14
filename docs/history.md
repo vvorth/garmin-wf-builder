@@ -2612,3 +2612,179 @@ known fast-suite failures, but the two
 `test_ir_draw_order_matches_the_resolved_one` entries pass on a clean
 `aa9137a` too, so the known set is 3. Both files now say 3, at the user's
 request.
+
+## 2026-09-14 — Patterns built (plan 05)
+
+The user asked for patterns: hour/minute notches and similar rings
+described as one template of primitives, repeated `count:` times about a
+centre (`type: radial`) with a fixed angle between copies, or in a line.
+The instructions were the same shape as plan 04: research, design,
+requirements, subagents build it, the orchestrator integrates and commits.
+
+**Research and design** are in plan 05, deleted once built. Read it with
+`git show <this-commit>:docs/plans/05-patterns.md` for the plan as built
+(§9 lists the choices made without a round-trip). The probe,
+`docs/research/probes/pattern-cost/`, measured four ways to draw a 60-tick
+minute ring and found the gap between "bake every copy as its own element"
+and "the watch loops and transforms one build-time-resolved template" is
+not close:
+
+| strategy | 60 line ticks | grows with count? |
+|---|---|---|
+| expand into 60 `shape` elements (desugar) | +4,960 B | ~83 B a copy |
+| one baked flat array + loop | +1,369 B | ~5 B a coordinate |
+| baked `Point2D` arrays (12 rectangles) | +1,974 B | badly |
+| template + runtime rotation loop | **+170 B** | **no** |
+
+so, as for hands, the watch performs the one remaining piece of layout
+arithmetic (a rotation or a translation) and everything else is a build-time
+`Layout` constant.
+
+**What shipped:**
+
+- `type: pattern`, `pattern: radial | linear`. A template of 1-16 parts
+  (`polygon`/`rectangle`/`line`/`circle`, the hand vocabulary, plus a new
+  `arc` part centred on the pattern's own origin) authored exactly like a
+  hand part -- 12 o'clock, `px`/`%r` only, no `anchor:`.
+- Radial: `at:` (centre), `count:`, `step:` (an angle, default
+  `360deg / count`), `start:`. Linear: `at:` (copy 0's origin), `count:`,
+  `step: {dx, dy}` (required).
+- `skip:`/`skip_every:` leave copies undrawn (room for another pattern's
+  copies at the same index).
+- Every build-time mistake in §5.4 is one error, not N; a device-specific
+  linear step that rounds to `{0, 0}px` is lint code `pattern-step`
+  (per-device, since it depends on the resolved geometry).
+- `static:`, `antialias:` (inherited like any other primitive, now via the
+  shared `wfb.layout.ANTIALIASED_PRIMITIVES`), `layouts:`, `visible:` all
+  work with no new mechanism. `modes: [low_power]` and `on_hold:` are
+  rejected (a fixed pattern gains nothing from `onPartialUpdate`; hold a
+  `group` around it instead).
+- `runtime-lib/WfbGeom.mc`: the four rotate/translate-and-draw helpers
+  (`fillRotated`, `drawLineRotated`, `fillCircleRotated`,
+  `drawCircleRotated`) moved out of `WfbHands.mc` so hands and patterns
+  share one copy, plus a new `fillTranslated` for a linear pattern's
+  polygon parts. `WfbHands.mc` keeps only the three clock-to-angle
+  functions. `wfb preview` draws patterns through the same
+  `PlacedPattern.transform()` the device's generated loop uses, so the two
+  cannot disagree about where a copy lands.
+- `examples/patterns/face.yaml`: a 60-copy minute ring and a 12-copy hour
+  ring (`skip_every`/`skip` leaving room for each other), a doubled
+  12-o'clock marker (linear), a 12-segment arc ring, four `start: 45deg`
+  triangles, and a non-`static:` linear row of dots -- every kind this plan
+  added in one design.
+
+**Decisions made without a round-trip (plan §9, for the user to review):**
+
+- **D1** -- one `type: pattern` with `pattern: radial | linear`, not two
+  element types, so a later `pattern: grid` has somewhere to go.
+- **D2** -- the watch performs the repeat transform (a second amendment to
+  ADR 0004), on the probe evidence above: 170 B instead of ~5 KB for a
+  60-copy ring.
+- **D3** -- an `arc` part is always centred on the pattern's own origin
+  (`at:` rejected on it); only its start angle turns with the copy. Covers
+  segmented rings, the asked-for use case; an off-centre rotating arc was
+  not asked for.
+- **D4** -- a linear `step:` is resolved to whole pixels once, so every gap
+  between copies is identical rather than the total span being exact.
+- **D5** -- explicitly not in this plan: text/numeral parts, `pattern:
+  grid`, data-bound colours, `on_hold:`, `low_power`, per-copy variation
+  beyond skipping, `rounded_rectangle`/`ellipse` parts. Listed in
+  `docs/limitations.md` §2.
+- **D6** -- the template is inline on the element, not a named top-level
+  block like `hands:` -- a pattern is placed once, and `layouts:` already
+  covers "a different pattern per style."
+- **D7** -- `WfbHands`' rotate-and-draw helpers move to a shared `WfbGeom`
+  rather than being duplicated, or pulled into patterns under a hands-only
+  name.
+
+**Review of the subagents' work** (§5.4 check -> test, every one watched
+red by temporarily disabling its guard and confirming the specific test
+failed, then restoring it):
+
+| §5.4 check | test(s) |
+|---|---|
+| 1. mismatched/missing `step:` shape for the pattern kind | `test_radial_with_a_mapping_step_is_an_error`, `test_linear_with_an_angle_step_is_an_error`, `test_linear_with_no_step_is_an_error` |
+| 2. `start:` on a linear pattern | `test_start_on_a_linear_pattern_is_an_error` |
+| 3. `step: 0deg`; copies wrapping past a full turn | `test_radial_step_zero_is_an_error`, `test_radial_copies_that_wrap_past_a_full_turn_name_the_two_indices` |
+| 4. `skip:` out of range or repeated; `skip_every` > count; every copy skipped | `test_a_skip_index_out_of_range_is_an_error`, `test_a_repeated_skip_index_is_an_error` (added this session -- see below), `test_skip_every_greater_than_count_is_an_error`, `test_every_copy_skipped_is_an_error` |
+| 5. part rules (§5.2) | 16 tests, `test_bad_part_shapes_each_get_their_own_reason` through `test_percent_is_accepted_in_a_linear_step_but_not_a_part_length` |
+| 6. `modes: [low_power]` rejected | `test_low_power_mode_is_rejected_on_a_pattern` |
+| 7. lint `pattern-step` | `test_pattern_step_fires_when_the_step_rounds_to_zero` |
+
+Two real gaps found and fixed:
+
+- **A repeated `skip:` index silently deduplicated instead of erroring.**
+  §5.4 item 4 says a repeated index is a mistake, same as one out of range,
+  but nothing in `tests/test_patterns.py` exercised it. It turns out the
+  schema's own `uniqueItems: true` on `skip:` already catches it one stage
+  before the IR (`elements[0].skip: [1, 1] has non-unique elements`) --
+  correct, but untested for a pattern specifically. Added
+  `test_a_repeated_skip_index_is_an_error`; watched it go red by dropping
+  `uniqueItems` from the schema (the design silently built with the
+  duplicate folded away), then restored the schema.
+- **`wfb/emit/project.py`'s `_barrel_for` always pulled in `WfbGeom.mc` for
+  any `type: pattern`.** True for a pattern with a line/rectangle/circle
+  part, false for an all-arc one: `_emit_pattern_part` routes every `arc`
+  part straight to `WfbArc.drawSpan`, radial or linear, and never calls a
+  `WfbGeom` function at all for such a pattern (confirmed by generating a
+  standalone all-arc radial design and reading its barrel list: it pulled
+  `WfbGeom.mc` with zero calls into it). That is dead code against
+  `BARREL_FILES`'s own promise, "only what a face uses is copied, so an
+  unused helper costs nothing" (ADR 0003) -- and against the same
+  discipline `_pattern_needs_graphics`/`_pattern_needs_math` already apply
+  for the view's import gates. Fixed to compute the same "does this
+  pattern's loop actually call WfbGeom" condition those two already use
+  (any non-`arc` part on a radial pattern; a `polygon` part on a linear
+  one), added `test_an_all_arc_pattern_does_not_pull_in_wfbgeom` and
+  `test_a_mixed_pattern_pulls_in_both_barrels`, watched the first go red
+  against the unconditional `needed.add("WfbGeom.mc")`.
+
+Every other §6.5 dispatch site (`wfb/ir.py` element dispatch;
+`wfb/layout.py` `_resolve_list`/`circular_extent`/`ANTIALIASED_PRIMITIVES`;
+`wfb/emit/monkeyc.py` `_layout_constants`/draw dispatch/`_describe`/the
+`Toybox.Graphics` and `Toybox.Math` import gates; `wfb/preview.py`
+dispatch; `wfb/lint.py`'s colour-user walk) already had a pattern
+counterpart alongside its hands one -- no further gap found.
+
+**The analog acceptance criterion** (plan §7: `examples/analog/` unchanged
+apart from `WfbHands.` -> `WfbGeom.` for the moved helpers) was checked by
+exporting a clean `git archive HEAD` (i.e. main before this session's
+uncommitted work) into a scratch tree and diffing its generated Monkey C
+against a fresh build of the current tree. `AnalogView.mc` differs by
+exactly the renamed call sites (`WfbHands.fillRotated` ->
+`WfbGeom.fillRotated` and so on); `AnalogApp.mc`, `AnalogDelegate.mc`,
+`Palette.mc` and every device's `Layout.mc` are byte-identical.
+`WfbHands.mc` lost exactly the four functions `WfbGeom.mc` gained,
+verbatim. The `.prg` size did move, though: 5,168-5,169 B before -> 5,317-
+5,318 B after (+149 B, +2.9%). An ablation (temporarily deleting the new
+`fillTranslated` helper from `WfbGeom.mc` and rebuilding) attributed about
+105 B of that to `fillTranslated` itself -- genuinely unused by analog,
+compiled in anyway because it lives in the same module as the four
+functions hands does call, and not eliminated at `-O 3z` -- with the small
+remainder a fixed cost of the module split itself. Not a source-level
+regression (the diff above is exactly the promised rename), but a real,
+if small, memory cost of sharing the barrel, accepted as the alternative
+to D7's rejected option (duplicating the four functions instead).
+
+**Verification:**
+
+- `pytest -m "not slow"`: 1,249 collected, 3 failed (the pre-existing
+  `test_example_is_clean_on_every_target[big-clock-3|dashboard|enduro]`),
+  0 errors -- unchanged from before this work.
+- `examples/patterns/face.yaml` builds warning-free with real `monkeyc` on
+  all three targets: 3,528-3,530 B (2.7%) on `--build-stats`.
+- `examples/analog/face.yaml` still builds warning-free on all three
+  targets at 5,317-5,318 B (4.1%), as above.
+
+**Unverified, needing the user's host simulator or a watch:**
+
+- that a rotated tick/segment lands where the preview says on a real
+  panel, and what an anti-aliased rotated or segmented ring looks like on
+  the 64-colour MIP screen (dithering was accepted with an explicit
+  `lint: allow` on `minute_ticks`, matching the reasoning `antialias:`
+  already documents for hands);
+- the per-frame CPU cost of `week_dots` (the one non-`static:` pattern in
+  the example, redrawn every frame);
+- whether `WfbArc.drawSpan`'s whole-degree rounding reads as a visible
+  seam between adjacent segments in `examples/patterns/face.yaml`'s
+  `segments` ring.
