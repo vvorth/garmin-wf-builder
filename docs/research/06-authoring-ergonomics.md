@@ -295,6 +295,13 @@ of them improves both proposed options.
 
 ## 9. Recommendation
 
+> **2026-09-14:** Option B was built as `skills/watchface-builder.md`, with a
+> thin Claude Code adapter at `.claude/skills/watchface-from-image/`, and
+> later deleted at the user's request. Its test suite had already gone on
+> 2026-09-12 (`3293dbb`). Read the skill with
+> `git show 9a8fc53:skills/watchface-builder.md`. The analysis below is kept
+> as written.
+
 **Do B, after doing 1–5. Defer A until the schema stops moving.**
 
 The reasoning in one paragraph: the project already owns the expensive half of an

@@ -939,7 +939,7 @@ line:
   form — a duplicate element id is unwriteable rather than diagnosed.
 
 **Which to use.** The project recommends the **list form**, and everything it
-generates — `wfb new`'s templates, the skill, every other example — emits it.
+generates — `wfb new`'s templates and every example — emits it.
 Two concrete reasons:
 
 * the normative artefact is the JSON Schema, and the schema describes only the

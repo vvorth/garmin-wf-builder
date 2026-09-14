@@ -2487,3 +2487,12 @@ layouts" instead.
 `test_ir_draw_order_matches_the_resolved_one[dashboard]` joins the known
 failures in place of the removed `antialias` one. Left alone: it is the
 user's playground.
+
+## 2026-09-14 — The image-to-watchface skill removed
+
+At the user's request, `skills/watchface-builder.md` and its Claude Code
+adapter `.claude/skills/watchface-from-image/` are deleted; its test suite
+had already gone on 2026-09-12. The README's "Building a face with an AI
+assistant" section and its `skills/` layout line went with them, and
+research 06 §9 carries a dated note beside the recommendation that produced
+it. Recover the skill with `git show 9a8fc53:skills/watchface-builder.md`.
