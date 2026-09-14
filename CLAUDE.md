@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/` (each has its status at the top) |
+| proposals written but not built | `docs/plans/` (none open; built plans are deleted — see `docs/CLAUDE.md`) |
 | the session-by-session narrative | `docs/history.md` — only for a specific past decision, never as background reading |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
@@ -80,7 +80,7 @@ investigating. Full account: `docs/lore/toolchain.md`.
 ## 3. Building
 
 ```sh
-./.venv/bin/python wfb.py build examples/slice/face.yaml   # 3 signed .prg, warning-free
+./.venv/bin/python wfb.py build examples/graph/face.yaml   # 3 signed .prg, warning-free
 $CIQ_SDK/bin/monkeyc -f monkey.jungle -d fenix8solar47mm \
     -o out.prg -y ~/ciq/developer_key.der -w -l 3          # generated jungle sets -O 3z itself
 $CIQ_SDK/bin/monkeyc … --build-stats 0                     # memory: the figure that counts
@@ -136,7 +136,7 @@ re-litigate these without new evidence.**
      global).
    - **9c.** **All four axes are in use; none is free.** **Decided and built
      2026-09-13:** colours *and* widget layouts share Styles as explicitly
-     listed entries. See `docs/plans/01`/`02`; `examples/styles/face.yaml`.
+     listed entries. See `docs/format.md`; `examples/styles/face.yaml`.
 10. **`alphaBlendingSupport: false`**: no transparency.
 11. **The graphics pool (1 MB) is separate** from the 128 KB, so a
     `BufferedBitmap` is cheap.
@@ -221,13 +221,13 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
 - **Recently built:**
-  - **Built 2026-09-13** (`docs/plans/02`): Styles that switch widget
+  - **Built 2026-09-13** (plan 02): Styles that switch widget
     layouts. `layouts:` (form A only: a container, with no element-level
     membership key) and `config: style:` (`config: colors:` removed, no
     shim). A `complication_slot` may only be in shared content. The example
     is `examples/styles/face.yaml`. Analog hands (`type: hand`) still do
     not exist.
-  - **Built 2026-09-13** (`docs/plans/03`): complication-slot icons cover
+  - **Built 2026-09-13** (plan 03): complication-slot icons cover
     all 42 native types, plus per-choice overrides and `icon_position:`/
     `icon_gap:`/`icon_color:`, and `choices: any` + `icon_size:`.
 

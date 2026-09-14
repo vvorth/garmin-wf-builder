@@ -111,7 +111,7 @@ Three consequences worth writing into the format up front:
    will read "Dark", "Light" as intended.
 
 > **Built 2026-09-13, then widened** (ADR 0006 §1, second and fifth
-> amendments; `docs/plans/02-style-layouts.md`). `config: colors:` shipped
+> amendments; plan 02, deleted once built). `config: colors:` shipped
 > first, exactly as sketched here (`resolveColorScheme`, one `if (style ==
 > N)` block per scheme) — then was replaced outright, no shim, by
 > `config: style:`: `choices:` became an author-named ordered *mapping*

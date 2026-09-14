@@ -1,6 +1,6 @@
 # `layouts:` -- named widget sets the wearer switches between on-device,
 # riding the same Styles axis `examples/config/face.yaml` already uses for
-# colour alone (docs/plans/02-style-layouts.md). Form A only: a layout is a
+# colour alone (docs/format.md "Styles and layouts"). Form A only: a layout is a
 # container (`layouts: <name>: {static, elements}`), never an element-level
 # membership key.
 #
@@ -13,7 +13,7 @@
 #   (the dim full ring underneath) is static -- drawn once -- while the
 #   *fill* (`steps_arc`, `type: progress`) is drawn fresh every frame on top
 #   of it, the same "static furniture, dynamic reading" split
-#   `examples/slice/face.yaml` uses for one ring, done here per layout.
+#   `tests/fixtures/slice/face.yaml` uses for one ring, done here per layout.
 #   Both layouts' own content draws *above* the shared content, in its own
 #   layer, by the fixed z rule (`docs/format.md` "Styles and layouts") --
 #   there is nothing to interleave here, but nothing stops it looking that
@@ -48,7 +48,7 @@
 #
 # What is verified: this design compiles warning-free, through the real
 # `monkeyc`, on all three targets (`--build-stats` recorded in
-# `docs/plans/02-style-layouts.md` §12) -- the `_configLayout` field, both
+# `docs/history.md`, 2026-09-13 "Plan 02 built") -- the `_configLayout` field, both
 # guarded draw sequences (`onUpdate`/`onPartialUpdate`/`renderStatic`), and
 # the delegate's guarded `on_hold` all build clean. What is NOT verified
 # anywhere in this project: any *behaviour* of the on-device editor itself

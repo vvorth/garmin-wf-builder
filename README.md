@@ -9,20 +9,20 @@ design and data bindings in YAML, get a compilable, sideloadable `.prg`.
 
 ```sh
 ./tools/setup-env.sh
-./.venv/bin/python wfb.py build examples/slice/face.yaml
+./.venv/bin/python wfb.py build examples/graph/face.yaml
 ```
 
 ```
-generated  build/slice
-built      slice-fenix8solar47mm.prg  2,834 B / 131,072 B (2.2%)
-built      slice-fenix8solar51mm.prg  2,835 B / 131,072 B (2.2%)
-built      slice-fr955.prg            2,834 B / 131,072 B (2.2%)
+generated  build/graph
+built      graph-fenix8solar47mm.prg  3,417 B / 131,072 B (2.6%)
+built      graph-fenix8solar51mm.prg  3,418 B / 131,072 B (2.6%)
+built      graph-fr955.prg  3,417 B / 131,072 B (2.6%)
 ```
 
-One command takes [`examples/slice/face.yaml`](examples/slice/face.yaml) through
-schema validation, a typed semantic pass, per-device layout resolution, eleven
-lint checks, font baking, Monkey C generation and `monkeyc` — for three devices,
-with no warnings.
+One command takes [`examples/graph/face.yaml`](examples/graph/face.yaml) through
+schema validation, a typed semantic pass, per-device layout resolution, the
+lint checks, Monkey C generation and `monkeyc` — for three devices, with no
+warnings.
 
 ---
 
@@ -54,7 +54,7 @@ docker build -t garmin-wf-builder .
 docker run --rm -v "$PWD:/work" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-keys:/keys \
-  garmin-wf-builder build examples/slice/face.yaml
+  garmin-wf-builder build examples/graph/face.yaml
 ```
 
 See [`docs/container.md`](docs/container.md). The local install:
@@ -181,13 +181,13 @@ wfb/                  the compiler
   build.py, cli.py      the pipeline and `wfb`
 runtime-lib/          the hand-written support barrel the generated code calls
 schema/               the published JSON Schema (a shipped artefact)
-examples/slice/       the Phase 2 example face -- the smallest end-to-end path
+examples/             example faces; each one's header comment says what it
+                      exercises (`examples/CLAUDE.md` has the index)
 examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
                       conditional colours, a badge and three arcs
 examples/complications/  complication.* bindings and on_hold: auto
-examples/static/      a `static:` block: fixed furniture painted once into an
-                      offscreen buffer and blitted every frame
 tests/                ? tests; only the `slow` ones need the Garmin toolchain
+tests/fixtures/slice/ the Phase 2 slice: the golden files' source design
 docs/                 format reference, limitations, ADRs, Phase 0 research
 ```
 

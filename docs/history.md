@@ -2461,3 +2461,29 @@ actual behaviour of the native editor itself (no simulator in this
 container, no watch) -- whether a style switch previews instantly, and
 whether `big_clock`'s layout-scoped hold region reads correctly on a real
 touchscreen, both remain open questions for the user's own hardware.
+
+## 2026-09-14 — Built plans and three examples removed; the slice becomes a fixture
+
+The user deleted `docs/plans/01`–`03` (all three built) and the `antialias`,
+`slice` and `static` examples, plus two fonts from `examples/dashboard/assets/`.
+Recover any of them with `git show a645d64:<path>`.
+
+`examples/slice/` turned out to be load-bearing: it is the golden files'
+source design, the design the build and preview tests use, and its Open Sans
+is the TTF behind 34 font tests. With it gone, all 34 failed and,
+worse, the golden, build and preview tests **skipped silently** -- their
+fixtures skipped on a missing design. It now lives at `tests/fixtures/slice/`
+(the goldens changed only in their `Source:` header line), and those fixtures
+assert instead of skipping. The documented quick-start build moved to
+`examples/graph/face.yaml` (3,417-3,418 B, warning-free, all three targets).
+
+Plan citations in code and docs now read `plan 02 §12.4`; `docs/CLAUDE.md`
+says how to read one. Author-facing ones (the schema, the slot-rule diagnostic
+note, example headers, `docs/format.md`) point at `docs/format.md` "Styles and
+layouts" instead.
+
+`examples/dashboard/face.yaml` still declares a `clock` font from the deleted
+`assets/OpenSans-Regular.ttf` (unused by any element, but a load error), so
+`test_ir_draw_order_matches_the_resolved_one[dashboard]` joins the known
+failures in place of the removed `antialias` one. Left alone: it is the
+user's playground.

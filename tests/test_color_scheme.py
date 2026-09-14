@@ -1,6 +1,6 @@
 """`color_scheme:` and `config: style:` -- the third `config:` axis, riding
 Styles (docs/research/09-data-library-and-config-axes.md §3,
-docs/plans/02-style-layouts.md §12.4).
+plan 02 §12.4).
 
 `config: style:` replaces the earlier `config: colors:` outright (no shim):
 `choices:` is now an author-named, ordered mapping of entry name -> entry,

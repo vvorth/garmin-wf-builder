@@ -1311,7 +1311,7 @@ def _emit_resolve_style(w: Writer, face: Face) -> None:
     at all, docs/research/09 §3) is given one.  A colour-carrying entry's
     block assigns that entry's scheme's roles; a layout-carrying entry's also
     sets `_configLayout` to that layout's declaration-order index (the same
-    index `docs/plans/02-style-layouts.md §12.2`'s desugar rewrite and every
+    index plan 02 §12.2's desugar rewrite and every
     guard below test).  A layout-only entry has no colour lines, and a
     colour-only entry has no `_configLayout` line -- both read straight off
     which of `entry.colors`/`entry.layout` is set.  Plain sequential `if`s
@@ -1476,7 +1476,7 @@ def _emit_layout_guarded_calls(w: Writer, face: Face, calls: list) -> None:
     *consecutive* calls whose ``element.layout`` agrees into one
     ``if (_configLayout == N) { ... }`` block; ``layout is None`` (shared
     content) emits with no guard at all -- **guards test the layout, never
-    the config entry** (docs/plans/02-style-layouts.md §6.4): however many
+    the config entry** (plan 02 §6.4): however many
     `config: style:` entries share one layout, this still emits only the one
     guard for it.
 

@@ -1,4 +1,4 @@
-"""`layouts:` -- named widget sets, form A only (docs/plans/02-style-layouts.md
+"""`layouts:` -- named widget sets, form A only (plan 02
 §12.1, §12.2). An author never writes membership on an element; a
 `layouts: <name>:` body's `static:`/`elements:` are folded by
 `wfb/desugar.py`'s `_layouts_block` into two synthetic groups appended to the

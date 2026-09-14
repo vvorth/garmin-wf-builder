@@ -1,4 +1,4 @@
-"""Codegen for `layouts:` (docs/plans/02-style-layouts.md §6.4, §5.4), through
+"""Codegen for `layouts:` (plan 02 §6.4, §5.4), through
 `examples/styles/face.yaml` -- the one example that actually ships both a
 layout-only and a colour-only-adjacent entry, a hold target with a layout,
 and a `low_power` element inside a layout.

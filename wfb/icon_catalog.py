@@ -110,7 +110,7 @@ CATALOG: dict[str, Icon] = {
              'a phone, for phone-connected status (Material Design md-cellphone)'),  # preview: 󰄜
 
         # -- complication-type icons added 2026-09-13, all 42 types mapped ------
-        # (docs/plans/03-complication-slot-icons.md §6.4, user direction: "map
+        # (plan 03 §6.4, user direction: "map
         # all available complications to some icon"). Every codepoint below was
         # looked up against the vendored font's own cmap before being written
         # here, the same discipline every other entry in this file follows.

@@ -7,13 +7,17 @@ Loaded automatically when working under `tests/`.
 - **5 known, pre-existing failures. These are not regressions to chase:**
   - `test_example_is_clean_on_every_target[dashboard]`
   - `test_example_is_clean_on_every_target[big-clock-3]`
-  - `test_example_is_clean_on_every_target[antialias]`
   - `test_example_is_clean_on_every_target[enduro]`
   - `test_ir_draw_order_matches_the_resolved_one[enduro]`
+  - `test_ir_draw_order_matches_the_resolved_one[dashboard]`
 
-  `dashboard` is the user's playground. The other three carry genuine,
-  user-authored lint findings nobody has asked to clean up. If this set
-  changes, notice it before assuming your change broke something.
+  `dashboard` is the user's playground; since 2026-09-14 it also declares a
+  `clock` font whose `assets/OpenSans-Regular.ttf` was removed. The other two
+  carry genuine, user-authored lint findings nobody has asked to clean up. If
+  this set changes, notice it before assuming your change broke something.
+- **`tests/fixtures/slice/`** is the golden source and the real TTF every font
+  test bakes (Open Sans). It is a fixture, not an example: a missing fixture
+  fails rather than skips, because a skip once silently turned the goldens off.
 - `tests/golden/` holds generated Monkey C the user reviews. A golden diff is
   a real output change: explain it, do not just regenerate.
 - **Drive every new diagnostic red** against violating input before trusting

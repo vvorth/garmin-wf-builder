@@ -686,7 +686,7 @@ config:
 
 A named set of widgets, drawn on top of whatever the design's shared
 `static:`/`elements:` already draw, while the wearer has the matching
-`config: style:` entry active (docs/plans/02-style-layouts.md §12). **Form A
+`config: style:` entry active. **Form A
 only -- there is no element-level membership key.** An element belongs to
 exactly one layout by being written inside that layout's own `static:`/
 `elements:`, or to every layout by being written in the design's ordinary,
@@ -1199,8 +1199,8 @@ the tables before comparing any two `.prg` figures of your own.** The two
 sides move different numbers, because they are different kinds of thing.
 
 The font side is baked into a *resource*, so it moves the `.prg` and never
-`--build-stats`. On `examples/slice/`, all three targets, output paths held to
-the same length:
+`--build-stats`. On the Phase 2 slice (now `tests/fixtures/slice/`), all three
+targets, output paths held to the same length:
 
 | | `.prg` (fenix8solar47mm) | vs. previous row | `--build-stats` |
 |---|---|---|---|
@@ -1209,8 +1209,9 @@ the same length:
 | the 30px `steps` icon as well | 96,988 B | **+256 B** | *unchanged* |
 
 The primitive side is emitted *code*, so it moves both -- and only this side
-counts against the 128 KB watch-face budget at all. On `examples/antialias/`,
-which turns the face default on and has one element override it back:
+counts against the 128 KB watch-face budget at all. On `examples/antialias/`
+(since removed; `git show a645d64:examples/antialias/face.yaml`), which turns
+the face default on and has one element override it back:
 
 | | `--build-stats` | total | `.prg` |
 |---|---|---|---|
@@ -1245,9 +1246,9 @@ first element (in draw order) whose `antialias:` resolves to `true` there, on
 any device whose panel shows only 64 colours -- all three of this project's
 current targets, so it fires on every face that turns the feature on for a
 `shape`/`progress` element. See "Lint suppression" below and
-`docs/limitations.md`. `examples/antialias/` is a worked design exercising
-both halves of the feature together, including this tradeoff accepted
-explicitly with `lint: {allow: [antialias-dither], reason: ...}`.
+`docs/limitations.md`. Accept the tradeoff explicitly with
+`lint: {allow: [antialias-dither], reason: ...}`, as the removed
+`examples/antialias/` did.
 
 ### `shape`
 

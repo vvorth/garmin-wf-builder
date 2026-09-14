@@ -7,9 +7,8 @@ from wfb.fonts import bake
 
 @pytest.fixture(scope="module")
 def source(pytestconfig):
-    path = pytestconfig.rootpath / "examples/slice/assets/OpenSans-Regular.ttf"
-    if not path.exists():
-        pytest.skip("the example font is not vendored")
+    path = pytestconfig.rootpath / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
+    assert path.exists(), path
     return path
 
 

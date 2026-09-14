@@ -137,13 +137,13 @@ echo "devices: $(ls "${DEVICES_DEST}" | tr '\n' ' ')"
 
 cat <<EOF
 
-Setup complete. Build the Phase 2 slice end to end:
+Setup complete. Build an example end to end:
 
-  ./.venv/bin/python wfb.py build examples/slice/face.yaml
+  ./.venv/bin/python wfb.py build examples/graph/face.yaml
 
 Expected: three signed .prg files and a measured memory figure per device, with
 no warnings. Then:
 
-  ./.venv/bin/python wfb.py preview examples/slice/face.yaml   # PNG, no toolchain
+  ./.venv/bin/python wfb.py preview examples/graph/face.yaml   # PNG, no toolchain
   ./.venv/bin/python -m pytest                                 # the test suite
 EOF

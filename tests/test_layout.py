@@ -172,7 +172,7 @@ def test_text_extent_comes_from_real_font_metrics(write_design, bag, db, repo_ro
     at: {anchor: center}
     color: palette.fg
 """
-    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     design = design.replace("targets:", f"fonts:\n  clock:\n    source: {ttf}\n    size: 60px\ntargets:")
     face = load(write_design(design), bag)
     assert face is not None, bag.render()
@@ -321,7 +321,7 @@ def test_a_percent_r_font_size_reaches_the_placed_text_per_device(
     baked sheet at it -- so asserting it here is asserting that preview and
     device cannot disagree about a `%r` font size.
     """
-    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     design = f"""
 format: 1
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
@@ -356,7 +356,7 @@ def test_a_monospaced_font_widens_the_placed_text_box(write_design, bag, db, rep
     own.  Asserting the placed box is asserting exactly that: nothing in
     `wfb.layout` knows the word "monospace".
     """
-    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
 
     def box(extra: str):
         face = load(write_design(f"""

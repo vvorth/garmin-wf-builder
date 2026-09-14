@@ -2,9 +2,13 @@
 # bound to the step goal, and one icon.  Deliberately minimal -- it exists to
 # prove the whole path from YAML to a sideloadable .prg, not to be a good design.
 #
-# Build it with:  ./wfb.py build examples/slice/face.yaml
+# A test fixture, not an example: the golden files in `tests/golden/`, the
+# build and preview tests, and every test that needs a real TTF (its Open Sans)
+# read it from here.  Changing it changes the goldens.
 #
-# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+# Build it with:  ./wfb.py build tests/fixtures/slice/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
 
 format: 1
 

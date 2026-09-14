@@ -1218,7 +1218,7 @@ targets: [fenix8solar47mm]
 palette: {{bg: "#000000", fg: "#FFFFFF"}}
 fonts:
   clock:
-    source: examples/slice/assets/OpenSans-Regular.ttf
+    source: tests/fixtures/slice/assets/OpenSans-Regular.ttf
     size: {size}
 {extra}
 elements:
@@ -1239,7 +1239,7 @@ def test_a_font_size_may_not_use_percent_or_pt(write_design, bag, repo_root, siz
     point at `%r`, which is the unit an author reaching for `%` actually wants.
     """
     design_text = _font_design(size).replace(
-        "examples/", f"{repo_root}/examples/")
+        "tests/fixtures/", f"{repo_root}/tests/fixtures/")
     load(write_design(design_text), bag)
     errors = [d for d in bag.errors if d.code == "font"]
     assert errors, bag.render()
@@ -1256,7 +1256,7 @@ def test_scale_on_a_font_is_an_ordinary_unknown_key(write_design, bag, repo_root
     schema at all, the same 'rename shim is gone, this is just not a key any
     more' precedent `on_tap:` set."""
     design_text = _font_design(size, extra="    scale: true").replace(
-        "examples/", f"{repo_root}/examples/")
+        "tests/fixtures/", f"{repo_root}/tests/fixtures/")
     load(write_design(design_text), bag)
     schema_errors = [d for d in bag.errors if d.code == "schema"]
     assert schema_errors, bag.render()
@@ -1269,7 +1269,7 @@ def test_a_bare_number_font_size_is_an_error(write_design, bag, repo_root, size)
     -- is gone.  The error has to name the exact `%r` conversion rule and
     point at `px` for the verbatim case, since this stage of the compiler has
     no device knowledge to compute an actual number from."""
-    design_text = _font_design(size).replace("examples/", f"{repo_root}/examples/")
+    design_text = _font_design(size).replace("tests/fixtures/", f"{repo_root}/tests/fixtures/")
     load(write_design(design_text), bag)
     errors = [d for d in bag.errors if d.code == "font"]
     assert errors, bag.render()
@@ -1280,7 +1280,7 @@ def test_a_bare_number_font_size_is_an_error(write_design, bag, repo_root, size)
 
 @pytest.mark.parametrize("size", ['"0%r"', '"-3px"'])
 def test_a_font_size_must_be_positive(write_design, bag, repo_root, size):
-    design_text = _font_design(size).replace("examples/", f"{repo_root}/examples/")
+    design_text = _font_design(size).replace("tests/fixtures/", f"{repo_root}/tests/fixtures/")
     load(write_design(design_text), bag)
     errors = [d for d in bag.errors if d.code == "font"]
     assert errors, bag.render()
@@ -1293,7 +1293,7 @@ def test_a_font_size_must_be_positive(write_design, bag, repo_root, size):
 def test_a_font_size_is_a_length(write_design, bag, repo_root, size, expected):
     from wfb.units import Length
 
-    design_text = _font_design(size).replace("examples/", f"{repo_root}/examples/")
+    design_text = _font_design(size).replace("tests/fixtures/", f"{repo_root}/tests/fixtures/")
     face = load(write_design(design_text), bag)
     assert face is not None, bag.render()
     spec = face.fonts["clock"]
@@ -1309,7 +1309,7 @@ def test_align_without_monospace_is_an_error(write_design, bag, repo_root):
     be silently doing nothing -- which is exactly the class of bug this
     compiler exists to turn into a line number."""
     design_text = _font_design('"33%r"', extra="    align: right").replace(
-        "examples/", f"{repo_root}/examples/")
+        "tests/fixtures/", f"{repo_root}/tests/fixtures/")
     load(write_design(design_text), bag)
     errors = [d for d in bag.errors if d.code == "font"]
     assert errors, bag.render()
@@ -1321,7 +1321,7 @@ def test_monospace_carries_its_alignment_onto_the_spec(write_design, bag, repo_r
                                                        align, expected):
     extra = "    monospace: true" + (f"\n{align}" if align else "")
     design_text = _font_design('"33%r"', extra=extra).replace(
-        "examples/", f"{repo_root}/examples/")
+        "tests/fixtures/", f"{repo_root}/tests/fixtures/")
     face = load(write_design(design_text), bag)
     assert face is not None, bag.render()
     spec = face.fonts["clock"]
@@ -1329,7 +1329,7 @@ def test_monospace_carries_its_alignment_onto_the_spec(write_design, bag, repo_r
 
 
 def test_a_font_is_proportional_unless_it_asks_not_to_be(write_design, bag, repo_root):
-    design_text = _font_design('"33%r"').replace("examples/", f"{repo_root}/examples/")
+    design_text = _font_design('"33%r"').replace("tests/fixtures/", f"{repo_root}/tests/fixtures/")
     face = load(write_design(design_text), bag)
     assert face is not None, bag.render()
     assert face.fonts["clock"].monospace is False

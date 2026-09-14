@@ -98,11 +98,11 @@ These are the findings that shaped every decision. Full detail and citations in
    add an axis (the editor's group label is Garmin's). **Decided 2026-09-13:**
    colours *and* widget layouts share Styles as **explicitly listed entries**
    (each names a layout, a colour scheme, or both); background colour does not
-   move to Data Color. **Built 2026-09-13** -- see
-   `docs/plans/01-background-color.md` (the decision and the rejected
-   options) and `docs/plans/02-style-layouts.md` (the design and the build
-   plan: `layouts:` form A, `config: style:` replacing `config: colors:`
-   outright, no shim). `examples/styles/face.yaml` is the worked example.
+   move to Data Color. **Built 2026-09-13** -- see plan 01 (the decision
+   and the rejected options) and plan 02 (the design and the build plan:
+   `layouts:` form A, `config: style:` replacing `config: colors:` outright,
+   no shim); both were deleted once built, see `docs/CLAUDE.md`.
+   `examples/styles/face.yaml` is the worked example.
 
 10. **`alphaBlendingSupport: false`** on all three targets. No transparency.
 

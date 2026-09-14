@@ -25,9 +25,8 @@ def toolchain():
 
 @pytest.fixture
 def slice_design(repo_root):
-    path = repo_root / "examples" / "slice" / "face.yaml"
-    if not path.exists():
-        pytest.skip("the example design is missing")
+    path = repo_root / "tests" / "fixtures" / "slice" / "face.yaml"
+    assert path.exists(), path
     return path
 
 
@@ -118,7 +117,7 @@ def test_a_length_font_size_compiles_cleanly_for_every_target(
     a bag diagnostic, so this asserts warning-free rather than merely
     successful.
     """
-    ttf = repo_root / "examples" / "slice" / "assets" / "OpenSans-Regular.ttf"
+    ttf = repo_root / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
     design = write_design(f"""
 format: 1
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: FontLen}}
@@ -169,7 +168,7 @@ def test_a_monospaced_font_compiles_cleanly_for_every_target(
     `wfb.build` turns each `WARNING:` line into a bag diagnostic, so this
     asserts warning-free rather than merely successful.
     """
-    ttf = repo_root / "examples" / "slice" / "assets" / "OpenSans-Regular.ttf"
+    ttf = repo_root / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
     design = write_design(f"""
 format: 1
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Mono}}

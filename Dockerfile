@@ -24,7 +24,7 @@
 #     -v "$PWD:/work" \
 #     -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
 #     -v wfb-keys:/keys \
-#     garmin-wf-builder build examples/slice/face.yaml
+#     garmin-wf-builder build examples/graph/face.yaml
 
 ARG PYTHON_VERSION=3.13
 ARG DEBIAN_SUITE=trixie

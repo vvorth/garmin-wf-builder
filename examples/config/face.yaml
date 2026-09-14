@@ -8,7 +8,7 @@
 # `config:` accepts exactly those three keys -- `accent_color`, `data_color`
 # and `style` -- and nothing else (docs/format.md "Configuration" and "Color
 # scheme", docs/adr/0006-configuration-theming-and-modes.md 1, twice amended;
-# docs/plans/02-style-layouts.md §12.4 for `style:` itself).
+# "Styles and layouts" for `style:` itself).
 #
 # `accent_ring` and `background`/`steps_caption` below are deliberately
 # inside `static:`, to exercise the part of this feature that is easy to get

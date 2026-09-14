@@ -10,14 +10,14 @@ docker run --rm \
   -v "$PWD:/work" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-keys:/keys \
-  garmin-wf-builder build examples/slice/face.yaml
+  garmin-wf-builder build examples/graph/face.yaml
 ```
 
 ```
-generated  /work/build/slice
-built      slice-fenix8solar47mm.prg  2,834 B / 131,072 B (2.2%)
-built      slice-fenix8solar51mm.prg  2,835 B / 131,072 B (2.2%)
-built      slice-fr955.prg            2,834 B / 131,072 B (2.2%)
+generated  /work/build/graph
+built      graph-fenix8solar47mm.prg  3,417 B / 131,072 B (2.6%)
+built      graph-fenix8solar51mm.prg  3,418 B / 131,072 B (2.6%)
+built      graph-fr955.prg  3,417 B / 131,072 B (2.6%)
 ```
 
 The generated Monkey C is byte-identical to a host build of the same design.
@@ -165,7 +165,7 @@ Use `wfb preview` instead:
 
 ```sh
 docker run --rm -v "$PWD:/work" -v "$DEVICES:/devices:ro" \
-  garmin-wf-builder preview examples/slice/face.yaml --scale 3
+  garmin-wf-builder preview examples/graph/face.yaml --scale 3
 ```
 
 It renders from the **same resolved geometry the generated Monkey C uses**, so

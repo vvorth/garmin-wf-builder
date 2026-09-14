@@ -25,9 +25,10 @@ GOLDEN = Path(__file__).parent / "golden"
 
 @pytest.fixture(scope="module")
 def slice_design(pytestconfig) -> Path:
-    path = pytestconfig.rootpath / "examples" / "slice" / "face.yaml"
-    if not path.exists():
-        pytest.skip("the example design is missing")
+    # A fixture, so missing is a failure, never a skip: a skip here once
+    # silently turned off every golden test when the design was deleted.
+    path = pytestconfig.rootpath / "tests" / "fixtures" / "slice" / "face.yaml"
+    assert path.exists(), path
     return path
 
 

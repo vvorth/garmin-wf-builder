@@ -119,7 +119,7 @@
       "$ref": "#/$defs/elementListOrMapping"
     },
     "layouts": {
-      "description": "Named widget sets the wearer switches between on-device, form A only (docs/plans/02-style-layouts.md §12.1) -- there is no element-level membership key. Each entry's 'static:'/'elements:' are folded at build time into two synthetic groups appended to the top-level 'elements:' (see 'wfb/desugar.py'); this compiler's own schema check runs after that fold, so by then each body here is just '{}' or '{lint: ...}'. A declared entry that no 'config: style:' choice names as its 'layout:' is an error -- nothing would let the wearer pick it -- and a 'complication_slot' may not appear inside one (the Data axis is face-wide; it belongs in the shared top-level 'elements:').",
+      "description": "Named widget sets the wearer switches between on-device, form A only (docs/format.md, 'Styles and layouts') -- there is no element-level membership key. Each entry's 'static:'/'elements:' are folded at build time into two synthetic groups appended to the top-level 'elements:' (see 'wfb/desugar.py'); this compiler's own schema check runs after that fold, so by then each body here is just '{}' or '{lint: ...}'. A declared entry that no 'config: style:' choice names as its 'layout:' is an error -- nothing would let the wearer pick it -- and a 'complication_slot' may not appear inside one (the Data axis is face-wide; it belongs in the shared top-level 'elements:').",
       "type": "object",
       "minProperties": 1,
       "propertyNames": {
@@ -152,7 +152,7 @@
       ]
     },
     "layout": {
-      "description": "One 'layouts:' entry: this layout's own fixed and per-frame content, drawn on top of the design's shared 'static:'/'elements:' while this layout is the active one (docs/plans/02-style-layouts.md §12.2, §12.3). A 'complication_slot' may not appear in either -- the Data axis is face-wide, so a slot belongs in the shared top-level 'elements:' (§12.5).",
+      "description": "One 'layouts:' entry: this layout's own fixed and per-frame content, drawn on top of the design's shared 'static:'/'elements:' while this layout is the active one (docs/format.md, 'Styles and layouts'). A 'complication_slot' may not appear in either -- the Data axis is face-wide, so a slot belongs in the shared top-level 'elements:'.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -359,7 +359,7 @@
       }
     },
     "styleEntry": {
-      "description": "One 'config: style:' entry: at least one of 'layout:'/'colors:', plus an optional 'label:' and 'lint:' (docs/plans/02-style-layouts.md §12.4).",
+      "description": "One 'config: style:' entry: at least one of 'layout:'/'colors:', plus an optional 'label:' and 'lint:' (docs/format.md, 'Styles and layouts').",
       "type": "object",
       "additionalProperties": false,
       "properties": {

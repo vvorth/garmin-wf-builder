@@ -297,8 +297,8 @@ class ResolvedFace:
         low-power element wrapped in a size-less group blew the clip up to the
         full screen).
 
-        **Unions across every layout, not just the active one** (docs/plans/
-        02-style-layouts.md §5.3, §5.6).  `_configLayout` is a runtime value
+        **Unions across every layout, not just the active one** (plan 02
+        §5.3, §5.6).  `_configLayout` is a runtime value
         this stage never resolves, so a per-layout clip is not something this
         can compute at all -- and the guard `wfb/emit/monkeyc.py` wraps each
         low-power call in (`_emit_on_partial_update`) only narrows *which*

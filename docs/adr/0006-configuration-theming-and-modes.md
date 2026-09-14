@@ -286,7 +286,7 @@ fr955** — the compiler generates both paths from one declaration.
 
 > **Fifth amendment (2026-09-13): Styles grew a second axis of variation --
 > layouts -- and `config: colors:` was removed outright, replaced by
-> `config: style:`** (`docs/plans/02-style-layouts.md`, decided and built in
+> `config: style:`** (plan 02, deleted once built, decided and built in
 > one session; research 08 §4 and research 09 §3 both carry their own dated
 > notes pointing here). The second amendment above described Styles as
 > picking a `color_scheme:`; it was always also the axis a stock face uses

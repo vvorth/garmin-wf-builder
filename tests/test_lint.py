@@ -243,7 +243,7 @@ def test_suppression_needs_a_reason_and_then_silences(check):
 
 
 def test_a_glyph_missing_from_a_subsetted_font_is_an_error(write_design, bag, db, repo_root):
-    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     design = f"""
 format: 1
 face:

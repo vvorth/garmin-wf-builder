@@ -26,7 +26,7 @@ from wfb.diagnostics import Bag
 from wfb.units import Length
 
 ROOT = Path(__file__).resolve().parent.parent
-FONT = ROOT / "examples" / "slice" / "assets" / "OpenSans-Regular.ttf"
+FONT = ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
 
 HEAD = f"""format: 1
 face:

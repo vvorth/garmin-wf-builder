@@ -74,7 +74,7 @@ def test_a_literal_string_fallback_extends_the_glyph_set(write_design, bag, db, 
     `glyph_set` never looked at `element.fallback`, so a font baked for this
     design would be missing the very letters the fallback needs.
     """
-    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     face = load(write_design(f"""
 format: 1
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
@@ -117,7 +117,7 @@ elements:
 def _baked_size(write_design, bag, db, repo_root, size: str, device_id: str,
                 extra: str = "") -> int:
     """The nominal pixel size `clock` is rasterised at on one device."""
-    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     face = load(write_design(f"""
 format: 1
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
@@ -170,7 +170,7 @@ def test_a_px_font_size_is_the_same_on_every_device(write_design, bag, db, repo_
 
 def _baked_clock(write_design, bag, db, repo_root, device_id: str, extra: str = ""):
     """The whole `BakedFont` for `clock`, not just its nominal size."""
-    ttf = repo_root / "examples/slice/assets/OpenSans-Regular.ttf"
+    ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
     face = load(write_design(f"""
 format: 1
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}

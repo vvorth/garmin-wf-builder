@@ -16,9 +16,7 @@ from wfb.palette import MIP64_LEVELS
 
 @pytest.fixture
 def resolved(repo_root, db, bag):
-    design = repo_root / "examples" / "slice" / "face.yaml"
-    if not design.exists():
-        pytest.skip("the example design is missing")
+    design = repo_root / "tests" / "fixtures" / "slice" / "face.yaml"
     face = load(design, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")

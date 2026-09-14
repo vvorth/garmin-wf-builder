@@ -1160,7 +1160,7 @@ def _overlapping(held: list) -> list[tuple]:
     A pair `ir.never_together` rules out is skipped: two hold targets in
     different layouts are never on screen at the same time, so a wearer's
     touch can never land on both at once regardless of where their boxes
-    fall (docs/plans/02-style-layouts.md §12.1, §12.7).
+    fall (plan 02 §12.1, §12.7).
     """
     out = []
     for index, later in enumerate(held):

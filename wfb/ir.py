@@ -321,8 +321,8 @@ class ColorScheme:
 
 @dataclass(frozen=True)
 class LayoutDecl:
-    """One declared `layouts:` entry -- a named widget set (docs/plans/
-    02-style-layouts.md §12.1, §12.2).  Form A only: an author never writes
+    """One declared `layouts:` entry -- a named widget set (plan 02
+    §12.1, §12.2).  Form A only: an author never writes
     membership on an element.
 
     By the time this reaches the IR, `wfb/desugar.py`'s `_layouts_block` has
@@ -346,7 +346,7 @@ class LayoutDecl:
 @dataclass(frozen=True)
 class StyleEntry:
     """One `config: style:` entry -- one line of the editor's Style list
-    (docs/plans/02-style-layouts.md §4.1, §12.4).
+    (plan 02 §4.1, §12.4).
 
     Every entry carries at least one of `layout`/`colors` (`Builder.
     _build_config_style` rejects one with neither), and either may be
@@ -543,7 +543,7 @@ class Element:
     #: own `z:` ordered the roots themselves.
     static_rank: int | None = None
     #: The declared `layouts:` name this element belongs to, or `None` for
-    #: shared content drawn in every layout (docs/plans/02-style-layouts.md
+    #: shared content drawn in every layout (plan 02
     #: §12.1).  Never set by the author directly -- there is no element-level
     #: membership key (form A only) -- but by `Builder._assign_layouts`,
     #: which walks the two synthetic groups `wfb/desugar.py`'s
@@ -874,8 +874,8 @@ class Face:
     #: `Builder._build_color_scheme` the same way a bad `config:` axis never
     #: reaches `Face.config`.
     color_scheme: dict[str, ColorScheme] = field(default_factory=dict)
-    #: Declared `layouts:` names, in declaration order (docs/plans/
-    #: 02-style-layouts.md §12.1).  Empty when the design declares no
+    #: Declared `layouts:` names, in declaration order (plan 02
+    #: §12.1).  Empty when the design declares no
     #: `layouts:` at all.  Every element's `layout` (when not `None`) is one
     #: of these names.
     layouts: tuple[str, ...] = ()
@@ -918,7 +918,7 @@ class Face:
         a `colors:` scheme (no `layout:`) falls back to that scheme's own
         `label:`, which is what makes migrating a `config: colors:` block a
         pure re-spelling: the generated `<style label=...>` text does not
-        move (docs/plans/02-style-layouts.md §12.4).  A layout-carrying
+        move (plan 02 §12.4).  A layout-carrying
         entry gets no fallback, colour-only or not -- §12.4 restricts it to
         colours-only entries on purpose, since a scheme's own label was
         never written with a layout in mind.  The one place this fallback is
@@ -1019,7 +1019,7 @@ class Builder:
         #: declared/rejected split every other named block keeps -- a
         #: `config: style:` entry's `layout:` must get exactly one error
         #: when it names a layout that was declared and then rejected, not a
-        #: second one blaming the reference (docs/plans/02-style-layouts.md
+        #: second one blaming the reference (plan 02
         #: §12.1).  Built by `_build_layouts`, before `_build_color_scheme`/
         #: `_build_config`, so a style entry can resolve `layout:` the same
         #: build pass it resolves `colors:` in.
@@ -1128,7 +1128,7 @@ class Builder:
 
     def _build_layouts(self, raw: dict) -> None:
         """`layouts:` -- named widget sets, declared as containers, form A
-        only (docs/plans/02-style-layouts.md §12.1, §12.2).
+        only (plan 02 §12.1, §12.2).
 
         Post-desugar, each body is just `{}` or `{lint: ...}` --
         `wfb/desugar.py`'s `_layouts_block` has already folded `static:`/
@@ -1160,7 +1160,7 @@ class Builder:
     def _assign_layouts(self, elements: list[Element]) -> None:
         """Stamp `Element.layout` on each layout's synthetic groups and their
         descendants, by the reserved id `wfb.desugar.layout_ids` defines,
-        then apply the slot rule (docs/plans/02-style-layouts.md §12.2,
+        then apply the slot rule (plan 02 §12.2,
         §12.5).
 
         Runs right after `_build_elements`, before `_apply_static` -- see
@@ -1195,14 +1195,14 @@ class Builder:
                         "id=...> however many layouts read it -- so a slot "
                         "belongs in the shared top-level 'elements:', not "
                         "inside a 'layouts:' body",
-                        "docs/plans/02-style-layouts.md §12.5",
+                        "docs/format.md, 'Styles and layouts'",
                     ],
                 )
 
     def _check_layouts_reachable(self, data: dict) -> None:
         """`layouts:` declared with no `config: style:` entry ever naming one
         as its `layout:` is an error -- nothing lets the wearer pick it
-        (docs/plans/02-style-layouts.md §12.1).
+        (plan 02 §12.1).
 
         Called after `_build_config`, once `self.config_style`/
         `self.rejected_config` are both known.  A `config: style:` that was
@@ -1370,7 +1370,7 @@ class Builder:
 
     def _scheme_reference(self, name: str, span: Span | None) -> str | None:
         """Resolve a bare `color_scheme:` name used from a `config: style:`
-        entry's own `colors:` (docs/plans/02-style-layouts.md §12.4).
+        entry's own `colors:` (plan 02 §12.4).
 
         Bare, not `color_scheme.<name>` -- that qualifying form is for
         expressions (`color: color_scheme.dark` is not even legal there
@@ -1398,7 +1398,7 @@ class Builder:
 
     def _layout_reference(self, name: str, span: Span | None) -> str | None:
         """Resolve a bare `layouts:` name used from a `config: style:`
-        entry's own `layout:` (docs/plans/02-style-layouts.md §12.4).
+        entry's own `layout:` (plan 02 §12.4).
 
         Same declared/rejected cascade `_scheme_reference` already has for
         `colors:` -- there is currently little that can reject a *declared*
@@ -1419,7 +1419,7 @@ class Builder:
     def _build_config_style(self, spec: dict, span: Span | None) -> None:
         """`config: style:` -- an author-named, ordered set of entries riding
         Styles, the one axis Garmin gives no meaning to at all
-        (docs/research/09 §3, docs/plans/02-style-layouts.md §12.4).
+        (docs/research/09 §3, plan 02 §12.4).
         Replaces `config: colors:` outright, no shim (plan 02 §12, decision
         3).
 
@@ -3070,7 +3070,7 @@ class Builder:
             )
             icon_size = None
         # 'icon_size:' + 'choices: any' was rejected until 2026-09-13
-        # (docs/plans/03-complication-slot-icons.md §6.6): the set of icons
+        # (plan 03 §6.6): the set of icons
         # an unbounded picker could need was unbounded, and nothing could be
         # baked ahead of time. Lifted by user direction once every native
         # type had a catalogue icon (`wfb.icons.COMPLICATION_ICON` now covers
@@ -3896,7 +3896,7 @@ def authored_draw_order(elements: list[Element]) -> list[Element]:
     elements the hoist swapped, and so :meth:`Builder._apply_static` can rank
     the static roots by where the author actually put them rather than by
     where they happen to appear in the document.  Sorted by layer first
-    (shared content, then layout content -- docs/plans/02-style-layouts.md
+    (shared content, then layout content -- plan 02
     §12.3) so the *fixed* layer rule is never itself reported as something
     the hoist swapped: a layout element with a low `z:` sorting after a
     shared element with a high one is the rule working as designed, not a
@@ -3922,7 +3922,7 @@ def draw_sort_key(element: Element) -> tuple:
     actually swapped *and* whose boxes overlap, where it can make a visible
     difference.
 
-    Four ranks, in order (docs/plans/02-style-layouts.md §12.3):
+    Four ranks, in order (plan 02 §12.3):
 
     * ``0`` for static content, ``1`` for everything else -- the hoist itself;
     * the **layer** rank ``L`` -- ``0`` for shared content, ``1`` for layout
@@ -3962,7 +3962,7 @@ def draw_order(elements: list[Element]) -> list[Element]:
 
 def never_together(a: Element, b: Element) -> bool:
     """True only when `a` and `b` can never be on screen at the same time
-    because they belong to different layouts (docs/plans/02-style-layouts.md
+    because they belong to different layouts (plan 02
     §12.1): "two elements are never on screen together exactly when both
     have a layout and the two layouts differ."  Shared content (`layout is
     None`) is on screen in every layout, so it is never exempted this way --
