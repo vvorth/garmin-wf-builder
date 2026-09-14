@@ -75,7 +75,9 @@ outlined polygon (the same "no `drawPolygon`" limit above). **Coordinates
 resolve to whole pixels in the hand's own frame**, so a hand thinner than
 about 2 px may lose its taper. **Edges of a rotated polygon alias on a
 64-colour MIP panel** — `antialias:` is the lever, with the usual
-`antialias-dither` tradeoff, and what it looks like is unobserved. **Hand
+`antialias-dither` tradeoff (`examples/analog/`'s `classic` layout pulls
+it), and what it looks like is unobserved: `wfb preview` draws hands
+aliased either way. **Hand
 colours cannot read data**, only palette, literal and `config.*` — a hand
 has no `when_absent:`. **12-hour dial only**: the hour hand turns twice a
 day; there is no 24-hour (GMT) hand. **Hands cannot be held** (`on_hold:`
@@ -310,7 +312,8 @@ overhead. It says so in its own `confidence:` line.
 Each channel must be `0x00`, `0x55`, `0xAA` or `0xFF`. Anything else is dithered
 by the firmware and looks grainy at close range.
 
-Anti-aliasing a `shape` or `progress` element (`antialias:`, `docs/format.md`)
+Anti-aliasing a `shape`, `progress`, `graph` or `hands` element (`antialias:`,
+`docs/format.md`)
 manufactures exactly the intermediate values this rule is about: a soft edge
 is a blend, by construction, and every value in between is off the 64-colour
 grid. `lint.check_antialias_palette` (`antialias-dither`) says so once per
@@ -318,7 +321,7 @@ device, against the first element that draws anti-aliased, and is
 suppressible — an author who wants the softer look on a MIP panel is
 accepting dithering at the edge on purpose. All three of this project's
 current targets are 64-colour, so this fires on every face that turns the
-feature on for a `shape`/`progress` element. (What `wfb preview` shows for
+feature on for any of those elements. (What `wfb preview` shows for
 that same soft edge is a separate gap — see "the simulator does not run in a
 headless Linux container" below.)
 
@@ -623,7 +626,7 @@ resolved geometry the generated code uses, so the two cannot disagree about
 position. What it does *not* claim to reproduce is glyph rasterisation for system
 fonts, arc cap shape, the transflective panel's real appearance, or — a
 deliberate scope decision, not an oversight found late — **a `shape`/
-`progress` element's own anti-aliasing** (`antialias:`, `docs/format.md`):
+`progress`/`graph`/`hands` element's own anti-aliasing** (`antialias:`, `docs/format.md`):
 that side of the feature is a runtime `Dc.setAntiAlias` call, and
 `wfb/preview.py` draws every primitive with plain `PIL.ImageDraw` calls
 (`rectangle`, `ellipse`, `arc`, `polygon`, `line`), which are aliased by

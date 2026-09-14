@@ -1163,7 +1163,8 @@ entirely different ways:
   attribute itself on devices too old to render it (Forerunner 45, Forerunner
   920XT, Edge 130), which is not a concern for any of this project's three
   targets in any case.
-* **A `shape` or `progress` element's own drawing** is a runtime `Dc` call,
+* **A `shape`, `progress`, `graph` or `hands` element's own drawing** is a
+  runtime `Dc` call,
   `setAntiAlias`, gated per device with a `has :setAntiAlias` check --
   `doc/docs/Core_Topics/Graphics.html` gives this idiom verbatim, and the
   generated helper (`applyAntiAlias`, deliberately *not* named `setAntiAlias`
@@ -1185,8 +1186,12 @@ conjoining an ancestor's condition into a descendant's is exactly the point.
 Leaving it unset anywhere in the chain falls through to the next enclosing
 group, and ultimately to the face-wide default.
 
-**Accepted on `group`, `shape`, `progress` and `icon` only.** Not
-on `text`: a `text` element draws through a font named in `fonts:`, and that
+**Accepted on every element type except `text`**: `group`, `shape`,
+`progress`, `graph` and `hands` (the runtime half), and `icon` and
+`complication_slot` (the baked-font half, for the icon each draws).
+*Corrected 2026-09-14: this sentence previously read "`group`, `shape`,
+`progress` and `icon` only", which was already narrower than the schema.*
+Not on `text`: a `text` element draws through a font named in `fonts:`, and that
 font is one bitmap resource shared by every element that references it, so
 anti-aliasing cannot vary per element the way it can on a shape's own outline
 or an icon's own, per-glyph font. Writing `antialias:` on a `text` element is a
@@ -1245,7 +1250,7 @@ suppressible `antialias-dither` check fires once per device, against the
 first element (in draw order) whose `antialias:` resolves to `true` there, on
 any device whose panel shows only 64 colours -- all three of this project's
 current targets, so it fires on every face that turns the feature on for a
-`shape`/`progress` element. See "Lint suppression" below and
+`shape`, `progress`, `graph` or `hands` element. See "Lint suppression" below and
 `docs/limitations.md`. Accept the tradeoff explicitly with
 `lint: {allow: [antialias-dither], reason: ...}`, as the removed
 `examples/antialias/` did.
@@ -1891,12 +1896,17 @@ key **except** `on_hold:` (a moving hand has no fixed box to hold — hold a
 `group` around it instead) and `static:` (rejected: a hand's angle is the
 time, and a static buffer is painted once and never refilled). `antialias:`
 is accepted and inherited exactly like a shape's own, and counts toward the
-`antialias-dither` check the same way.
+`antialias-dither` check the same way: the whole hand set draws soft, since
+the toggle brackets the element's one draw method. (*Until 2026-09-14 it
+linted but emitted nothing when a hands element was the face's only
+anti-aliased one. See `docs/history.md`.*)
 
 See `examples/analog/face.yaml` for a design exercising two hand sets, an
 off-centre small-seconds subdial, all four part shapes, a `config.*` hand
-colour and a pin above the hands, together. It builds warning-free on all
-three targets at 4,561–4,562 B on `--build-stats` (3.5% of 131,072 B), most
+colour, a pin above the hands, and anti-aliased hands in one layout only
+(`classic`), together. It builds warning-free on all
+three targets at 4,669–4,670 B on `--build-stats` (3.6% of 131,072 B; it was
+4,561–4,562 B before `classic`'s hands turned `antialias:` on), most
 of it the dial and the Styles machinery rather than the hands:
 `docs/research/probes/analog-hands/` measured a whole app with two hands
 elements at about 2 KB.

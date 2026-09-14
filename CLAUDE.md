@@ -195,7 +195,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 | `monkeyc` + measured memory | `wfb/build.py` | **yes** |
 | Host-side preview | `wfb/preview.py` | no |
 
-**Tests:** `pytest -m "not slow"`. There are 5 known, pre-existing failures,
+**Tests:** `pytest -m "not slow"`. There are 3 known, pre-existing failures,
 listed in `tests/CLAUDE.md`. If that set changes, notice it before blaming
 your change.
 

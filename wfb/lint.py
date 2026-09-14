@@ -25,7 +25,7 @@ from .ir import (
     StyleEntry, Text, authored_draw_order, never_together,
 )
 from .layout import (
-    PlacedHands, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    ANTIALIASED_PRIMITIVES, PlacedHands, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
     inside_screen, inside_visible_area, inside_visible_area_for, is_full_bleed,
 )
 from .palette import Color
@@ -491,7 +491,7 @@ def check_antialias_palette(resolved: ResolvedFace, bag: Bag) -> None:
         return
     users = [
         placed for placed in resolved.items
-        if isinstance(placed, (PlacedShape, PlacedProgress, PlacedHands))
+        if isinstance(placed, ANTIALIASED_PRIMITIVES)
         and placed.element.resolved_antialias
     ]
     if not users:

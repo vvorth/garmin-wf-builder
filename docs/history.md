@@ -2562,3 +2562,53 @@ right. It did find six things to fix, all listed in the plan's §13:
   (`_sleeping` starts `false`; the SDK sample starts its flag unset);
 - what rotated edges look like on the 64-colour panel;
 - the per-frame CPU cost.
+
+## 2026-09-14 — Anti-aliased hands: a silent no-op fixed, and the analog example uses it
+
+The user asked whether analog hands can be drawn anti-aliased, and for
+`examples/analog/`'s `classic` layout to show it. The format already said
+yes: `antialias:` is accepted on `type: hands`. Trying it on a copy of the
+example showed it **did nothing**. `antialias-dither` fired against
+`main_hands`, but the generated view had no `applyAntiAlias` at all. The
+emitter's "is primitive anti-aliasing used anywhere" gate,
+`_antialias_default`, kept its own element tuple without `PlacedHands`. When
+a hands element was the face's only anti-aliased one, the gate returned
+"unused", and the per-element toggle, which *did* list `PlacedHands`, was
+skipped with it. With the face default `true` and a shape in the face, it
+happened to work.
+
+The same drift ran the other way for `graph`: the emitter toggled it, but
+`check_antialias_palette` never counted it, so a graph-only anti-aliased
+face never linted. Three private tuples became one,
+`wfb.layout.ANTIALIASED_PRIMITIVES`, read by both emitter sites and the
+lint. It is the "differently shaped new member" bug the working agreement
+warns about, where hands were a new member of the anti-aliasing switch.
+
+**Tests, each watched red first:** a hands-only anti-aliased face emits
+the helper and toggles around `drawMainHands`, and fails without
+`PlacedHands` in the gate. The reverse override passes either way, which
+is the case that hid the bug. `antialias-dither` counts a graph-only face
+too, and fails with the old lint tuple.
+
+**The example:** `classic`'s `main_hands` and `small_secs` set
+`antialias: true`, with the `antialias-dither` allow on `main_hands`.
+`sport` stays crisp. It builds warning-free on all three targets at
+4,669–4,670 B on `--build-stats`, up from 4,561–4,562 B (+108 B: the guarded
+helper, the resets in `onUpdate`/`renderStatic`, and two calls around each
+of the two draw methods).
+
+**Also corrected:** `docs/format.md` said `antialias:` is "accepted on
+`group`, `shape`, `progress` and `icon` only", but the schema also accepts
+it on `graph`, `hands` and `complication_slot`. The old sentence is kept
+beside the correction. The schema's descriptions named only
+shape/progress, and now name all four primitive kinds.
+
+**Unverified:** what an anti-aliased rotated hand looks like on the
+64-colour panel, and its CPU cost. `wfb preview` draws primitives aliased
+either way (`docs/limitations.md`).
+
+**Known failures recounted:** `tests/CLAUDE.md` and `CLAUDE.md` listed 5
+known fast-suite failures, but the two
+`test_ir_draw_order_matches_the_resolved_one` entries pass on a clean
+`aa9137a` too, so the known set is 3. Both files now say 3, at the user's
+request.

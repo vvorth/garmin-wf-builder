@@ -4,12 +4,14 @@ Loaded automatically when working under `tests/`.
 
 - **Fast suite:** `./.venv/bin/python -m pytest -m "not slow"`. Only tests
   marked `slow` invoke the real `monkeyc`.
-- **5 known, pre-existing failures. These are not regressions to chase:**
+- **3 known, pre-existing failures. These are not regressions to chase:**
   - `test_example_is_clean_on_every_target[dashboard]`
   - `test_example_is_clean_on_every_target[big-clock-3]`
   - `test_example_is_clean_on_every_target[enduro]`
-  - `test_ir_draw_order_matches_the_resolved_one[enduro]`
-  - `test_ir_draw_order_matches_the_resolved_one[dashboard]`
+
+  (Until 2026-09-14 this list also named
+  `test_ir_draw_order_matches_the_resolved_one[enduro]` and `[dashboard]`;
+  both pass as of `aa9137a`.)
 
   `dashboard` is the user's playground; since 2026-09-14 it also declares a
   `clock` font whose `assets/OpenSans-Regular.ttf` was removed. The other two

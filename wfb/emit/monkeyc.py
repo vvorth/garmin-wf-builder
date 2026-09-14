@@ -29,7 +29,7 @@ from ..ir import (
     graph_min_field, graph_rebuild_method, graph_series_field, static_group_method,
 )
 from ..layout import (
-    COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, PlacedGraph,
+    ANTIALIASED_PRIMITIVES, COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, PlacedGraph,
     PlacedHands, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
 from ..series import Acquisition
@@ -900,13 +900,17 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
 
     `Element.resolved_antialias` already folds every inheritance step (face ->
     group -> element) into one per-element boolean (`wfb.ir.Builder.
-    _resolve_antialias`), so "does any shape/progress actually draw
-    anti-aliased" is exactly "does any PlacedShape/PlacedProgress have
+    _resolve_antialias`), so "does any primitive-drawing element actually draw
+    anti-aliased" is exactly "does any `ANTIALIASED_PRIMITIVES` member have
     `resolved_antialias == True`" -- no separate walk of the face default and
-    the override tree is needed here.
+    the override tree is needed here.  The same tuple drives
+    `_emit_element_method`'s toggle and `wfb.lint.check_antialias_palette`
+    (this gate once kept a private copy without `PlacedHands`, so a face
+    whose one anti-aliased element was a `type: hands` emitted no
+    `applyAntiAlias` at all).
 
-    `None` is the R3 gate: a design that never turns this on for a `shape` or
-    `progress` element -- whether because the face default is `false` and
+    `None` is the R3 gate: a design that never turns this on for a
+    primitive-drawing element -- whether because the face default is `false` and
     nothing overrides it, or because the face default is `true` and every
     primitive-drawing element overrides it back to `false` -- must generate
     exactly the code it did before this feature existed.  Returning `None`
@@ -916,7 +920,7 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
     behavioural change.
     """
     used = any(
-        isinstance(placed, (PlacedShape, PlacedProgress, PlacedGraph)) and placed.element.resolved_antialias
+isinstance(placed, ANTIALIASED_PRIMITIVES) and placed.element.resolved_antialias
         for placed in resolved.items
     )
     return resolved.face.antialias if used else None
@@ -1762,8 +1766,8 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             other_guards = plan.guards(placed)
             if other_guards:
                 _emit_guard(w, placed, other_guards)
-        # Anti-aliasing only ever varies for a shape or progress element -- text
-        # and icons draw glyphs, whose anti-aliasing is a font-resource matter
+        # Anti-aliasing only ever varies for a primitive-drawing element
+        # (`ANTIALIASED_PRIMITIVES`) -- text and icons draw glyphs, whose anti-aliasing is a font-resource matter
         # (baked at build time, see wfb.icons/wfb.fonts), not a per-frame Dc
         # call, so they emit no setAntiAlias-related code at all.  The toggle
         # brackets only the actual drawing call below, deliberately *after*
@@ -1774,7 +1778,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
         # own drawing runs.
         overrides_antialias = (
             antialias_default is not None
-            and isinstance(placed, (PlacedShape, PlacedProgress, PlacedGraph, PlacedHands))
+            and isinstance(placed, ANTIALIASED_PRIMITIVES)
             and element.resolved_antialias != antialias_default
         )
         if overrides_antialias:

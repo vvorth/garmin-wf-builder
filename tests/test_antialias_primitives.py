@@ -1,16 +1,18 @@
-"""`antialias:` -- the primitive half (`Dc.setAntiAlias` for `shape`/`progress`).
+"""`antialias:` -- the primitive half (`Dc.setAntiAlias` for `shape`/`progress`/
+`graph`/`hands`).
 
 `tests/test_antialias.py` covers the format surface and the font-baking half
 Task A shipped: the top-level default, per-element inheritance, the `text`
 rejection, and `wfb.icons.font_key`. This file covers what reads
-`Element.resolved_antialias` on a `shape` or `progress` element and turns it
+`Element.resolved_antialias` on a primitive-drawing element
+(`wfb.layout.ANTIALIASED_PRIMITIVES`) and turns it
 into a guarded `Dc.setAntiAlias` call --
 
 * R1: the guarded helper, named anything but `setAntiAlias`
   (`docs/research/probes/antialias/README.md` 3);
 * R2: where the calls land -- `onUpdate` (both branches), `onPartialUpdate`,
   and `renderStatic` (both its call sites);
-* R3: a face that never turns this on for a `shape`/`progress` element
+* R3: a face that never turns this on for a primitive-drawing element
   generates exactly what it did before this feature existed;
 * R4: `antialias-dither`, the suppressible 64-colour-palette lint.
 
@@ -194,6 +196,71 @@ def test_an_element_overriding_true_under_a_false_default_toggles_around_its_own
     assert "applyAntiAlias(dc, false);" in on_update  # the face default, reset once
 
 
+HANDS = """hands:
+  simple:
+    hour:
+      color: palette.fg
+      parts:
+        - {shape: polygon, points: [{dx: -3%r, dy: 6%r}, {dy: -44%r}, {dx: 3%r, dy: 6%r}]}
+"""
+
+def _draw_main_hands(view: str) -> str:
+    """`drawMainHands`, whole: a hands draw method has blank lines between
+    its hands, so the `"\\n\\n"` slice the other tests use would stop at the
+    first one."""
+    return view.split("private function drawMainHands")[1].split("\n    }\n")[0]
+
+
+HANDS_ELEMENT = """  - id: main_hands
+    type: hands
+    hands: simple
+    at: {anchor: center}
+"""
+
+
+def test_a_hands_element_alone_turning_antialias_on_emits_the_helper_and_toggles(
+    write_design, db, tmp_path
+):
+    """`type: hands` accepts `antialias:` and the lint counts it, so the
+    "is the feature used at all" gate must count it too.  Watched fail first:
+    with `PlacedHands` missing from `_antialias_default`, this design lints
+    `antialias-dither` against `main_hands` yet emits no `applyAntiAlias` at
+    all -- the key silently did nothing."""
+    design = (
+        f"{HEAD}{HANDS}elements:\n{BACKGROUND}"
+        + HANDS_ELEMENT
+        + "    antialias: true\n"
+        + "    lint: {allow: [antialias-dither], reason: test}\n"
+    )
+    text = _view_text(design, write_design, db, tmp_path)
+    assert "function applyAntiAlias(dc as Dc, on as Boolean) as Void" in text
+    draw_hands = _draw_main_hands(text)
+    assert "applyAntiAlias(dc, true);" in draw_hands
+    assert "applyAntiAlias(dc, false);" in draw_hands  # restored to the face default
+    assert draw_hands.index("applyAntiAlias(dc, true);") < draw_hands.index("WfbHands.fillRotated")
+    on_update = text.split("function onUpdate(dc as Dc) as Void")[1].split("\n\n")[0]
+    assert "applyAntiAlias(dc, false);" in on_update  # the face default, reset once
+    draw_background = text.split("private function drawBackground")[1].split("\n\n")[0]
+    assert "applyAntiAlias" not in draw_background
+
+
+def test_a_hands_element_overriding_false_under_a_true_default_toggles(
+    write_design, db, tmp_path
+):
+    """The other direction: every shape is soft, the hands stay crisp."""
+    design = (
+        f"{HEAD}{HANDS}antialias: true\nelements:\n"
+        + BACKGROUND.rstrip("\n")
+        + "\n    lint: {allow: [antialias-dither], reason: test}\n"
+        + HANDS_ELEMENT
+        + "    antialias: false\n"
+    )
+    text = _view_text(design, write_design, db, tmp_path)
+    draw_hands = _draw_main_hands(text)
+    assert "applyAntiAlias(dc, false);" in draw_hands
+    assert "applyAntiAlias(dc, true);" in draw_hands  # restored
+
+
 def test_text_and_icon_never_emit_antialias_calls(write_design, db, tmp_path):
     """Only `shape` and `progress` draw primitives; `text`/`icon` draw
     glyphs, whose anti-aliasing is the font-baking half Task A already
@@ -328,6 +395,38 @@ def test_antialias_dither_is_suppressible(write_design, db):
     bag = Bag()
     lint.check_antialias_palette(resolved, bag)
     assert not [d for d in bag.items if d.code == "antialias-dither"], bag.render()
+
+
+@pytest.mark.parametrize("kind", ["graph", "hands"])
+def test_antialias_dither_counts_every_element_the_emitter_antialiases(kind, write_design, db):
+    """A `graph` or `hands` element as the *only* anti-aliased one: the
+    emitter toggles `Dc.setAntiAlias` around both, so the lint must see both.
+    Watched fail first for `graph`: `check_antialias_palette` once kept its
+    own tuple, which omitted `PlacedGraph`, while the emitter's omitted
+    `PlacedHands` -- both now read `wfb.layout.ANTIALIASED_PRIMITIVES`."""
+    from wfb import lint
+
+    element = {
+        "graph": (
+            "  - id: soft\n"
+            "    type: graph\n"
+            "    series: heart_rate\n"
+            "    range: 4h\n"
+            "    style: line\n"
+            "    color: palette.fg\n"
+            "    at: {anchor: center}\n"
+            "    size: {width: 60%, height: 20%}\n"
+        ),
+        "hands": HANDS_ELEMENT.replace("main_hands", "soft"),
+    }[kind]
+    head = f"{HEAD}{HANDS}" if kind == "hands" else HEAD
+    design = f"{head}elements:\n{BACKGROUND}{element}    antialias: true\n"
+    resolved = _resolved(design, write_design, db)
+    bag = Bag()
+    lint.check_antialias_palette(resolved, bag)
+    warnings = [d for d in bag.items if d.code == "antialias-dither"]
+    assert len(warnings) == 1, bag.render()
+    assert "soft" in warnings[0].notes[1]
 
 
 def test_antialias_dither_does_not_fire_when_nothing_is_antialiased(write_design, db):

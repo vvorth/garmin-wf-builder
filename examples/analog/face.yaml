@@ -22,6 +22,11 @@
 # * **A `config.*` colour on a hand**: `classic`'s second hand is
 #   `config.accent_color`, the one native accent-colour axis, read exactly
 #   like a shape's own `color:` would be.
+# * **Anti-aliased hands in one layout only**: `classic`'s two hands
+#   elements set `antialias: true` (a per-element runtime `Dc.setAntiAlias`,
+#   set and restored around their own drawing), while `sport` keeps the face
+#   default and draws crisp. `wfb preview` cannot show the difference: it
+#   draws primitives aliased (docs/limitations.md).
 # * **A pin above the hands**: `center_pin`, an ordinary `shape: circle`
 #   element placed *after* `main_hands`/`small_secs` in `classic`'s own
 #   `elements:` -- hands draw hour, minute, second, and anything placed
@@ -198,12 +203,20 @@ layouts:
         hands: classic
         at: { anchor: center }
         seconds: awake
+        antialias: true # soft rotated edges; `sport` stays crisp
+        lint:
+          allow: [antialias-dither]
+          reason: "A soft edge on the 64-colour MIP panel dithers; accepted
+            here so a rotated polygon does not stair-step. Reported against
+            this element, the first to draw anti-aliased, for the whole
+            device."
 
       small_secs:
         type: hands
         hands: small_seconds
         at: { anchor: center, dy: 45%r } # an off-centre axis
         seconds: awake
+        antialias: true
 
       # A pin above every hand: an ordinary shape drawn after
       # the hands elements above, so it lands on top of them.

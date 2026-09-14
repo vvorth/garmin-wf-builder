@@ -222,6 +222,15 @@ class PlacedHands(Placed):
     reach: float = 0.0
 
 
+#: The placed kinds whose own drawing `antialias:` reaches as a runtime
+#: `Dc.setAntiAlias` -- primitives, not glyphs (`text`/`icon` anti-alias in
+#: their baked font instead).  One tuple, read by the emitter's "is the
+#: feature used" gate, its per-element toggle, and the `antialias-dither`
+#: lint: three private copies once drifted, so a hands-only anti-aliased face
+#: emitted no `setAntiAlias` at all, and a graph-only one never linted.
+ANTIALIASED_PRIMITIVES = (PlacedShape, PlacedProgress, PlacedGraph, PlacedHands)
+
+
 #: Fixed pixel gap between a complication_slot's icon and its reading.  A
 #: small constant rather than a fraction of the icon's own size, the same way
 #: `PlacedShape`'s outline padding is a fixed `+1`/`+2` rather than scaled --
