@@ -21,12 +21,12 @@ from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Element, Face, LayoutDecl, StyleEntry, Text,
-    authored_draw_order, never_together,
+    CONFIG_SYMBOL, ComplicationSlot, Element, Face, HandsElement, LayoutDecl,
+    StyleEntry, Text, authored_draw_order, never_together,
 )
 from .layout import (
-    PlacedProgress, PlacedShape, PlacedText, ResolvedFace, inside_screen,
-    inside_visible_area, inside_visible_area_for, is_full_bleed,
+    PlacedHands, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    inside_screen, inside_visible_area, inside_visible_area_for, is_full_bleed,
 )
 from .palette import Color
 from .units import IntBox
@@ -56,7 +56,8 @@ ALL_CODES = frozenset({
     "contrast", "dead-element",
     "element-mapping",
     "devices", "duplicate-id", "duplicate-style", "element", "expression",
-    "font", "format", "format-version", "graph", "graphics-pool", "icon", "io",
+    "font", "format", "format-version", "graph", "graphics-pool", "hands",
+    "icon", "io",
     "layouts", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "hold-overlap", "hold-unsupported",
@@ -342,15 +343,26 @@ def _users_of(face: Face, token: str) -> list[Element]:
     this check can actually verify.  Shared by :func:`_palette_users`,
     :func:`_config_users` and :func:`_config_colors_role_users`, which differ
     only in which token they build.
+
+    A `HandsElement` has no `color:` field of its own -- its colours live on
+    the `hour:`/`minute:`/`second:` hands its `hands:` names, already folded
+    into `HandsElement.colors` at build time (`Builder._build_hands_element`)
+    -- so it is matched by exact text there instead, the plan 04 §6 promise
+    that "every check that reads a shape's `.color` also reads the part
+    colours."
     """
-    return [
-        element for element in face.walk()
+    out = []
+    for element in face.walk():
         if any(
             (expression := getattr(element, field, None)) is not None
             and expression.text == token
             for field in _PALETTE_REFERENCING_FIELDS
-        )
-    ]
+        ):
+            out.append(element)
+        elif isinstance(element, HandsElement) and any(
+                color.text == token for color in element.colors):
+            out.append(element)
+    return out
 
 
 def _palette_users(face: Face, name: str) -> list[Element]:
@@ -479,7 +491,8 @@ def check_antialias_palette(resolved: ResolvedFace, bag: Bag) -> None:
         return
     users = [
         placed for placed in resolved.items
-        if isinstance(placed, (PlacedShape, PlacedProgress)) and placed.element.resolved_antialias
+        if isinstance(placed, (PlacedShape, PlacedProgress, PlacedHands))
+        and placed.element.resolved_antialias
     ]
     if not users:
         return

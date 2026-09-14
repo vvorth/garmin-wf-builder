@@ -68,7 +68,7 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
 
     # An unknown element `type:` makes every oneOf branch fail for the same
     # uninformative reason, so it is caught first and named directly.
-    bad_types = _check_element_types(doc, bag)
+    bad_types = _check_element_types(doc, bag) + _check_hand_frame(doc, bag)
 
     validator = Draft202012Validator(load_schema())
     errors = sorted(validator.iter_errors(doc.data), key=lambda e: list(e.absolute_path))
@@ -92,6 +92,7 @@ PROGRESS_STYLE_KEYS = {
 #: The element types this format version understands.
 ELEMENT_TYPES = (
     "group", "shape", "text", "progress", "icon", "graph", "complication_slot",
+    "hands",
 )
 
 #: Names authors reach for that belong to a discriminated pair, or to another
@@ -119,6 +120,12 @@ ELEMENT_ALIASES: dict[str, str] = {
     "digital_clock": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
     "clock": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
     "time": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
+    # Analog hands shipped in plan 04 -- these three used to either not exist
+    # (`hand`, `analog`) or point at `ELEMENT_NOT_YET`'s now-superseded
+    # `analog_clock` hint below ("build them from shape: line").
+    "hand": "type: hands\n    hands: <name>      # a name declared under top-level 'hands:'",
+    "analog": "type: hands\n    hands: <name>      # a name declared under top-level 'hands:'",
+    "analog_clock": "type: hands\n    hands: <name>      # a name declared under top-level 'hands:'",
 }
 
 #: Element types this format does not have *yet*, so the message can say so
@@ -130,7 +137,9 @@ ELEMENT_NOT_YET = {
     # §4) -- it is a real element type now, listed in `ELEMENT_TYPES` below, not
     # an alias here any more.
     "raw": "the `raw` escape hatch is not implemented yet (ADR 0007)",
-    "analog_clock": "analog hands are not implemented yet -- build them from `shape: line`",
+    # `analog_clock` used to point here ("build them from shape: line") before
+    # analog hands shipped (plan 04) -- it is now an `ELEMENT_ALIASES` entry
+    # above, alongside `hand` and `analog`.
 }
 
 
@@ -146,6 +155,9 @@ def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
                 continue
             here = path + [index]
             if _check_progress_style(doc, bag, element):
+                bad.append(here)
+                continue
+            if _check_hands_seconds_always(doc, bag, element):
                 bad.append(here)
                 continue
             kind = element.get("type")
@@ -199,6 +211,137 @@ def _check_progress_style(doc: YamlDocument, bag: Bag, element: dict) -> bool:
         ],
     )
     return True
+
+
+def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> bool:
+    """Catch `seconds: always` before the schema does, so the message can
+    explain *why* it is not implemented instead of just listing the two
+    values the enum does accept (plan 04 §5.6, §11).
+
+    Follows `_check_progress_style`'s precedent: the friendly explanation
+    goes through this hand-written check, and the schema's own `seconds:`
+    enum lists only `awake`/`never` -- an author who reaches for `always`
+    never sees the blunt "not valid here" a bare enum mismatch would give.
+    """
+    if element.get("type") != "hands":
+        return False
+    if element.get("seconds") != "always":
+        return False
+    bag.error(
+        "schema",
+        "'seconds: always' is not implemented yet -- a second hand while "
+        "asleep needs a full-frame buffer and a moving onPartialUpdate clip, "
+        "a different buffer architecture from 'static:'s paint-once one",
+        doc.span(element, "seconds"),
+        notes=["see docs/limitations.md, \"Not implemented yet\"",
+               "'seconds: awake' (the default -- drawn while awake, hidden "
+               "asleep) or 'seconds: never' are implemented"],
+    )
+    return True
+
+
+#: A hand-frame length the schema's `handLength` pattern refuses, and why --
+#: the schema alone can only say "expected number, got string", which does
+#: not tell an author that `3%` is a perfectly good length *everywhere else*.
+_HAND_UNIT_REFUSALS = {
+    "%": "a hand frame has no parent box for '%' to measure against",
+    "pt": "a hand has no font for 'pt' to measure against",
+}
+
+#: The keys of a hand part that hold a length, and those that hold a position.
+_HAND_PART_LENGTHS = ("radius", "thickness")
+_HAND_PART_POSITIONS = ("at", "to")
+_HAND_POSITION_LENGTHS = ("dx", "dy", "radius")
+
+
+def _hand_unit(value: object) -> str | None:
+    """`%` or `pt` when ``value`` is a length string in one of those units."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if text.endswith("%r") or text.endswith("px"):
+        return None
+    if text.endswith("%"):
+        return "%"
+    if text.endswith("pt"):
+        return "pt"
+    return None
+
+
+def _dotted(path: list) -> str:
+    """``hands.a.minute.parts[0].radius`` -- the spelling `wfb/ir.py` uses."""
+    return "".join(f"[{p}]" if isinstance(p, int) else f".{p}" for p in path).lstrip(".")
+
+
+def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list]:
+    """Explain the two things a hand part's frame refuses that every other
+    position accepts -- `%`/`pt` lengths and `anchor:` -- before the schema
+    reports them bluntly (plan 04 §5.1, §5.3).  Returns the value paths
+    already accounted for, so the schema's own error for each is dropped.
+
+    Same precedent as `_check_hands_seconds_always`: the schema stays
+    normative (it refuses both), and this only supplies the reason.
+    """
+    bad: list[list] = []
+    sets = doc.data.get("hands")
+    if not isinstance(sets, dict):
+        return bad
+
+    def length(container: dict, key: str, path: list) -> None:
+        unit = _hand_unit(container.get(key))
+        if unit is None:
+            return
+        bag.error(
+            "schema",
+            f"{_dotted(path)}: {container[key]!r} -- a hand "
+            f"part's lengths are px or %r only; {_HAND_UNIT_REFUSALS[unit]}",
+            doc.span(container, key),
+            notes=["every coordinate in a hand is measured from its axis; %r (the "
+                   "screen's minor radius) scales it with the dial"],
+        )
+        bad.append(path)
+
+    def position(raw: object, path: list) -> None:
+        if not isinstance(raw, dict):
+            return
+        if "anchor" in raw:
+            bag.error(
+                "schema",
+                f"{_dotted(path)}: 'anchor:' is not accepted in a "
+                "hand part -- its coordinates are measured from the hand's axis, "
+                "and there is no box to anchor to",
+                doc.span(raw, "anchor"),
+                notes=["the axis is the element's own 'at:'; inside a hand, "
+                       "{dx, dy} or {angle, radius} are offsets from it"],
+            )
+            bad.append(path)  # the schema reports an unknown key at its object
+        for key in _HAND_POSITION_LENGTHS:
+            length(raw, key, path + [key])
+
+    for set_name, spec in sets.items():
+        if not isinstance(spec, dict):
+            continue
+        for hand_name in ("hour", "minute", "second"):
+            hand = spec.get(hand_name)
+            if not isinstance(hand, dict) or not isinstance(hand.get("parts"), list):
+                continue
+            for index, part in enumerate(hand["parts"]):
+                if not isinstance(part, dict):
+                    continue
+                here = ["hands", set_name, hand_name, "parts", index]
+                for key in _HAND_PART_LENGTHS:
+                    length(part, key, here + [key])
+                for key in _HAND_PART_POSITIONS:
+                    position(part.get(key), here + [key])
+                size = part.get("size")
+                if isinstance(size, dict):
+                    for key in ("width", "height"):
+                        length(size, key, here + ["size", key])
+                points = part.get("points")
+                if isinstance(points, list):
+                    for i, point in enumerate(points):
+                        position(point, here + ["points", i])
+    return bad
 
 
 def _under(path: list, prefix: list) -> bool:

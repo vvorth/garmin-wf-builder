@@ -1,7 +1,10 @@
 # Plan 04: Analog hands
 
 - **Date:** 2026-09-14
-- **Status:** approved for building, 2026-09-14. The user asked for the
+- **Status:** built 2026-09-14, all three phases, by a subagent and then
+  reviewed; §13 records what shipped, the measurements and the deviations.
+  Where §13 disagrees with an earlier section, §13 wins.
+- **Status:** (superseded) approved for building, 2026-09-14. The user asked for the
   research, the design, the requirements and the limitations, and for the
   build to go to a subagent and then be integrated. §12 lists the choices
   made without a round-trip, for the user to review afterwards.
@@ -553,3 +556,70 @@ recommendation rather than asked:
 6. **Off-centre axes are built, not just planned.** They cost nothing
    beyond resolving `at:` like any element, so refusing them would be the
    extra work.
+
+## 13. What shipped (2026-09-14)
+
+Built in one pass by a Sonnet subagent against this plan. The coordinator
+then reviewed it, fixed what is listed under "Review fixes", and
+re-ran every gate.
+
+**Measured.** Every figure is from a real `monkeyc` build with
+`--build-stats`, and each build was warning-free.
+
+| Design | fenix8solar47mm | fenix8solar51mm | fr955 |
+|---|---|---|---|
+| `examples/analog/face.yaml` | 4,561 B (3.5%) | 4,562 B (3.5%) | 4,561 B (3.5%) |
+
+These are the figures after review. The subagent's own build measured
+4,578–4,579 B; the 17 B difference is the `setColor` de-duplication
+below. Most of the example's cost is the dial and the Styles machinery.
+A hands-only design measured about 2 KB, as the probe predicted.
+
+**Gates.** The fast suite ends at exactly the 5 known failures. The 8
+designs that generated before this work (`complications`, `config`,
+`graph`, `shapes`, `slice`, `slots`, `styles`, `sun`) produce
+byte-identical `--no-compile` projects. No existing golden moved.
+`test_example_compiles[analog]` passes in the slow suite.
+
+**Deviations the subagent reported:**
+
+- There is no golden for the example. `tests/test_hands_codegen.py`
+  asserts the key lines instead; this is the fallback §7 allowed.
+- `seconds: never` also drops that hand's `Layout` constants, not only
+  its drawing. Its colours reach no lint either (a review fix, below).
+- The rejected part shapes (`rounded_rectangle`, `ellipse`, `arc`, `text`,
+  `icon`) are in the schema's `handPart.shape` enum, so that the IR can give
+  each one its own reason. If such a part also has keys only its own shape
+  would take (`start_angle:` on an `arc` part), the schema's unknown-key
+  error fires first. The error is still real, but it is the less helpful
+  one.
+- The example's subdial and pin are in `classic`, not in `sport` (§5.9
+  sketched them in `sport`).
+
+**Review fixes (the coordinator, same session):**
+
+1. Author-facing messages and schema descriptions pointed at this plan
+   file, which is deleted once built. They now point at
+   `docs/limitations.md` and `docs/format.md`. Plan-requirement labels
+   (R4, R5, R8) in `docs/format.md` and the example header were
+   removed, following the precedent set when plans 01–03 were deleted.
+2. `%`/`pt` in a hand length reported only "expected number, got string",
+   and `anchor:` only "unknown key". A pre-schema check,
+   `wfb/validate.py` `_check_hand_frame`, now gives one error for each,
+   with the reason (§5.3).
+3. `seconds: never` on a set with only a second hand drew nothing and
+   passed clean. It is now an error (no silent no-ops), and a never-drawn
+   second hand's colours no longer count as used.
+4. `setColor` was emitted before every part. It is now emitted only when
+   the colour changes within a hand (§6).
+5. The dither-suppression path through hand colours had no test. Four
+   tests now cover it, including the contrast case (a colour read only by
+   a hand, which is exactly what the pre-fix `_users_of` got wrong).
+6. `test_hands_codegen.py` skipped when the example was missing. It now
+   fails, as the slice fixture's tests do.
+
+Each new review test was driven red by reverting its fix, and then
+restored.
+
+**Still unverified** (§9, unchanged): everything behavioural on a watch
+or a simulator.

@@ -38,6 +38,12 @@ Element vocabulary worth stealing:
 | `UserConfigurations` | `BooleanConfiguration`, `ListConfiguration` |
 | `Metadata`, `BitmapFonts` | versioning, font declarations |
 
+**Analog hands, built (2026-09-14, plan 04).** `hands:` keeps WFF's
+`HourHand`/`MinuteHand`/`SecondHand` three-part structure, but the pivot is
+the origin (a vector part has no image box to make it a *fraction* of, the
+way WFF's `pivotX`/`pivotY` are), and there is no `Sweep` -- this platform
+redraws at most once a second, so a swept second hand was never on offer.
+
 **Data binding.** Dynamic expressions bound to attributes, with built-in data
 sources for time, weather (v2+), Health Services sensors, complications, and user
 configuration. Text uses `Template` with inline expression substitution.

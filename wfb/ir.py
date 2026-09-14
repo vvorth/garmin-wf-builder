@@ -76,6 +76,49 @@ SHAPE_GEOMETRY_KEYS = {
 #: Every geometry key, for the "not used by this shape" check.
 _ALL_SHAPE_GEOMETRY_KEYS = frozenset().union(*SHAPE_GEOMETRY_KEYS.values())
 
+#: The same precedent as `SHAPE_GEOMETRY_KEYS`, for a hand part (plan 04
+#: §5.2) -- four primitives, the rotatable ones.  `filled`/`thickness` are
+#: handled separately below, exactly as the main `Shape` handles them: which
+#: shapes accept `filled` at all is one set, and whether `thickness` is read
+#: depends on `filled`, not on the shape alone.  `at` is absent from
+#: `polygon`'s own row because a polygon's vertices are each already an
+#: absolute position in the hand's frame -- there is no separate centre to
+#: place.
+HAND_PART_GEOMETRY_KEYS = {
+    "polygon": frozenset({"points"}),
+    "rectangle": frozenset({"at", "size"}),
+    "line": frozenset({"at", "to"}),
+    "circle": frozenset({"at", "radius"}),
+}
+_ALL_HAND_PART_GEOMETRY_KEYS = frozenset().union(*HAND_PART_GEOMETRY_KEYS.values())
+
+#: Which hand part shapes accept `filled:` at all -- `line` has no notion of
+#: being filled, so it is left out here the same way `arc` is left out of
+#: `filled:`'s acceptance on the main `Shape` (§5.2).
+HAND_PART_FILLED_SHAPES = frozenset({"polygon", "rectangle", "circle"})
+
+#: The two shapes for which `filled: false` is rejected outright -- a hand's
+#: rectangle part becomes a polygon at build time (§6), so both share the
+#: main `Shape`'s own "no drawPolygon" reasoning.
+HAND_PART_NO_UNFILLED = frozenset({"polygon", "rectangle"})
+
+#: `shape:` values a hand part's schema recognises but this compiler does
+#: not draw, each with its own platform reason (§5.2) -- accepted by the
+#: schema alongside the four real ones (`schema/wfb-face-1.schema.json`,
+#: `handPart.shape`) precisely so this dedicated message fires instead of a
+#: blunt "not one of ..." enum mismatch naming eight options with no
+#: explanation.
+HAND_PART_REJECTED_SHAPES = {
+    "rounded_rectangle": "no Dc call draws a rotated rounded rectangle -- "
+                          "approximate it with 'polygon'",
+    "ellipse": "no Dc call draws a rotated ellipse -- approximate it with 'polygon'",
+    "arc": "an arc part would need its start angle to rotate with the hand too, "
+           "which is not implemented yet (docs/limitations.md) -- "
+           "approximate a wedge with 'polygon', or use 'circle' for a disc",
+    "text": "a bitmap font cannot rotate",
+    "icon": "a bitmap font cannot rotate",
+}
+
 #: Which geometry key each `graph` `style:` actually reads -- the same
 #: precedent as `SHAPE_GEOMETRY_KEYS`, and for the same reason: a `bar_width:`
 #: on a `style: line` graph was parsed, validated and silently dropped on the
@@ -627,6 +670,91 @@ class Shape(Element):
 
 
 @dataclass
+class HandPart:
+    """One primitive of a hand, in the hand's own frame: origin = the axis,
+    drawn pointing at 12 o'clock (plan 04 §5.1, §5.2).  `at`/`to`/`points`
+    positions have no `anchor` -- the schema's `handPosition` never accepts
+    one, so the axis is the only reference point a part's coordinates can be
+    measured from (R4).
+    """
+
+    shape: str = "polygon"
+    #: `polygon` only: 3-64 vertices, each measured from the axis.
+    points: list[Position] = field(default_factory=list)
+    #: `rectangle`/`line`/`circle`: the part's own centre/start, default the axis.
+    at: Position = field(default_factory=Position)
+    size: Size = field(default_factory=Size)
+    #: `line` only: the end point.
+    to: Position | None = None
+    thickness: Length | None = None
+    radius: Length | None = None
+    filled: bool = True
+    #: Always set once built -- the part's own `color:`, or its hand's
+    #: default: "a part left with no colour is an error" (§5.1), so by the
+    #: time a `HandPart` exists this is never `None`.
+    color: Expression | None = None
+    span: Span | None = None
+
+
+@dataclass
+class Hand:
+    """`hour:`/`minute:`/`second:` inside a `hands:` set -- a default colour
+    for its parts, plus the parts themselves, in draw order (§5.1)."""
+
+    parts: list[HandPart] = field(default_factory=list)
+    #: The hand's own `color:`, before a part's own overrides it -- kept
+    #: mainly for `docs`/introspection; every `HandPart.color` above is
+    #: already the *effective* colour, so codegen never has to fall back to
+    #: this itself.
+    color: Expression | None = None
+
+
+@dataclass
+class HandSet:
+    """One named `hands:` entry -- a shape, like a `fonts:` entry, not
+    something drawn on its own (§5.1).  Placed on screen by a `type: hands`
+    element naming it.
+    """
+
+    name: str
+    hour: Hand | None = None
+    minute: Hand | None = None
+    second: Hand | None = None
+    span: Span | None = None
+
+    def hands(self) -> list[tuple[str, Hand]]:
+        """The declared hands, in fixed draw order: hour, then minute, then
+        second (§5.1) -- never author order, because the platform has no
+        notion of drawing a minute hand under an hour hand on purpose."""
+        return [(name, hand) for name, hand in
+                (("hour", self.hour), ("minute", self.minute), ("second", self.second))
+                if hand is not None]
+
+
+@dataclass
+class HandsElement(Element):
+    """`type: hands` -- places a declared `hands:` set on screen, axis at
+    `at:` (plan 04).  `_own_expressions` returns every effective part colour
+    (already resolved at build time, `Builder._build_hands_element`) so
+    permissions, the barrel, the read plan and the config-user lints pick
+    them up exactly the way a shape's own `color:` does.
+    """
+
+    hands: str = ""
+    #: `awake` (drawn only while awake), `never` (not drawn at all), or
+    #: `None` when the set has no second hand at all -- there is nothing to
+    #: gate.  `seconds: always` never reaches the IR: `wfb/validate.py`
+    #: refuses it before the schema even runs (§5.6, §11).
+    seconds: str | None = None
+    #: Every effective colour (hand-level default, and each part's own
+    #: override) this element's set uses, deduplicated in first-use order.
+    colors: tuple[Expression, ...] = ()
+
+    def _own_expressions(self) -> list[Expression]:
+        return list(self.colors)
+
+
+@dataclass
 class Text(Element):
     value: Expression | None = None
     literal: str | None = None
@@ -890,6 +1018,10 @@ class Face:
     #: `config: data:` slots, keyed by name.  A third, independent way to
     #: turn on the whole on-device-config feature -- see `has_config`.
     config_data: dict[str, ConfigDataSlot] = field(default_factory=dict)
+    #: `hands:` entries, keyed by name (plan 04).  Empty on a design with no
+    #: analog hands, which is what keeps every existing golden file and
+    #: generated project byte-identical.
+    hands: dict[str, HandSet] = field(default_factory=dict)
 
     @property
     def has_config(self) -> bool:
@@ -1053,6 +1185,13 @@ class Builder:
         self.config_data: dict[str, ConfigDataSlot] = {}
         self.declared_config_data: dict[str, Span | None] = {}
         self.rejected_config_data: set[str] = set()
+        #: `hands:` entries, and the same declared/rejected split every other
+        #: named block keeps (plan 04) -- a `type: hands` element naming a
+        #: set that was declared and then rejected gets exactly one error, at
+        #: the real mistake, not a second one blaming the element.
+        self.hand_sets: dict[str, HandSet] = {}
+        self.declared_hand_sets: dict[str, Span | None] = {}
+        self.rejected_hand_sets: set[str] = set()
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it
@@ -1082,6 +1221,13 @@ class Builder:
         self._check_layouts_reachable(data)
         self._build_fonts(data.get("fonts") or {})
         self._build_scope()
+        # Hands need the scope built first: a hand's `color:` may read
+        # `palette.*`/`config.*` through the same `_color_expression` an
+        # element's own `color:` uses, and it needs `self.scope` in place
+        # (plan 04 §6).  They need to run before `_build_elements` so a
+        # `type: hands` element can resolve `hands: <name>` against
+        # `self.hand_sets` the same build pass.
+        self._build_hands(data.get("hands") or {})
 
         elements = self._build_elements(data.get("elements") or [], ("elements",))
         if not self.bag.ok():
@@ -1122,6 +1268,7 @@ class Builder:
             layout_decls={l.name: l for l in self.layouts if l.name in accepted_layouts},
             config_style=self.config_style,
             config_data=self.config_data,
+            hands=self.hand_sets,
         )
 
     # -- layouts, palette, config, fonts, scope -----------------------------
@@ -1909,6 +2056,244 @@ class Builder:
             return None
         return size
 
+    # -- hands (plan 04) ---------------------------------------------------
+
+    def _build_hands(self, raw: dict) -> None:
+        """`hands:` -- named analog-hand sets, declared once, placed by name.
+
+        The same declared/rejected cascade every other named block keeps
+        (`fonts:`, `color_scheme:`, `layouts:`): a set rejected for its own
+        fault stays bound in `declared_hand_sets`, so a `type: hands`
+        element naming it gets exactly one error, at the real mistake
+        (`docs/lore/codegen.md`).
+        """
+        for name, spec in raw.items():
+            span = self.doc.span(raw, name)
+            self.declared_hand_sets[name] = span
+            ok = True
+            hands: dict[str, Hand | None] = {}
+            for hand_name in ("hour", "minute", "second"):
+                if hand_name not in spec:
+                    hands[hand_name] = None
+                    continue
+                hand = self._build_hand(spec[hand_name], name, hand_name)
+                if hand is None:
+                    ok = False
+                    continue
+                hands[hand_name] = hand
+            if hands.get("hour") is None and hands.get("minute") is None \
+                    and hands.get("second") is None and ok:
+                self.bag.error(
+                    "hands",
+                    f"hands.{name}: declares none of hour, minute or second",
+                    span,
+                    notes=["a hand set is a shape, like a fonts: entry -- it needs at "
+                           "least one hand to be worth placing",
+                           "a set with only 'second:' is a valid small-seconds subdial"],
+                )
+                ok = False
+            if not ok:
+                self.rejected_hand_sets.add(name)
+                continue
+            self.hand_sets[name] = HandSet(
+                name=name, hour=hands["hour"], minute=hands["minute"],
+                second=hands["second"], span=span,
+            )
+
+    def _build_hand(self, spec: dict, set_name: str, hand_name: str) -> Hand | None:
+        """One `hour:`/`minute:`/`second:` entry of a `hands:` set."""
+        where = f"hands.{set_name}.{hand_name}"
+        ok = True
+        hand_color: Expression | None = None
+        # Whether `color:` was written at all and failed its own check --
+        # distinguished from "simply not declared" so a part with no colour
+        # of its own does not also get a redundant, cascading "no colour"
+        # error blaming it for a mistake made one level up (the same "one
+        # error, not N" discipline `docs/lore/codegen.md` names).
+        color_declared_and_failed = False
+        if "color" in spec:
+            hand_color = self._color_expression(spec, "color")
+            if hand_color is None:
+                ok = False
+                color_declared_and_failed = True
+            else:
+                rejected = self._reject_hand_data_color(hand_color, where, self.doc.span(spec, "color"))
+                if rejected:
+                    hand_color = None
+                    ok = False
+                    color_declared_and_failed = True
+        parts: list[HandPart] = []
+        for index, raw_part in enumerate(spec.get("parts") or []):
+            part = self._build_hand_part(
+                raw_part, where, index, hand_color, color_declared_and_failed)
+            if part is None:
+                ok = False
+                continue
+            parts.append(part)
+        if not ok:
+            return None
+        return Hand(parts=parts, color=hand_color)
+
+    def _reject_hand_data_color(self, color: Expression, where: str, span: Span | None) -> bool:
+        """A hand colour "may not read a data source" (§5.4) -- a hand is
+        about the time, and has no `when_absent:` to fall back through if
+        the reading it named turned out absent.  Returns whether the colour
+        was rejected.
+        """
+        if not color.sources:
+            return False
+        self.bag.error(
+            "hands",
+            f"{where}.color: a hand colour cannot read data ({_and_paths(color.sources)})",
+            span or color.span,
+            notes=["allowed: palette entries, literal colours and config.* "
+                   "(accent_color, data_color, colors.<role>) -- and conditionals "
+                   "over those",
+                   "a hand has no 'when_absent:', and a hand is about the time, "
+                   "not a reading"],
+        )
+        return True
+
+    def _build_hand_part(
+        self, node: dict, where: str, index: int,
+        hand_color: Expression | None, color_declared_and_failed: bool,
+    ) -> HandPart | None:
+        """One primitive of a hand -- the same per-shape precedent as
+        `_build_shape`/`_check_shape_keys`, scoped to the four rotatable
+        primitives (§5.2)."""
+        part_where = f"{where}.parts[{index}]"
+        shape = node.get("shape")
+        span = self.doc.span(node) if isinstance(node, dict) else None
+        if isinstance(node, dict) and shape in HAND_PART_REJECTED_SHAPES:
+            self.bag.error(
+                "element",
+                f"{part_where}: 'shape: {shape}' is not accepted on a hand part -- "
+                f"{HAND_PART_REJECTED_SHAPES[shape]}",
+                self.doc.span(node, "shape") or span,
+                notes=["the four rotatable primitives are: polygon, rectangle, line, circle"],
+            )
+            return None
+        if not isinstance(node, dict) or shape not in HAND_PART_GEOMETRY_KEYS:
+            # Unreachable once the schema has run (shape is a closed enum);
+            # kept so a malformed node from a future schema slip fails loudly
+            # here rather than with an AttributeError three lines down.
+            self.bag.error("hands", f"{part_where}: not a valid hand part", span)
+            return None
+
+        ok = True
+        part_color = self._color_expression(node, "color") if "color" in node else None
+        if part_color is not None and self._reject_hand_data_color(
+                part_color, part_where, self.doc.span(node, "color")):
+            part_color = None
+            ok = False
+        elif "color" in node and part_color is None:
+            ok = False  # _color_expression already reported the real mistake
+        effective_color = part_color if part_color is not None else hand_color
+        if effective_color is None and not color_declared_and_failed \
+                and not ("color" in node and part_color is None):
+            self.bag.error(
+                "hands",
+                f"{part_where}: no colour -- neither this part nor its hand "
+                "declares 'color:'",
+                span,
+                notes=["set 'color:' on the part, or on the hand as a default "
+                       "every part without one inherits"],
+            )
+            ok = False
+
+        raw_points = node.get("points") or []
+        points = [self._position(raw, node, "points")
+                  for raw in raw_points if isinstance(raw, dict)]
+        at = self._position(node.get("at"), node, "at") if "at" in node else Position()
+        size = self._size(node.get("size"))
+        to = self._position(node.get("to"), node, "to") if "to" in node else None
+        thickness = self._length(node, "thickness")
+        radius = self._length(node, "radius")
+        filled = bool(node.get("filled", True))
+
+        if shape == "polygon" and len(points) < 3:
+            self._require(node, "points", f"{part_where}: a polygon part needs points")
+            ok = False
+        if shape == "rectangle" and (size.width is None or size.height is None):
+            self._require(node, "size", f"{part_where}: a rectangle part needs size.width and size.height")
+            ok = False
+        if shape == "line" and to is None:
+            self._require(node, "to", f"{part_where}: a line part needs a 'to' position")
+            ok = False
+        if shape == "circle" and radius is None:
+            self._require(node, "radius", f"{part_where}: a circle part needs a radius")
+            ok = False
+
+        if not self._check_hand_part_keys(node, shape, part_where):
+            ok = False
+
+        if "filled" in node and shape in HAND_PART_NO_UNFILLED and not filled:
+            self.bag.error(
+                "element",
+                f"{part_where}: 'filled: false' is not accepted on a hand "
+                f"'shape: {shape}' part -- Toybox.Graphics.Dc has fillPolygon "
+                "but no drawPolygon",
+                self.doc.span(node, "filled") or span,
+                notes=(["a rectangle part becomes a polygon at build time, so "
+                        "the same platform limit applies"]
+                       if shape == "rectangle" else []),
+            )
+            ok = False
+
+        if not ok:
+            return None
+        return HandPart(
+            shape=shape, points=points, at=at, size=size, to=to,
+            thickness=thickness, radius=radius, filled=filled,
+            color=effective_color, span=span,
+        )
+
+    def _check_hand_part_keys(self, node: dict, shape: str, part_where: str) -> bool:
+        """Reject a geometry key this part's `shape:` does not read, plus the
+        separately-handled `thickness`/`filled` rules -- the same "a key a
+        part's shape does not read is an error" precedent as
+        `Builder._check_shape_keys` (§5.2, §5.11)."""
+        ok = True
+        for key in sorted(_ALL_HAND_PART_GEOMETRY_KEYS - HAND_PART_GEOMETRY_KEYS[shape]):
+            if key not in node:
+                continue
+            owners = sorted(s for s, keys in HAND_PART_GEOMETRY_KEYS.items() if key in keys)
+            self.bag.error(
+                "element",
+                f"{part_where}: {key!r} is not used by a hand 'shape: {shape}' part",
+                self.doc.span(node, key) or self.doc.span(node),
+                notes=[
+                    f"'shape: {shape}' reads: "
+                    + (", ".join(sorted(HAND_PART_GEOMETRY_KEYS[shape])) or "(no geometry keys)"),
+                    f"{key!r} belongs to " + " and ".join(f"'shape: {s}'" for s in owners),
+                ],
+            )
+            ok = False
+        filled = bool(node.get("filled", True))
+        thickness_ok = shape == "line" or (shape == "circle" and not filled)
+        if "thickness" in node and not thickness_ok:
+            reason = ("a filled 'shape: circle' part" if shape == "circle"
+                      else f"a hand 'shape: {shape}' part")
+            self.bag.error(
+                "element",
+                f"{part_where}: 'thickness' is not used by {reason}",
+                self.doc.span(node, "thickness") or self.doc.span(node),
+                notes=["thickness is the pen width of an outline; add 'filled: false' "
+                       "to a circle part to outline it, or drop 'thickness'"]
+                      if shape == "circle" else
+                      ["only 'line' and an unfilled 'circle' part read 'thickness'"],
+            )
+            ok = False
+        if "filled" in node and shape not in HAND_PART_FILLED_SHAPES:
+            self.bag.error(
+                "element",
+                f"{part_where}: 'filled' is not used by a hand 'shape: {shape}' part",
+                self.doc.span(node, "filled") or self.doc.span(node),
+                notes=["a line has no notion of being filled or not"],
+            )
+            ok = False
+        return ok
+
     def _build_scope(self) -> None:
         """Populate the expression scope: catalogue sources, palette, config.
 
@@ -2102,6 +2487,7 @@ class Builder:
             "icon": self._build_icon,
             "graph": self._build_graph,
             "complication_slot": self._build_complication_slot,
+            "hands": self._build_hands_element,
         }
         builder = builders.get(node["type"])
         if builder is None:  # unreachable once the schema has run
@@ -2540,6 +2926,25 @@ class Builder:
                     )
                     ok = False
                     continue
+                if isinstance(element, HandsElement):
+                    # A hand's angle is the time -- there is no `Expression`
+                    # for that either (§5.5: hands read the clock with no
+                    # author expression), so the generic source check below
+                    # would never catch it, the same reason a graph and a
+                    # complication_slot each get their own branch here.
+                    self.bag.error(
+                        "static",
+                        f"{element.id!r} is analog hands and cannot be static",
+                        element.span,
+                        notes=["a hand's angle is the time -- a buffer filled once "
+                               "would freeze it at whatever it showed on the first "
+                               "frame",
+                               f"take it out of {root.id!r}"
+                               if element is not root else
+                               "drop `static: true` from it"],
+                    )
+                    ok = False
+                    continue
                 for expression in element.expressions():
                     if not expression.sources:
                         continue
@@ -2732,6 +3137,79 @@ class Builder:
                        "add 'filled: false' to outline this shape, or drop "
                        "'thickness'"],
             )
+
+    def _build_hands_element(self, node: dict, common: dict, path: tuple) -> Element | None:
+        """`type: hands` -- places a declared `hands:` set on screen.
+
+        `common["at"]` is already the axis (resolved exactly like any
+        element's `at:`); there is no `size:` to build, because the
+        element's extent is the disc it sweeps (§5.8, computed later in
+        `wfb.layout`), not a box.
+        """
+        name = node["hands"]
+        element_id = common["id"]
+        hand_set = self.hand_sets.get(name)
+        if hand_set is None:
+            if name in self.rejected_hand_sets:
+                return None  # one error, not N -- already reported in `_build_hands`
+            known = ", ".join(sorted(self.declared_hand_sets)) or "(none declared)"
+            self.bag.error(
+                "hands",
+                f"{element_id}: unknown hand set {name!r}",
+                self.doc.span(node, "hands"),
+                notes=[f"declared hand sets: {known}"],
+            )
+            return None
+
+        seconds = node.get("seconds")
+        if seconds is not None and hand_set.second is None:
+            declared = ", ".join(n for n, _ in hand_set.hands()) or "(none)"
+            self.bag.error(
+                "hands",
+                f"{element_id}: 'seconds: {seconds}' needs a second hand, but "
+                f"hands.{name} declares none",
+                self.doc.span(node, "seconds"),
+                notes=[f"hands.{name} declares: {declared}"],
+            )
+            return None
+        if seconds is None and hand_set.second is not None:
+            seconds = "awake"  # the default (§5.6)
+        if seconds == "never" and hand_set.hour is None and hand_set.minute is None:
+            # The one combination that draws nothing at all -- refused rather
+            # than generated as a method with no drawing in it (no silent
+            # no-ops, CLAUDE.md §7).
+            self.bag.error(
+                "hands",
+                f"{element_id}: 'seconds: never' on hands.{name}, which has only a "
+                "second hand, draws nothing",
+                self.doc.span(node, "seconds"),
+                notes=["remove the element, or place a set with an hour or minute hand"],
+            )
+            return None
+
+        if "low_power" in common["modes"]:
+            self.bag.error(
+                "hands",
+                f"{element_id}: 'modes:' may not include 'low_power' on analog hands",
+                self.doc.span(node, "modes") or common["span"],
+                notes=["the hour and minute hands never need it -- they change once a "
+                       "minute, and the sleeping onUpdate already redraws them",
+                       "a second hand while asleep is 'seconds: always', which is not "
+                       "implemented yet (docs/limitations.md)"],
+            )
+            return None
+
+        colors: list[Expression] = []
+        for hand_name, hand in hand_set.hands():
+            if hand_name == "second" and seconds == "never":
+                continue  # never drawn, so its colours reach no lint and no read
+            if hand.color is not None and hand.color not in colors:
+                colors.append(hand.color)
+            for part in hand.parts:
+                if part.color is not None and part.color not in colors:
+                    colors.append(part.color)
+
+        return HandsElement(**common, hands=name, seconds=seconds, colors=tuple(colors))
 
     def _build_text(self, node: dict, common: dict, path: tuple) -> Element:
         value = self._expression(node, "value") if "value" in node else None

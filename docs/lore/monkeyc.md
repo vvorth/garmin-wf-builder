@@ -48,3 +48,16 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   typechecks under `-l 3` like any other enum switch, which is what lets one
   authored template serve every choice in a re-pointable complication slot
   instead of needing one generated variant per possible choice.
+- **`Math.sin`/`Math.cos` are declared to return `Float or Double`** (checked
+  in `bin/api.debug.xml`), not `Float` — a helper parameter meant to receive
+  either result must be typed `Lang.Decimal` (`Float or Double`), not
+  `Float`. A `Float`-typed parameter fails strict typing with a "Passing
+  'PolyType<...Double or ...Float>' as parameter ... of non-poly type
+  '...Float'" error, confirmed by building both ways
+  (`docs/research/probes/analog-hands/`, finding 2) — the same
+  compiles-fine-until-the-call-site shape `Graphics.Point2D` already caught
+  for `Array<Array<Number>>` vs. `Array<Graphics.Point2D>`. Plain rotated
+  vertex/coordinate `Float`s, by contrast, satisfy `fillPolygon`/`drawLine`/
+  `fillCircle` under strict typing with no cast at all — it is specifically
+  a *parameter declared `Float`* that a `Decimal`-typed value cannot narrow
+  into, not `Float` values in general.

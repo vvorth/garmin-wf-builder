@@ -38,6 +38,7 @@ A tree of typed elements, borrowing WFF's shape but mapped onto Garmin's actual
 | `progress` | one of four styles, `arc` among them; see below — there is no separate standalone `arc` element, despite an earlier draft of this table listing one |
 | `complication_slot` | a bound complication with a hit region |
 | `raw` | escape hatch, see ADR 0007 |
+| `hands` | analog hands (**added 2026-09-14, plan 04, §6 below**): a named set of `fillPolygon`/`drawLine`/`fillCircle`/`drawCircle` primitives, resolved per device like any other element but rotated by the time on the device itself — the one exception to "the device does no layout arithmetic" |
 
 **As built, `shape:` exposes one entry per native `Dc` drawing call**:
 `rectangle`, `rounded_rectangle`, `circle`, `ellipse`, `arc`, `polygon` and
@@ -213,12 +214,51 @@ This makes `pt` units meaningful, makes "does this label overflow its slot on
 this device in this language?" a static check, and is the main reason the preview
 renderer can be trusted. It is a capability hand authors do not have.
 
+### 6. Analog hands — the one runtime rotation, and the eighth element type
+
+> **Amendment (2026-09-14, plan 04).** §1's table and the "Consequences"
+> section below both say the device performs no layout arithmetic at all.
+> Analog hands (`type: hands`) are the first and only exception, because a
+> hand's *angle* is the time — there is no build-time value for it to
+> resolve to. Everything else about a hand still follows this ADR to the
+> letter: its shape (up to 16 primitives per hand, in a frame whose origin
+> is the axis) and its axis (an ordinary `at:`) are resolved to whole pixels
+> per device exactly like any other element, into `Layout` constants. The
+> watch's only addition is one `sin`/`cos` pair per hand per frame,
+> rotating those already-resolved vertices by `((hour % 12) * 60 + min) *
+> 0.5°`/`min * 6°`/`sec * 6°` — confirmed to type-check warning-free under
+> strict typing by `docs/research/probes/analog-hands/`, and costing about a
+> kilobyte on `--build-stats`.
+>
+> `Toybox.Graphics.Dc` has no rotated-primitive draw call at all (checked
+> against every target's own `api.debug.xml`), so this was the only choice
+> once analog hands were in scope; `Graphics.AffineTransform` could replace
+> the hand-written rotation loop with one native call, and is recorded as a
+> candidate, unmeasured optimisation in the probe's own README rather than
+> built now.
+>
+> `hands:` (a named-set block, exactly like `fonts:`) and `type: hands` (the
+> eighth element type, alongside §1's table) are documented in full in
+> `docs/format.md` under "Analog hands". `wfb/layout.py`'s `PlacedHands`
+> carries the resolved, per-hand geometry the same way every other `Placed`
+> subclass carries a shape's; its own private `_round_away` rounds a
+> hand-frame coordinate **half away from zero**, not the plain `round()`
+> (half to even) every other element's geometry in that module uses — the
+> two happen to agree except on exact `.5` boundaries, and a mirrored
+> `-1.5px`/`1.5px` pair depends on which rule is applied, so a hand gets its
+> own, deliberately, rather than silently inheriting the other one's
+> tie-break (`wfb.preview` keeps an identical duplicate, `_round_away`, for
+> the same reason `WfbArc.mc`'s own `roundAway` already has one twin, not
+> a shared import across layers that must not depend on each other).
+
 ## Consequences
 
 - The IR carries **resolved absolute pixels per target device**, computed from
   relative units at build time. Nothing relative survives into generated Monkey C
   — the device does no layout arithmetic, which saves both memory and per-frame
-  cost.
+  cost, **except analog hands' own rotation** (§6, amended 2026-09-14): the
+  angle is the time, so it cannot be a build-time constant, and the device
+  performs that one multiply-add per vertex instead.
 - The preview renderer consumes the **same resolved IR**, so preview and device
   cannot disagree about position. This is the anti-drift mechanism Phase 3.8 asks
   for, and it works only because layout is resolved before codegen.

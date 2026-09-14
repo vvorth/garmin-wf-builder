@@ -249,3 +249,27 @@ def test_every_command_help_is_sourced_from_its_own_docstring():
         doc = inspect.getdoc(handler)
         assert doc, f"{name} has no docstring to source help from"
         assert subparser.description == doc, name
+
+
+def test_parse_preview_time_accepts_hh_mm_and_hh_mm_ss():
+    from wfb.cli import _parse_preview_time
+
+    assert _parse_preview_time("10:09") == (10, 9, 0)
+    assert _parse_preview_time("10:09:42") == (10, 9, 42)
+
+
+@pytest.mark.parametrize("bad", ["25:00", "10:60", "10", "10:09:60", "abc", "10:09:42:00"])
+def test_parse_preview_time_rejects_anything_else(bad):
+    from wfb.cli import _parse_preview_time
+
+    assert _parse_preview_time(bad) is None
+
+
+def test_preview_reports_a_clean_error_for_a_bad_time(db):
+    """`wfb preview --time` gives one readable error, not an uncaught
+    ValueError from inside the renderer."""
+    result = run("preview", "examples/analog/face.yaml", "--time", "not-a-time",
+                 "-d", "fenix8solar47mm", "-o", "build/preview")
+    assert result.returncode == 1
+    assert "not-a-time" in result.stderr
+    assert "HH:MM" in result.stderr

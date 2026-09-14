@@ -557,6 +557,29 @@ because they are decisions and not documentation:
    **estimate**, because bytes per pixel for a `BufferedBitmap` is not published
    and it uses the display's `bitsPerPixel` as a proxy.
 
+#### Note (2026-09-14, plan 04): `_sleeping` is now shared by two independent reasons
+
+The `always_on` mode above is what first introduced the generated view's
+`_sleeping` field (set by `WatchFace.onEnterSleep`/`onExitSleep`, read by
+`onUpdate` to choose which element set to draw). Analog hands add a second,
+independent reason to need the same field: `type: hands`' `seconds: awake`
+(the default) hides the second hand while asleep — without that, `onUpdate`
+draws the same element set once a minute while asleep, and a second hand
+drawn there would sit frozen at whatever second that update happened to
+land on. `onEnterSleep`/`onExitSleep` still just flip one `Boolean`; the
+only change is that the field and the two hooks are now emitted whenever
+`always_on` is in use **or** any `type: hands` element has an `awake`
+second hand — never both reasons stacking a second field, and never a
+second `if (!_sleeping)` mechanism. A design using neither reason still
+generates exactly what it did before this amendment: `_sleeping` reduces to
+`always_on` alone whenever no hands element is present.
+
+The second hand's own `if (!_sleeping)` wraps only that hand's parts,
+inside its own element's draw method — the hour and minute hands, and any
+`always_on` element set elsewhere in the same design, are unaffected. See
+`docs/format.md` "Analog hands" and `wfb/emit/monkeyc.py`'s
+`_sleep_flag_doc`/`_emit_sleep_hooks`.
+
 ### 6. Interactivity
 
 > **Amended after `docs/research/07-carousel-interaction.md`.** The original

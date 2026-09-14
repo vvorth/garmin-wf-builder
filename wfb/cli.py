@@ -152,6 +152,13 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--all-styles", action="store_true",
                          help="render every 'config: style:' entry side by side, one "
                               "PNG per device")
+    preview.add_argument("--time", metavar="HH:MM[:SS]",
+                         help="render analog hands (and any time.*-bound element) at "
+                              "this time instead of the sample 10:09:42")
+    preview.add_argument("--asleep", action="store_true",
+                         help="render the sleeping onUpdate frame: the 'always_on' "
+                              "element set when the design has one, 'active' "
+                              "otherwise, with every awake-only second hand hidden")
     preview.add_argument("-w", "--watch", action="store_true",
                          help="re-render whenever the design or a font it uses changes")
     preview.add_argument("--interval", type=float, default=0.4,
@@ -272,6 +279,20 @@ def _validate(args) -> int:
     return 0
 
 
+def _parse_preview_time(text: str) -> tuple[int, int, int] | None:
+    """``HH:MM`` or ``HH:MM:SS`` -- ``wfb preview --time``.  Returns ``None``
+    for anything else, so the caller can print one clean error rather than
+    an uncaught ``ValueError``."""
+    parts = text.split(":")
+    if len(parts) not in (2, 3) or not all(p.isdigit() for p in parts):
+        return None
+    hour, minute = int(parts[0]), int(parts[1])
+    second = int(parts[2]) if len(parts) == 3 else 0
+    if not (0 <= hour < 24 and 0 <= minute < 60 and 0 <= second < 60):
+        return None
+    return (hour, minute, second)
+
+
 def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     """Render once.  Returns the exit code and the design's dependencies."""
     from .preview import PreviewOptions, UnknownStyleError
@@ -282,6 +303,14 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     if style is not None and all_styles:
         print("error: --style and --all-styles are mutually exclusive", file=sys.stderr)
         return 1, [args.design]
+
+    time_arg = getattr(args, "time", None)
+    time: tuple[int, int, int] | None = None
+    if time_arg is not None:
+        time = _parse_preview_time(time_arg)
+        if time is None:
+            print(f"error: --time {time_arg!r} is not HH:MM or HH:MM:SS", file=sys.stderr)
+            return 1, [args.design]
 
     bag = Bag()
     face = load(args.design, bag)
@@ -301,7 +330,8 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     if not bag.ok():
         return 1, watched
 
-    options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style)
+    options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
+                             time=time, asleep=getattr(args, "asleep", False))
     try:
         for device_id, result in resolved.items():
             if all_styles:
@@ -337,6 +367,13 @@ def _preview(args) -> int:
     `--all-styles` renders every entry side by side in one PNG per device,
     each panel captioned with the entry's label. Neither needs a `config:
     style:` axis to exist for an ordinary preview with neither flag.
+
+    `--time HH:MM[:SS]` renders analog hands (and any `time.*`-bound
+    element) at that time instead of the sample 10:09:42. `--asleep` renders
+    the sleeping `onUpdate` frame -- the `always_on` element set when the
+    design has one, `active` otherwise -- with every `awake`-only second
+    hand hidden, the same choice the generated `_sleeping` branch makes
+    (plan 04 §7).
 
     `-w/--watch` re-renders whenever the design file or any font it
     references changes, polling every `--interval` seconds (default 0.4).

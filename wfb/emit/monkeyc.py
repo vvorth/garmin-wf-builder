@@ -23,14 +23,14 @@ from .. import __version__, catalog, complications, expr, formatting, icons, ser
 from ..catalog import READERS, Type
 from ..ir import (
     CONFIG_SYMBOL, HOLD_AUTO, ComplicationSlot, Expression, Face, Graph,
-    IconElement, Progress, Shape, Text, complication_slot_hold_method,
+    HandsElement, IconElement, Progress, Shape, Text, complication_slot_hold_method,
     complication_slot_icon_method, config_data_ids, config_field, element_const_prefix,
     element_method_name, font_resource_id, graph_built_field, graph_max_field, local_name,
     graph_min_field, graph_rebuild_method, graph_series_field, static_group_method,
 )
 from ..layout import (
     COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, PlacedGraph,
-    PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedHands, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
 from ..series import Acquisition
 from ..units import IntBox
@@ -570,7 +570,9 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
     # `[Numeric, Numeric]` tuple type, not `Array<Number>` (verified by
     # building -- docs/research/probes/polygon-const/).
     needs_graphics = any(
-        isinstance(p, PlacedShape) and p.element.shape == "polygon" for p in resolved.items
+        (isinstance(p, PlacedShape) and p.element.shape == "polygon")
+        or (isinstance(p, PlacedHands) and _hands_needs_graphics(p))
+        for p in resolved.items
     )
     imports = ["import Toybox.Graphics;", "import Toybox.Lang;"] if needs_graphics \
         else ["import Toybox.Lang;"]
@@ -612,6 +614,18 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
             w.line(f"const LOW_POWER_CLIP_WIDTH as Number = {clip.width};")
             w.line(f"const LOW_POWER_CLIP_HEIGHT as Number = {clip.height};")
     return SourceFile(f"source-{device.id}/Layout.mc", w.render())
+
+
+def _hands_needs_graphics(placed: "PlacedHands") -> bool:
+    """Does this `type: hands` element draw at least one polygon part (a
+    rectangle part folded in) -- the only shape that needs
+    `Array<Graphics.Point2D>`, hence `Toybox.Graphics` in scope."""
+    for hand in (placed.hour, placed.minute, placed.second):
+        if hand is None:
+            continue
+        if any(part.shape == "polygon" for part in hand.parts):
+            return True
+    return False
 
 
 def _hold_constants(placed) -> list[tuple[str, float, str]]:
@@ -762,6 +776,52 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             # resolved one.
             out.append((f"{prefix}_ICON_GAP", placed.icon_gap_px,
                         "icon_gap: resolved for this device"))
+    elif isinstance(placed, PlacedHands):
+        out.append((f"{prefix}_CX", placed.center[0], "the axis"))
+        out.append((f"{prefix}_CY", placed.center[1], ""))
+        for hand_name in ("hour", "minute", "second"):
+            hand = getattr(placed, hand_name)
+            if hand is None:
+                continue
+            hand_prefix = f"{prefix}_{hand_name.upper()}"
+            for index, part in enumerate(hand.parts):
+                out.extend(_hand_part_constants(f"{hand_prefix}_{index}", hand_name, index, part))
+    return out
+
+
+def _hand_part_constants(
+    part_prefix: str, hand_name: str, index: int, part,
+) -> list[tuple[str, float | McLiteral, str]]:
+    """The `Layout` constants for one resolved hand part (plan 04 §6):
+    `<P>_<HAND>_<i>_POINTS` for a polygon (a rectangle part already folded
+    into one by `wfb.layout`), or `_X1/_Y1/_X2/_Y2/_THICKNESS` for a line,
+    or `_X/_Y/_RADIUS[/_THICKNESS]` for a circle -- one comment naming the
+    part's own shape, the same "why" every other constant block gets.
+    """
+    if part.shape == "polygon":
+        points = ", ".join(f"[{x}, {y}]" for x, y in part.points)
+        return [(
+            f"{part_prefix}_POINTS",
+            McLiteral("Array<Graphics.Point2D>", f"[{points}]"),
+            f"{hand_name} hand, part {index}: a {len(part.points)}-vertex polygon",
+        )]
+    if part.shape == "line":
+        return [
+            (f"{part_prefix}_X1", part.x1, f"{hand_name} hand, part {index}: a line"),
+            (f"{part_prefix}_Y1", part.y1, ""),
+            (f"{part_prefix}_X2", part.x2, ""),
+            (f"{part_prefix}_Y2", part.y2, ""),
+            (f"{part_prefix}_THICKNESS", part.thickness, "pen width"),
+        ]
+    # circle
+    out = [
+        (f"{part_prefix}_X", part.x, f"{hand_name} hand, part {index}: a circle"),
+        (f"{part_prefix}_Y", part.y, ""),
+        (f"{part_prefix}_RADIUS", part.radius, ""),
+    ]
+    if not part.filled:
+        out.append((f"{part_prefix}_THICKNESS", part.thickness,
+                    "pen width; there is no filled-arc-style outline shortcut here"))
     return out
 
 
@@ -925,9 +985,21 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         # sources only).
         config_modules.add("Toybox.Complications")
 
+    hands_items = [p for p in resolved.items if isinstance(p, PlacedHands)]
+    hands_modules: set[str] = set()
+    if hands_items:
+        # The view computes each hand's own sin/cos directly (the probe's
+        # shape), not just the barrel -- so Toybox.Math is imported here too,
+        # not only in WfbHands.mc (plan 04 §6).
+        hands_modules.add("Toybox.Math")
+    hands_awake_second = any(
+        p.second is not None and p.element.seconds == "awake" for p in hands_items
+    )
+
     w = Writer()
     w.doc(header(face, f"Device:    {device.id}")).blank()
-    for module in sorted(set(_BASE_IMPORTS) | plan.modules | graph_modules | config_modules):
+    for module in sorted(set(_BASE_IMPORTS) | plan.modules | graph_modules
+                         | config_modules | hands_modules):
         w.line(f"import {module};")
     w.blank()
 
@@ -939,6 +1011,13 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         "a line in the design file."
     )
     always_on = bool(resolved.in_mode("always_on"))
+    # `_sleeping` is shared by two independent reasons -- `always_on` (which
+    # element set to draw) and an `awake`-only second hand (whether to draw
+    # it at all) -- either one alone is enough to need the field and the two
+    # hooks (plan 04 §5.6).  A design using neither must generate exactly
+    # what it did before this feature existed: `needs_sleeping` reduces to
+    # `always_on` whenever `hands_awake_second` is False.
+    needs_sleeping = always_on or hands_awake_second
     static = static_plan(resolved)
     antialias_default = _antialias_default(resolved)
     slot_pairs = _editor_slot_pairs(face)
@@ -949,8 +1028,8 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         _emit_graph_fields(w, graphs)
         if slot_pairs:
             _emit_pulsing_field(w)
-        if always_on:
-            w.doc(_sleep_flag_doc(always_on))
+        if needs_sleeping:
+            w.doc(_sleep_flag_doc(always_on, hands_awake_second))
             w.line("private var _sleeping as Boolean = false;")
             w.blank()
         _emit_initialize(w, face, has_slots=bool(slot_pairs))
@@ -964,7 +1043,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
         if resolved.in_mode("low_power") and device.supports_partial_update:
             _emit_on_partial_update(w, resolved, plan, antialias_default)
-        _emit_sleep_hooks(w, resolved, always_on)
+        _emit_sleep_hooks(w, resolved, needs_sleeping, always_on)
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
         for placed in graphs:
@@ -986,12 +1065,18 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     return SourceFile(f"source/{face.entry}View.mc", w.render())
 
 
-def _sleep_flag_doc(always_on: bool) -> str:
+def _sleep_flag_doc(always_on: bool, hands_awake_second: bool = False) -> str:
     reasons = []
     if always_on:
         reasons.append(
             "onUpdate reads it to choose which element set to draw: the 'always_on'\n"
             "elements while asleep, the 'active' ones while awake."
+        )
+    if hands_awake_second:
+        reasons.append(
+            "An awake-only second hand ('seconds: awake') reads it too, so its own\n"
+            "draw method skips the second hand while asleep instead of drawing it\n"
+            "frozen at whatever second the once-a-minute sleeping update landed on."
         )
     return ("Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep "
             "below.\n\n" + "\n\n".join(reasons))
@@ -1569,20 +1654,25 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     w.blank()
 
 
-def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, always_on: bool) -> None:
+def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
+                      always_on: bool) -> None:
     w.doc("Awake: full-power updates resume.")
     with w.block("function onExitSleep() as Void"):
-        if always_on:
+        if needs_sleeping:
             w.line("_sleeping = false;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
-    w.doc(
-        "Asleep: the next onUpdate draws the 'always_on' layout."
-        if always_on else
-        "Asleep: the next onUpdate draws the low-power layout."
-    )
+    if always_on:
+        doc = "Asleep: the next onUpdate draws the 'always_on' layout."
+    elif needs_sleeping:
+        # `always_on` is unused: an awake-only second hand is the only other
+        # reason `needs_sleeping` is true (plan 04 §5.6).
+        doc = "Asleep: the next onUpdate hides the awake-only second hand."
+    else:
+        doc = "Asleep: the next onUpdate draws the low-power layout."
+    w.doc(doc)
     with w.block("function onEnterSleep() as Void"):
-        if always_on:
+        if needs_sleeping:
             w.line("_sleeping = true;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
@@ -1684,7 +1774,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
         # own drawing runs.
         overrides_antialias = (
             antialias_default is not None
-            and isinstance(placed, (PlacedShape, PlacedProgress, PlacedGraph))
+            and isinstance(placed, (PlacedShape, PlacedProgress, PlacedGraph, PlacedHands))
             and element.resolved_antialias != antialias_default
         )
         if overrides_antialias:
@@ -1700,6 +1790,8 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             _emit_icon(w, placed)
         elif isinstance(placed, PlacedGraph):
             _emit_graph(w, placed)
+        elif isinstance(placed, PlacedHands):
+            _emit_hands(w, placed)
         if overrides_antialias:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 
@@ -1880,6 +1972,91 @@ def _emit_shape(w: Writer, placed: PlacedShape) -> None:
             f"Layout.{prefix}_END_X, Layout.{prefix}_END_Y);"
         )
         w.line("dc.setPenWidth(1);")
+
+
+#: hand name -> the `WfbHands` function that turns the time into its angle.
+_HAND_ANGLE_FUNCTIONS = (("hour", "hourAngle"), ("minute", "minuteAngle"), ("second", "secondAngle"))
+
+
+def _emit_hands(w: Writer, placed: "PlacedHands") -> None:
+    """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
+    draw each of its parts (plan 04 §5, the analog-hands probe).  Shaped
+    exactly like the probe's `drawMainHands`: the axis first, then hour,
+    minute, second in that fixed order (§5.1), with an `awake` second hand's
+    parts wrapped in `if (!_sleeping)` (§5.6).
+    """
+    element = placed.element
+    prefix = _const_prefix(placed.id)
+    w.line(f"var cx = Layout.{prefix}_CX;")
+    w.line(f"var cy = Layout.{prefix}_CY;")
+    declared = False
+    for hand_name, angle_fn in _HAND_ANGLE_FUNCTIONS:
+        hand = getattr(placed, hand_name)
+        if hand is None:
+            continue
+        gated = hand_name == "second" and element.seconds == "awake"
+        w.blank()
+        w.comment(f"{hand_name}" + (" -- seconds: awake" if gated else ""))
+        if gated:
+            with w.block("if (!_sleeping)"):
+                declared = _emit_one_hand(w, prefix, hand_name, angle_fn, hand, declared)
+        else:
+            declared = _emit_one_hand(w, prefix, hand_name, angle_fn, hand, declared)
+
+
+def _emit_one_hand(w: Writer, prefix: str, hand_name: str, angle_fn: str, hand,
+                   declared: bool) -> bool:
+    """One hand's angle/sin/cos, then each of its parts, rotated and drawn.
+
+    `declared` says whether `angle`/`sin`/`cos` already have a `var` in this
+    method -- the first hand declares them, every later one reuses the same
+    three locals (the probe's own shape: Monkey C has no block scoping that
+    would need a fresh declaration per hand).
+    """
+    keyword = "" if declared else "var "
+    HAND = hand_name.upper()
+    w.line(f"{keyword}angle = WfbHands.{angle_fn}(clock);")
+    w.line(f"{keyword}sin = Math.sin(angle);")
+    w.line(f"{keyword}cos = Math.cos(angle);")
+    # One setColor per colour *change* (plan 04 §6): consecutive parts of one
+    # hand usually share its default colour.  Reset per hand rather than
+    # carried across hands, because an `awake` second hand sits inside its
+    # own `if` block and cannot rely on a colour set before it.
+    current = None
+    for index, part in enumerate(hand.parts):
+        part_prefix = f"{prefix}_{HAND}_{index}"
+        color = _color(part.color)
+        if color != current:
+            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+            current = color
+        if part.shape == "polygon":
+            w.line(f"WfbHands.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
+        elif part.shape == "line":
+            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+            w.line(
+                f"WfbHands.drawLineRotated(dc, Layout.{part_prefix}_X1, "
+                f"Layout.{part_prefix}_Y1,"
+            )
+            w.line(
+                f"                         Layout.{part_prefix}_X2, "
+                f"Layout.{part_prefix}_Y2, cx, cy, sin, cos);"
+            )
+            w.line("dc.setPenWidth(1);")
+        elif part.filled:
+            w.line(
+                f"WfbHands.fillCircleRotated(dc, Layout.{part_prefix}_X, "
+                f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
+            )
+            w.line("                           cx, cy, sin, cos);")
+        else:
+            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+            w.line(
+                f"WfbHands.drawCircleRotated(dc, Layout.{part_prefix}_X, "
+                f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
+            )
+            w.line("                           cx, cy, sin, cos);")
+            w.line("dc.setPenWidth(1);")
+    return True
 
 
 def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: list[str]) -> None:
@@ -2716,6 +2893,14 @@ class ReadPlan:
                     format_paths.append("time.clock")
                     if "%h" in element.format:
                         format_paths.append("device.is_24_hour")
+            # A hands element reads the clock too, with no author expression
+            # at all (plan 04 §5.5) -- the same `time.clock` reader a `Text`
+            # element's own time format uses, which is what gives every
+            # `draw<Id>(dc, ...)` a `clock as System.ClockTime` parameter for
+            # free, through `parameters`/`arguments` below, with no
+            # hands-specific code at either call site.
+            if isinstance(element, HandsElement):
+                format_paths.append("time.clock")
             self._bound[placed.id] = list(paths)
             self._visible_bound[placed.id] = list(visible_paths)
             # A path read by `visible:` needs no second guard anywhere else on
@@ -2998,6 +3183,10 @@ def _describe(placed) -> str:
         return f"{_article(f'{element.style} graph')} of {element.series}"
     if isinstance(element, ComplicationSlot):
         return f"a native Data-axis slot (config.data.{element.slot})"
+    if isinstance(element, HandsElement):
+        drawn = [n for n in ("hour", "minute", "second") if getattr(placed, n, None) is not None]
+        seconds_note = f", seconds: {element.seconds}" if element.seconds else ""
+        return f"analog hands (hands.{element.hands}): {_and_list(drawn)}{seconds_note}"
     return element.kind
 
 

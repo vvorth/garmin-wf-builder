@@ -26,8 +26,9 @@ from .catalog import Type
 from .fonts import BakedFont, fallback
 from .ir import Progress, Shape, Text
 from .layout import (
-    PlacedComplicationSlot, PlacedGraph, PlacedIcon, PlacedProgress,
-    PlacedShape, PlacedText, ResolvedFace, complication_slot_pair_geometry,
+    PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
+    PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    complication_slot_pair_geometry,
 )
 from .palette import MIP64_LEVELS, Color
 
@@ -104,6 +105,18 @@ class PreviewOptions:
     #: when the design has no `config: style:` at all, or when the name is
     #: not one of its declared entries.
     style: str | None = None
+    #: `(hour, minute, second)` to render analog hands at, overriding
+    #: `SAMPLE`'s `time.hour`/`time.minute`/`time.second` -- `wfb preview
+    #: --time HH:MM[:SS]` (plan 04 §7).  `None` keeps the sample time
+    #: (10:09:42), which is also what every non-hands element still reads
+    #: through the ordinary `time.hour`/`time.minute`/`time.second` sources.
+    time: tuple[int, int, int] | None = None
+    #: Render the sleeping `onUpdate` frame instead of the awake one --
+    #: `wfb preview --asleep` (plan 04 §7).  Draws the `always_on` element
+    #: set when the design has one, the `active` set otherwise, and hides
+    #: every `awake`-only second hand either way -- the same choice the
+    #: generated view's own `_sleeping` branch makes.
+    asleep: bool = False
 
 
 def _resolve_style_entry(face, name: str | None):
@@ -133,6 +146,15 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     options = options or PreviewOptions()
     entry = _resolve_style_entry(resolved.face, options.style)
     values = dict(SAMPLE)
+    if options.time is not None:
+        # `--time HH:MM[:SS]` -- overrides the sample clock for both hands
+        # (which read hour/minute/second directly, with no author
+        # expression: §5.5) and any ordinary `time.*`-bound element, so the
+        # two agree in one rendered frame.
+        hour, minute, second = options.time
+        values["time.hour"] = hour
+        values["time.minute"] = minute
+        values["time.second"] = second
     if options.sample:
         values.update(options.sample)
 
@@ -170,11 +192,15 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     # `wfb/emit/monkeyc.py`'s `_emit_layout_guarded_calls` compiles into
     # `if (_configLayout == N)`, run here at preview time instead.
     active_layout = entry.layout if entry is not None else None
+    # `--asleep` (plan 04 §7): the sleeping `onUpdate` frame draws the
+    # `always_on` element set when the design has one, `active` otherwise --
+    # the same choice `wfb/emit/monkeyc.py`'s own `_sleeping` branch makes.
+    draw_mode = "always_on" if options.asleep and resolved.in_mode("always_on") else "active"
     renderer = _Renderer(resolved, draw, image, scale, values, options)
     for placed in resolved.items:
         if placed.kind == "group":
             continue
-        if "active" not in placed.element.modes:
+        if draw_mode not in placed.element.modes:
             continue
         if placed.element.layout is not None and placed.element.layout != active_layout:
             continue
@@ -259,6 +285,8 @@ class _Renderer:
             self._graph(placed)
         elif isinstance(placed, PlacedComplicationSlot):
             self._complication_slot(placed)
+        elif isinstance(placed, PlacedHands):
+            self._hands(placed)
 
     # -- elements ---------------------------------------------------------
 
@@ -313,6 +341,61 @@ class _Renderer:
                 [placed.center[0] * s, placed.center[1] * s, placed.end[0] * s, placed.end[1] * s],
                 fill=fill, width=max(1, placed.thickness * s),
             )
+
+    def _hands(self, placed: PlacedHands) -> None:
+        """`type: hands` -- the same three angle formulas
+        `runtime-lib/WfbHands.mc` computes on the device (plan 04 §5.5),
+        applied here to the *resolved* geometry so this can never disagree
+        with the generated code about a hand's shape or its axis.
+
+        `--asleep` hides an `awake`-only second hand, the same choice the
+        generated `if (!_sleeping)` branch makes; a `seconds: never` hand
+        was already excluded at resolve time (`Resolver._resolve_hands`),
+        so there is nothing here to skip for it.
+        """
+        element = placed.element
+        s = self.scale
+        cx, cy = placed.center[0] * s, placed.center[1] * s
+        hour = int(self.values.get("time.hour", 0) or 0)
+        minute = int(self.values.get("time.minute", 0) or 0)
+        second = int(self.values.get("time.second", 0) or 0)
+        angles = {
+            "hour": math.radians(((hour % 12) * 60 + minute) * 0.5),
+            "minute": math.radians(minute * 6.0),
+            "second": math.radians(second * 6.0),
+        }
+        for hand_name in ("hour", "minute", "second"):
+            hand = getattr(placed, hand_name)
+            if hand is None:
+                continue
+            if hand_name == "second" and element.seconds == "awake" and self.options.asleep:
+                continue
+            sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
+            for part in hand.parts:
+                self._hand_part(part, cx, cy, s, sin_t, cos_t)
+
+    def _hand_part(self, part, cx: float, cy: float, s: int,
+                   sin_t: float, cos_t: float) -> None:
+        fill = self._color(part.color)
+
+        def rotated(x: float, y: float) -> tuple[float, float]:
+            return (cx + (x * cos_t - y * sin_t) * s, cy + (x * sin_t + y * cos_t) * s)
+
+        if part.shape == "polygon":
+            if len(part.points) >= 3:
+                self.draw.polygon([rotated(x, y) for x, y in part.points], fill=fill)
+        elif part.shape == "line":
+            x1, y1 = rotated(part.x1, part.y1)
+            x2, y2 = rotated(part.x2, part.y2)
+            self.draw.line([x1, y1, x2, y2], fill=fill, width=max(1, part.thickness * s))
+        else:  # circle
+            x, y = rotated(part.x, part.y)
+            r = part.radius * s
+            box = [x - r, y - r, x + r, y + r]
+            if part.filled:
+                self.draw.ellipse(box, fill=fill)
+            else:
+                self.draw.ellipse(box, outline=fill, width=max(1, part.thickness * s))
 
     def _text(self, placed: PlacedText) -> None:
         element = placed.element

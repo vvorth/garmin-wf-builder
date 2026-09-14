@@ -47,6 +47,40 @@ outline costs two corners, so the usable sample count is 62, checked at
 build time (`wfb/ir.py`'s `GRAPH_AREA_MAX_SAMPLES`) against `style: line`
 as the named alternative.
 
+### There is no rotated-primitive draw call, so analog hands rotate in Monkey C
+
+`Toybox.Graphics.Dc` draws axis-aligned rectangles, circles, ellipses, arcs,
+lines and polygons — nothing takes a rotation angle (checked in
+`Dc.html` and every target's own `api.debug.xml`, `docs/research/probes/
+analog-hands/`). An analog hand's shape and axis are still resolved to
+whole pixels at build time (ADR 0004), but the hand's *angle* is the time,
+so the device rotates the resolved vertices itself every frame — one
+`sin`/`cos` pair per hand, via `runtime-lib/WfbHands.mc`. This is the one
+piece of layout arithmetic this compiler lets the watch do (ADR 0004,
+amended 2026-09-14), and its CPU/battery cost is unmeasured (no simulator,
+no watch in this container).
+
+**No second hand while asleep.** Showing one would need `onPartialUpdate`
+with a clip that moves with the hand every second, repainted from a
+full-frame buffer redrawn every minute — a different buffer architecture
+from `static:`'s paint-once one, and not built (`seconds: always` is a
+friendly "not implemented yet" error; see §2 and plan 04 §11). `seconds:
+awake` (the default) hides the second hand while asleep instead; `seconds:
+never` drops it entirely.
+
+**No sweep**: the face redraws at most once a second, same as everything
+else here. **Four primitives only** (`polygon`/`rectangle`/`line`/`circle`)
+— no rounded-rectangle, ellipse or arc hand parts, no bitmap hands, and no
+outlined polygon (the same "no `drawPolygon`" limit above). **Coordinates
+resolve to whole pixels in the hand's own frame**, so a hand thinner than
+about 2 px may lose its taper. **Edges of a rotated polygon alias on a
+64-colour MIP panel** — `antialias:` is the lever, with the usual
+`antialias-dither` tradeoff, and what it looks like is unobserved. **Hand
+colours cannot read data**, only palette, literal and `config.*` — a hand
+has no `when_absent:`. **12-hour dial only**: the hour hand turns twice a
+day; there is no 24-hour (GMT) hand. **Hands cannot be held** (`on_hold:`
+is not a key on `type: hands`), although a `group` around them can be.
+
 ### `SensorHistory` is closed to a watch face, and solar has no history API at all
 
 The obvious route to pressure, stress, elevation and Body Battery **as a
@@ -496,6 +530,12 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
 | ADR 0008's check 2, **unsupported API for a targeted device**, for anything other than `on_hold:` | `on_hold:` resolves `WatchFaceDelegate.onPress` against each device's own symbol table, so the machinery is live — but `catalog.Source.requires` still consults nothing; §3 below has the detail |
 | `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
+| `seconds: always` (a second hand while asleep) | plan 04 §11 -- needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one; refused with a friendly error, not a schema enum message |
+| `arc` hand parts | plan 04 §11 -- would need the start angle to rotate with the hand too |
+| Data-driven hand colours | plan 04 §11 -- a hand has no `when_absent:` to fall back through if the bound reading were absent |
+| A gauge needle (an author-expression angle, not the clock) | plan 04 §11 -- the rotation machinery is the same as an analog hand's; the format question (one authored angle vs. three fixed clock formulas) is not |
+| 24-hour (GMT) hands; a minute hand that creeps with the seconds | plan 04 §11 |
+| `wfb new -t analog` template | plan 04 §11 |
 
 **None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
 verified anywhere in this project** (plan 02 §9,

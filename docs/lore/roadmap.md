@@ -18,9 +18,12 @@ disagree, `docs/limitations.md` is right and this needs updating.
 
 **Shipped** (each is a session in `docs/history.md`, in dependency order):
 
-- All seven element types: `group`, `shape` (`rectangle`, `rounded_rectangle`,
+- All eight element types: `group`, `shape` (`rectangle`, `rounded_rectangle`,
   `circle`, `line`, `arc`, `ellipse`, `polygon`), `text`, `progress` (`arc`,
-  `bar`), `icon`, `graph` (`line`, `area`, `bars`), `complication_slot`.
+  `bar`), `icon`, `graph` (`line`, `area`, `bars`), `complication_slot`,
+  `hands` (analog hands, plan 04, 2026-09-14 -- four rotatable primitives
+  per hand, rotated on the device by the time, the one exception to "the
+  device does no layout arithmetic").
 - `static:` (paint-once buffering, opaque, later given an ordering rule instead
   of a hard error), `antialias:` (font resource + primitive runtime, two
   unrelated mechanisms under one key), `visible:`, `monospace:` + `align:` on
@@ -125,6 +128,13 @@ and the ADR each is specified in):
     colour schemes re-spelled as Styles entries -- planned, not built:
     plan 02 (with plan 01 for why). Needs analog hands (`type: hand`, no
     plan yet) for its motivating example; nothing in the format rotates by time today.
+
+    **Correction (2026-09-14, plan 04): analog hands have since shipped.**
+    Both mentions of "`type: hand`... still do not exist" above are now
+    stale -- see item 13 below. `examples/analog/face.yaml` is the
+    motivating example plan 02 imagined but did not need: two hand sets,
+    switched by Styles the same way `examples/styles/face.yaml` switches
+    digital widgets.
 12. **Built 2026-09-13** (plan 03, §6 is what shipped): complication-slot icons now cover all 42 native types
     (`wfb.icons.COMPLICATION_ICON`), with per-choice `icon:`/`glyph:`/
     `icon: none` overrides in `config: data:`'s `choices:`, and
@@ -133,6 +143,23 @@ and the ADR each is specified in):
     accepted, and builds once the monkeyc string-hash collision it exposed
     is avoided (`docs/lore/toolchain.md`, `wfb/emit/strhash.py`).
     Unverified on-device (no simulator, no watch).
+13. **Built 2026-09-14** (plan 04): analog hands, the eighth element type.
+    `hands:` declares named hour/minute/second sets of up to 16 primitives
+    each (`polygon`/`rectangle`/`line`/`circle` -- the four `Dc` calls a
+    vertex can rotate through), drawn pointing at 12 o'clock with the axis
+    as the frame's origin; `type: hands` places a set on screen at an
+    author-chosen (possibly off-centre) axis, switching with Styles through
+    `layouts:` exactly like plan 02's widgets do, with no new mechanism.
+    The device rotates the resolved geometry by the time every frame -- the
+    one exception to "the device does no layout arithmetic" (ADR 0004,
+    amended) -- through the new `runtime-lib/WfbHands.mc` barrel.
+    `seconds: awake` (the default) hides the second hand while asleep,
+    sharing the `_sleeping` field `always_on` already introduced (ADR 0006
+    §5, amended); `seconds: always` (a second hand while asleep) is not
+    implemented (`docs/limitations.md` §2). `examples/analog/face.yaml` is
+    the worked example. Unverified on-device (no simulator, no watch): what
+    any of it looks like, and whether the second hand actually vanishes on
+    the first sleeping frame.
 
 **A previously-recorded loose end, now resolved — noted so nobody goes
 looking for the problem again:** commit `614d100` added

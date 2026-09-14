@@ -20,7 +20,8 @@ from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
     ComplicationSlot, Element, Expression, Face, FontSpec, Graph, Group,
-    IconElement, Position, Progress, Shape, Size, Text, draw_sort_key,
+    HandsElement, IconElement, Position, Progress, Shape, Size, Text,
+    draw_sort_key,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
 
@@ -43,6 +44,28 @@ class Placed:
     @property
     def kind(self) -> str:
         return self.element.kind
+
+
+#: A hand frame has no parent box -- only `px`/`%r` reach a hand-frame
+#: length (schema-enforced), and neither reads `box` at all, so this never
+#: leaks a real dimension into a resolved coordinate.  Mirrors
+#: `wfb.units._UNUSED_BOX`'s own reasoning for `pixel_size`.
+_HAND_FRAME_BOX = Box(0.0, 0.0, 0.0, 0.0)
+
+
+def _round_away(value: float) -> int:
+    """Round half away from zero -- plan 04 §5.3: a mirrored ``dx: -1.5px``/
+    ``dx: 1.5px`` pair must resolve to ``-2``/``2``, so a symmetric hand
+    stays symmetric on the panel.
+
+    Plain ``round()`` (round half *to even*) happens to be sign-symmetric
+    too, but lands on a different integer for some ``.5`` cases (``0.5``
+    rounds to ``0``, not ``1``) -- the same distinction `wfb.preview`'s own
+    `_round_away` (for `WfbArc`'s degrees) already draws, duplicated here
+    rather than imported, because `wfb.layout` is resolved before any
+    preview or codegen module and must not depend on either.
+    """
+    return int(value - 0.5) if value < 0 else int(value + 0.5)
 
 
 def garmin_arc(start: float, sweep: float) -> tuple[float, str]:
@@ -145,6 +168,58 @@ class PlacedGraph(Placed):
     thickness: int = 1
     bar_width: int = 1
     size: tuple[int, int] = (0, 0)
+
+
+@dataclass(frozen=True)
+class ResolvedHandPart:
+    """One hand part, resolved for one device: whole pixels, in the hand's
+    own frame (origin = the axis, pointing at 12 o'clock) -- the shape the
+    watch rotates at runtime (plan 04 §5.3).  One class covers all three
+    runtime shapes (``polygon``, ``line``, ``circle``) the same way
+    :class:`PlacedShape` covers every ``shape:``; a rectangle part is folded
+    into ``polygon`` here (`Resolver._resolve_hand_part`), because a rotated
+    rectangle is a polygon (§5.2).
+    """
+
+    shape: str
+    color: Expression | None = None
+    #: ``polygon`` (rectangle folded in): vertices in author order.
+    points: tuple[tuple[int, int], ...] = ()
+    #: ``line``: both ends.
+    x1: int = 0
+    y1: int = 0
+    x2: int = 0
+    y2: int = 0
+    #: ``circle``: centre and radius; ``line``/unfilled ``circle``: pen width.
+    x: int = 0
+    y: int = 0
+    radius: int = 0
+    thickness: int = 1
+    filled: bool = True
+
+
+@dataclass(frozen=True)
+class ResolvedHand:
+    parts: tuple[ResolvedHandPart, ...] = ()
+
+
+@dataclass
+class PlacedHands(Placed):
+    """A `type: hands` element, resolved: the axis, each declared hand's
+    resolved parts, and the swept disc's reach (plan 04 §5.8).
+
+    ``box`` is the square around that disc, and ``center`` is the axis --
+    both set by :meth:`Resolver._resolve_hands`, the same shape every other
+    ``Placed`` subclass follows.
+    """
+
+    hour: ResolvedHand | None = None
+    minute: ResolvedHand | None = None
+    second: ResolvedHand | None = None
+    #: The farthest ink of any part of any drawn hand from the axis --
+    #: `circular_extent` reads this instead of `box`, so the visible-area
+    #: check reasons about the real disc, not its bounding square.
+    reach: float = 0.0
 
 
 #: Fixed pixel gap between a complication_slot's icon and its reading.  A
@@ -363,6 +438,8 @@ class Resolver:
                 self.items.append(self._resolve_graph(element, parent, depth))
             elif isinstance(element, ComplicationSlot):
                 self.items.append(self._resolve_complication_slot(element, parent, depth))
+            elif isinstance(element, HandsElement):
+                self.items.append(self._resolve_hands(element, parent, depth))
 
     # -- per-kind ---------------------------------------------------------
 
@@ -675,6 +752,118 @@ class Resolver:
         # slot's box from its value alone.
         return widest
 
+    def _resolve_hands(self, element: HandsElement, parent: Box, depth: int) -> Placed:
+        """`type: hands` -- the axis, plus every part of every declared hand
+        resolved to whole pixels in the hand's own frame (plan 04 §5.3,
+        §5.8).  The rotation itself is the one piece of layout arithmetic
+        the *device* performs (ADR 0004, amended) -- everything here is
+        still a build-time constant.
+        """
+        cx, cy = self._point(element.at, parent)
+        hand_set = self.face.hands[element.hands]
+        resolved: dict[str, ResolvedHand] = {}
+        reach = 0.0
+        for name, hand in hand_set.hands():
+            if name == "second" and element.seconds == "never":
+                # "the set's second hand is not drawn at all" (§5.6) -- left
+                # unresolved, exactly as if the set declared no `second:` at
+                # all, so codegen's `if hand is None: continue` already
+                # covers it with no extra check, and its geometry does not
+                # inflate the swept disc's reach (§5.8: "any part of any
+                # *drawn* hand").
+                continue
+            parts = []
+            for part in hand.parts:
+                resolved_part, part_reach = self._resolve_hand_part(part)
+                parts.append(resolved_part)
+                reach = max(reach, part_reach)
+            resolved[name] = ResolvedHand(parts=tuple(parts))
+        axis = (round(cx), round(cy))
+        box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
+        return PlacedHands(
+            element, box.rounded(), axis, depth,
+            hour=resolved.get("hour"), minute=resolved.get("minute"),
+            second=resolved.get("second"), reach=reach,
+        )
+
+    def _resolve_hand_part(self, part) -> tuple[ResolvedHandPart, float]:
+        """One hand part -> whole-pixel geometry in the hand's own frame,
+        plus its own reach from the axis (the farthest ink any of its
+        drawing touches).  Rounds with :func:`_round_away`, not the plain
+        `round()` every other element here uses -- §5.3's mirror-symmetry
+        rule is specific to a hand frame, which is the only geometry a
+        symmetric pair of authored coordinates (`dx: -1.5px`/`dx: 1.5px`)
+        can appear in.
+        """
+        if part.shape == "polygon":
+            points = tuple(
+                (_round_away(x), _round_away(y))
+                for x, y in (self._hand_point(p) for p in part.points)
+            )
+            reach = max((math.hypot(x, y) for x, y in points), default=0.0)
+            return ResolvedHandPart("polygon", part.color, points=points), reach
+
+        if part.shape == "rectangle":
+            cx, cy = self._hand_point(part.at)
+            width = self._hand_len(part.size.width)
+            height = self._hand_len(part.size.height)
+            hw, hh = width / 2.0, height / 2.0
+            # top-left, top-right, bottom-right, bottom-left (§6) -- the same
+            # corner order a rotated rectangle keeps no matter which corner
+            # ends up where once the device rotates it.
+            corners = [
+                (cx - hw, cy - hh), (cx + hw, cy - hh),
+                (cx + hw, cy + hh), (cx - hw, cy + hh),
+            ]
+            points = tuple((_round_away(x), _round_away(y)) for x, y in corners)
+            reach = max(math.hypot(x, y) for x, y in points)
+            return ResolvedHandPart("polygon", part.color, points=points), reach
+
+        if part.shape == "line":
+            x1, y1 = self._hand_point(part.at)
+            x2, y2 = self._hand_point(part.to)
+            thickness = max(1, _round_away(self._hand_len(part.thickness, default=1)))
+            reach = max(math.hypot(x1, y1), math.hypot(x2, y2)) + thickness / 2.0
+            return ResolvedHandPart(
+                "line", part.color,
+                x1=_round_away(x1), y1=_round_away(y1),
+                x2=_round_away(x2), y2=_round_away(y2),
+                thickness=thickness,
+            ), reach
+
+        # circle
+        cx, cy = self._hand_point(part.at)
+        radius = _round_away(self._hand_len(part.radius))
+        thickness = max(1, _round_away(self._hand_len(part.thickness, default=1)))
+        pen_reach = radius if part.filled else radius + thickness / 2.0
+        reach = math.hypot(cx, cy) + pen_reach
+        return ResolvedHandPart(
+            "circle", part.color,
+            x=_round_away(cx), y=_round_away(cy), radius=radius,
+            thickness=thickness, filled=part.filled,
+        ), reach
+
+    def _hand_point(self, at: Position) -> tuple[float, float]:
+        """A part position within a hand's own frame -- there is no anchor
+        and no parent box, only the axis (origin) and, for a polar position,
+        the same clockwise-from-12 convention every other polar position
+        uses (`_point`, which this deliberately does not call: that one
+        starts from `parent.anchor_point`, and a hand frame has no box to
+        anchor to at all -- §5.1, §5.8)."""
+        if at.is_polar:
+            radius = self._hand_len(at.radius)
+            theta = math.radians(at.angle.degrees)
+            return radius * math.sin(theta), -radius * math.cos(theta)
+        return self._hand_len(at.dx), self._hand_len(at.dy)
+
+    def _hand_len(self, length: Length | None, default: float = 0) -> float:
+        """Resolve a hand-frame length: px or %r only (schema-enforced), so
+        neither the parent box nor a font is ever consulted."""
+        if length is None:
+            return float(default)
+        return length.resolve(box=_HAND_FRAME_BOX, axis=Axis.MINOR,
+                              minor_radius=self.minor_radius)
+
     # -- helpers ----------------------------------------------------------
 
     def _point(self, at: Position, parent: Box) -> tuple[float, float]:
@@ -806,6 +995,8 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
     if isinstance(placed, PlacedShape) and placed.element.shape == "circle":
         reach = placed.radius + (0 if placed.element.filled else placed.thickness / 2.0)
         return (placed.center[0], placed.center[1], reach)
+    if isinstance(placed, PlacedHands):
+        return (placed.center[0], placed.center[1], placed.reach)
     return None
 
 
@@ -866,7 +1057,8 @@ def safe_area(device: Device) -> Box | None:
 
 __all__ = [
     "Placed", "PlacedShape", "PlacedText", "PlacedProgress", "PlacedIcon",
-    "PlacedGraph", "PlacedComplicationSlot",
+    "PlacedGraph", "PlacedComplicationSlot", "PlacedHands", "ResolvedHand",
+    "ResolvedHandPart",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
     "inside_visible_area_for", "circular_extent", "garmin_arc",
     "is_full_bleed",

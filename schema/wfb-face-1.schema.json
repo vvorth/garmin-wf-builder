@@ -128,6 +128,17 @@
       "additionalProperties": {
         "$ref": "#/$defs/layout"
       }
+    },
+    "hands": {
+      "description": "Named analog-hand sets (plan 04): hour/minute/second, each a list of primitives drawn pointing at 12 o'clock in a frame whose origin is the axis. Declared once, placed on screen by a 'type: hands' element naming one by name -- so several sets may coexist and switch with Styles ('layouts:').",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/handSet"
+      }
     }
   },
   "$defs": {
@@ -666,6 +677,9 @@
         },
         {
           "$ref": "#/$defs/complicationSlotElement"
+        },
+        {
+          "$ref": "#/$defs/handsElement"
         }
       ]
     },
@@ -1336,6 +1350,221 @@
           "$ref": "#/$defs/overrides"
         }
       }
+    },
+    "handsElement": {
+      "description": "Analog hands (plan 04): places a declared 'hands:' set on screen. 'at:' is the axis -- every part of the set is measured from it, and the element's extent is the disc it sweeps, not a box. No 'size:' (there is no box, only the axis), no 'on_hold:' (a moving hand has no fixed hit region -- hold a group around it instead), and 'static: true' is rejected (a buffer is painted once and never refilled, and a hand's angle is the time) -- accepted here, like every other element, only so the compiler can say so against your own line instead of a generic 'unknown key'.",
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "hands"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "hands"
+        },
+        "hands": {
+          "description": "Names a declared 'hands:' entry.",
+          "type": "string"
+        },
+        "at": {
+          "description": "The axis every hand in this set rotates about, on screen. May be off-centre.",
+          "$ref": "#/$defs/position"
+        },
+        "seconds": {
+          "description": "Whether the set's second hand draws. 'awake' (default): drawn while awake, hidden while asleep -- a once-a-minute sleeping update would otherwise freeze it at whatever second that update landed on. 'never': the second hand is not drawn at all. An element whose set has no 'second:' hand may not set this. 'always' is reserved (not implemented -- see docs/limitations.md) and is refused with a friendly error, not this enum.",
+          "enum": [
+            "awake",
+            "never"
+          ]
+        },
+        "modes": {
+          "$ref": "#/$defs/modes"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "static": {
+          "$ref": "#/$defs/staticFlag"
+        },
+        "antialias": {
+          "$ref": "#/$defs/antialias"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        }
+      }
+    },
+    "handSet": {
+      "description": "One named hand set (plan 04 §5.1): a shape, like a fonts: entry, not something drawn on its own -- it is placed by a 'type: hands' element naming it. Any of hour:/minute:/second: may be present, and at least one must be -- a set with only 'second:' is a small-seconds subdial.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hour": {
+          "$ref": "#/$defs/hand"
+        },
+        "minute": {
+          "$ref": "#/$defs/hand"
+        },
+        "second": {
+          "$ref": "#/$defs/hand"
+        }
+      }
+    },
+    "hand": {
+      "description": "One hand: a default colour for its parts, plus the parts themselves, drawn in this order, pointing at 12 o'clock, in a frame whose origin is the axis.",
+      "type": "object",
+      "required": [
+        "parts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "description": "Default colour for every part of this hand that declares none of its own. A hand colour may not read data -- palette, literal and config.* only (and conditionals over those).",
+          "$ref": "#/$defs/colorExpression"
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/handPart"
+          }
+        }
+      }
+    },
+    "handPart": {
+      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the axis) and 'size'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true) and 'thickness' (only when 'filled: false'). 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon.",
+      "type": "object",
+      "required": [
+        "shape"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "description": "The four rotatable primitives are polygon/rectangle/line/circle. rounded_rectangle, ellipse, arc, text and icon are recognised here only so the compiler can reject each with its own platform reason (docs/format.md, 'Analog hands') instead of a bare 'not one of ...'.",
+          "enum": [
+            "polygon",
+            "rectangle",
+            "line",
+            "circle",
+            "rounded_rectangle",
+            "ellipse",
+            "arc",
+            "text",
+            "icon"
+          ]
+        },
+        "points": {
+          "description": "A polygon part's vertices, 3 to 64, each a handPosition measured from the axis.",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/handPosition"
+          }
+        },
+        "at": {
+          "$ref": "#/$defs/handPosition"
+        },
+        "size": {
+          "$ref": "#/$defs/handSize"
+        },
+        "to": {
+          "$ref": "#/$defs/handPosition"
+        },
+        "thickness": {
+          "$ref": "#/$defs/handLength"
+        },
+        "radius": {
+          "$ref": "#/$defs/handLength"
+        },
+        "filled": {
+          "type": "boolean",
+          "default": true
+        },
+        "color": {
+          "description": "Overrides the hand's own default colour for this part only. Same data-binding restriction as the hand's own 'color:'.",
+          "$ref": "#/$defs/colorExpression"
+        }
+      }
+    },
+    "handPosition": {
+      "description": "A position within a hand's own frame, measured from the axis -- there is no anchor, because the axis already is one. Cartesian (dx/dy) or polar (angle/radius, clockwise from 12 o'clock), px or %r only.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dx": {
+          "$ref": "#/$defs/handLength"
+        },
+        "dy": {
+          "$ref": "#/$defs/handLength"
+        },
+        "angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "radius": {
+          "$ref": "#/$defs/handLength"
+        }
+      },
+      "dependentRequired": {
+        "angle": [
+          "radius"
+        ],
+        "radius": [
+          "angle"
+        ]
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "dx",
+              "angle"
+            ]
+          },
+          {
+            "required": [
+              "dy",
+              "angle"
+            ]
+          }
+        ]
+      }
+    },
+    "handSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "$ref": "#/$defs/handLength"
+        },
+        "height": {
+          "$ref": "#/$defs/handLength"
+        }
+      }
+    },
+    "handLength": {
+      "description": "px or %r only -- a hand's own frame has no parent box for % and no font in scope for pt. %r is the screen's minor radius, so a hand scales between screens the same way the dial does. A bare number means px.",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|px)?\\s*$"
+        }
+      ]
     },
     "zOrder": {
       "type": "integer"

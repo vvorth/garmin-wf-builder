@@ -24,6 +24,7 @@ BARREL_FILES = {
     "WfbWeather.mc": "weather-condition icon glyphs",
     "WfbComplications.mc": "safe complication subscription and pull",
     "WfbSeries.mc": "graph time-series acquisition, binning and drawing",
+    "WfbHands.mc": "analog hands -- rotate a hand's resolved geometry by the time and draw it",
 }
 
 
@@ -244,4 +245,6 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
             needed.add("WfbWeather.mc")
         elif kind == "graph":
             needed.add("WfbSeries.mc")
+        elif kind == "hands":
+            needed.add("WfbHands.mc")
     return sorted(needed)

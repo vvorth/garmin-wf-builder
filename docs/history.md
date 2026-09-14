@@ -2496,3 +2496,69 @@ had already gone on 2026-09-12. The README's "Building a face with an AI
 assistant" section and its `skills/` layout line went with them, and
 research 06 §9 carries a dated note beside the recommendation that produced
 it. Recover the skill with `git show 9a8fc53:skills/watchface-builder.md`.
+
+## 2026-09-14 — Analog hands built (plan 04)
+
+The user asked for analog hands: hour, minute and second hands, each
+defined as a list of primitives drawn at 12 o'clock, updating from the
+time, with the second hand shown only while awake. Several named sets had
+to work with Styles, with a clear axis that the author can place off
+centre. The instructions were to research, design, write requirements and
+limitations, have a Sonnet subagent build it, and integrate the result.
+
+**Research and design** are in plan 04. Read it with `git show
+0793eee:docs/plans/04-analog-hands.md` for the plan as approved, and at the
+build commit for the as-built §13. There is also a new probe,
+`docs/research/probes/analog-hands/`. `Dc` has no rotated primitive, so
+the watch rotates build-time-resolved vertices by the time, as the SDK's
+own `samples/Analog` does. The probe built that shape warning-free on all
+three targets and found that `Math.sin`/`cos` results must be typed
+`Decimal`, not `Float` (now in `docs/lore/monkeyc.md`). It also found
+that, without `always_on`, the sleeping once-a-minute `onUpdate` draws the
+same `active` set, so a second hand needs its own awake-only switch.
+`modes:` cannot express one.
+
+**What shipped:**
+
+- `hands:`: named sets of `hour`/`minute`/`second`. Each hand is 1–16
+  `polygon`/`rectangle`/`line`/`circle` parts in a frame whose origin is
+  the axis. Lengths are in `px`/`%r` only, rounded half away from zero.
+- `type: hands`: the element's `at:` is the axis, off centre included.
+- `seconds: awake` is the default, and shares `always_on`'s `_sleeping`
+  field. `never` is also available; `always` gives a friendly
+  not-implemented error.
+- Styles switch hand sets through `layouts:`, with no new mechanism.
+- `runtime-lib/WfbHands.mc`.
+- `wfb preview --time`/`--asleep`.
+- `examples/analog/face.yaml`.
+- Amendments to ADR 0004 (the device's one piece of layout arithmetic)
+  and ADR 0006 §5.
+
+**Review of the subagent's work** found no correctness bug in the hands
+rotation or placement: the previews at 10:09:42, 3:00 and asleep are
+right. It did find six things to fix, all listed in the plan's §13:
+
+- error messages and the schema pointed at the plan file, which is deleted
+  once built;
+- `%`/`pt`/`anchor:` in a hand gave only the schema's generic message;
+- `seconds: never` on a second-only set was a silent no-op;
+- redundant `setColor` calls (17 B);
+- an untested dither-suppression path;
+- a test that skipped instead of failing on a missing example.
+
+**Verification:**
+
+- The fast suite ends at exactly the 5 known failures.
+- The 8 designs that generated before this work stay byte-identical.
+- `examples/analog` builds warning-free with real `monkeyc` on all three
+  targets: 4,561–4,562 B (3.5%) on `--build-stats`.
+
+**Unverified, needing the user's host simulator or a watch:**
+
+- that the hands point where the preview says;
+- that the second hand vanishes on the first sleeping frame and returns on
+  wake;
+- whether a face loaded while asleep starts with its second hand hidden
+  (`_sleeping` starts `false`; the SDK sample starts its flag unset);
+- what rotated edges look like on the 64-colour panel;
+- the per-frame CPU cost.

@@ -2,10 +2,12 @@
 
 Loaded automatically when working in `examples/`. Each example's header
 comment explains what it exercises; `slots/` is the only one using the Data
-axis (`config: data:`), `config/` the colour axes and `color_scheme:`, and
+axis (`config: data:`), `config/` the colour axes and `color_scheme:`,
 `styles/` `layouts:` and `config: style:` (widget-set switching, not just
-colour). The Phase 2 slice is no longer an example: it is the test fixture
-`tests/fixtures/slice/`.
+colour), and `analog/` analog hands (plan 04, 2026-09-14) -- two hand sets
+in two layouts, an off-centre small-seconds subdial, all four rotatable
+part shapes, and a `config.*` hand colour. The Phase 2 slice is no longer an
+example: it is the test fixture `tests/fixtures/slice/`.
 
 `big-clock-3` and `enduro` carry genuine, user-authored lint
 warnings/errors (see `tests/CLAUDE.md`) -- not bugs to fix unasked.

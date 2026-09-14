@@ -38,7 +38,7 @@ only. Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 | 0 research (`docs/research/00`–`09`) | complete, reviewed |
 | 1 ADRs (`docs/adr/0001`–`0009`) | complete, reviewed |
 | 2 thin vertical slice | complete; the `.prg` runs in the user's host simulator |
-| 3 breadth | in progress: all 7 element types, `static:`, `antialias:`, all four `config:` axes, `on_hold:` shipped — see §6 |
+| 3 breadth | in progress: all 8 element types (analog hands added 2026-09-14, plan 04), `static:`, `antialias:`, all four `config:` axes, `on_hold:` shipped — see §6 |
 
 Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
@@ -221,12 +221,19 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
 - **Recently built:**
+  - **Built 2026-09-14** (plan 04): analog hands. `hands:` declares
+    named hour/minute/second sets, each hand 1–16 parts of four kinds
+    (`polygon`/`rectangle`/`line`/`circle`) drawn at 12 o'clock with the
+    axis as origin; `type: hands` places one at its `at:` (off centre
+    allowed). Styles pick a set via `layouts:`. The device rotates the
+    geometry by the time (ADR 0004 amended; `runtime-lib/WfbHands.mc`).
+    `seconds: awake` (default) hides the second hand asleep; `seconds:
+    always` is not built. Example: `examples/analog/face.yaml`.
   - **Built 2026-09-13** (plan 02): Styles that switch widget
     layouts. `layouts:` (form A only: a container, with no element-level
     membership key) and `config: style:` (`config: colors:` removed, no
     shim). A `complication_slot` may only be in shared content. The example
-    is `examples/styles/face.yaml`. Analog hands (`type: hand`) still do
-    not exist.
+    is `examples/styles/face.yaml`.
   - **Built 2026-09-13** (plan 03): complication-slot icons cover
     all 42 native types, plus per-choice overrides and `icon_position:`/
     `icon_gap:`/`icon_color:`, and `choices: any` + `icon_size:`.
