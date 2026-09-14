@@ -22,7 +22,9 @@ research, ADRs, plans and history alike.
 built; what they decided now lives in `format.md`, the schema, ADR 0006 and
 the code. Code and docs still cite them as `plan 02 §12.4`; read one with
 `git show a645d64:docs/plans/02-style-layouts.md` (`01-background-color.md`,
-`03-complication-slot-icons.md` likewise).
+`03-complication-slot-icons.md` likewise). Plan 04 (analog hands) was built
+and deleted on 2026-09-14; read it as built with `git show
+93ef6d7:docs/plans/04-analog-hands.md` (§13 is what shipped).
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or

@@ -2506,9 +2506,9 @@ to work with Styles, with a clear axis that the author can place off
 centre. The instructions were to research, design, write requirements and
 limitations, have a Sonnet subagent build it, and integrate the result.
 
-**Research and design** are in plan 04. Read it with `git show
-0793eee:docs/plans/04-analog-hands.md` for the plan as approved, and at the
-build commit for the as-built §13. There is also a new probe,
+**Research and design** are in plan 04, deleted once built. Read it with
+`git show 0793eee:docs/plans/04-analog-hands.md` for the plan as approved,
+or `93ef6d7:` for the as-built version with §13. There is also a new probe,
 `docs/research/probes/analog-hands/`. `Dc` has no rotated primitive, so
 the watch rotates build-time-resolved vertices by the time, as the SDK's
 own `samples/Analog` does. The probe built that shape warning-free on all

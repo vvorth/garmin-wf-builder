@@ -2,8 +2,9 @@
 
 **Answer: yes.** `BUILD SUCCESSFUL`, warning-free, under `-w -l 3`
 (`project.typecheck = strict`, `-O 3z`) on `fenix8solar47mm`,
-`fenix8solar51mm` and `fr955`, SDK 9.2.0, 2026-09-14. Backs
-[plan 04](../../../plans/04-analog-hands.md) §2.
+`fenix8solar51mm` and `fr955`, SDK 9.2.0, 2026-09-14. Backs plan 04 §2
+(analog hands, built and deleted 2026-09-14: `git show
+93ef6d7:docs/plans/04-analog-hands.md`).
 
 ## Why this was asked
 
