@@ -61,6 +61,49 @@ has to be (`docs/research/probes/static-buffer/`).
 The synthetic group's id, :data:`STATIC_GROUP_ID`, is reserved: a design that
 already uses it gets an error naming the collision rather than a confusing
 ``duplicate-id`` against a line that does not exist in the source.
+
+The third rewrite is a ``layouts:`` entry's own ``static:``/``elements:``
+(docs/plans/02-style-layouts.md §12.2 -- form A is the only one this format
+builds; there is no element-level membership key):
+
+.. code-block:: yaml
+
+    layouts:                     #  static:/elements: fold into two groups,
+      digital:                   #  appended to the top-level elements:
+        static:
+          steps_track:
+            type: shape
+        elements:
+          clock:
+            type: text
+
+    # becomes, conceptually:
+    elements:
+      - id: layout_digital_static
+        type: group
+        static: true
+        children: [ steps_track ]
+      - id: layout_digital
+        type: group
+        children: [ clock ]
+    layouts:
+      digital: {}                #  static:/elements: popped -- only lint:, if any, remains
+
+Same argument as the other two rewrites, extended one step further: a layout
+body is not even a second *spelling*, it is authoring sugar for two more
+``group``\\ s the IR, layout, lint and emitter never have to know are special
+-- ``Element.layout`` is assigned to these groups and their descendants
+afterwards, by id (`wfb/ir.py`'s ``Builder._assign_layouts``), which is the
+only place "this element belongs to layout X" is decided at all.  The two
+reserved ids one layout named ``<name>`` claims --
+``layout_<name>_static``/``layout_<name>`` -- are minted by
+:func:`layout_ids`, the one place that naming convention is defined; nothing
+else in this file or ``wfb/ir.py`` re-derives it.  A layout's own content is
+always **appended** after the top-level ``static:`` block's group (if any),
+never interleaved with it -- draw order is not decided here, though: it is
+``wfb/ir.py``'s ``draw_sort_key`` that gives layout content its own rank, so
+appending here only has to avoid disturbing anything already in
+``elements:``, not get the final order right.
 """
 
 from __future__ import annotations
@@ -83,14 +126,27 @@ IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 #: generated symbol and only one of them has a line in the source file.
 STATIC_GROUP_ID = "static"
 
-# The diagnostic codes this pass emits are `element-mapping` and `static`,
-# written out as literals at each call site rather than through a constant so
-# that `tests/test_lint.py`'s grep-based ALL_CODES registry can see them.  A
-# duplicate key is not among them: ruamel's round-trip loader raises
-# DuplicateKeyError before this file ever sees the document, and
+# The diagnostic codes this pass emits are `element-mapping`, `static` and
+# `layouts`, written out as literals at each call site rather than through a
+# constant so that `tests/test_lint.py`'s grep-based ALL_CODES registry can
+# see them.  A duplicate key is not among them: ruamel's round-trip loader
+# raises DuplicateKeyError before this file ever sees the document, and
 # `wfb/yamlsrc.py`'s `load` already reports that as error[yaml] against the
 # second key's own line -- verified, not assumed
 # (`tests/test_desugar.py::test_a_duplicate_key_is_a_clear_diagnostic`).
+
+
+def layout_ids(name: str) -> tuple[str, str]:
+    """The reserved element ids one ``layouts: <name>:`` body's
+    ``static:``/``elements:`` halves are rewritten into --
+    ``(static_id, elements_id)``.
+
+    The single place this naming convention is defined (docs/plans/
+    02-style-layouts.md §12.2).  ``wfb/ir.py`` imports this rather than
+    re-deriving the strings, so the desugar rewrite and the IR's later
+    ``Element.layout`` assignment can never drift out of step.
+    """
+    return f"layout_{name}_static", f"layout_{name}"
 
 
 def desugar(doc: YamlDocument, bag: Bag) -> bool:
@@ -99,7 +155,8 @@ def desugar(doc: YamlDocument, bag: Bag) -> bool:
     if not isinstance(data, dict):
         return True  # `validate.check_format_version` reports this properly
     ok = _rewrite(doc, data, "elements", bag)
-    return _static_block(doc, data, bag) and ok
+    ok = _static_block(doc, data, bag) and ok
+    return _layouts_block(doc, data, bag) and ok
 
 
 # --------------------------------------------------------------------------
@@ -176,6 +233,152 @@ def _static_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
         elements.lc.data = shifted
     del data["static"]
     return ok
+
+
+# --------------------------------------------------------------------------
+# `layouts:` -- form A only (docs/plans/02-style-layouts.md §12.1, §12.2)
+
+
+def _layouts_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
+    """Fold each ``layouts: <name>:`` body's ``static:``/``elements:`` into
+    two synthetic groups, appended to the top-level ``elements:``.
+
+    Runs *after* :func:`_static_block`, so the top-level ``static:`` group
+    (if any) is already at the front of ``elements:`` and this pass only ever
+    appends after it -- draw order itself is a `wfb/ir.py` concern
+    (``draw_sort_key``'s layer rank), not this one's; appending merely avoids
+    disturbing anything already there.  Each group is built exactly the way
+    :func:`_static_block` builds its own: ``static: true`` on the static
+    half, and the content put through :func:`_rewrite` first so a layout's
+    own ``static:``/``elements:`` accept both spellings too.  The two
+    reserved ids -- :func:`layout_ids` -- are the one place that naming
+    convention is defined; ``wfb/ir.py`` looks elements back up by those same
+    ids to assign ``Element.layout``.
+
+    After this returns, ``data["layouts"]`` is left as a mapping of name ->
+    ``{}`` (or ``{lint: ...}``, if the author wrote one) -- ``static:``/
+    ``elements:`` are popped from each body, an empty list or mapping treated
+    as absent the same way an absent key is (popped either way, so the
+    schema never sees an empty ``static: []``, which its own ``minItems: 1``
+    would otherwise reject).  That trimmed mapping is what carries the
+    declared names, in declaration order, plus each layout's own ``lint:``,
+    into the IR (``Builder._build_layouts``).  A non-mapping ``layouts:``, or
+    a body that is not itself a mapping, is left untouched for the schema to
+    report -- this pass does not crash on it.
+    """
+    if "layouts" not in data:
+        return True
+    layouts = data["layouts"]
+    if not isinstance(layouts, dict):
+        return True  # the schema reports this
+
+    elements = data.get("elements")
+    if elements is None:
+        elements = CommentedSeq()
+        data["elements"] = elements
+    if not isinstance(elements, list):
+        # The mapping-form rewrite (or `_static_block`) already failed and
+        # said why; leaving `elements:` alone keeps that diagnostic honest.
+        return False
+
+    # Every id already spoken for, so a layout's generated id can be checked
+    # against an ordinary element *and* against another layout's own
+    # generated id in one pass -- `existing_ids[id]` names whichever claimed
+    # it first, for the collision error.  Walked *recursively*: an author id
+    # buried inside a shared group's `children:` is just as real a collision
+    # as a top-level one, and a generic `duplicate-id` later would name the
+    # wrong thing (the layout's own `elements:` key has no id of its own).
+    existing_ids: dict[str, str] = {}
+    _collect_ids(elements, existing_ids, "an element")
+
+    ok = True
+    for name, body in layouts.items():
+        if not isinstance(name, str) or not IDENTIFIER.match(name):
+            continue  # the schema reports this (propertyNames: identifier)
+        if not isinstance(body, dict):
+            continue  # the schema reports this
+
+        static_id, elements_id = layout_ids(name)
+        for generated_id, key, wrap_static in (
+            (static_id, "static", True),
+            (elements_id, "elements", False),
+        ):
+            node = body.get(key)
+            if not node:
+                if key in body:
+                    del body[key]  # an empty list/mapping -- treated as absent
+                continue
+            key_span = doc.span(body, key, of="key")
+
+            claimant = existing_ids.get(generated_id)
+            if claimant is not None:
+                bag.error(
+                    "layouts",
+                    f"layouts.{name}.{key}: the generated id {generated_id!r} "
+                    f"collides with {claimant}",
+                    key_span,
+                    notes=[
+                        f"'layouts: {name}:' needs id {generated_id!r} for its "
+                        f"own {key!r} content",
+                        "rename the layout, or whatever already claims that id",
+                    ],
+                )
+                ok = False
+                continue
+
+            group = CommentedMap()
+            group["id"] = generated_id
+            group["type"] = "group"
+            if wrap_static:
+                group["static"] = True
+            group["children"] = node
+            if key_span is not None:
+                line, col = key_span.line - 1, key_span.col - 1
+                group.lc.line, group.lc.col = line, col
+                keys = ("id", "type", "static", "children") if wrap_static \
+                    else ("id", "type", "children")
+                for k in keys:
+                    group.lc.add_kv_line_col(k, [line, col, line, col])
+
+            ok = _rewrite(doc, group, "children", bag) and ok
+            # Register this group's own id *and every descendant's*, so a
+            # later layout's generated id is checked against everything
+            # appended so far -- nested content included, not just this
+            # group's own top-level id.
+            _collect_ids(group, existing_ids, f"layout {name!r}")
+
+            idx = len(elements)
+            elements.append(group)
+            if hasattr(elements, "lc") and key_span is not None:
+                line, col = key_span.line - 1, key_span.col - 1
+                elements.lc.add_idx_line_col(idx, [line, col])
+
+            del body[key]
+
+    return ok
+
+
+def _collect_ids(node: Any, out: dict[str, str], label: str) -> None:
+    """Recursively collect every element id under ``node`` (a list of
+    elements, or one element/group mapping) into ``out``, first claim wins.
+
+    Shared by :func:`_layouts_block`'s initial scan of the whole ``elements:``
+    tree and by registering each newly appended layout group's own
+    descendants -- a reserved-id collision can be buried inside a shared
+    group's ``children:`` just as easily as it can sit at the top level, and
+    a generic ``duplicate-id`` later would name the wrong thing (the layout's
+    own ``static:``/``elements:`` key has no id of its own to blame).
+    """
+    if isinstance(node, list):
+        for item in node:
+            _collect_ids(item, out, label)
+        return
+    if not isinstance(node, dict):
+        return
+    element_id = node.get("id")
+    if isinstance(element_id, str) and element_id not in out:
+        out[element_id] = label
+    _collect_ids(node.get("children"), out, label)
 
 
 # --------------------------------------------------------------------------

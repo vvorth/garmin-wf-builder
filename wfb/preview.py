@@ -16,7 +16,7 @@ appearance are approximations, and the header on every image says so.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dataclass_replace
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -84,6 +84,12 @@ SAMPLE: dict[str, object] = {
 }
 
 
+class UnknownStyleError(ValueError):
+    """`PreviewOptions.style` named something `config: style:` never
+    declared, or was given to a design with no `config: style:` at all --
+    a clean, listable CLI error rather than a KeyError with no context."""
+
+
 @dataclass
 class PreviewOptions:
     scale: int = 2
@@ -93,10 +99,39 @@ class PreviewOptions:
     #: Render the bezel crop, so an element under it is visibly cut.
     mask_shape: bool = True
     sample: dict[str, object] | None = None
+    #: A `config: style:` entry name to render, or `None` for the default
+    #: entry.  `wfb preview --style <entry>`.  Raises `UnknownStyleError`
+    #: when the design has no `config: style:` at all, or when the name is
+    #: not one of its declared entries.
+    style: str | None = None
+
+
+def _resolve_style_entry(face, name: str | None):
+    """The `config: style:` entry `PreviewOptions.style` asks for, or the
+    default entry when `name` is `None` -- `None` overall when the design
+    has no `config: style:` axis at all (an ordinary, style-less preview).
+    """
+    axis = face.config_style
+    if name is None:
+        return axis.default_entry if axis is not None else None
+    if axis is None:
+        raise UnknownStyleError(
+            f"{face.name!r} declares no 'config: style:' at all, so there is "
+            f"no entry named {name!r} to render"
+        )
+    for entry in axis.entries:
+        if entry.name == name:
+            return entry
+    declared = ", ".join(e.name for e in axis.entries)
+    raise UnknownStyleError(
+        f"{name!r} is not one of this design's config.style entries -- "
+        f"declared: {declared}"
+    )
 
 
 def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Image.Image:
     options = options or PreviewOptions()
+    entry = _resolve_style_entry(resolved.face, options.style)
     values = dict(SAMPLE)
     if options.sample:
         values.update(options.sample)
@@ -111,14 +146,15 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     # `config:` entries render at their declared defaults -- the preview has
     # no on-device editor to ask, and the default is the only value a target
     # without one (fr955) ever shows anyway (ADR 0006 1).
-    for name, entry in resolved.face.config.items():
-        values.setdefault(f"config.{name}", entry.default.value)
+    for name, config_entry in resolved.face.config.items():
+        values.setdefault(f"config.{name}", config_entry.default.value)
 
-    # `config: colors:` renders at the default scheme's colours, for the same
-    # reason -- the preview has no editor to ask either.
-    if resolved.face.config_colors is not None:
-        default_scheme = resolved.face.color_scheme[resolved.face.config_colors.default]
-        for role, color in default_scheme.colors.items():
+    # `config: style:` renders at the chosen entry's scheme colours (the
+    # default entry's, absent `--style`) -- the preview has no editor to ask
+    # either.  A layout-only entry has no scheme to seed roles from.
+    if entry is not None and entry.colors is not None:
+        scheme = resolved.face.color_scheme[entry.colors]
+        for role, color in scheme.colors.items():
             values.setdefault(f"config.colors.{role}", color.value)
 
     device = resolved.device
@@ -127,11 +163,20 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     image = Image.new("RGB", size, (0, 0, 0))
     draw = ImageDraw.Draw(image)
 
+    # The active layout -- `None` means "no layouts:, or a colour-only
+    # entry", in which case every element (`element.layout is None`) draws,
+    # exactly like today.  An element that belongs to a *different* layout
+    # from the active one is skipped -- the same guard
+    # `wfb/emit/monkeyc.py`'s `_emit_layout_guarded_calls` compiles into
+    # `if (_configLayout == N)`, run here at preview time instead.
+    active_layout = entry.layout if entry is not None else None
     renderer = _Renderer(resolved, draw, image, scale, values, options)
     for placed in resolved.items:
         if placed.kind == "group":
             continue
         if "active" not in placed.element.modes:
+            continue
+        if placed.element.layout is not None and placed.element.layout != active_layout:
             continue
         renderer.render_element(placed)
 
@@ -140,6 +185,52 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     if options.mask_shape and device.shape == "round":
         image = _mask_round(image, scale)
     return image
+
+
+def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Image.Image:
+    """Every `config: style:` entry, rendered and laid out side by side in
+    one image -- `wfb preview --all-styles`.
+
+    Same renderer, run once per entry (:func:`render`, through
+    `PreviewOptions.style`): there is no second rendering path for this to
+    drift from (ADR 0004).  Each panel gets a caption bar naming the
+    entry's own label (`Face.style_label`, the same fallback the generated
+    `<style label=...>` resource uses), so the two never disagree about
+    what an entry is called either.
+
+    Raises `UnknownStyleError` the same way `render` does when the design
+    declares no `config: style:` at all -- there is nothing to lay out side
+    by side.
+    """
+    options = options or PreviewOptions()
+    face = resolved.face
+    axis = face.config_style
+    if axis is None:
+        raise UnknownStyleError(
+            f"{face.name!r} declares no 'config: style:' at all, so there is "
+            "nothing for --all-styles to lay out"
+        )
+    caption_height = max(16, 10 * max(1, options.scale))
+    panels = []
+    for entry in axis.entries:
+        panel = render(resolved, dataclass_replace(options, style=entry.name))
+        label = face.style_label(entry) or entry.name
+        panels.append((panel, label))
+
+    gap = max(1, options.scale)
+    total_width = sum(p.width for p, _ in panels) + gap * (len(panels) - 1)
+    total_height = max(p.height for p, _ in panels) + caption_height
+    composed = Image.new("RGB", (total_width, total_height), (16, 16, 16))
+    draw = ImageDraw.Draw(composed)
+    face_font = fallback.font_for_height(caption_height - 4)
+    x = 0
+    for panel, label in panels:
+        composed.paste(panel, (x, caption_height))
+        if face_font is not None:
+            draw.text((x + panel.width / 2, caption_height / 2), label,
+                      fill=(220, 220, 220), font=face_font, anchor="mm")
+        x += panel.width + gap
+    return composed
 
 
 class _Renderer:
@@ -701,6 +792,14 @@ def _mask_round(image: Image.Image, scale: int) -> Image.Image:
 
 def write(resolved: ResolvedFace, path: Path, options: PreviewOptions | None = None) -> Path:
     image = render(resolved, options)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path, format="PNG")
+    return path
+
+
+def write_all_styles(resolved: ResolvedFace, path: Path,
+                     options: PreviewOptions | None = None) -> Path:
+    image = render_all_styles(resolved, options)
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, format="PNG")
     return path

@@ -147,6 +147,11 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--scale", type=int, default=2)
     preview.add_argument("--no-quantise", action="store_true",
                          help="skip snapping colours to the device palette")
+    preview.add_argument("--style", help="render one 'config: style:' entry by name "
+                         "(default: the default entry)")
+    preview.add_argument("--all-styles", action="store_true",
+                         help="render every 'config: style:' entry side by side, one "
+                              "PNG per device")
     preview.add_argument("-w", "--watch", action="store_true",
                          help="re-render whenever the design or a font it uses changes")
     preview.add_argument("--interval", type=float, default=0.4,
@@ -269,7 +274,14 @@ def _validate(args) -> int:
 
 def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     """Render once.  Returns the exit code and the design's dependencies."""
-    from .preview import PreviewOptions, write as write_preview
+    from .preview import PreviewOptions, UnknownStyleError
+    from .preview import write as write_preview, write_all_styles
+
+    style = getattr(args, "style", None)
+    all_styles = getattr(args, "all_styles", False)
+    if style is not None and all_styles:
+        print("error: --style and --all-styles are mutually exclusive", file=sys.stderr)
+        return 1, [args.design]
 
     bag = Bag()
     face = load(args.design, bag)
@@ -289,11 +301,20 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     if not bag.ok():
         return 1, watched
 
-    options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise)
-    for device_id, result in resolved.items():
-        path = write_preview(result, args.output / f"{device_id}.png", options)
-        print(f"preview    {path}  ({result.device.width}x{result.device.height} "
-              f"at {args.scale}x)", flush=True)
+    options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style)
+    try:
+        for device_id, result in resolved.items():
+            if all_styles:
+                path = write_all_styles(
+                    result, args.output / f"{device_id}--all-styles.png", options)
+            else:
+                suffix = f"--{style}" if style is not None else ""
+                path = write_preview(result, args.output / f"{device_id}{suffix}.png", options)
+            print(f"preview    {path}  ({result.device.width}x{result.device.height} "
+                  f"at {args.scale}x)", flush=True)
+    except UnknownStyleError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1, watched
     if not quiet:
         print("\nRendered from the same resolved geometry the generated code uses, so the")
         print("two cannot disagree about position.  Glyph rendering and arc caps are")
@@ -309,6 +330,13 @@ def _preview(args) -> int:
     compiled face cannot disagree about *position*. Glyph shapes and arc
     caps are approximations; the Connect IQ simulator is authoritative for
     those, when it can run at all (see docs/limitations.md).
+
+    `--style <entry>` renders one `config: style:` entry -- its scheme's
+    colours and only the shared content plus that entry's own layout --
+    naming an unknown entry is a clean error listing the declared ones.
+    `--all-styles` renders every entry side by side in one PNG per device,
+    each panel captioned with the entry's label. Neither needs a `config:
+    style:` axis to exist for an ordinary preview with neither flag.
 
     `-w/--watch` re-renders whenever the design file or any font it
     references changes, polling every `--interval` seconds (default 0.4).
@@ -636,8 +664,8 @@ def _sources(args) -> int:
     print(f"  {'config.data_color':<34} {'color':<8} the one data-colour axis "
           "(<dataColors>, Settings.complicationColor)")
     print(f"  {'config.colors.<role>':<34} {'color':<8} the Styles axis -- one role of a "
-          "declared 'color_scheme:' entry, picked via 'config: colors:' (<styles>, "
-          "Settings.styleId)")
+          "declared 'color_scheme:' entry, picked via the active 'config: style:' "
+          "entry's 'colors:' (<styles>, Settings.styleId)")
     print(f"  {'config.data.<name>':<34} {'':<8} the Data axis -- a named native "
           "complication slot declared in 'config: data:' (<data><complication>, "
           "Settings.complicationSettings); drawn by a 'type: complication_slot' "

@@ -111,7 +111,17 @@ and the ADR each is specified in):
    configuration in the repo at all, and `mypy` is not even a dev dependency.
 10. **`wfb install`, `package`, `migrate`** — named in the original brief,
     not built.
-11. **Styles that change which widgets are drawn** (digital vs analog), and
+11. **Superseded — built 2026-09-13** (`docs/plans/02-style-layouts.md`, all
+    three phases; ADR 0006 §1 fifth amendment): `layouts:` (form A only --
+    a container, no element-level membership key) and `config: style:`
+    (`config: colors:` removed outright, no shim) now both ship, colours and
+    widget-set switching alike, over the same Styles axis. `examples/styles/
+    face.yaml` is the worked example -- two digital layouts, since analog
+    hands (`type: hand`) still do not exist and were never a blocker: the
+    mechanism does not need them, only the originally-imagined motivating
+    example did. *Original text, describing the pre-build state, kept
+    below:*
+    ~~Styles that change which widgets are drawn~~ (digital vs analog), and
     colour schemes re-spelled as Styles entries -- planned, not built:
     `docs/plans/02-style-layouts.md` (with `docs/plans/01-background-color.md`
     for why). Needs analog hands (`type: hand`, no plan yet) for its

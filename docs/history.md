@@ -2382,3 +2382,82 @@ now also shows a per-choice `glyph:` override (`heart_rate` ->
 warning-free on all three targets at 6,638 B on `fenix8solar47mm`. Whether
 `12.9K` and the accent icon look right on the watch still needs the user's
 simulator.
+
+## 2026-09-13 — Plan 02 built: `layouts:` + `config: style:`, all three phases
+
+Same day as the planning session above, built end to end across three
+phases in the same session, coordinator-reviewed between each.
+
+**Phase 1 (colour-only re-spelling).** `config: colors:` removed outright,
+no shim, replaced by `config: style:`: `choices:` became an author-named,
+ordered mapping (not a bare `color_scheme.<name>` list), so `default:`
+names an entry, not a scheme. `resolveColorScheme` renamed `resolveStyle`.
+`duplicate-style` (suppressible) shipped. `examples/config/face.yaml`,
+`examples/dashboard/face.yaml` and `examples/enduro/face.yaml` were all
+migrated -- the user's explicit permission for the two playground files
+covered **only** their `config: colors:` block, nothing else touched.
+Migrated `config`'s generated View.mc differed from the pre-migration
+baseline only in names and comments; resources were byte-identical.
+
+**Phase 2 (layouts, front end).** `layouts:` (schema, desugar, IR); form A
+only, decided by the user in the planning session -- a layout is a
+container, there is no element-level membership key, so form B is not
+built. The fixed z rule: layout content always draws above shared content,
+in its own layer, never interleaved by `z:`. The slot rule, also decided by
+the user: a `complication_slot` may not appear inside a `layouts:` body at
+all, only in the shared top-level `elements:` -- simpler than the plan's
+original per-layout-dispatch sketch, and the Data axis is face-wide anyway.
+A temporary codegen stopgap (`wfb build` refused any design with
+`layouts:`, `wfb validate`/`check` unaffected) kept the front end honestly
+separated from the not-yet-built back end. Two fixes landed after
+independent coordinator review: an empty `static: []`/`elements: []` inside
+a layout was skipped but its key not popped (the schema's `minItems: 1`
+then wrongly rejected it); the reserved-id collision check only scanned
+top-level `elements:`, missing an id nested inside a shared group.
+
+**Phase 3 (layouts, back end).** The stopgap deleted. `resolveStyle` now
+also sets `_configLayout` where an entry has a `layout:`. One shared
+guard-emitting helper (`_emit_layout_guarded_calls`) groups consecutive
+same-layout calls into one `if (_configLayout == N)` block, used
+identically by `onUpdate`, `onPartialUpdate` and `renderStatic`'s per-root
+calls (never inside `drawStatic<Id>` itself, and the "a root's members
+share its own layout" invariant is asserted, not just assumed). A
+layout-scoped `on_hold:` target's hit test is folded into the same guard in
+the generated delegate, through a new public `configLayout()` accessor on
+the view (`private` blocks a cross-class call -- confirmed again, the same
+finding `docs/lore/monkeyc.md` already recorded for a different method).
+No new repaint logic: a style edit already reaches `applyConfig`, which
+already calls `repaintStatic()` for a static config colour. `wfb preview
+--style <entry>`/`--all-styles` shipped, seeding `config.colors.*` from the
+chosen entry's scheme and skipping any element whose layout is not the
+active one -- the same renderer, run once per entry, an unknown name a
+clean listed error.
+
+`examples/styles/face.yaml` is the new worked example: two layouts (`big`,
+a plain oversized clock inside a static decorative ring; `compact`, a small
+clock over a steps progress arc whose static track sits under a dynamic
+fill), a shared `complication_slot` (the slot rule's positive case), a
+hold target with a layout (`big_clock` -> `heart_rate`), and a `low_power`
+element inside a layout (`compact_clock`, `modes: [active, low_power]`) --
+small enough to cost no `partial-update-budget` finding on any target. Two
+decorative rings' bounding boxes (their full circumscribed square, not
+their thin ink) legitimately overlap the shared date/slot text; accepted
+with `lint: {allow: [static-overlap], reason: ...}` rather than
+repositioned, since the overlap is a known "boxes, not ink" limitation, not
+a real one.
+
+**Verification:** fast suite 1,111 passed / 5 known pre-existing failures
+(unchanged set); the whole slow suite, 33 passed / 3 known pre-existing
+failures (`big-clock-3`, `dashboard`, `enduro` -- unchanged set, `styles`
+added and passing); `slots`/`slice`/`static` confirmed byte-identical to
+the pre-Phase-1 baseline throughout, `config`/`dashboard` unchanged from
+end of Phase 1; real, warning-free `monkeyc` builds of `examples/config`
+(2,477-2,478 B), `examples/slots` (6,661-6,668 B) and `examples/styles`
+(5,206-5,207 B), all three targets, `--build-stats` recorded in
+`docs/plans/02-style-layouts.md` §12.9.
+
+**Unverified, as with every `config:`/on-device-editor feature so far:** any
+actual behaviour of the native editor itself (no simulator in this
+container, no watch) -- whether a style switch previews instantly, and
+whether `big_clock`'s layout-scoped hold region reads correctly on a real
+touchscreen, both remain open questions for the user's own hardware.

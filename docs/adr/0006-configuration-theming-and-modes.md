@@ -284,6 +284,102 @@ fr955** — the compiler generates both paths from one declaration.
 > author-facing description; `examples/slots/face.yaml` now declares
 > `on_hold: auto` on one of its two slots.
 
+> **Fifth amendment (2026-09-13): Styles grew a second axis of variation --
+> layouts -- and `config: colors:` was removed outright, replaced by
+> `config: style:`** (`docs/plans/02-style-layouts.md`, decided and built in
+> one session; research 08 §4 and research 09 §3 both carry their own dated
+> notes pointing here). The second amendment above described Styles as
+> picking a `color_scheme:`; it was always also the axis a stock face uses
+> to switch *which elements are drawn* (a digital clock in one style, analog
+> hands in another), and that half is now built too.
+>
+> ```yaml
+> layouts:                       # ordered; layout index = declaration order
+>   big:
+>     static:   { ... }          # this layout's own fixed furniture
+>     elements: { ... }          # this layout's own per-frame content
+>   compact: { ... }
+>
+> config:
+>   style:
+>     default: big_dark
+>     choices:                   # an ORDERED mapping -- index = styleId
+>       big_dark:     { label: "Big · Dark",     layout: big,     colors: dark }
+>       big_light:    { label: "Big · Light",    layout: big,     colors: light }
+>       compact_dark: { label: "Compact · Dark", layout: compact, colors: dark }
+> ```
+>
+> `config: colors:`'s `default:`/`choices:` named schemes directly, by the
+> qualified `color_scheme.<name>` form; `config: style:` instead names
+> **author-chosen entries** (`choices:` is an ordered *mapping*, not a list),
+> each naming a scheme, a layout, or both, by their bare names. A design
+> with no `layouts:` at all migrates as a pure re-spelling -- an entry with
+> only `colors:` falls back to that scheme's own `label:`, so the generated
+> `<style label=...>` text does not move; `examples/config/face.yaml`,
+> `examples/dashboard/face.yaml` and `examples/enduro/face.yaml` were all
+> migrated this way, by the user's own explicit permission for the two
+> playground files (dashboard, enduro: only their `config:` block touched).
+>
+> **Form A only, decided by the user**: a layout is a container
+> (`layouts: <name>: {static, elements}`); there is no element-level
+> membership key. An element belongs to one layout by being written inside
+> it, or to every layout by staying in the design's ordinary, shared
+> `static:`/`elements:`. **The z rule is fixed, not authored**: layout
+> content always draws above shared content, in its own layer, regardless of
+> `z:`. **A `complication_slot` may not appear inside a `layouts:` body** --
+> the Data axis is face-wide, so a slot stays in the shared `elements:` only,
+> which is also what keeps the editor's own per-slot hit-testing and
+> `getComplicationDrawable` exactly as simple as the fourth amendment left
+> them (one element ever draws a given slot, never one per layout).
+>
+> Codegen: `resolveStyle` (renamed from `resolveColorScheme`) now decodes one
+> `styleId` into *two* things where an entry has them -- the scheme's roles,
+> and `_configLayout`, a new view field holding the active layout's
+> declaration-order index. Every draw call -- `onUpdate`, `onPartialUpdate`,
+> and each static root's call inside `renderStatic` -- tests the *layout*,
+> never the config entry, through one shared guard-emitting helper so the
+> three cannot drift into guarding differently; a design with no `layouts:`
+> emits the exact unguarded sequence it always did (`slots`/`slice`/`static`
+> confirmed byte-identical). A hold target that belongs to a layout gets its
+> hit test folded into the same guard, through a new public `configLayout()`
+> accessor on the view (the delegate cannot reach a private field on another
+> class). No second buffer and no new repaint logic: a style edit already
+> reaches `applyConfig`, which already calls `repaintStatic()` for a static
+> config colour -- a layout switch is just another field set before that
+> call.
+>
+> New suppressible lint: `unreachable-layout` (a declared layout no entry
+> ever names, design-level, suppressed on the layout's own `lint:`).
+> `duplicate-style` now compares `(layout, colors)`, not `colors` alone.
+> `hold-overlap`/`static-overlap` skip a pair that can never be on screen
+> together -- both belong to a layout, and the layouts differ
+> (`wfb.ir.never_together`) -- the same exemption disjoint `modes:` already
+> had.
+>
+> Cost, measured through the real toolchain: `examples/styles/face.yaml`
+> (two layouts, each with its own static and dynamic content, three style
+> entries, a shared `complication_slot`) compiles to 5,206-5,207 B (4.0%) on
+> all three targets, warning-free; `examples/config/face.yaml` (colour axes
+> only, no `layouts:`) is 2,477-2,478 B (1.9%). The two designs are not a
+> clean isolated delta for "what layouts cost" -- `styles` simply draws more
+> content -- so this is reported as the two absolute, measured figures
+> rather than a subtraction dressed up as one. `docs/format.md`'s "Styles
+> and layouts" section is the full author-facing reference.
+>
+> **Not built, deliberately out of scope (docs/limitations.md §2 is
+> authoritative):** form B (element-level membership); a `complication_slot`
+> inside a layout; per-layout fonts or clips (a low-power clip still unions
+> every layout, conservatively); moving a per-frame read inside its layout's
+> guard; the fr955 `excludeAnnotations` strip for an unreachable layout's
+> code. None of the on-device editor's own *behaviour* is verified anywhere
+> in this project (no simulator in this container, no watch) -- whether a
+> style switch in the native editor previews instantly, and whether a
+> layout-scoped hold region reads correctly on a real touchscreen, are both
+> UNVERIFIED, the same standing caveat every earlier amendment in this ADR
+> carries. `wfb preview --style <entry>`/`--all-styles` is what *is*
+> verified: the same resolved geometry the generated code draws from,
+> rendered with no simulator, which is also how the two commands are tested.
+
 An author declares a property once and states where it may be edited. The
 compiler emits the right artefact for each surface and **fails the build if a
 surface is unavailable on a targeted device** rather than silently dropping it.

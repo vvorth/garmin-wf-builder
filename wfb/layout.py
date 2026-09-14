@@ -296,6 +296,16 @@ class ResolvedFace:
         docstring -- this was a real bug, fixed after being reproduced: a
         low-power element wrapped in a size-less group blew the clip up to the
         full screen).
+
+        **Unions across every layout, not just the active one** (docs/plans/
+        02-style-layouts.md §5.3, §5.6).  `_configLayout` is a runtime value
+        this stage never resolves, so a per-layout clip is not something this
+        can compute at all -- and the guard `wfb/emit/monkeyc.py` wraps each
+        low-power call in (`_emit_on_partial_update`) only narrows *which*
+        calls run, never the clip `setClip` was already given.  A tighter,
+        per-layout clip is a real possible optimisation, deliberately not
+        built: it would need the clip computed and set *inside* each layout's
+        guard, which nothing here or in the emitter does yet.
         """
         boxes = [p.box for p in self.drawn_in_mode(mode)]
         if not boxes:

@@ -22,6 +22,7 @@ from pathlib import Path
 
 from . import catalog, complications, expr, icons, series, units
 from .catalog import Source, Type
+from .desugar import layout_ids
 from .diagnostics import Bag, Span
 from .palette import Color, ColorError
 from .series import Acquisition, SeriesDef
@@ -299,14 +300,14 @@ class ConfigColor:
 @dataclass(frozen=True)
 class ColorScheme:
     """One declared `color_scheme:` entry -- a named role -> colour set,
-    picked on-device through `config: colors:` (docs/research/09 §3).
+    picked on-device through a `config: style:` entry's `colors:`
+    (docs/research/09 §3).
 
     A colour *scheme* is several colours moving together, and no native
     colour axis carries more than one colour, so a scheme rides **Styles** --
     the one axis Garmin gives no meaning to at all.  `colors` keeps the
     author's own declared order (a plain dict), which is cosmetic only: the
-    generated `resolveColorScheme` assigns one field per role regardless of
-    order.
+    generated `resolveStyle` assigns one field per role regardless of order.
     """
 
     name: str
@@ -319,25 +320,89 @@ class ColorScheme:
 
 
 @dataclass(frozen=True)
-class ConfigColorAxis:
-    """The `config: colors:` axis -- a Styles-axis picker over declared
-    `color_scheme:` entries (docs/research/09 §3, ADR 0006 1's second
-    amendment).
+class LayoutDecl:
+    """One declared `layouts:` entry -- a named widget set (docs/plans/
+    02-style-layouts.md §12.1, §12.2).  Form A only: an author never writes
+    membership on an element.
 
-    Shaped differently from :class:`ConfigColor`/:class:`ConfigAxis` on
-    purpose: `default:`/`choices:` here name *schemes*, not colours, so
-    "default must be one of choices" is an identity comparison on the scheme
-    name rather than a colour-value one, and there is no `allow_any` --
-    Styles has no equivalent of the editor's own unrestricted colour picker.
+    By the time this reaches the IR, `wfb/desugar.py`'s `_layouts_block` has
+    already folded this entry's own `static:`/`elements:` into two synthetic
+    groups appended to the top-level `elements:`, found again here by their
+    reserved id (`wfb.desugar.layout_ids`) and walked to set `Element.layout`
+    (`Builder._assign_layouts`) -- so this carries little beyond the name
+    itself and the entry's own `lint:`, consulted by a later phase's
+    `unreachable-layout` (plan 02 §12.6): a layout has no element of its own
+    to hang `lint:` on, so its own body is the suppression site, the same
+    reasoning a `config: style:` entry's own `lint:` follows for
+    `duplicate-style`.
     """
 
-    #: A declared `color_scheme:` name (the part after `color_scheme.`).
-    default: str
-    #: Declared `color_scheme:` names, in `choices:` order -- also the order
-    #: `<style id="N">` numbers them from, and the order `resolveColorScheme`
-    #: tests `style == N` in.
-    choices: tuple[str, ...]
+    name: str
+    lint_allow: frozenset[str] = frozenset()
+    lint_reason: str | None = None
     span: Span | None = None
+
+
+@dataclass(frozen=True)
+class StyleEntry:
+    """One `config: style:` entry -- one line of the editor's Style list
+    (docs/plans/02-style-layouts.md §4.1, §12.4).
+
+    Every entry carries at least one of `layout`/`colors` (`Builder.
+    _build_config_style` rejects one with neither), and either may be
+    `None` -- a colour-only entry, a layout-only entry, or both.  Codegen for
+    `layout` is Phase 3 (`resolveStyle` gains a `_configLayout = N;` line
+    alongside the colour assignments, plan 02 §6.4); Phase 2 only resolves
+    and validates it.
+    """
+
+    name: str
+    label: str | None
+    #: A declared `color_scheme:` name, bare (`dark`, not `color_scheme.
+    #: dark` -- that qualifying form is for expressions, and there is
+    #: exactly one thing `colors:` can name here, so it buys nothing).
+    #: `None` for a layout-only entry.
+    colors: str | None
+    #: A declared `layouts:` name, bare, the same reasoning as `colors`.
+    #: `None` for a colour-only entry, and always `None` when the design
+    #: declares no `layouts:` at all.
+    layout: str | None = None
+    lint_allow: frozenset[str] = frozenset()
+    lint_reason: str | None = None
+    span: Span | None = None
+
+
+@dataclass(frozen=True)
+class ConfigStyle:
+    """The `config: style:` axis -- an author-named, ordered set of entries
+    riding Styles, the one axis Garmin gives no meaning to at all
+    (docs/research/09 §3, ADR 0006 1's second amendment, plan 02).
+    Replaces `config: colors:`/the old `ConfigColorAxis` outright (plan 02
+    §12, decision 3) -- no shim, and `examples/config`/`enduro`/`dashboard`
+    are migrated in the same change.
+
+    Shaped differently from :class:`ConfigColor`/:class:`ConfigAxis` on
+    purpose: entries are named by the *author*, not by the scheme (or,
+    later, layout) they reference, so `default:` names an entry and "default
+    must be one of choices" is an identity comparison on the entry name, not
+    a scheme-name or colour-value one.  There is no `allow_any` -- Styles has
+    no equivalent of the editor's own unrestricted picker.
+    """
+
+    #: The default entry's name -- a key into `entries`, by `StyleEntry.name`.
+    default: str
+    #: In `choices:` order -- also the order `<style id="N">` numbers entries
+    #: from, and the order `resolveStyle` tests `style == N` in.
+    entries: tuple[StyleEntry, ...]
+    span: Span | None = None
+
+    @property
+    def default_entry(self) -> StyleEntry:
+        return next(e for e in self.entries if e.name == self.default)
+
+    def index(self, name: str) -> int:
+        """This entry's `styleId` -- its position in `choices:` order."""
+        return next(i for i, e in enumerate(self.entries) if e.name == name)
 
 
 @dataclass(frozen=True)
@@ -477,6 +542,16 @@ class Element:
     #: each root's members one unbroken run there, ordered the way the author's
     #: own `z:` ordered the roots themselves.
     static_rank: int | None = None
+    #: The declared `layouts:` name this element belongs to, or `None` for
+    #: shared content drawn in every layout (docs/plans/02-style-layouts.md
+    #: §12.1).  Never set by the author directly -- there is no element-level
+    #: membership key (form A only) -- but by `Builder._assign_layouts`,
+    #: which walks the two synthetic groups `wfb/desugar.py`'s
+    #: `_layouts_block` appended for each declared layout and stamps this on
+    #: the group and every descendant, by id.  Read by :func:`draw_sort_key`
+    #: (the layer rank: shared content draws below layout content) and, from
+    #: Phase 3, by codegen's layout guards.
+    layout: str | None = None
     #: `antialias:` as the author wrote it, or `None` to inherit -- from the
     #: enclosing group's own value, or from `Face.antialias` when there is
     #: none.  Accepted only on `group`, `shape`, `progress` and `icon`: `text`
@@ -799,10 +874,19 @@ class Face:
     #: `Builder._build_color_scheme` the same way a bad `config:` axis never
     #: reaches `Face.config`.
     color_scheme: dict[str, ColorScheme] = field(default_factory=dict)
-    #: The `config: colors:` axis, or `None` when it was never declared (or
+    #: Declared `layouts:` names, in declaration order (docs/plans/
+    #: 02-style-layouts.md §12.1).  Empty when the design declares no
+    #: `layouts:` at all.  Every element's `layout` (when not `None`) is one
+    #: of these names.
+    layouts: tuple[str, ...] = ()
+    #: `layouts:` entries, keyed by name -- each one's own `lint:`, consulted
+    #: by a later phase's `unreachable-layout`.  Empty exactly when `layouts`
+    #: is.
+    layout_decls: dict[str, LayoutDecl] = field(default_factory=dict)
+    #: The `config: style:` axis, or `None` when it was never declared (or
     #: was declared and rejected).  Unlike `config`, this is not a dict --
     #: there is exactly one Styles axis, not a table of them.
-    config_colors: ConfigColorAxis | None = None
+    config_style: ConfigStyle | None = None
     #: `config: data:` slots, keyed by name.  A third, independent way to
     #: turn on the whole on-device-config feature -- see `has_config`.
     config_data: dict[str, ConfigDataSlot] = field(default_factory=dict)
@@ -812,19 +896,40 @@ class Face:
         """Single on/off switch for the whole on-device-config feature.
 
         Three independent things can turn it on: a declared `accent_color:`/
-        `data_color:` (`self.config`), a declared `config: colors:`
-        (`self.config_colors`), or a declared `config: data:` (`self.
+        `data_color:` (`self.config`), a declared `config: style:` (`self.
+        config_style`), or a declared `config: data:` (`self.
         config_data`).  Every emitter site that used to test `bool(face.
         config)` alone -- `needs_delegate`, the view's config fields/
         `applyConfig`/`onLayout`, the static-buffer repaint flag, the
         generated `<watchface-config>` resource, `check_config_support` --
         now goes through this instead, so a design declaring only
-        `color_scheme:`/`config: colors:`/`config: data:` (no colour axis at
+        `color_scheme:`/`config: style:`/`config: data:` (no colour axis at
         all) still gets a delegate, `applyConfig` and the generated resource.
         See CLAUDE.md's own "Integration risk" note on this task for why
         every site matters.
         """
-        return bool(self.config) or self.config_colors is not None or bool(self.config_data)
+        return bool(self.config) or self.config_style is not None or bool(self.config_data)
+
+    def style_label(self, entry: "StyleEntry") -> str | None:
+        """The label the generated `<style>` and (a later phase's) preview
+        both show for one `config: style:` entry.
+
+        An entry's own `label:` wins.  Failing that, an entry that names only
+        a `colors:` scheme (no `layout:`) falls back to that scheme's own
+        `label:`, which is what makes migrating a `config: colors:` block a
+        pure re-spelling: the generated `<style label=...>` text does not
+        move (docs/plans/02-style-layouts.md §12.4).  A layout-carrying
+        entry gets no fallback, colour-only or not -- §12.4 restricts it to
+        colours-only entries on purpose, since a scheme's own label was
+        never written with a layout in mind.  The one place this fallback is
+        computed -- every reader calls this rather than re-deriving it, so
+        the two can never drift.
+        """
+        if entry.label is not None:
+            return entry.label
+        if entry.colors is not None and entry.layout is None:
+            return self.color_scheme[entry.colors].label
+        return None
 
     def walk(self) -> list[Element]:
         """Every element, parents before children, in document order."""
@@ -910,22 +1015,35 @@ class Builder:
         #: exists for, and for the same reason: a second 'unknown data source'
         #: error points at a correct line and blames the wrong thing.
         self.rejected_config: set[str] = set()
+        #: `layouts:` entries, in declaration order, and the same
+        #: declared/rejected split every other named block keeps -- a
+        #: `config: style:` entry's `layout:` must get exactly one error
+        #: when it names a layout that was declared and then rejected, not a
+        #: second one blaming the reference (docs/plans/02-style-layouts.md
+        #: §12.1).  Built by `_build_layouts`, before `_build_color_scheme`/
+        #: `_build_config`, so a style entry can resolve `layout:` the same
+        #: build pass it resolves `colors:` in.
+        self.layouts: list[LayoutDecl] = []
+        self.declared_layouts: dict[str, Span | None] = {}
+        self.rejected_layouts: set[str] = set()
         #: `color_scheme:` entries, and the same declared/rejected split
         #: `declared_palette`/`rejected_palette` keep -- a scheme with a bad
-        #: role colour or a role-set mismatch is rejected, and `config:
-        #: colors:` referencing it by name must get exactly one error, not a
-        #: second one blaming the reference.
+        #: role colour or a role-set mismatch is rejected, and a `config:
+        #: style:` entry's `colors:` referencing it by name must get exactly
+        #: one error, not a second one blaming the reference.
         self.color_scheme: dict[str, ColorScheme] = {}
         self.declared_color_scheme: dict[str, Span | None] = {}
         self.rejected_color_scheme: set[str] = set()
-        #: The `config: colors:` axis, once built -- `None` until then, and
+        #: The `config: style:` axis, once built -- `None` until then, and
         #: still `None` if it was declared and rejected (see
-        #: `rejected_config`, which gets `"colors"` added in that case).
-        self.config_colors: ConfigColorAxis | None = None
+        #: `rejected_config`, which gets `"style"` added in that case).
+        self.config_style: ConfigStyle | None = None
         #: The roles a `config.colors.<role>` reference may name, once known
         #: -- set in `_build_scope`, consulted only by `_expression`'s
         #: dedicated error for a bad or missing role (see its own docstring).
-        #: `None` means "no `config: colors:` axis at all", not "zero roles".
+        #: `None` means "no `config: style:` axis at all", not "zero roles".
+        #: Named for the expression namespace (`config.colors.*`), which is
+        #: unchanged -- only the declaring block's own name moved to `style:`.
         self._config_colors_roles: tuple[str, ...] | None = None
         #: `config: data:` slots, keyed by name -- the same declared/rejected
         #: split every other `config:` sub-block keeps, so a `slot:` naming a
@@ -954,13 +1072,26 @@ class Builder:
     def build(self) -> Face | None:
         data = self.doc.data
         self.face_antialias = bool(data.get("antialias", False))
+        # Layouts first: a `config: style:` entry's `layout:` resolves
+        # against the declared names, the same build pass its `colors:`
+        # resolves against `color_scheme:` (plan 02 §12.1).
+        self._build_layouts(data.get("layouts") or {})
         self._build_palette(data.get("palette") or {})
         self._build_color_scheme(data.get("color_scheme") or {})
         self._build_config(data.get("config") or {})
+        self._check_layouts_reachable(data)
         self._build_fonts(data.get("fonts") or {})
         self._build_scope()
 
         elements = self._build_elements(data.get("elements") or [], ("elements",))
+        if not self.bag.ok():
+            return None
+        # Before `_apply_static`: a `complication_slot` inside a layout's own
+        # `static:` must get the layout error alone, not also the
+        # static-subtree one, so `Element.layout` has to be assigned -- and
+        # the slot rule applied -- while the tree is still whole (plan 02
+        # §12.2, §12.5).
+        self._assign_layouts(elements)
         if not self.bag.ok():
             return None
         self._apply_static(elements)
@@ -970,6 +1101,8 @@ class Builder:
 
         face = data["face"]
         name = face["name"]
+        accepted_layouts = tuple(
+            n for n in self.declared_layouts if n not in self.rejected_layouts)
         return Face(
             format=int(data["format"]),
             uuid=face["id"],
@@ -985,11 +1118,111 @@ class Builder:
             antialias=self.face_antialias,
             config=self.config,
             color_scheme=self.color_scheme,
-            config_colors=self.config_colors,
+            layouts=accepted_layouts,
+            layout_decls={l.name: l for l in self.layouts if l.name in accepted_layouts},
+            config_style=self.config_style,
             config_data=self.config_data,
         )
 
-    # -- palette, config, fonts, scope -------------------------------------
+    # -- layouts, palette, config, fonts, scope -----------------------------
+
+    def _build_layouts(self, raw: dict) -> None:
+        """`layouts:` -- named widget sets, declared as containers, form A
+        only (docs/plans/02-style-layouts.md §12.1, §12.2).
+
+        Post-desugar, each body is just `{}` or `{lint: ...}` --
+        `wfb/desugar.py`'s `_layouts_block` has already folded `static:`/
+        `elements:` into synthetic groups appended to the top-level
+        `elements:`, found again by their reserved id
+        (`wfb.desugar.layout_ids`) and walked to set `Element.layout` once
+        `elements` itself exists (`_assign_layouts`, called later in
+        `build()`).  So this only records the *names*, in declaration order,
+        plus each layout's own `lint:` (consulted by a later phase's
+        `unreachable-layout`).
+
+        A layout body has little of its own that can be rejected today --
+        unlike `fonts:`/`palette:`/`color_scheme:`, nothing here resolves a
+        colour or a reference -- but the declared/rejected split exists
+        anyway: a `config: style:` entry's `layout:` must follow the same
+        "one error, not N" cascade discipline every other named block gets
+        (CLAUDE.md, docs/lore/codegen.md).
+        """
+        for name, spec in raw.items():
+            span = self.doc.span(raw, name)
+            self.declared_layouts[name] = span
+            self.layouts.append(LayoutDecl(
+                name=name,
+                lint_allow=frozenset((spec.get("lint") or {}).get("allow", ())),
+                lint_reason=(spec.get("lint") or {}).get("reason"),
+                span=span,
+            ))
+
+    def _assign_layouts(self, elements: list[Element]) -> None:
+        """Stamp `Element.layout` on each layout's synthetic groups and their
+        descendants, by the reserved id `wfb.desugar.layout_ids` defines,
+        then apply the slot rule (docs/plans/02-style-layouts.md §12.2,
+        §12.5).
+
+        Runs right after `_build_elements`, before `_apply_static` -- see
+        `build()`'s own comment for why the ordering matters.  Only the
+        *top-level* synthetic groups are looked up by id: `layout_ids`
+        always mints a top-level id (the desugar rewrite appends both groups
+        straight onto the top-level `elements:`, never nested), so a linear
+        scan of `elements` is enough; :func:`walk_elements` then reaches
+        every descendant from there.
+        """
+        if self.layouts:
+            by_id = {e.id: e for e in elements}
+            for decl in self.layouts:
+                if decl.name in self.rejected_layouts:
+                    continue
+                for generated_id in layout_ids(decl.name):
+                    group = by_id.get(generated_id)
+                    if group is None:
+                        continue  # this layout declared no static:/elements: of that kind
+                    for element in walk_elements([group]):
+                        element.layout = decl.name
+
+        for element in walk_elements(elements):
+            if isinstance(element, ComplicationSlot) and element.layout is not None:
+                self.bag.error(
+                    "layouts",
+                    f"{element.id!r}: a complication_slot may not be inside "
+                    f"layout {element.layout!r} content",
+                    element.span,
+                    notes=[
+                        "the Data axis is face-wide -- one <complication "
+                        "id=...> however many layouts read it -- so a slot "
+                        "belongs in the shared top-level 'elements:', not "
+                        "inside a 'layouts:' body",
+                        "docs/plans/02-style-layouts.md §12.5",
+                    ],
+                )
+
+    def _check_layouts_reachable(self, data: dict) -> None:
+        """`layouts:` declared with no `config: style:` entry ever naming one
+        as its `layout:` is an error -- nothing lets the wearer pick it
+        (docs/plans/02-style-layouts.md §12.1).
+
+        Called after `_build_config`, once `self.config_style`/
+        `self.rejected_config` are both known.  A `config: style:` that was
+        declared and then rejected gives no second error here: the real
+        mistake already has its own error pointing at `config:` -- the usual
+        cascade discipline.
+        """
+        if not self.layouts:
+            return
+        if self.config_style is not None or "style" in self.rejected_config:
+            return
+        self.bag.error(
+            "layouts",
+            "layouts: is declared, but no 'config: style:' entry ever names "
+            "one as its 'layout:' -- nothing lets the wearer pick it",
+            self.doc.span(data, "layouts", of="key"),
+            notes=["declared layouts: " + ", ".join(d.name for d in self.layouts),
+                   "add a 'config: style:' block with an entry naming one, "
+                   "or remove 'layouts:'"],
+        )
 
     def _build_palette(self, raw: dict) -> None:
         """`palette:` -- named colours, in either of two spellings.
@@ -1071,8 +1304,8 @@ class Builder:
 
     def _build_color_scheme(self, raw: dict) -> None:
         """`color_scheme:` -- named role -> colour sets, picked on-device via
-        `config: colors:` (docs/research/09 §3, ADR 0006 1's second
-        amendment).
+        a `config: style:` entry's own `colors:` (docs/research/09 §3,
+        ADR 0006 1's second amendment).
 
         A role's colour is resolved exactly like a `config:` axis's own
         `default:`/`choices:` colour (`_resolve_config_color`): a literal
@@ -1135,9 +1368,16 @@ class Builder:
             self.rejected_color_scheme.add(name)
             del self.color_scheme[name]
 
-    def _scheme_reference(self, raw: object, span: Span | None) -> str | None:
-        """Resolve a `color_scheme.<name>` reference used from `config:
-        colors:`'s own `default:`/`choices:`.
+    def _scheme_reference(self, name: str, span: Span | None) -> str | None:
+        """Resolve a bare `color_scheme:` name used from a `config: style:`
+        entry's own `colors:` (docs/plans/02-style-layouts.md §12.4).
+
+        Bare, not `color_scheme.<name>` -- that qualifying form is for
+        expressions (`color: color_scheme.dark` is not even legal there
+        either; it is `config.colors.<role>`), and there is exactly one thing
+        `colors:` can name here, so a prefix buys nothing.  The schema's own
+        `$defs/identifier` already rejects a non-identifier value before this
+        ever runs, so this only ever sees a plausible name.
 
         Same declared/rejected cascade `_palette_reference` already has: a
         name that was declared and then rejected (a bad role colour, a
@@ -1145,75 +1385,176 @@ class Builder:
         mistake already has its own error pointing at the `color_scheme:`
         block.
         """
-        if not (isinstance(raw, str) and raw.startswith("color_scheme.")):
-            self.bag.error(
-                "config",
-                f"config.colors: expected a 'color_scheme.<name>' reference, got {raw!r}",
-                span,
-            )
+        if name in self.color_scheme:
+            return name
+        if name in self.rejected_color_scheme:
             return None
-        key = raw[len("color_scheme."):]
-        if key in self.color_scheme:
-            return key
-        if key in self.rejected_color_scheme:
-            return None
-        known = ", ".join(f"color_scheme.{n}" for n in sorted(self.declared_color_scheme)) \
-            or "(none declared)"
+        known = ", ".join(sorted(self.declared_color_scheme)) or "(none declared)"
         self.bag.error(
-            "config", f"unknown color scheme {raw!r}", span,
-            notes=[f"declared color schemes: {known}"],
+            "config", f"unknown color scheme {name!r}", span,
+            notes=[f"declared color_scheme entries: {known}"],
         )
         return None
 
-    def _build_config_colors(self, spec: dict, span: Span | None) -> None:
-        """`config: colors:` -- a Styles-axis picker over declared
-        `color_scheme:` entries (docs/research/09 §3).
+    def _layout_reference(self, name: str, span: Span | None) -> str | None:
+        """Resolve a bare `layouts:` name used from a `config: style:`
+        entry's own `layout:` (docs/plans/02-style-layouts.md §12.4).
 
-        Unlike `accent_color`/`data_color`, `default:`/`choices:` name
-        *schemes*, not colours -- so "default must be one of choices" here is
-        an identity comparison on the scheme name, not a colour-value one.
-        Garmin still defines no behaviour for a default outside the list.
+        Same declared/rejected cascade `_scheme_reference` already has for
+        `colors:` -- there is currently little that can reject a *declared*
+        layout (`_build_layouts`), but the cascade exists anyway so a future
+        rejection needs no change here.
         """
-        default_span = self.doc.span(spec, "default")
-        default_name = self._scheme_reference(spec["default"], default_span)
-        if default_name is None:
-            self.rejected_config.add("colors")
-            return
+        if name in self.declared_layouts and name not in self.rejected_layouts:
+            return name
+        if name in self.rejected_layouts:
+            return None
+        known = ", ".join(sorted(self.declared_layouts)) or "(none declared)"
+        self.bag.error(
+            "config", f"unknown layout {name!r}", span,
+            notes=[f"declared layouts: {known}"],
+        )
+        return None
 
+    def _build_config_style(self, spec: dict, span: Span | None) -> None:
+        """`config: style:` -- an author-named, ordered set of entries riding
+        Styles, the one axis Garmin gives no meaning to at all
+        (docs/research/09 §3, docs/plans/02-style-layouts.md §12.4).
+        Replaces `config: colors:` outright, no shim (plan 02 §12, decision
+        3).
+
+        Unlike `accent_color`/`data_color`, entries are named by the
+        *author* -- `choices:` is an ordered mapping, not a list -- so
+        `default:` names an entry and "default must be one of choices" is an
+        identity comparison on the entry name, not a scheme-name or
+        colour-value one.
+
+        Three uniform-shape passes, each rejecting the whole block at its
+        first violation -- one error, not N (CLAUDE.md, docs/lore/codegen.md):
+
+        1. every entry needs at least one of `layout:`/`colors:`;
+        2. `layout:` is required on every entry once this design declares
+           `layouts:`, and rejected when it does not -- an entry showing
+           only shared content in a design that has layouts would be a
+           silent blank-looking face;
+        3. `colors:` is all-or-none across entries, independent of
+           `layout:` -- a role must never be undefined for the entry the
+           wearer picked.
+        """
         raw_choices = spec["choices"]
-        choices: list[str] = []
-        ok = True
-        for index, item in enumerate(raw_choices):
-            item_span = self.doc.span(raw_choices, index)
-            name = self._scheme_reference(item, item_span)
-            if name is None:
-                ok = False
-                continue
-            choices.append(name)
-        if not ok:
-            self.rejected_config.add("colors")
-            return
+        has_layouts = bool(self.layouts)
 
-        if default_name not in choices:
+        for name, item in raw_choices.items():
+            if "layout" in item or "colors" in item:
+                continue
             self.bag.error(
                 "config",
-                f"config.colors: default {spec['default']!r} is not one of 'choices:'",
-                default_span,
-                notes=[
-                    "the on-device editor marks one listed style as the user's "
-                    "default (the generated <style default=\"true\">) -- Garmin "
-                    "defines no behaviour for a default that is not in the list",
-                    "add it to 'choices:', or change 'default:' to match a "
-                    "scheme already there",
-                    "listed schemes: "
-                    + ", ".join(f"color_scheme.{n}" for n in choices),
-                ],
+                f"config.style.choices.{name}: needs at least one of "
+                "'layout:'/'colors:'",
+                self.doc.span(raw_choices, name),
             )
-            self.rejected_config.add("colors")
+            self.rejected_config.add("style")
             return
 
-        self.config_colors = ConfigColorAxis(
-            default=default_name, choices=tuple(choices), span=span)
+        for name, item in raw_choices.items():
+            item_span = self.doc.span(raw_choices, name)
+            has_layout = "layout" in item
+            if has_layouts and not has_layout:
+                self.bag.error(
+                    "config",
+                    f"config.style.choices.{name}: needs 'layout:' -- this "
+                    "design declares 'layouts:', so every entry must pick one",
+                    item_span,
+                    notes=["declared layouts: "
+                           + ", ".join(d.name for d in self.layouts)],
+                )
+                self.rejected_config.add("style")
+                return
+            if not has_layouts and has_layout:
+                self.bag.error(
+                    "config",
+                    f"config.style.choices.{name}: 'layout:' is set, but "
+                    "this design declares no 'layouts:' at all",
+                    self.doc.span(item, "layout") or item_span,
+                    notes=["remove 'layout:', or add a 'layouts:' block"],
+                )
+                self.rejected_config.add("style")
+                return
+
+        baseline_name = next(iter(raw_choices))
+        baseline_has_colors = "colors" in raw_choices[baseline_name]
+        for name, item in raw_choices.items():
+            has_colors = "colors" in item
+            if has_colors == baseline_has_colors:
+                continue
+            item_span = self.doc.span(raw_choices, name)
+            if has_colors:
+                message = (f"config.style.choices.{name}: declares "
+                           f"'colors:', but 'choices.{baseline_name}' does not")
+            else:
+                message = (f"config.style.choices.{name}: needs 'colors:' "
+                           f"-- 'choices.{baseline_name}' declares one")
+            self.bag.error(
+                "config", message, item_span,
+                notes=["'colors:' must be declared on every entry, or none"],
+            )
+            self.rejected_config.add("style")
+            return
+
+        entries: list[StyleEntry] = []
+        ok = True
+        for name, item in raw_choices.items():
+            item_span = self.doc.span(raw_choices, name)
+            entry_ok = True
+            colors_name: str | None = None
+            if "colors" in item:
+                color_span = self.doc.span(item, "colors") or item_span
+                colors_name = self._scheme_reference(item["colors"], color_span)
+                if colors_name is None:
+                    entry_ok = False
+            layout_name: str | None = None
+            if "layout" in item:
+                layout_span = self.doc.span(item, "layout") or item_span
+                layout_name = self._layout_reference(item["layout"], layout_span)
+                if layout_name is None:
+                    entry_ok = False
+            if not entry_ok:
+                ok = False
+                continue
+            entries.append(StyleEntry(
+                name=name,
+                label=item.get("label"),
+                colors=colors_name,
+                layout=layout_name,
+                lint_allow=frozenset((item.get("lint") or {}).get("allow", ())),
+                lint_reason=(item.get("lint") or {}).get("reason"),
+                span=item_span,
+            ))
+        if not ok:
+            self.rejected_config.add("style")
+            return
+
+        default_name = spec["default"]
+        by_name = {e.name: e for e in entries}
+        if default_name not in by_name:
+            self.bag.error(
+                "config",
+                f"config.style: default {default_name!r} is not one of 'choices:'",
+                self.doc.span(spec, "default"),
+                notes=[
+                    "the on-device editor marks one listed entry as the user's "
+                    "default (the generated <style default=\"true\">) -- Garmin "
+                    "defines no behaviour for a default that is not in the list",
+                    "add it to 'choices:', or change 'default:' to match an "
+                    "entry already there",
+                    "declared entries: " + ", ".join(by_name),
+                ],
+            )
+            self.rejected_config.add("style")
+            return
+
+        self.config_style = ConfigStyle(
+            default=default_name, entries=tuple(entries), span=span)
 
     def _complication_reference(self, raw: object, what: str, span: Span | None) -> str | None:
         """Resolve a `complication.<name>` reference used from `config: data:`'s
@@ -1373,19 +1714,20 @@ class Builder:
         """`config:` -- the native editor's colour axes, the Styles axis, and
         the Data axis (ADR 0006 1, twice amended; docs/research/09 §4).
 
-        `accent_color`/`data_color` read back as a single `Color`; `colors`
-        picks a declared `color_scheme:` entry instead (`_build_config_colors`)
-        -- a different enough shape that it does not fit `ConfigAxis`/
-        `ConfigColor` at all; `data` is a mapping of named slots, each built by
-        `_build_config_data`.  Only these four keys reach here: the schema's
-        `additionalProperties: false` on `config:` rejects anything else
-        before the IR ever sees it, the same division of labour `_build_fonts`
-        and `_build_palette` already rely on for their own blocks.
+        `accent_color`/`data_color` read back as a single `Color`; `style`
+        picks author-named entries, each naming a declared `color_scheme:`
+        entry (`_build_config_style`) -- a different enough shape that it
+        does not fit `ConfigAxis`/`ConfigColor` at all; `data` is a mapping
+        of named slots, each built by `_build_config_data`.  Only these four
+        keys reach here: the schema's `additionalProperties: false` on
+        `config:` rejects anything else before the IR ever sees it, the same
+        division of labour `_build_fonts` and `_build_palette` already rely
+        on for their own blocks.
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            if name == "colors":
-                self._build_config_colors(spec, span)
+            if name == "style":
+                self._build_config_style(spec, span)
                 continue
             if name == "data":
                 self._build_config_data(spec, span)
@@ -1627,14 +1969,14 @@ class Builder:
                     kind="config",
                 ),
             )
-        for name in sorted(self.rejected_config - {"colors"}):
+        for name in sorted(self.rejected_config - {"style"}):
             # Declared, then rejected above.  Binding it anyway keeps the one
             # real error the only error: without this, every `color:
             # config.<name>` in the design adds an "unknown data source" that
             # is true only because the compiler threw the axis away -- the
             # cascade `rejected_fonts` already exists to prevent, in the same
             # shape.  Nothing is emitted from a design that has an error, so
-            # the field name here is never reached.  `"colors"` is excluded --
+            # the field name here is never reached.  `"style"` is excluded --
             # it is not a single-colour axis, so it cannot use `config_field`
             # the way every other rejected axis does, and is handled in the
             # `config.colors.<role>` block below instead.
@@ -1648,13 +1990,17 @@ class Builder:
                 ),
             )
 
-        # `config.colors.<role>` -- one binding per role of a declared
-        # `config: colors:` axis, deliberately *not* one binding for the bare
-        # `config.colors` (a scheme is not a colour; see `_expression`'s
-        # dedicated error for that and for a bad role, both keyed off
-        # `self._config_colors_roles`).
-        if self.config_colors is not None:
-            default_scheme = self.color_scheme[self.config_colors.default]
+        # `config.colors.<role>` -- one binding per role of the *default*
+        # entry's declared `config: style:` scheme, deliberately *not* one
+        # binding for the bare `config.colors` (a scheme is not a colour; see
+        # `_expression`'s dedicated error for that and for a bad role, both
+        # keyed off `self._config_colors_roles`).  A layout-only default
+        # entry (`colors is None`) binds no roles at all -- there is no
+        # scheme to read one from, so `config.colors.<role>` is legitimately
+        # undefined here, the ordinary "unknown data source" error rather
+        # than a special one.
+        if self.config_style is not None and self.config_style.default_entry.colors is not None:
+            default_scheme = self.color_scheme[self.config_style.default_entry.colors]
             self._config_colors_roles = tuple(sorted(default_scheme.colors))
             for role, color in default_scheme.colors.items():
                 self.scope.define(
@@ -1666,7 +2012,7 @@ class Builder:
                         kind="config",
                     ),
                 )
-        elif "colors" in self.rejected_config:
+        elif "style" in self.rejected_config:
             # The axis itself was declared and rejected (a bad default/choice
             # reference, or a default not among choices) -- the same cascade
             # as above, generalised to a multi-role axis: bind whatever roles
@@ -3542,16 +3888,25 @@ def walk_elements(elements: list[Element]) -> list[Element]:
 
 
 def authored_draw_order(elements: list[Element]) -> list[Element]:
-    """Draw order as the author wrote it: document order, stable-sorted by ``z``.
+    """Draw order as the author wrote it: layer, then document order
+    stable-sorted by ``z``.
 
     This is draw order *before* the static hoist.  Nothing draws in it -- it
     exists so :func:`wfb.lint.check_static_overlap` can say which pairs of
     elements the hoist swapped, and so :meth:`Builder._apply_static` can rank
     the static roots by where the author actually put them rather than by
-    where they happen to appear in the document.
+    where they happen to appear in the document.  Sorted by layer first
+    (shared content, then layout content -- docs/plans/02-style-layouts.md
+    §12.3) so the *fixed* layer rule is never itself reported as something
+    the hoist swapped: a layout element with a low `z:` sorting after a
+    shared element with a high one is the rule working as designed, not a
+    surprise `check_static_overlap` should flag.
     """
     drawn = [e for e in walk_elements(elements) if e.kind != "group"]
-    return sorted(drawn, key=lambda e: (e.z if e.z is not None else 0,))
+    return sorted(drawn, key=lambda e: (
+        0 if e.layout is None else 1,
+        e.z if e.z is not None else 0,
+    ))
 
 
 def draw_sort_key(element: Element) -> tuple:
@@ -3567,24 +3922,32 @@ def draw_sort_key(element: Element) -> tuple:
     actually swapped *and* whose boxes overlap, where it can make a visible
     difference.
 
-    Three ranks, in order:
+    Four ranks, in order (docs/plans/02-style-layouts.md §12.3):
 
     * ``0`` for static content, ``1`` for everything else -- the hoist itself;
+    * the **layer** rank ``L`` -- ``0`` for shared content, ``1`` for layout
+      content -- so layout content always draws above shared content, within
+      each of the two buffers this and the rank above already split it into.
+      With ``L = 0`` everywhere (a design with no `layouts:`), this changes
+      nothing: every existing golden file and generated project is
+      byte-identical;
     * ``static_rank``, the position of the element's own root in the authored
       order, which keeps each root's members one unbroken run (the emitter
       writes one ``drawStatic<Id>`` per root and calls each once, so two roots
       interleaving would emit one method twice) and keeps the roots themselves
-      in the order the author's `z:` put them;
+      in the order the author's `z:` put them -- ``0`` for non-static content,
+      where it plays no role;
     * ``z``, then document order as the stable-sort tiebreak, exactly as before.
 
     Device-independent, because every part of it is -- which is what lets
     :meth:`Face.draw_order` and :class:`wfb.layout.Resolver` share it and stay
     in step (`tests/test_static.py` pins the two together).
     """
+    layer = 0 if element.layout is None else 1
     z = element.z if element.z is not None else 0
     if element.static_root is None:
-        return (1, 0, z)
-    return (0, element.static_rank if element.static_rank is not None else 0, z)
+        return (1, layer, 0, z)
+    return (0, layer, element.static_rank if element.static_rank is not None else 0, z)
 
 
 def draw_order(elements: list[Element]) -> list[Element]:
@@ -3595,6 +3958,22 @@ def draw_order(elements: list[Element]) -> list[Element]:
     """
     drawn = [e for e in walk_elements(elements) if e.kind != "group"]
     return sorted(drawn, key=draw_sort_key)
+
+
+def never_together(a: Element, b: Element) -> bool:
+    """True only when `a` and `b` can never be on screen at the same time
+    because they belong to different layouts (docs/plans/02-style-layouts.md
+    §12.1): "two elements are never on screen together exactly when both
+    have a layout and the two layouts differ."  Shared content (`layout is
+    None`) is on screen in every layout, so it is never exempted this way --
+    only a *pair of layout elements*, and only when their layouts disagree.
+
+    The one place this question is asked -- every pairwise "are these ever
+    on screen together" lint check (`hold-overlap`, `static-overlap`) calls
+    this rather than open-coding the `is not None and is not None and !=`
+    it would otherwise repeat at each call site.
+    """
+    return a.layout is not None and b.layout is not None and a.layout != b.layout
 
 
 def build(doc: YamlDocument, bag: Bag) -> Face | None:

@@ -1,8 +1,16 @@
 # Plan 02 — Styles: layouts, colour schemes, or both
 
 - **Date:** 2026-09-13
-- **Status:** proposal. The axis decision is made (below). The YAML shape and
-  naming await the user's review (§11). Nothing here is built.
+- **Status:** built 2026-09-13, all three phases (§12.8). `examples/styles/
+  face.yaml` is the worked example; §12 has the measured `--build-stats`
+  figures and the deviations found while building it.
+- **Status:** (superseded) approved for building, 2026-09-13. The user
+  answered §11 and added one restriction; **§12 records the decisions and
+  the build plan that supersedes §7**. Where §12 disagrees with an earlier
+  section, §12 wins. The earlier sections are kept as written, per house
+  style.
+- **Status:** (superseded) proposal. The axis decision is made (below). The
+  YAML shape and naming await the user's review (§11). Nothing here is built.
 - **Ask:** on a stock face, the native **Style** option changes *which
   elements are drawn* (a digital clock in one style, analog hands in
   another), not just colours. Plan how to build that, and how to write it in
@@ -164,6 +172,9 @@ entry's scheme, in shared and layout content alike.
 
 ### 4.3 Declaring layouts, form B: a per-element property
 
+> **Not built (§12, decision 1).** The user chose form A only. There is no
+> element-level `layouts:` key.
+
 ```yaml
 layouts: [digital, analog]             # declaration only: just the names
 
@@ -203,6 +214,10 @@ it draws in.
 ## 5. Recommendation and semantics
 
 ### 5.0 A is sugar over B
+
+> **Superseded (§12.2).** Form A is still a desugar rewrite, but it rewrites
+> into reserved-id groups, not into a per-element key. Each element belongs to
+> one layout or to none.
 
 This is exactly what the format already does twice. The top-level `static:`
 block is rewritten into a group with `static: true`. The mapping form of
@@ -261,6 +276,11 @@ per frame:       shared elements ->  active layout's elements
 
 ### 5.2 Layout membership rules
 
+> **Simplified (§12.1).** With form A only, membership never nests or
+> intersects, so the push-down and empty-intersection rules below do not
+> apply. The rules for names, unreachable layouts, "no `config: style:`" and
+> `visible:` still hold.
+
 - **On a group, `layouts:` is pushed down and intersected** with each child's
   own set, the same way `visible:` is conjoined (`wfb/ir.py`,
   `_push_visible`).
@@ -306,6 +326,11 @@ element of an inactive layout does nothing**. `hold-overlap` stops reporting
 pairs whose layout sets are disjoint (§6.6).
 
 ### 5.5 `complication_slot` in a layout
+
+> **Superseded by the user, 2026-09-13 (§12, decision 6).** A
+> `complication_slot` is **not allowed** in layout content. Only the shared
+> top-level `elements:` may hold one. The analysis below is kept because it
+> explains the question that decision avoids.
 
 The Data axis is face-wide, since `<data><complication id=…>` is declared
 once. So:
@@ -448,6 +473,9 @@ renderer, so ADR 0004's anti-drift guarantee holds.
 
 ## 7. Phases
 
+> **Superseded by §12.8.** Form B and Phase 4 are gone. The remaining work is
+> re-cut into three phases.
+
 Each step ends green. Every new diagnostic is driven red first, and each
 real build must be warning-free on all three targets.
 
@@ -562,3 +590,216 @@ warning-free build on all three targets, golden output, the cost from
    with B as the escape route? The recommendation is the fixed rule.
 5. **Which example should Phase 2 ship**, given that analog hands do not exist
    yet: two digital layouts, or should hands be planned first?
+
+---
+
+## 12. Decisions of 2026-09-13 and the build plan
+
+### The user's answers
+
+1. **Form A only.** Layouts are declared as containers
+   (`layouts: <name>: {static, elements}`). Form B (§4.3), the element-level
+   `layouts: [..]` key, is **not built**. Authors cannot write membership on
+   an element. Form B's escape routes (an element in 2 of 3 layouts, unusual
+   z-order) are not available. An element in several layouts is written once
+   per layout, or put in shared content.
+2. **Names** as §11 question 2 recommended: `layouts:` for widget sets,
+   `config: style:` for editor entries, and `layout:`/`colors:` on an entry.
+   `config.colors.<role>` in expressions is unchanged.
+3. **`config: colors:` is removed outright**, with no shim. The three designs
+   that use it are migrated in the same change: `examples/config`,
+   `examples/enduro`, and `examples/dashboard`. For `dashboard`, the user's
+   playground, the user explicitly permitted rewriting **only its `config:
+   colors:` block**.
+4. **Z-order is fixed:** layout content always draws above shared content, in
+   its own layer (static and dynamic). There is no `z:` interleaving across
+   the two. A `z:` still orders content *within* the shared content, or
+   *within* one layout's content.
+5. **Example:** two digital layouts. Analog hands stay out of scope (§2).
+6. **New restriction: a `complication_slot` is not allowed in layout
+   content.** Only the shared top-level `elements:` may hold one. This
+   supersedes §5.5 and Phase 4. It is also simpler: the Data axis is
+   face-wide, `drawableFor`/`onTap` need no per-layout dispatch, and the
+   unverified "slot absent from the current layout" editor question (§9)
+   cannot arise.
+
+### 12.1 Membership model
+
+Every element carries `Element.layout: str | None`. `None` means shared,
+drawn in every layout. A name means it is drawn only while that layout is
+active. Form A cannot nest one layout inside another, so there is no push-down
+intersection, no empty set and no `dead-element` case (§5.2's first two
+rules). Two elements are *never on screen together* exactly when both have a
+layout and the two layouts differ.
+
+### 12.2 Desugar (`wfb/desugar.py`)
+
+It runs after the mapping-form rewrite and the top-level `static:` block.
+
+- For each `layouts: <name>:` body in declaration order, `static:` (if
+  present and non-empty) becomes `{id: layout_<name>_static, type: group,
+  static: true, children: [...]}`. `elements:` (if present and non-empty)
+  becomes `{id: layout_<name>, type: group, children: [...]}`. Both are
+  **appended** to `elements:`, static first. Their content goes through the
+  same mapping-form rewrite first.
+- The `static:`/`elements:` keys are then removed from the body, and
+  anything else in it (`lint:`, or an unknown key for the schema to report)
+  stays. After desugar, `layouts:` is a mapping of name to `{}` (or to
+  `{lint: ...}`). That is what carries the declared names and their order
+  into the IR, empty layouts included.
+- Spans use the `_static_block` technique: each group's position is that of
+  the author's `static:`/`elements:` key, and the appended sequence indices
+  get `add_idx_line_col`.
+- **Reserved ids.** One helper defines the naming convention, and the IR
+  imports it. An author id equal to a generated one is an error, and so are
+  two layouts generating the same id (`digital` + `static` against a layout
+  named `digital_static`). The error names both.
+
+The IR assigns `layout = <name>` to each reserved group and every descendant,
+by id. This happens right after `_build_elements` and **before** the static
+checks, so a slot in a layout's `static:` gets the layout error only.
+
+### 12.3 Draw order
+
+`draw_sort_key` gains a layer rank `L` (0 for shared content, 1 for layout
+content): `(0, L, static_rank, z)` for static content and `(1, L, 0, z)`
+otherwise. `authored_draw_order` sorts by `(L, z)`, so `static-overlap` does
+not report the fixed rule as a hoist. With `L = 0` everywhere, existing designs
+order exactly as before, and their golden files do not move.
+
+### 12.4 `config: style:` entries (revises §5.1)
+
+- `choices:` is an ordered mapping of entry name to `{label?, layout?,
+  colors?, lint?}`. `default:` names an entry. `colors:` and `layout:` take
+  **bare names** (`colors: dark`, `layout: digital`), as in §4.1.
+- **`colors:` is all-or-none across entries.** When some entries have it and
+  others do not, that is one error at the first entry that differs. Reading
+  `config.colors.<role>` when no entry carries `colors:` is the existing
+  unknown-reference error, with a note. The rule "rejected when nothing reads
+  `config.colors.*`" in §5.1 is **dropped**; today's behaviour for an unread
+  scheme is kept.
+- **`layout:` is required on every entry when `layouts:` is declared, and
+  rejected when it is not.** Each entry needs at least one of
+  `layout:`/`colors:`.
+- **Label fallback:** an entry with no `label:` and **only** `colors:` takes
+  its scheme's `label:`. That makes the migration of a `config: colors:` block
+  a pure re-spelling with identical `<style>` resources. An entry with a
+  `layout:` gets no fallback.
+- One error, not N, as before: an entry naming an undeclared scheme or layout
+  rejects the whole `config: style:`. A rejected `config: style:` then
+  produces no second error from `config.colors.<role>` readers, from
+  `default:`, or from "`layouts:` with no `config: style:`".
+
+### 12.5 The slot rule
+
+A `complication_slot` whose `layout` is not `None` is an error: one per slot,
+at the slot's own line. The note says that the Data axis is face-wide and the
+slot belongs in the top-level `elements:`. Tests cover three paths: directly
+in `layouts.<n>.elements`, nested in a group there, and in
+`layouts.<n>.static`. The last must yield the layout error alone, not also the
+static one.
+
+### 12.6 Suppression sites
+
+`duplicate-style` and `unreachable-layout` are design-level, not
+element-level, so there is no element `lint:` for them. They are suppressed by
+a `lint: {allow: [...], reason: ...}` on the **style entry** (the second of a
+duplicate pair) and on the **layout body** respectively. Both are checked
+once per design, not once per target. `check_lint_allow` validates both new
+sites.
+
+### 12.7 Lint corrections to §6.6
+
+The pairwise checks that exist are `hold-overlap` and `static-overlap`. There
+is no general `overlap` check. Both skip pairs in different layouts.
+`config-unsupported` on a device with no editor also names the non-default
+style entries as unreachable. Its suppression stays with the elements that
+bind `config.*` colours or slots, as today.
+
+### 12.8 Phases (replaces §7)
+
+Every phase ends with the fast suite at exactly the five known failures. In
+every phase, the generated projects for `examples/slots`, `examples/slice`
+and `examples/static` stay **byte-identical** to the pre-work baseline.
+
+**Phase 1: `config: style:`, colours only.** Schema, IR, codegen
+(`resolveStyle`), resources, lint (`duplicate-style`, scheme dither,
+`config-unsupported`), preview defaults, and the migration of `config`,
+`enduro` and `dashboard` (the config block only). `docs/format.md` is
+updated. The migrated `examples/config` output differs from the baseline only
+in names and comments, and the diff is shown.
+
+**Phase 2: layouts, front end.** The `layouts:` schema, desugar, IR
+membership, `layout:` on entries, every §5.2/§12 diagnostic (driven red),
+the slot rule, `has_config`, draw order, and the static exemption. No
+codegen yet: a design with layouts may fail to generate at this point, but
+not silently. A clear "not implemented yet" is acceptable only as an
+intermediate state inside the phase sequence.
+
+**Phase 3: layouts, back end.** `_configLayout`, `resolveStyle`'s layout
+half, grouped guards in `onUpdate`/`renderStatic`/`onPartialUpdate`, the
+guarded hold hit test through a public view accessor, the lint pair skips,
+`unreachable-layout`, `wfb preview --style`/`--all-styles`, and
+`examples/styles/face.yaml`: shared static and elements (including a
+`complication_slot`), two layouts with their own static and dynamic content,
+two schemes and three entries. It must build warning-free with real
+`monkeyc` on all three targets, with `--build-stats` recorded. The full docs
+sweep from §7's "Docs" paragraph also lands here, minus the templates and the
+skill, which do not mention config today.
+
+---
+
+## §12.9 What shipped, measured (2026-09-13)
+
+All three phases built, in one session each. Two front-end fixes landed in
+Phase 2 after independent review found them: an empty `static: []`/
+`elements: []` inside a `layouts:` body was skipped but the key was not
+popped, which left it for the schema's `minItems: 1` to wrongly reject
+("treated as absent" now really pops it); and the reserved-id collision
+check only scanned the top-level `elements:` list, missing an author id
+nested inside a shared group's own `children:` -- both fixed with a
+dedicated test each (`tests/test_layouts.py`).
+
+**Deviations from this plan, all minor:**
+
+- §6.4's own example shows `_configLayout = 0;` on its own line inside the
+  `if (style == 0)` block, with the naming comment (`// layouts.digital`)
+  *trailing* each line. What shipped keeps Phase 1/2's own convention
+  instead: one *leading* block comment per entry naming everything it sets
+  (`// big_dark -- color_scheme.dark, layouts.big`), then the assignments.
+  Chosen for consistency with the already-reviewed Phase 1/2 code rather
+  than introducing a second comment style partway through one function.
+- §6.4 also describes a `||`-joined guard for "a multi-layout set" (an
+  element belonging to more than one layout). That case cannot arise under
+  form A (§12.1: `Element.layout` is `str | None`, never a set) -- it was
+  relevant only to form B, which §12 decision 1 dropped. The shipped guard
+  helper (`_emit_layout_guarded_calls`) emits a single `==` test; the `||`
+  case is simply unreachable, not implemented-and-untested.
+- `check_config_support`'s message went empty/ungrammatical for the edge
+  case of a layout-only default entry with no other `config:` axis or slot
+  at all (`"...so  keep their declared defaults here"`) -- found by a
+  coordinator hand-probe during Phase 2 review, fixed with a three-way
+  branch on whether there is a colour/slot name to report at all, and a
+  test pinning it (`tests/test_layouts.py`).
+
+**Measured, real `monkeyc`, `--build-stats`, all three targets, all three
+warning-free:**
+
+| Design | fenix8solar47mm | fenix8solar51mm | fr955 |
+|---|---|---|---|
+| `examples/config/face.yaml` (colour axes only, no `layouts:`) | 2,477 B (1.9%) | 2,478 B (1.9%) | 2,477 B (1.9%) |
+| `examples/slots/face.yaml` (Data axis, no `layouts:`) | 6,661 B (5.1%) | 6,662 B (5.1%) | 6,668 B (5.1%) |
+| `examples/styles/face.yaml` (two layouts, three entries, a shared slot) | 5,206 B (4.0%) | 5,207 B (4.0%) | 5,206 B (4.0%) |
+
+`config`/`slots` are unchanged by this plan (no `layouts:`) and are listed
+to show the byte-identity claim held under a real build, not only
+`--no-compile`. `styles` is not a clean isolated "cost of layouts" delta
+against either -- it simply draws more content (two static roots, two
+schemes, a slot, a hold target) -- so it is reported as its own absolute,
+measured figure rather than a subtraction dressed up as one, the same
+restraint ADR 0006 §1's own amendments practise.
+
+`slots`/`slice`/`static`/`config`/`dashboard`'s **generated projects** were
+confirmed byte-identical to the pre-Phase-1 baseline (or, for `config`/
+`dashboard`, to the end of Phase 1) after every phase, `--no-compile` and,
+for `slots`/`config`, through a real `monkeyc` build too.

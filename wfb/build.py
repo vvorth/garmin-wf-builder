@@ -120,6 +120,8 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
 
     lint.check_permissions(face, bag)
     lint.check_lint_allow(face, bag)
+    lint.check_duplicate_style(face, bag)
+    lint.check_unreachable_layout(face, bag)
 
     resolved: dict[str, ResolvedFace] = {}
     baked: dict[str, dict[str, BakedFont]] = {}

@@ -2,7 +2,9 @@
 
 Loaded automatically when working in `examples/`. Each example's header
 comment explains what it exercises; `slots/` is the only one using the Data
-axis (`config: data:`), `config/` the colour axes and `color_scheme:`.
+axis (`config: data:`), `config/` the colour axes and `color_scheme:`, and
+`styles/` `layouts:` and `config: style:` (widget-set switching, not just
+colour -- docs/plans/02-style-layouts.md).
 
 `big-clock-3`, `antialias` and `enduro` carry genuine, user-authored lint
 warnings/errors (see `tests/CLAUDE.md`) -- not bugs to fix unasked.

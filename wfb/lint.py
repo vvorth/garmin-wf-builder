@@ -21,7 +21,8 @@ from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Element, Face, Text, authored_draw_order,
+    CONFIG_SYMBOL, ComplicationSlot, Element, Face, LayoutDecl, StyleEntry, Text,
+    authored_draw_order, never_together,
 )
 from .layout import (
     PlacedProgress, PlacedShape, PlacedText, ResolvedFace, inside_screen,
@@ -37,7 +38,7 @@ SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
     "hold-unsupported", "hold-overlap", "complication-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
-    "config-unsupported",
+    "config-unsupported", "duplicate-style", "unreachable-layout",
 })
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
@@ -54,9 +55,9 @@ ALL_CODES = frozenset({
     "config", "config-unsupported",
     "contrast", "dead-element",
     "element-mapping",
-    "devices", "duplicate-id", "element", "expression",
+    "devices", "duplicate-id", "duplicate-style", "element", "expression",
     "font", "format", "format-version", "graph", "graphics-pool", "icon", "io",
-    "lint-allow", "memory",
+    "layouts", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
     "hold-overlap", "hold-unsupported",
     "hold-auto-ambiguous", "hold-auto-unresolved",
@@ -64,7 +65,7 @@ ALL_CODES = frozenset({
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
     "target",
     "static", "static-overlap", "string-label",
-    "text-antialias",
+    "text-antialias", "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
 
@@ -163,6 +164,129 @@ def check_permissions(face: Face, bag: Bag) -> None:
                     )
 
 
+def check_duplicate_style(face: Face, bag: Bag) -> None:
+    """Two `config: style:` entries with the same `(layout, colors)` pair are
+    indistinguishable on the wrist: the editor lists two entries that look,
+    and behave, identically.  In a design with no `layouts:`, `layout` is
+    `None` on every entry, and this reduces to "two entries name the same
+    `colors:` scheme"; the pair test checks both fields regardless, so a
+    layout-carrying design is covered the same way with no change here.
+
+    A designer may still want this deliberately (two labels while iterating,
+    say), so it is a warning, not an error, and suppressible -- on the
+    *second* entry of the pair, since that is the one that makes the
+    combination a duplicate; the first establishes it and needs no
+    acknowledgement of its own.
+
+    Device-independent (an entry's `layout`/`colors` never varies by
+    target), so -- like :func:`check_permissions` -- this runs once per
+    design, in `resolve_all`, rather than once per target.
+    """
+    axis = face.config_style
+    if axis is None:
+        return
+    seen: dict[tuple[str | None, str | None], StyleEntry] = {}
+    for entry in axis.entries:
+        key = (entry.layout, entry.colors)
+        first = seen.setdefault(key, entry)
+        if first is entry:
+            continue
+        if "duplicate-style" in entry.lint_allow:
+            continue
+        bag.warning(
+            "duplicate-style",
+            f"config.style.choices.{entry.name}: the same combination as "
+            f"'{first.name}' -- indistinguishable on the wrist",
+            entry.span,
+            notes=[
+                f"both resolve to colors: {entry.colors!r}"
+                + (f", layout: {entry.layout!r}" if entry.layout is not None else ""),
+                "set 'lint: {allow: [duplicate-style], reason: ...}' on "
+                f"'{entry.name}' to accept it -- e.g. two labels while "
+                "iterating on the same look",
+            ],
+        )
+
+
+def check_unreachable_layout(face: Face, bag: Bag) -> None:
+    """A declared `layouts:` entry no `config: style:` entry ever names as
+    its `layout:` -- its content ships in the `.prg` (every layout's
+    elements, fonts and code are in the build together, plan 02 §1) but can
+    never be drawn, because nothing lets the wearer switch to it.
+
+    A warning, not an error -- an author may be mid-iteration, with a layout
+    built but not yet wired to an entry -- and suppressible, on the layout's
+    own `lint:` (plan 02 §12.6): a layout has no element of its own to hang
+    `lint:` on, the same reasoning a `config: style:` entry's own `lint:`
+    follows for `duplicate-style`.
+
+    Design-level, not per-target (a layout's reachability never varies by
+    device), so -- like :func:`check_permissions`/:func:`check_duplicate_style`
+    -- this runs once per design, in `resolve_all`, rather than once per
+    target.
+    """
+    if not face.layouts:
+        return
+    referenced: set[str] = set()
+    if face.config_style is not None:
+        referenced = {e.layout for e in face.config_style.entries if e.layout is not None}
+    for name in face.layouts:
+        if name in referenced:
+            continue
+        decl = face.layout_decls[name]
+        if "unreachable-layout" in decl.lint_allow:
+            continue
+        bag.warning(
+            "unreachable-layout",
+            f"layouts.{name}: no 'config: style:' entry names it as its "
+            f"'layout:' -- it can never be drawn",
+            decl.span,
+            notes=[
+                "its elements, fonts and code still ship in the .prg -- "
+                "content is not free even though a style entry is",
+                "name it from a 'config: style:' entry's 'layout:', or "
+                "delete the layout",
+                "set 'lint: {allow: [unreachable-layout], reason: ...}' on "
+                f"'layouts.{name}' to accept it",
+            ],
+        )
+
+
+def _check_one_lint_allow(bag: Bag, what: str, span, code: str) -> None:
+    """The body of :func:`check_lint_allow`, for one `lint: {allow: [...]}`
+    code on one owner -- an element (`what` is its id) or a `config: style:`
+    entry (`what` is `config.style.choices.<name>`).  Factored out so both
+    owners get byte-identical error text and the same registry lookups.
+    """
+    if code in SUPPRESSIBLE:
+        return
+    if code in ALL_CODES:
+        bag.error(
+            "lint-allow",
+            f"{what}: {code!r} is a real diagnostic code, but it is "
+            f"deliberately not suppressible",
+            span,
+            notes=[
+                "the hard-platform-limit checks stay unsuppressible on purpose: "
+                "silencing one would produce a face that does not work",
+                "suppressible codes: " + ", ".join(sorted(SUPPRESSIBLE)),
+            ],
+            confidence="exact -- SUPPRESSIBLE is this file's own registry",
+        )
+        return
+    near = difflib.get_close_matches(code, ALL_CODES, n=1, cutoff=0.6)
+    notes = ["suppressible codes: " + ", ".join(sorted(SUPPRESSIBLE))]
+    if near:
+        notes.insert(0, f"did you mean {near[0]!r}?")
+    bag.error(
+        "lint-allow",
+        f"{what}: {code!r} is not a diagnostic code this compiler emits",
+        span,
+        notes=notes,
+        confidence="exact -- SUPPRESSIBLE is this file's own registry",
+    )
+
+
 def check_lint_allow(face: Face, bag: Bag) -> None:
     """A ``lint: {allow: [...]}`` entry must name a code this compiler can
     actually suppress.
@@ -175,38 +299,24 @@ def check_lint_allow(face: Face, bag: Bag) -> None:
 
     An element's ``lint_allow`` is fixed once the IR is built, before any
     device is resolved, so -- like :func:`check_permissions` -- this runs once
-    per build rather than once per device.
+    per build rather than once per device.  A `config: style:` entry's own
+    ``lint:`` (the suppression site for `duplicate-style`) and a `layouts:`
+    entry's own ``lint:`` (the suppression site for `unreachable-layout`,
+    plan 02 §12.6) are both validated the same way, through the same helper
+    -- there is no per-target device dependency at either site either.
     """
     for element in face.walk():
         for code in sorted(element.lint_allow):
-            if code in SUPPRESSIBLE:
-                continue
-            span = element.span
-            if code in ALL_CODES:
-                bag.error(
-                    "lint-allow",
-                    f"{element.id}: {code!r} is a real diagnostic code, but it is "
-                    f"deliberately not suppressible",
-                    span,
-                    notes=[
-                        "the hard-platform-limit checks stay unsuppressible on purpose: "
-                        "silencing one would produce a face that does not work",
-                        "suppressible codes: " + ", ".join(sorted(SUPPRESSIBLE)),
-                    ],
-                    confidence="exact -- SUPPRESSIBLE is this file's own registry",
-                )
-                continue
-            near = difflib.get_close_matches(code, ALL_CODES, n=1, cutoff=0.6)
-            notes = ["suppressible codes: " + ", ".join(sorted(SUPPRESSIBLE))]
-            if near:
-                notes.insert(0, f"did you mean {near[0]!r}?")
-            bag.error(
-                "lint-allow",
-                f"{element.id}: {code!r} is not a diagnostic code this compiler emits",
-                span,
-                notes=notes,
-                confidence="exact -- SUPPRESSIBLE is this file's own registry",
-            )
+            _check_one_lint_allow(bag, element.id, element.span, code)
+    if face.config_style is not None:
+        for entry in face.config_style.entries:
+            for code in sorted(entry.lint_allow):
+                _check_one_lint_allow(
+                    bag, f"config.style.choices.{entry.name}", entry.span, code)
+    for name in face.layouts:
+        decl = face.layout_decls[name]
+        for code in sorted(decl.lint_allow):
+            _check_one_lint_allow(bag, f"layouts.{name}", decl.span, code)
 
 
 # -- check 3: palette legality ---------------------------------------------
@@ -463,29 +573,36 @@ def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
-    """Every colour a `config: colors:` axis can ever put on screen, checked
-    the same way a `config:` colour axis is.
+    """Every colour a `config: style:` entry's `colors:` can ever put on
+    screen, checked the same way a `config:` colour axis is.
 
     A `color_scheme:` entry has no `choices: any` equivalent -- Styles has no
-    unrestricted picker -- so every role of every scheme actually listed in
-    `config.colors`' `choices:` is checked, the same "every listed choice, not
-    only the default" scope :func:`check_config_palette` gives an explicit
-    list.  A scheme declared but never put in `choices:` is unreachable on any
-    device (`resolveColorScheme` only ever assigns for `choices:` entries), so
-    it is not checked here -- there is nothing on the wrist for the warning to
-    be about.
+    unrestricted picker -- so every role of every scheme some entry actually
+    references is checked, the same "every listed choice, not only the
+    default" scope :func:`check_config_palette` gives an explicit list.  Two
+    entries may reference the same scheme (that is exactly what makes them
+    `duplicate-style` candidates), so the schemes checked here are
+    deduplicated, in first-reference order.  A scheme declared but never
+    referenced by any entry is unreachable on any device (`resolveStyle`
+    only ever assigns for a referenced scheme), so it is not checked here --
+    there is nothing on the wrist for the warning to be about.
     """
     colors = resolved.device.display_colors
     if colors is None:
         return  # check_palette already emits the one "not checked" note per device
-    axis = resolved.face.config_colors
+    axis = resolved.face.config_style
     if axis is None:
         return
-    roles = sorted(resolved.face.color_scheme[axis.default].colors)
+    default_entry = axis.default_entry
+    if default_entry.colors is None:
+        return  # a layout-only default entry has no scheme role to check
+    roles = sorted(resolved.face.color_scheme[default_entry.colors].colors)
+    scheme_names = list(dict.fromkeys(
+        e.colors for e in axis.entries if e.colors is not None))
     for role in roles:
         offenders = [
             (name, resolved.face.color_scheme[name].colors[role])
-            for name in axis.choices
+            for name in scheme_names
         ]
         bad = [(name, c) for name, c in offenders if not c.is_palette_legal(colors)]
         if not bad:
@@ -534,12 +651,26 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
 
     names_list = [f"config.{name}" for name in sorted(config)]
     role_tokens: list[str] = []
-    if face.config_colors is not None:
-        default_scheme = face.color_scheme[face.config_colors.default]
-        role_tokens = [f"config.colors.{role}" for role in sorted(default_scheme.colors)]
-        names_list += role_tokens
+    non_default_entries: list[str] = []
+    if face.config_style is not None:
+        default_entry = face.config_style.default_entry
+        if default_entry.colors is not None:
+            # A layout-only default entry names no role at all -- there is no
+            # scheme to read one from.
+            default_scheme = face.color_scheme[default_entry.colors]
+            role_tokens = [f"config.colors.{role}" for role in sorted(default_scheme.colors)]
+            names_list += role_tokens
+        non_default_entries = [
+            e.name for e in face.config_style.entries if e.name != face.config_style.default
+        ]
     slot_tokens = [f"config.data.{name}" for name in sorted(face.config_data)]
     names_list += slot_tokens
+    if not names_list and not non_default_entries:
+        # Nothing the wearer could ever observe differently: no colour axis,
+        # no role, no slot, and (a single-entry `config: style:`) no
+        # unreachable entry either -- a design this trivial has nothing for
+        # `config-unsupported` to be about.
+        return
     names = ", ".join(names_list)
     # `_config_users`/`_config_colors_role_users`/`_slot_users` return raw IR
     # Elements, from `Face.walk()`, not the `resolved.items` layout wrappers
@@ -560,23 +691,44 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
         "this follows from ADR 0006 2's chosen scope -- the native editor is "
         "fēnix 8 and newer only -- not from a missing feature in this compiler",
     ]
+    if len(non_default_entries) >= 1:
+        notes.append(
+            "with no editor to switch styles, every 'config: style:' entry but "
+            f"the default ({face.config_style.default!r}) is unreachable here: "
+            + ", ".join(non_default_entries)
+        )
     if users:
         suppress_note = (
             "set 'lint: {allow: [config-unsupported], reason: ...}' on the "
             f"element whose 'color:'/'track_color:' or 'slot:' is one of {names} "
             "to accept it"
         )
-    else:
+    elif names:
         suppress_note = (
             f"no element's 'color:'/'track_color:'/'slot:' is exactly one of "
             f"{names}, so there is nowhere to put "
             "'lint: {allow: [config-unsupported]}' for it"
         )
+    else:
+        # `names` is empty exactly when every `config: style:` entry is
+        # layout-only (no `colors:` anywhere) and there is no other config
+        # axis or slot either -- `non_default_entries` alone is why this
+        # fired at all, so there is no element-level `color:`/`track_color:`/
+        # `slot:` to point the suppress note at in the first place.
+        suppress_note = (
+            "nothing here binds a 'color:'/'track_color:'/'slot:' at all -- "
+            "this is purely about the unreachable style entries named above"
+        )
+    if names:
+        message = (f"{device.id}: has no on-device watch face editor, so "
+                   f"{names} keep their declared defaults here")
+    else:
+        message = (f"{device.id}: has no on-device watch face editor, so "
+                   f"every 'config: style:' entry but the default is stuck there")
     _emit_for_element(bag, users, Diagnostic(
         Severity.WARNING,
         "config-unsupported",
-        f"{device.id}: has no on-device watch face editor, so {names} "
-        f"keep their declared defaults here",
+        message,
         notes=notes + [suppress_note],
         confidence="exact -- the device's own api.debug.xml",
     ))
@@ -789,6 +941,13 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
        regardless of how tight its own clip is -- reported against that
        specific element, so ``lint: {allow: [partial-update-budget]}`` on it
        silences just that one.
+
+    ``resolved.clip_for("low_power")`` unions low-power elements across
+    *every* layout, deliberately -- conservative rather than wrong, since a
+    per-layout clip is not something this stage can compute (see that
+    method's own docstring, ``wfb/layout.py``).  A design with two layouts,
+    each with its own small low-power reading, is measured here as if both
+    were on screen together.
     """
     clip = resolved.clip_for("low_power")
     if clip is None:
@@ -996,10 +1155,18 @@ def check_hold_targets(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 def _overlapping(held: list) -> list[tuple]:
-    """Pairs whose hit rectangles intersect, earlier element first."""
+    """Pairs whose hit rectangles intersect, earlier element first.
+
+    A pair `ir.never_together` rules out is skipped: two hold targets in
+    different layouts are never on screen at the same time, so a wearer's
+    touch can never land on both at once regardless of where their boxes
+    fall (docs/plans/02-style-layouts.md §12.1, §12.7).
+    """
     out = []
     for index, later in enumerate(held):
         for earlier in held[:index]:
+            if never_together(earlier.element, later.element):
+                continue
             if _intersects(earlier.box, later.box):
                 out.append((earlier, later))
     return out
@@ -1174,7 +1341,11 @@ def check_static_overlap(resolved: ResolvedFace, bag: Bag) -> None:
 
     Only the pairs the hoist actually swapped are reported, and only where the
     boxes intersect: a static decoration in one corner and a dynamic reading in
-    another swap order every time and never once look different for it.
+    another swap order every time and never once look different for it.  A
+    pair in different modes, or in different layouts (`ir.never_together`),
+    is never on screen together at all, so overlapping boxes there mean
+    nothing -- a digital clock and analog hands sharing the centre on
+    purpose is exactly this case (plan 02 §12.7).
 
     A WARNING, not an error, and suppressible: the element on top is usually
     where the author wanted it anyway -- writing the static content first says
@@ -1202,6 +1373,8 @@ def check_static_overlap(resolved: ResolvedFace, bag: Bag) -> None:
                 continue
             if not set(top.element.modes) & set(bottom.element.modes):
                 continue  # they are never on screen at the same time
+            if never_together(top.element, bottom.element):
+                continue  # different layouts -- never on screen together either
             if not _intersects(top.box, bottom.box):
                 continue
             covered.setdefault(top.id, []).append(bottom.id)

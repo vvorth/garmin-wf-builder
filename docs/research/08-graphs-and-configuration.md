@@ -193,6 +193,20 @@ group than a 47 mm one, with the whole switch folded away at build time.
 persistence machinery — but it is a second, invisible selection mechanism
 competing with the editor's own, and the format is better with one story.
 
+> **Built 2026-09-13, in a different shape than sketched above**
+> (`docs/plans/02-style-layouts.md`, ADR 0006 §1 fifth amendment). The
+> sketch's `styles:`/`variant` naming did not ship: the user chose `layouts:`
+> for the widget-set half (reserving "style" for exactly Garmin's own axis)
+> and **form A only** — a layout is a container
+> (`layouts: <name>: {static, elements}`), not the element-level `styles:
+> [minimal, rich]` membership list floated here, which this project calls
+> "form B" and does not build. The "three areas × four styles is four
+> entries, not sixty-four" arithmetic is exactly what shipped:
+> `config: style:` is an author-written, ordered list of entries, each
+> naming a layout, a `color_scheme:`, or both — no generated product. Hold-
+> to-cycle stayed declined. `select: fixed`/per-device `overrides:` remain
+> unbuilt, unrelated to this feature.
+
 ---
 
 ## 5. What this does not answer

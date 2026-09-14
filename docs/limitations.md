@@ -483,7 +483,12 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
-| Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1, twice amended. All four config axes (`config:`, `docs/format.md` "Configuration") shipped, `complication_slot` included, and so is the editor's animated highlight on the Data axis (`AppBase.onStart`/`WatchFaceDelegate.onTap`+`getComplicationDrawable`, docs/format.md "Configuration"). Phone-side settings is the one piece of ADR 0006 §1 still unbuilt, and the only route that would give `fr955` any configuration at all |
+| Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1, five times amended. All four config axes (`config:`, `docs/format.md` "Configuration") shipped, `complication_slot` included, and so is the editor's animated highlight on the Data axis (`AppBase.onStart`/`WatchFaceDelegate.onTap`+`getComplicationDrawable`, docs/format.md "Configuration"), and so is Styles carrying `layouts:` (widget-set switching, not just colour). Phone-side settings is the one piece of ADR 0006 §1 still unbuilt, and the only route that would give `fr955` any configuration at all |
+| `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | `docs/plans/02-style-layouts.md` §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
+| A `complication_slot` inside a `layouts:` body | `docs/plans/02-style-layouts.md` §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
+| Per-layout fonts, or a per-layout `onPartialUpdate` clip | `docs/plans/02-style-layouts.md` §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions low-power elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
+| Moving a per-frame data-source read inside its own layout's guard (only the draw calls are guarded; every read still runs every frame) | `docs/plans/02-style-layouts.md` §6.4 -- a later optimisation, only worth doing if measured |
+| The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | `docs/plans/02-style-layouts.md` §6.8 -- needs a probe, only worth doing if fr955 runs short of memory |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
 | Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
@@ -491,6 +496,19 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
 | ADR 0008's check 2, **unsupported API for a targeted device**, for anything other than `on_hold:` | `on_hold:` resolves `WatchFaceDelegate.onPress` against each device's own symbol table, so the machinery is live — but `catalog.Source.requires` still consults nothing; §3 below has the detail |
 | `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
+
+**None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
+verified anywhere in this project** (`docs/plans/02-style-layouts.md` §9,
+the same standing "no simulator in this container, no watch" caveat every
+`config:` feature in this table carries): whether the editor lists a
+`<style>` entry's label and previews it live as the wearer scrolls, whether
+the static buffer repaints promptly on a style edit, and whether a
+layout-scoped `on_hold:` hit region reads correctly on a real touchscreen
+are all open questions. What *is* verified is what this project always
+verifies for a feature like this: a warning-free real `monkeyc` build on
+all three targets, the measured `--build-stats` figure, and `wfb preview
+--style`/`--all-styles` rendering from the same resolved geometry the
+generated code draws from.
 
 **The refresh-tier concept (ADR 0005 §5) shipped and was then deleted
 outright**, on the user's own explicit instruction: `catalog.Tier`,

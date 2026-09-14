@@ -112,7 +112,7 @@ def test_has_config_is_true_for_data_alone(write_design, bag):
     data_color/colors at all, only `config: data:`."""
     face = _face(DESIGN, write_design, bag)
     assert not face.config
-    assert face.config_colors is None
+    assert face.config_style is None
     assert face.has_config
 
 

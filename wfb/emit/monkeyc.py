@@ -413,11 +413,24 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
             for element in targets:
                 prefix = _const_prefix(element.id)
                 w.blank()
+                # A hold target that belongs to a layout only fires while
+                # that layout is the active one -- folded into the same hit
+                # test rather than a separate guard around it, through the
+                # view's own configLayout() (the delegate cannot read a
+                # private field on another class -- CLAUDE.md,
+                # docs/lore/monkeyc.md).  Plan 02 §5.4: unlike `visible:`,
+                # which keeps its hold region while hidden because the
+                # delegate cannot see that frame's readings, the layout *is*
+                # a view field the delegate already has a handle to.
+                layout_test = (
+                    f" && _view.{CONFIG_LAYOUT_METHOD}() == {face.layouts.index(element.layout)}"
+                    if element.layout is not None else ""
+                )
                 condition = (
                     f"if (x >= Layout.{prefix}_HOLD_X && "
                     f"x < Layout.{prefix}_HOLD_X + Layout.{prefix}_HOLD_WIDTH\n"
                     f"        && y >= Layout.{prefix}_HOLD_Y && "
-                    f"y < Layout.{prefix}_HOLD_Y + Layout.{prefix}_HOLD_HEIGHT)"
+                    f"y < Layout.{prefix}_HOLD_Y + Layout.{prefix}_HOLD_HEIGHT{layout_test})"
                 )
                 if isinstance(element, ComplicationSlot):
                     w.comment(f"`{element.id}` -> whatever the wearer picked for "
@@ -945,6 +958,8 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
             _emit_antialias_helper(w)
         if face.has_config:
             _emit_apply_config(w, face, static)
+        if face.has_config and any(t.layout is not None for t in hold_targets(face)):
+            _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static)
         _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
         if resolved.in_mode("low_power") and device.supports_partial_update:
@@ -962,7 +977,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
         if slot_pairs:
             _emit_complication_slot_editor_methods(w, face, slot_pairs)
         if static is not None:
-            _emit_static_methods(w, static, antialias_default, needs_repaint=face.has_config)
+            _emit_static_methods(w, face, static, antialias_default, needs_repaint=face.has_config)
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
@@ -1038,7 +1053,7 @@ def _emit_static_blit(w: Writer, static: "StaticPlan") -> None:
         w.line(f"{STATIC_RENDER}(dc);")
 
 
-def _emit_static_methods(w: Writer, static: "StaticPlan",
+def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
                          antialias_default: bool | None = None,
                          needs_repaint: bool = False) -> None:
     """`renderStatic`, plus one `drawStatic<Id>` per static *group*.
@@ -1062,6 +1077,15 @@ def _emit_static_methods(w: Writer, static: "StaticPlan",
     screen's, and putting the reset inside `renderStatic` itself, rather than
     at each of its two call sites, is what keeps that true without saying it
     twice.
+
+    Each root's *call* -- not its `drawStatic<Id>` body -- is what a layout
+    guard wraps: a static root's members are all shared, or all one layout's
+    own (`Builder._apply_static` marks a whole subtree from one root, and
+    `Builder._assign_layouts` stamps `Element.layout` on a whole subtree from
+    one synthetic group, so the two can never disagree within one root --
+    asserted below, not just assumed).  `drawStatic<Id>` itself stays
+    unguarded, the same body regardless of which layout is active, because it
+    is only ever called from behind that one guard.
     """
     w.blank()
     w.doc("Everything that never changes, drawn once.\n"
@@ -1076,8 +1100,14 @@ def _emit_static_methods(w: Writer, static: "StaticPlan",
         w.line("dc.clear();")
         if antialias_default is not None:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
-        for root, _members in static.groups:
-            w.line(f"{static.method(root)}(dc);")
+        calls = []
+        for root, members in static.groups:
+            assert all(p.element.layout == root.element.layout for p in members), (
+                f"static root {root.id!r} mixes layouts across its own members -- "
+                "_apply_static/_assign_layouts should make that unreachable"
+            )
+            calls.append((root.element, f"{static.method(root)}(dc);"))
+        _emit_layout_guarded_calls(w, face, calls)
     if needs_repaint:
         w.blank()
         w.doc("Re-paint the static buffer from the current field values, in place.\n"
@@ -1117,18 +1147,20 @@ def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
 
 
 def _emit_config_fields(w: Writer, face: Face) -> None:
-    """One field per declared `config:` colour entry, one per role of a
-    declared `config: colors:` (Styles) axis, and one `Complications.Id` per
-    declared `config: data:` slot -- each initialised to its compiled-in
-    default.
+    """One field per declared `config:` colour entry, one per role of the
+    *default* `config: style:` entry's `color_scheme:`, and one
+    `Complications.Id` per declared `config: data:` slot -- each initialised
+    to its compiled-in default.
 
     The compiled-in default is not a fallback path -- it is *the* path: a
     device with no native editor (fr955) never calls `applyConfig` at all
-    and simply keeps running with this.  A `config: colors:` role starts at
-    the *default scheme's* colour for that role, and a `config: data:` slot
-    starts at its own declared `default:` type, the same "default is the
-    path, not a fallback" reasoning applied to a colour and a complication
-    type alike.
+    and simply keeps running with this.  A Styles role starts at the
+    *default entry's* scheme colour for that role, and a `config: data:`
+    slot starts at its own declared `default:` type, the same "default is
+    the path, not a fallback" reasoning applied to a colour and a
+    complication type alike.  A layout-only default entry (`colors is
+    None`) has no scheme to start a role from, so it emits no role fields at
+    all.
     """
     if not face.has_config:
         return
@@ -1139,11 +1171,20 @@ def _emit_config_fields(w: Writer, face: Face) -> None:
           "the only value a device with no editor -- fr955 -- ever shows.")
     for name, entry in face.config.items():
         w.line(f"private var {entry.field} as Number = {entry.default.as_monkeyc()};")
-    if face.config_colors is not None:
-        default_scheme = face.color_scheme[face.config_colors.default]
+    if face.config_style is not None and face.config_style.default_entry.colors is not None:
+        default_scheme = face.color_scheme[face.config_style.default_entry.colors]
         for role, color in default_scheme.colors.items():
             field = config_field(f"colors_{role}")
             w.line(f"private var {field} as Number = {color.as_monkeyc()};")
+    if face.layouts:
+        # The default entry's layout, in declaration order -- always set,
+        # since `layout:` is required on every entry once `layouts:` is
+        # declared (plan 02 §12.4).  Not a fallback path: fr955 has no
+        # native editor and never calls `applyConfig` at all, so this is the
+        # only layout it ever shows.
+        default_layout = face.config_style.default_entry.layout
+        default_index = face.layouts.index(default_layout)
+        w.line(f"private var {CONFIG_LAYOUT_FIELD} as Number = {default_index};")
     for name, slot in face.config_data.items():
         ctype = complications.TYPES[slot.default]
         w.line(f"private var {slot.field} as Complications.Id = "
@@ -1160,9 +1201,9 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
     is `Color?` and its own `.color` is `ColorType?` again
     (`docs/research/probes/watchface-config/`) -- so each axis gets its own
     two-deep guard, matching the probe's `apply()` exactly rather than
-    inventing a shorter form.  `styleId` (the `config: colors:` axis, if
+    inventing a shorter form.  `styleId` (the `config: style:` axis, if
     declared) is only nullable once, and is range-checked rather than
-    dereferenced twice -- see `_emit_resolve_color_scheme`.
+    dereferenced twice -- see `_emit_resolve_style`.
     """
     w.doc(
         "Apply one WatchFaceConfig.Settings snapshot.\n"
@@ -1172,14 +1213,14 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
     )
 
     with w.block("function applyConfig(settings as WatchFaceConfig.Settings) as Void"):
-        if face.config_colors is not None:
+        if face.config_style is not None:
             style_local = local_name("config_style")
             w.line(f"var {style_local} = settings.styleId;")
             with w.block(
                 f"if ({style_local} != null && {style_local} >= 0 && "
-                f"{style_local} < {len(face.config_colors.choices)})"
+                f"{style_local} < {len(face.config_style.entries)})"
             ):
-                w.line(f"{RESOLVE_COLOR_SCHEME_METHOD}({style_local});")
+                w.line(f"{RESOLVE_STYLE_METHOD}({style_local});")
         for name, entry in face.config.items():
             axis = entry.axis
             local = local_name(f"config_{name}")
@@ -1206,7 +1247,7 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
                     # chain -- `unique` cannot equal two distinct slot ids at
                     # once, so the two are equivalent, and independent blocks
                     # are simpler for `Writer` to emit correctly (the same
-                    # reasoning `_emit_resolve_color_scheme` already uses).
+                    # reasoning `_emit_resolve_style` already uses).
                     for name, slot_id in ids.items():
                         slot = face.config_data[name]
                         with w.block(f"if (unique == {slot_id})"):
@@ -1218,46 +1259,93 @@ def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> No
             w.line(f"{REPAINT_STATIC_METHOD}();")
         w.line("WatchUi.requestUpdate();")
     w.blank()
-    if face.config_colors is not None:
-        _emit_resolve_color_scheme(w, face)
+    if face.config_style is not None:
+        _emit_resolve_style(w, face)
 
 
-#: Fixed generated method name -- there is at most one `config: colors:` axis
+def _emit_config_layout_accessor(w: Writer) -> None:
+    """`configLayout()` -- the view's public accessor for `_configLayout`.
+
+    Public, not `private`: the one and only reader is the generated
+    delegate's `onPress`, a *different* class, and `private` genuinely
+    blocks a cross-class method call (confirmed by building both ways --
+    docs/lore/monkeyc.md) the same way it would a field.  Emitted only when
+    some `on_hold:` target actually belongs to a layout (`emit_view`'s own
+    call site) -- there is no reason to emit a method nothing calls.
+    """
+    w.doc("The active layout's index, for the delegate's onPress to test a "
+          "layout-scoped\n"
+          "hold target against.  Public: a delegate method cannot reach a "
+          "private field\n"
+          "on this class.")
+    with w.block(f"function {CONFIG_LAYOUT_METHOD}() as Number"):
+        w.line(f"return {CONFIG_LAYOUT_FIELD};")
+    w.blank()
+
+
+#: Fixed generated method name -- there is at most one `config: style:` axis
 #: per face (unlike `drawStatic<Id>`/`draw<Id>`, nothing here is derived from
 #: an author id), so it needs no per-design collision check the way those do.
-RESOLVE_COLOR_SCHEME_METHOD = "resolveColorScheme"
+RESOLVE_STYLE_METHOD = "resolveStyle"
+
+#: The view field the active layout's declaration-order index is cached in
+#: -- `_configLayout`, read by every guard below (`_emit_layout_guarded_calls`)
+#: and by the view's own `configLayout()` accessor.  Emitted only when
+#: `face.layouts` is non-empty: there is nothing for it to hold otherwise.
+CONFIG_LAYOUT_FIELD = config_field("layout")
+
+#: The view's public accessor for `CONFIG_LAYOUT_FIELD`, emitted only when
+#: some `on_hold:` target belongs to a layout -- the delegate's `onPress`
+#: is the only cross-class reader (`_view.configLayout()`), and `private`
+#: genuinely blocks a cross-class call (docs/lore/monkeyc.md).
+CONFIG_LAYOUT_METHOD = "configLayout"
 
 
-def _emit_resolve_color_scheme(w: Writer, face: Face) -> None:
-    """`resolveColorScheme` -- decode one Styles id into this design's
-    `color_scheme:` roles.
+def _emit_resolve_style(w: Writer, face: Face) -> None:
+    """`resolveStyle` -- decode one Styles id into this design's `config:
+    style:` entries.
 
-    A colour *scheme* is several colours moving together, which no single
-    native colour axis can carry (docs/research/09 §3), so it rides Styles --
-    the one axis Garmin gives no meaning to -- and this is the only place
-    that meaning is assigned, in `choices:` order, index 0 first.  Plain
-    sequential `if`s rather than an `if`/`else if` chain: `style` cannot equal
-    two distinct literals at once, so the two are equivalent, and independent
-    blocks are simpler for `Writer` to emit correctly.
+    One `if (style == i)` block per entry, in `choices:` order (index 0
+    first, matching `<style id="N">` in the generated resource) -- this is
+    the only place a `styleId` (an opaque `Number` Garmin gives no meaning to
+    at all, docs/research/09 §3) is given one.  A colour-carrying entry's
+    block assigns that entry's scheme's roles; a layout-carrying entry's also
+    sets `_configLayout` to that layout's declaration-order index (the same
+    index `docs/plans/02-style-layouts.md §12.2`'s desugar rewrite and every
+    guard below test).  A layout-only entry has no colour lines, and a
+    colour-only entry has no `_configLayout` line -- both read straight off
+    which of `entry.colors`/`entry.layout` is set.  Plain sequential `if`s
+    rather than an `if`/`else if` chain: `style` cannot equal two distinct
+    literals at once, so the two are equivalent, and independent blocks are
+    simpler for `Writer` to emit correctly.
 
     An out-of-range id is guarded by the caller (`applyConfig`) before this is
     ever called, and any id it does not recognise here is silently ignored: a
-    rebuild with fewer schemes can leave a saved style id past the end.
+    rebuild with fewer entries can leave a saved style id past the end.
     """
-    assert face.config_colors is not None
+    assert face.config_style is not None
     w.doc(
-        "Decode one Styles id into this design's color_scheme roles.  styleId is\n"
+        "Decode one Styles id into this design's config: style: entries.  styleId is\n"
         "an opaque Number Garmin gives no meaning to -- this is the only place\n"
         "that meaning is assigned, in 'choices:' order, index 0 first."
     )
-    with w.block(f"private function {RESOLVE_COLOR_SCHEME_METHOD}(style as Number) as Void"):
-        for index, scheme_name in enumerate(face.config_colors.choices):
-            scheme = face.color_scheme[scheme_name]
+    with w.block(f"private function {RESOLVE_STYLE_METHOD}(style as Number) as Void"):
+        for index, entry in enumerate(face.config_style.entries):
             with w.block(f"if (style == {index})"):
-                w.comment(f"color_scheme.{scheme_name}")
-                for role, color in scheme.colors.items():
-                    field = config_field(f"colors_{role}")
-                    w.line(f"{field} = {color.as_monkeyc()};")
+                comment = []
+                if entry.colors is not None:
+                    comment.append(f"color_scheme.{entry.colors}")
+                if entry.layout is not None:
+                    comment.append(f"layouts.{entry.layout}")
+                w.comment(f"{entry.name} -- {', '.join(comment)}")
+                if entry.colors is not None:
+                    scheme = face.color_scheme[entry.colors]
+                    for role, color in scheme.colors.items():
+                        field = config_field(f"colors_{role}")
+                        w.line(f"{field} = {color.as_monkeyc()};")
+                if entry.layout is not None:
+                    layout_index = face.layouts.index(entry.layout)
+                    w.line(f"{CONFIG_LAYOUT_FIELD} = {layout_index};")
     w.blank()
 
 
@@ -1383,6 +1471,43 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_
     w.blank()
 
 
+def _emit_layout_guarded_calls(w: Writer, face: Face, calls: list) -> None:
+    """Emit a sequence of ``(element, call_line)`` pairs, grouping
+    *consecutive* calls whose ``element.layout`` agrees into one
+    ``if (_configLayout == N) { ... }`` block; ``layout is None`` (shared
+    content) emits with no guard at all -- **guards test the layout, never
+    the config entry** (docs/plans/02-style-layouts.md §6.4): however many
+    `config: style:` entries share one layout, this still emits only the one
+    guard for it.
+
+    The one place any draw sequence decides how a layout gates a call, so
+    ``_emit_mode_body``, ``_emit_on_partial_update`` and
+    ``_emit_static_methods``'s per-root calls in ``renderStatic`` cannot
+    drift into guarding differently.  A design with no `layouts:` has
+    ``element.layout is None`` on every element, so every call falls into
+    the single unguarded branch below and the emitted sequence is exactly
+    what it always was -- the golden files and the baseline byte-identity
+    both rest on that.
+    """
+    index = 0
+    total = len(calls)
+    while index < total:
+        element, line = calls[index]
+        layout = element.layout
+        end = index + 1
+        while end < total and calls[end][0].layout == layout:
+            end += 1
+        if layout is None:
+            for k in range(index, end):
+                w.line(calls[k][1])
+        else:
+            guard = f"{CONFIG_LAYOUT_FIELD} == {face.layouts.index(layout)}"
+            with w.block(f"if ({guard})"):
+                for k in range(index, end):
+                    w.line(calls[k][1])
+        index = end
+
+
 def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: str,
                     static: "StaticPlan | None") -> None:
     """One mode's draw sequence: the static blit, then everything dynamic."""
@@ -1390,15 +1515,21 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
     if buffered:
         _emit_static_blit(w, static)
         w.blank()
+    # Reads everything unconditionally, layout guards included below -- a
+    # read only a hidden layout's element uses is wasted work.  A real
+    # optimisation (moving reads inside the guards), left for later and only
+    # worth doing if it is measured (plan 02 §6.4).
     plan.emit_reads(w, mode)
     w.blank()
     skip = static.ids if static is not None else set()
+    calls = []
     for placed in resolved.items:
         if placed.kind == "group" or mode not in placed.element.modes:
             continue
         if placed.id in skip:
             continue  # painted into the buffer above
-        w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
+        calls.append((placed.element, f"{_method(placed.id)}(dc{plan.arguments(placed)});"))
+    _emit_layout_guarded_calls(w, resolved.face, calls)
 
 
 def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
@@ -1428,10 +1559,12 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         plan.emit_reads(w, "low_power")
         w.blank()
+        calls = []
         for placed in resolved.items:
             if placed.kind == "group" or "low_power" not in placed.element.modes:
                 continue
-            w.line(f"{_method(placed.id)}(dc{plan.arguments(placed)});")
+            calls.append((placed.element, f"{_method(placed.id)}(dc{plan.arguments(placed)});"))
+        _emit_layout_guarded_calls(w, resolved.face, calls)
         w.line("dc.clearClip();")
     w.blank()
 

@@ -65,7 +65,7 @@
       }
     },
     "color_scheme": {
-      "description": "Named role -> colour sets, picked on-device via 'config: colors:' -- the Styles axis, the only one Garmin's native editor gives no meaning to (docs/research/09-data-library-and-config-axes.md §3). Every entry must declare the identical set of roles, or 'config.colors.<role>' would be undefined whenever the wearer picks the one that lacks it.",
+      "description": "Named role -> colour sets, picked on-device via a 'config: style:' entry's 'colors:' -- the Styles axis, the only one Garmin's native editor gives no meaning to (docs/research/09-data-library-and-config-axes.md §3). Every entry must declare the identical set of roles, or 'config.colors.<role>' would be undefined whenever the wearer picks a style entry that lacks it.",
       "type": "object",
       "minProperties": 1,
       "propertyNames": {
@@ -76,7 +76,7 @@
       }
     },
     "config": {
-      "description": "User-editable colours, read through the fēnix 8's native on-device watch face editor (API 5.1.0). Garmin offers exactly two colour axes -- one accent colour, one data colour -- plus the Styles axis, which carries no colour of its own but is the only one Garmin gives no meaning to, so a declared 'color_scheme:' rides it as 'colors:'. The axis is the key rather than an author-chosen name; declaring a fourth would need a feature Garmin does not have. Reference a declared colour entry as an ordinary colour expression, e.g. 'color: config.accent_color' or 'color: config.colors.<role>'. A target with no native editor (fr955) keeps every declared default -- see the suppressible 'config-unsupported' warning.",
+      "description": "User-editable colours, read through the fēnix 8's native on-device watch face editor (API 5.1.0). Garmin offers exactly two colour axes -- one accent colour, one data colour -- plus the Styles axis, which carries no colour of its own but is the only one Garmin gives no meaning to, so this compiler gives each listed 'style:' entry a meaning: a declared 'color_scheme:' (and, from a later phase, a layout). The axis is the key rather than an author-chosen name; declaring a fourth would need a feature Garmin does not have. Reference a declared colour entry as an ordinary colour expression, e.g. 'color: config.accent_color' or 'color: config.colors.<role>'. A target with no native editor (fr955) keeps every declared default -- see the suppressible 'config-unsupported' warning.",
       "type": "object",
       "minProperties": 1,
       "additionalProperties": false,
@@ -89,9 +89,9 @@
           "description": "The one native data-colour axis (<dataColors> in the generated resource, Settings.complicationColor read back).",
           "$ref": "#/$defs/configColor"
         },
-        "colors": {
-          "description": "The Styles axis: picks one declared 'color_scheme:' entry (<styles> in the generated resource, Settings.styleId read back). Unlike 'accent_color'/'data_color', 'default:'/'choices:' here name schemes, not colours.",
-          "$ref": "#/$defs/configColors"
+        "style": {
+          "description": "The Styles axis: an ordered list of author-named entries (<styles> in the generated resource, Settings.styleId read back -- index = entry position). Each entry names a declared 'color_scheme:' entry as 'colors:', a declared 'layouts:' entry as 'layout:', or both. Replaces the earlier 'config: colors:' outright (removed, no shim).",
+          "$ref": "#/$defs/configStyle"
         },
         "data": {
           "description": "The Data axis: named native complication slots (<data> in the generated resource, Settings.complicationSettings read back). Each entry's 'default:'/'choices:' name 'complication.<name>' types (see 'wfb complications'), not colours or schemes. Drawn by a 'type: complication_slot' element referencing it as 'slot: config.data.<name>'.",
@@ -116,6 +116,27 @@
     },
     "static": {
       "description": "Elements that never change, gathered in one place. Exactly equivalent to writing a single 'group' with 'static: true' as the first entry of 'elements:' -- which is what the compiler rewrites it to, under the reserved id 'static'. Accepts the same two spellings as 'elements:': a list of elements, or a mapping whose key is the element id.",
+      "$ref": "#/$defs/elementListOrMapping"
+    },
+    "layouts": {
+      "description": "Named widget sets the wearer switches between on-device, form A only (docs/plans/02-style-layouts.md §12.1) -- there is no element-level membership key. Each entry's 'static:'/'elements:' are folded at build time into two synthetic groups appended to the top-level 'elements:' (see 'wfb/desugar.py'); this compiler's own schema check runs after that fold, so by then each body here is just '{}' or '{lint: ...}'. A declared entry that no 'config: style:' choice names as its 'layout:' is an error -- nothing would let the wearer pick it -- and a 'complication_slot' may not appear inside one (the Data axis is face-wide; it belongs in the shared top-level 'elements:').",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/layout"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "elementListOrMapping": {
+      "description": "A list of elements, or a mapping whose key is the element id -- the shape 'static:', a layout's own 'static:'/'elements:', and (via the desugar rewrite) 'elements:' itself all share.",
       "oneOf": [
         {
           "type": "array",
@@ -129,12 +150,24 @@
           "minProperties": 1
         }
       ]
-    }
-  },
-  "$defs": {
-    "identifier": {
-      "type": "string",
-      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "layout": {
+      "description": "One 'layouts:' entry: this layout's own fixed and per-frame content, drawn on top of the design's shared 'static:'/'elements:' while this layout is the active one (docs/plans/02-style-layouts.md §12.2, §12.3). A 'complication_slot' may not appear in either -- the Data axis is face-wide, so a slot belongs in the shared top-level 'elements:' (§12.5).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "static": {
+          "description": "This layout's own fixed furniture, drawn once into the shared static buffer while this layout is active, after the design's shared static content. Same two spellings as the top-level 'static:'.",
+          "$ref": "#/$defs/elementListOrMapping"
+        },
+        "elements": {
+          "description": "This layout's own elements, drawn every frame while this layout is active, above the design's shared elements. Same two spellings as the top-level 'elements:'.",
+          "$ref": "#/$defs/elementListOrMapping"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        }
+      }
     },
     "face": {
       "type": "object",
@@ -299,13 +332,8 @@
         }
       }
     },
-    "colorSchemeRef": {
-      "description": "A reference to a named 'color_scheme:' entry, accepted from 'config: colors:'s own 'default:'/'choices:'.",
-      "type": "string",
-      "pattern": "^color_scheme\\.[A-Za-z_][A-Za-z0-9_]*$"
-    },
-    "configColors": {
-      "description": "The Styles axis: a compiled-in default scheme plus an orderable list of choices, both naming declared 'color_scheme:' entries rather than colours. Every role of every listed scheme is checked against the target's 64-colour palette rule, the same 'palette-dither' check a palette entry gets.",
+    "configStyle": {
+      "description": "The Styles axis: an author-named, ordered set of entries -- each one line of the editor's Style list (plan 02 §4.1, §12.4). Unlike 'accent_color'/'data_color', entries are named by the author rather than by colour value, so 'default:' names an entry, not a scheme.",
       "type": "object",
       "required": [
         "default",
@@ -314,17 +342,42 @@
       "additionalProperties": false,
       "properties": {
         "default": {
-          "description": "Compiled into the view as every role's starting value, and the only scheme a device without the native editor (fr955) ever shows -- not a fallback path, the path. Must also appear in 'choices:', compared by scheme name, not by colour value.",
-          "$ref": "#/$defs/colorSchemeRef"
+          "description": "The entry (a 'choices:' key) compiled into the view as the starting styleId, and the only entry a device without the native editor (fr955) ever shows -- not a fallback path, the path. Must be one of 'choices:'.",
+          "$ref": "#/$defs/identifier"
         },
         "choices": {
-          "description": "The editor's Styles picklist, in the order '<style id=\"N\">' numbers them from. 'default:' must be one of these, since Garmin defines no behaviour for a default that is not in the list -- there is no 'any' here, unlike the two colour axes: Styles has no equivalent of the editor's own unrestricted picker.",
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/colorSchemeRef"
+          "description": "The editor's Styles picklist, an ordered mapping of entry name -> entry -- editor order, and the order '<style id=\"N\">' numbers entries from (index 0 first). There is no 'any' here, unlike the two colour axes: Styles has no equivalent of the editor's own unrestricted picker.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
           },
-          "uniqueItems": true
+          "additionalProperties": {
+            "$ref": "#/$defs/styleEntry"
+          }
+        }
+      }
+    },
+    "styleEntry": {
+      "description": "One 'config: style:' entry: at least one of 'layout:'/'colors:', plus an optional 'label:' and 'lint:' (docs/plans/02-style-layouts.md §12.4).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "description": "Shown in the editor's Styles list. Optional -- an entry with no label and only 'colors:' (no 'layout:') falls back to that scheme's own 'label:'; every other entry with no 'label:' of its own gets no label attribute.",
+          "type": "string",
+          "minLength": 1
+        },
+        "layout": {
+          "description": "Names a declared 'layouts:' entry by its bare name (e.g. 'layout: digital'). Required on every entry once 'layouts:' is declared, and rejected when it is not -- an entry showing only shared content in a design that has layouts would be a silent blank-looking face.",
+          "$ref": "#/$defs/identifier"
+        },
+        "colors": {
+          "description": "Names a declared 'color_scheme:' entry by its bare name (e.g. 'colors: dark'), not the 'color_scheme.<name>' reference form used inside expressions. Every entry in one 'choices:' must carry 'colors:', or none may.",
+          "$ref": "#/$defs/identifier"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
         }
       }
     },

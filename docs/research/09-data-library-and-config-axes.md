@@ -110,6 +110,21 @@ Three consequences worth writing into the format up front:
    does), so the group name is not author-controllable. The list *contents*
    will read "Dark", "Light" as intended.
 
+> **Built 2026-09-13, then widened** (ADR 0006 §1, second and fifth
+> amendments; `docs/plans/02-style-layouts.md`). `config: colors:` shipped
+> first, exactly as sketched here (`resolveColorScheme`, one `if (style ==
+> N)` block per scheme) — then was replaced outright, no shim, by
+> `config: style:`: `choices:` became an author-named ordered *mapping*
+> rather than a bare `color_scheme.<name>` list, because Styles turned out to
+> also be the axis a stock face uses to switch which elements draw at all
+> (research 08 §4), and one entry now optionally carries a `layout:`
+> alongside its `colors:`. `resolveScheme()`/`resolveColorScheme` was renamed
+> `resolveStyle`, and it now also sets a `_configLayout` field where an entry
+> has one. The three consequences above all still hold; a fourth was added:
+> a declared layout no entry ever names is a suppressible `unreachable-
+> layout` warning, the same "content is not free" point the cost line above
+> makes about a scheme.
+
 ---
 
 ## 4. The Data axis is exactly the UI described — for Garmin metrics

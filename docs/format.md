@@ -175,13 +175,16 @@ color_scheme:
     colors: { bg: palette.white, fg: palette.black, dim: palette.light_gray }
 ```
 
-A named set of role -> colour, picked on-device via `config.colors` (below).
-`label:` on the scheme itself is shown in the editor's Styles list -- optional,
-same as everywhere else a label is: a scheme with none produces a generated
-`<style>` with no `label` attribute. Each role's colour is resolved exactly
-like a `config:` axis's own `default:` -- a literal `#RRGGBB`/`#RGB` or a
-`palette.<name>` reference, never `config.*` (there is no build-time value for
-a runtime-editable field).
+A named set of role -> colour, picked on-device via a `config: style:` entry's
+own `colors:` (below) -- the bare scheme name, e.g. `colors: dark`, not
+`color_scheme.dark` (that qualified form is for expressions only).
+`label:` on the scheme itself is shown in the editor's Styles list when the
+style entry that names it has none of its own (the label fallback below) --
+optional, same as everywhere else a label is: a scheme with none, referenced
+by an entry with none, produces a generated `<style>` with no `label`
+attribute. Each role's colour is resolved exactly like a `config:` axis's own
+`default:` -- a literal `#RRGGBB`/`#RGB` or a `palette.<name>` reference,
+never `config.*` (there is no build-time value for a runtime-editable field).
 
 **Every `color_scheme:` entry must declare the identical set of roles.** `dark`
 declaring `bg`/`fg`/`dim` and `light` declaring only `bg`/`fg` is an error
@@ -199,13 +202,14 @@ color: heart_rate.current > 120 ? palette.hot : config.colors.fg
 `color: config.colors` (naming the scheme, not a role) is an error saying a
 colour scheme is not a colour and listing the declared roles; `config.colors.
 <role>` naming a role no scheme declares is an error listing the roles that
-are declared. Naming a `color_scheme.<name>` that was never declared, or was
-declared and rejected (a bad role colour, a role-set mismatch), is an error at
-the `config: colors:` `default:`/`choices:` line, naming the schemes
-`color_scheme:` actually declares.
+are declared. The roles it may name come from the **default `config: style:`
+entry's** own `colors:` scheme. Naming a `color_scheme` entry (in a style
+entry's `colors:`) that was never declared, or was declared and rejected (a
+bad role colour, a role-set mismatch), is an error at that `config: style:`
+`choices:` entry, naming the schemes `color_scheme:` actually declares.
 
-See "Configuration" below for `config: colors:` itself -- the axis that lets
-the wearer pick between declared schemes.
+See "Configuration" below for `config: style:` itself -- the axis that lets
+the wearer pick between author-named entries, each naming a declared scheme.
 
 ---
 
@@ -234,11 +238,11 @@ config:
       - palette.aqua                   # a bare palette reference ...
       - palette.amber
       - { color: "#FFFFFF", label: "White" }   # ... or the inline form
-  colors:
-    default: color_scheme.dark         # a color_scheme reference -- see above
-    choices:                           # must be one of choices:
-      - color_scheme.dark
-      - color_scheme.light
+  style:
+    default: dark                      # names a choices: entry, not a scheme
+    choices:                           # an ORDERED mapping -- index = styleId
+      dark:  { colors: dark }          # a bare color_scheme name
+      light: { label: "Light!", colors: light }
   data:
     top:
       default: complication.steps      # a wfb.complications type -- see below
@@ -253,23 +257,55 @@ config:
 
 Four user-editable axes, read through the fēnix 8's **native on-device watch
 face editor** (`Core_Topics/Editing_Watch_Faces_On_Device.html`, API 5.1.0).
-All four keys are optional, and `accent_color`/`data_color`/`colors`/`data`
+All four keys are optional, and `accent_color`/`data_color`/`style`/`data`
 are the **only** keys this block accepts -- Garmin's editor offers exactly one
 accent colour, one data colour, one Styles axis and one Data axis, and
 nothing else. Declaring anything else is a schema error naming what is
 accepted.
 
-`colors` is shaped differently from the other two colour keys: its
-`default:`/`choices:` name declared `color_scheme:` entries
-(`color_scheme.<name>`), not colours -- see "Color scheme" above. `data` is
-shaped differently again: it is a **mapping of named slots**, each with its
-own `default:`/`choices:` naming `complication.<name>` types (the same table
-`on_hold:` and the `complication.*` data-source namespace already resolve
-against -- run `wfb complications` for the full list); see "The Data axis"
-below for the slot names, and the `complication_slot` element that draws one.
-Everything in the rest of this section describes `accent_color`/`data_color`;
-`colors`'/`data`'s own rules are in "Color scheme"/"The Data axis"
+`style` is shaped differently from the other two colour keys, and replaces
+the earlier `config: colors:` outright (removed, no shim): `choices:` is an
+**ordered mapping of author-chosen entry name -> entry**, not a list, so
+`default:` names one *entry* (a `choices:` key), not a colour or a scheme --
+and an entry's own `colors:` is what names a declared `color_scheme:` entry,
+as a **bare name** (`colors: dark`, not `color_scheme.dark`). Editor order is
+declaration order, and it is also the `<style id="N">` numbering
+`resolveStyle` decodes `styleId` against (index 0 first) -- see "Color
+scheme" above. Every entry needs at least one of `colors:`/`layout:` -- the
+second names a declared `layouts:` entry, the same bare-name spelling; see
+"Styles and layouts" below. **`colors:` is all-or-none across every entry in
+one `choices:`**, independent of `layout:` -- a design cannot mix an entry
+that has `colors:` with one that does not; the first entry that violates
+this is one error, not one per offending entry. `data` is shaped differently
+again: it is a **mapping of
+named slots**, each with its own `default:`/`choices:` naming
+`complication.<name>` types (the same table `on_hold:` and the
+`complication.*` data-source namespace already resolve against -- run `wfb
+complications` for the full list); see "The Data axis" below for the slot
+names, and the `complication_slot` element that draws one. Everything in the
+rest of this section describes `accent_color`/`data_color`; `style`'s/
+`data`'s own rules are in this section (below) and "The Data axis"
 respectively.
+
+**Label fallback.** An entry's own `label:` is shown in the editor's Styles
+list. An entry with **no** `label:` and only `colors:` (no `layout:`) falls
+back to that scheme's own `label:` instead -- this is what makes migrating a
+`config: colors:` block a pure re-spelling: the generated `<style
+label=...>` text does not move. A layout-carrying entry gets no fallback,
+colour or not; an entry with neither gets no `label` attribute, same as
+everywhere else a label is optional.
+
+**`default:` must name a `choices:` entry** (not a scheme, not a colour) --
+Garmin defines no behaviour for a default outside the list, and the error
+lists the declared entry names.
+
+**`duplicate-style` (suppressible).** Two entries that resolve to the same
+`colors:` (and, from a later format, the same `layout:`) are indistinguishable
+on the wrist. This is a warning, not an error -- a designer may still want two
+labels while iterating -- reported once per design at the second entry of the
+pair, and suppressed with `lint: {allow: [duplicate-style], reason: ...}` on
+that **entry** (not on an element: `style:` entries have no element of their
+own to hang `lint:` on otherwise).
 
 Each entry needs both `default:` and `choices:`. `default:` is a literal
 `#RRGGBB`/`#RGB` or a `palette.<name>` reference, compiled into the view as the
@@ -306,13 +342,16 @@ Garmin's editor has four axes total -- Styles, Data, Data Colour, Accent
 Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- and all four
 are now wired up: the two colour axes, **Styles**, which carries no colour of
 its own and is the only axis Garmin gives no meaning to at all
-(`docs/research/09-data-library-and-config-axes.md` §3, which is exactly why a
-`color_scheme:` can ride it as `config.colors`), and **Data** -- named native
-complication slots, `config.data.<name>`, drawn by a `type: complication_slot`
-element (see "The Data axis" below). The axis is the `config:` key itself
-rather than an author-chosen name for the three colour/scheme axes, because
-Garmin gives exactly one of each; `data` alone is a mapping, because Garmin's
-Data axis itself holds several independent slots.
+(`docs/research/09-data-library-and-config-axes.md` §3, which is exactly why
+this compiler gives each `config: style:` entry a meaning -- today a declared
+`color_scheme:`, read back through `config.colors.<role>`), and **Data** --
+named native complication slots, `config.data.<name>`, drawn by a `type:
+complication_slot` element (see "The Data axis" below). `accent_color`/
+`data_color`/`data` are keyed by the axis itself rather than an author-chosen
+name, because Garmin gives exactly one of each (`data` alone is a mapping,
+because Garmin's Data axis itself holds several independent slots); `style`
+is the odd one out, an author-named, ordered set of entries, because Styles
+is the one axis with no meaning of its own for this compiler to key on.
 
 **The editor's own animated highlight is now built too**, and it is
 automatic: any design with at least one `complication_slot` element gets
@@ -521,24 +560,32 @@ affected.
 * An unknown key under `config:` -- schema error, naming what is accepted.
 * `default:`/`choices:` naming an undeclared (or declared-and-rejected)
   `palette.<name>` -- error, naming the declared palette entries.
-* `default:` not among an explicit `choices:` list -- error. For `colors`,
-  this compares scheme **names**, not colour values -- two schemes may
-  legitimately share a colour for one role.
-* `colors`' `default:`/`choices:` naming an undeclared (or declared-and-
-  rejected) `color_scheme.<name>` -- error, naming the declared schemes.
+* `default:` not among an explicit `choices:` list -- error. For `style`,
+  this compares **entry names**, not scheme names or colour values -- two
+  entries may legitimately reference the same scheme (see `duplicate-style`
+  below).
+* A `style` entry with no `colors:` (today, every entry needs one), or some
+  entries with `colors:` and others without -- one error, at the first entry
+  that lacks it.
+* A `style` entry's `colors:` naming an undeclared (or declared-and-rejected)
+  `color_scheme:` entry -- error, naming the declared schemes.
+* `duplicate-style` (suppressible) -- two `style` entries resolve to the same
+  `colors:` -- warning, once per design, at the second entry of the pair;
+  suppress on that entry's own `lint:`.
 * Every declared colour goes through the same 64-colour palette-legality check
   a `palette:` entry gets: `default:` always (it is the only value a device
   with no native editor ever shows), plus every listed `choices:` colour when
   `choices:` is an explicit list (`choices: any` has no list to check) --
-  and, for `colors`, every role of every scheme actually listed in
-  `choices:` (a scheme never listed there is unreachable on any device, so it
-  is not checked). Reported as `palette-dither` against whichever element's
-  `color:`/`track_color:`/`icon_color:` is exactly
+  and, for `style`, every role of every scheme some entry actually
+  references (a scheme no entry references is unreachable on any device, so
+  it is not checked). Reported as `palette-dither` against whichever
+  element's `color:`/`track_color:`/`icon_color:` is exactly
   `config.<name>`/`config.colors.<role>` (a plain `palette.<name>` reference
   is checked the same way, against the same three fields).
 * `config-unsupported` (suppressible) -- at least one target has no native
   editor, so the declared defaults are all that device ever shows (now
-  including every slot's default).
+  including every slot's default); when `style` has more than one entry, the
+  message also names the non-default entries as unreachable on that device.
 * `data:`'s `default:`/`choices:` naming an unknown `complication.<name>` --
   error, with a near-miss suggestion, the same as an `on_hold:` typo.
 * `data:`'s `default:` not among an explicit `choices:` list -- error, the
@@ -611,6 +658,108 @@ from whatever `Complications.Id` the wearer currently has it pointed at.
 Both compile to `Complications.exitTo`, but a slot's is never a build-time
 constant -- there is nothing for `wfb complications`/`wfb validate` to name
 as "the" target of a slot's hold, because there isn't one.
+
+---
+
+## Styles and layouts
+
+```yaml
+layouts:                       # ordered; layout index = declaration order
+  digital:
+    static:
+      steps_track: { type: shape, shape: arc, ... }
+    elements:
+      clock:     { type: text, value: time.clock, format: "{:%H:%M}", ... }
+      steps_arc: { type: progress, style: arc, value: activity.steps, ... }
+  analog:
+    elements:
+      mini_clock: { type: text, value: time.clock, format: "{:%H:%M}", ... }
+      pin:        { type: shape, shape: circle, ... }
+
+config:
+  style:
+    default: digital
+    choices:
+      digital: { label: "Digital", layout: digital, colors: dark }
+      analog:  { label: "Analog",  layout: analog,  colors: dark }
+```
+
+A named set of widgets, drawn on top of whatever the design's shared
+`static:`/`elements:` already draw, while the wearer has the matching
+`config: style:` entry active (docs/plans/02-style-layouts.md §12). **Form A
+only -- there is no element-level membership key.** An element belongs to
+exactly one layout by being written inside that layout's own `static:`/
+`elements:`, or to every layout by being written in the design's ordinary,
+top-level `static:`/`elements:` instead. At build time each layout's
+`static:`/`elements:` are folded into two synthetic groups appended to the
+top-level `elements:` (`wfb/desugar.py`), so a layout's own content accepts
+the same two spellings -- a list, or a mapping keyed by id -- that `elements:`
+and the top-level `static:` do.
+
+**`layout:` on a `config: style:` entry** names one declared `layouts:` entry
+by its bare name (`layout: digital`, not `layouts.digital`), the same
+spelling `colors:` uses for a `color_scheme:` entry. It is required on every
+entry once a design declares `layouts:` at all, and rejected when it does
+not -- an entry that named no layout in a design that has them would leave
+the wearer looking at a face with only the shared content on it, silently.
+Every entry still needs at least one of `layout:`/`colors:`, and `colors:`
+stays all-or-none across every entry in one `choices:` (see "Configuration"
+above) -- a colour scheme and a layout are independent choices an entry can
+mix freely, so `digital_dark`/`digital_light`/`analog_dark` (two layouts,
+two schemes, three entries) is exactly as legal as the two-entry example
+above. **`layouts:` declared with no `config: style:` entry ever naming one
+is an error** -- nothing would let the wearer pick it.
+
+**The z rule is fixed, not authored.** Layout content always draws above the
+design's shared content, in its own layer -- static and dynamic alike --
+regardless of `z:`. A shared element with `z: 50` still draws *before* every
+layout element, including one with no `z:` at all; `z:` only orders content
+*within* the shared layer or *within* one layout's own layer. There is no way
+to interleave a layout's content with the shared content by `z:` -- writing
+one is the escape route a later phase does not build (plan 02 §12.3).
+
+**A `complication_slot` may not appear inside a `layouts:` body, in either
+`static:` or `elements:`.** The Data axis is face-wide -- one `<complication
+id=...>` in the generated resource, however many layouts read it -- so a
+slot belongs in the shared top-level `elements:` only. This also keeps the
+editor's own hit-testing and `getComplicationDrawable` simple: there is
+exactly one element that ever draws a given slot, never one per layout (plan
+02 §12.5).
+
+**`unreachable-layout` (suppressible).** A declared layout no `config: style:`
+entry's `layout:` ever names can never be drawn -- but its elements, fonts and
+code still ship in the `.prg`, the same "content is not free" point plan 02
+§1 makes about every layout. Warned once per design, at the layout's own
+line, and suppressed with `lint: {allow: [unreachable-layout], reason: ...}`
+on the **layout body** (`layouts: <name>: { lint: {...} }`) -- a layout has
+no element of its own to hang `lint:` on otherwise.
+
+**Codegen.** `resolveStyle` (see "Color scheme" above) decodes one `styleId`
+into *two* things now: the scheme colours (if the entry has `colors:`) and
+`_configLayout` (if it has `layout:`) -- a layout-only entry emits no colour
+lines, and a colour-only entry emits no `_configLayout` line. Every draw call
+-- `onUpdate`, `onPartialUpdate`, and each static root's call inside
+`renderStatic` -- is guarded by `if (_configLayout == N)` for a layout
+element, and left unguarded for shared content; consecutive calls that share
+one layout share one guard block. An `on_hold:` target with a layout gets its
+hit test folded into the same guard, through a public `configLayout()`
+accessor the generated delegate calls. Nothing here needs a second buffer or
+new repaint logic: a style edit already reaches `applyConfig`, which already
+calls `repaintStatic()` for a static config colour -- a layout switch is just
+another field `applyConfig` sets before that call.
+
+**On fr955** (no native editor, CLAUDE.md constraint 6): `applyConfig` is
+never called, so the compiled-in default entry's layout is what the wearer
+sees forever -- the same "keeps every declared default" behaviour every
+other `config:` axis already has there, `config-unsupported` included.
+
+**Preview.** `wfb preview --style <entry>` renders one entry -- its scheme's
+colours and only the shared content plus that entry's own layout, exactly
+what the wearer would see with it active; omitted, it renders the default
+entry. `--all-styles` renders every entry side by side in one PNG per
+device, each panel captioned with the entry's label. Both are the same
+renderer, run once per entry -- there is no second rendering path to drift
+from the device (ADR 0004).
 
 ---
 
@@ -1946,7 +2095,11 @@ on the group instead of each child.
 
 Regions are tested in draw order and the first match wins, so two overlapping
 regions make the second unreachable. That is a warning (`hold-overlap`), not
-something you have to notice on the wrist.
+something you have to notice on the wrist. A pair that can never be on
+screen together at all -- both belong to a `layouts:` entry, and the two
+entries differ -- is not checked regardless of geometry: a digital clock's
+hold target and analog hands' can share the exact same region on purpose
+(see "Styles and layouts").
 
 Binding `on_hold:` adds the `ComplicationSubscriber` permission and raises
 `minApiLevel` to 4.2.0 automatically — `exitTo`'s own level. Nothing emitted
@@ -2013,10 +2166,11 @@ disabled wholesale. Errors that reflect hard platform limits (missing glyphs,
 off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`) are **not**
 suppressible: silencing one produces a face that does not work.
 
-Thirteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+Fifteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `complication-gated`, `dead-element`, `graphics-pool`,
-`antialias-dither`, `static-overlap` and `config-unsupported`.
+`antialias-dither`, `static-overlap`, `config-unsupported`,
+`duplicate-style` and `unreachable-layout`.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
 the normative list -- this prose has drifted from it before, so check there
 rather than here if the two ever disagree. **A code that is not one of them is a
@@ -2037,6 +2191,11 @@ element that causes them: `palette-dither` on an element whose `color:` or
 or a `complication_slot` whose `slot:` is exactly `config.data.<name>`, and
 `complication-gated` on a `complication_slot` whose `default:`/`choices:`
 includes a type above a target's own ConnectIQ ceiling.
+`duplicate-style` and `unreachable-layout` are design-, not element-scoped
+either, but there is no element to hang either on at all: `duplicate-style`
+goes on the **`config: style:` entry's own** `lint:` (the second entry of
+the duplicate pair), and `unreachable-layout` on the **`layouts:` entry's
+own** `lint:` -- neither is an element.
 See `docs/limitations.md` 3.
 
 ---

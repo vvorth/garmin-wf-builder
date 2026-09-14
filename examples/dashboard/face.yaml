@@ -145,11 +145,11 @@ config:
       - palette.orange
       - palette.amber
       - palette.magenta
-  colors:
-    default: color_scheme.dark # must be one of choices:
+  style:
+    default: dark # must be one of choices:
     choices:
-      - color_scheme.dark
-      - color_scheme.light
+      dark: { colors: dark }
+      light: { colors: light }
 
 static:
   background:

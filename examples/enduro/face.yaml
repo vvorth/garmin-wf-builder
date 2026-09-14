@@ -103,12 +103,12 @@ config:
       - palette.light_blue
       - palette.orange
       - palette.lime_green
-  colors:
-    default: color_scheme.dark          # must be one of choices:
+  style:
+    default: dark                       # must be one of choices:
     choices:
-      - color_scheme.dark
-      - color_scheme.light
-      # - color_scheme.random
+      dark:  { colors: dark }
+      light: { colors: light }
+      # random: { colors: random }
 
 static:
   background:

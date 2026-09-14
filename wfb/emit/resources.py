@@ -326,7 +326,7 @@ def config_resource(face: Face) -> str:
     Called only for a device with the native editor
     (`Device.has_symbol(CONFIG_SYMBOL)`); the caller (`build_bundle`) is
     where that gate lives, so this is pure XML rendering from `face.config`/
-    `face.config_colors`.  Grammar: `$CIQ_SDK/bin/resources.xsd`'s
+    `face.config_style`.  Grammar: `$CIQ_SDK/bin/resources.xsd`'s
     `watchfaceConfigType` -- an `xs:all`, so `<styles>` and the two colour
     axes may appear in any order; this always writes `<styles>` first.
     """
@@ -334,14 +334,14 @@ def config_resource(face: Face) -> str:
         f"<resources {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">",
         "    <watchface-config>",
     ]
-    if face.config_colors is not None:
+    if face.config_style is not None:
         lines.append("        <styles>")
-        for index, scheme_name in enumerate(face.config_colors.choices):
-            scheme = face.color_scheme[scheme_name]
+        for index, entry in enumerate(face.config_style.entries):
             attrs = f' id="{index}"'
-            if scheme_name == face.config_colors.default:
+            if entry.name == face.config_style.default:
                 attrs += ' default="true"'
-            if scheme.label is not None:
+            label = face.style_label(entry)
+            if label is not None:
                 attrs += f' label="@Strings.{config_style_label_id(index)}"'
             lines.append(f"            <style{attrs}/>")
         lines.append("        </styles>")
@@ -380,7 +380,9 @@ def config_resource(face: Face) -> str:
 
 def config_label_strings(face: Face) -> list[tuple[str, str]]:
     """`(string id, label text)` for every labelled `config:` choice, plus
-    every labelled `color_scheme:` entry that `config: colors:` lists.
+    every `config: style:` entry that resolves a label -- its own `label:`,
+    or (§12.4's fallback, `Face.style_label`) the `color_scheme:` entry's own
+    `label:` when the style entry has none of its own.
 
     Shared across every device -- a label is authored text, not something
     that varies per target -- so these live in `shared_strings()` rather than
@@ -388,11 +390,11 @@ def config_label_strings(face: Face) -> list[tuple[str, str]]:
     already follows.
     """
     out: list[tuple[str, str]] = []
-    if face.config_colors is not None:
-        for index, scheme_name in enumerate(face.config_colors.choices):
-            scheme = face.color_scheme[scheme_name]
-            if scheme.label is not None:
-                out.append((config_style_label_id(index), scheme.label))
+    if face.config_style is not None:
+        for index, entry in enumerate(face.config_style.entries):
+            label = face.style_label(entry)
+            if label is not None:
+                out.append((config_style_label_id(index), label))
     for name, entry in face.config.items():
         if entry.allow_any:
             continue

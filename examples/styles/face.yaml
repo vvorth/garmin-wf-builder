@@ -1,0 +1,210 @@
+# `layouts:` -- named widget sets the wearer switches between on-device,
+# riding the same Styles axis `examples/config/face.yaml` already uses for
+# colour alone (docs/plans/02-style-layouts.md). Form A only: a layout is a
+# container (`layouts: <name>: {static, elements}`), never an element-level
+# membership key.
+#
+# Three things this design exercises together, none of them shown anywhere
+# else in `examples/`:
+#
+# * **Two layouts, each with its own static *and* dynamic content.** `big`
+#   is a plain, oversized digital clock inside a static decorative ring.
+#   `compact` is a small clock above a steps progress arc, whose *track*
+#   (the dim full ring underneath) is static -- drawn once -- while the
+#   *fill* (`steps_arc`, `type: progress`) is drawn fresh every frame on top
+#   of it, the same "static furniture, dynamic reading" split
+#   `examples/slice/face.yaml` uses for one ring, done here per layout.
+#   Both layouts' own content draws *above* the shared content, in its own
+#   layer, by the fixed z rule (`docs/format.md` "Styles and layouts") --
+#   there is nothing to interleave here, but nothing stops it looking that
+#   way either.
+# * **Three `config: style:` entries over two layouts and two schemes**:
+#   `big_dark`, `big_light` and `compact_dark` -- `big` paired with both
+#   schemes, `compact` with only one, which is exactly the "author writes
+#   however many entries they want" point plan 02 §4.1 makes (there is no
+#   generated layout x scheme product).
+# * **A hold target with a layout** (`big_clock`'s `on_hold: heart_rate`) --
+#   only reachable while `big` is the active layout, which is what exercises
+#   the delegate's guarded hit test through the generated view's own
+#   `configLayout()` accessor.
+#
+# The shared content -- drawn in every layout, underneath both -- is a
+# background bound to `config.colors.bg`, a **`complication_slot`** (the
+# positive case of the slot rule: a slot may only ever be shared, never
+# inside a `layouts:` body, on pain of a build error), and a small date.
+#
+# `fr955` has no native editor at all (CLAUDE.md constraint 6) -- it simply
+# keeps the compiled-in default entry (`big_dark`) forever, colours and
+# layout alike, exactly like every other `config:` axis; the two entries it
+# can never reach (`big_light`, `compact_dark`) are named by the suppressible
+# `config-unsupported` warning, accepted explicitly below on the element
+# that binds a `config.colors.*` role, the same way `examples/config/
+# face.yaml` accepts it for its own two colour axes.
+#
+# `compact_clock` also carries `modes: [active, low_power]` -- small enough
+# (measured: well under the 25% clip-area threshold) that it costs no
+# `partial-update-budget` finding on any target, which is what makes it safe
+# to include as the `onPartialUpdate` guard's only worked example so far.
+#
+# What is verified: this design compiles warning-free, through the real
+# `monkeyc`, on all three targets (`--build-stats` recorded in
+# `docs/plans/02-style-layouts.md` §12) -- the `_configLayout` field, both
+# guarded draw sequences (`onUpdate`/`onPartialUpdate`/`renderStatic`), and
+# the delegate's guarded `on_hold` all build clean. What is NOT verified
+# anywhere in this project: any *behaviour* of the on-device editor itself
+# (no simulator in this container, no watch) -- whether switching a style in
+# the native editor previews instantly, and whether the touch-and-hold
+# region for `big_clock` reads correctly on a real touchscreen, are both
+# UNVERIFIED. `wfb preview --style <entry>`/`--all-styles` is what is
+# verified: the same resolved geometry the generated code draws from,
+# rendered with no simulator.
+#
+# Build it with:  ./wfb.py build examples/styles/face.yaml
+# Preview one style with:  ./wfb.py preview examples/styles/face.yaml --style compact_dark
+# Preview every style with:  ./wfb.py preview examples/styles/face.yaml --all-styles
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 565ddf22-b8b4-4182-b70d-813ddb91d268
+  name: Styles
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour below -- palette, color_scheme and config alike -- is one the
+# 64-colour MIP panel can show without dithering: each channel is 0x00, 0x55,
+# 0xAA or 0xFF.
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  dark_gray: "#555555"
+  light_gray: "#AAAAAA"
+
+color_scheme:
+  dark:
+    label: "Dark"
+    colors: { bg: palette.black, fg: palette.white, track: palette.dark_gray }
+  light:
+    label: "Light"
+    colors: { bg: palette.white, fg: palette.black, track: palette.light_gray }
+
+config:
+  data:
+    reading:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - complication.heart_rate
+        - complication.body_battery
+  style:
+    default: big_dark
+    choices:
+      big_dark: { label: "Big · Dark", layout: big, colors: dark }
+      big_light: { label: "Big · Light", layout: big, colors: light }
+      compact_dark: { label: "Compact · Dark", layout: compact, colors: dark }
+
+# Shared: drawn underneath both layouts, in every one of them.
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: config.colors.bg
+
+elements:
+  date_text:
+    type: text
+    value: date.today
+    format: "{:%a %d}"
+    font: FONT_XTINY
+    at: { anchor: center, dy: -38% }
+    color: config.colors.fg
+    lint:
+      allow: [config-unsupported, static-overlap]
+      reason: "fr955 has no native editor and keeps every declared default
+        forever, which is this example's whole point -- see the header
+        comment. static-overlap: a decorative ring's bounding box is its
+        full circumscribed square, which overstates the thin ink of the
+        ring itself -- this text sits well clear of the drawn line on
+        every target"
+
+  reading_slot:
+    type: complication_slot
+    slot: config.data.reading
+    at: { anchor: center, dy: 38% }
+    font: FONT_XTINY
+    color: config.colors.fg
+    when_absent: placeholder
+    placeholder: "--"
+    lint:
+      allow: [config-unsupported, static-overlap]
+      reason: "fr955 has no native editor and keeps this slot's declared
+        default forever, the same as examples/slots/face.yaml.
+        static-overlap: the same decorative-ring bounding-box overstatement
+        as date_text above"
+
+layouts:
+  big:
+    static:
+      big_ring:
+        type: shape
+        shape: arc
+        at: { anchor: center }
+        radius: 84%r
+        thickness: 4px
+        start_angle: 0deg
+        sweep: 360deg
+        color: config.colors.track
+
+    elements:
+      big_clock:
+        type: text
+        value: time.clock
+        format: "{:%H:%M}"
+        font: FONT_NUMBER_HOT
+        at: { anchor: center, dy: -4% }
+        color: config.colors.fg
+        on_hold: heart_rate
+
+  compact:
+    static:
+      steps_track:
+        type: shape
+        shape: arc
+        at: { anchor: center }
+        radius: 90%r
+        thickness: 10px
+        start_angle: 180deg
+        sweep: 340deg
+        color: config.colors.track
+
+    elements:
+      compact_clock:
+        type: text
+        value: time.clock
+        format: "{:%H:%M}"
+        font: FONT_MEDIUM
+        at: { anchor: center, dy: -20% }
+        color: config.colors.fg
+        modes: [active, low_power]
+
+      steps_arc:
+        type: progress
+        style: arc
+        value: activity.steps
+        max: activity.step_goal
+        at: { anchor: center }
+        radius: 90%r
+        thickness: 10px
+        start_angle: 180deg
+        sweep: 340deg
+        color: config.colors.fg
+        when_absent: hide
+

@@ -134,9 +134,9 @@ re-litigate these without new evidence.**
    - **9b.** The Data axis takes Garmin complication types only.
      Author-defined selectable content rides Styles (`styleId` is opaque and
      global).
-   - **9c.** **All four axes are in use; none is free.** **Decided
+   - **9c.** **All four axes are in use; none is free.** **Decided and built
      2026-09-13:** colours *and* widget layouts share Styles as explicitly
-     listed entries. Not built: see `docs/plans/01`/`02`.
+     listed entries. See `docs/plans/01`/`02`; `examples/styles/face.yaml`.
 10. **`alphaBlendingSupport: false`**: no transparency.
 11. **The graphics pool (1 MB) is separate** from the 128 KB, so a
     `BufferedBitmap` is cheap.
@@ -220,9 +220,13 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - the GUI, which if built must be a thin client over `wfb/preview.py`;
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
-- **Planned, not built:**
-  - Styles that switch widget layouts (`docs/plans/02`), which needs analog
-    hands for its motivating example.
+- **Recently built:**
+  - **Built 2026-09-13** (`docs/plans/02`): Styles that switch widget
+    layouts. `layouts:` (form A only: a container, with no element-level
+    membership key) and `config: style:` (`config: colors:` removed, no
+    shim). A `complication_slot` may only be in shared content. The example
+    is `examples/styles/face.yaml`. Analog hands (`type: hand`) still do
+    not exist.
   - **Built 2026-09-13** (`docs/plans/03`): complication-slot icons cover
     all 42 native types, plus per-choice overrides and `icon_position:`/
     `icon_gap:`/`icon_color:`, and `choices: any` + `icon_size:`.

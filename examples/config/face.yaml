@@ -3,11 +3,12 @@
 #
 # Garmin's editor has exactly one accent-colour axis, one data-colour axis,
 # and one Styles axis -- which carries no colour of its own, but is the only
-# axis Garmin gives no meaning to at all, so a declared `color_scheme:` rides
-# it as `colors:`.  `config:` accepts exactly those three keys --
-# `accent_color`, `data_color` and `colors` -- and nothing else
-# (docs/format.md "Configuration" and "Color scheme",
-# docs/adr/0006-configuration-theming-and-modes.md 1, twice amended).
+# axis Garmin gives no meaning to at all, so this compiler gives each listed
+# `style:` entry a meaning: a declared `color_scheme:`, named as `colors:`.
+# `config:` accepts exactly those three keys -- `accent_color`, `data_color`
+# and `style` -- and nothing else (docs/format.md "Configuration" and "Color
+# scheme", docs/adr/0006-configuration-theming-and-modes.md 1, twice amended;
+# docs/plans/02-style-layouts.md §12.4 for `style:` itself).
 #
 # `accent_ring` and `background`/`steps_caption` below are deliberately
 # inside `static:`, to exercise the part of this feature that is easy to get
@@ -73,11 +74,11 @@ config:
       - { color: "#FFFFFF", label: "White" }
       - { color: "#00FFFF", label: "Aqua" }
       - { color: "#FFAA00", label: "Amber" }
-  colors:
-    default: color_scheme.dark          # must be one of choices:
+  style:
+    default: dark                       # must be one of choices:
     choices:
-      - color_scheme.dark
-      - color_scheme.light
+      dark:  { colors: dark }
+      light: { colors: light }
 
 static:
   background:

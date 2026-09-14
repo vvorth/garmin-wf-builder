@@ -5,9 +5,12 @@ import pytest
 from tests.test_diagnostics import load
 from wfb import formatting
 from wfb.catalog import Type
+from wfb.diagnostics import Bag
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
-from wfb.preview import PreviewOptions, render
+from wfb.preview import (
+    PreviewOptions, UnknownStyleError, render, render_all_styles,
+)
 from wfb.palette import MIP64_LEVELS
 
 
@@ -369,3 +372,149 @@ def test_preview_renders_8_not_8_5_for_a_float_formatted_d(write_design, bag, db
 
     assert list(formatted.get_flattened_data()) == list(literal_8.get_flattened_data())
     assert list(formatted.get_flattened_data()) != list(literal_8_5.get_flattened_data())
+
+
+# -- `PreviewOptions.style` / `--style` / `--all-styles` -----------------------
+
+
+#: Two layouts (`a`, `b`), each with one marker at a fixed, config-independent
+#: colour (`palette.red`) so "is this layout's marker drawn" can be checked by
+#: colour alone -- and two `color_scheme:` entries (`dark`/`light`) bound only
+#: to the shared background, so "did the colours switch" is a *second*,
+#: independent question from "did the drawn set switch".
+LAYOUT_STYLE_DESIGN = """format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: LayoutPreview
+targets: [fenix8solar47mm]
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  red: "#FF0000"
+color_scheme:
+  dark:
+    colors: { bg: palette.black }
+  light:
+    colors: { bg: palette.white }
+layouts:
+  a:
+    elements:
+      marker_a:
+        type: shape
+        shape: circle
+        at: {anchor: center, dx: -30%}
+        radius: 8%
+        color: palette.red
+  b:
+    elements:
+      marker_b:
+        type: shape
+        shape: circle
+        at: {anchor: center, dx: 30%}
+        radius: 8%
+        color: palette.red
+config:
+  style:
+    default: style_a
+    choices:
+      style_a: { label: "A", layout: a, colors: dark }
+      style_b: { label: "B", layout: b, colors: light }
+elements:
+  shared:
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: config.colors.bg
+"""
+
+
+@pytest.fixture
+def layout_style_resolved(write_design, db):
+    bag = Bag()
+    face = load(write_design(LAYOUT_STYLE_DESIGN), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    return resolve(face, device, bake_fonts(face, device))
+
+
+def test_style_option_switches_colours_and_drawn_set(layout_style_resolved):
+    """`--style` must change both *what* is drawn (the active layout's own
+    content) and *how* it is coloured (the entry's scheme) -- checked by
+    sampling actual pixels, not by inspecting the resolved tree."""
+    resolved = layout_style_resolved
+    common = dict(scale=1, mask_shape=False, quantise=False)
+
+    style_a = render(resolved, PreviewOptions(**common, style="style_a"))
+    style_b = render(resolved, PreviewOptions(**common, style="style_b"))
+
+    # The shared background: dark scheme (style_a) is black, light (style_b)
+    # is white -- a corner pixel, away from either marker.
+    assert style_a.getpixel((2, 2)) == (0, 0, 0)
+    assert style_b.getpixel((2, 2)) == (255, 255, 255)
+
+    # marker_a's own centre: (130 - 78, 130) on a 260x260 screen (dx: -30%).
+    # Drawn (red) only while layout 'a' is active.
+    marker_a_point = (52, 130)
+    assert style_a.getpixel(marker_a_point) == (255, 0, 0)
+    assert style_b.getpixel(marker_a_point) != (255, 0, 0)
+
+    # marker_b's own centre: (130 + 78, 130).  The mirror image of the above.
+    marker_b_point = (208, 130)
+    assert style_b.getpixel(marker_b_point) == (255, 0, 0)
+    assert style_a.getpixel(marker_b_point) != (255, 0, 0)
+
+
+def test_style_none_renders_the_default_entry(layout_style_resolved):
+    """Omitting `--style` (`PreviewOptions.style is None`) must render
+    exactly what naming the default entry explicitly would."""
+    resolved = layout_style_resolved
+    common = dict(scale=1, mask_shape=False, quantise=False)
+    default = render(resolved, PreviewOptions(**common, style=None))
+    explicit = render(resolved, PreviewOptions(**common, style="style_a"))
+    assert list(default.get_flattened_data()) == list(explicit.get_flattened_data())
+
+
+def test_an_unknown_style_name_is_a_clean_error(layout_style_resolved):
+    with pytest.raises(UnknownStyleError) as excinfo:
+        render(layout_style_resolved, PreviewOptions(style="bogus"))
+    message = str(excinfo.value)
+    assert "style_a" in message and "style_b" in message
+
+
+def test_style_on_a_design_with_no_config_style_is_a_clean_error(write_design, db, bag):
+    text = """format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: NoStyle
+targets: [fenix8solar47mm]
+palette:
+  fg: "#FFFFFF"
+elements:
+  - id: label
+    type: text
+    text: "hi"
+    at: {anchor: center}
+    color: palette.fg
+"""
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    with pytest.raises(UnknownStyleError):
+        render(resolved, PreviewOptions(style="anything"))
+    with pytest.raises(UnknownStyleError):
+        render_all_styles(resolved)
+
+
+def test_all_styles_lays_out_every_entry_side_by_side(layout_style_resolved):
+    """One panel per entry, same width apiece plus the gap between them --
+    exactly `render`'s own per-entry width, not a guessed constant."""
+    resolved = layout_style_resolved
+    one = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False,
+                                          style="style_a"))
+    composed = render_all_styles(
+        resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False))
+    gap = 1
+    assert composed.width == one.width * 2 + gap
+    assert composed.height > one.height  # the caption bar adds height
