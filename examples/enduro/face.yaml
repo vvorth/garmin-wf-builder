@@ -15,7 +15,7 @@ face:
 
 targets: [fenix8solar47mm, fenix8solar51mm, fr955]
 
-antialias: true
+# antialias: true
 
 palette:
   # old directly used
@@ -129,6 +129,7 @@ static:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
+    antialias: true
     
   top_line_l:
     type: shape
@@ -141,6 +142,7 @@ static:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
+    antialias: true
 
   top_line_r:
     type: shape
@@ -153,6 +155,7 @@ static:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
+    antialias: true
 
   top_sep:
     type: shape
@@ -165,6 +168,7 @@ static:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
+    antialias: true
 
   top_mid_l:
     type: shape
@@ -177,6 +181,7 @@ static:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
+    antialias: true
 
   top_mid_c:
     type: shape
@@ -189,6 +194,7 @@ static:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
+    antialias: true
 
   top_mid_r:
     type: shape
@@ -201,6 +207,7 @@ static:
       allow: [contrast]
       reason: "a hairline rule is meant to be barely there; full contrast
         would make the separators compete with the data"
+    antialias: true
 
   circle_r:
     type: shape
@@ -210,6 +217,7 @@ static:
     filled: false
     radius: 12%
     color: config.colors.dark
+    antialias: true
 
 elements:
   arc_l:
@@ -225,6 +233,7 @@ elements:
     color: config.data_color
     track_color: config.colors.dark
     when_absent: hide
+    antialias: true
 
   arc_r:
     type: progress
@@ -239,6 +248,7 @@ elements:
     color: config.data_color
     track_color: config.colors.dark
     when_absent: hide
+    antialias: true
 
 
   hours:
@@ -272,6 +282,7 @@ elements:
     color: config.data_color
     track_color: config.colors.dark
     when_absent: hide
+    antialias: true
 
   circle_icon:
     type: icon
@@ -282,10 +293,9 @@ elements:
 
   circle_text:
     type: text
-    value: activity.steps
-    format: "te%"
+    text: 'XX%'
     font: FONT_XTINY
-    at: { anchor: center, dx: 34%, dy: 4%}    #  | arc | polygon | line
+    at: { anchor: center, dx: 34%, dy: 5%}    #  | arc | polygon | line
     color: config.colors.dim
   # A stroked ring, open at the bottom. There is no filled-sector primitive in
   # Connect IQ, so `thickness` is a pen width and there is no inner radius.

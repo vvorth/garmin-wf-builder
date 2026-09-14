@@ -42,13 +42,14 @@ face:
 targets: [fenix8solar47mm, fenix8solar51mm, fr955, fr255, fenix6]
 
 fonts:
-  clock:
-    source: assets/OpenSans-Regular.ttf
-    size: 70%r
+  # clock:
+  #   source: assets/OpenSans-Regular.ttf
+  #   size: 70%r
+    # antialias: true
+  #
     # 'glyphs' is omitted on purpose: the compiler derives the set from every
     # format spec and literal this design can render, so the sheet carries the
     # handful of digits the clock actually draws rather than a character set.
-    antialias: true
   test:
     source: assets/ChivoMono-Bold.ttf
     # source: custom-fonts/SairaStencilOne-Regular.ttf
