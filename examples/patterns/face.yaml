@@ -158,3 +158,29 @@ elements:
         radius: 2%r
         color: "copy == (date.weekday + 5) % 7 ? palette.cyan : palette.black"
       - { shape: circle, radius: 4%r, filled: false, thickness: 1px, color: palette.gray }
+
+  test_visibility:
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dx: -20%r, dy: 25%r }
+    count: 5
+    step: { dx: 10%r }
+    #  when_absent: hide # implement - if any child's data unresolved
+    parts:
+      - shape: rectangle
+        size: { width: 8%r, height: 8%r }
+        color: palette.gray
+      - shape: rectangle
+        size: { width: 6%r, height: 6%r }
+        color: palette.black
+      - shape: rectangle
+        size: { width: 4%r, height: 4%r }
+        # `copy` is the copy index, 0-6.
+        # math to make <10% -> indicate 0 bars, ... >90% -> indicate 5 bars
+        color: "copy <= ((system.battery - 10) / 20) ? palette.orange : palette.black" # option 1a, works
+        
+        # color: "copy <= activity.move_bar_level-1 ? palette.orange : palette.black" # option 1b should work, currently fails on data that may be absent
+        # color: "copy <= ((complication.battery - 10) / 20) ? palette.orange : palette.black" # option 1c should work, fails because it can't read complications
+
+        # visibility: "copy <= activity.move_bar_level-1" # option 2, visibility key to implement
+        # color: palette.orange # option 2 color
