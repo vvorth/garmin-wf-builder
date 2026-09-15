@@ -64,14 +64,32 @@ _ICON_OVERRIDE_ERROR = object()
 #: `filled:` has its own refusals on `arc` and `polygon`.  `thickness:` is
 #: handled separately below, because whether it is read depends on `filled:`
 #: rather than on the shape alone.
+#:
+#: `align`/`vertical_align` (plan 07 phase B) are in every row **except**
+#: `polygon` and `line` -- a polygon has no single `at:` to align on (every
+#: vertex is its own position, and it has no `at:` of its own either), and a
+#: line's `at:`/`to:` are already its two ends. Leaving the two keys out of
+#: those two rows is what makes `_check_shape_keys` below reject them there,
+#: through the same "key not used by this shape" sweep every other geometry
+#: key already goes through -- not a second, parallel check.
 SHAPE_GEOMETRY_KEYS = {
-    "rectangle": frozenset({"size"}),
-    "rounded_rectangle": frozenset({"size", "corner_radius"}),
-    "circle": frozenset({"radius"}),
-    "ellipse": frozenset({"size"}),
+    "rectangle": frozenset({"size", "align", "vertical_align"}),
+    "rounded_rectangle": frozenset({"size", "corner_radius", "align", "vertical_align"}),
+    "circle": frozenset({"radius", "align", "vertical_align"}),
+    "ellipse": frozenset({"size", "align", "vertical_align"}),
     "line": frozenset({"to"}),
-    "arc": frozenset({"radius", "start_angle", "sweep"}),
+    "arc": frozenset({"radius", "start_angle", "sweep", "align", "vertical_align"}),
     "polygon": frozenset({"points"}),
+}
+
+#: The plan 07 R3 reason `_check_shape_keys` appends to the ordinary
+#: "not used by this shape" note when the rejected key is `align` or
+#: `vertical_align` -- `polygon` and `line` are the only two rows above
+#: without either key, so this is a `dict`, not a per-shape branch.
+_SHAPE_NO_ALIGNMENT_REASON = {
+    "polygon": "every vertex is its own position; there is no single 'at:' "
+               "to align on -- a polygon has no 'at:' of its own either",
+    "line": "'at:' and 'to:' are the line's two ends",
 }
 
 #: Every geometry key, for the "not used by this shape" check.
@@ -659,10 +677,12 @@ class Element:
     resolved_antialias: bool = False
     #: Plan 07: the placement box's horizontal/vertical edge (or centre) that
     #: sits at the point `at:` resolves to -- one rule, on the base class, so
-    #: every kind of element carries it the same way (R1/R8). Only `group`,
-    #: `text` and a pattern's `shape: text` part read anything but the
-    #: default so far (phase A); the schema stays closed on every other kind
-    #: until its own phase adds the `$ref` (R2/R3). Read by `wfb.layout`'s
+    #: every kind of element carries it the same way (R1/R8). `group`, `text`
+    #: and a pattern's `shape: text` part read anything but the default since
+    #: phase A; `shape` (rectangle/rounded_rectangle/ellipse/circle/arc --
+    #: not polygon/line), `progress` (both styles) and `graph` since phase B
+    #: (2026-09-15). The schema stays closed on every other kind until its
+    #: own phase adds the `$ref` (R2/R3). Read by `wfb.layout`'s
     #: `alignment_shift` (box-drawn kinds) or `Resolver._justify` (glyph-drawn
     #: kinds) -- never both for the same kind.
     align: str = "center"
@@ -3012,9 +3032,11 @@ class Builder:
         values reach here (`$defs/align`/`$defs/verticalAlign`; `baseline`
         left the schema outright, `wfb.validate`'s friendly rename error
         catches it first), so this is a plain lookup with no validation of
-        its own.  Shared by `_build_group`, `_build_text` and
-        `_build_hand_part`'s `shape: text` branch; later phases call it for
-        every other accepting kind instead of reading the keys themselves.
+        its own.  Shared by `_build_group`, `_build_text`,
+        `_build_hand_part`'s `shape: text` branch, and -- since phase B,
+        2026-09-15 -- `_build_shape`, `_build_progress` and `_build_graph`;
+        later phases call it for every other accepting kind instead of
+        reading the keys themselves.
         """
         return node.get("align", "center"), node.get("vertical_align", "center")
 
@@ -3366,6 +3388,7 @@ class Builder:
     def _build_shape(self, node: dict, common: dict, path: tuple) -> Element:
         shape = node["shape"]
         raw_points = node.get("points") or []
+        align, vertical_align = self._alignment(node)
         element = Shape(
             **common,
             shape=shape,
@@ -3380,6 +3403,8 @@ class Builder:
             thickness=self._length(node, "thickness"),
             color=self._color_expression(node, "color"),
             filled=bool(node.get("filled", True)),
+            align=align,
+            vertical_align=vertical_align,
         )
         if shape == "circle" and element.radius is None:
             self._require(node, "radius", "a circle needs a radius")
@@ -3453,6 +3478,8 @@ class Builder:
                 + (", ".join(sorted(SHAPE_GEOMETRY_KEYS[shape])) or "(no geometry keys)"),
                 f"{key!r} belongs to " + " and ".join(f"'shape: {s}'" for s in owners),
             ]
+            if key in ("align", "vertical_align") and shape in _SHAPE_NO_ALIGNMENT_REASON:
+                notes.append(_SHAPE_NO_ALIGNMENT_REASON[shape])
             self.bag.error(
                 "element",
                 f"{key!r} is not used by 'shape: {shape}'",
@@ -3908,6 +3935,7 @@ class Builder:
     def _build_progress(self, node: dict, common: dict, path: tuple) -> Element:
         value = self._expression(node, "value")
         maximum = self._expression(node, "max")
+        align, vertical_align = self._alignment(node)
         element = Progress(
             **common,
             style=node["style"],
@@ -3922,6 +3950,8 @@ class Builder:
             track_color=self._color_expression(node, "track_color"),
             when_absent=node.get("when_absent"),
             fallback=self._expression(node, "fallback") if "fallback" in node else None,
+            align=align,
+            vertical_align=vertical_align,
         )
         for name, bound in (("value", value), ("max", maximum)):
             if bound and not bound.value.type.is_numeric():
@@ -4439,6 +4469,7 @@ class Builder:
                 notes=["use 'style: line' instead, or shorten 'range:'/'buckets:'"],
             )
 
+        align, vertical_align = self._alignment(node)
         element = Graph(
             **common,
             series=str(name) if name is not None else "",
@@ -4456,6 +4487,8 @@ class Builder:
             size=self._size(node.get("size")),
             color=self._color_expression(node, "color"),
             sample_count=sample_count,
+            align=align,
+            vertical_align=vertical_align,
         )
         # No `_check_other_absence` here, deliberately: a graph has no
         # `when_absent:` field to require, the same as `shape` and `icon`

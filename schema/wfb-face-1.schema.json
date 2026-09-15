@@ -831,6 +831,14 @@
           "type": "boolean",
           "default": true
         },
+        "align": {
+          "description": "rectangle, rounded_rectangle, ellipse, circle, arc only -- not polygon or line (docs/format.md, \"Placement: at: and align:\").",
+          "$ref": "#/$defs/align"
+        },
+        "vertical_align": {
+          "description": "rectangle, rounded_rectangle, ellipse, circle, arc only -- not polygon or line (docs/format.md, \"Placement: at: and align:\").",
+          "$ref": "#/$defs/verticalAlign"
+        },
         "modes": {
           "$ref": "#/$defs/modes"
         },
@@ -1004,6 +1012,14 @@
         },
         "track_color": {
           "$ref": "#/$defs/colorExpression"
+        },
+        "align": {
+          "description": "Both styles (docs/format.md, \"Placement: at: and align:\").",
+          "$ref": "#/$defs/align"
+        },
+        "vertical_align": {
+          "description": "Both styles (docs/format.md, \"Placement: at: and align:\").",
+          "$ref": "#/$defs/verticalAlign"
         },
         "when_absent": {
           "description": "Required for a nullable value or max. A progress element has no placeholder: there is no substitute *text* for a fill fraction, so the choice is hide or a fallback expression.",
@@ -1232,6 +1248,12 @@
         },
         "color": {
           "$ref": "#/$defs/colorExpression"
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "vertical_align": {
+          "$ref": "#/$defs/verticalAlign"
         },
         "modes": {
           "$ref": "#/$defs/modes"

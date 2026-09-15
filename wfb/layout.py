@@ -80,9 +80,13 @@ def alignment_shift(width: float, height: float, align: str, vertical_align: str
     The one implementation of the rule for every box-drawn kind (R8):
     :meth:`Resolver._group_box`, :meth:`Resolver._resolve_text`'s lint box
     and :func:`_pattern_part_ink`'s text branch all call this instead of
-    keeping their own ``left``/``center``/``right`` dict literal. Later
-    phases (shape, progress, graph, icon, complication_slot, hand/pattern
-    rectangle and circle parts) call it too, rather than write a sixth copy.
+    keeping their own ``left``/``center``/``right`` dict literal. Since
+    phase B (2026-09-15), :meth:`Resolver._resolve_shape` (rectangle,
+    rounded_rectangle, ellipse, circle, arc -- not polygon or line),
+    :meth:`Resolver._resolve_progress` (both styles) and
+    :meth:`Resolver._resolve_graph` call it too. Later phases (icon,
+    complication_slot, hand/pattern rectangle and circle parts) call it
+    too, rather than write another copy.
     """
     dx = {"left": width / 2, "center": 0.0, "right": -width / 2}[align]
     dy = {"top": height / 2, "center": 0.0, "bottom": -height / 2}[vertical_align]
@@ -633,12 +637,22 @@ class Resolver:
 
         if element.shape == "circle":
             radius = round(self._len(element.radius, parent, Axis.MINOR, 0))
+            # Plan 07 §3.2(a)/§3.1: the placement box is the full circle
+            # (`2*radius` square) regardless of `filled`/`thickness` -- an
+            # outline's pen pad is applied to `reach` below, around the
+            # already-moved centre, so it never itself moves the shift.
+            dx, dy = alignment_shift(2 * radius, 2 * radius, element.align, element.vertical_align)
+            cx, cy = cx + dx, cy + dy
             reach = radius if element.filled else radius + max(1, thickness) // 2 + 1
             box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
             return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
                                radius=radius, thickness=max(1, thickness))
 
         if element.shape == "line":
+            # No `align`/`vertical_align` on a line (plan 07 R3): `at:` and
+            # `to:` are its two ends, so there is no single point to align a
+            # box on. `SHAPE_GEOMETRY_KEYS`/`_check_shape_keys` reject the
+            # keys before this is ever reached with either one set.
             ex, ey = self._point(element.to or Position(), parent)
             pad = max(1, thickness)
             box = Box(min(cx, ex) - pad, min(cy, ey) - pad,
@@ -649,6 +663,10 @@ class Resolver:
         if element.shape == "arc":
             radius = round(self._len(element.radius, parent, Axis.MINOR, 0))
             pen = max(1, thickness)
+            # Plan 07 choice 3 (§6): align by the full circle, not the swept
+            # span's box, so `start_angle:`/`sweep:` never move the centre.
+            dx, dy = alignment_shift(2 * radius, 2 * radius, element.align, element.vertical_align)
+            cx, cy = cx + dx, cy + dy
             # The same reach a `progress` arc claims: the pen straddles the
             # radius, so the ink runs half a pen width past it either side.
             reach = radius + pen // 2 + 1
@@ -681,6 +699,11 @@ class Resolver:
 
         width = self._len(element.size.width, parent, Axis.X, parent.width)
         height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        # rectangle, rounded_rectangle, ellipse: the placement box is the
+        # declared `size:` (plan 07 §3.1) -- moved before the outline's pen
+        # pad (below) is added, so the pad never itself moves the shift (R4).
+        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
+        cx, cy = cx + dx, cy + dy
 
         if element.shape == "ellipse":
             rx = round(width / 2)
@@ -751,6 +774,11 @@ class Resolver:
         if element.style == "arc":
             radius = round(self._len(element.radius, parent, Axis.MINOR, 0))
             thickness = max(1, round(self._len(element.thickness, parent, Axis.MINOR, 1)))
+            # Plan 07 §3.1: the placement box is the full circle (`2*radius`
+            # square), moved before the pen pad below -- `start_angle:`/
+            # `sweep:` never move it, same as `shape: arc`.
+            dx, dy = alignment_shift(2 * radius, 2 * radius, element.align, element.vertical_align)
+            cx, cy = cx + dx, cy + dy
             reach = radius + thickness // 2 + 1
             box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
             start = (element.start_angle or Angle(0.0)).degrees
@@ -768,6 +796,8 @@ class Resolver:
             )
         width = self._len(element.size.width, parent, Axis.X, parent.width)
         height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
+        cx, cy = cx + dx, cy + dy
         box = Box(cx - width / 2, cy - height / 2, width, height)
         return PlacedProgress(element, box.rounded(), (round(cx), round(cy)), depth,
                               size=(round(width), round(height)))
@@ -803,6 +833,8 @@ class Resolver:
         cx, cy = self._point(element.at, parent)
         width = self._len(element.size.width, parent, Axis.X, parent.width)
         height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
+        cx, cy = cx + dx, cy + dy
         box = Box(cx - width / 2, cy - height / 2, width, height)
         thickness = max(1, round(self._len(element.thickness, parent, Axis.MINOR, 2)))
         bar_width = max(1, round(self._len(element.bar_width, parent, Axis.MINOR, 3)))

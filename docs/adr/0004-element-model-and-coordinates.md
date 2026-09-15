@@ -306,6 +306,11 @@ renderer can be trusted. It is a capability hand authors do not have.
 >   before (`wfb.layout.alignment_shift`). No codegen or runtime-lib change,
 >   and the default (`center`) shift is exactly `0.0` on both axes, so this
 >   is byte-identical to pre-plan-07 output wherever neither key is written.
+>   **Built for `shape` (rectangle, rounded_rectangle, ellipse, circle, arc —
+>   not polygon or line), `progress` (both styles) and `graph` 2026-09-15,
+>   plan 07 phase B** — confirming the prediction exactly: `wfb/emit/` and
+>   `runtime-lib/` needed no change, because `Layout`'s `_X`/`_CX` constants
+>   and the preview both already read the resolved `Placed.center`/`.box`.
 > - A **glyph-drawn** kind (`text`; a pattern's `shape: text` part; from a
 >   later phase, `icon`) places its glyphs **on the device**, because the
 >   drawn string can differ from the build-time estimate (a nullable

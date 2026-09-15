@@ -130,11 +130,23 @@ So far, `align:`/`vertical_align:` are accepted on:
 | `group` | `size:` |
 | `text` | the widest rendering × the line height (the same box the `off-screen`/`overlap` lints already check) |
 | a pattern's `shape: text` part | that copy's own string width × line height, in the pattern's frame |
+| `shape` rectangle, rounded_rectangle, ellipse | `size:` |
+| `shape` circle, arc | `2·radius` × `2·radius` — the full circle, whatever `start_angle:`/`sweep:` is |
+| `progress` bar | `size:` |
+| `progress` arc | `2·radius` × `2·radius`, same as `shape: arc` |
+| `graph` | `size:` |
+
+**Not accepted on `shape` polygon or `shape` line**, each for its own reason:
+a polygon has no single `at:` of its own, and every vertex is already its own
+position, so there is no one point to align a box on; a line's `at:`/`to:`
+are already its two ends, so aligning would ask "align *what*" a second time.
+Writing either key there is a build error naming the reason, through the same
+"key not used by this shape" check any other misplaced geometry key goes
+through (see [`shape`](#shape)).
 
 Every other kind does not take these keys yet — its box stays centred on
-`at:`, as it always has. A future phase extends the same rule to `shape`,
-`progress`, `icon`, `graph`, `complication_slot` and a hand/pattern
-rectangle or circle part.
+`at:`, as it always has. A future phase extends the same rule to `icon`,
+`complication_slot` and a hand/pattern rectangle or circle part.
 
 A `text` element or a pattern `shape: text` part draws its glyphs through a
 runtime justify on the device rather than moving a build-time box (there is
@@ -1362,6 +1374,11 @@ reported rather than drawing square corners in silence:
 | `polygon` | `points` | `fillPolygon` |
 | `line` | `to` | `drawLine` |
 
+`align:`/`vertical_align:` follow the one placement rule every accepting kind
+shares: [Placement: `at:` and `align:`](#placement-at-and-align). Accepted on
+every row above except `polygon` and `line`, which reject them with the
+reason (no single `at:` to align on; `at:`/`to:` are already the two ends).
+
 **`filled:` (default `true`) is a real switch, not decoration.** `filled: false`
 draws the outline at `thickness:` (default 1 px) instead of filling, on
 `rectangle`, `rounded_rectangle`, `circle` and `ellipse`. The outlined shape's
@@ -1529,6 +1546,11 @@ semantics are identical across styles and only the rendering differs.
 > pen width; cap style is not selectable; true annuli and gradient sweeps do not
 > exist. The schema deliberately does not offer `inner_radius`/`outer_radius`,
 > because promising them would be a lie.
+
+`align:`/`vertical_align:` follow the one placement rule every accepting kind
+shares: [Placement: `at:` and `align:`](#placement-at-and-align) — accepted on
+both styles, `bar`'s box is `size:` and `arc`'s is the full `2·radius` circle,
+same as `shape: arc`.
 
 ### `icon`
 
@@ -1716,11 +1738,11 @@ moves every child with it, without restating anything.
 `left`/`right` put that edge of the box at the point instead of the centre;
 `vertical_align` does the same vertically with `top`/`bottom`.
 
-**Only `group` and `text` (and a pattern's `shape: text` part) have these
-keys so far.** A `shape`, `progress`, `icon` or `graph` element's box stays
-centred on its own `at:`, as it always has — wrap it in an aligned group (as
-above) to get the same effect. A later phase extends the same rule to those
-kinds directly.
+**`group`, `text`, `shape` (not polygon/line), `progress` and `graph` all have
+these keys now** (a pattern's `shape: text` part too). An `icon` or
+`complication_slot` element's box still stays centred on its own `at:` — wrap
+it in an aligned group to get the same effect until a later phase extends the
+rule to those kinds directly.
 
 ### `graph`
 
@@ -1745,6 +1767,10 @@ A time series, drawn as a line, a filled area or bars:
 
   color: palette.accent
 ```
+
+`align:`/`vertical_align:` follow the one placement rule every accepting kind
+shares: [Placement: `at:` and `align:`](#placement-at-and-align) — a graph's
+placement box is its own `size:`.
 
 **`series:`** names an entry in a second, smaller catalogue than `wfb
 sources`' — run `wfb series` for the current list. Four families, all
