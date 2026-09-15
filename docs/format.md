@@ -109,6 +109,40 @@ comment so the conversion is auditable.
 Everything relative is resolved to whole pixels at build time. Nothing relative
 reaches the device: the watch performs no layout arithmetic.
 
+### Placement: `at:` and `align:`
+
+`at:` computes exactly one point. `align:` (`left`/`center`/`right`) and
+`vertical_align:` (`top`/`center`/`bottom`) say which edge of the element's
+own **placement box** — or its centre — sits on that point, independently per
+axis. Both default to `center`, so an element with neither key is centred on
+`at:` exactly as every element always has been.
+
+**The placement box is the element's declared geometry, never its ink.** An
+outlined shape's pen straddles its box the same whether the box is centred or
+aligned; an arc's `start_angle:`/`sweep:` never move where it sits, because
+the box is the full circle, not the swept span. Changing `thickness:` or
+`sweep:` never moves an element.
+
+So far, `align:`/`vertical_align:` are accepted on:
+
+| Kind | Placement box |
+|---|---|
+| `group` | `size:` |
+| `text` | the widest rendering × the line height (the same box the `off-screen`/`overlap` lints already check) |
+| a pattern's `shape: text` part | that copy's own string width × line height, in the pattern's frame |
+
+Every other kind does not take these keys yet — its box stays centred on
+`at:`, as it always has. A future phase extends the same rule to `shape`,
+`progress`, `icon`, `graph`, `complication_slot` and a hand/pattern
+rectangle or circle part.
+
+A `text` element or a pattern `shape: text` part draws its glyphs through a
+runtime justify on the device rather than moving a build-time box (there is
+no bottom-justify flag on the platform, so `vertical_align: bottom` there
+subtracts the font's own on-device `getFontHeight` instead) — see
+[`text`](#text) and [Text parts](#text-parts) for the mechanism; the *rule*
+above is the same regardless of which mechanism draws it.
+
 ---
 
 ## Palette
@@ -1407,8 +1441,8 @@ See `examples/shapes/face.yaml` for all seven on one face.
   font: font.clock
   at: { anchor: center, dy: -4% }
   color: palette.text
-  align: center             # left | center | right    (horizontal)
-  vertical_align: center    # top | center | baseline  (vertical)
+  align: center             # left | center | right   (horizontal)
+  vertical_align: center    # top | center | bottom   (vertical)
   when_absent: hide
 ```
 
@@ -1435,26 +1469,39 @@ the name `XX` followed by the `%` operator and then nothing -- hence
 `value:` is for data. (A quoted *expression* literal, `value: "'XX%'"`, also
 works, but `text:` is what it is for.)
 
-**`align`/`vertical_align` say which part of the text's own box lands on `at`'s
-resolved point** -- `at`/`anchor`/`dx`/`dy` only ever compute *one point*; these
-two say what of the element is centred, started, or ended there, independently
-per axis. Both default to `center`, which is why `at: {anchor: top, dy: 7%}`
-by itself puts the *centre* of the text at 7% down from the top, not its edge.
+`align`/`vertical_align` follow the one placement rule every accepting kind
+shares: [Placement: `at:` and `align:`](#placement-at-and-align). A `text`
+element's placement box is the widest rendering × the line height (the same
+box the `off-screen`/`overlap` lints already check); `at`/`anchor`/`dx`/`dy`
+only ever compute *one point*, and these two keys say what of that box is
+centred, started, or ended there, independently per axis. Both default to
+`center`, which is why `at: {anchor: top, dy: 7%}` by itself puts the
+*centre* of the text at 7% down from the top, not its edge.
 
 To anchor the text's own **bottom** edge to a point instead (so growing text
-extends upward from a fixed baseline, for instance) -- the case that is not
-obvious from `align` alone -- set `vertical_align: baseline`:
+extends upward from a fixed point, for instance) -- the case that is not
+obvious from `align` alone -- set `vertical_align: bottom`:
 
 ```yaml
 at: { anchor: top, dy: 7% }
-vertical_align: baseline   # the box's bottom edge sits at dy: 7%, not its centre
+vertical_align: bottom    # the box's bottom edge sits at dy: 7%, not its centre
 ```
 
-`top` puts the box's top edge at the point instead. Note `baseline` here means
-the bottom of the full line box (ascent + descent), not the typographic
-baseline glyphs actually sit on (which excludes a descender like the tail of a
-"g" or "y") -- close enough for short labels and digits, but not a true
-baseline-align.
+`top` puts the box's top edge at the point instead.
+
+`vertical_align: bottom` was spelled `vertical_align: baseline` before
+2026-09-15 (plan 07) -- the old spelling is now a build error naming the
+rename, with no shim. It never meant the typographic baseline glyphs
+actually sit on (which excludes a descender like the tail of a "g" or "y"):
+it always meant the bottom of the full line box (ascent + descent), the same
+thing `bottom` means now. Renaming it fixed a real bug alongside the rename:
+`Dc.drawText` has no bottom-justify flag, so on the device (and in the
+preview) the old spelling used to draw exactly like `top`, hanging the text
+down from the point instead of resting its bottom edge on it, even though
+the lint box was already computed correctly. `vertical_align: bottom` now
+draws by subtracting the font's own on-device `getFontHeight` from the
+anchor -- exact even for a system font, whose pixel height this compiler
+only scrapes an estimate of.
 
 ### `progress`
 
@@ -1644,12 +1691,12 @@ emits no code of its own, so there is nothing else it could mean), which is why
 nesting composes: an inner group's condition and the outer one both have to hold
 for a leaf to draw. See "`visible:`" above.
 
-**`align`/`vertical_align` say which edge of the group's own box lands on `at`'s
-resolved point**, the same idea `text`'s `align`/`vertical_align` express for a
-text box (see "`text`" above), but for the group's box as a whole. Both default
-to `center`, which is today's behaviour: the box centred on `at:`. Children then
-resolve their own `%`/`%r` positions against whatever box this produces, so
-moving `align:` moves every child with it, without restating anything.
+`align`/`vertical_align` follow the one placement rule every accepting kind
+shares: [Placement: `at:` and `align:`](#placement-at-and-align). A group's
+placement box is its own `size:`. Both keys default to `center`, which is
+today's behaviour: the box centred on `at:`. Children then resolve their own
+`%`/`%r` positions against whatever box this produces, so moving `align:`
+moves every child with it, without restating anything.
 
 ```yaml
 - id: data_window_right
@@ -1667,14 +1714,13 @@ moving `align:` moves every child with it, without restating anything.
 ```
 
 `left`/`right` put that edge of the box at the point instead of the centre;
-`vertical_align` does the same vertically with `top`/`bottom`. **A group has no
-baseline** — unlike `text`'s `vertical_align`, whose bottom value is
-`baseline`, a group's is plainly `bottom`: there is no line of glyphs to hang
-one from, just a rectangle.
+`vertical_align` does the same vertically with `top`/`bottom`.
 
-**Only `group` has these keys.** A `shape`, `progress` or `graph` element's box
-stays centred on its own `at:`, as it always has — wrap it in an aligned group
-(as above) to get the same effect.
+**Only `group` and `text` (and a pattern's `shape: text` part) have these
+keys so far.** A `shape`, `progress`, `icon` or `graph` element's box stays
+centred on its own `at:`, as it always has — wrap it in an aligned group (as
+above) to get the same effect. A later phase extends the same rule to those
+kinds directly.
 
 ### `graph`
 
@@ -2126,15 +2172,20 @@ static:
 numerals should not. Only the anchor point goes through the copy's
 transform. It is then rounded half up to a whole pixel, on the watch and in
 the preview alike, and the text is placed on it with `align:`/
-`vertical_align:` exactly as a `text` element is placed on its `at:`.
+`vertical_align:` following the one placement rule every accepting kind
+shares: [Placement: `at:` and `align:`](#placement-at-and-align). This
+part's placement box is that copy's own string width × line height, in the
+pattern's frame.
 
 The keys are those of a `text` element. **`value:`** is an expression in
 which `copy` is bound. **`text:`** is a fixed string, the same on every copy.
 Give exactly one of the two. `format:` (a numeric format, as on `text`)
 applies to `value:` only. `font:` names a `fonts:` entry or a system font,
 and defaults to `FONT_MEDIUM`. `align:` is `left`/`center`/`right` and
-`vertical_align:` is `top`/`center`/`baseline`, both defaulting to `center`.
-`color:` and `visible:` work as on any part.
+`vertical_align:` is `top`/`center`/`bottom`, both defaulting to `center`.
+`vertical_align: bottom` was spelled `baseline` before 2026-09-15 (plan 07)
+-- see [`text`](#text) for the rename and the bug it fixed; the same fix and
+the same rename apply here. `color:` and `visible:` work as on any part.
 
 **`value:` may read only `copy`** and literals. A data source, a palette
 entry or `config.*` in it is a build error. The compiler renders every

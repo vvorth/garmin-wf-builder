@@ -28,7 +28,7 @@ from .ir import Progress, Shape, Text
 from .layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
     PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
-    complication_slot_pair_geometry, pattern_text_anchor,
+    alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
 )
 from .palette import MIP64_LEVELS, Color
 
@@ -863,8 +863,14 @@ class _Renderer:
         s = self.scale
         width, _ = font.measure(text)
         x, y = anchor[0] * s, anchor[1] * s
-        left = {"left": x, "center": x - width * s / 2, "right": x - width * s}[align]
-        top = y - font.line_height * s / 2 if vertical_align == "center" else y
+        line_height = font.line_height * s
+        # The one shared placement rule (`wfb.layout.alignment_shift`), not a
+        # private dict literal (R8) -- `bottom` (renamed from `baseline`,
+        # R6) now puts the ink's bottom edge on `y`, fixing the §1.2 bug
+        # here instead of drawing it hanging down from `y` like `top` did.
+        dx, dy = alignment_shift(width * s, line_height, align, vertical_align)
+        left = x + dx - width * s / 2
+        top = y + dy - line_height / 2
 
         if sheet is None:
             self._approximate_text(text, anchor, align, vertical_align, font_px, color, box)
@@ -903,6 +909,19 @@ class _Renderer:
         watch will draw.  The *position* is exact, and the extent is the same
         estimate the compiler recorded -- because both come from this one face at
         this one size, they cannot disagree.
+
+        `align`/`vertical_align` are handed straight to Pillow's own
+        multi-character text anchor (`ImageDraw.text`'s `anchor=`) rather
+        than reimplemented as a left/center/right offset here (R8) -- Pillow
+        already knows how to place text by its left/middle/right edge and by
+        its ascender/middle/descender line, so there is nothing of
+        `wfb.layout.alignment_shift`'s own rule to duplicate; this is a
+        one-to-one translation into Pillow's vocabulary, not a second copy
+        of the placement math. `bottom` (renamed from `baseline`, R6) maps
+        to Pillow's descender anchor `"d"`, fixing the §1.2 bug here too:
+        `top` and the old `baseline` used to collapse onto the same `"a"`
+        anchor, so a bottom-aligned line drew hanging down from the point
+        exactly like a top-aligned one.
         """
         s = self.scale
         face = fallback.font_for_height(font_px * s)
@@ -917,8 +936,15 @@ class _Renderer:
 
         x = anchor[0] * s
         y = anchor[1] * s
-        anchor_x = {"left": "l", "center": "m", "right": "r"}[align]
-        anchor_y = "m" if vertical_align == "center" else "a"
+        # "left"/"right" share Pillow's own first letter; anything else
+        # (only "center" is a valid value here) is the middle anchor.
+        anchor_x = align[0] if align in ("left", "right") else "m"
+        if vertical_align == "top":
+            anchor_y = "a"
+        elif vertical_align == "bottom":
+            anchor_y = "d"
+        else:
+            anchor_y = "m"
         self.draw.text((x, y), text, fill=color, font=face, anchor=anchor_x + anchor_y)
 
     # -- shared -----------------------------------------------------------

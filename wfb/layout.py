@@ -68,6 +68,27 @@ def _round_away(value: float) -> int:
     return int(value - 0.5) if value < 0 else int(value + 0.5)
 
 
+def alignment_shift(width: float, height: float, align: str, vertical_align: str) -> tuple[float, float]:
+    """How far a placement box's centre sits from the point ``at:`` resolves
+    to (plan 07 §3.2(a)), for a box-drawn kind: ``align``/``vertical_align``
+    say which edge (or the centre) of the box sits on that point,
+    independently per axis. ``center``/``center`` -- the default, and the
+    only value every pre-plan-07 design used -- adds exactly ``0.0`` on both
+    axes, so a caller's default path is byte-identical to before this
+    existed (R5).
+
+    The one implementation of the rule for every box-drawn kind (R8):
+    :meth:`Resolver._group_box`, :meth:`Resolver._resolve_text`'s lint box
+    and :func:`_pattern_part_ink`'s text branch all call this instead of
+    keeping their own ``left``/``center``/``right`` dict literal. Later
+    phases (shape, progress, graph, icon, complication_slot, hand/pattern
+    rectangle and circle parts) call it too, rather than write a sixth copy.
+    """
+    dx = {"left": width / 2, "center": 0.0, "right": -width / 2}[align]
+    dy = {"top": height / 2, "center": 0.0, "bottom": -height / 2}[vertical_align]
+    return dx, dy
+
+
 def garmin_arc(start: float, sweep: float) -> tuple[float, str]:
     """The author's arc angles in Garmin's ``drawArc`` convention.
 
@@ -357,13 +378,9 @@ def _pattern_part_ink(
         ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
         width = part.widths[index] if part.widths else 0
         height = part.line_height
-        left = {"left": ax, "center": ax - width / 2.0, "right": ax - width}[part.align]
-        if part.vertical_align == "center":
-            top = ay - height / 2.0
-        elif part.vertical_align == "top":
-            top = float(ay)
-        else:  # baseline
-            top = ay - height
+        dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
+        left = ax + dx - width / 2.0
+        top = ay + dy - height / 2.0
         return left, top, left + width, top + height
     # arc: always centred on the copy's own origin (plan 05 D3).
     px, py = tf(0.0, 0.0)
@@ -607,9 +624,8 @@ class Resolver:
         width = self._len(element.size.width, parent, Axis.X, parent.width)
         height = self._len(element.size.height, parent, Axis.Y, parent.height)
         cx, cy = self._point(element.at, parent)
-        left = cx - {"left": 0, "center": width / 2, "right": width}[element.align]
-        top = cy - {"top": 0, "center": height / 2, "bottom": height}[element.vertical_align]
-        return Box(left, top, width, height)
+        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
+        return Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
 
     def _resolve_shape(self, element: Shape, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
@@ -709,14 +725,15 @@ class Resolver:
 
         x, y = self._point(element.at, parent)
         justify = self._justify(element)
-        left = {"left": x, "center": x - width / 2, "right": x - width}[element.align]
-        if element.vertical_align == "center":
-            top = y - line_height / 2
-        elif element.vertical_align == "top":
-            top = y
-        else:  # baseline
-            top = y - line_height
-        box = Box(left, top, width, line_height)
+        # The lint box only -- the runtime `drawText` anchor stays `(x, y)`
+        # unshifted (mechanism (b), plan 07 §3.2): a glyph kind's alignment
+        # is a device-side justify, not a build-time box move. `bottom`
+        # (renamed from `baseline`, R6) already put this box's top at
+        # `y - line_height`, which is where the §1.2 bug's *box* was always
+        # right; only the actual draw call and the preview disagreed with it
+        # (fixed below / in `wfb.emit.monkeyc` / `wfb.preview`).
+        dx, dy = alignment_shift(width, line_height, element.align, element.vertical_align)
+        box = Box(x + dx - width / 2, y + dy - line_height / 2, width, line_height)
         return PlacedText(
             element, box.rounded(), (round(x), round(y)), depth,
             anchor_point=(round(x), round(y)),
@@ -1374,6 +1391,7 @@ __all__ = [
     "ResolvedHandPart",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
     "inside_visible_area_for", "circular_extent", "garmin_arc",
+    "alignment_shift",
     "is_full_bleed",
     "ANCHORS", "Size",
 ]

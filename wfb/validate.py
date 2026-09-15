@@ -70,7 +70,7 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
     # uninformative reason, so it is caught first and named directly.
     bad_types = (
         _check_element_types(doc, bag) + _check_hand_frame(doc, bag)
-        + _check_pattern_frame(doc, bag)
+        + _check_pattern_frame(doc, bag) + _check_baseline_renamed(doc, bag)
     )
 
     validator = Draft202012Validator(load_schema())
@@ -250,6 +250,60 @@ def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> b
                "asleep) or 'seconds: never' are implemented"],
     )
     return True
+
+
+def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
+    """Catch `vertical_align: baseline` before the schema does (plan 07 R6):
+    the schema's `verticalAlign` enum no longer has the value at all, so a
+    bare "'baseline' is not valid here" would not tell an author it was
+    renamed, or why. Checked on a `text` element and on a pattern's
+    `shape: text` part -- the two places `vertical_align:` is accepted so
+    far (phase A; `docs/format.md`'s "Placement" section).
+
+    Follows `_check_hands_seconds_always`'s precedent: the friendly
+    explanation goes through this hand-written check, the schema stays
+    normative (closed to the old spelling), and this only supplies the
+    reason. Returns the exact `vertical_align` leaf path for each
+    occurrence, not the whole element -- so only that one (now-inevitable)
+    schema `enum` error is dropped, and any other, unrelated mistake on the
+    same element still gets its own error ("one error, not N" per
+    occurrence, `docs/lore/codegen.md`, not one error per *element*).
+    """
+    bad: list[list] = []
+
+    def report(container: dict, path: list) -> None:
+        bag.error(
+            "schema",
+            "'vertical_align: baseline' was renamed 'bottom'",
+            doc.span(container, "vertical_align"),
+            notes=["it always meant the bottom of the full line box, never "
+                   "the typographic baseline glyphs sit on -- Dc.drawText has "
+                   "no bottom-justify flag, so a true typographic baseline "
+                   "was never actually drawn",
+                   "write 'vertical_align: bottom' instead"],
+        )
+        bad.append(path)
+
+    def visit(elements, path: list) -> None:
+        if not isinstance(elements, list):
+            return
+        for index, element in enumerate(elements):
+            if not isinstance(element, dict):
+                continue
+            here = path + [index]
+            if element.get("type") == "text" and element.get("vertical_align") == "baseline":
+                report(element, here + ["vertical_align"])
+            if element.get("type") == "pattern":
+                parts = element.get("parts")
+                if isinstance(parts, list):
+                    for i, part in enumerate(parts):
+                        if isinstance(part, dict) and part.get("shape") == "text" \
+                                and part.get("vertical_align") == "baseline":
+                            report(part, here + ["parts", i, "vertical_align"])
+            visit(element.get("children"), here + ["children"])
+
+    visit(doc.data.get("elements"), ["elements"])
+    return bad
 
 
 #: A hand-frame length the schema's `handLength` pattern refuses, and why --

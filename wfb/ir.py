@@ -657,6 +657,16 @@ class Element:
     #: On a `group` nothing reads it directly -- the field exists there only
     #: as the default source `_resolve_antialias` hands to the subtree.
     resolved_antialias: bool = False
+    #: Plan 07: the placement box's horizontal/vertical edge (or centre) that
+    #: sits at the point `at:` resolves to -- one rule, on the base class, so
+    #: every kind of element carries it the same way (R1/R8). Only `group`,
+    #: `text` and a pattern's `shape: text` part read anything but the
+    #: default so far (phase A); the schema stays closed on every other kind
+    #: until its own phase adds the `$ref` (R2/R3). Read by `wfb.layout`'s
+    #: `alignment_shift` (box-drawn kinds) or `Resolver._justify` (glyph-drawn
+    #: kinds) -- never both for the same kind.
+    align: str = "center"
+    vertical_align: str = "center"
 
     @property
     def symbol(self) -> str:
@@ -687,11 +697,11 @@ class Element:
 class Group(Element):
     size: Size = field(default_factory=Size)
     items: list[Element] = field(default_factory=list)
-    #: Which horizontal/vertical edge of the group's own box sits at `at:`
-    #: (or the centre). Children resolve against the box this produces.
-    #: Defaults reproduce today's always-centred behaviour byte-identically.
-    align: str = "center"
-    vertical_align: str = "center"
+    #: `align`/`vertical_align` (which horizontal/vertical edge of the
+    #: group's own box sits at `at:`, or the centre) moved onto `Element`
+    #: itself 2026-09-15 (plan 07 phase A) -- see the base class.  Children
+    #: resolve against the box this produces.  Defaults reproduce today's
+    #: always-centred behaviour byte-identically.
 
     def children(self) -> list[Element]:
         return self.items
@@ -909,8 +919,8 @@ class Text(Element):
     font: str = "FONT_MEDIUM"
     font_is_custom: bool = False
     color: Expression | None = None
-    align: str = "center"
-    vertical_align: str = "center"
+    #: `align`/`vertical_align` moved onto `Element` 2026-09-15 (plan 07
+    #: phase A) -- see the base class.
     when_absent: str | None = None
     placeholder: str | None = None
     fallback: Expression | None = None
@@ -2508,6 +2518,7 @@ class Builder:
 
         if not ok:
             return None
+        align, vertical_align = self._alignment(node)
         return HandPart(
             shape=shape, points=points, at=at, size=size, to=to,
             thickness=thickness, radius=radius, filled=filled,
@@ -2516,7 +2527,7 @@ class Builder:
             visible=part_visible,
             text_value=text_value, text_literal=text_literal, format=text_format,
             font=text_font, font_is_custom=text_font_is_custom,
-            align=node.get("align", "center"), vertical_align=node.get("vertical_align", "center"),
+            align=align, vertical_align=vertical_align,
         )
 
     def _check_hand_part_keys(
@@ -2994,6 +3005,19 @@ class Builder:
         )
         return None
 
+    def _alignment(self, node: dict) -> tuple[str, str]:
+        """`(align, vertical_align)`, defaulting to `"center"`/`"center"` --
+        the one place that reads the two keys plan 07 made a placement
+        property of every kind (R1/R8).  The schema is normative on which
+        values reach here (`$defs/align`/`$defs/verticalAlign`; `baseline`
+        left the schema outright, `wfb.validate`'s friendly rename error
+        catches it first), so this is a plain lookup with no validation of
+        its own.  Shared by `_build_group`, `_build_text` and
+        `_build_hand_part`'s `shape: text` branch; later phases call it for
+        every other accepting kind instead of reading the keys themselves.
+        """
+        return node.get("align", "center"), node.get("vertical_align", "center")
+
     def _visible(self, node: dict) -> Expression | None:
         """Compile and type-check `visible:`.
 
@@ -3328,12 +3352,13 @@ class Builder:
                 element.static_rank = rank
 
     def _build_group(self, node: dict, common: dict, path: tuple) -> Element:
+        align, vertical_align = self._alignment(node)
         group = Group(
             **common,
             size=self._size(node.get("size")),
             items=self._build_elements(node["children"], path + ("children",)),
-            align=node.get("align", "center"),
-            vertical_align=node.get("vertical_align", "center"),
+            align=align,
+            vertical_align=vertical_align,
         )
         self._push_visible(group)
         return group
@@ -3825,14 +3850,15 @@ class Builder:
 
     def _build_text(self, node: dict, common: dict, path: tuple) -> Element:
         value = self._expression(node, "value") if "value" in node else None
+        align, vertical_align = self._alignment(node)
         element = Text(
             **common,
             value=value,
             literal=node.get("text"),
             format=node.get("format"),
             color=self._color_expression(node, "color"),
-            align=node.get("align", "center"),
-            vertical_align=node.get("vertical_align", "center"),
+            align=align,
+            vertical_align=vertical_align,
             when_absent=node.get("when_absent"),
             placeholder=node.get("placeholder"),
             fallback=self._expression(node, "fallback") if "fallback" in node else None,

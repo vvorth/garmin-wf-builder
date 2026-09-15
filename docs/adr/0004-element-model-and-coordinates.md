@@ -280,6 +280,68 @@ renderer can be trusted. It is a capability hand authors do not have.
 > anti-drift argument (Consequences, second bullet) still holds. The format
 > is documented in `docs/format.md` under "`pattern`".
 
+### 8. Placement — `align`/`vertical_align` as one rule for every kind
+
+> **Amendment (2026-09-15, plan 07).** Every element resolves a **placement
+> box**, computed from its own declared geometry and never its ink, and
+> `align`/`vertical_align` say which edge of that box — or its centre — sits
+> on the point `at:` resolves to, independently per axis, both defaulting to
+> `center` (`docs/format.md`, "Placement: `at:` and `align:`"). Plan 06
+> (2026-09-15, `git show
+> f5155d7:docs/plans/06-pattern-text-and-group-align.md`) had already put the
+> two keys on `group` alone, alongside `text`'s own long-standing pair; plan
+> 07 makes them one property of every kind of element instead of restating
+> the same left/center/right rule once per kind (five hand-written copies by
+> the time it was found: `group`, `text`, a pattern text part, and one each
+> in the host preview's two text-drawing paths —
+> `docs/plans/07-align-everywhere.md` §1.1, §3.3).
+>
+> Two mechanisms, chosen by how the kind is drawn — new information about
+> the device's own drawing, not only a refactor of where the rule lives:
+>
+> - A **box-drawn** kind (`group`; from a later phase, `shape`, `progress`,
+>   `graph`, a hand/pattern rectangle or circle part) resolves alignment
+>   **entirely at build time**, by moving the placement box's centre before
+>   the rest of that kind's own geometry is computed around it exactly as
+>   before (`wfb.layout.alignment_shift`). No codegen or runtime-lib change,
+>   and the default (`center`) shift is exactly `0.0` on both axes, so this
+>   is byte-identical to pre-plan-07 output wherever neither key is written.
+> - A **glyph-drawn** kind (`text`; a pattern's `shape: text` part; from a
+>   later phase, `icon`) places its glyphs **on the device**, because the
+>   drawn string can differ from the build-time estimate (a nullable
+>   source's fallback text, a live reading longer than the widest one
+>   measured). `align` picks `Dc`'s own `TEXT_JUSTIFY_LEFT/CENTER/RIGHT`
+>   flag, exactly as `text` already did. `vertical_align: center` adds
+>   `TEXT_JUSTIFY_VCENTER`; `top` adds nothing, `y` being `Dc.drawText`'s own
+>   top-left placement. **`bottom` is new, tiny, device-side layout
+>   arithmetic this ADR did not previously have**: since
+>   `Toybox.Graphics.Dc` has no bottom-justify flag at all (checked against
+>   every target's own `api.debug.xml`, the same way §6 checked for a
+>   rotated-primitive draw call and found none), the generated code
+>   subtracts the font's own `dc.getFontHeight(font)` from the anchor once,
+>   per frame, rather than baking a build-time line height in. Only the
+>   device's own measured height is exact for a system font, whose pixel
+>   size this compiler only scrapes an estimate of from the SDK's device
+>   reference (§5) — baking the subtraction in at build time would be wrong
+>   exactly where §5's own justification (no device in the loop) matters
+>   most. A radial pattern text part folds the same subtraction into the
+>   *translation* term of its rotation (the copy's own `cy`, left otherwise
+>   unchanged), so it shifts the drawn point straight up on screen
+>   regardless of the copy's angle — `runtime-lib/WfbGeom.mc`'s
+>   `drawTextRotated` gained no new parameter for it.
+>
+> A real bug came with the plan's research, not only a naming
+> inconsistency: `text`'s old `vertical_align: baseline` had *already*
+> computed its lint box correctly (the box's bottom edge at the point), but
+> the device and the preview both drew it exactly like `top` — there being
+> no bottom-justify flag, `Resolver._justify` never added `VCENTER` for
+> either value, so the lint box and the actual ink silently disagreed
+> (`docs/plans/07-align-everywhere.md` §1.2). `baseline` is renamed `bottom`
+> (a friendly, no-shim build error catches the old spelling) partly because
+> the fix landed at the same time, and partly because the name never
+> described what it drew: the bottom of the full line box, never the
+> typographic baseline glyphs actually sit on.
+
 ## Consequences
 
 - The IR carries **resolved absolute pixels per target device**, computed from
@@ -291,6 +353,12 @@ renderer can be trusted. It is a capability hand authors do not have.
   **Patterns** (§7, amended 2026-09-14) are the second exception: the watch
   turns or steps a pattern's resolved template once per copy, because baking
   the copies was measured at roughly 30x the memory.
+  **A glyph kind's `vertical_align: bottom`** (§8, amended 2026-09-15) is a
+  third, much smaller exception: one `dc.getFontHeight` subtraction from the
+  anchor per frame, for a `text` element or a pattern text part, because the
+  platform has no bottom-justify flag and only the device's own font metrics
+  are exact for a system font. Unlike hands' and patterns' own rotation,
+  this is a plain arithmetic term, not a per-vertex transform.
 - The preview renderer consumes the **same resolved IR**, so preview and device
   cannot disagree about position. This is the anti-drift mechanism Phase 3.8 asks
   for, and it works only because layout is resolved before codegen.

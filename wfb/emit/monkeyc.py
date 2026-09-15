@@ -2317,18 +2317,23 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
         else:
             font_expr = f"Graphics.{part.font_reference}"
         if radial:
+            # `bottom` shifts the shared `cy` translation term only for this
+            # call, not the variable itself (other parts of the same copy
+            # still rotate about the unshifted origin) -- the subtraction
+            # lands outside the rotation, so it moves the drawn point
+            # straight up on screen regardless of `theta` (plan 07 §3.2(b)).
+            cy_expr = _glyph_y_expr("cy", part.vertical_align, font_expr)
             pad = " " * len("WfbGeom.drawTextRotated(")
             w.line(
                 f"WfbGeom.drawTextRotated(dc, Layout.{part_prefix}_X, "
                 f"Layout.{part_prefix}_Y,"
             )
-            w.line(f"{pad}cx, cy, sin, cos, {font_expr}, {value_code},")
+            w.line(f"{pad}cx, {cy_expr}, sin, cos, {font_expr}, {value_code},")
             w.line(f"{pad}{justify});")
         else:
-            w.line(
-                f"dc.drawText(ox + Layout.{part_prefix}_X, oy + Layout.{part_prefix}_Y, "
-                f"{font_expr},"
-            )
+            y_expr = _glyph_y_expr(
+                f"oy + Layout.{part_prefix}_Y", part.vertical_align, font_expr)
+            w.line(f"dc.drawText(ox + Layout.{part_prefix}_X, {y_expr}, {font_expr},")
             w.line(f"            {value_code},")
             w.line(f"            {justify});")
         return
@@ -2571,6 +2576,24 @@ def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: li
     _emit_text_draw(w, placed, value_code)
 
 
+def _glyph_y_expr(y_expr: str, vertical_align: str, font_expr: str) -> str:
+    """The `y` a glyph draw hands `dc.drawText`/`WfbGeom.drawTextRotated`,
+    for a given `vertical_align:` (plan 07 §3.2(b)): `y_expr` unchanged for
+    `top`/`center` (`Resolver._justify` already adds `TEXT_JUSTIFY_VCENTER`
+    for `center`, and `top` is `Dc.drawText`'s own natural top-left
+    placement) -- there is no bottom-justify flag on the platform, so
+    `bottom` instead subtracts the font's *own*, on-device measured height,
+    exact even for a system font whose `size_px` `wfb.devices` only
+    scraped. Shared by a `text` element and a pattern's `shape: text` part
+    (and, from phase C, an icon) -- one subtraction, written once, not a
+    per-kind copy. `font_expr` is whatever Monkey C expression names the
+    font at the call site (a local `font` or `Graphics.FONT_...`).
+    """
+    if vertical_align != "bottom":
+        return y_expr
+    return f"{y_expr} - dc.getFontHeight({font_expr})"
+
+
 def _emit_text_draw(w: Writer, placed: PlacedText, value_code: str) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -2583,8 +2606,9 @@ def _emit_text_draw(w: Writer, placed: PlacedText, value_code: str) -> None:
         font_expr = "font"
     else:
         font_expr = f"Graphics.{placed.font_reference}"
+    y_expr = _glyph_y_expr(f"Layout.{prefix}_Y", element.vertical_align, font_expr)
     w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"dc.drawText(Layout.{prefix}_X, Layout.{prefix}_Y, {font_expr},")
+    w.line(f"dc.drawText(Layout.{prefix}_X, {y_expr}, {font_expr},")
     w.line(f"            {value_code},")
     w.line(f"            {justify});")
 

@@ -146,6 +146,24 @@
       "type": "string",
       "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
     },
+    "align": {
+      "description": "Which horizontal edge of this element's placement box sits at the point 'at:' resolves to (left/right), or its centre (docs/format.md, \"Placement: at: and align:\").",
+      "enum": [
+        "left",
+        "center",
+        "right"
+      ],
+      "default": "center"
+    },
+    "verticalAlign": {
+      "description": "Which vertical edge of this element's placement box sits at the point 'at:' resolves to (top/bottom), or its centre (docs/format.md, \"Placement: at: and align:\"). 'baseline' was renamed 'bottom' -- it always meant the box's bottom edge, never a typographic baseline.",
+      "enum": [
+        "top",
+        "center",
+        "bottom"
+      ],
+      "default": "center"
+    },
     "elementListOrMapping": {
       "description": "A list of elements, or a mapping whose key is the element id -- the shape 'static:', a layout's own 'static:'/'elements:', and (via the desugar rewrite) 'elements:' itself all share.",
       "oneOf": [
@@ -732,22 +750,10 @@
           "$ref": "#/$defs/overrides"
         },
         "align": {
-          "description": "Which horizontal edge of the group's own box sits at at: (left/right), or its centre. Children then resolve against that box. Default center is today's behaviour.",
-          "enum": [
-            "left",
-            "center",
-            "right"
-          ],
-          "default": "center"
+          "$ref": "#/$defs/align"
         },
         "vertical_align": {
-          "description": "Which vertical edge of the group's own box sits at at: (top/bottom), or its centre. A group has no baseline, so this is bottom, not text's baseline.",
-          "enum": [
-            "top",
-            "center",
-            "bottom"
-          ],
-          "default": "center"
+          "$ref": "#/$defs/verticalAlign"
         },
         "children": {
           "type": "array",
@@ -885,20 +891,10 @@
           "$ref": "#/$defs/colorExpression"
         },
         "align": {
-          "enum": [
-            "left",
-            "center",
-            "right"
-          ],
-          "default": "center"
+          "$ref": "#/$defs/align"
         },
         "vertical_align": {
-          "enum": [
-            "top",
-            "center",
-            "baseline"
-          ],
-          "default": "center"
+          "$ref": "#/$defs/verticalAlign"
         },
         "when_absent": {
           "description": "Required for a nullable source. Absence is the normal case on this platform, so the format refuses to guess.",
@@ -1775,22 +1771,12 @@
           "type": "string"
         },
         "align": {
-          "description": "'shape: text' only. Horizontal placement of the glyphs relative to the anchor point.",
-          "enum": [
-            "left",
-            "center",
-            "right"
-          ],
-          "default": "center"
+          "description": "'shape: text' only.",
+          "$ref": "#/$defs/align"
         },
         "vertical_align": {
-          "description": "'shape: text' only. Vertical placement of the glyphs relative to the anchor point.",
-          "enum": [
-            "top",
-            "center",
-            "baseline"
-          ],
-          "default": "center"
+          "description": "'shape: text' only.",
+          "$ref": "#/$defs/verticalAlign"
         }
       }
     },
