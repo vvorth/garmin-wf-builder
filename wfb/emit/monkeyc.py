@@ -672,7 +672,12 @@ def _pattern_needs_graphics(placed: "PlacedPattern") -> bool:
     """Does this `type: pattern` draw at least one polygon part (a rectangle
     part folded in) -- the same "needs `Array<Graphics.Point2D>`" test
     `_hands_needs_graphics` runs for a hand, generalised: a pattern has one
-    flat template rather than up to three named hands."""
+    flat template rather than up to three named hands.  A `shape: text` part
+    (plan 06 §3.4) needs no entry here: its `Layout` constants are plain
+    `Number`s (an anchor `_X`/`_Y`, no point array), so it never forces
+    `Toybox.Graphics` into the `Layout` module's own imports -- only the view
+    file, which already imports `Toybox.Graphics` unconditionally, ever
+    types anything against `Graphics.FontType`."""
     return any(part.shape == "polygon" for part in placed.parts)
 
 
@@ -685,10 +690,16 @@ def _pattern_needs_math(placed: "PlacedPattern") -> bool:
     turns by plain degree subtraction through `WfbArc.drawSpan`'s own
     `startDegrees` parameter (§6.4), not by rotating a coordinate -- so an
     all-arc radial pattern (`segments` in `examples/patterns/face.yaml`)
-    needs no `sin`/`cos` and therefore no `Toybox.Math` either.  Shared by
-    the view's import gate and :func:`_emit_pattern` itself so the two
-    cannot drift into disagreeing about whether the loop declares `angle`/
-    `sin`/`cos`.
+    needs no `sin`/`cos` and therefore no `Toybox.Math` either.  A text part
+    (plan 06 §3.4) is on the same footing as a filled circle's centre here:
+    only its *anchor* is rotated (the glyphs themselves stay upright), but
+    `WfbGeom.drawTextRotated` still takes `sin`/`cos` as plain call
+    arguments, exactly like `fillCircleRotated` does for a circle at the
+    origin -- so a text part counts as "not an arc" with no special case
+    needed, the same one `any(part.shape != "arc" ...)` line already covers
+    it. Shared by the view's import gate and :func:`_emit_pattern` itself so
+    the two cannot drift into disagreeing about whether the loop declares
+    `angle`/`sin`/`cos`.
     """
     if placed.element.pattern != "radial":
         return False
@@ -874,13 +885,21 @@ def _hand_part_constants(
     pattern template part (plan 05 §6.4, reusing this precedent):
     `<P>_<i>_POINTS` for a polygon (a rectangle part already folded into
     one by `wfb.layout`), `_X1/_Y1/_X2/_Y2/_THICKNESS` for a line,
-    `_X/_Y/_RADIUS[/_THICKNESS]` for a circle, or `_RADIUS/_THICKNESS` for
-    an arc (pattern-only -- a hand never produces this shape, §5.2) -- one
-    comment naming the part's own shape, the same "why" every other
-    constant block gets.  ``owner`` is the human-readable thing this part
-    belongs to (``"hour hand"``, or ``"template"`` for a pattern, which has
-    only the one), folded into that comment.
+    `_X/_Y/_RADIUS[/_THICKNESS]` for a circle, `_RADIUS/_THICKNESS` for
+    an arc (pattern-only -- a hand never produces this shape, §5.2), or
+    `_X/_Y` alone for a text part (plan 06 §3.4, pattern-only too -- the
+    anchor a copy's transform moves; no radius or thickness, since the
+    glyphs are measured, not stroked) -- one comment naming the part's own
+    shape, the same "why" every other constant block gets.  ``owner`` is
+    the human-readable thing this part belongs to (``"hour hand"``, or
+    ``"template"`` for a pattern, which has only the one), folded into
+    that comment.
     """
+    if part.shape == "text":
+        return [
+            (f"{part_prefix}_X", part.x, f"{owner}, part {index}: text (the anchor)"),
+            (f"{part_prefix}_Y", part.y, ""),
+        ]
     if part.shape == "polygon":
         points = ", ".join(f"[{x}, {y}]" for x, y in part.points)
         return [(
@@ -2259,7 +2278,8 @@ def _pattern_angle_expr(element: "PatternElement") -> tuple[str, str]:
 
 
 def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index: int,
-                       part, radial: bool, hoist_pen: bool) -> None:
+                       part, radial: bool, hoist_pen: bool,
+                       text_fonts: dict[str, str] | None = None) -> None:
     """One template part, drawn for the current copy `i` (plan 05 §6.4):
     rotated about `(cx, cy)` through `WfbGeom` for a radial pattern,
     translated by `(ox, oy)` for a linear one -- the same two drawing
@@ -2267,9 +2287,51 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
     "the axis" to "this copy's origin".  An `arc` part is the one shape
     neither calling convention covers on its own: it always goes through
     `WfbArc.drawSpan`, radial or linear alike, with the centre as its only
-    per-copy input (plan 05 D3 -- an arc part is never `at:`-offset).
+    per-copy input (plan 05 D3 -- an arc part is never `at:`-offset).  A
+    `text` part (plan 06 §3.4) is the other one-off: only its *anchor*
+    moves -- `WfbGeom.drawTextRotated` for radial, a plain `dc.drawText(ox +
+    ..., oy + ..., ...)` for linear, no helper needed there since a linear
+    pattern never rotates anything.  Its value is either the part's own
+    `text:` literal or its `value:` compiled through `formatting.emit` (the
+    same call `_emit_text` makes for a `text` element), read off
+    `element.parts[index]` -- the *IR* part, which is what carries
+    `text_value`/`text_literal` (geometry resolution in `wfb.layout` never
+    touches them).  ``text_fonts`` maps a custom font's resource name to the
+    local variable `_emit_pattern` already loaded it into, before the loop.
     """
     part_prefix = f"{prefix}_{index}"
+    if part.shape == "text":
+        ir_part = element.parts[index]
+        if ir_part.text_literal is not None:
+            escaped = ir_part.text_literal.replace("\\", "\\\\").replace('"', '\\"')
+            value_code = f'"{escaped}"'
+        else:
+            value_code = formatting.emit(
+                ir_part.format or "{}",
+                ir_part.text_value.code,
+                ir_part.text_value.value.type,
+            )
+        justify = " | ".join(f"Graphics.{flag}" for flag in part.justify)
+        if part.font_is_custom:
+            font_expr = (text_fonts or {})[part.font_reference]
+        else:
+            font_expr = f"Graphics.{part.font_reference}"
+        if radial:
+            pad = " " * len("WfbGeom.drawTextRotated(")
+            w.line(
+                f"WfbGeom.drawTextRotated(dc, Layout.{part_prefix}_X, "
+                f"Layout.{part_prefix}_Y,"
+            )
+            w.line(f"{pad}cx, cy, sin, cos, {font_expr}, {value_code},")
+            w.line(f"{pad}{justify});")
+        else:
+            w.line(
+                f"dc.drawText(ox + Layout.{part_prefix}_X, oy + Layout.{part_prefix}_Y, "
+                f"{font_expr},"
+            )
+            w.line(f"            {value_code},")
+            w.line(f"            {justify});")
+        return
     if part.shape == "polygon":
         if radial:
             w.line(f"WfbGeom.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
@@ -2366,6 +2428,13 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     after this part is the same whichever branch ran, and the part *after*
     it never has to ask whether this one actually drew (B6's colour-state
     test).
+
+    A `text` part's custom font is loaded into a local **once, before the
+    loop** -- the same "load once, guard once" rule `_emit_text_draw` follows
+    for a standalone `text` element, just hoisted out of the per-copy body
+    since every copy shares one font.  Two text parts naming different fonts
+    get two distinct locals (``font0``, ``font1``, ...), so nothing collides;
+    two parts naming the *same* font share one load and one guard.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -2384,6 +2453,16 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     if radial:
         w.line(f"var cx = Layout.{prefix}_X;")
         w.line(f"var cy = Layout.{prefix}_Y;")
+
+    text_fonts: dict[str, str] = {}
+    for _, part in live:
+        if part.shape == "text" and part.font_is_custom and part.font_reference not in text_fonts:
+            text_fonts[part.font_reference] = f"font{len(text_fonts)}"
+    for reference, local in text_fonts.items():
+        w.line(f"var {local} = _{_field(reference)};")
+        with w.block(f"if ({local} == null)"):
+            w.line("return;  // the font resource failed to load")
+        w.blank()
 
     # Colour: one distinct part colour is set once, before the loop; several
     # are set inside it, only on each change (the same rule `_emit_one_hand`
@@ -2443,9 +2522,9 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
                 # Non-constant, or `live` would have excluded it above.
                 w.comment(f"visible: {visible.text}")
                 with w.block(f"if ({visible.code})"):
-                    _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen)
+                    _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen, text_fonts)
             else:
-                _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen)
+                _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen, text_fonts)
     if hoist_pen:
         w.line("dc.setPenWidth(1);")
 
@@ -3633,7 +3712,11 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
 
     Covers both an author's declared custom text fonts and the synthetic
     per-size icon fonts (`wfb.icons.font_key`) -- both are bitmap fonts loaded
-    the same way, so one list and one loop serves both.
+    the same way, so one list and one loop serves both.  A pattern's `shape:
+    text` part (plan 06 §3.4) is one more source of a custom font: every
+    *drawn* copy shares the one font its part resolved to, so it is a single
+    entry here regardless of `count`, the same "one load, many uses" shape
+    `_emit_pattern`'s own per-pattern ``text_fonts`` map follows.
     """
     out: list[str] = []
     for placed in resolved.items:
@@ -3648,6 +3731,10 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
                 out.append(placed.font_reference)
             if placed.icon_font_key is not None and placed.icon_font_key not in out:
                 out.append(placed.icon_font_key)
+        elif isinstance(placed, PlacedPattern):
+            for part in placed.parts:
+                if part.shape == "text" and part.font_is_custom and part.font_reference not in out:
+                    out.append(part.font_reference)
     return out
 
 

@@ -2,14 +2,18 @@ import Toybox.Graphics;
 import Toybox.Lang;
 
 //! Shared rotate/translate-and-draw helpers for analog hands (plan 04) and
-//! patterns (plan 05).  Both resolve a template's geometry once at build
-//! time, in a frame whose origin is the axis (a hand) or the pattern's own
-//! `at:` (a pattern's template, copy 0 as authored) -- and leave only the
-//! per-frame transform to the watch: rotation for a hand or a radial
-//! pattern, translation for a linear one.  Moved out of WfbHands.mc when
-//! patterns needed the same four calls (plan 05 §6.3, "one convention, one
-//! helper", the precedent WfbArc.mc already set for arcs) -- WfbHands.mc
-//! keeps only the three clock-to-angle functions.
+//! patterns (plan 05), plus a pattern's `shape: text` parts (plan 06).  Both
+//! resolve a template's geometry once at build time, in a frame whose origin
+//! is the axis (a hand) or the pattern's own `at:` (a pattern's template,
+//! copy 0 as authored) -- and leave only the per-frame transform to the
+//! watch: rotation for a hand or a radial pattern, translation for a linear
+//! one.  A text part is the one shape whose *glyphs* never turn -- a bitmap
+//! font cannot rotate -- so only its anchor point goes through the rotation;
+//! `drawTextRotated` is `dc.drawText` with that same rotate-the-point step in
+//! front of it.  Moved out of WfbHands.mc when patterns needed the same four
+//! calls (plan 05 §6.3, "one convention, one helper", the precedent
+//! WfbArc.mc already set for arcs) -- WfbHands.mc keeps only the three
+//! clock-to-angle functions.
 //!
 //! Rotating clockwise by theta on a y-down screen:
 //!     x' = x cos(theta) - y sin(theta)
@@ -79,5 +83,23 @@ module WfbGeom {
             out[i] = [ox + p[0], oy + p[1]];
         }
         dc.fillPolygon(out);
+    }
+
+    //! A text part (plan 06): rotate only the anchor -- the glyphs stay
+    //! upright, a bitmap font cannot turn -- round it half up, then draw.
+    //! `text` is typed `String` rather than `drawText`'s own wider `Object`
+    //! because every caller here already has a `String`, from a literal or
+    //! from `wfb.formatting.emit`'s own `.format(...)`/`.toString()` output
+    //! (`docs/lore/monkeyc.md`'s narrowest-type rule).  `justify` keeps
+    //! `Dc.drawText`'s own union type: a bitwise-OR'd pair of
+    //! `Graphics.TEXT_JUSTIFY_*` flags typechecks as `Lang.Number`, not
+    //! `Graphics.TextJustification`, under `-l 3`.
+    function drawTextRotated(dc as Dc, x as Number, y as Number,
+                             cx as Number, cy as Number,
+                             sin as Decimal, cos as Decimal,
+                             font as Graphics.FontType, text as String,
+                             justify as Graphics.TextJustification or Lang.Number) as Void {
+        dc.drawText((cx + x * cos - y * sin + 0.5).toNumber(),
+                    (cy + x * sin + y * cos + 0.5).toNumber(), font, text, justify);
     }
 }

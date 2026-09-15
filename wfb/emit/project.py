@@ -225,13 +225,15 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
         elif kind == "pattern":
             # A pattern needs WfbGeom only when it actually rotates or
             # translates something *through* it: a radial pattern with at
-            # least one non-arc part (WfbGeom.*Rotated), or a linear
-            # pattern with a polygon part (WfbGeom.fillTranslated -- a
-            # linear line/circle draws straight off `ox`/`oy` with no
-            # helper at all).  An all-arc pattern, radial or linear, only
-            # ever calls WfbArc.drawSpan (plan 05 §6.4/§6.5) -- mirrors
-            # `_emit_pattern_part` in `wfb/emit/monkeyc.py`, the source of
-            # truth this has to agree with.
+            # least one non-arc part (WfbGeom.*Rotated -- a `shape: text`
+            # part included, plan 06 §3.4: `drawTextRotated` still rotates
+            # its anchor), or a linear pattern with a polygon part
+            # (WfbGeom.fillTranslated -- a linear line/circle/text draws
+            # straight off `ox`/`oy` with no helper at all).  An all-arc
+            # pattern, radial or linear, only ever calls WfbArc.drawSpan
+            # (plan 05 §6.4/§6.5) -- mirrors `_emit_pattern_part` in
+            # `wfb/emit/monkeyc.py`, the source of truth this has to agree
+            # with.
             radial = placed.element.pattern == "radial"
             needs_geom = (
                 any(part.shape != "arc" for part in placed.parts) if radial

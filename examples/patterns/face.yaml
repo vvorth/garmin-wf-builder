@@ -30,6 +30,19 @@
 #   build.
 # * **Anti-aliasing** on the three radial rings (soft rotated edges), and
 #   the face default (crisp) on everything else.
+# * **A radial `shape: text` pattern part, custom font** (`hour_numerals`,
+#   plan 06 §3, 2026-09-15): twelve hour numerals as one pattern instead of
+#   twelve polar `text` elements. `value: "(copy + 11) % 12 + 1"` is the
+#   plan's own example -- copy 0 draws "12", copy 1 draws "1", and so on --
+#   in `font.hourfont` (`assets/Questrial-Regular.ttf`), sized and radiused
+#   to sit clear of `segments` and the tick rings on either side.  `copy`
+#   only, so it is `static:` too.
+# * **A linear `shape: text` pattern part, system font** (`weekday_labels`,
+#   plan 06 §3, 2026-09-15): one-letter weekday initials in `FONT_XTINY`
+#   (no custom font declared), a `copy`-only ternary chain for `value:`,
+#   aligned 6%r above `week_dots` with the same `dx`/`step` -- `static:`
+#   for the same reason `hour_numerals` is, even though the row it labels,
+#   `week_dots`, is not.
 #
 # Every pattern but `week_dots` and `test_visibility` is in `static:`, so its
 # loop runs once, when the buffer is filled, not once a second -- both of
@@ -38,13 +51,12 @@
 # What is verified: the design builds warning-free through the real
 # `monkeyc` on all three targets (`--build-stats` recorded in
 # `docs/history.md`, 2026-09-14 "Patterns built", 2026-09-15 "week_dots
-# shows the day", and again after `test_visibility` gained `when_absent:
-# hide` and a per-copy `visible:`, 2026-09-15 "pattern when_absent: hide
-# and per-copy part visible:"). What is NOT verified anywhere in this
-# project: what it looks like on a panel, or that today's dot moves at
-# midnight -- there is no simulator and no watch in this container.
-# `wfb preview` draws the same resolved geometry through the same
-# transform, without anti-aliasing.
+# shows the day", 2026-09-15 "pattern when_absent: hide and per-copy part
+# visible:", and again after `hour_numerals`/`weekday_labels` were added,
+# plan 06 phase B2). What is NOT verified anywhere in this project: what it
+# looks like on a panel, or that today's dot moves at midnight -- there is
+# no simulator and no watch in this container. `wfb preview` draws the same
+# resolved geometry through the same transform, without anti-aliasing.
 #
 # Build it with:     ./wfb.py build examples/patterns/face.yaml
 # Preview it with:   ./wfb.py preview examples/patterns/face.yaml
@@ -62,6 +74,12 @@ targets:
   - fenix8solar47mm
   - fenix8solar51mm
   - fr955
+
+fonts:
+  hourfont:
+    source: assets/Questrial-Regular.ttf
+    size: 10%r
+    antialias: true
 
 # Every colour is one the 64-colour MIP panel shows without dithering:
 # each channel is 0x00, 0x55, 0xAA or 0xFF.
@@ -143,6 +161,46 @@ static:
           - { dx: -3%r, dy: -56%r }
           - { dy: -64%r }
           - { dx: 3%r, dy: -56%r }
+
+  # A `shape: text` pattern part (plan 06 §3): twelve hour numerals as one
+  # radial pattern instead of twelve polar `text` elements.  `value:` reads
+  # only `copy` (0-11), so the ring is `static:` like the rest -- its loop
+  # runs once, when the buffer is filled.  Sized and radiused to sit inside
+  # `segments` (72%r) with a clear gap on both sides: `hour_ticks`/
+  # `minute_ticks` occupy 82%r-94%r, `segments` sits at 72%r, so 55%r keeps
+  # the glyphs' own extent (font 10%r) well clear of both.
+  hour_numerals:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    color: palette.white
+    parts:
+      - shape: text
+        # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11" (the safe
+        # spelling for Monkey C's unverified negative-`%` behaviour,
+        # docs/plans/06-pattern-text-and-group-align.md §1).
+        value: "(copy + 11) % 12 + 1"
+        font: font.hourfont
+        at: { dy: -55%r }
+
+  # A linear `shape: text` pattern in a system font (no `fonts:` entry
+  # needed): one-letter weekday initials, aligned with `week_dots` below
+  # (same `dx`/`step`, 6%r above it) -- `value:` is a `copy`-only ternary
+  # chain, so this too can be `static:`, unlike `week_dots` itself, which
+  # reads `date.weekday` and must redraw every frame.
+  weekday_labels:
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dx: -30%r, dy: 30%r }
+    count: 7
+    step: { dx: 10%r }
+    color: palette.gray
+    parts:
+      - shape: text
+        value: 'copy == 0 ? "M" : copy == 1 ? "T" : copy == 2 ? "W" :
+          copy == 3 ? "T" : copy == 4 ? "F" : copy == 5 ? "S" : "S"'
+        font: FONT_XTINY
 
 elements:
   clock:
