@@ -121,7 +121,35 @@ lacks the symbol. Policy: an unavailable binding reads as absent on that
 device (constraint 8's contract, the element's `when_absent` path), `on_hold:`
 never fires there, config colours and styles keep their defaults (no editor),
 a `config: data:` slot shows absence (its default is itself a `Complications`
-read), and the build warns (a lint) rather than failing. The manifest floor stays at the generator's base `3.2.0`.
+read), and the build warns (a lint) rather than failing. The manifest floor
+stays at the generator's base `3.2.0`.
+
+## Does the low floor cost a newer watch anything? No: `minApiLevel` is not in the `.prg`
+
+VERIFIED, 2026-09-15. The generated dashboard project was compiled for
+`fenix8solar47mm` four times in the **same directory**, changing nothing but
+the manifest's `minApiLevel` (`3.2.0`, `4.2.0`, `5.1.0`, `6.0.0`). The four
+signed `.prg` files are **byte-identical** (`cmp -l`: 0 bytes differ), and so
+are their `.prg.debug.xml` files. Rebuilding the same directory twice is also
+0 bytes, so the build is deterministic and the comparison is meaningful.
+
+The field is not stored in the compiled program at all. Walking the PRG
+sections of an earlier run (built in different directories) shows the header
+(`0xd000d00d`), code (`0xc0debabe`) and data (`0xda7ababe`) sections
+identical. Only the debug section, which embeds the build directory's
+absolute path, and the signature (`0xe1c0de12`, whose input changed) differed.
+
+So `minApiLevel` does exactly what the SDK page says and nothing more: it
+decides which products `monkeyc` agrees to build for (the `Device 'fenix6'
+does not support API Level '4.2.0'` error), and it would be the Store's
+compatibility filter for an exported `.iq` (`wfb package` is not built). It
+enables nothing and changes nothing on a device above the floor.
+
+What a newer watch *does* pay comes from the guards, not the floor, and only
+when some target lacks the API. The dashboard's fenix8 build is 38 B larger
+with `fenix6` in `targets:`, plus one `Toybox has :Complications` lookup per
+frame. A design whose targets all have everything generates the same code it
+always did.
 
 ## Open question, stated honestly
 
