@@ -3126,3 +3126,70 @@ plus, in this run, 2 in `tests/test_lint.py`
 `docs/format.md` in a concurrently-edited tree, not a regression from this
 session's own changes.
 
+
+## 2026-09-15 — Text parts in a pattern, and `align:` on a group (plan 06)
+
+**Asked:** place text with a pattern, using `copy` in the value (twelve hour
+numerals as one radial pattern instead of twelve polar `text` elements, as
+`examples/analog/face.yaml` writes them), and allow `align:` on a `group`,
+which was an unknown key. A third ask, clamping a `%`/`%r` size or thickness
+below 1 px to 1 px, went to its own branch. The user asked for research, a
+plan, and a build by subagents one at a time, each integrated and committed.
+Branch `feat/pattern-text-group-align`. Plan 06 was written, built and
+deleted (`git show f5155d7:docs/plans/06-pattern-text-and-group-align.md`).
+
+**What shipped:**
+
+- `align: left|center|right` and `vertical_align: top|center|bottom` on a
+  `group` say which edge of its box sits at `at:`. This is pure build-time
+  arithmetic in `_group_box`, the default is byte-identical, and the
+  vertical bottom value is `bottom` because a group has no baseline
+  (`c1a144d`).
+- `shape: text` pattern parts: `value:` (which may read only `copy`) or
+  `text:`, plus `format`/`font`/`align`/`vertical_align`. Every copy's
+  string is rendered in the IR (`HandPart.texts`), so the font subset
+  (`glyph_set`), the extent and radial reach (text is not
+  rotation-invariant, so reach is taken per drawn copy), and
+  `missing-glyph` are exact (`d03a8b8`). On the watch the anchor turns
+  through `WfbGeom.drawTextRotated` or steps with `ox/oy`, rounded half up
+  as `wfb.layout.pattern_text_anchor` rounds it on the host. Glyphs stay
+  upright, and a custom font loads once before the loop (`9f66c88`).
+  Preview in `23cce92`.
+
+**Decisions made without a round-trip** (plan 06 §6): `shape: text`, not
+the `type: text` in the user's sketch, because every part is keyed by
+`shape:`. `value:` xor `text:`, the pair a `text` element already has, not a
+new key. Data in a text value is refused, because the glyph subset and
+extent must be known at build time; it is listed in `limitations.md` §2.
+The strings are compiled on the watch, as a `copy` colour is, and only
+host-evaluated for measuring. `vertical_align:` was added to groups next to
+the requested `align:`.
+
+**Verified:** `examples/patterns/face.yaml` gained `hour_numerals` and
+`weekday_labels`. It builds warning-free on `fenix8solar47mm`/`51mm`/`fr955`
+at 4,933/4,935/4,933 B, up from 4,462 B, and is clean under
+`test_example_is_clean_on_every_target[patterns]`. The first placement,
+numerals at 55%r and initials in `FONT_XTINY` above the dots, passed every
+lint yet visibly collided with the clock and the move-bar row in
+`wfb preview`. `FONT_XTINY` is 22 px tall on these targets, against a
+13 px step. The lints do not check text against text across elements in
+this case, so the example was re-placed by reading the resolved boxes (64%r,
+initials in the custom font under the dots). Each new diagnostic was driven
+red. The preview tests fail against the pre-B3 no-op.
+
+**Found, not fixed (pre-existing):** for `vertical_align: baseline`,
+`wfb.layout` computes a text box of `top = y - line_height`, but the preview
+(and the device, whose `drawText` without `TEXT_JUSTIFY_VCENTER` treats `y`
+as the top) draws with `top = y`. The layout box is therefore on the wrong
+side of the anchor for `baseline` text, for `text` elements and text parts
+alike. Nothing in the tests exercises `baseline`.
+
+**Unverified:** anything on a panel. Monkey C's `%` on a negative left side
+(ADR 0005's amendment) is also unverified, so the docs and example spell
+numerals `(copy + 11) % 12 + 1`.
+
+**Baseline:** this branch started with 8 fast-suite failures, not 3. The
+extra 5 (`analog` template-clean, two `test_hands_codegen`, two
+`test_hands_preview`) come from the user's own `examples/analog/face.yaml`
+edits in `45db779`/`6fab053`, and are now listed in `tests/CLAUDE.md`. The
+build left them untouched.

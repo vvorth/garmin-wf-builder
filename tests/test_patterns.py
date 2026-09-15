@@ -459,8 +459,8 @@ def test_copy_outside_a_pattern_has_its_own_error(write_design, bag):
 """
     bad = errors(design(shape), bag, write_design)
     assert len(bad) == 1
-    assert "'copy' is only defined in a 'type: pattern' element's colours " \
-           "and its parts' 'visible:'" in bad[0].message
+    assert "'copy' is only defined in a 'type: pattern' element's colours, " \
+           "its parts' 'visible:' and a text part's 'value:'" in bad[0].message
 
 
 def test_copy_does_not_leak_past_the_pattern_that_bound_it(write_design, bag):
@@ -505,8 +505,8 @@ def test_copy_in_the_element_level_visible_is_its_own_error(write_design, bag):
     )
     bad = errors(design(text), bag, write_design)
     assert len(bad) == 1
-    assert "'copy' is only defined in a 'type: pattern' element's colours " \
-           "and its parts' 'visible:'" in bad[0].message
+    assert "'copy' is only defined in a 'type: pattern' element's colours, " \
+           "its parts' 'visible:' and a text part's 'value:'" in bad[0].message
 
 
 # -- part `visible:` (B) -------------------------------------------------------

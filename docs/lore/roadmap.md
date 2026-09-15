@@ -175,6 +175,7 @@ and the ADR each is specified in):
     `examples/patterns/face.yaml` is the worked example. Not built: text
     parts (numerals), `pattern: grid`, data-driven colours
     (`docs/limitations.md` §2). Unverified on-device.
+    *(Text parts reading `copy` were built 2026-09-15, item 19.)*
 15. **Built 2026-09-15:** per-copy pattern colours. A pattern's `color:`
     may read `copy` (the index of the copy being drawn, bound nowhere
     else) and any source that is never absent. A source that can be
@@ -247,6 +248,24 @@ and the ADR each is specified in):
     a device lacks (none exist today) is still a hard build error, because
     the generator can only gate whole modules and bare fields, not one
     function call inside a reader's `call` expression.
+18. **Built 2026-09-15** (plan 06, fourth change): `align:`/`vertical_align:`
+    on a `group`. `align: left | center | right` and `vertical_align: top |
+    center | bottom` say which edge of the group's box sits at `at:`. The
+    default is centred, unchanged. Resolved entirely at build time
+    (`wfb/layout.py::_group_box`), and only `group` has the keys.
+19. **Built 2026-09-15** (plan 06, fifth change): text parts in a pattern,
+    closing item 14's "text parts (numerals)". A `shape: text` part has
+    `value:` (an expression that may read only `copy`) or `text:`, plus
+    `format`/`font`/`align`/`vertical_align`. Its anchor turns or steps
+    with the copy and is rounded half up (`WfbGeom.drawTextRotated` on the
+    watch, `wfb.layout.pattern_text_anchor` on the host). The glyphs stay
+    upright. Every copy's string is rendered at build time for the glyph
+    subset, the extent, the `missing-glyph` lint and the preview, so text
+    parts that read data are not built (`docs/limitations.md` §2).
+    `examples/patterns/face.yaml` has 12 numerals and a weekday-initial
+    row, both in one custom font. It builds warning-free on all three
+    targets, at 4,933 B (+471 B) on `fenix8solar47mm`. Unverified
+    on-device.
 
 **A previously-recorded loose end, now resolved — noted so nobody goes
 looking for the problem again:** commit `614d100` added

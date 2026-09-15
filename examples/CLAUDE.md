@@ -11,7 +11,9 @@ part shapes, and a `config.*` hand colour, and `patterns/` `type: pattern`
 including `arc`, `start:`, `skip:`/`skip_every:`, in and out of `static:`,
 a per-copy colour (`copy` + `date.weekday`: `week_dots` lights today,
 2026-09-15), and `when_absent: hide` with a per-copy part `visible:`
-(`test_visibility`, a move-bar row, 2026-09-15).
+(`test_visibility`, a move-bar row, 2026-09-15), and `shape: text` parts
+(plan 06, 2026-09-15: `hour_numerals`, a radial ring, and `weekday_labels`,
+a linear row).
 The Phase 2 slice is no longer an
 example: it is the test fixture `tests/fixtures/slice/`.
 

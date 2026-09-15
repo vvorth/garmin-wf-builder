@@ -2058,7 +2058,7 @@ gaps.
 combine. This is how a minute ring leaves room for the hour ticks without a
 second rule.
 
-**Parts** are the four hand primitives, plus `arc`:
+**Parts** are the four hand primitives, plus `arc` and `text`:
 
 | `shape:` | keys | per copy |
 |---|---|---|
@@ -2067,9 +2067,10 @@ second rule.
 | `line` | `at` (start, default the origin), `to`, `thickness` (default 1px) | both ends transformed, `drawLine` |
 | `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`) | the centre transformed, `fillCircle`/`drawCircle` |
 | `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
+| `text` | `at` (the anchor, default the origin), `value` **or** `text`, `format`, `font`, `align`, `vertical_align` | the anchor transformed and rounded half up; the glyphs stay **upright** (see [Text parts](#text-parts) below) |
 
 `rounded_rectangle` and `ellipse` are rejected, because no `Dc` call draws
-either one turned. `text` and `icon` are rejected too (see [Not yet
+either one turned. `icon` is rejected too (see [Not yet
 implemented](#not-yet-implemented)). So is `filled: false` on
 `polygon`/`rectangle`, because there is no `drawPolygon`. `at:` on an `arc`
 part is rejected: an off-centre arc would have to move its centre as well
@@ -2082,8 +2083,8 @@ colour may be a palette entry, a literal, `config.*`, or a conditional over
 those, and, unlike a hand's, it may also read two more things:
 
 * **`copy`**, the index of the copy being drawn (0-based, in the same
-  numbering `skip:` uses). It is bound in a pattern's colours and its parts'
-  `visible:` (below), and nowhere else. `copy % 2 == 0 ? palette.a :
+  numbering `skip:` uses). It is bound in a pattern's colours, its parts'
+  `visible:` (below) and a text part's `value:`, and nowhere else. `copy % 2 == 0 ? palette.a :
   palette.b` alternates two colours.
 * **Any data source**, including one that can be absent. **2026-09-15:** this
   used to be an error for a source that could be absent (`activity.steps`,
@@ -2099,6 +2100,61 @@ row: today's.
 The data is read once per frame, before the loop. A colour that reads `copy`
 is set inside the loop, once per copy, and every other colour is set before
 the loop.
+
+#### Text parts
+
+**2026-09-15.** A `shape: text` part draws a string at a point that turns
+(radial) or steps (linear) with the copy. Twelve hour numerals are one
+pattern instead of twelve polar `text` elements:
+
+```yaml
+static:
+  hour_numerals:
+    type: pattern
+    pattern: radial
+    at: {anchor: center}
+    count: 12                          # step defaults to 30deg
+    color: palette.white
+    parts:
+      - shape: text
+        value: "(copy + 11) % 12 + 1"  # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11"
+        font: font.hourfont
+        at: {dy: -55%r}                # copy 0's anchor, above the centre: +dy is down
+```
+
+**The glyphs stay upright.** A bitmap font cannot turn, and a dial's
+numerals should not. Only the anchor point goes through the copy's
+transform. It is then rounded half up to a whole pixel, on the watch and in
+the preview alike, and the text is placed on it with `align:`/
+`vertical_align:` exactly as a `text` element is placed on its `at:`.
+
+The keys are those of a `text` element. **`value:`** is an expression in
+which `copy` is bound. **`text:`** is a fixed string, the same on every copy.
+Give exactly one of the two. `format:` (a numeric format, as on `text`)
+applies to `value:` only. `font:` names a `fonts:` entry or a system font,
+and defaults to `FONT_MEDIUM`. `align:` is `left`/`center`/`right` and
+`vertical_align:` is `top`/`center`/`baseline`, both defaulting to `center`.
+`color:` and `visible:` work as on any part.
+
+**`value:` may read only `copy`** and literals. A data source, a palette
+entry or `config.*` in it is a build error. The compiler renders every
+copy's string at build time, because a custom font is subsetted to the
+glyphs the design can draw, and the pattern's extent is measured from the
+real strings. A reading taken on the watch would make both unknowable. Data
+in a text part is not implemented yet (see [Not yet
+implemented](#not-yet-implemented)). A conditional over `copy` covers labels
+that are not numbers: `copy == 0 ? "M" : copy == 1 ? "T" : ...`.
+
+On the watch the compiled `value:` is evaluated once per copy, like a
+`copy` colour. The host evaluates the same expression only to measure,
+subset the font and draw the preview. **Write `%` with a non-negative left
+side**: `(copy + 11) % 12 + 1` rather than `(copy - 1) % 12`. Python and
+Monkey C may disagree about the sign of `%` on a negative number, which is
+unverified and applies to every expression, not only this one.
+
+A text part in a pattern costs little. The two text patterns in
+`examples/patterns/` (12 numerals and 7 weekday initials, in one custom
+font) add about 470 B together on `fenix8solar47mm`.
 
 #### `when_absent:` on a pattern
 
@@ -2201,6 +2257,9 @@ first.
 * radial copies that land on each other, `|step| × (count − 1) ≥ 360°`;
 * a `skip:` index that is out of range or repeated, a `skip_every:`
   larger than `count`, and skipping every copy;
+* on a `text` part: both `value:` and `text:`, or neither; a `value:` that
+  reads anything but `copy`, or is not a number or string; `format:` with
+  `text:`;
 * a colour or part `visible:` reading a source that can be absent, with no
   `when_absent: hide` (one error, naming every such source, not one per
   expression) -- and, the mirror case, `when_absent: hide` declared when
@@ -2756,8 +2815,8 @@ while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
 `wfb new -t analog` template. See `docs/limitations.md` §2.)
 
 (**Patterns are implemented** -- see [`pattern`](#pattern) above -- with
-these pieces still open: `text` parts (hour numerals, which need
-per-copy text), `pattern: grid`, `on_hold:` and `low_power` on a pattern,
+these pieces still open: a text part whose `value:` reads data (text parts
+reading only `copy` were built 2026-09-15), `pattern: grid`, `on_hold:` and `low_power` on a pattern,
 per-copy variation other than skipping, colour (`copy` in a colour, built
 2026-09-15) and visibility (`when_absent: hide` and per-copy part
 `visible:`, built 2026-09-15), `rounded_rectangle`/`ellipse` parts in a

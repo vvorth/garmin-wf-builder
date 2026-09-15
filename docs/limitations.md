@@ -109,6 +109,12 @@ example. Per-copy part `visible:` is new alongside it: a boolean expression
 evaluated per copy, `copy` bound the same as in a colour, that hides just
 that one part for that one copy. Neither the per-frame absence check nor
 the per-copy `visible:` evaluation's device cost is measured.)*
+*(Third correction, 2026-09-15, plan 06: the part vocabulary now includes
+`text`. A bitmap font still cannot turn, so only the anchor turns or
+steps: `WfbGeom.drawTextRotated` rounds the transformed point half up and
+draws upright glyphs. The value may read only `copy`, so every copy's
+string is known at build time. The per-copy `formatting.emit` call on the
+device is unmeasured, and it costs nothing inside `static:`.)*
 
 ### `SensorHistory` is closed to a watch face, and solar has no history API at all
 
@@ -566,7 +572,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | A gauge needle (an author-expression angle, not the clock) | plan 04 §11 -- the rotation machinery is the same as an analog hand's; the format question (one authored angle vs. three fixed clock formulas) is not |
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | plan 04 §11 |
 | `wfb new -t analog` template | plan 04 §11 |
-| `text` parts in a `pattern` (hour numerals: each copy would need its own text, and a bitmap font cannot turn) | plan 05 §9 D5 |
+| A pattern `text` part whose `value:` reads data (a data source, `palette.*` or `config.*`) | plan 06 §6 D3 -- every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `when_absent:`. *Text parts reading only `copy` were built 2026-09-15, with upright glyphs at a turned or stepped anchor; this row used to list `text` parts in a pattern outright (plan 05 §9 D5).* |
 | `pattern: grid` (rows × columns) | plan 05 §9 D5 -- two nested linear steps; nothing has asked for it yet |
 | Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | plan 05 §9 D5 -- a longer or differently-shaped copy is a second pattern element today. *Per-copy colours (`copy`) and never-absent sources in a pattern colour were built 2026-09-15; pattern colours/part `visible:` that read a source which can be absent, given `when_absent: hide`, and per-copy part `visible:` itself, were built 2026-09-15 -- this row used to list "pattern colours that read a source which can be absent" too.* |
 | `on_hold:` and `low_power` on a `pattern` | plan 05 §5.1, §5.4 -- hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |

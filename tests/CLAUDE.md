@@ -9,6 +9,17 @@ Loaded automatically when working under `tests/`.
   - `test_example_is_clean_on_every_target[big-clock-3]`
   - `test_example_is_clean_on_every_target[enduro]`
 
+  **Also red since 2026-09-15**, from the user's own edits to
+  `examples/analog/face.yaml` (`45db779`, `6fab053`: a third hand set and
+  date windows). These are not regressions to chase either, and the file
+  is the user's to change:
+  - `test_example_is_clean_on_every_target[analog]` (`hour_ticks` reaches
+    outside the visible area)
+  - `test_hands_codegen.py::test_the_design_has_the_shape_these_assertions_assume`
+    and `::test_layout_constants_name_the_axis_then_each_part`
+  - `test_hands_preview.py::test_at_3_00_the_minute_tip_is_up_and_the_hour_tip_is_to_the_right`
+    and `::test_at_9_00_the_hour_tip_is_to_the_left`
+
   (Until 2026-09-14 this list also named
   `test_ir_draw_order_matches_the_resolved_one[enduro]` and `[dashboard]`;
   both pass as of `aa9137a`.)

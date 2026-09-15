@@ -406,3 +406,30 @@ structurally, but it has no mechanism to gate one function call out of a
 reader's `call` expression while keeping the rest, so that case is not
 "absence," it is "not buildable yet." See `wfb/catalog.py`'s `Reader.
 requires` docstring.
+
+## Amendment (2026-09-15): `copy` in a pattern text part's `value:`
+
+**What changed.** `copy` is now also bound in a `shape: text` pattern
+part's `value:` (plan 06, `git show f5155d7:docs/plans/06-pattern-text-and-group-align.md`).
+It compiles the same way it does in a colour: the draw loop's `i`, then
+`formatting.emit` builds the string on the watch, once per copy. §2 holds:
+the value is compiled, not interpreted, on the device.
+
+**What is new is a host-side use of the same tree.** Such a `value:` may read
+**only** `copy` and literals. The compiler therefore evaluates it on the host
+for every copy index (`expr.evaluate` plus `formatting.render`, the preview's
+own path), because it needs every string at build time: a custom font is
+subsetted to the glyphs the design draws, and a pattern's extent is its
+measured ink. The device and the host evaluate one tree, so they agree
+wherever Python and Monkey C arithmetic agree. **UNVERIFIED:** the sign of
+`%` on a negative left side. Python gives `-1 % 12 == 11`, while a
+Java-style truncation would give `-1`, and the SDK's `Basic_Syntax.html`
+does not say which Monkey C does. This is not specific to text parts, since
+constant folding and the preview already rely on Python's `%`.
+`docs/format.md` tells authors to keep the left side non-negative.
+
+**Why data is still refused there.** A string that depends on a reading
+cannot be known at build time. Its glyph subset and extent would then have
+to be guessed, as a `text` element guesses from `formatting.widest`, and it
+would need a `when_absent:` policy. This is deferred, not rejected
+(`docs/limitations.md` §2).

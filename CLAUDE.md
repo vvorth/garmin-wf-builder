@@ -227,6 +227,13 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
 - **Recently built:**
+  - **Built 2026-09-15** (plan 06): `shape: text` pattern parts. `value:`
+    may read only `copy` (or give a fixed `text:`), so every copy's string
+    is rendered at build time. The anchor turns or steps with the copy and
+    the glyphs stay upright (`WfbGeom.drawTextRotated`,
+    `wfb.layout.pattern_text_anchor`, both rounding half up). Also
+    `align:`/`vertical_align:` on a `group`. Example:
+    `examples/patterns/face.yaml`'s `hour_numerals` and `weekday_labels`.
   - **Built 2026-09-15:** per-device API gating. A shared `manifest.xml`
     `minApiLevel` no longer bumps to 4.2.0 for complications; it always
     stays at the base floor (3.2.0), and every complication touch in the

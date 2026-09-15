@@ -319,7 +319,8 @@ class Scope:
 
 
 #: The index of the copy being drawn, 0-based -- bound only while a `type:
-#: pattern`'s colours and its parts' `visible:` are compiled
+#: pattern`'s colours, its parts' `visible:` and a text part's `value:` are
+#: compiled
 #: (`Builder._build_pattern_element`), to the generated loop's own `i`.
 #: Every other expression sees it unbound -- including the *element's own*
 #: `visible:`, compiled before the pattern builder binds `copy` at all
@@ -350,8 +351,8 @@ def check(node: Node, scope: Scope) -> Value:
         binding = scope.lookup(node.path)
         if binding is None and node.path == COPY:
             raise ExprError(
-                f"{COPY!r} is only defined in a 'type: pattern' element's colours "
-                "and its parts' 'visible:'",
+                f"{COPY!r} is only defined in a 'type: pattern' element's colours, "
+                "its parts' 'visible:' and a text part's 'value:'",
                 node.offset,
                 [f"{COPY!r} is the index of the copy being drawn, 0-based -- "
                  "nothing but a pattern has copies",
