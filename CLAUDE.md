@@ -38,7 +38,7 @@ only. Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 | 0 research (`docs/research/00`–`09`) | complete, reviewed |
 | 1 ADRs (`docs/adr/0001`–`0009`) | complete, reviewed |
 | 2 thin vertical slice | complete; the `.prg` runs in the user's host simulator |
-| 3 breadth | in progress: all 9 element types (analog hands and patterns added 2026-09-14, plans 04–05), `static:`, `antialias:`, all four `config:` axes, `on_hold:` shipped — see §6 |
+| 3 breadth | in progress: all 9 element types (analog hands and patterns added 2026-09-14, plans 04–05), `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:`/`vertical_align:` everywhere (plan 07) shipped — see §6 |
 
 Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
 barrel, `schema/` the published schema, and `examples/` the example faces.
@@ -213,7 +213,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `on_tap:` (now `on_hold:`);
   - a font `size:` given as a bare number, and `scale:`;
   - a raw pasted character in `icon:`;
-  - refresh tiers (`WfbCache.mc`, `catalog.Tier`).
+  - refresh tiers (`WfbCache.mc`, `catalog.Tier`);
+  - `vertical_align: baseline` (renamed `bottom`).
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
   - per-device `overrides` (writing one is a build error);
@@ -227,6 +228,19 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
 - **Recently built:**
+  - **Built 2026-09-15** (plan 07): `align:`/`vertical_align:` as one
+    placement rule on every element that has a placement box — `group`,
+    `text`, `shape` (not polygon/line), `progress`, `graph`, `icon`,
+    `complication_slot`, and a hand/pattern `rectangle`/`circle`/text part
+    — resolved either at build time (`wfb.layout.alignment_shift` moves the
+    box's centre) or, for a glyph kind, by a runtime justify plus a
+    `getFontHeight` subtraction for `bottom` (no platform bottom-justify
+    flag); a `complication_slot` mirrors the same arithmetic in its own
+    runtime measurement (ADR 0004's exception). `type: hands`/`type:
+    pattern` and `shape`/part `polygon`/`line`/`arc` refuse both keys with
+    the reason. `vertical_align: baseline` is renamed `bottom` (friendly
+    error, no shim) — it always drew like `top` on the device, a real bug
+    fixed alongside the rename. Example: `examples/align/face.yaml`.
   - **Built 2026-09-15** (plan 06): `shape: text` pattern parts. `value:`
     may read only `copy` (or give a fixed `text:`), so every copy's string
     is rendered at build time. The anchor turns or steps with the copy and

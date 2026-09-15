@@ -13,7 +13,12 @@ a per-copy colour (`copy` + `date.weekday`: `week_dots` lights today,
 2026-09-15), and `when_absent: hide` with a per-copy part `visible:`
 (`test_visibility`, a move-bar row, 2026-09-15), and `shape: text` parts
 (plan 06, 2026-09-15: `hour_numerals`, a radial ring, and `weekday_labels`,
-a linear row).
+a linear row), and `align/` `align:`/`vertical_align:` as one placement
+rule on every accepting kind (plan 07, 2026-09-15) -- an hour/minute dial
+with four diagonal readouts (`complication_slot`, a `group`, a `graph`,
+`text`), each aligned to grow away from the centre, covering all four
+`align`×`vertical_align` combinations, plus every accepting shape, both
+`progress` styles, a static `icon`, and aligned hand/pattern parts.
 The Phase 2 slice is no longer an
 example: it is the test fixture `tests/fixtures/slice/`.
 

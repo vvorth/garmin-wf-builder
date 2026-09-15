@@ -707,13 +707,14 @@ class Element:
     resolved_antialias: bool = False
     #: Plan 07: the placement box's horizontal/vertical edge (or centre) that
     #: sits at the point `at:` resolves to -- one rule, on the base class, so
-    #: every kind of element carries it the same way (R1/R8). `group`, `text`
-    #: and a pattern's `shape: text` part read anything but the default since
-    #: phase A; `shape` (rectangle/rounded_rectangle/ellipse/circle/arc --
-    #: not polygon/line), `progress` (both styles) and `graph` since phase B
-    #: (2026-09-15); `icon` and `complication_slot` since phase C (same day).
-    #: The schema stays closed on every other kind until its own phase adds
-    #: the `$ref` (R2/R3). Read by `wfb.layout`'s `alignment_shift` (box-drawn
+    #: every kind of element carries it the same way (R1/R8). Every accepting
+    #: kind reads anything but the default: `group`, `text` and a pattern's
+    #: `shape: text` part since phase A; `shape` (rectangle/rounded_rectangle/
+    #: ellipse/circle/arc -- not polygon/line), `progress` (both styles) and
+    #: `graph` since phase B (2026-09-15); `icon` and `complication_slot`
+    #: since phase C (same day); a hand or pattern `rectangle`/`circle` part
+    #: since phase D (same day). The schema stays closed on every other kind
+    #: (R2/R3). Read by `wfb.layout`'s `alignment_shift` (box-drawn
     #: kinds), `Resolver._justify` (glyph-drawn kinds -- `text`, `icon`, a
     #: pattern's `shape: text` part), or mirrored as runtime arithmetic in
     #: `wfb.emit.monkeyc._emit_complication_slot` (`complication_slot`'s own
@@ -3076,12 +3077,11 @@ class Builder:
         values reach here (`$defs/align`/`$defs/verticalAlign`; `baseline`
         left the schema outright, `wfb.validate`'s friendly rename error
         catches it first), so this is a plain lookup with no validation of
-        its own.  Shared by `_build_group`, `_build_text`,
-        `_build_hand_part`'s `shape: text` branch, `_build_shape`,
-        `_build_progress` and `_build_graph` (phase B, 2026-09-15), and --
-        since phase C, same day -- `_build_icon` and
-        `_build_complication_slot`; later phases call it for every other
-        accepting kind instead of reading the keys themselves.
+        its own.  Shared by every accepting kind's builder -- `_build_group`,
+        `_build_text`, `_build_hand_part`'s `shape: text`/`rectangle`/
+        `circle` branches, `_build_shape`, `_build_progress`, `_build_graph`,
+        `_build_icon` and `_build_complication_slot` -- instead of each
+        reading the two keys itself.
         """
         return node.get("align", "center"), node.get("vertical_align", "center")
 

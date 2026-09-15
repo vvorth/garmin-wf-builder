@@ -3193,3 +3193,128 @@ extra 5 (`analog` template-clean, two `test_hands_codegen`, two
 `test_hands_preview`) come from the user's own `examples/analog/face.yaml`
 edits in `45db779`/`6fab053`, and are now listed in `tests/CLAUDE.md`. The
 build left them untouched.
+
+## 2026-09-15 — `align:`/`vertical_align:` as one placement rule for every element (plan 07)
+
+**Asked:** `align:`/`vertical_align:` had landed on `group` alone (plan 06).
+It should have been a basic placement property of every text, primitive and
+group from the start -- make it consistent across every kind of element,
+and refactor the earlier alignment logic into one model rather than
+several. The user asked for research, a plan, and a build by Sonnet
+subagents, one phase at a time, each integrated and committed before the
+next started. Branch `feat/align-everywhere`, cut from
+`feat/pattern-text-group-align` at `caece04`. Plan 07 was written, built
+and deleted (`git show b534b8a:docs/plans/07-align-everywhere.md`).
+
+**What the research found:** five hand-written copies of one left/center/
+right (and top/center/bottom) rule -- `text`, a pattern text part, a
+`group`, and two more inside the host preview's own text-drawing paths --
+and two spellings of "bottom" (`baseline` on `text`, `bottom` on a group).
+Worse, a real bug: `vertical_align: baseline` had always computed its lint
+box correctly (bottom edge at the point), but drew on the device *and* in
+the preview exactly like `top`, because `Dc.drawText` has no bottom-justify
+flag and `Resolver._justify` never added `VCENTER` for either value -- the
+lint box and the actual ink silently disagreed. No example or test used
+`baseline`, so nothing had ever caught it.
+
+**What shipped:** one rule -- `align: left|center|right` and
+`vertical_align: top|center|bottom`, both defaulting to `center`, say which
+edge (or centre) of an element's placement box sits on the point `at:`
+resolves to -- on every kind with a placement box: `group`, `text`,
+`shape` (rectangle/rounded_rectangle/ellipse/circle/arc, not polygon/line),
+`progress` (both styles), `graph`, `icon`, `complication_slot`, and a hand
+or pattern `rectangle`/`circle`/text part. `type: hands`, `type: pattern`,
+and the shapes/parts with no single point to align on refuse both keys
+with the reason. Three mechanisms, chosen by how the kind draws: (a)
+box-drawn kinds shift the placement box's centre entirely at build time
+(`wfb.layout.alignment_shift`, one implementation every resolver shares);
+(b) glyph-drawn kinds (`text`, `icon`, a pattern text part) place glyphs on
+the device through `Resolver._justify`'s existing flags, with `bottom`
+subtracting the font's own on-device `getFontHeight` (there is no
+bottom-justify flag on the platform); (c) `complication_slot` mirrors the
+same arithmetic in its own runtime measurement, ADR 0004's pre-existing
+exception. `vertical_align: baseline` is renamed `bottom`, a friendly
+build error with no shim, fixing the bug above at the same time as the
+rename.
+
+**Built in four phases, each its own commit, reviewed before the next
+started:** A -- foundation: the base-class fields, the shared helpers,
+`baseline`->`bottom`, `group`/`text`/pattern-text refactored onto them,
+`docs/format.md`'s Placement section, ADR 0004 amended (`7b48fe6`); B --
+`shape`, `progress`, `graph` (`1ad32bb`); C -- `icon`, `complication_slot`
+(`26e8812`); D -- hand/pattern `rectangle`/`circle` parts, and the
+`hands`/`pattern` element-level refusal (`39b4948`). Each of the four went
+to a fresh Sonnet subagent briefed with the plan and the prior phase's
+diff; the orchestrator reviewed every diff, the fast test run, and a
+`snapshot.sh` byte-identity check against a pre-plan baseline (every
+existing example's generated project and preview PNGs, plus the slice
+fixture) before integrating.
+
+**Found in review, not by the subagent:** phase C's `complication_slot`
+codegen declared a local for every one of `icon_size`/`icon_position`/
+`icon_gap`/`icon_color`'s runtime arithmetic unconditionally, so an
+icon-less slot (no `icon_size:` at all) built with an unused local and
+warned -- caught by the orchestrator's own warning-free rebuild of
+`examples/slots/face.yaml`, not by the subagent's own tests. Fixed by
+declaring each local only when something actually reads it, and locked
+down with a 72-case test enumerating every `icon_position:`/`icon_size:`/
+`icon_gap:`/`icon_color:`/`align:`/`vertical_align:` combination against
+both an icon-less and an iconed slot, so no future combination can
+reintroduce a silent unused-local warning.
+
+**Phase B's agent was cut off mid-session by a usage limit**, after its
+diff and commit were already in place. The orchestrator verified the
+commit directly -- the fast test suite, a real `monkeyc` build of
+`examples/shapes/face.yaml` and `examples/patterns/face.yaml` warning-free
+on all three targets, and the snapshot diff -- before starting phase C,
+rather than trusting the agent's own unfinished report.
+
+**Verification protocol, every phase:** `pytest -m "not slow"` (only the 8
+known pre-existing failures, `tests/CLAUDE.md`); a byte-identical
+`snapshot.sh` diff of every example's generated project and preview PNG,
+plus the slice fixture, against the pre-plan (`caece04`) baseline -- the
+only permitted differences at each step were that phase's own new tests
+and, once this phase landed, the new `align/` example itself; and a real
+`monkeyc` build of at least one affected face, warning-free, on all three
+targets.
+
+**Phase E (this session):** `examples/align/face.yaml` -- an hour/minute
+analog dial with a radial tick-and-numeral ring (a `pattern` with an
+aligned `rectangle` part, an aligned `circle` bead, and an aligned `text`
+part) and four diagonal readouts at NE/SE/SW/NW, each anchored at its
+diagonal point and aligned to grow *away* from the centre -- which is what
+makes the four diagonals cover all four `align`x`vertical_align`
+combinations for free: a `complication_slot` (steps, re-pointable on the
+wrist), a `group` (heart icon + `heart_rate.current`), a `graph` (7-day
+steps bars), and `text` (today's date -- the one `vertical_align: bottom`
+on a `text` element this face has), each behind one of `rounded_rectangle`/
+`ellipse`/`circle`/`rectangle`. A mirrored `progress` bar/arc pair (steps
+goal, battery) and a `battery` `icon` below the dial, plus a small
+`shape: arc` accent, exercise the remaining shape and both `progress`
+styles. The minute hand's `rectangle` part uses `at: {dy: 0}` with
+`vertical_align: bottom`, the doc's own "saves `dy: -length/2`" example.
+Builds warning-free on all three targets at 9,221-9,222 B of 131,072 B
+(7.0%); `wfb preview` was read with the Read tool and iterated on -- card
+sizes and anchor radii were adjusted twice, once to stop a readout's text
+overflowing its card and once to stop two readouts overlapping -- before
+settling.
+
+**The coherence sweep** (`grep -rniE "later phase|phase [A-E]\b|until its
+own phase|not (take|accept)[a-z ]* yet|so far" wfb/ schema/ docs/format.md
+docs/limitations.md`) found four genuinely stale spots -- `docs/format.md`'s
+"So far, `align:`/`vertical_align:` are accepted on:", and three docstrings
+in `wfb/ir.py`/`wfb/validate.py` that still said "until its own phase adds
+the `$ref`" or "later phases call it" now that every phase had landed --
+fixed to state the finished set. ADR 0004 gained a closing dated note that
+plan 07 is complete, and a Consequences-bullet correction: the `bottom`
+glyph exception already covered `icon` too, which the bullet had not
+named. Everything else the grep matched -- `unreachable-layout` (a plan 02
+lint genuinely not built until its own later phase), and the historical
+"Since phase B/C/D" narration inside `wfb.layout.alignment_shift`'s own
+docstring -- was left alone: it is either unrelated to this plan, or
+accurate past-tense provenance rather than a forward-looking claim.
+
+**Documented, not built:** a true typographic-baseline `vertical_align`
+value (from font ascent) and element-level alignment of a *linear*
+pattern's drawn-ink box (plan 07 §6's two choices made without a
+round-trip) -- both recorded in `docs/limitations.md` §2.

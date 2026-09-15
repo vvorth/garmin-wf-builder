@@ -1,0 +1,395 @@
+# `align:`/`vertical_align:` (docs/format.md "Placement: `at:` and `align:`",
+# plan 07): every accepting kind, with non-default alignment on both axes,
+# on one legible analog face rather than a test dump.
+#
+# The face is a classic hour/minute dial with a ring of tick marks and hour
+# numerals, and four small readouts at the diagonals (NE/SE/SW/NW) -- exactly
+# where a real Garmin face puts its complications. Each readout's box is
+# anchored at its diagonal point and aligned to grow *away* from the centre,
+# towards the bezel, rather than being centred on the point the way every
+# element was before plan 07 -- which is what makes the four diagonals cover
+# all four `align`/`vertical_align` combinations for free:
+#
+#   NE (up-right):   align: left,  vertical_align: bottom  -- grows right + up
+#   SE (down-right):  align: left,  vertical_align: top     -- grows right + down
+#   SW (down-left):   align: right, vertical_align: top     -- grows left + down
+#   NW (up-left):     align: right, vertical_align: bottom  -- grows left + up
+#
+# What sits in each diagonal, and which accepting kind it exercises:
+#
+#   * NE: `complication_slot` (steps, re-pointable on the wrist) behind a
+#     `rounded_rectangle` card, each with a small margin around its content.
+#   * SE: a `group` (heart icon + `heart_rate.current`) behind an `ellipse`
+#     card -- the group carries the alignment, so its children stay centred
+#     inside it.
+#   * SW: a `group` again, this time sized to a `circle` card's own
+#     *inscribed* square (side = radius x root 2) rather than its bounding
+#     square -- so the `graph` (7-day steps bars) inside it can align to a
+#     corner of that square, non-default on both axes, and still land
+#     entirely inside the circle. Aligning a box-shaped reading straight at
+#     a circle's own bounding-square corner (its first draft) put the ink
+#     outside the disc; this is the fix, not a special case.
+#   * NW: `text` (today's date) behind a plain `rectangle` card -- the one
+#     `vertical_align: bottom` on a `text` element this face has.
+#
+# A small decorative `circle` (`crown_dot`) above 12 o'clock is the fifth
+# shape's own alignment demo, with no content to contain -- a `circle` card
+# only makes sense with its content centred on the circle, so a *bare* dot
+# is what a corner-aligned circle looks like once it is not asked to hold
+# anything.
+#
+# Below the dial, in their own clear band close to 6 o'clock -- separate
+# from the four diagonal readouts, not tucked behind them -- a mirrored
+# pair: a `progress` bar (steps-goal) aligned left/bottom and a `progress`
+# arc (battery) aligned right/bottom, growing towards each other, with a
+# `battery` `icon` sharing the arc's own anchor and alignment, nested inside
+# its ring. A small `shape: arc` accent above the dial uses the last
+# unclaimed shape. `shape: rectangle`/`rounded_rectangle`/`ellipse`/
+# `circle`/`arc` are thereby all exercised with non-default alignment;
+# `shape: polygon`/`line` are not used here at all (see `examples/shapes/`
+# for those two, which refuse the keys outright).
+#
+# The dial ring itself is a `pattern`: a radial `rectangle` tick + `circle`
+# bead (both aligned, resolved in the part's own frame so the alignment turns
+# with the copy) and a radial `text` numeral part (`vertical_align: bottom`,
+# anchor turns, glyphs stay upright). The hands (`hands:`) are a plain
+# hour/minute set; the minute hand's `rectangle` part is
+# `vertical_align: bottom` with `at: {dy: 0}`, so it starts exactly on the
+# axis and extends to the tip -- the doc's own "saves `dy: -length/2`"
+# example. A `type: hands`/`type: pattern` element itself refuses the two
+# keys outright (see `examples/analog/`, `examples/patterns/` for that
+# refusal); this face does not repeat it.
+#
+# Small guide dots at the four diagonal `at:` points show where each
+# readout's box is anchored before alignment pushes it outward.
+#
+# What is verified: this design compiles warning-free through the real
+# `monkeyc` on all three targets, and `wfb preview` renders the resolved
+# geometry the header describes. What is NOT verified anywhere in this
+# project: what any of it looks like on a panel, or that today's date and
+# steps bars move correctly at midnight -- there is no simulator and no
+# watch in this container.
+#
+# Build it with:     ./wfb.py build examples/align/face.yaml
+# Preview it with:   ./wfb.py preview examples/align/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: a1b2c3d4-e5f6-4789-a123-456789abcdef
+  name: Align
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour is one the 64-colour MIP panel shows without dithering: each
+# channel is 0x00, 0x55, 0xAA or 0xFF.
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#AAAAAA"
+  card: "#5555AA"
+  accent: "#00AAFF"     # steps
+  heart: "#FF0055"      # heart rate
+  gold: "#FFAA00"       # battery
+
+config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - complication.heart_rate
+
+hands:
+  main:
+    hour:
+      color: palette.fg
+      parts:
+        - shape: polygon               # pointing at 12; origin = the axis
+          points:
+            - { dx: -3%r, dy: 6%r }     # a short tail behind the axis
+            - { dx: -2%r, dy: -38%r }
+            - { dy: -44%r }             # the tip, straight up
+            - { dx: 2%r, dy: -38%r }
+            - { dx: 3%r, dy: 6%r }
+    minute:
+      color: palette.fg
+      parts:
+        # `at: {dy: 0}` + `vertical_align: bottom`: the box's bottom edge
+        # sits on the axis, so the rectangle runs from the axis to the tip
+        # without computing `dy: -length/2` by hand (docs/format.md
+        # "Analog hands", plan 07 phase D).
+        - shape: rectangle
+          at: { dy: 0 }
+          vertical_align: bottom
+          size: { width: 3%r, height: 60%r }
+        - shape: circle                 # the hub, on the axis by default
+          radius: 4%r
+          color: palette.accent
+
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # The tick ring: a radial `rectangle` part (top-aligned, so its top edge
+  # sits at the anchor and it extends inward) and a `circle` bead (aligned
+  # left/top, shifting its centre off the anchor). Both resolved in the
+  # part's own frame, so the alignment shift turns with each copy.
+  hour_ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    color: palette.dim
+    parts:
+      - shape: rectangle
+        at: { dy: -94%r }
+        vertical_align: top
+        size: { width: 2.5%r, height: 8%r }
+      - shape: circle
+        at: { dy: -84%r }
+        align: left
+        vertical_align: top
+        radius: 1.2%r
+
+  # Hour numerals, one radial `shape: text` part: `vertical_align: bottom`
+  # puts each numeral's bottom edge on its turned anchor (the glyphs stay
+  # upright; only the anchor turns -- docs/format.md "Text parts").
+  hour_numerals:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    color: palette.fg
+    parts:
+      - shape: text
+        # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11" (the safe
+        # spelling for Monkey C's unverified negative-`%` behaviour).
+        value: "(copy + 11) % 12 + 1"
+        font: FONT_XTINY
+        at: { dy: -74%r }
+        vertical_align: bottom
+
+  # Three diagonal cards (NE, SE, NW) -- SW's own card is inside a `group`,
+  # below, for the reason the header gives. Each card is comfortably bigger
+  # than the content it sits behind, so the content keeps a small, even
+  # margin off the card's own edge.
+  ne_card:
+    type: shape
+    shape: rounded_rectangle
+    at: { anchor: center, angle: 45deg, radius: 27%r }
+    size: { width: 38%r, height: 15%r }
+    corner_radius: 3px
+    color: palette.card
+    align: left
+    vertical_align: bottom
+
+  se_card:
+    type: shape
+    shape: ellipse
+    at: { anchor: center, angle: 135deg, radius: 27%r }
+    size: { width: 32%r, height: 15%r }
+    color: palette.card
+    align: left
+    vertical_align: top
+
+  nw_card:
+    type: shape
+    shape: rectangle
+    at: { anchor: center, angle: 315deg, radius: 27%r }
+    size: { width: 38%r, height: 15%r }
+    color: palette.card
+    align: right
+    vertical_align: bottom
+
+  # A small decorative accent above the dial -- the one `shape: arc` this
+  # face draws, aligned on both axes like every other accepting shape.
+  top_accent:
+    type: shape
+    shape: arc
+    at: { anchor: center, angle: 0deg, radius: 30%r }
+    radius: 6%r
+    thickness: 2px
+    start_angle: 340deg
+    sweep: 40deg
+    color: palette.dim
+    align: left
+    vertical_align: bottom
+
+  # The fifth shape's own alignment demo (see the header): a bare dot, with
+  # no content to contain, so corner alignment needs no inscribed-square
+  # trick -- just a small mark above 12 o'clock.
+  crown_dot:
+    type: shape
+    shape: circle
+    at: { anchor: center, angle: 0deg, radius: 22%r }
+    radius: 2.5%r
+    color: palette.dim
+    align: right
+    vertical_align: top
+
+  # Guide dots at the three plain diagonal `at:` points (SW's is inside its
+  # group, below) -- default-aligned, plain `shape: circle` markers showing
+  # where each card's box is anchored before `align:`/`vertical_align:`
+  # push it outward.
+  ne_dot: { type: shape, shape: circle, at: { anchor: center, angle: 45deg, radius: 27%r }, radius: 1px, color: palette.dim }
+  se_dot: { type: shape, shape: circle, at: { anchor: center, angle: 135deg, radius: 27%r }, radius: 1px, color: palette.dim }
+  nw_dot: { type: shape, shape: circle, at: { anchor: center, angle: 315deg, radius: 27%r }, radius: 1px, color: palette.dim }
+
+elements:
+  - id: main_hands
+    type: hands
+    hands: main
+    at: { anchor: center }
+
+  # NE: `complication_slot`, re-pointable on the wrist between steps and
+  # heart rate. `fr955` has no native editor and keeps `default:` forever
+  # (docs/limitations.md, `examples/slots/face.yaml`).
+  - id: steps_slot
+    type: complication_slot
+    slot: config.data.top
+    at: { anchor: center, angle: 45deg, radius: 27%r }
+    font: FONT_XTINY
+    icon_size: 7%r
+    icon_position: right
+    icon_gap: 2px
+    icon_color: palette.accent
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+    align: left
+    vertical_align: bottom
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps this slot's declared
+        default forever -- see examples/slots/face.yaml for the full
+        account"
+
+  # SE: a `group` carries the alignment; its icon and text stay centred on
+  # their own positions inside the group's box.
+  - id: heart_group
+    type: group
+    at: { anchor: center, angle: 135deg, radius: 27%r }
+    size: { width: 22%r, height: 10%r }
+    align: left
+    vertical_align: top
+    children:
+      - id: heart_icon
+        type: icon
+        icon: heart
+        size: 8%r
+        at: { anchor: left }
+        color: palette.heart
+      - id: heart_value
+        type: text
+        value: heart_rate.current
+        format: "{:d}"
+        font: FONT_XTINY
+        at: { anchor: right }
+        align: right
+        color: palette.heart
+        when_absent: hide
+
+  # SW: a `group`, sized to the `circle` card's own bounding square (2 x
+  # radius) so the *group's* alignment reads the same "away from centre" way
+  # the other three diagonals do. Inside it, the card sits centred on the
+  # group's own anchor (so the card's centre and the graph's anchor
+  # coincide), and the `graph` -- aligned right/bottom, non-default on both
+  # axes -- is sized to fit inside the card's *inscribed* square (side =
+  # radius x root 2 = ~19.8%r for a 14%r radius), so its farthest corner
+  # (root(11^2+6^2) = ~12.5%r from the centre) stays inside the 14%r circle
+  # with margin, instead of the bounding-square corner that put ink outside
+  # the disc.
+  - id: steps_group
+    type: group
+    at: { anchor: center, angle: 225deg, radius: 27%r }
+    size: { width: 28%r, height: 28%r }
+    align: right
+    vertical_align: top
+    children:
+      - id: steps_card
+        type: shape
+        shape: circle
+        radius: 14%r
+        at: { anchor: center }
+        color: palette.card
+      - id: steps_graph
+        type: graph
+        at: { anchor: center }
+        size: { width: 11%r, height: 6%r }
+        align: right
+        vertical_align: bottom
+        series: steps
+        range: 7d
+        style: bars
+        bar_width: 2px
+        color: palette.accent
+        min: 0
+        max: auto
+
+  # NW: today's date -- the one `vertical_align: bottom` on a `text`
+  # element this face has.
+  - id: date_text
+    type: text
+    value: date.today
+    format: "{:%a %e}"
+    font: FONT_XTINY
+    at: { anchor: center, angle: 315deg, radius: 27%r }
+    align: right
+    vertical_align: bottom
+    color: palette.fg
+
+  # A mirrored pair close to 6 o'clock, in its own clear band: a narrow
+  # angular spread (10deg either side of straight down) keeps both well
+  # clear of the SE/SW diagonal readouts (whose own reach stops at ~62-67%r,
+  # off to the sides) rather than tucked behind them. A steps-goal bar
+  # aligned left/bottom and a battery gauge aligned right/bottom grow
+  # towards each other.
+  - id: steps_bar
+    type: progress
+    style: bar
+    at: { anchor: center, angle: 173deg, radius: 44%r }
+    size: { width: 12%r, height: 4%r }
+    value: activity.steps
+    max: activity.step_goal
+    color: palette.accent
+    track_color: palette.dim
+    align: left
+    vertical_align: bottom
+    when_absent: hide
+
+  - id: battery_arc
+    type: progress
+    style: arc
+    at: { anchor: center, angle: 187deg, radius: 46%r }
+    radius: 6%r
+    thickness: 3px
+    start_angle: 20deg
+    sweep: 320deg
+    value: system.battery
+    max: 100
+    color: palette.gold
+    track_color: palette.dim
+    align: right
+    vertical_align: bottom
+
+  # Nested inside the arc's own ring: same anchor, same alignment, so the
+  # icon sits inside the gauge instead of needing a separate clear spot.
+  - id: battery_icon
+    type: icon
+    icon: battery
+    size: 6%r
+    at: { anchor: center, angle: 187deg, radius: 46%r }
+    color: palette.gold
+    align: right
+    vertical_align: bottom

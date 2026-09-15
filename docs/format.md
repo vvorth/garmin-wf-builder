@@ -123,7 +123,7 @@ aligned; an arc's `start_angle:`/`sweep:` never move where it sits, because
 the box is the full circle, not the swept span. Changing `thickness:` or
 `sweep:` never moves an element.
 
-So far, `align:`/`vertical_align:` are accepted on:
+`align:`/`vertical_align:` are accepted on:
 
 | Kind | Placement box |
 |---|---|

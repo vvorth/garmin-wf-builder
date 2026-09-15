@@ -373,6 +373,13 @@ renderer can be trusted. It is a capability hand authors do not have.
 > a missing platform primitive, but the same reasoning
 > `docs/plans/07-align-everywhere.md` §1.3's table already gave for both
 > element kinds before any of plan 07 was built.
+>
+> **Plan 07 is complete as of 2026-09-15 (phase E).** Every kind this
+> section lists as accepting the two keys does; the rejections above are
+> the whole set that refuses them. `examples/align/face.yaml` is the
+> reference design exercising every accepting kind with non-default
+> alignment on both axes, and `docs/format.md`'s "Placement: `at:` and
+> `align:`" section is the one place the rule is written down in full.
 
 ## Consequences
 
@@ -387,9 +394,10 @@ renderer can be trusted. It is a capability hand authors do not have.
   the copies was measured at roughly 30x the memory.
   **A glyph kind's `vertical_align: bottom`** (§8, amended 2026-09-15) is a
   third, much smaller exception: one `dc.getFontHeight` subtraction from the
-  anchor per frame, for a `text` element or a pattern text part, because the
-  platform has no bottom-justify flag and only the device's own font metrics
-  are exact for a system font. Unlike hands' and patterns' own rotation,
+  anchor per frame, for a `text` element, an `icon` (static or `icon_for:`,
+  built plan 07 phase C) or a pattern text part, because the platform has no
+  bottom-justify flag and only the device's own font metrics are exact for a
+  system font. Unlike hands' and patterns' own rotation,
   this is a plain arithmetic term, not a per-vertex transform.
   **`complication_slot`** was always a runtime exception on its own terms —
   its icon+reading pair is centred via `Dc.getTextWidthInPixels`/

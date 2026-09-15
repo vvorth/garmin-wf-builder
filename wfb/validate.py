@@ -266,8 +266,13 @@ def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
     the schema's `verticalAlign` enum no longer has the value at all, so a
     bare "'baseline' is not valid here" would not tell an author it was
     renamed, or why. Checked on a `text` element and on a pattern's
-    `shape: text` part -- the two places `vertical_align:` is accepted so
-    far (phase A; `docs/format.md`'s "Placement" section).
+    `shape: text` part -- the two glyph-drawn kinds that ever accepted the
+    old `baseline` spelling before its rename (phase A). Every other kind
+    that accepts `vertical_align:` (`group`, `shape`, `progress`, `graph`,
+    `icon`, `complication_slot`, a hand or pattern `rectangle`/`circle`
+    part) gained the key only after the rename, so `baseline` was never a
+    legal value there and needs no check (`docs/format.md`'s "Placement"
+    section).
 
     Follows `_check_hands_seconds_always`'s precedent: the friendly
     explanation goes through this hand-written check, the schema stays

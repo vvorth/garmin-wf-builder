@@ -29,6 +29,9 @@ and deleted on 2026-09-14; read it as built with `git show
 `git show f9115ca:docs/plans/05-patterns.md`. Plan 06 (text parts in a
 pattern, and `align:` on a group) was built and deleted on 2026-09-15; read
 it with `git show f5155d7:docs/plans/06-pattern-text-and-group-align.md`.
+Plan 07 (`align:`/`vertical_align:` as one placement rule on every element)
+was built and deleted on 2026-09-15; read it with `git show
+b534b8a:docs/plans/07-align-everywhere.md`.
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or
