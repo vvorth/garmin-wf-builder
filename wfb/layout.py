@@ -636,18 +636,18 @@ class Resolver:
     # -- per-kind ---------------------------------------------------------
 
     def _group_box(self, element: Group, parent: Box) -> Box:
-        width = self._len(element.size.width, parent, Axis.X, parent.width)
-        height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        width = self._extent(element.size.width, parent, Axis.X, parent.width)
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height)
         cx, cy = self._point(element.at, parent)
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         return Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
 
     def _resolve_shape(self, element: Shape, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
-        thickness = round(self._len(element.thickness, parent, Axis.MINOR, 1))
+        thickness = round(self._extent(element.thickness, parent, Axis.MINOR, 1))
 
         if element.shape == "circle":
-            radius = round(self._len(element.radius, parent, Axis.MINOR, 0))
+            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0))
             # Plan 07 §3.2(a)/§3.1: the placement box is the full circle
             # (`2*radius` square) regardless of `filled`/`thickness` -- an
             # outline's pen pad is applied to `reach` below, around the
@@ -672,7 +672,7 @@ class Resolver:
                                thickness=max(1, thickness), end=(round(ex), round(ey)))
 
         if element.shape == "arc":
-            radius = round(self._len(element.radius, parent, Axis.MINOR, 0))
+            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0))
             pen = max(1, thickness)
             # Plan 07 choice 3 (§6): align by the full circle, not the swept
             # span's box, so `start_angle:`/`sweep:` never move the centre.
@@ -708,8 +708,8 @@ class Resolver:
             centre = (round(sum(xs) / len(xs)), round(sum(ys) / len(ys)))
             return PlacedShape(element, box.rounded(), centre, depth, points=points)
 
-        width = self._len(element.size.width, parent, Axis.X, parent.width)
-        height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        width = self._extent(element.size.width, parent, Axis.X, parent.width)
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height)
         # rectangle, rounded_rectangle, ellipse: the placement box is the
         # declared `size:` (plan 07 §3.1) -- moved before the outline's pen
         # pad (below) is added, so the pad never itself moves the shift (R4).
@@ -783,8 +783,8 @@ class Resolver:
     def _resolve_progress(self, element: Progress, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
         if element.style == "arc":
-            radius = round(self._len(element.radius, parent, Axis.MINOR, 0))
-            thickness = max(1, round(self._len(element.thickness, parent, Axis.MINOR, 1)))
+            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0))
+            thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 1)))
             # Plan 07 §3.1: the placement box is the full circle (`2*radius`
             # square), moved before the pen pad below -- `start_angle:`/
             # `sweep:` never move it, same as `shape: arc`.
@@ -805,8 +805,8 @@ class Resolver:
                 garmin_start=garmin_start,
                 garmin_direction=direction,
             )
-        width = self._len(element.size.width, parent, Axis.X, parent.width)
-        height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        width = self._extent(element.size.width, parent, Axis.X, parent.width)
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height)
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         cx, cy = cx + dx, cy + dy
         box = Box(cx - width / 2, cy - height / 2, width, height)
@@ -849,13 +849,13 @@ class Resolver:
 
     def _resolve_graph(self, element: Graph, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
-        width = self._len(element.size.width, parent, Axis.X, parent.width)
-        height = self._len(element.size.height, parent, Axis.Y, parent.height)
+        width = self._extent(element.size.width, parent, Axis.X, parent.width)
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height)
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         cx, cy = cx + dx, cy + dy
         box = Box(cx - width / 2, cy - height / 2, width, height)
-        thickness = max(1, round(self._len(element.thickness, parent, Axis.MINOR, 2)))
-        bar_width = max(1, round(self._len(element.bar_width, parent, Axis.MINOR, 3)))
+        thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 2)))
+        bar_width = max(1, round(self._extent(element.bar_width, parent, Axis.MINOR, 3)))
         return PlacedGraph(
             element, box.rounded(), (round(cx), round(cy)), depth,
             thickness=thickness, bar_width=bar_width, size=(round(width), round(height)),
@@ -1050,8 +1050,8 @@ class Resolver:
 
         if part.shape == "rectangle":
             cx, cy = self._hand_point(part.at)
-            width = self._hand_len(part.size.width)
-            height = self._hand_len(part.size.height)
+            width = self._hand_extent(part.size.width)
+            height = self._hand_extent(part.size.height)
             # Plan 07 phase D, mechanism (a): the placement box is the
             # declared `size:`, in the part's own frame -- shift the centre
             # before the corners (and `_round_away`) below, the same order
@@ -1076,7 +1076,7 @@ class Resolver:
         if part.shape == "line":
             x1, y1 = self._hand_point(part.at)
             x2, y2 = self._hand_point(part.to)
-            thickness = max(1, _round_away(self._hand_len(part.thickness, default=1)))
+            thickness = max(1, _round_away(self._hand_extent(part.thickness, default=1)))
             reach = max(math.hypot(x1, y1), math.hypot(x2, y2)) + thickness / 2.0
             return ResolvedHandPart(
                 "line", part.color,
@@ -1090,8 +1090,8 @@ class Resolver:
             # pattern's template does (plan 05 §5.2).  Always centred on the
             # origin (x=y=0, D3), so its reach is exactly the pen's own
             # extent -- no `at:` to add a distance-from-origin term.
-            radius = _round_away(self._hand_len(part.radius))
-            thickness = max(1, _round_away(self._hand_len(part.thickness, default=1)))
+            radius = _round_away(self._hand_extent(part.radius))
+            thickness = max(1, _round_away(self._hand_extent(part.thickness, default=1)))
             start_angle = (part.start_angle or Angle(0.0)).degrees
             sweep = (part.sweep or Angle(360.0)).degrees
             reach = radius + thickness / 2.0
@@ -1129,14 +1129,14 @@ class Resolver:
 
         # circle
         cx, cy = self._hand_point(part.at)
-        radius = _round_away(self._hand_len(part.radius))
+        radius = _round_away(self._hand_extent(part.radius))
         # Plan 07 phase D: the placement box is the full `2*radius` square,
         # at the resolved (already-rounded) radius the part draws with --
         # shifted before `reach`/`_round_away` below, same as
         # `Resolver._resolve_shape`'s circle branch in the parent's frame.
         dx, dy = alignment_shift(2 * radius, 2 * radius, part.align, part.vertical_align)
         cx, cy = cx + dx, cy + dy
-        thickness = max(1, _round_away(self._hand_len(part.thickness, default=1)))
+        thickness = max(1, _round_away(self._hand_extent(part.thickness, default=1)))
         pen_reach = radius if part.filled else radius + thickness / 2.0
         reach = math.hypot(cx, cy) + pen_reach
         return ResolvedHandPart(
@@ -1245,6 +1245,12 @@ class Resolver:
         return length.resolve(box=_HAND_FRAME_BOX, axis=Axis.MINOR,
                               minor_radius=self.minor_radius)
 
+    def _hand_extent(self, length: Length | None, default: float = 0) -> float:
+        """:meth:`_hand_len`, then :func:`units.at_least_one_px` -- the hand-
+        frame counterpart of :meth:`_extent`, for a hand/pattern part's own
+        size, thickness or radius (never its `at:`/`to:`/polygon points)."""
+        return units.at_least_one_px(length, self._hand_len(length, default))
+
     # -- helpers ----------------------------------------------------------
 
     def _point(self, at: Position, parent: Box) -> tuple[float, float]:
@@ -1263,6 +1269,18 @@ class Resolver:
             return float(default)
         return length.resolve(box=parent, axis=axis, minor_radius=self.minor_radius,
                               font_px=font_px)
+
+    def _extent(self, length: Length | None, parent: Box, axis: Axis, default: float,
+                font_px: float | None = None) -> float:
+        """:meth:`_len`, then :func:`units.at_least_one_px` -- for a length
+        that is a *size, thickness or radius* rather than a position: a
+        nonzero relative one never resolves to less than 1 px (the user's
+        ask; see that function's docstring).  Every call site here that
+        places rather than sizes an element (`at:`/`to:`/polygon points, a
+        linear pattern's `step:`) stays on `_len` -- this only wraps the
+        subset the docstring on `at_least_one_px` names.
+        """
+        return units.at_least_one_px(length, self._len(length, parent, axis, default, font_px))
 
     def _unbaked_font_size(self, spec: FontSpec) -> int:
         """The size to assume for a custom font that was not baked.

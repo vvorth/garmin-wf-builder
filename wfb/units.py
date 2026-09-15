@@ -16,6 +16,7 @@ the author never has to.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -83,6 +84,28 @@ class Length:
     def __str__(self) -> str:
         num = f"{self.value:g}"
         return f"{num}{self.unit}"
+
+
+def at_least_one_px(length: "Length | None", value: float) -> float:
+    """A nonzero relative length never resolves to less than 1 px.
+
+    A `%`/`%r` length scales per device: the same hairline (`thickness:
+    0.5%r`, say) that draws as 1 px on one screen can round to 0 on another,
+    so it draws on one target and silently vanishes on the next.  Rounding
+    down to nothing is only a real answer when the author actually wrote a
+    zero -- so this clamps a *nonzero* `%`/`%r` result's magnitude up to
+    1 px, sign preserved, and leaves everything else (`px`/`pt` lengths,
+    which are already exactly what the author wrote, and an exact `0`)
+    alone.
+
+    ``length`` is the original :class:`Length` (``None`` for "no length was
+    authored, a default applied" -- never clamped, the default is not a
+    relative unit at all); ``value`` is what :meth:`Length.resolve` returned
+    for it, in device pixels, *before* rounding to a whole pixel.
+    """
+    if length is not None and length.unit in ("%", "%r") and 0 < abs(value) < 1:
+        return math.copysign(1.0, value)
+    return value
 
 
 # --------------------------------------------------------------------------
@@ -247,8 +270,31 @@ class Box:
         return self.x + fx * self.width, self.y + fy * self.height
 
     def rounded(self) -> "IntBox":
+        """Snap to whole pixels.
+
+        Rounds each edge independently (round-half-to-even), then takes the
+        width/height as the difference of the rounded edges -- which is
+        usually what keeps a box's rounded corners consistent with its
+        rounded centre, but has one degenerate case: a box whose float width
+        is exactly ``1.0`` and centred on an integer coordinate has
+        ``left = n - 0.5``, ``right = n + 0.5``, and round-half-to-even
+        sends *both* to ``n`` when ``n`` is even -- width 0, even though a
+        clamp upstream (:func:`at_least_one_px`) deliberately made this box
+        1 px wide.  That one case is corrected here: a float extent of at
+        least 1 px must not round away to nothing.  Any other width/height,
+        rounded or not, is left exactly as the edge-rounding above produces
+        it -- in particular the same rounding can still turn some other
+        float extent (say 25 px at a half-integer left edge) into a
+        different integer width; that is pre-existing behaviour, unchanged
+        here.
+        """
         left, top = round(self.x), round(self.y)
-        return IntBox(left, top, round(self.right) - left, round(self.bottom) - top)
+        width, height = round(self.right) - left, round(self.bottom) - top
+        if self.width >= 1 and width < 1:
+            width = 1
+        if self.height >= 1 and height < 1:
+            height = 1
+        return IntBox(left, top, width, height)
 
 
 #: A stand-in for :meth:`Length.resolve`'s ``box`` argument where there is no

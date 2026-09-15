@@ -3319,6 +3319,94 @@ value (from font ascent) and element-level alignment of a *linear*
 pattern's drawn-ink box (plan 07 §6's two choices made without a
 round-trip) -- both recorded in `docs/limitations.md` §2.
 
+## 2026-09-15 — A relative size or thickness never resolves below 1 px
+
+**User ask:** a `%`/`%r` length used as a size, thickness or radius scales
+per device, so the same hairline (`thickness: 0.5%r`, say) can round to
+0.6px on one screen and 0.4px on another — it draws on one target and
+silently vanishes on the next. The fix: a nonzero `%`/`%r` length resolved
+as a `size:`, `thickness:`, `bar_width:` or an element/part's own `radius:`
+is clamped up to 1px (sign preserved) whenever it would otherwise resolve
+smaller; an author-written exact `0` stays `0`; `px`/`pt` lengths, positions
+(`at:`/`to:`/polygon `points:`) and `corner_radius:` are untouched.
+
+**What was built:**
+
+- `wfb/units.py`: `at_least_one_px(length, value)` — the one place the rule
+  is decided (`length.unit in ("%", "%r") and 0 < abs(value) < 1` ->
+  `copysign(1.0, value)`, else `value` unchanged). Most thicknesses already
+  went through `max(1, round(...))` downstream, so this mostly formalises
+  one consistent rule rather than changing their output.
+- `wfb/layout.py`: `Resolver._extent` (parent-box lengths) and
+  `Resolver._hand_extent` (hand/pattern-frame lengths) wrap `_len`/
+  `_hand_len` with the clamp above, and every size/thickness/radius call
+  site switched to them: shape `size:`/`radius:`/`thickness:` (circle, arc,
+  rectangle, rounded_rectangle, ellipse), group `size:`, progress bar
+  `size:`/arc `radius:`/`thickness:`, graph `size:`/`thickness:`/
+  `bar_width:`, and every hand/pattern part's `radius:`/`thickness:`/
+  rectangle `size:`. Left on `_len`/`_hand_len` deliberately: `at:`/`to:`/
+  polygon `points:`, a linear pattern's `step:` (has its own lint), and
+  `corner_radius:`. Icon/font sizes were already excluded — `units.
+  pixel_size` already floors at 1px on its own path, and nothing outside
+  `wfb/layout.py` resolves a `Length` for a size/thickness/radius at all
+  (checked: `grep -rn '\.resolve(box=\|_len(\|_hand_len('` finds no other
+  call site — the resolved geometry stays the one source of truth preview,
+  codegen and lint all read).
+- `wfb/units.py::Box.rounded()`: a narrow second fix. A box whose float
+  width is exactly `1.0` and centred on an even integer coordinate (`left =
+  n - 0.5`, `right = n + 0.5`) rounds *both* edges to `n` under Python's
+  round-half-to-even — width `0`, even after the length itself was clamped
+  to `1.0`. `rounded()` now corrects only that one case (a float extent
+  `>= 1` whose rounded extent came out `< 1`), leaving every other edge
+  case's rounding exactly as it was.
+- New `tests/test_min_relative_px.py` (13 tests): a sub-pixel `%r` circle
+  radius and rectangle width both become 1px; an already-floored `%r`
+  thickness on a line/arc stays 1px (documents no change); a `%` size
+  against a small (50px) group is floored; a pattern part's `circle`
+  radius clamps the same way, and a pattern rectangle part is proved not
+  0-wide at the sub-pixel case and pinned exactly (`-3..3`) at a normal
+  one; `px` lengths are proved untouched (`0.3px` still resolves to `0`);
+  exact `0%` stays `0`; a value already `>= 1px` (`2%r` = 2.6 -> `3`) is
+  unchanged; and two direct `Box.rounded()` tests — the `129.5, w=1.0`
+  degenerate tie now gives width `1`, and a same-family tie the fix does
+  *not* touch is pinned to today's actual answer (below). Six of the
+  thirteen were checked to fail against the pre-clamp code (by temporarily
+  stashing `wfb/units.py`/`wfb/layout.py` and rerunning): both sub-pixel
+  radius/width tests, the small-group `%` test, the pattern-part circle and
+  rectangle tests, and the `Box.rounded()` tie fix; the other seven pass
+  unchanged either side, by design (they document scope/no-op behaviour,
+  not the fix itself).
+
+**Round-half-to-even finding, left for the user, not fixed:** independent
+of this session's clamp, `Box.rounded()` rounds each edge with Python's
+`round()` (half-to-even), then takes the width as the difference — so a box
+whose *edges* land on a `.5` tie can come out a different integer width
+than its float extent, regardless of whether that extent is itself `>= 1`.
+Concretely, `Box(117.5, 0, 25, 1).rounded()` — a plain 25px-wide box, no
+relative length or clamp involved — gives `left = round(117.5) = 118`,
+`right = round(142.5) = 142`, width `24`, not `25`. `tests/
+test_min_relative_px.py::test_box_rounded_other_ties_are_unchanged` pins
+this exact value so the degenerate-tie fix above cannot be mistaken for
+having touched it. Left alone deliberately: fixing it would change already
+user-reviewed golden output for any design whose geometry happens to land
+on a half-integer edge, which is a real (if narrow) design call, not an
+extension of "a relative size must not draw as 0 on one device and not
+another" — flagging it for the user to decide rather than folding it in.
+
+**Verified:** `pytest -m "not slow"` — same 8 pre-existing failures as the
+`main` baseline (`test_hands_codegen.py::test_the_design_has_the_shape_
+these_assertions_assume`, `::test_layout_constants_name_the_axis_then_
+each_part`; `test_hands_preview.py::test_at_3_00_the_minute_tip_is_up_
+and_the_hour_tip_is_to_the_right`, `::test_at_9_00_the_hour_tip_is_to_
+the_left`; `test_templates.py::test_example_is_clean_on_every_target
+[analog|big-clock-3|dashboard|enduro]`), none new. `tests/test_golden.py`'s
+17 goldens pass byte-for-byte unchanged — no golden design has a sub-pixel
+relative size. `examples/patterns/face.yaml` builds warning-free on all
+three targets (3 signed `.prg`: 4,321 B / 4,323 B / 4,321 B of 131,072 B,
+3.3% on each).
+
+**Docs:** `docs/format.md` "Lengths" gained the rule, its scope, and the
+"`0` stays `0`" carve-out, alongside the existing unit table.
 ## 2026-09-16 — `examples/showcase/`: a two-layout face covering most of the format
 
 User request: one example face carrying as much of the format's surface as

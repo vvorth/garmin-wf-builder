@@ -99,6 +99,20 @@ Anchors are the nine box positions: `top_left`, `top`, `top_right`, `left`,
 of the dial on a 260×260 and a 280×280 screen; `50%` of the width is not, once a
 screen stops being square.
 
+**A relative size, thickness or radius never resolves below 1 px.** `%`/`%r`
+scale per device, so a hairline such as `thickness: 0.5%r` can be a full
+pixel on one screen and round to nothing on the next — the same design draws
+on one target and silently vanishes on another. To keep that from happening,
+any nonzero `%`/`%r` length used as a `size:`, `thickness:`, `bar_width:` or
+an element/part's own `radius:` (a shape's `radius:`, a progress arc's, a
+hand or pattern part's) is clamped up to 1 px, sign preserved, if it would
+otherwise resolve smaller. Writing `0%`/`0%r` still means exactly zero — the
+clamp only ever lifts a nonzero result. `px` and `pt` lengths are never
+touched: a `px` value is already exactly what the author wrote, and a `pt`
+length is only ever a font size, which floors at 1 px on its own path. A
+position (`at:`/`to:`/polygon `points:`, a linear pattern's `step:`) and a
+`corner_radius:` are not sizes and are not clamped either.
+
 ### Angles
 
 Degrees, **12 o'clock = 0, clockwise positive** — how a watch designer thinks.
