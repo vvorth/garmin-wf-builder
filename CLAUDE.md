@@ -229,7 +229,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     transforms the resolved template (ADR 0004 amended again, measured in
     `docs/research/probes/pattern-cost/`); the rotate helpers now live in
     the shared `runtime-lib/WfbGeom.mc`. Example:
-    `examples/patterns/face.yaml`.
+    `examples/patterns/face.yaml`. **2026-09-15:** a pattern colour may
+    read `copy` (the copy index, bound nowhere else) and never-absent
+    sources, e.g. the new numeric `date.weekday` (ADR 0005 amended).
   - **Built 2026-09-14** (plan 04): analog hands. `hands:` declares
     named hour/minute/second sets, each hand 1–16 parts of four kinds
     (`polygon`/`rectangle`/`line`/`circle`) drawn at 12 o'clock with the

@@ -261,7 +261,7 @@ def render(spec: str, value, value_type: Type, values: dict | None = None) -> st
 
     ``values`` supplies the clock/date fields, by the same keys
     `wfb.preview.SAMPLE` uses: ``time.hour``, ``time.minute``, ``time.second``,
-    ``device.is_24_hour``, ``date.weekday``, ``date.day``, ``date.month``,
+    ``device.is_24_hour``, ``date.day_of_week``, ``date.day``, ``date.month``,
     ``date.month_number``, ``date.year`` -- read only when ``value_type`` is
     TIME or DATE, so a numeric caller may omit it.
 
@@ -312,7 +312,7 @@ def _render_date(spec: str, values: dict) -> str:
         if part.code is None:
             out += part.text
         elif part.code == "a":
-            out += str(values.get("date.weekday", "Wed"))
+            out += str(values.get("date.day_of_week", "Wed"))
         elif part.code == "d":
             out += f"{int(values.get('date.day', 3)):02d}"
         elif part.code == "e":

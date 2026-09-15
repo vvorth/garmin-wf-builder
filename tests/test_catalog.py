@@ -206,14 +206,18 @@ def test_complication_source_type_matches_its_type_table_value_type():
         assert source.type is _MAP[entry.value_type], name
 
 
-def test_cast_is_set_iff_the_source_reads_a_complication():
-    """`Source.cast` exists only because `Complications.Complication.value`
-    is a Monkey C union type -- no other reader returns a union, so no other
+def test_cast_is_set_iff_the_source_reads_a_union():
+    """`Source.cast` exists because `Complications.Complication.value` is a
+    Monkey C union type.  The one other union field read is
+    `Gregorian.Info.day_of_week` (`Number or String`), which `date.weekday`
+    reads under FORMAT_SHORT, where it is always the Number -- so no other
     source should ever set it."""
     for path, source in CATALOG.items():
         if path.startswith("complication."):
             assert source.cast is not None, path
             assert source.cast in ("Number?", "Float?", "String?"), (path, source.cast)
+        elif path == "date.weekday":
+            assert source.cast == "Number"
         else:
             assert source.cast is None, path
 

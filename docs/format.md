@@ -1940,13 +1940,13 @@ static:
       - {shape: line, at: {dy: -94%r}, to: {dy: -88%r}, thickness: 1px}
 
 elements:
-  week_dots:
+  week_dots:                                     # Monday to Sunday, today lit
     type: pattern
     pattern: linear
     at: {anchor: center, dx: -30%r, dy: 36%r}   # copy 0's origin
     count: 7
     step: {dx: 10%r}                             # copy i sits at at + i * step
-    color: palette.cyan
+    color: "copy == (date.weekday + 5) % 7 ? palette.cyan : palette.black"
     parts:
       - {shape: circle, radius: 2%r}
 ```
@@ -2000,8 +2000,25 @@ is an error, as everywhere else.
 **Colours** work as on a hand. The element's `color:` is the default, and a
 part's own `color:` overrides it. A part left with neither is an error. A
 colour may be a palette entry, a literal, `config.*`, or a conditional over
-those. **It may not read data**, because a pattern has no `when_absent:` to
-fall back to.
+those, and, unlike a hand's, it may also read two more things:
+
+* **`copy`**, the index of the copy being drawn (0-based, in the same
+  numbering `skip:` uses). It is bound in a pattern's colours and nowhere
+  else. `copy % 2 == 0 ? palette.a : palette.b` alternates two colours.
+* **A data source that is never absent**: `time.*`, `date.*`,
+  `system.battery`, and so on. `wfb sources` shows which sources can be
+  absent. **One that can be absent is an error**, because a pattern has no
+  `when_absent:` to fall back to, and hiding every copy because one reading
+  went missing would be a silent no-op.
+
+Together they let one copy stand out. `date.weekday` is 1 (Sunday) to 7
+(Saturday), so `(date.weekday + 5) % 7` is 0 on Monday, and
+`copy == (date.weekday + 5) % 7` is true for exactly one copy of a seven-copy
+row: today's.
+
+The data is read once per frame, before the loop. A colour that reads `copy`
+is set inside the loop, once per copy, and every other colour is set before
+the loop.
 
 **Draw order** is copy by copy, in ascending index, with a copy's parts in
 list order.
@@ -2013,9 +2030,11 @@ because the extent comes from the ink. `on_hold:` is not accepted; hold a
 A fixed pattern gains nothing from `onPartialUpdate`, and its clip would be
 its whole extent.
 
-**`static:` is where most patterns belong.** Colours cannot read data, so
-there is nothing to freeze. The loop then runs once, when the buffer is
-filled, instead of once a second.
+**`static:` is where most patterns belong.** The loop then runs once, when
+the buffer is filled, instead of once a second. A pattern whose colour reads
+a data source cannot be static (the ordinary static-binding error: the buffer
+would freeze the reading). One that reads only `copy` can, because a copy's
+index never changes.
 
 **`antialias:` works exactly as on a `shape`.** The element's own value,
 or the one it inherits from its group or the face, brackets the whole
@@ -2054,8 +2073,8 @@ radial pattern it is also the disc of its farthest ink from the centre.
 same way it checks hands, so a ring does not warn as cropped.
 
 See `examples/patterns/face.yaml` for every part shape, both kinds,
-`start:`, `skip:` and `skip_every:`, a two-part template, and patterns in
-and out of `static:`.
+`start:`, `skip:` and `skip_every:`, a two-part template, patterns in and
+out of `static:`, and a per-copy colour (`week_dots`, today lit).
 
 **What is verified, and what is not.** Verified: warning-free builds under
 `-l 3` on all three targets, and `wfb preview`, which transforms the same
@@ -2301,6 +2320,10 @@ value: "percent(activity.steps, activity.step_goal)"
 Literals; references to sources and palette entries; `+ - * / %`; comparisons;
 `and` / `or` / `not`; `cond ? a : b`; and exactly seven functions — `min`, `max`,
 `clamp`, `round`, `floor`, `abs`, `percent`.
+
+One name is bound in one place only: **`copy`**, the index of the copy being
+drawn, in a `type: pattern` colour (see [`pattern`](#pattern)). Anywhere else
+it is an error saying so.
 
 No loops, no user-defined functions, no assignment, no state. Anything beyond
 this is a signal to use the escape hatch (ADR 0007), not to grow the language —
@@ -2566,8 +2589,9 @@ while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
 
 (**Patterns are implemented** -- see [`pattern`](#pattern) above -- with
 these pieces still open: `text` parts (hour numerals, which need
-per-copy text), `pattern: grid`, data-driven pattern colours, `on_hold:`
-and `low_power` on a pattern, per-copy variation other than skipping,
+per-copy text), `pattern: grid`, pattern colours that read a source which
+can be absent, `on_hold:` and `low_power` on a pattern, per-copy variation
+other than skipping and colour (`copy` in a colour, built 2026-09-15),
 `rounded_rectangle`/`ellipse` parts in a linear pattern, and an arc part
 off the pattern's centre. See `docs/limitations.md` §2.)
 

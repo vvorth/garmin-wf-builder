@@ -102,14 +102,14 @@ class Reader:
     `complication_type` (below): set means the second shape, ``None`` means
     the first.
 
-    **The original shape** (9 of 51 readers -- ``activity``,
+    **The original shape** (10 of 52 readers -- ``activity``,
     ``weather_current``, ``date``, etc.): a shared accessor several sources
     read fields off. Fetching ``ActivityMonitor.getInfo()`` once per frame
     and reading three fields off it is both cheaper and clearer than three
     separate calls, so the generator groups sources by reader and hoists one
     ``var`` that every source sharing it reads through.
 
-    **The complication shape** (42 of 51, one per `complications.TYPES`
+    **The complication shape** (42 of 52, one per `complications.TYPES`
     entry -- see the ``READERS.update(...)`` loop below): a single-use
     wrapper that exists so `ReadPlan`'s declare/guard/parameter pipeline
     (``wfb/emit/monkeyc.py``, keyed by reader, not by source) has something
@@ -157,6 +157,17 @@ READERS: dict[str, Reader] = {
     "date": Reader(
         "date",
         "Gregorian.info(Time.now(), Time.FORMAT_MEDIUM)",
+        "Gregorian.Info",
+        "Toybox.Time.Gregorian",
+    ),
+    # The same call under FORMAT_SHORT, where `day_of_week` is a Number
+    # (Gregorian.DAY_SUNDAY = 1 .. DAY_SATURDAY = 7, Toybox/Time/Gregorian.html)
+    # rather than a localised String -- the one form an expression can do
+    # arithmetic on or compare.  A second reader, not a second field on
+    # `date`: one `Gregorian.Info` cannot be both formats at once.
+    "date_short": Reader(
+        "dateShort",
+        "Gregorian.info(Time.now(), Time.FORMAT_SHORT)",
         "Gregorian.Info",
         "Toybox.Time.Gregorian",
     ),
@@ -291,11 +302,13 @@ class Source:
     intermediate: str | None = None
     #: A Monkey C type the read expression must be cast to (e.g. ``"Number?"``,
     #: ``"String?"``, ``"Float?"``), or ``None`` when no cast is needed.
-    #: Only set for `complication.*` sources: `Complications.Complication.value`
+    #: Set for `complication.*` sources: `Complications.Complication.value`
     #: is declared `Complications.Value or Null` -- a union of
     #: `String or Number or Float or Long or Double or Null` -- so the
     #: compiler cannot narrow it to this source's own `type` without an
-    #: explicit cast. **Contract:** `Source.read_expr` deliberately does NOT
+    #: explicit cast.  Also set for `date.weekday`, whose field is declared
+    #: `Number or String` though FORMAT_SHORT always yields the Number.
+    #: **Contract:** `Source.read_expr` deliberately does NOT
     #: bake this cast into the expression it returns -- the emitter
     #: (`wfb/emit/monkeyc.py`) is the one that knows the surrounding
     #: expression shape (a bare read vs. inside a ternary guard vs. inside a
@@ -383,6 +396,14 @@ CATALOG: dict[str, Source] = {
         _s("date.day_of_week", Type.STRING, "date", "day_of_week", False,
            doc="day of the week, localised (e.g. \"Wed\")",
            source_ref="Toybox/Time/Gregorian/Info.html"),
+        # The numeric twin, read under FORMAT_SHORT (the `date_short`
+        # reader).  The field is declared `Number or String`, so -l 3 needs
+        # the cast to let it reach a Number local -- the same reason
+        # complication values carry one.
+        _s("date.weekday", Type.NUMBER, "date_short", "day_of_week", False,
+           cast="Number",
+           doc="day of the week as a number, 1 = Sunday .. 7 = Saturday",
+           source_ref="Toybox/Time/Gregorian.html"),
 
         # -- device settings ----------------------------------------------
         # Toybox/System/DeviceSettings.html

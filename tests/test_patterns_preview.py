@@ -344,3 +344,34 @@ def test_examples_patterns_face_renders_without_crashing(db, bag):
 
     SAVE_TO.parent.mkdir(parents=True, exist_ok=True)
     image.save(SAVE_TO, format="PNG")
+
+
+# -- per-copy colour: `copy` and `date.weekday` ---------------------------------
+
+
+_WEEK = """\
+elements:
+  week:
+    type: pattern
+    pattern: linear
+    at: {{anchor: center, dx: -60px}}
+    count: 7
+    step: {{dx: 20px}}
+    parts:
+      - shape: circle
+        radius: 4px
+        color: "copy == (date.weekday + 5) % 7 ? palette.cyan : palette.red"
+"""
+
+
+@pytest.mark.parametrize("weekday,lit", [(2, 0), (4, 2), (1, 6)])
+def test_the_week_row_lights_todays_copy(write_design, db, bag, weekday, lit):
+    """`date.weekday` 2 (Monday) lights copy 0, 4 (Wednesday) copy 2, and 1
+    (Sunday) copy 6 -- every other copy is red.  A colour evaluated once for
+    the whole pattern (copy fixed at 0), or with the wrong weekday offset,
+    lights the wrong dot in at least one row."""
+    image = _render(write_design, db, bag, _WEEK.format(),
+                    sample={"date.weekday": weekday})
+    for index in range(7):
+        pixel = image.getpixel((CX - 60 + 20 * index, CY))
+        assert pixel == (CYAN if index == lit else RED), (index, pixel)

@@ -298,7 +298,7 @@ class Binding:
     code: str
     #: Set when the value is known at build time, enabling constant folding.
     constant: object | None = None
-    kind: str = "source"  # source | palette | config
+    kind: str = "source"  # source | palette | config | copy
 
 
 @dataclass
@@ -318,6 +318,20 @@ class Scope:
         return binding
 
 
+#: The index of the copy being drawn, 0-based -- bound only while a `type:
+#: pattern`'s colours are compiled (`Builder._build_pattern_element`), to the
+#: generated loop's own `i`.  Every other expression sees it unbound, and
+#: `check` gives that its own error rather than "unknown data source".
+COPY = "copy"
+
+
+def reads_copy(node: Node | None) -> bool:
+    """Does this (folded) expression read :data:`COPY` -- so its value can
+    differ from one copy of a pattern to the next?"""
+    return node is not None and any(
+        isinstance(n, Ref) and n.path == COPY for n in walk(node))
+
+
 _NUMERIC_OPS = {"+", "-", "*", "/", "%"}
 _COMPARISON_OPS = {"<", "<=", ">", ">="}
 _EQUALITY_OPS = {"==", "!="}
@@ -331,6 +345,13 @@ def check(node: Node, scope: Scope) -> Value:
 
     if isinstance(node, Ref):
         binding = scope.lookup(node.path)
+        if binding is None and node.path == COPY:
+            raise ExprError(
+                f"{COPY!r} is only defined in a 'type: pattern' colour",
+                node.offset,
+                [f"{COPY!r} is the index of the copy being drawn, 0-based -- "
+                 "nothing but a pattern has copies"],
+            )
         if binding is None:
             from . import catalog
 

@@ -56,7 +56,8 @@ _COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
 SAMPLE: dict[str, object] = {
     "time.clock": 0,
     "date.today": 0,
-    "date.weekday": "Wed",
+    "date.day_of_week": "Wed",
+    "date.weekday": 4,  # Wednesday: Gregorian.DAY_SUNDAY = 1 .. DAY_SATURDAY = 7
     "date.day": 3,
     "date.month": "Sep",
     "date.month_number": 9,
@@ -377,8 +378,8 @@ class _Renderer:
                 self._hand_part(part, cx, cy, s, sin_t, cos_t)
 
     def _hand_part(self, part, cx: float, cy: float, s: int,
-                   sin_t: float, cos_t: float) -> None:
-        fill = self._color(part.color)
+                   sin_t: float, cos_t: float, values: dict | None = None) -> None:
+        fill = self._color(part.color, values)
 
         def rotated(x: float, y: float) -> tuple[float, float]:
             return (cx + (x * cos_t - y * sin_t) * s, cy + (x * sin_t + y * cos_t) * s)
@@ -415,14 +416,17 @@ class _Renderer:
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
             cx, cy = ox * s, oy * s
+            # `copy` is the generated loop's `i`: a colour reading it is
+            # evaluated afresh for every copy, exactly as the device does.
+            values = {**self.values, expr.COPY: index}
             for part in placed.parts:
                 if part.shape == "arc":
-                    self._pattern_arc(part, ox, oy, index, placed, s)
+                    self._pattern_arc(part, ox, oy, index, placed, s, values)
                 else:
-                    self._hand_part(part, cx, cy, s, sin_t, cos_t)
+                    self._hand_part(part, cx, cy, s, sin_t, cos_t, values)
 
     def _pattern_arc(self, part, ox: float, oy: float, index: int,
-                     placed: PlacedPattern, s: int) -> None:
+                     placed: PlacedPattern, s: int, values: dict) -> None:
         """An `arc` template part -- always centred on the copy's own
         origin (plan 05 D3, `at:` is rejected on it), so there are no
         vertices to rotate: only its *start angle* turns with the copy,
@@ -432,7 +436,7 @@ class _Renderer:
         `placed.step` are both `0` there, D3/§5.3). Drawn through the same
         whole-degree `arc_span` rule a `shape: arc` element uses.
         """
-        fill = self._color(part.color)
+        fill = self._color(part.color, values)
         cx, cy = ox * s, oy * s
         r = part.radius * s
         author_start = part.start_angle + placed.start + index * placed.step
@@ -847,12 +851,14 @@ class _Renderer:
             return True
         return bool(expr.evaluate(expression.ast, self.values))
 
-    def _color(self, expression) -> tuple[int, int, int]:
+    def _color(self, expression, values: dict | None = None) -> tuple[int, int, int]:
+        """`values` overrides `self.values` -- a pattern passes its own, with
+        `copy` bound to the copy being drawn."""
         if expression is None:
             return (255, 255, 255)
         value = expression.constant
         if value is None and expression.ast is not None:
-            value = expr.evaluate(expression.ast, self.values)
+            value = expr.evaluate(expression.ast, self.values if values is None else values)
         if value is None:
             return (255, 255, 255)
         color = Color.parse(int(value))

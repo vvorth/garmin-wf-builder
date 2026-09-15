@@ -2284,10 +2284,15 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
 
     # Colour: one distinct part colour is set once, before the loop; several
     # are set inside it, only on each change (the same rule `_emit_one_hand`
-    # already follows within one hand).
+    # already follows within one hand).  A colour that reads `copy` is the
+    # loop's own `i`, so it can never be hoisted: it is set inside the loop,
+    # afresh on every copy.  (A data reading needs no such care -- its local
+    # is declared at the top of the method, before the loop.)
     colors = [_color(part.color) for part in parts]
     distinct_colors = list(dict.fromkeys(colors))
-    hoist_color = len(distinct_colors) == 1
+    per_copy = any(expr.reads_copy(part.color.ast) for part in parts
+                   if part.color is not None)
+    hoist_color = len(distinct_colors) == 1 and not per_copy
 
     # Pen width: hoisted when every line/outlined-circle part shares one
     # width and there is no arc part -- `WfbArc.drawSpan` resets the pen to

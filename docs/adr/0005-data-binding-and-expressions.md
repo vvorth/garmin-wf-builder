@@ -82,6 +82,10 @@ language:
 Anything beyond this is a signal to use the escape hatch (ADR 0007) rather than
 to grow the language. Growing it is how these formats become unmaintainable.
 
+> **Amended — see "Amendment (2026-09-15): `copy`, one name bound in one
+> place".** The operators and functions are unchanged; one reference name was
+> added, in `type: pattern` colours only.
+
 ### 3. Null handling is part of the binding, not an afterthought
 
 Every binding declares what absence renders as. The compiler **requires** this
@@ -258,3 +262,34 @@ section above is also untouched — it was never built, tier or no tier
 (`docs/limitations.md` §2). Complication units (metres, m/s, °C, seconds,
 percent) are still taken verbatim from the SDK's own Type table, unconverted,
 matching this ADR's Context point 4.
+
+## Amendment (2026-09-15): `copy`, one name bound in one place
+
+**What changed.** Inside a `type: pattern` element's colours (its `color:` and
+each part's), the expression scope has one extra name: `copy`, a non-null
+Number, the index of the copy being drawn. It compiles to the index of the
+generated draw loop (`for (var i = 0; ...)`), so
+`copy == (date.weekday + 5) % 7 ? palette.on : palette.off` becomes a ternary
+over `i` and a local read before the loop. It is still compiled rather than
+interpreted, and there is still no evaluator on the device. Everywhere else,
+`copy` is unbound and `check` reports it with its own message ("only defined
+in a 'type: pattern' colour"), not "unknown data source". In the same change,
+a pattern colour may read any source that is **never absent**. One that can
+be absent is still refused, because a pattern has no `when_absent:` (§3).
+A new catalogue entry, `date.weekday` (1 = Sunday .. 7 = Saturday, read under
+`FORMAT_SHORT` and cast to `Number` as §1's complication values are), is the
+number such a colour compares against.
+
+**Why this is not "growing the language".** No operator, function, loop or
+state was added. A pattern *is* the loop, and ADR 0004 §7 already has the
+device run it. `copy` only names the loop's index, which that code already
+had, so a colour can depend on it. The alternative within the rule above is
+one element per copy, which is exactly what patterns were built to replace:
+seven `visible:`-gated circles to light today's dot in a week row.
+`examples/patterns/face.yaml`'s `week_dots` did not show the day until this
+change, and it could not be fixed in the YAML.
+
+**What stays true.** A hand colour still reads no data at all (§5.4 of plan
+04). A colour that reads a source still keeps its element out of `static:`.
+A colour that reads only `copy` may be static, because a copy's index never
+changes.

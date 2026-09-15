@@ -16,9 +16,11 @@
 #   a segmented ring, the thing a single `drawArc` cannot draw.
 # * **`start:`** (`diagonals`): four triangles, the first turned to 45deg,
 #   each a `polygon` part pointing outwards.
-# * **A multi-part linear pattern outside `static:`** (`week_dots`): a
-#   filled dot inside an outlined ring, seven times, redrawn every frame
-#   like any other element.
+# * **A per-copy, data-driven colour** (`week_dots`): seven outlined
+#   rings, Monday to Sunday, with today's filled in.  The dot part's
+#   `color:` compares `copy` (the index of the copy being drawn) with
+#   `date.weekday`; a two-part linear pattern outside `static:`, because
+#   it reads the date.
 # * **Anti-aliasing** on the three radial rings (soft rotated edges), and
 #   the face default (crisp) on everything else.
 #
@@ -27,8 +29,10 @@
 #
 # What is verified: the design builds warning-free through the real
 # `monkeyc` on all three targets (`--build-stats` recorded in
-# `docs/history.md`, 2026-09-14 "Patterns built"). What is NOT verified
-# anywhere in this project: what it looks like on a panel -- there is no
+# `docs/history.md`, 2026-09-14 "Patterns built", and again after
+# `week_dots` began reading the date, 2026-09-15 "week_dots shows the
+# day"). What is NOT verified anywhere in this project: what it looks
+# like on a panel, or that today's dot moves at midnight -- there is no
 # simulator and no watch in this container. `wfb preview` draws the same
 # resolved geometry through the same transform, without anti-aliasing.
 #
@@ -139,14 +143,18 @@ elements:
     at: { anchor: center, dy: -8% }
     color: palette.white
 
-  # Not static: drawn every frame, like any other element.
+  # Monday to Sunday, left to right, with today's ring filled in.  Not
+  # static: it reads the date, so it is redrawn every frame.
   week_dots:
     type: pattern
     pattern: linear
-    at: { anchor: center, dx: -30%r, dy: 36%r } # copy 0's origin
+    at: { anchor: center, dx: -30%r, dy: 36%r } # copy 0's origin: Monday
     count: 7
     step: { dx: 10%r }
-    color: palette.cyan
     parts:
-      - { shape: circle, radius: 2%r }
+      # `copy` is the copy index, 0-6.  date.weekday is 1 = Sunday ..
+      # 7 = Saturday, so (weekday + 5) % 7 is Monday = 0 .. Sunday = 6.
+      - shape: circle
+        radius: 2%r
+        color: "copy == (date.weekday + 5) % 7 ? palette.cyan : palette.black"
       - { shape: circle, radius: 4%r, filled: false, thickness: 1px, color: palette.gray }

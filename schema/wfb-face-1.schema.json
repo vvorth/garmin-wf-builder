@@ -1570,7 +1570,7 @@
       ]
     },
     "patternElement": {
-      "description": "One template of 1-16 primitives (plan 05: 'pattern'), drawn repeatedly -- turned about 'at:' ('pattern: radial') or stepped along {dx, dy} ('pattern: linear'). No 'size:' (the extent is computed from the drawn ink, not authored), no 'on_hold:' (a repeated template has no single fixed hit region -- hold a 'group' around it instead) -- accepted here, like every other element, only so the compiler can say so against your own line instead of a generic 'unknown key'. 'static: true' is accepted: a pattern's colours may not read data (see 'patternPart'), so nothing here can change frame to frame -- unlike 'hands', whose angle is the clock.",
+      "description": "One template of 1-16 primitives (plan 05: 'pattern'), drawn repeatedly -- turned about 'at:' ('pattern: radial') or stepped along {dx, dy} ('pattern: linear'). No 'size:' (the extent is computed from the drawn ink, not authored), no 'on_hold:' (a repeated template has no single fixed hit region -- hold a 'group' around it instead) -- accepted here, like every other element, only so the compiler can say so against your own line instead of a generic 'unknown key'. 'static: true' is accepted unless a colour reads a data source, which a buffer filled once would freeze (the ordinary static-binding error); a colour that reads only 'copy' is fixed per copy and fine there -- unlike 'hands', whose angle is the clock.",
       "type": "object",
       "required": [
         "id",
@@ -1634,7 +1634,7 @@
           "minimum": 2
         },
         "color": {
-          "description": "Default colour for every part that declares none of its own.",
+          "description": "Default colour for every part that declares none of its own. May read 'copy' -- the index of the copy being drawn, 0-based, bound nowhere else -- and data sources that are never absent (time.*, date.*, system.battery, ...), e.g. \"copy == (date.weekday + 5) % 7 ? palette.on : palette.off\". A source that may be absent is an error: a pattern has no 'when_absent:'.",
           "$ref": "#/$defs/colorExpression"
         },
         "parts": {
@@ -1719,7 +1719,7 @@
           "default": true
         },
         "color": {
-          "description": "Overrides the pattern's own default colour for this part only. Same data-binding restriction as the pattern's own 'color:'.",
+          "description": "Overrides the pattern's own default colour for this part only. Same rules as the pattern's own 'color:', 'copy' included.",
           "$ref": "#/$defs/colorExpression"
         },
         "start_angle": {

@@ -140,6 +140,10 @@ PATTERN_PART_GEOMETRY_KEYS = {
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
 
+#: The Monkey C a pattern colour's `copy` compiles to: the index of the loop
+#: `wfb.emit.monkeyc._emit_pattern` draws the copies in (`for (var i = 0; ...)`).
+PATTERN_LOOP_INDEX = "i"
+
 PATTERN_PART_REJECTED_SHAPES = {
     "rounded_rectangle": "no Dc call draws a rotated or translated rounded "
                           "rectangle -- approximate it with 'polygon'",
@@ -2219,14 +2223,34 @@ class Builder:
     def _reject_hand_data_color(
         self, color: Expression, where: str, span: Span | None, *, noun: str = "hand",
     ) -> bool:
-        """A hand (or pattern) colour "may not read a data source" (§5.4,
-        plan 05 §5.2) -- a hand is about the time and a pattern has no
-        `when_absent:` to fall back through if the reading it named turned
-        out absent, in either case with nothing to substitute.  Returns
-        whether the colour was rejected.
+        """A hand colour "may not read a data source" (§5.4) -- a hand is
+        about the time.  A pattern colour may read one that is never absent
+        (`date.weekday`, `time.*`, `system.battery`, ...), but not one that
+        can be: a pattern has no `when_absent:` to fall back through, and
+        hiding every copy because one reading went missing would be a
+        silent no-op (2026-09-15, relaxing plan 05 §5.2 so a row of dots
+        can show the day of the week).  Returns whether the colour was
+        rejected.
         """
         if not color.sources:
             return False
+        if noun == "pattern":
+            absent = [p for p in color.sources if catalog.CATALOG[p].guard_needed]
+            if not absent:
+                return False
+            self.bag.error(
+                "pattern",
+                f"{where}.color: a pattern colour cannot read a source that may "
+                f"be absent ({_and_paths(tuple(absent))})",
+                span or color.span,
+                notes=["allowed: palette entries, literal colours, config.*, "
+                       f"'{expr.COPY}' (the copy index), and sources that are never "
+                       "absent (time.*, date.*, system.battery, ...) -- and "
+                       "conditionals over those",
+                       "a pattern has no 'when_absent:' to fall back through if "
+                       "the reading turned out absent"],
+            )
+            return True
         self.bag.error(
             "hands" if noun == "hand" else "pattern",
             f"{where}.color: a {noun} colour cannot read data ({_and_paths(color.sources)})",
@@ -3485,29 +3509,37 @@ class Builder:
         ok = True
         element_color: Expression | None = None
         color_declared_and_failed = False
-        if "color" in node:
-            element_color = self._color_expression(node, "color")
-            if element_color is None:
-                ok = False
-                color_declared_and_failed = True
-            else:
-                rejected = self._reject_hand_data_color(
-                    element_color, element_id, self.doc.span(node, "color"), noun="pattern")
-                if rejected:
-                    element_color = None
+        parts: list[HandPart] = []
+        # `copy` -- the index of the copy being drawn -- exists only here,
+        # compiled to the generated loop's own index (`_emit_pattern`).
+        self.scope.define(expr.COPY, expr.Binding(
+            expr.Value(Type.NUMBER), code=PATTERN_LOOP_INDEX, kind="copy"))
+        try:
+            if "color" in node:
+                element_color = self._color_expression(node, "color")
+                if element_color is None:
                     ok = False
                     color_declared_and_failed = True
+                else:
+                    rejected = self._reject_hand_data_color(
+                        element_color, element_id, self.doc.span(node, "color"),
+                        noun="pattern")
+                    if rejected:
+                        element_color = None
+                        ok = False
+                        color_declared_and_failed = True
 
-        parts: list[HandPart] = []
-        for index, raw_part in enumerate(node.get("parts") or []):
-            part = self._build_hand_part(
-                raw_part, element_id, index, element_color, color_declared_and_failed,
-                context="pattern",
-            )
-            if part is None:
-                ok = False
-                continue
-            parts.append(part)
+            for index, raw_part in enumerate(node.get("parts") or []):
+                part = self._build_hand_part(
+                    raw_part, element_id, index, element_color, color_declared_and_failed,
+                    context="pattern",
+                )
+                if part is None:
+                    ok = False
+                    continue
+                parts.append(part)
+        finally:
+            del self.scope.bindings[expr.COPY]
         if not ok:
             return None
 

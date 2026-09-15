@@ -95,7 +95,12 @@ cost is unmeasured. The part vocabulary is the hands' four primitives plus
 an `arc` centred on the pattern's centre. How the firmware rasterises the
 Float coordinates of a turned copy without anti-aliasing is unobserved,
 the same open question hands have. **Pattern colours cannot read data**,
-for the same reason hand colours cannot.
+for the same reason hand colours cannot. *(Corrected 2026-09-15: that is now
+true only of a source that can be absent. A pattern colour may read `copy`,
+the index of the copy being drawn, and any source that is never absent,
+such as `date.weekday`, so `examples/patterns/`'s row of dots lights
+today's. The per-copy colour is evaluated inside the device loop, once per
+copy, and that cost is unmeasured too.)*
 
 ### `SensorHistory` is closed to a watch face, and solar has no history API at all
 
@@ -555,7 +560,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `wfb new -t analog` template | plan 04 §11 |
 | `text` parts in a `pattern` (hour numerals: each copy would need its own text, and a bitmap font cannot turn) | plan 05 §9 D5 |
 | `pattern: grid` (rows × columns) | plan 05 §9 D5 -- two nested linear steps; nothing has asked for it yet |
-| Data-driven pattern colours, per-copy colours, and per-copy variation other than `skip:`/`skip_every:` | plan 05 §9 D5 -- a pattern has no `when_absent:`; a longer or differently coloured copy is a second pattern element today |
+| Pattern colours that read a source which can be absent, and per-copy variation other than `skip:`/`skip_every:` and colour | plan 05 §9 D5 -- a pattern has no `when_absent:`; a longer copy is a second pattern element today. *Per-copy colours (`copy`) and never-absent sources in a pattern colour were built 2026-09-15; this row used to list them too.* |
 | `on_hold:` and `low_power` on a `pattern` | plan 05 §5.1, §5.4 -- hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
 | `rounded_rectangle`/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |
 

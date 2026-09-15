@@ -2788,3 +2788,68 @@ to D7's rejected option (duplicating the four functions instead).
 - whether `WfbArc.drawSpan`'s whole-degree rounding reads as a visible
   seam between adjacent segments in `examples/patterns/face.yaml`'s
   `segments` ring.
+
+## 2026-09-15 — `week_dots` shows the day: per-copy pattern colours
+
+**The report.** The user noticed that `week_dots` in
+`examples/patterns/face.yaml` was neither dynamic nor a day of the week.
+It was seven identical cyan dots, redrawn every frame for nothing. The name
+and the header comment ("a filled dot inside an outlined ring, seven
+times") implied more than the format could do. Plan 05 had deliberately
+left out data-driven and per-copy pattern colours (§9 D5), so there was
+no YAML-only fix.
+
+**The decision (the user's, from three options).** Extend the format, not
+the example: (1) per-copy pattern colours, (2) seven `visible:`-gated
+circles over a static ring pattern, or (3) rename it to an honest
+decoration. The user chose (1), with Monday leftmost and only today lit.
+
+**What was built.**
+
+- `copy`, the copy index, is bound in a pattern's colours only (the
+  element `color:` and each part's), compiled to the loop's `i`
+  (`wfb.ir.PATTERN_LOOP_INDEX`). Outside a pattern it gets its own error.
+  ADR 0005 is amended: one name, no new operators or functions.
+- A pattern colour may read a source that is **never absent**. One that
+  can be absent (`activity.steps`) is still refused, with a new message
+  naming it. Hand colours are unchanged and still read no data at all.
+- `date.weekday`: a new catalogue source, a Number from 1 (Sunday) to 7
+  (Saturday) (`Gregorian.DAY_SUNDAY`..`DAY_SATURDAY`,
+  `Toybox/Time/Gregorian.html`). It has its own reader, `date_short`
+  (`Gregorian.info(Time.now(), Time.FORMAT_SHORT)`), because one `Info`
+  cannot be both formats. It is cast `as Number`, since the field is
+  declared `Number or String`: the first non-complication `Source.cast`.
+- Codegen: a colour reading `copy` is never hoisted above the loop, where
+  `i` does not exist yet. It is set per copy. Data reads were already
+  declared at the top of the element method.
+- Preview: each copy's colours are evaluated with `copy` bound to that
+  copy. The preview's private `date.weekday: "Wed"` key (used for `%a`)
+  collided with the new source, so it became `date.day_of_week`, the real
+  catalogue path. The `%a` parity row now uses "Thu", which differs from
+  `_render_date`'s own fallback, so it can actually catch a wrong key.
+- `week_dots`: `color: "copy == (date.weekday + 5) % 7 ? palette.cyan :
+  palette.black"` on the dot part. `wfb preview` (sample weekday 4)
+  lights the third dot, Wednesday.
+
+**Driven red** (each check broken on purpose, then restored): the
+`copy`-outside error, the `finally` unbinding, the never-absent relaxation,
+the hand rule staying strict, the no-hoist rule, per-copy evaluation in
+the preview, and the `%a` key rename. All seven turned their tests red.
+
+**Verification.**
+
+- `pytest -m "not slow"`: 1,265 collected, 3 failed (the pre-existing
+  `test_example_is_clean_on_every_target[big-clock-3|dashboard|enduro]`).
+- Slow: `test_every_catalog_source_compiles` (now including
+  `date.weekday`) and `test_example_compiles[patterns]` pass.
+- `examples/patterns/face.yaml` builds warning-free with the real
+  `monkeyc` on all three targets: 3,581-3,583 B (2.7%), up from
+  3,528-3,530 B. The +53 B is the second `Gregorian.info` call and the
+  per-copy ternary.
+
+**Unverified, needing the user's host simulator or a watch:** that
+`dateShort.day_of_week` really is the Number under `FORMAT_SHORT` on these
+firmwares (the SDK documents the constants, not which format yields
+which), and the per-frame cost of the ternary, which is evaluated seven
+times.
+

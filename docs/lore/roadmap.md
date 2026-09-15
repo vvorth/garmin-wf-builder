@@ -175,6 +175,14 @@ and the ADR each is specified in):
     `examples/patterns/face.yaml` is the worked example. Not built: text
     parts (numerals), `pattern: grid`, data-driven colours
     (`docs/limitations.md` §2). Unverified on-device.
+15. **Built 2026-09-15:** per-copy pattern colours. A pattern's `color:`
+    may read `copy` (the index of the copy being drawn, bound nowhere
+    else) and any source that is never absent. A source that can be
+    absent is still refused, so item 14's "data-driven colours" is now
+    only that half. The new numeric source `date.weekday` (1 = Sunday ..
+    7 = Saturday, a `FORMAT_SHORT` reader) made `week_dots` in
+    `examples/patterns/face.yaml` show today instead of seven identical
+    dots. Unverified on-device.
 
 **A previously-recorded loose end, now resolved — noted so nobody goes
 looking for the problem again:** commit `614d100` added

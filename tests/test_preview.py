@@ -260,7 +260,7 @@ def test_a_graphs_geometry_matches_its_resolved_box(write_design, bag, db):
 # itself.
 _TIME_VALUES = {"time.hour": 7, "time.minute": 5, "time.second": 9}
 _TIME_VALUES_12H = {**_TIME_VALUES, "device.is_24_hour": False}
-_DATE_VALUES = {"date.weekday": "Wed", "date.day": 3, "date.month": "Sep",
+_DATE_VALUES = {"date.day_of_week": "Thu", "date.day": 3, "date.month": "Sep",
                 "date.month_number": 9, "date.year": 2026}
 
 PARITY_CASES = [
@@ -284,7 +284,7 @@ PARITY_CASES = [
     ("{:%H:%M}", Type.TIME, None, _TIME_VALUES, "07:05"),
     ("{:%h:%M}", Type.TIME, None, _TIME_VALUES, "07:05"),
     ("{:%h:%M}", Type.TIME, None, _TIME_VALUES_12H, "7:05"),
-    ("{:%a %e %b}", Type.DATE, None, _DATE_VALUES, "Wed 3 Sep"),
+    ("{:%a %e %b}", Type.DATE, None, _DATE_VALUES, "Thu 3 Sep"),
 ]
 
 

@@ -293,19 +293,119 @@ def test_a_part_colour_overrides_the_pattern_default(write_design, bag):
     assert part.color.text == "palette.accent"
 
 
-@pytest.mark.parametrize("where", ["element", "part"])
-def test_a_data_bound_colour_is_rejected(write_design, bag, where):
+def _with_color(template: str, color: str, where: str) -> str:
+    """RADIAL_RING with `color` on the element, or on its one part (and
+    none on the element)."""
     if where == "element":
-        text = RADIAL_RING.replace("color: palette.fg", "color: activity.steps")
-    else:
-        text = RADIAL_RING.replace(
-            "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px}",
-            "      - {shape: line, at: {dy: -40px}, to: {dy: -50px}, thickness: 2px, "
-            "color: activity.steps}",
-        )
-    face = load(write_design(design(text)), bag)
-    assert face is None
-    assert bag.errors
+        return template.replace("color: palette.fg", f'color: "{color}"')
+    return template.replace(
+        "thickness: 2px}", f'thickness: 2px, color: "{color}"}}').replace(
+        "    color: palette.fg\n", "")
+
+
+@pytest.mark.parametrize("where", ["element", "part"])
+def test_a_colour_reading_an_absent_able_source_is_rejected(write_design, bag, where):
+    """A pattern has no `when_absent:`, so a reading that can be absent is
+    still refused (2026-09-15) -- one error, naming the source."""
+    color = "activity.steps > 5000 ? palette.accent : palette.fg"
+    bad = errors(design(_with_color(RADIAL_RING, color, where)), bag, write_design)
+    assert len(bad) == 1, [d.message for d in bad]
+    assert "cannot read a source that may be absent ('activity.steps')" in bad[0].message
+
+
+@pytest.mark.parametrize("where", ["element", "part"])
+def test_a_colour_reading_a_never_absent_source_builds(write_design, bag, where):
+    """The contrast: `date.weekday` is never absent, so a pattern may read it
+    -- until 2026-09-15 this was the same "cannot read data" error as above."""
+    color = "date.weekday == 1 ? palette.accent : palette.fg"
+    face = load(write_design(design(_with_color(RADIAL_RING, color, where))), bag)
+    assert face is not None, bag.render()
+    assert face.elements[0].parts[0].color.sources == ("date.weekday",)
+
+
+def test_a_hand_colour_still_may_not_read_a_never_absent_source(write_design, bag):
+    """Relaxing the pattern rule must not relax the hand one: a hand's colour
+    reads no data at all, absent-able or not."""
+    hands = """
+hands:
+  classic:
+    hour:
+      color: "date.weekday == 1 ? palette.accent : palette.fg"
+      parts:
+        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 50%r}}
+    minute:
+      color: palette.fg
+      parts:
+        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 70%r}}
+"""
+    elements = """  - id: h
+    type: hands
+    hands: classic
+    at: {anchor: center}
+"""
+    bad = errors(BASE + hands + "\nelements:\n" + elements, bag, write_design)
+    assert len(bad) == 1
+    assert "a hand colour cannot read data ('date.weekday')" in bad[0].message
+
+
+# -- `copy`: the copy index in a colour ----------------------------------------
+
+
+@pytest.mark.parametrize("where", ["element", "part"])
+def test_copy_is_bound_in_a_pattern_colour(write_design, bag, where):
+    color = "copy % 2 == 0 ? palette.accent : palette.fg"
+    face = load(write_design(design(_with_color(RADIAL_RING, color, where))), bag)
+    assert face is not None, bag.render()
+    part_color = face.elements[0].parts[0].color
+    assert part_color.code == "(((i % 2) == 0) ? Palette.ACCENT : Palette.FG)"
+    assert part_color.sources == ()  # the copy index is not a data source
+    assert part_color.constant is None  # ... and not a build-time constant
+
+
+def test_copy_outside_a_pattern_has_its_own_error(write_design, bag):
+    shape = """  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 5px
+    color: "copy == 0 ? palette.accent : palette.fg"
+"""
+    bad = errors(design(shape), bag, write_design)
+    assert len(bad) == 1
+    assert "'copy' is only defined in a 'type: pattern' colour" in bad[0].message
+
+
+def test_copy_does_not_leak_past_the_pattern_that_bound_it(write_design, bag):
+    """`copy` is bound while one pattern's colours compile and unbound
+    straight after -- an element built next must not see it."""
+    shape = """  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 5px
+    color: "copy == 0 ? palette.accent : palette.fg"
+"""
+    bad = errors(design(RADIAL_RING + shape), bag, write_design)
+    assert len(bad) == 1
+    assert "'copy' is only defined" in bad[0].message
+
+
+def test_copy_does_not_leak_past_a_rejected_pattern(write_design, bag):
+    """The same, when the pattern itself fails part-way through its
+    colours: the `finally` unbinding must still run."""
+    broken = _with_color(RADIAL_RING, "activity.steps > 1 ? palette.fg : palette.bg", "element")
+    shape = """  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 5px
+    color: "copy == 0 ? palette.accent : palette.fg"
+"""
+    bad = errors(design(broken + shape), bag, write_design)
+    assert [d.message for d in bad if "'copy' is only defined" in d.message]
+
+
+
 
 
 def test_filled_false_is_rejected_on_polygon(write_design, bag):
@@ -542,6 +642,30 @@ def test_a_pattern_may_be_static(write_design, bag):
     assert element.static_root == element.id
 
 
+def _static(text: str) -> str:
+    return text.replace("    at: {anchor: center}", "    at: {anchor: center}\n    static: true")
+
+
+def test_a_static_pattern_may_colour_by_copy(write_design, bag):
+    """`copy` is fixed per copy, not a reading: a static buffer filled once
+    still shows it correctly."""
+    text = _static(_with_color(RADIAL_RING, "copy == 0 ? palette.accent : palette.fg", "part"))
+    face = load(write_design(design(text)), bag)
+    assert face is not None, bag.render()
+
+
+def test_a_static_pattern_may_not_read_the_date(write_design, bag):
+    """The contrast: `date.weekday` changes, and a static buffer would freeze
+    it -- the ordinary static-binding error, reached through the pattern's
+    `colors`."""
+    text = _static(_with_color(RADIAL_RING, "date.weekday == 1 ? palette.accent : palette.fg",
+                               "part"))
+    bad = errors(design(text), bag, write_design)
+    assert len(bad) == 1
+    assert bad[0].code == "static"
+    assert "date.weekday" in bad[0].message
+
+
 # -- lint: pattern-step --------------------------------------------------------
 
 
@@ -627,3 +751,55 @@ def test_a_mixed_pattern_pulls_in_both_barrels(write_design, bag, db, tmp_path):
     barrel = _barrel_for(design(text), write_design, bag, db, tmp_path)
     assert "WfbArc.mc" in barrel
     assert "WfbGeom.mc" in barrel
+
+
+# -- codegen: where the colour is set -------------------------------------------
+
+
+def _view_for(text: str, write_design, bag, db, tmp_path) -> str:
+    from wfb.emit.project import generate
+
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    files = generate(resolved.face, [device], tmp_path, {device.id: resolved.fonts}).files()
+    (view_path,) = [p for p in files if p.endswith("View.mc")]
+    return files[view_path]
+
+
+def _loop_body(view: str) -> str:
+    return view.split("for (var i = 0; i <", 1)[1].split("\n        }\n", 1)[0]
+
+
+def test_one_plain_colour_is_still_hoisted_out_of_the_loop(write_design, bag, db, tmp_path):
+    view = _view_for(design(LINEAR_ROW), write_design, bag, db, tmp_path)
+    assert "dc.setColor(Palette.FG, Graphics.COLOR_TRANSPARENT);  // hoisted: one colour" in view
+    assert "setColor" not in _loop_body(view)
+
+
+def test_a_colour_reading_copy_is_set_inside_the_loop(write_design, bag, db, tmp_path):
+    """One distinct colour *text* is not one colour when it reads `copy`:
+    hoisted above the loop it would reference `i` before it exists (a
+    monkeyc error), so it is set per copy instead."""
+    text = LINEAR_ROW.replace("color: palette.fg",
+                              'color: "copy == 1 ? palette.accent : palette.fg"')
+    view = _view_for(design(text), write_design, bag, db, tmp_path)
+    assert "hoisted: one colour" not in view
+    assert ("dc.setColor(((i == 1) ? Palette.ACCENT : Palette.FG), "
+            "Graphics.COLOR_TRANSPARENT);") in _loop_body(view)
+
+
+def test_a_date_reading_is_declared_once_before_the_loop(write_design, bag, db, tmp_path):
+    """`date.weekday` reads through its own FORMAT_SHORT reader, cast to
+    Number for -l 3, into a local declared at the top of the method -- not
+    re-read per copy."""
+    text = LINEAR_ROW.replace(
+        "color: palette.fg",
+        'color: "copy == (date.weekday + 5) % 7 ? palette.accent : palette.fg"')
+    view = _view_for(design(text), write_design, bag, db, tmp_path)
+    before_loop = view.split("for (var i = 0; i <", 1)[0]
+    assert "var dateWeekday = dateShort.day_of_week as Number;" in before_loop
+    assert "day_of_week" not in _loop_body(view)
+    assert "dateShort as Gregorian.Info" in view  # the method's reader parameter
+    assert "Gregorian.info(Time.now(), Time.FORMAT_SHORT)" in view
