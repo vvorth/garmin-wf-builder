@@ -1025,8 +1025,13 @@ def test_a_passive_face_gets_no_delegate_and_no_permission(write_design, bag, db
 def test_on_hold_derives_the_permission_and_api_level(write_design, bag, db):
     """`exitTo` lives in Toybox.Complications, which is gated by
     ComplicationSubscriber -- so a design that reads no complication value at
-    all still needs it as soon as it launches one."""
+    all still needs it as soon as it launches one. `minApiLevel` itself no
+    longer moves for this (2026-09-15): the manifest is one file shared by
+    every target device, so it stays at the base level regardless, and a
+    device lacking Toybox.Complications gets a runtime guard instead
+    (`wfb.availability`)."""
     from wfb.emit import generate
+    from wfb.emit.manifest import BASE_API_LEVEL
     from wfb.emit.resources import bake_fonts
 
     path = write_design(design(HELD))
@@ -1035,7 +1040,7 @@ def test_on_hold_derives_the_permission_and_api_level(write_design, bag, db):
     baked = {device.id: bake_fonts(face, device)}
     manifest = generate(face, [device], path.parent / "b", baked).files()["manifest.xml"]
     assert 'uses-permission id="ComplicationSubscriber"' in manifest
-    assert 'minApiLevel="4.2.0"' in manifest
+    assert f'minApiLevel="{BASE_API_LEVEL}"' in manifest
 
 
 def test_on_hold_on_a_group_covers_the_whole_box_not_one_child(write_design, bag, db):

@@ -542,18 +542,30 @@ device with the native editor** -- checked with `Device.has_symbol`, never an
 API-level compare: `fr955` reports ConnectIQ 5.2.0, above the editor's own
 documented 5.1.0, and still has no editor at all (see CLAUDE.md constraint 6,
 and `docs/research/probes/watchface-config/`). Declaring `config:` forces no
-`minApiLevel` bump on any device -- a `data:` slot does, to 4.2.0, but that
-comes from `Toybox.Complications` itself (`Complications.Id`,
-`COMPLICATION_TYPE_*`), needed on every device regardless of whether it has
-the editor, not from the resource.
+`minApiLevel` bump on any device, `data:` included: `manifest.xml`'s
+`minApiLevel` is one number shared by every target device in the build, so it
+stays at the generator's own base floor (`3.2.0`) regardless of what a design
+uses (`wfb/emit/manifest.py::BASE_API_LEVEL`). A `data:` slot needs
+`Toybox.Complications` (`Complications.Id`, `COMPLICATION_TYPE_*`) the same as
+any other complication use, but a target device that lacks the module gets a
+runtime `Toybox has :Complications` guard in the generated code instead of a
+raised manifest floor -- see "The `complication.*` namespace" and "Holding an
+element" below for the full mechanism, and the `api-gated` lint entry just
+below for what an author sees on such a device.
 
 **A device with no native editor keeps every declared default forever** -- the
-compiled-in colours, the default scheme's role colours, *and* every slot's
-default complication type. This is a real, user-facing consequence of the
-chosen scope (`docs/adr/0006-configuration-theming-and-modes.md` §2), not a
-bug, and the compiler says so: the suppressible `config-unsupported` warning
-fires once per such target, naming the device and the entries (roles, slots)
-affected.
+compiled-in colours and the default scheme's role colours always; a slot's
+default complication type too, **provided the device can still resolve it**
+-- it is read through `Toybox.Complications` the same as any other choice,
+so a device that lacks that module as well (fenix6, fenix6xpro, fr245 today)
+cannot "keep" it either, and the slot shows its absent state instead. This is
+a real, user-facing consequence of the chosen scope
+(`docs/adr/0006-configuration-theming-and-modes.md` §2), not a bug, and the
+compiler says so: the suppressible `config-unsupported` warning fires once
+per such target, naming the device and the entries (roles, slots) affected,
+worded accordingly for a slot that cannot resolve its default either; see
+`api-gated` below for the same fact from the slot's own side, reported
+independently rather than folded into this one.
 
 ### Lint
 
@@ -618,12 +630,47 @@ affected.
 * `on_hold:` on a `complication_slot` naming anything other than `auto` --
   error, naming why (see "The Data axis" above) and pointing at the
   alternative (a plain element bound to the matching `complication.<name>`).
-* `complication-gated` (suppressible) -- a slot's `default:`, or a listed
-  `choices:` entry, needs a ConnectIQ level above a target's own ceiling
-  (checked against `wfb.complications.ComplicationType.since`, the same
-  check an `on_hold:`/`complication.<name>` binding already gets). The face
-  still works: the wearer simply cannot reach that type there, or, if it is
-  the default, the slot never shows it.
+* `api-gated` (suppressible) -- generalises the old `complication-gated`
+  code (renamed 2026-09-15, no shim) to *any* catalogue binding a target
+  device cannot actually provide, resolved against that device's own
+  `api.debug.xml` rather than an API level (`wfb/availability.py`; CLAUDE.md
+  constraint 6/6e). Four shapes, all WARNING, all reading as absent rather
+  than failing the build:
+  - a `value:`/`color:`/etc. source path whose reader needs a `Toybox`
+    module (e.g. `Complications`) or a field the device's own symbol table
+    lacks -- covers every `complication.*` read this way, for free, via its
+    reader's module gate;
+  - a complication *type* newer than the device's own ConnectIQ ceiling,
+    checked against `wfb.complications.ComplicationType.since` (unchanged
+    from the old check -- `COMPLICATION_TYPE_*` values are constants with no
+    entry in `api.debug.xml` at all, so a level compare is the only thing
+    that can catch this one), skipped when the device lacks
+    `Toybox.Complications` outright (the module-gap case above already said
+    so, more fundamentally);
+  - `on_hold:` on a device with no `Toybox.Complications` -- the hold
+    compiles in but does nothing there, unless `hold-unsupported` already
+    covers that same element (the device also lacks `onPress`) -- "it never
+    fires" stays true either way, so this one really is the same fact twice;
+  - a `complication_slot`'s slot on a device with no `Toybox.Complications`
+    -- it shows its absent state forever, **never** its declared `default:`
+    (the default is itself read through `Toybox.Complications`, so a device
+    missing the module cannot resolve it either). This does **not** dedupe
+    against `config-unsupported`: that warning, when it *also* fires because
+    the device lacks the native editor too, says the slot "keeps its
+    declared default" -- true only when the default can still resolve, so
+    on a device missing both (fenix6, fenix6xpro, fr245 today) the two
+    warnings report different halves of the truth and both fire, with
+    `config-unsupported`'s own wording adjusted to say "shows as absent"
+    for such a slot rather than "keeps its declared default".
+
+  A fifth shape, `api-gated-unguardable`, is a build **ERROR** and
+  deliberately **not** suppressible: it means a reader's own function symbol
+  (as opposed to a module or a field) is missing on a target device. The
+  generated code only ever guards a module or a field at runtime
+  (`wfb.availability.compute_guards`) -- there is no guard for an individual
+  function, so "reads as absent" would be a lie; the call would run
+  unguarded and crash on that device. No device this project vendors
+  triggers it today.
 
 ### What this compiler cannot tell you
 
@@ -2234,8 +2281,13 @@ source — `WfbComplications.valueOf(new Complications.Id(Complications.
 COMPLICATION_TYPE_BODY_BATTERY))` — cast to the source's own type
 (`Complications.Complication.value` is a union of `String or Number or Float
 or Long or Double or Null`, so the cast is required, not decorative). Binding
-one adds the `ComplicationSubscriber` permission and raises `minApiLevel` to
-4.2.0 automatically. `wfb/emit/monkeyc.py` also emits one
+one adds the `ComplicationSubscriber` permission. `minApiLevel` itself never
+moves for this (`manifest.xml` is one file shared by every target device, so
+a per-feature bump would lock out any target that never touches the
+feature -- see "What each device does with it" above); a target device that
+lacks `Toybox.Complications` instead gets the read guarded at runtime and
+warned about (`api-gated`, below) rather than being excluded from the build.
+`wfb/emit/monkeyc.py` also emits one
 `WfbComplications.subscribe(...)` per bound type in `onLayout`, whose whole
 job is `WatchUi.requestUpdate()` on change — this is *not* a cache (see "How
 data is read", below), it exists only so a value that changes after the first
@@ -2246,8 +2298,10 @@ exist.** `heart_rate.current`, `activity.steps`, `weather.condition` and
 around twenty others are also reachable via `complication.*`
 (`complication.heart_rate`, `complication.steps`, `complication.
 current_weather`, ...), but the direct path is strictly cheaper: no
-`ComplicationSubscriber` permission, no `minApiLevel` floor of 4.2.0, and no
-subscription. The complication route exists **only** for values with no
+`ComplicationSubscriber` permission and no subscription (`minApiLevel` is not
+a difference between the two routes any more -- neither ever moves it; see
+"What each device does with it" above). The complication route exists
+**only** for values with no
 other way in — most usefully `complication.body_battery`
 (`Toybox.SensorHistory` is the only other route to Body Battery, and it is a
 permission **watch faces are not allowed to declare at all** —
@@ -2549,9 +2603,14 @@ entries differ -- is not checked regardless of geometry: a digital clock's
 hold target and analog hands' can share the exact same region on purpose
 (see "Styles and layouts").
 
-Binding `on_hold:` adds the `ComplicationSubscriber` permission and raises
-`minApiLevel` to 4.2.0 automatically — `exitTo`'s own level. Nothing emitted
-references `onTap`, so its 5.1.0 never enters into it.
+Binding `on_hold:` adds the `ComplicationSubscriber` permission.
+`minApiLevel` itself never moves for this — `manifest.xml` is one file shared
+by every target device, so a per-feature bump would lock out any device that
+never touches the feature; a target that lacks `Toybox.Complications` (`exitTo`'s
+own module) instead gets the hold guarded at runtime, where it simply does
+nothing, with the `api-gated` lint (above) warning about it unless
+`hold-unsupported` already does (that device also lacks `onPress`). Nothing
+emitted references `onTap`, so its 5.1.0 never enters into any of this.
 
 ### `on_hold: auto`
 
@@ -2611,12 +2670,13 @@ lint:
 
 `reason` is required — a suppression without a stated reason is how linters get
 disabled wholesale. Errors that reflect hard platform limits (missing glyphs,
-off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`) are **not**
-suppressible: silencing one produces a face that does not work.
+off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
+`api-gated-unguardable`) are **not** suppressible: silencing one produces a
+face that does not work.
 
 Fifteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `hold-overlap`,
-`hold-unsupported`, `complication-gated`, `dead-element`, `graphics-pool`,
+`hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
 `duplicate-style` and `unreachable-layout`.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
@@ -2637,8 +2697,10 @@ element that causes them: `palette-dither` on an element whose `color:` or
 `config-unsupported` on an element whose `color:`/`track_color:` is exactly
 `config.accent_color`, `config.data_color` or one role of `config.colors.<role>`,
 or a `complication_slot` whose `slot:` is exactly `config.data.<name>`, and
-`complication-gated` on a `complication_slot` whose `default:`/`choices:`
-includes a type above a target's own ConnectIQ ceiling.
+`api-gated` on the element whose binding is actually gated -- the one whose
+`value:`/`color:`/etc. names the unavailable source path, whose `on_hold:`
+names the type, or the `complication_slot` whose `slot:`/`default:`/
+`choices:` is affected.
 `duplicate-style` and `unreachable-layout` are design-, not element-scoped
 either, but there is no element to hang either on at all: `duplicate-style`
 goes on the **`config: style:` entry's own** `lint:` (the second entry of

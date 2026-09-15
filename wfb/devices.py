@@ -249,6 +249,98 @@ class Device:
             return False
         return True
 
+    @cached_property
+    def _modules(self) -> frozenset[str]:
+        """Every ``symbolId`` the device's own ``<dataEntry type="module">``
+        rows declare -- e.g. ``Complications``, ``Weather``.
+
+        Used by :meth:`has_module`. Built the same tolerant way as
+        `_symbols`: attribute order in this XML is not guaranteed (the same
+        finding `_symbols`' own comment already records for
+        ``functionEntry``), so this matches ``symbolId="..."`` and
+        ``type="module"`` independently within one tag rather than assuming
+        either comes first.
+        """
+        path = self.root / f"{self.id}.api.debug.xml"
+        if not path.exists():
+            raise DeviceError(f"{self.id}: missing {path.name}")
+        text = path.read_text(encoding="utf-8", errors="replace")
+        modules: set[str] = set()
+        for tag in re.finditer(r"<dataEntry\b[^>]*/>", text):
+            body = tag.group(0)
+            if 'type="module"' not in body:
+                continue
+            m = re.search(r'\bsymbolId="([^"]*)"', body)
+            if m:
+                modules.add(m.group(1))
+        return frozenset(modules)
+
+    def has_module(self, name: str) -> bool:
+        """Is the ``Toybox`` (or nested) module ``name`` present on this
+        device -- e.g. ``"Complications"``, ``"Weather"``?
+
+        ``name`` is the bare module symbol, not a dotted path: the device XML
+        indexes a module by its own ``symbolId`` alone, with the parent given
+        separately as ``parentId`` (unlike `has_symbol`'s ``Parent.name``
+        pairs, `_modules` does not need the parent to disambiguate --
+        Connect IQ has no two same-named modules at different nesting, unlike
+        the class-name collisions `has_symbol` guards against). fenix6 and
+        fr245 (this project's lowest-level installed devices, both below API
+        4.2.0) both lack ``Complications`` entirely, which is the gap this
+        exists to detect: a device missing the module fails at *runtime* on
+        any reference to it, not at compile time (`monkeyc` checks the
+        SDK-wide API -- CLAUDE.md constraint 6d), so this is what a runtime
+        ``Toybox has :ModuleName`` guard has to be conditioned on at
+        generation time.
+        """
+        return name in self._modules
+
+    @cached_property
+    def _fields(self) -> frozenset[str]:
+        """Every bare ``symbol`` name the device's ``<symbolTable>`` marks
+        ``field="true"`` -- e.g. ``stressScore``, ``floorsClimbed``.
+
+        Used by :meth:`has_field`. **Exact for absence, approximate for
+        presence**: the symbol table records only the bare field name, with
+        no owning class -- so a name absent here is definitely absent from
+        every class, but a name present here merely means *some* class on
+        this device declares a field by that name, not necessarily the one
+        `wfb.catalog` reads it off (`ActivityMonitor.Info.stressScore` and a
+        hypothetical unrelated class's own `stressScore` field would be
+        indistinguishable). Every catalogue field this project currently
+        binds happens to have a name that is unique enough in practice
+        (checked against the installed device set at the time this was
+        written), so the approximation has not yet produced a false
+        positive; a caller that needs certainty should also check the
+        *reader* it comes off is available (`has_symbol`/`has_module`), which
+        narrows the class independently.
+        """
+        path = self.root / f"{self.id}.api.debug.xml"
+        if not path.exists():
+            raise DeviceError(f"{self.id}: missing {path.name}")
+        text = path.read_text(encoding="utf-8", errors="replace")
+        fields: set[str] = set()
+        for tag in re.finditer(r"<entry\b[^>]*/>", text):
+            body = tag.group(0)
+            if 'field="true"' not in body:
+                continue
+            m = re.search(r'\bsymbol="([^"]*)"', body)
+            if m:
+                fields.add(m.group(1))
+        return frozenset(fields)
+
+    def has_field(self, name: str) -> bool:
+        """Is the bare field ``name`` present on this device -- e.g.
+        ``"stressScore"``, ``"floorsClimbed"``?
+
+        See `_fields`' docstring for the exact-for-absence,
+        approximate-for-presence caveat: this cannot tell two different
+        classes' same-named fields apart, because the device's own
+        ``<symbolTable>`` does not record which class a ``field="true"``
+        entry belongs to.
+        """
+        return name in self._fields
+
     # -- fonts ------------------------------------------------------------
 
     @cached_property

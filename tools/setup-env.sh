@@ -55,22 +55,25 @@ fi
 
 # ---------------------------------------------------------- devices ---------
 say "device definitions"
-if [ -d "${DEVICES_DEST}" ] && [ -n "$(ls -A "${DEVICES_DEST}" 2>/dev/null)" ]; then
-    echo "already installed: $(ls "${DEVICES_DEST}" | wc -l) devices"
-else
-    src=""
-    for cand in \
-        "${REPO_ROOT}/vendor/devices" \
-        "${REPO_ROOT}/../.devices-import" \
-        "${REPO_ROOT}/../garmin-watchface-protomolecule/.devices-import" \
-        "${HOME}/Library/Application Support/Garmin/ConnectIQ/Devices"
-    do
-        if [ -d "${cand}" ] && [ -n "$(ls -A "${cand}" 2>/dev/null)" ]; then
-            src="${cand}"; break
-        fi
-    done
+dest_had_devices=false
+[ -d "${DEVICES_DEST}" ] && [ -n "$(ls -A "${DEVICES_DEST}" 2>/dev/null)" ] && dest_had_devices=true
 
-    if [ -z "${src}" ]; then
+src=""
+for cand in \
+    "${REPO_ROOT}/vendor/devices" \
+    "${REPO_ROOT}/../.devices-import" \
+    "${REPO_ROOT}/../garmin-watchface-protomolecule/.devices-import" \
+    "${HOME}/Library/Application Support/Garmin/ConnectIQ/Devices"
+do
+    if [ -d "${cand}" ] && [ -n "$(ls -A "${cand}" 2>/dev/null)" ]; then
+        src="${cand}"; break
+    fi
+done
+
+if [ -z "${src}" ]; then
+    if [ "${dest_had_devices}" = true ]; then
+        echo "already installed: $(ls "${DEVICES_DEST}" | wc -l) devices"
+    else
         cat >&2 <<'EOF'
 ERROR: no device definitions found.
 
@@ -82,10 +85,29 @@ Ask the user to run this on their macOS host, then re-run this script:
 EOF
         exit 1
     fi
-
+else
     mkdir -p "${DEVICES_DEST}"
-    cp -R "${src}"/* "${DEVICES_DEST}/"
-    echo "installed $(ls "${DEVICES_DEST}" | wc -l) devices from ${src}"
+    # Copy each device directory from src that is not already present in the
+    # destination. Never overwrite an existing device dir -- a newly vendored
+    # device (e.g. fr255 added after the first setup run) is added on top of
+    # whatever is already installed, incrementally, on every re-run.
+    added=()
+    for dev_path in "${src}"/*/; do
+        dev_path="${dev_path%/}"
+        name="$(basename "${dev_path}")"
+        if [ ! -d "${DEVICES_DEST}/${name}" ]; then
+            cp -R "${dev_path}" "${DEVICES_DEST}/"
+            added+=("${name}")
+        fi
+    done
+
+    if [ "${dest_had_devices}" = false ]; then
+        echo "installed $(ls "${DEVICES_DEST}" | wc -l) devices from ${src}"
+    elif [ "${#added[@]}" -gt 0 ]; then
+        echo "installed ${#added[@]} new device(s) from ${src}: ${added[*]}"
+    else
+        echo "already installed: $(ls "${DEVICES_DEST}" | wc -l) devices"
+    fi
 fi
 
 # ------------------------------------------------------------- env ----------

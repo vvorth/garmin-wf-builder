@@ -54,6 +54,19 @@ These cost real time to discover; do not rediscover them.
    `/dev/shm` size, seccomp, uid, device-mount writability and WebKit's own
    escape hatches are all ruled out by direct test. `wfb preview` covers the gap;
    see `docs/limitations.md` §2.
+12. **`manifest.xml`'s `minApiLevel` is one number for the whole build, so a
+   per-feature level bump is the wrong lever whenever a design might target
+   a device below that level.** (2026-09-15, `docs/research/probes/
+   api-gating/`.) Raising it for one feature (complications used to bump it
+   to 4.2.0) raises it for *every* target device in the same
+   `<iq:products>` block, including one that never touches the feature —
+   which is exactly how `examples/dashboard/face.yaml` targeting `fenix6`
+   (3.4.5) broke. `wfb/emit/manifest.py::BASE_API_LEVEL` (`3.2.0`) is now
+   the *only* level this compiler ever emits; a feature that needs more is
+   gated at runtime per device instead (below), never by moving this
+   number. If a future feature genuinely cannot be runtime-guarded, `api_level()`
+   is the one place to raise it again — deliberately kept as a function, not
+   a bare constant reference, for exactly that day.
 
 ---
 
@@ -97,3 +110,35 @@ These cost real time to discover; do not rediscover them.
   slot). Any *new* named block needs its rejected names bound into scope
   from the moment it is parsed, and the test that proves it is "one error,
   not N."
+- **`wfb.availability.Guards`, the per-device API gating this project's one
+  shared generated view/delegate needs (2026-09-15).** `compute_guards(face,
+  devices) -> Guards(complications: bool, fields: frozenset[str])` is the
+  single place that decides, once per build, whether the shared code needs
+  a `Toybox has :Complications` guard anywhere, and which bare field names
+  (`Device.has_field`'s namespace, e.g. `stressScore`) need an `x has
+  :field` guard -- aggregated over *every* target device in `targets:`, not
+  just the one `wfb.layout.resolve` happened to generate the view from,
+  because the view is shared across all of them. A design whose targets all
+  support everything it uses gets an empty `Guards` and generates the exact
+  same code it always did (golden tests confirm byte-identical output);
+  every `emit_view`/`emit_delegate`/`ReadPlan` call site defaults its
+  `guards` parameter to a module-level `_NO_GUARDS` constant so every
+  pre-existing caller (every test, any single-device caller) is unaffected.
+  Guards are emitted at: `onLayout`'s complication subscribe/register loop,
+  every complication-reader pull in `ReadPlan.declarations` (one
+  `hasComplications` local per frame, not per reader), `on_hold:`'s
+  `Complications.exitTo` (both the fixed-type and `complication_slot`
+  `auto` forms), and a `config: data:` slot's `Complications.Id` field. Two
+  gotchas the implementation ran into: (1) a **field initialiser** runs
+  before any guard could matter (`docs/lore/monkeyc.md`), so a guarded
+  `config: data:` field is declared nullable and actually constructed,
+  guarded, inside `initialize()` instead of inline; (2) a missing *field*
+  (as opposed to a missing module) is keyed by the *first* dotted segment of
+  `Source.field_name` -- the nullable intermediate object itself for a
+  dotted path like `activeMinutesWeek.total`, since `Device.has_field`
+  cannot resolve which class a bare field name belongs to (`wfb.devices.
+  Device._fields`'s own presence-is-approximate caveat). See
+  `wfb/availability.py`'s module docstring for the full design (two
+  consumers: `compute_guards`'s aggregate for codegen, and per-element
+  `source_unavailable`/`reader_unavailable` for a lint pass to point at the
+  exact YAML line) and `docs/research/probes/api-gating/` for the evidence.

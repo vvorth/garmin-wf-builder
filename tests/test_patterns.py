@@ -364,7 +364,7 @@ def test_a_colour_reading_a_complication_builds_clean_with_the_subscription(
     resolved = resolve(face, device, bake_fonts(face, device))
     project = generate(resolved.face, [device], tmp_path, {device.id: resolved.fonts})
     assert 'id="ComplicationSubscriber"' in project.manifest_text
-    assert 'minApiLevel="4.2.0"' in project.manifest_text
+    assert 'minApiLevel="3.2.0"' in project.manifest_text
     files = project.files()
     (view_path,) = [p for p in files if p.endswith("View.mc")]
     assert "WfbComplications.subscribe(new Complications.Id(Complications.COMPLICATION_TYPE_BATTERY))" \

@@ -236,6 +236,13 @@ fr955** — the compiler generates both paths from one declaration.
 > "reads a `complication.*` source". `docs/format.md`'s "Configuration → The
 > Data axis" is the full author-facing reference; `examples/slots/face.yaml`
 > exercises both slot shapes.
+>
+> **2026-09-15 correction:** `minApiLevel="4.2.0"` in that measurement is a
+> fact about the build on the day it was measured, not a standing rule --
+> see the sixth amendment at the end of this ADR. `_features()` is deleted;
+> `wfb/emit/manifest.py`'s floor never moves now, and a target lacking
+> `Toybox.Complications` gets a runtime guard instead of being locked out of
+> the build entirely.
 
 > **Fourth amendment (2026-09-11): `on_hold:` and the editor's animated
 > highlight both shipped on `complication_slot`, closing the two gaps the
@@ -605,7 +612,12 @@ the entire input surface, and all three targets have it.
   error naming its replacement.
 - The compiler emits `onPress` only. An `onTap` handler would be dead code that
   also tells its reader something untrue.
-- `minApiLevel` comes from `exitTo`'s 4.2.0, never `onTap`'s 5.1.0.
+- `minApiLevel` comes from `exitTo`'s 4.2.0, never `onTap`'s 5.1.0. **2026-09-15
+  correction: no longer true as a manifest fact -- see the sixth amendment
+  below.** `exitTo`'s 4.2.0 is still the level `Complications.exitTo` itself
+  needs, but the generated manifest no longer declares it: a target device
+  that lacks the module gets a `Toybox has :Complications` guard around the
+  call instead of the whole build being held to 4.2.0.
 
 **The conflict rule below is obsolete, and in a useful direction.** It said
 `on_hold: launch` and hold-to-cycle conflict on `fr955` and that the compiler
@@ -641,6 +653,60 @@ nothing. See research 07 §2.
 > all deleted; `on_hold:` (§6 above, unaffected) remains every other
 > element's whole interactivity story. See CLAUDE.md's Phase 3 notes for the
 > session that removed it and the measured size of the deletion.
+
+> **Sixth amendment (2026-09-15): `minApiLevel` no longer moves for
+> complications, `on_hold:`, or a `config: data:` slot -- see
+> `docs/research/probes/api-gating/`.** The failure that triggered this: the
+> user's own `examples/dashboard/face.yaml` (§6's `on_hold: auto` in daily
+> use) fails to build the moment `fenix6` (ConnectIQ 3.4.5) is added to
+> `targets:`, with `error[monkeyc]: Device 'fenix6' does not support API
+> Level '4.2.0'`. The cause was structural, not a bug in the 4.2.0 figure
+> itself: `manifest.xml` is **one file shared by every target device** in a
+> build, so raising its `minApiLevel` for a feature one target needs raises
+> it for *all* of them, including a target that never touches that feature
+> and whose own ConnectIQ ceiling sits below the raised floor. Confirmed by
+> hand-lowering the generated manifest back to `3.2.0` and building directly
+> with `monkeyc`: `BUILD SUCCESSFUL`, warning-free -- the manifest floor was
+> the only compile-time barrier, because `monkeyc` resolves symbols against
+> the SDK-wide API, not the device's own (CLAUDE.md constraint 6d).
+>
+> **Decision (user, 2026-09-15):** keep `minApiLevel` at the generator's base
+> floor (`3.2.0`, `wfb/emit/manifest.py::BASE_API_LEVEL`) always, and instead
+> guard every complication touch -- `on_hold:`'s `Complications.exitTo`, a
+> `config: data:` slot's `Complications.Id` field, `onLayout`'s subscribe
+> loop, every `complication.*` reader pull -- at *runtime*, with `Toybox has
+> :Complications` (already the house pattern for `WatchFaceConfig` and
+> `createBufferedBitmap`), rather than with a build-time `excludeAnnotations`
+> per-device source split (probed to also work, in the same probe directory,
+> but rejected: it would mean two copies of the affected code paths, where
+> `has` needs one). `wfb.availability.compute_guards` decides, once per
+> build, whether the *one* shared view/delegate needs the guard at all
+> (aggregated over every target device in `targets:`, so a build whose
+> targets all support everything generates the same code it always did) --
+> see `docs/lore/codegen.md`. Policy: a target lacking a binding reads it as
+> **absent** on that device, through the same `when_absent:`/nullable-field
+> contract §3's constraint already gives every nullable source (ADR 0005 §3;
+> its own 2026-09-15 amendment covers per-device absence directly) --
+> `on_hold:` simply never fires there, and a `config: data:` slot shows its
+> absent state forever. Even its compiled-in `default:` is read through
+> `Toybox.Complications`, so on such a device the slot is empty, not frozen
+> on its default the way it is on fr955. The build **warns** (lint
+> `api-gated`) rather than failing.
+>
+> This closes the TODO the user left on `examples/dashboard/face.yaml` when
+> removing `fenix6` earlier the same day ("check ability to gate sdk levels
+> and disable features to still build on older sdk level targets",
+> `c0939f9`) -- `fenix6` is back in that file's `targets:`.
+>
+> **Still open, stated honestly:** the SDK-documented idiom this rests on --
+> that `import Toybox.Complications;` and a type annotation referencing an
+> absent module are harmless at load time on a device lacking it, and that
+> `Toybox has :Complications` reads `false` there -- has not been observed
+> on real hardware or in a simulator; the container has none (§5, and
+> `docs/research/probes/api-gating/README.md`'s "Open question"). A reader
+> *function* a device lacks (none exist today) is still a build error, not a
+> guard: the generator can only gate whole modules and bare fields, per
+> `wfb.devices.Device`'s own symbol-table shape.
 
 ---
 

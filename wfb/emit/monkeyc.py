@@ -21,6 +21,7 @@ import math
 from dataclasses import dataclass
 
 from .. import __version__, catalog, complications, expr, formatting, icons, series
+from ..availability import Guards
 from ..catalog import READERS, Type
 from ..ir import (
     CONFIG_SYMBOL, HOLD_AUTO, ComplicationSlot, Expression, Face, Graph,
@@ -41,6 +42,13 @@ from .writer import Writer
 
 #: Base Toybox imports every generated face needs.
 _BASE_IMPORTS = ("Toybox.Graphics", "Toybox.Lang", "Toybox.WatchUi")
+
+#: The "nothing is missing" `Guards` -- every emit function below that takes
+#: an optional `guards` parameter defaults to this, so a call site that
+#: predates `wfb.availability` (every existing test, and any caller that
+#: only ever generates for one device) keeps producing exactly the
+#: unguarded code it always did.
+_NO_GUARDS = Guards(complications=False, fields=frozenset())
 
 
 @dataclass
@@ -315,7 +323,7 @@ def _emit_on_watchface_config_edited(w: Writer) -> None:
     w.blank()
 
 
-def emit_delegate(resolved: ResolvedFace) -> SourceFile:
+def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
     """`source/<Face>Delegate.mc`: turn a touch and hold into a glance.
 
     **`onPress` only, on every device.**  `WatchFaceDelegate.onTap` exists on
@@ -350,6 +358,7 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
     research and the working reference this follows.
     """
     face = resolved.face
+    guards = guards if guards is not None else _NO_GUARDS
     targets = hold_targets(face)
     has_config = face.has_config
     slot_pairs = _editor_slot_pairs(face)
@@ -439,15 +448,42 @@ def emit_delegate(resolved: ResolvedFace) -> SourceFile:
                     w.comment(f"`{element.id}` -> whatever the wearer picked for "
                               f"config.data.{element.slot}")
                     with w.block(condition):
-                        w.line(f"Complications.exitTo(_view.{complication_slot_hold_method(element.id)}());")
-                        w.line("return true;")
+                        if guards.complications:
+                            # The slot's own Id field is null wherever
+                            # Toybox.Complications is absent (see
+                            # _emit_config_fields/_emit_initialize) -- a null
+                            # here means "nothing to launch", not "launch
+                            # nothing", so the hold just does not fire, the
+                            # same "absent means it does nothing" contract
+                            # every complication hold already has for an
+                            # unsupported *type* (wfb.complications module
+                            # docstring).
+                            w.line(f"var id = _view.{complication_slot_hold_method(element.id)}();")
+                            with w.block("if (id != null)"):
+                                w.line("Complications.exitTo(id);")
+                                w.line("return true;")
+                        else:
+                            w.line(f"Complications.exitTo(_view.{complication_slot_hold_method(element.id)}());")
+                            w.line("return true;")
                     continue
                 launch = complications.TYPES[element.on_hold]
                 w.comment(f"`{element.id}` -> {element.on_hold}")
                 with w.block(condition):
-                    w.line(f"Complications.exitTo(new Complications.Id("
-                           f"Complications.{launch.constant}));")
-                    w.line("return true;")
+                    if guards.complications:
+                        # `Complications.exitTo`/`Complications.Id` cannot be
+                        # referenced at all on a device lacking the module --
+                        # not only a call, any reference (Device.has_module's
+                        # own docstring) -- so unlike the slot case above
+                        # (which the field's own null already gates), a fixed
+                        # `on_hold:` target needs its own `has` guard here.
+                        with w.block("if (Toybox has :Complications)"):
+                            w.line(f"Complications.exitTo(new Complications.Id("
+                                   f"Complications.{launch.constant}));")
+                            w.line("return true;")
+                    else:
+                        w.line(f"Complications.exitTo(new Complications.Id("
+                               f"Complications.{launch.constant}));")
+                        w.line("return true;")
             w.blank()
             w.line("return false;")
     return SourceFile(f"source/{face.entry}Delegate.mc", w.render())
@@ -1011,9 +1047,10 @@ def _emit_antialias_helper(w: Writer) -> None:
     w.blank()
 
 
-def emit_view(resolved: ResolvedFace) -> SourceFile:
+def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
     face, device = resolved.face, resolved.device
-    plan = ReadPlan(resolved)
+    guards = guards if guards is not None else _NO_GUARDS
+    plan = ReadPlan(resolved, guards)
     if resolved.in_mode("low_power") and device.supports_partial_update:
         plan.modules.add("Toybox.System")  # onPowerBudgetExceeded reports via println
 
@@ -1089,7 +1126,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
     slot_pairs = _editor_slot_pairs(face)
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved)
-        _emit_config_fields(w, face)
+        _emit_config_fields(w, face, guards)
         _emit_static_field(w, static)
         _emit_graph_fields(w, graphs)
         if slot_pairs:
@@ -1098,7 +1135,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
             w.doc(_sleep_flag_doc(always_on, hands_awake_second))
             w.line("private var _sleeping as Boolean = false;")
             w.blank()
-        _emit_initialize(w, face, has_slots=bool(slot_pairs))
+        _emit_initialize(w, face, has_slots=bool(slot_pairs), guards=guards)
         if antialias_default is not None:
             _emit_antialias_helper(w)
         if face.has_config:
@@ -1118,7 +1155,7 @@ def emit_view(resolved: ResolvedFace) -> SourceFile:
             if isinstance(placed, PlacedComplicationSlot) and placed.icon_font_key is not None:
                 _emit_complication_slot_icon_method(w, resolved, placed)
             if isinstance(placed, PlacedComplicationSlot) and placed.element.on_hold == HOLD_AUTO:
-                _emit_complication_slot_hold_method(w, placed)
+                _emit_complication_slot_hold_method(w, placed, guards)
         if slot_pairs:
             _emit_complication_slot_editor_methods(w, face, slot_pairs)
         if static is not None:
@@ -1297,7 +1334,7 @@ def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
     w.blank()
 
 
-def _emit_config_fields(w: Writer, face: Face) -> None:
+def _emit_config_fields(w: Writer, face: Face, guards: "Guards" = _NO_GUARDS) -> None:
     """One field per declared `config:` colour entry, one per role of the
     *default* `config: style:` entry's `color_scheme:`, and one
     `Complications.Id` per declared `config: data:` slot -- each initialised
@@ -1312,6 +1349,17 @@ def _emit_config_fields(w: Writer, face: Face) -> None:
     complication type alike.  A layout-only default entry (`colors is
     None`) has no scheme to start a role from, so it emits no role fields at
     all.
+
+    A `config: data:` slot's field is the one exception to "initialised
+    inline, right here": when some target lacks `Toybox.Complications`
+    (`guards.complications`), `new Complications.Id(...)` cannot run
+    unconditionally -- a field initialiser runs at *construction*, on every
+    device, before any `has` guard could ever skip it, so an inline
+    `new Complications.Id(...)` here would crash a device like fenix6 the
+    instant the view is constructed, guard or no guard elsewhere. The field
+    is declared nullable and left `null` here instead; `_emit_initialize`
+    constructs it, guarded, in the constructor, where a `Toybox has
+    :Complications` check actually runs before the construction it guards.
     """
     if not face.has_config:
         return
@@ -1338,8 +1386,12 @@ def _emit_config_fields(w: Writer, face: Face) -> None:
         w.line(f"private var {CONFIG_LAYOUT_FIELD} as Number = {default_index};")
     for name, slot in face.config_data.items():
         ctype = complications.TYPES[slot.default]
-        w.line(f"private var {slot.field} as Complications.Id = "
-               f"new Complications.Id(Complications.{ctype.constant});")
+        if guards.complications:
+            w.line(f"private var {slot.field} as Complications.Id? = null;  "
+                   f"// set in initialize() -- see this method's own doc")
+        else:
+            w.line(f"private var {slot.field} as Complications.Id = "
+                   f"new Complications.Id(Complications.{ctype.constant});")
     w.blank()
 
 
@@ -1500,7 +1552,8 @@ def _emit_resolve_style(w: Writer, face: Face) -> None:
     w.blank()
 
 
-def _emit_initialize(w: Writer, face: Face, has_slots: bool = False) -> None:
+def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
+                     guards: "Guards" = _NO_GUARDS) -> None:
     """The view's constructor.
 
     `editMode` is accepted, not stored, when the design has at least one
@@ -1516,6 +1569,13 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False) -> None:
     variable '_editMode' is not used." -- so the App class reads its own
     field back by passing it on to this constructor, and this constructor's
     signature is the whole reason that counts as a read).
+
+    When `guards.complications`, this is also where every `config: data:`
+    slot's `Complications.Id` field actually gets built -- see
+    `_emit_config_fields`'s own doc for why a field *initialiser* is the
+    wrong place for it (it runs before any `has` guard could matter) and the
+    constructor, which runs code rather than merely declaring a default, is
+    the right one.
     """
     if has_slots:
         w.doc(
@@ -1532,6 +1592,15 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False) -> None:
     signature = "function initialize(editMode as Boolean)" if has_slots else "function initialize()"
     with w.block(signature):
         w.line("WatchFace.initialize();")
+        if guards.complications and face.config_data:
+            w.blank()
+            w.comment("Toybox.Complications is absent on at least one target -- leave")
+            w.comment("every slot's Id null there, which config: data: draw code below")
+            w.comment("already treats as \"nothing chosen\" (when_absent-style absence)")
+            with w.block("if (Toybox has :Complications)"):
+                for name, slot in face.config_data.items():
+                    ctype = complications.TYPES[slot.default]
+                    w.line(f"{slot.field} = new Complications.Id(Complications.{ctype.constant});")
     w.blank()
 
 
@@ -1565,10 +1634,25 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                 "onUpdate, not delivered here. WfbComplications.subscribe absorbs "
                 "a device that does not support a given type"
             )
-            w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
-            for name in event:
-                reader = READERS[name]
-                w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
+            if plan.device_guards.complications:
+                # Unlike an unsupported *type* (WfbComplications.subscribe's own
+                # job), a device that lacks Toybox.Complications entirely --
+                # fenix6, fr245 -- fails on the bare reference to
+                # registerComplicationChangeCallback/Complications.Id, before
+                # WfbComplications is ever reached, so the guard has to sit
+                # here, not in the barrel (CLAUDE.md: monkeyc checks the
+                # SDK-wide API, not the device's -- this only fails at runtime).
+                w.comment("Toybox.Complications is absent on at least one target device")
+                with w.block("if (Toybox has :Complications)"):
+                    w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
+                    for name in event:
+                        reader = READERS[name]
+                        w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
+            else:
+                w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
+                for name in event:
+                    reader = READERS[name]
+                    w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
         if has_config:
             if loaded or event:
                 w.blank()
@@ -1815,7 +1899,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             # `plan.guards`/`value_guards` to say about it -- `color:` is the
             # only ordinary expression here, and `Builder._build_complication_
             # slot` already requires it to be non-nullable.
-            _emit_complication_slot(w, resolved, placed)
+            _emit_complication_slot(w, resolved, placed, plan.device_guards)
             return
         value_guards = plan.value_guards(placed)
         if substitutes_value:
@@ -2660,7 +2744,8 @@ def emit_slot_drawable(face: Face) -> SourceFile:
     return SourceFile(f"source/{face.entry}SlotDrawable.mc", w.render())
 
 
-def _emit_complication_slot_hold_method(w: Writer, placed: PlacedComplicationSlot) -> None:
+def _emit_complication_slot_hold_method(w: Writer, placed: PlacedComplicationSlot,
+                                        guards: "Guards" = _NO_GUARDS) -> None:
     """`holdTargetFor<Id>()` -- the public getter `on_hold: auto` on a
     `complication_slot` compiles to, returning this slot's own current
     `Complications.Id` field directly.
@@ -2673,14 +2758,22 @@ def _emit_complication_slot_hold_method(w: Writer, placed: PlacedComplicationSlo
     name to resolve here the way a `Text`/`Progress`/`IconElement`'s `auto`
     resolves one; the delegate reads this id and hands it straight to
     `Complications.exitTo`.
+
+    Returns `Complications.Id?`, not `Complications.Id`, exactly when
+    `guards.complications` -- the field itself is nullable there (see
+    `_emit_config_fields`), staying `null` on a device lacking
+    `Toybox.Complications`; the delegate's own call site (`emit_delegate`)
+    treats a `null` return as "this hold does nothing here", the ordinary
+    absence contract, rather than needing a second guard of its own.
     """
     element = placed.element
     field = config_field(f"data_{element.slot}")
+    return_type = "Complications.Id?" if guards.complications else "Complications.Id"
     w.blank()
     w.doc(f"`{element.id}`'s current pick, for the delegate's 'on_hold: auto' ->\n"
           "Complications.exitTo.  Whatever the wearer has this slot pointed at right\n"
           "now, read fresh -- never a fixed type baked in at build time.")
-    with w.block(f"function {complication_slot_hold_method(element.id)}() as Complications.Id"):
+    with w.block(f"function {complication_slot_hold_method(element.id)}() as {return_type}"):
         w.line(f"return {field};")
 
 
@@ -2729,7 +2822,8 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
     # place, matching the weather-icon split.
 
 
-def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot) -> None:
+def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot,
+                            guards: "Guards" = _NO_GUARDS) -> None:
     """A native Data-axis slot: pull the wearer's chosen complication, choose
     an icon from its *type* alone, then draw the two as one centred pair.
 
@@ -2757,6 +2851,17 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     face while it is pulsing."  A design with `complication_slot` elements
     always has at least one, so this function running at all is exactly the
     condition under which the guard applies -- see `_emit_pulsing_field`.
+
+    When `guards.complications`, `chosenId` (the slot's own field) is
+    `Complications.Id?`, not `Complications.Id` -- see
+    `_emit_config_fields`/`_emit_initialize` -- so both places that
+    dereference it (`chosenId.getType()` for the icon, `chosenId` itself as
+    `WfbComplications.valueOf`'s non-nullable parameter) go through a
+    ternary null guard instead of a bare reference. A `null` chosenId reads
+    exactly like an unsupported complication *type* already does: the icon
+    lookup and the pulled value both come back `null`, so `_emit_absent()`
+    below already covers it -- there is nothing complication-module-specific
+    for this function's drawing logic to know about.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -2780,7 +2885,11 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
         w.comment("even on a frame the reading itself could not be pulled -- a name")
         w.comment("(WfbComplications-style split), then IconGlyphs.glyph turns it into")
         w.comment("the actual character, exactly like a dynamic weather icon does")
-        w.line(f"var iconName = {complication_slot_icon_method(element.id)}(chosenId.getType());")
+        icon_method = complication_slot_icon_method(element.id)
+        if guards.complications:
+            w.line(f"var iconName = (chosenId != null) ? {icon_method}(chosenId.getType()) : null;")
+        else:
+            w.line(f"var iconName = {icon_method}(chosenId.getType());")
         w.line("var iconGlyph = (iconName != null) ? IconGlyphs.glyph(iconName) : null;")
         w.blank()
         icon_font_expr = "iconFont"
@@ -2802,7 +2911,10 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
             w.comment("when_absent: hide -- the reading blanks, the icon (if any) stays")
 
     w.line('var text = "";')
-    w.line("var pulled = WfbComplications.valueOf(chosenId);")
+    if guards.complications:
+        w.line("var pulled = (chosenId != null) ? WfbComplications.valueOf(chosenId) : null;")
+    else:
+        w.line("var pulled = WfbComplications.valueOf(chosenId);")
     with w.block("if (pulled == null)"):
         _emit_absent()
     with w.block("else"):
@@ -3125,10 +3237,22 @@ class ReadPlan:
     Sources are grouped by reader so that ``ActivityMonitor.getInfo()`` is called
     once per frame no matter how many fields read off it, and every nullable
     field becomes a named local that the element's guard narrows.
+
+    ``guards`` (`wfb.availability.Guards`) says which of this *build*'s
+    target devices lack something this design uses -- a module
+    (`Complications`) or a bare field (e.g. `stressScore`) -- aggregated over
+    every target, since the view/delegate this plan drives is generated once
+    and shared across all of them (`wfb/emit/project.py`'s `generate`).
+    Defaults to :data:`_NO_GUARDS` so every existing call site that builds a
+    `ReadPlan` without one -- every test that predates this feature, and any
+    single-device caller -- keeps generating exactly the code it always did:
+    a guard is only ever added on top of that baseline, never removed from
+    it, and only for a target set that actually needs one.
     """
 
-    def __init__(self, resolved: ResolvedFace) -> None:
+    def __init__(self, resolved: ResolvedFace, guards: "Guards | None" = None) -> None:
         self.resolved = resolved
+        self.device_guards = guards if guards is not None else _NO_GUARDS
         self.modules: set[str] = set()
         self.barrel: set[str] = set(resolved.face.barrel_functions())
         #: Every source an element touches, for reader hoisting.
@@ -3252,6 +3376,16 @@ class ReadPlan:
             return
         w.comment("data for this frame" if mode == "active"
                   else f"data for this frame ({mode}); every reader is a plain pull")
+        # A complication reader's own `call` builds `new Complications.Id(...)`
+        # inline -- that construction runs *before* WfbComplications.valueOf
+        # is ever reached, so a guard inside the barrel alone would not stop
+        # it.  One `hasComplications` local per frame (not per reader) is
+        # enough: every complication pull this mode uses reads through it.
+        guard_complications = self.device_guards.complications and any(
+            READERS[name].requires_module for name in readers
+        )
+        if guard_complications:
+            w.line("var hasComplications = Toybox has :Complications;")
         for name in readers:
             # Every reader is a plain pull, complications included: the value
             # each one returns is already the platform's own cached reading
@@ -3259,7 +3393,15 @@ class ReadPlan:
             # recently cached weather conditions"), so a second cache inside
             # the face's 128 KB would re-store what the system already holds.
             reader = READERS[name]
-            w.line(f"var {reader.name} = {reader.call};")
+            if guard_complications and reader.requires_module:
+                # Absent on a device lacking Toybox.Complications (fenix6,
+                # fr245): reads as null, the same "absence is normal"
+                # contract every other nullable reader already has -- the
+                # element's own guard downstream cannot tell this apart from
+                # an ordinary unsupported complication *type*.
+                w.line(f"var {reader.name} = hasComplications ? {reader.call} : null;")
+            else:
+                w.line(f"var {reader.name} = {reader.call};")
 
     def parameters(self, placed) -> str:
         params = []
@@ -3270,6 +3412,29 @@ class ReadPlan:
 
     def arguments(self, placed) -> str:
         return "".join(f", {READERS[name].name}" for name in self._readers_used_by(placed))
+
+    def _guard_needed(self, source) -> bool:
+        """Whether `declarations()` gave this source's local a nullable type.
+
+        `Source.guard_needed` alone (nullable itself, or its reader is) is
+        the whole answer when every target device has everything this
+        design uses -- the `_NO_GUARDS` baseline, where this is exactly
+        `source.guard_needed` and nothing here changes behaviour. A field
+        some target lacks (`self.device_guards.fields`) widens it: `declarations()`
+        wraps that field's read in a `has`-guarded ternary regardless of
+        the source's own declared nullability (`system.battery_in_days` is
+        declared non-null -- Stats fields "are" non-null when present -- yet
+        `fr245` lacks the field entirely, which is a *different* kind of
+        absence than the SDK's own nullability and still needs the local
+        guarded), so every caller that decides whether an element must
+        null-check this local has to agree with that, or the generated draw
+        method would dereference a local `declarations()` just made
+        nullable.
+        """
+        if source.guard_needed:
+            return True
+        root = source.field_name.split(".", 1)[0] if source.field_name else None
+        return root is not None and root in self.device_guards.fields
 
     def guards(self, placed) -> list[str]:
         """Every local the element must null-check, declared in dependency order.
@@ -3287,7 +3452,7 @@ class ReadPlan:
                 # Already null-checked by the visibility guard above.
                 continue
             source = catalog.CATALOG[path]
-            if source.guard_needed:
+            if self._guard_needed(source):
                 names.append(local_name(path))
         return names
 
@@ -3295,7 +3460,7 @@ class ReadPlan:
         """Locals reached through the element's own *value* expression(s)."""
 
         return [local_name(path) for path in self._value_bound[placed.id]
-                if catalog.CATALOG[path].guard_needed]
+                if self._guard_needed(catalog.CATALOG[path])]
 
     def visible_guards(self, placed) -> list[str]:
         """Locals `visible:` dereferences, in declaration order.
@@ -3307,7 +3472,7 @@ class ReadPlan:
         """
 
         return [local_name(path) for path in self._visible_bound[placed.id]
-                if catalog.CATALOG[path].guard_needed]
+                if self._guard_needed(catalog.CATALOG[path])]
 
     def other_guards(self, placed) -> list[str]:
         """Locals dereferenced by a *different* expression (colour, track
@@ -3319,7 +3484,7 @@ class ReadPlan:
         """
 
         return [local_name(path) for path in self._other_bound[placed.id]
-                if catalog.CATALOG[path].guard_needed]
+                if self._guard_needed(catalog.CATALOG[path])]
 
     @staticmethod
     def _value_expressions(element) -> tuple:
@@ -3355,6 +3520,8 @@ class ReadPlan:
                 # expression both reference by name.
                 continue
             reader = READERS[source.reader]
+            base = (reader.name if source.array_index is None
+                    else f"{reader.name}[{source.array_index}]")
             guard_parts = []
             if reader.nullable:
                 # The reader itself can be absent -- Activity.getActivityInfo()
@@ -3371,6 +3538,24 @@ class ReadPlan:
                 guard_parts.append(source.array_guard)
 
             intermediate = getattr(source, "intermediate", None)
+            # `_guard_needed`/`wfb.availability.design_fields` both key a
+            # device-absent field by its *first* dotted segment -- for a
+            # dotted `field_name` that is the intermediate object itself
+            # (`activeMinutesWeek`, not `.total`, which belongs to a
+            # different class entirely -- `Device.has_field` cannot resolve
+            # a nested field to its owning class, see that method's own
+            # caveat), and for a plain one it is `field_name` unchanged.
+            # `x has :field` is the SDK's own documented idiom
+            # ($CIQ_SDK/doc/docs/Monkey_C/Functions.html) for exactly this:
+            # unlike `guard_parts` above (a *nullable* reading, still the
+            # same field on every device), this is a field some target
+            # device does not declare *at all* -- a device missing it
+            # entirely throws "Symbol Not Found" on any unconditional
+            # reference, not just a null one.
+            field_root = intermediate if intermediate is not None else source.field_name
+            if field_root is not None and field_root.split(".", 1)[0] in self.device_guards.fields:
+                guard_parts.append(f"{base} has :{field_root.split('.', 1)[0]}")
+
             if intermediate is not None:
                 # A dotted field_name (`activeMinutesWeek.total`) has its own
                 # nullable intermediate object.  monkeyc's flow typing narrows
@@ -3381,8 +3566,6 @@ class ReadPlan:
                 # build, not assumed.  So the intermediate gets its own local
                 # first, and the final field is guarded off *that* local,
                 # exactly the pattern every other nullable field here uses.
-                base = (reader.name if source.array_index is None
-                        else f"{reader.name}[{source.array_index}]")
                 obj_read = f"{base}.{intermediate}"
                 if guard_parts:
                     obj_read = f"({' && '.join(guard_parts)}) ? {obj_read} : null"

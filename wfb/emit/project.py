@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import formatting
+from ..availability import compute_guards
 from ..devices import Device
 from ..fonts import BakedFont
 from ..ir import Face
@@ -72,8 +73,8 @@ def generate(face: Face, devices: list[Device], root: Path,
     if face.palette:
         project.sources.append(monkeyc.emit_palette(face))
 
-    features = _features(face)
-    project.manifest_text = manifest.render(face, devices, features)
+    guards = compute_guards(face, devices)
+    project.manifest_text = manifest.render(face, devices)
     project.jungle_text = jungle.render(face, devices)
     project.strings_text = resources.shared_strings(face)
 
@@ -96,7 +97,7 @@ def generate(face: Face, devices: list[Device], root: Path,
     )
     if needs_icon_glyphs:
         project.sources.append(monkeyc.emit_icon_glyphs(face))
-    project.sources.append(monkeyc.emit_view(first))
+    project.sources.append(monkeyc.emit_view(first, guards))
     if monkeyc.complication_slots(face):
         # The native editor's animated highlight over a complication_slot --
         # dead weight on a design with none (research 07 §1: the callback
@@ -107,7 +108,7 @@ def generate(face: Face, devices: list[Device], root: Path,
         # are Layout constants, which are already per-device.  A `config:`-only
         # design (no on_hold) also needs one, purely for
         # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
-        project.sources.append(monkeyc.emit_delegate(first))
+        project.sources.append(monkeyc.emit_delegate(first, guards))
     project.barrel = _barrel_for(face, first)
     _avoid_string_label_collisions(project)
     return project
@@ -187,35 +188,6 @@ def _is_time_value(element) -> bool:
     return element.value is not None and element.value.value.type is Type.TIME
 
 
-def _features(face: Face) -> set[str]:
-    """Which API-gated features this design uses.  Drives ``minApiLevel``."""
-    from ..catalog import READERS
-
-    features: set[str] = set()
-    if any(READERS[name].complication_type for name in face.requirements().readers):
-        features.add("complications")
-    if face.config_data:
-        # A `config: data:` slot reads `Toybox.Complications` (`Complications.
-        # Id`, `Complications.COMPLICATION_TYPE_*`) even though it is not a
-        # catalogue reader at all -- the type the wearer picks is not known
-        # until runtime, so `face.requirements().readers` above never sees it.
-        features.add("complications")
-    if monkeyc.launches_a_glance(face):
-        # `Complications.exitTo` is what an `on_hold:` compiles to -- API
-        # 4.2.0, the same floor a complication *reader* needs, for the same
-        # module. Deliberately not onTap's own 5.1.0: nothing the generator
-        # emits references onTap at all, because onTap never fires outside
-        # the on-device config editor (research 07 1a).
-        features.add("complications")
-    # `config:` deliberately adds nothing here: the probe confirms
-    # <watchface-config> forces no minApiLevel bump
-    # (docs/research/probes/watchface-config/), and the whole feature is
-    # gated by `Device.has_symbol`, a runtime check, not a version compare
-    # (constraint 6) -- so raising the floor for every device would be wrong
-    # even for a design that never targets fr955.
-    return features
-
-
 def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
     needed: set[str] = set()
     plan = monkeyc.ReadPlan(resolved)
@@ -224,7 +196,8 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
     if plan.complication_readers() or face.config_data:
         # A `config: data:` slot pulls through `WfbComplications.valueOf` too,
         # even though it binds no ordinary `complication.*` catalogue reader
-        # at all -- see `_features` above for the same reasoning.
+        # at all -- see `wfb.availability.uses_complications` for the same
+        # reasoning (it is the one place both cases are checked together now).
         needed.add("WfbComplications.mc")
     for placed in resolved.items:
         kind = placed.kind

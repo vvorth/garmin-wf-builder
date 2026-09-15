@@ -134,31 +134,64 @@ class Reader:
     monkeyc_type: str  # its declared type, for -l 3 strict typechecking
     module: str  # the module to import
     nullable: bool = False  # whether the call itself can return null
+    #: ``Parent.name`` symbols (`Device.has_symbol`'s own namespace) this
+    #: reader's `call` actually invokes at runtime, checked against the
+    #: device's own `api.debug.xml` by `wfb.availability` rather than an API
+    #: level (CLAUDE.md constraint 6d). Every reader below sets exactly one --
+    #: the function `call` is built from -- confirmed present in every
+    #: currently-installed device's symbol table, `fenix6`/`fr245` (this
+    #: project's lowest-level installed devices) included, so today this
+    #: field never actually gates anything; it exists so a future device that
+    #: genuinely lacks one of these core calls is caught the same structural
+    #: way `requires_module` below already catches `Complications`, rather
+    #: than by a level compare that constraint 6 already showed is not
+    #: trustworthy.
+    requires: tuple[str, ...] = ()
+    #: The bare `Toybox` module name (`Device.has_module`'s own namespace,
+    #: e.g. ``"Complications"``) this reader's `call` needs to exist at all,
+    #: or ``None`` when `requires` above is enough on its own. Set only for
+    #: the 42 complication readers below: `fenix6` and `fr245` do not merely
+    #: lack the individual functions `WfbComplications.valueOf` calls, they
+    #: lack the `Toybox.Complications` module *itself* -- so every reference
+    #: to it, not only a call, fails at runtime (`wfb.devices.Device.
+    #: has_module`'s own docstring). `wfb.availability.reader_unavailable`
+    #: checks this before `requires`, since a missing module makes checking
+    #: an individual function moot.
+    requires_module: str | None = None
     #: Only set for a `complication.*` reader: the `Complications.Type`
     #: constant this reader pulls (`WfbComplications.valueOf`, a plain read --
     #: see module docstring, there is no cache here). Still needed for two
-    #: things unrelated to caching: `wfb/emit/project.py`'s `_features()`
-    #: reads it to raise `minApiLevel` to 4.2.0 only when a design actually
-    #: binds a complication, and `wfb/emit/monkeyc.py` reads it to build the
-    #: `onLayout` subscription list -- subscribing is kept even though the
-    #: read itself is a pull, purely so a value that arrives after the first
-    #: draw is not stuck stale forever (see docs/adr/0005 and the
-    #: complication-pull research probe for why pull-without-subscribe is
-    #: deliberately not relied on).
+    #: things unrelated to caching: `wfb.availability.uses_complications`
+    #: reads it (via `requires_module` above, which is set on exactly the
+    #: same readers) to decide whether a design needs `Toybox.Complications`
+    #: at all -- no longer to raise `minApiLevel` (removed 2026-09-15: the
+    #: manifest is one file shared by every target device, so a per-feature
+    #: level bump broke any build that also targeted a lower-level device --
+    #: see `wfb/emit/manifest.py`'s module docstring -- availability is
+    #: gated at runtime instead) -- and `wfb/emit/monkeyc.py` reads it to
+    #: build the `onLayout` subscription list -- subscribing is kept even
+    #: though the read itself is a pull, purely so a value that arrives
+    #: after the first draw is not stuck stale forever (see docs/adr/0005
+    #: and the complication-pull research probe for why pull-without-
+    #: subscribe is deliberately not relied on).
     complication_type: str | None = None
 
 
 READERS: dict[str, Reader] = {
-    "clock": Reader("clock", "System.getClockTime()", "System.ClockTime", "Toybox.System"),
+    "clock": Reader("clock", "System.getClockTime()", "System.ClockTime", "Toybox.System",
+                     requires=("System.getClockTime",)),
     "settings": Reader(
-        "settings", "System.getDeviceSettings()", "System.DeviceSettings", "Toybox.System"
+        "settings", "System.getDeviceSettings()", "System.DeviceSettings", "Toybox.System",
+        requires=("System.getDeviceSettings",),
     ),
-    "stats": Reader("stats", "System.getSystemStats()", "System.Stats", "Toybox.System"),
+    "stats": Reader("stats", "System.getSystemStats()", "System.Stats", "Toybox.System",
+                     requires=("System.getSystemStats",)),
     "date": Reader(
         "date",
         "Gregorian.info(Time.now(), Time.FORMAT_MEDIUM)",
         "Gregorian.Info",
         "Toybox.Time.Gregorian",
+        requires=("Gregorian.info",),
     ),
     # The same call under FORMAT_SHORT, where `day_of_week` is a Number
     # (Gregorian.DAY_SUNDAY = 1 .. DAY_SATURDAY = 7, Toybox/Time/Gregorian.html)
@@ -170,12 +203,14 @@ READERS: dict[str, Reader] = {
         "Gregorian.info(Time.now(), Time.FORMAT_SHORT)",
         "Gregorian.Info",
         "Toybox.Time.Gregorian",
+        requires=("Gregorian.info",),
     ),
     "activity": Reader(
         "activity",
         "ActivityMonitor.getInfo()",
         "ActivityMonitor.Info",
         "Toybox.ActivityMonitor",
+        requires=("ActivityMonitor.getInfo",),
     ),
     "activity_info": Reader(
         "activityInfo",
@@ -183,6 +218,7 @@ READERS: dict[str, Reader] = {
         "Activity.Info?",
         "Toybox.Activity",
         nullable=True,
+        requires=("Activity.getActivityInfo",),
     ),
     # Toybox/Weather.html: "get the most recently cached weather conditions" --
     # already cached on Garmin's side, which is exactly why this project does
@@ -196,6 +232,7 @@ READERS: dict[str, Reader] = {
         "Weather.CurrentConditions?",
         "Toybox.Weather",
         nullable=True,
+        requires=("Weather.getCurrentConditions",),
     ),
     "weather_daily": Reader(
         "weatherDaily",
@@ -203,6 +240,7 @@ READERS: dict[str, Reader] = {
         "Lang.Array<Weather.DailyForecast>?",
         "Toybox.Weather",
         nullable=True,
+        requires=("Weather.getDailyForecast",),
     ),
     # Toybox/UserProfile.html: getProfile() itself never returns null (unlike
     # the ActivityMonitor/Activity/Weather readers above); the historical
@@ -215,6 +253,7 @@ READERS: dict[str, Reader] = {
         "UserProfile.getProfile()",
         "UserProfile.Profile",
         "Toybox.UserProfile",
+        requires=("UserProfile.getProfile",),
     ),
 }
 
@@ -269,6 +308,15 @@ READERS.update({
         "Toybox.Complications",
         nullable=True,
         complication_type=t.constant,
+        # `has_module`, not `has_symbol`: fenix6/fr245 do not merely lack
+        # `Complications.getComplication`, they lack the `Toybox.
+        # Complications` module itself -- confirmed absent from both
+        # devices' own `<dataEntry type="module">` rows. Any reference to
+        # the module at runtime fails on a device like that, not only a
+        # call, which is why `wfb.availability` checks `requires_module`
+        # before ever looking at `requires` (see Reader.requires_module's
+        # own docstring).
+        requires_module="Complications",
     )
     for t in complications.TYPES.values()
 })
@@ -286,7 +334,28 @@ class Source:
     nullable: bool
     #: ``iq:uses-permission`` ids implied by binding this source.
     permissions: tuple[str, ...] = ()
-    #: ``Parent.name`` symbols that must exist on the target device.
+    #: ``Parent.name`` *function* symbols (`Device.has_symbol`'s own
+    #: namespace -- checked with `_symbol_gap`, never `has_field`) that this
+    #: source's own read needs *beyond* its reader's call -- e.g. a helper
+    #: method the value expression invokes that the reader itself does not.
+    #: No entry currently needs this (every source's availability is already
+    #: covered by its reader's own `Reader.requires`/`requires_module` plus
+    #: `field_name` -> `Device.has_field`, checked automatically by
+    #: `wfb.availability.source_unavailable`). **Do not put a field name
+    #: here** -- `device.do_not_disturb` did exactly that
+    #: (``requires=("DeviceSettings.doNotDisturb",)``) and was silently
+    #: broken from the day it was written: `doNotDisturb` is a *field*
+    #: (``<entry field="true" symbol="doNotDisturb"/>`` in every device's
+    #: `api.debug.xml`, confirmed via `git log -S -- wfb/catalog.py`), so
+    #: `has_symbol` -- which only ever matches `<functionEntry>` rows -- could
+    #: never find it and reported it absent on *every* device, including
+    #: ones that plainly have it. It went unnoticed for a session and a half
+    #: because nothing read `Source.requires` until `wfb.availability` was
+    #: built (this field predates that module: see CLAUDE.md's roadmap,
+    #: "`Source.requires`, which is read by nothing"). The field check via
+    #: `field_name` already covers a bare field's own presence/absence
+    #: correctly; this tuple is for a genuine extra *function* dependency
+    #: only.
     requires: tuple[str, ...] = ()
     unit: str | None = None
     doc: str = ""
@@ -410,8 +479,15 @@ CATALOG: dict[str, Source] = {
         _s("device.is_24_hour", Type.BOOLEAN, "settings", "is24Hour", False,
            doc="whether the user has selected 24-hour time",
            source_ref="Toybox/System/DeviceSettings.html"),
+        # No `requires=` here: `doNotDisturb` is a *field*
+        # (`<entry field="true" symbol="doNotDisturb"/>`), already covered by
+        # `field_name` -> `Device.has_field` in `source_unavailable`. An
+        # earlier `requires=("DeviceSettings.doNotDisturb",)` here named it
+        # as if it were a function symbol; `has_symbol` only ever matches
+        # `<functionEntry>` rows, so that entry reported this field absent on
+        # every device, including ones that have it -- see `Source.requires`'
+        # own docstring above for the full account.
         _s("device.do_not_disturb", Type.BOOLEAN, "settings", "doNotDisturb", False,
-           requires=("DeviceSettings.doNotDisturb",),
            doc="do-not-disturb is on", source_ref="Toybox/System/DeviceSettings.html"),
         _s("device.notification_count", Type.NUMBER, "settings", "notificationCount", False,
            doc="unread notifications",

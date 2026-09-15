@@ -668,7 +668,7 @@ def test_config_unsupported_is_silenced_by_lint_allow_on_any_relevant_element(wr
     assert not hits, bag.render()
 
 
-# -- lint: complication-gated, extended to slot default/choices --------------
+# -- lint: api-gated, extended to slot default/choices ------------------------
 
 
 def test_complication_gated_fires_for_a_slots_default_on_fr955(write_design, db):
@@ -691,7 +691,7 @@ elements:
     placeholder: "--"
 """
     bag = _lint(text, write_design, db, device_id="fr955")
-    hits = [d for d in bag.items if d.code == "complication-gated"]
+    hits = [d for d in bag.items if d.code == "api-gated"]
     assert hits, bag.render()
     assert any("sleep_score" in d.message and "config.data.top" in d.message for d in hits), \
         [d.message for d in hits]
@@ -715,7 +715,7 @@ def test_complication_gated_does_not_check_choices_any(write_design, db):
     placeholder: "--"
 """
     bag = _lint(text, write_design, db, device_id="fr955")
-    hits = [d for d in bag.items if d.code == "complication-gated"]
+    hits = [d for d in bag.items if d.code == "api-gated"]
     assert not hits, bag.render()
 
 
@@ -945,23 +945,28 @@ def test_apply_config_matches_settings_by_unique_identifier(write_design, bag, d
     assert "if (unique == 2)" in view and "_configDataBottom = picked;" in view
 
 
-def test_manifest_gets_complications_feature_from_data_alone(write_design, bag, db):
+def test_manifest_gets_complications_permission_from_data_alone(write_design, bag, db):
     """A `config: data:` slot is not a catalogue reader `face.requirements()`
-    would see -- `_features()`/`permissions()` must add it separately."""
+    would see -- `manifest.permissions()` must add it separately. The API
+    floor no longer moves for this at all (2026-09-15): the manifest is one
+    file shared by every target device, so `minApiLevel` stays the base
+    level regardless -- availability is gated at runtime instead
+    (`wfb.availability`, `wfb/emit/monkeyc.py`)."""
     from wfb.emit import manifest
 
     face = _face(DESIGN, write_design, bag)
     assert not any(r for r in face.requirements().readers)
     devices = [db.get(d) for d in face.targets]
-    text = manifest.render(face, devices, features={"complications"})
-    assert 'minApiLevel="4.2.0"' in text
+    text = manifest.render(face, devices)
+    assert f'minApiLevel="{manifest.BASE_API_LEVEL}"' in text
     assert '<iq:uses-permission id="ComplicationSubscriber"/>' in text
     assert "ComplicationSubscriber" in manifest.permissions(face)
 
 
 def test_no_config_data_means_no_complications_permission(write_design, bag, db):
     """The absence half of the same check: a design with no complication
-    binding of any kind gets neither the permission nor the API floor."""
+    binding of any kind gets neither the permission nor (either way) a
+    raised API floor."""
     from wfb.emit import manifest
 
     text = HEAD + """elements:
@@ -974,8 +979,8 @@ def test_no_config_data_means_no_complications_permission(write_design, bag, db)
     face = _face(text, write_design, bag)
     devices = [db.get(d) for d in face.targets]
     assert manifest.permissions(face) == []
-    rendered = manifest.render(face, devices, features=set())
-    assert 'minApiLevel="4.2.0"' not in rendered
+    rendered = manifest.render(face, devices)
+    assert f'minApiLevel="{manifest.BASE_API_LEVEL}"' in rendered
     assert "ComplicationSubscriber" not in rendered
 
 
@@ -1144,7 +1149,7 @@ def test_a_data_axis_design_compiles_warning_free_on_every_target(
     assert set(result.products) == {"fenix8solar47mm", "fenix8solar51mm", "fr955"}
 
     manifest_text = (result.output_dir / "manifest.xml").read_text(encoding="utf-8")
-    assert 'minApiLevel="4.2.0"' in manifest_text
+    assert 'minApiLevel="3.2.0"' in manifest_text
     assert '<iq:uses-permission id="ComplicationSubscriber"/>' in manifest_text
 
     fenix_config = (result.output_dir / "resources-fenix8solar47mm" / "configs"
@@ -1195,7 +1200,7 @@ elements:
     assert not monkeyc_warnings, "\n".join(d.message for d in monkeyc_warnings)
 
     manifest_text = (result.output_dir / "manifest.xml").read_text(encoding="utf-8")
-    assert 'minApiLevel="4.2.0"' in manifest_text
+    assert 'minApiLevel="3.2.0"' in manifest_text
     assert '<iq:uses-permission id="ComplicationSubscriber"/>' in manifest_text
 
 

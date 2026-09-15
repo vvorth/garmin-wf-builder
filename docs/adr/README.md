@@ -39,3 +39,8 @@ Three Phase 0 findings drive most of what follows:
   generated on-device settings menu. Consequence: **fr955 has no on-device
   configuration at all** (0006).
 - **Host language:** Python (0001).
+- **Per-device API gating (2026-09-15):** a feature needing a higher API level
+  (complications) is guarded at runtime per device (`Toybox has :Complications`),
+  never by raising the shared `minApiLevel` -- a target device lacking a
+  binding reads it as absent, the same contract every nullable source already
+  has (0005, 0006 sixth amendment).

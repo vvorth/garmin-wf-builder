@@ -203,6 +203,50 @@ and the ADR each is specified in):
     feature), and the same for `complication.battery` in place of
     `activity.move_bar_level` (5,232-5,234 B, the `ComplicationSubscriber`
     subscription and `minApiLevel: 4.2.0` included). Unverified on-device.
+    **2026-09-15 correction (later the same day, item 17):** that
+    `minApiLevel: 4.2.0` is no longer what a build of this design produces —
+    the manifest floor stopped moving for complications; see item 17. The
+    `ComplicationSubscriber` permission and the measured byte counts are
+    otherwise unaffected.
+17. **Built 2026-09-15** (same day, third change): per-device API gating,
+    closing the TODO left on `examples/dashboard/face.yaml` earlier that day
+    (`c0939f9`) when `fenix6` was pulled from `targets:` because it could
+    not build. Cause: `manifest.xml`'s `minApiLevel` is one number shared by
+    every target device in a build, and it was raised to 4.2.0 whenever a
+    design used a complication (a `complication.*` read, a `config: data:`
+    slot, or `on_hold:` → `Complications.exitTo`) — locking out any target
+    below 4.2.0 even when that target never touched the feature. Fix: the
+    floor now always stays at the generator's base level, `3.2.0`
+    (`wfb/emit/manifest.py::BASE_API_LEVEL`; `FEATURE_API_LEVELS` and
+    `wfb/emit/project.py::_features()` deleted), and every complication
+    touch in the one shared generated view/delegate is guarded at runtime
+    instead — `Toybox has :Complications` around `onLayout`'s
+    subscribe/register loop, every complication-reader pull, `on_hold:`'s
+    `exitTo`, and a `config: data:` slot's `Complications.Id` field (built
+    in `initialize()`, not as a field initialiser, which runs before any
+    guard could matter); `x has :field` for a bare field some target lacks
+    (`stressScore` on `fenix6`; `floorsClimbed`, `floorsClimbedGoal`,
+    `batteryInDays`, `ambientPressure` on `fr245`). New module
+    `wfb/availability.py` is the one place that checks a design's bindings
+    against a device's own `api.debug.xml`
+    (`Device.has_symbol`/`has_module`/`has_field`, the last two new) and
+    aggregates the result over every target in a build
+    (`compute_guards` → `Guards`), so a design whose targets all support
+    everything it uses still generates byte-identical code. Policy (user
+    decision): an unavailable binding reads as absent on that device (the
+    element's own `when_absent`), `on_hold:` never fires there, and the
+    build **warns** (lint `api-gated`, replacing `complication-gated`) —
+    not a build error. `docs/research/probes/api-gating/` is the evidence
+    record; ADR 0005's "a target device lacking a binding entirely is
+    absence too" amendment and ADR 0006's sixth amendment are the decision
+    record. `examples/dashboard/face.yaml` targets `fenix6` again.
+    **Open follow-ups:** runtime behaviour on a real pre-4.2.0 device —
+    that a `has`-guarded reference to an absent module is harmless at load
+    time, and that `has` itself reads `false` there — is the SDK docs'
+    idiom, UNVERIFIED (no simulator in this container); a reader *function*
+    a device lacks (none exist today) is still a hard build error, because
+    the generator can only gate whole modules and bare fields, not one
+    function call inside a reader's `call` expression.
 
 **A previously-recorded loose end, now resolved — noted so nobody goes
 looking for the problem again:** commit `614d100` added

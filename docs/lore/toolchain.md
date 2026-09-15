@@ -124,6 +124,21 @@ glitch.
     on all three targets this way. **Unverified on a device:** that
     `toChar` on a supplementary-plane codepoint draws the right glyph (no
     simulator, no watch).
+- **2026-09-15: a compiled `.prg.debug.xml`'s `<symbolTable>` over-approximates
+  what a build actually touches — a diagnostic, never proof a build is
+  safe.** `docs/research/probes/api-gating/apisyms.py` diffs a built
+  project's `<symbolTable>` (entries with id ≥ `0x800000` are API symbols)
+  against a device's own `api.debug.xml` to find what the build references
+  that the device might lack — useful for finding what to check. But in a
+  probe variant where every *executed* `Complications` reference was
+  removed from a `fenix6` build, `Complications` still showed up in the
+  compiled symbol table, because of a bare `import Toybox.Complications;`
+  and a type annotation (`as Complications.Complication?`) — both erased at
+  runtime, neither an actual reference a `fenix6` at runtime would ever
+  execute. Fully qualifying the types instead of importing did not remove
+  it either. Treat `apisyms.py`'s (and `absent_scan.py`'s) output as a
+  worklist to check by hand against what the generated code actually calls,
+  not as a pass/fail verdict.
 
 ---
 
@@ -186,8 +201,21 @@ ERROR: Invalid device id specified: 'fenix8solar47mm'
 ```
 
 **They are already vendored** at `vendor/devices/` (copied from the user's macOS
-host, `~/Library/Application Support/Garmin/ConnectIQ/Devices/`). 9 devices,
-21 MB, including all three targets. `setup-env.sh` installs them.
+host, `~/Library/Application Support/Garmin/ConnectIQ/Devices/`), including all
+three primary targets. `setup-env.sh` installs them.
+
+**2026-09-15: the vendored set grew from 9 to 13 devices** — `fenix6`,
+`fenix6xpro`, `fr245` and `fr255` were added (`docs/research/probes/
+api-gating/`, added to research what a design can and cannot do on an
+older-API-level device). `setup-env.sh`'s device install is now
+**incremental**: it used to skip installing entirely whenever
+`~/.Garmin/ConnectIQ/Devices/` was already non-empty, which is why `fr255`
+built as `unknown device` the first time it was added — the newly-vendored
+directory was never copied in. It now copies in whichever device
+directories under `vendor/devices/` are not already present at the
+destination, on every run, without touching or removing what's already
+there; re-run `./tools/setup-env.sh` after `vendor/devices/` gains a new
+device to pick it up.
 
 `vendor/devices/` is **gitignored on purpose** — it is the user's own licensed
 copy of Garmin's device files, fine to move around their machine but not

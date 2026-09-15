@@ -74,3 +74,25 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   (`complication.battery`) alike — the local is never reassigned inside
   the loop, which is presumably why the narrowing holds; not tested with a
   local that *is* reassigned there.
+- **A field *initialiser* runs before any `has` guard could ever matter.**
+  `private var x as Complications.Id = new Complications.Id(...);` inline on
+  a field declaration executes at construction, on every device, full stop —
+  there is no way to wrap a field initialiser itself in `if (Toybox has
+  :Complications)`. A value that needs a runtime guard before it can be
+  built therefore has to be declared nullable and left `null` at the field,
+  with the guarded construction moved into the constructor body instead
+  (`wfb/emit/monkeyc.py`'s `_emit_config_fields`/`_emit_initialize`,
+  2026-09-15, for a `config: data:` slot's `Complications.Id` on a target
+  lacking `Toybox.Complications`). Obvious in hindsight, easy to reach for
+  the field-initialiser spelling out of habit and get a construction-time
+  crash on the very device the guard exists to protect.
+- **`Toybox has :ModuleName` works on a bare module name, the same operator
+  used for a function or field** (`$CIQ_SDK/doc/docs/Monkey_C/
+  Functions.html`'s own example, `Toybox has :Magnetometer`) — no special
+  syntax for "does this module exist at all" versus "does this symbol on an
+  object I already have exist". `wfb.devices.Device.has_module` mirrors the
+  same check at build time, off a device's `<dataEntry type="module">` rows
+  rather than `<functionEntry>`/`<symbolTable>` (`docs/research/probes/
+  api-gating/`, 2026-09-15). UNVERIFIED at runtime on real hardware that
+  lacks the module — the SDK docs' idiom, not observed (no simulator in
+  this container).

@@ -732,13 +732,19 @@ def _complications(args) -> int:
     level is not a promise the watch has it; a hold on a type the watch
     does not know simply does nothing, which is why `wfb validate` also
     checks each target's own symbol table (and, for a slot, each target's
-    own ConnectIQ ceiling -- see `complication-gated` in docs/format.md).
+    own ConnectIQ ceiling -- see `api-gated` in docs/format.md).
 
     Binding one of these -- as `on_hold:`, as `complication.<name>`, or via
-    `on_hold: auto` -- adds the ComplicationSubscriber permission and
-    raises minApiLevel to 4.2.0 automatically, the same way a data binding
-    derives its own requirements. A `config: data:` slot does too, even
-    though it reads no catalogue source directly.
+    `on_hold: auto` -- adds the ComplicationSubscriber permission
+    automatically, the same way a data binding derives its own
+    requirements. A `config: data:` slot does too, even though it reads no
+    catalogue source directly. `minApiLevel` itself no longer moves for any
+    of this (`manifest.xml` is one file shared by every target device, so a
+    per-feature bump broke any build that also targeted a lower-level
+    device): a target that lacks `Toybox.Complications` -- fenix6 and fr245,
+    this project's lowest-level installed devices, both do -- instead has
+    the generated code guard every use of it at runtime (`wfb.availability`,
+    `wfb/emit/monkeyc.py`), so the binding simply reads as absent there.
     """
     from . import complications, icons
 

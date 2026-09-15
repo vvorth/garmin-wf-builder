@@ -39,7 +39,7 @@ face:
   name: Dashboard
   version: 1.0.0
 
-targets: [fenix8solar47mm, fenix8solar51mm, fr955, fr255]
+targets: [fenix8solar47mm, fenix8solar51mm, fr955, fr255, fenix6]
 
 fonts:
   # clock:

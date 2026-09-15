@@ -18,9 +18,21 @@ These are the findings that shaped every decision. Full detail and citations in
    codegen (ADR 0003) — an interpreter would have to ship inside the same
    128 KB the design must fit in.
 
-2. **Watch faces get 131 072 B (128 KB)** on all three targets — one sixth of
-   the 786 432 B the same hardware gives a watch app. 28 of 164 documented
-   devices cannot run a watch face at all.
+2. **Watch faces get 131 072 B (128 KB)** on all three primary targets
+   (`fenix8solar47mm`/`51mm`, `fr955`) — one sixth of the 786 432 B the same
+   hardware gives a watch app. 28 of 164 documented devices cannot run a
+   watch face at all.
+
+   **2026-09-15 nuance (`docs/research/probes/api-gating/`, `wfb devices`
+   against the vendored SDK 9.2.0 device set):** the 128 KB figure is not
+   universal even among devices this project can now target. `fr245`'s
+   watch-face limit is **96 KB**, a quarter less; `fenix6`'s is **112 KB**.
+   Both are below the three primary targets, which stay at 128 KB. A design
+   built for the primary targets is not automatically safe to add either
+   device to `targets:` without checking `--build-stats` on it too —
+   `examples/dashboard/face.yaml` (the largest example) measured at 14 817 B
+   on `fenix6` the day this was added, comfortably inside 112 KB, but that is
+   a per-design fact, not a guarantee.
 
 3. **There is no filled-arc primitive.** No `fillArc`, `fillSector` or
    `drawSector` exists anywhere in the API. Rings are `setPenWidth` + `drawArc`
@@ -73,6 +85,41 @@ These are the findings that shaped every decision. Full detail and citations in
    lint will. Every existing use of `has_symbol` stays correct: it answers
    *what exists on the wrist*, which is the question that was always being
    asked.
+
+6e. **Modules and class *fields* are per-device too, not just functions, and
+   the manifest floor cannot express any of it.** Discovered adding `fenix6`
+   (ConnectIQ 3.4.5) back to `examples/dashboard/face.yaml`'s `targets:`
+   (`docs/research/probes/api-gating/README.md`): `fenix6` and `fr245` lack
+   the `Toybox.Complications` **module** entirely (`<dataEntry
+   type="module">`, `wfb.devices.Device.has_module`, new), not merely one
+   function in it, and `fenix6` separately lacks the **field**
+   `ActivityMonitor.Info.stressScore` (`fr245` lacks `floorsClimbed`,
+   `floorsClimbedGoal`, `batteryInDays`, `ambientPressure`) — a class field
+   lives in the device's `<symbolTable>` as a bare `<entry field="true"
+   symbol="…"/>`, with no owning class recorded, so absence is exact but
+   presence is only approximate (two unrelated classes could share a field
+   name; `wfb.devices.Device.has_field`'s own docstring). Separately,
+   `manifest.xml`'s `minApiLevel` is **one number for the whole build**,
+   shared by every target device in `<iq:products>` — it cannot say "4.2.0
+   for this device, 3.2.0 for that one," so a feature that raised it (as
+   complications used to, to 4.2.0) locked out *every* target below that
+   level in the same build, including one that never touches the feature.
+   The fix keeps the floor fixed at the generator's base level always
+   (`wfb/emit/manifest.py::BASE_API_LEVEL`, `3.2.0`) and gates the module and
+   the fields at runtime instead (`Toybox has :Complications`, `x has
+   :stressScore`), aggregated over every target by `wfb.availability.
+   compute_guards` so the one shared generated view emits a guard only when
+   at least one target actually needs it. **The symbol table over-
+   approximates presence**, the same way `has_symbol` already does for
+   functions (6d): a probe that removed every executed `Complications` call
+   from a `fenix6` build still found `Complications` in its compiled
+   `<symbolTable>`, from `import Toybox.Complications;` and a type
+   annotation alone, both erased at runtime — so it is a diagnostic for
+   finding what to check, never proof that a build is safe. Runtime
+   behaviour on real `fenix6`/`fr245` hardware — that a `has`-guarded
+   reference to an absent module is harmless at load time, and that `has`
+   itself reads `false` there — is the SDK docs' idiom, UNVERIFIED (no
+   simulator in this container, finding 11 below).
 
 7. **A missing permission fails silently.** The API returns null and the element
    never appears, with no diagnostic. The compiler deriving `manifest.xml`

@@ -3002,3 +3002,127 @@ move-bar row looks like on a panel, and the per-frame cost of the
 pre-loop absence check and the per-copy `visible:` evaluation, both
 unmeasured, same as every other pattern reading.
 
+## 2026-09-15 — Per-device API gating: `fenix6` back in the dashboard
+
+Earlier the same day (`c0939f9`), the user removed `fenix6` from
+`examples/dashboard/face.yaml`'s `targets:` with a TODO: "check ability to
+gate sdk levels and disable features to still build on older sdk level
+targets." Adding it had failed with `error[monkeyc]: Device 'fenix6' does
+not support API Level '4.2.0'`.
+
+**Diagnosis.** `wfb/emit/manifest.py` raised the generated `minApiLevel` to
+4.2.0 whenever a design used a complication — a `complication.*` read, a
+`config: data:` slot, or `on_hold:` (`Complications.exitTo`). `manifest.xml`
+is one file shared by every target device in a build, so raising it for one
+target's feature raised it for all of them, including `fenix6` (ConnectIQ
+3.4.5), which the dashboard's other targets needed complications for but
+`fenix6` itself does not use at all in the same design.
+
+**Probes** (`docs/research/probes/api-gating/`, evidence record with
+`absent_scan.py`/`apisyms.py`):
+
+- Hand-lowering the generated manifest to `3.2.0` and building `fenix6`
+  directly with `monkeyc` was `BUILD SUCCESSFUL`, warning-free — the
+  manifest floor was the only compile-time barrier, because `monkeyc`
+  resolves symbols against the SDK-wide API, not the device's (constraint
+  6d). The hazard moves to runtime, not to the compiler.
+- Diffing a built project's `<symbolTable>` against `fenix6.api.debug.xml`
+  found `fenix6` (and `fr245`) lack the `Toybox.Complications` **module**
+  entirely, and lack individual **fields** other readers use (`fenix6`:
+  `stressScore`; `fr245`: `floorsClimbed`, `floorsClimbedGoal`,
+  `batteryInDays`, `ambientPressure`) — both new categories of per-device
+  gap this project had not modelled before (only missing *functions* had a
+  build-time check).
+- The symbol table **over-approximates**: a probe build with every executed
+  `Complications` reference removed still carried `Complications` in its
+  compiled symbol table, from a bare `import` and a type annotation, both
+  erased at runtime. Useful for finding what to check, never proof a build
+  is safe.
+- Two SDK-documented gating mechanisms both probed to compile: runtime
+  `has` (already this project's house pattern for `WatchFaceConfig`/
+  `createBufferedBitmap`) and build-time `excludeAnnotations` twin
+  functions per `monkey.jungle` (variant B). A per-device `const` split
+  (variant A) also compiled but settled nothing runtime `has` doesn't,
+  because the shared barrel module still carried the over-approximated
+  references either way.
+
+**User decisions (2026-09-15):** (1) mechanism — runtime `has`-guards in the
+one shared generated view, not a per-device source split, because it is the
+existing house pattern and the simplest codegen; (2) policy — a binding a
+target lacks reads as absent on that device (the element's own
+`when_absent`), `on_hold:` never fires there, a `config: data:` slot shows
+absence, and the build **warns** (lint `api-gated`, renaming
+`complication-gated` — built concurrently by another agent) rather than
+failing. A reader *function* a device lacks (none today) stays a build
+error, because the generator can only gate whole modules and bare fields,
+not one call inside a reader.
+
+**What was built:**
+
+- `wfb/emit/manifest.py`: `minApiLevel` is always `BASE_API_LEVEL` (3.2.0);
+  `FEATURE_API_LEVELS` and `wfb/emit/project.py::_features()` deleted.
+- `wfb/availability.py` (new): the one source of truth for per-device
+  availability of catalogue readers/fields/features, checked against each
+  device's own `api.debug.xml` (`Device.has_symbol`/`has_module`/
+  `has_field`, the last two new). `compute_guards(face, devices) ->
+  Guards(complications, fields)` aggregates over every target in a build,
+  so a guard is emitted only when at least one target lacks the thing —
+  designs whose targets all have everything generate byte-identical code
+  (golden tests confirm).
+- `wfb/catalog.py`: `Reader.requires`/`requires_module` filled in for every
+  reader.
+- `wfb/emit/monkeyc.py`: `Toybox has :Complications` guards on `onLayout`
+  subscribe/register, every complication pull (one `hasComplications`
+  local per frame), `on_hold:`'s `exitTo`, and a `config: data:` slot's
+  `Complications.Id` field (made nullable and built inside `initialize()`
+  under the guard — a field *initialiser* runs before any guard could
+  matter); `(x has :field) ? x.field : null` for a field some target lacks.
+- `tools/setup-env.sh`: device install is now incremental — a newly
+  vendored device is copied into a non-empty
+  `~/.Garmin/ConnectIQ/Devices/` instead of the install being skipped
+  entirely, which is why `fr255` built as "unknown device" before this fix.
+- `examples/dashboard/face.yaml`: `fenix6` back in `targets:` (the one-line
+  revert of `c0939f9`).
+- Real device gaps found and gated: `fenix6` lacks module `Complications`,
+  field `stressScore` (and `WatchFaceDelegate.onPress`); `fr245` (3.3.6,
+  96 KB watch-face limit, versus `fenix6`'s 112 KB and the three primary
+  targets' 128 KB) lacks `Complications`, and fields `floorsClimbed`,
+  `floorsClimbedGoal`, `batteryInDays`, `ambientPressure`.
+
+**Docs:** ADR 0005 gained a "a target device lacking a binding entirely is
+absence too" amendment (constraint 8's contract widened, not replaced); ADR
+0006 gained a sixth amendment to §6, plus dated corrections beside its two
+now-superseded `minApiLevel="4.2.0"` mentions. `docs/lore/
+platform-constraints.md` gained constraint 6e (modules/fields are
+per-device, the manifest floor is shared) and a 2026-09-15 nuance to
+constraint 2 (`fr245` 96 KB, `fenix6` 112 KB). `docs/lore/codegen.md`,
+`docs/lore/toolchain.md` and `docs/lore/monkeyc.md` each gained a finding.
+`docs/lore/roadmap.md` records this as item 17, with a correction beside
+item 16's now-stale measured `minApiLevel: 4.2.0`.
+
+**Verified:** every `examples/*` builds warning-free on its own targets plus
+`fenix6` and `fr245`; `examples/dashboard/face.yaml` with `fenix6` restored
+builds clean on all five targets (`fenix8solar47mm`/`51mm`, `fr955`,
+`fr255`, `fenix6`), `fenix6` at 14,412 B of 114,688 B (12.6%) — the design's
+pre-existing safe-area/text-overflow lint findings on `fenix6`'s smaller
+260 px round screen are expected and unrelated to this change, and the
+`complication-gated` warnings on the two `complication.body_battery`
+bindings (4.2.0, above `fenix6`'s 3.4.5) are exactly the intended lint,
+under its old name — the other agent's rename to `api-gated` had not landed
+in this tree at the time of this build.
+
+**Unverified:** runtime behaviour on a real pre-4.2.0 device — that a
+`has`-guarded reference to an absent module is harmless at load time, and
+that `Toybox has :Complications` itself reads `false` there — is the SDK
+docs' idiom, not observed; the simulator does not run in this container.
+The user should check `fenix6`/`fr245` in their host simulator.
+
+`pytest -m "not slow"`: the 3 known pre-existing failures
+(`test_example_is_clean_on_every_target[big-clock-3|dashboard|enduro]`)
+plus, in this run, 2 in `tests/test_lint.py`
+(`test_all_codes_registry_matches_every_code_the_compiler_actually_emits`,
+`test_format_doc_lists_every_suppressible_code`) — consistent with the
+`complication-gated` → `api-gated` rename being mid-flight in `wfb/lint.py`/
+`docs/format.md` in a concurrently-edited tree, not a regression from this
+session's own changes.
+

@@ -57,7 +57,10 @@ It installs the SDK 9.2.0 at `~/ciq/sdks/9.2.0`, the developer key at
 `~/ciq/developer_key.der`, the device definitions at
 `~/.Garmin/ConnectIQ/Devices/`, `CIQ_SDK` and `PATH` in
 `/etc/sandbox-persistent.sh`, and `.venv/`. On Debian/Ubuntu, `venv` needs
-`python3-venv`, or the script falls back to `uv`.
+`python3-venv`, or the script falls back to `uv`. Device install is
+**incremental**: re-running it after `vendor/devices/` gains a new device
+copies in just that one, without touching what is already installed
+(`docs/lore/toolchain.md`).
 
 **Device definitions cannot be downloaded:** Garmin's API returns 401 without
 an SSO login. They are vendored at `vendor/devices/`, which is
@@ -125,6 +128,9 @@ re-litigate these without new evidence.**
    - **6d.** **`monkeyc` checks the SDK-wide API, not the device's.** A shared
      view may use target-only APIs guarded at runtime, and nothing but
      `has_symbol` plus a lint catches an absent symbol.
+   - **6e.** Modules and fields vary per device too; the shared manifest
+     floor stays 3.2.0 and newer APIs are `has`-guarded per device
+     (`wfb/availability.py`).
 7. **A missing permission fails silently** (the API returns null), so the
    compiler derives `manifest.xml` permissions.
 8. **Every data field is nullable.** Absence is normal.
@@ -221,6 +227,16 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
 - **Recently built:**
+  - **Built 2026-09-15:** per-device API gating. A shared `manifest.xml`
+    `minApiLevel` no longer bumps to 4.2.0 for complications; it always
+    stays at the base floor (3.2.0), and every complication touch in the
+    one shared generated view/delegate is guarded at runtime instead
+    (`wfb/availability.py`, `Toybox has :Complications` / `x has :field`).
+    An unavailable binding reads as absent (`when_absent`) and the build
+    warns (lint `api-gated`, replacing `complication-gated`) rather than
+    failing. `examples/dashboard/face.yaml` targets `fenix6` again — see
+    `docs/research/probes/api-gating/`, ADR 0005's and ADR 0006's
+    2026-09-15 amendments, and `docs/lore/codegen.md`.
   - **Built 2026-09-14** (plan 05): patterns. `type: pattern` repeats a
     template of 1–16 parts (the hand vocabulary plus an `arc` centred on
     the origin), `pattern: radial` (`count`, `step` angle defaulting to

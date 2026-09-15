@@ -17,8 +17,9 @@ from __future__ import annotations
 import pytest
 
 from tests.test_diagnostics import load
+from wfb.availability import uses_complications
 from wfb.emit.manifest import api_level
-from wfb.emit.project import _barrel_for, _features, generate
+from wfb.emit.project import _barrel_for, generate
 from wfb.emit.resources import bake_fonts
 
 DESIGN = """
@@ -190,22 +191,27 @@ def test_barrel_omits_wfb_complications_without_one(write_design, bag, db, tmp_p
     assert "WfbComplications" not in files["source/TestView.mc"]
 
 
-def test_minapilevel_bumps_to_4_2_0_for_a_complication(write_design, bag, db, tmp_path):
+def test_minapilevel_stays_at_the_base_even_with_a_complication(write_design, bag, db, tmp_path):
+    """2026-09-15: `minApiLevel` no longer bumps for complications at all --
+    the manifest is one file shared by every target device, so a per-feature
+    bump broke any build that also targeted a lower-level device (fenix6:
+    `error[monkeyc]: Device 'fenix6' does not support API Level '4.2.0'`).
+    `uses_complications` still says yes; `api_level` just no longer listens."""
     face, _ = _build(write_design, bag, db, tmp_path, BODY_BATTERY)
-    assert _features(face) == {"complications"}
-    assert api_level(face, _features(face)) == "4.2.0"
+    assert uses_complications(face) is True
+    assert api_level(face) == "3.2.0"
 
 
 def test_minapilevel_stays_at_the_base_without_one(write_design, bag, db, tmp_path):
     face, _ = _build(write_design, bag, db, tmp_path, NO_COMPLICATION)
-    assert _features(face) == set()
-    assert api_level(face, _features(face)) == "3.2.0"
+    assert uses_complications(face) is False
+    assert api_level(face) == "3.2.0"
 
 
 def test_manifest_declares_complicationsubscriber(write_design, bag, db, tmp_path):
     _, project = _build(write_design, bag, db, tmp_path, BODY_BATTERY)
     assert '<iq:uses-permission id="ComplicationSubscriber"/>' in project.manifest_text
-    assert 'minApiLevel="4.2.0"' in project.manifest_text
+    assert 'minApiLevel="3.2.0"' in project.manifest_text
 
 
 def test_manifest_omits_complicationsubscriber_without_one(write_design, bag, db, tmp_path):

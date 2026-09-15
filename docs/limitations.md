@@ -723,6 +723,63 @@ and proven (`tests/test_devices.py` runs it against the real device files), and
 no non-complication source consults it. See "Device gating for a source is only
 partly enforced" below, the same gap from the catalogue's side.
 
+**Updated 2026-09-15: a fourth mechanism now covers ordinary sources too, and
+the manifest floor no longer moves for any of this.** `wfb/availability.py`
+resolves *any* catalogue path (`value:`/`color:`/etc, not just
+`complication.*`) against a target device's own `api.debug.xml` for a missing
+`Toybox` **module** (`Device.has_module`) or a missing **field**
+(`Device.has_field`, bare-name matched -- exact when the name is absent,
+approximate when present, since the symbol table records no owning class;
+see that method's own docstring). The generalised lint, `check_api_gated`
+(code `api-gated`, replacing the old `complication-gated`), reports these
+per element per device, folded together with the existing complication-type-
+since check so each gap is reported once, at its most fundamental cause (a
+missing module subsumes a too-new type; `hold-unsupported` subsumes a
+missing module too, when the device also lacks `onPress` -- "the hold never
+fires" is true either way). **`config-unsupported` is the one exception,
+deliberately not deduped:** a `config.data.*` slot's own declared default is
+itself read through `Toybox.Complications`, so on a device that lacks that
+module as well as the editor (fenix6, fenix6xpro, fr245 today),
+`config-unsupported`'s "keeps its declared default" claim would be false for
+that slot -- the default cannot resolve either, so the slot shows its absent
+state instead. Both warnings fire there, each naming a genuinely different
+fact, and `check_config_support`'s own wording is adjusted per-slot to say
+so rather than repeating the (here false) "keeps its default" line.
+`manifest.xml`'s `minApiLevel` stays at the
+generator's own base floor (`3.2.0`) regardless -- it is one number shared by
+every target device in a build, so a per-feature bump would lock out any
+device that never touches the feature, which is exactly how targeting
+`fenix6` alongside `examples/dashboard/face.yaml` broke before this (see
+`docs/research/probes/api-gating/`). A device missing something a design
+binds gets a runtime `has`-guard in the shared generated view instead
+(`wfb.availability.compute_guards`, `wfb/emit/monkeyc.py`), and the binding
+simply reads as absent there.
+
+**What this still does not cover: a missing *function* symbol.** The
+generated code only ever guards a module or a field at runtime -- there is no
+guard for an individual function (`Reader.requires`/`Source.requires`'s own
+namespace). If `wfb.availability.source_unavailable` ever reports a function
+gap, `check_api_gated` raises it as a build **error**
+(`api-gated-unguardable`), not a warning, because the call would otherwise
+run unguarded and crash on that device. No device this project vendors
+triggers it today -- every reader's function symbol is present on every
+installed device -- so it is only exercised with a stubbed device in tests.
+
+**The bare-field-name approximation is a real, if currently unrealised,
+risk.** `Device.has_field` cannot tell two different classes' same-named
+fields apart (its docstring's own caveat); every field this project's
+catalogue currently binds happens to be unique enough among installed
+devices that this has not produced a false positive, but a future catalogue
+entry is not guaranteed the same luck.
+
+**Runtime behaviour on a real sub-4.2.0 device is unverified in this
+container.** The simulator cannot run here (§3), so "a device without
+`Toybox.Complications` silently treats `Toybox has :Complications` as
+`false` and does not crash merely importing the module or referencing its
+type in an annotation" is the SDK docs' documented idiom, not an observed
+fact on real hardware -- confirm in the host simulator (or on a real
+`fenix6`/`fr245`) before relying on it for a face that must work there.
+
 ### Checks that are explicitly weaker, and say so in their own output
 
 | Check | What it actually knows |
@@ -759,8 +816,11 @@ them rather than to an arbitrary one:
   representative" shape `graphics-pool` uses, chosen the same way.
 * **`config-unsupported`** is about the whole `config:` block, which -- like
   `palette:` -- is a flat mapping with nowhere of its own to hang a `lint:`
-  block. Since a device with no editor keeps every declared default at once,
-  one `allow:` anywhere among the elements it names suppresses it entirely --
+  block. It is one combined warning per device regardless of what each axis
+  actually does there -- keep a compiled-in default (colours, and a slot on
+  a device that still has `Toybox.Complications`) or show as absent (a slot
+  on a device that also lacks it, see "Per-device API availability" above) --
+  so one `allow:` anywhere among the elements it names suppresses it entirely --
   the allow is honoured on any element whose `color:`/`track_color:` is
   exactly `config.accent_color`, `config.data_color`, or one role of
   `config.colors.<role>`, the same exact-text match `palette-dither` uses and
@@ -872,3 +932,15 @@ glance, and back returns — so this is documented rather than gated.
   the value were simply absent -- the same "absence is normal" contract every
   nullable source has. The check exists so that is a decision the author makes
   knowingly, rather than something discovered as a blank field on the wrist.
+
+  **Superseded 2026-09-15: this bullet no longer belongs under "Not checked
+  at all".** "Ordinary data sources are still unchecked" was true when this
+  was written and is not any more -- `wfb/availability.py` plus the
+  generalised `api-gated` lint (code renamed from `complication-gated`) now
+  resolve *every* catalogue path against a device's own module and field
+  tables, not only `complication.*`. The remaining gap is narrower than "all
+  ordinary sources": a missing reader *function* symbol (as opposed to a
+  module or a field) still has no runtime guard and is promoted to a build
+  error instead of a warning. See "Per-device API availability is checked
+  three ways" above for the current account, kept current rather than
+  duplicated here.

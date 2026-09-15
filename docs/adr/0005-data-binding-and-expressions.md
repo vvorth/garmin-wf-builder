@@ -350,3 +350,59 @@ there (compiled before the pattern builder's `copy` binding opens). §3's
 relaxed -- a pattern's binding is now `hide`, spelled out, rather than an
 unconditional compiler refusal standing in for a policy nobody could
 actually choose.
+
+## Amendment (2026-09-15): a target device lacking a binding entirely is absence too
+
+**What changed.** §3 wrote "every binding declares what absence renders
+as" for a **nullable** reading -- the SDK's own contract, that the *call*
+can return null on any device that has it. There is a second, narrower kind
+of absence this ADR did not name: a *target device that does not have the
+binding at all* -- lacks `Toybox.Complications` outright (`fenix6`,
+`fr245`), or lacks one particular field of a reader that is otherwise
+present (`ActivityMonitor.Info.stressScore` on `fenix6`,
+`floorsClimbed`/`floorsClimbedGoal`/`batteryInDays`/`ambientPressure` on
+`fr245`) -- discovered while adding `fenix6` back to `examples/dashboard/
+face.yaml`'s `targets:` (`docs/research/probes/api-gating/`; the ADR 0006
+sixth amendment covers the `Complications`-module half of the same
+finding). This amendment folds that second kind into the *same* contract
+rather than inventing a second one: **a binding a target device lacks reads
+as absent on that device**, through the very same `when_absent:` path a
+null reading already takes -- `hide`/`placeholder`/`fallback` on an
+ordinary source, and the pattern-level `when_absent: hide` the amendment
+above just added, apply identically whether the value came back null at
+runtime or the device could never have supplied it at all. The author
+writes one policy; which of the two reasons triggered it is invisible to
+`when_absent:`, on purpose -- a design that binds `activity.
+stress_score` does not need a *second* absence policy for "and also
+fenix6 specifically."
+
+**Why one contract, not two.** The alternative -- a build error on a
+target that lacks a binding -- was rejected by the user for the same
+reason a hand-written Dashboard face already treats every sensor as
+optional (§3's own framing, "matching the practice the sibling Dashboard
+project arrived at by hand"): a value being unavailable on *some* watch is
+not a design defect, it is the platform. Constraint 8 ("every data field is
+nullable, absence is normal," root `CLAUDE.md` §4) already said this for
+runtime nulls; extending it to compile-time-known per-device gaps is not a
+new principle, only a wider set of reasons a value can be missing.
+
+**What is new at the mechanism level, not the policy level.**
+`wfb.availability` (new module) is what tells `wfb/emit/monkeyc.py`'s
+codegen *which* device gaps exist for a given design, aggregated over every
+target in one build (`compute_guards`) so the one shared generated view
+still emits one guard per gap, not one per device. See
+`docs/lore/codegen.md` for the mechanism and `docs/lore/platform-
+constraints.md` constraint 6d for the platform fact this rests on
+(`monkeyc` cannot catch this at compile time; only a device's own
+`api.debug.xml` can). The build **warns** rather than failing (lint
+`api-gated`) -- unchanged from every other absence in this ADR, which has
+never been a build error either.
+
+**What is unaffected.** A reader *function* some device lacks (none exist
+today among the readers this project uses) is still a hard build error, not
+folded into this contract -- the generator can gate a whole module or a
+bare field, because that is what a device's symbol table exposes
+structurally, but it has no mechanism to gate one function call out of a
+reader's `call` expression while keeping the rest, so that case is not
+"absence," it is "not buildable yet." See `wfb/catalog.py`'s `Reader.
+requires` docstring.

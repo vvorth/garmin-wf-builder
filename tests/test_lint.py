@@ -746,7 +746,7 @@ def test_a_device_without_onpress_is_reported_from_its_own_symbol_table(
 # COMPLICATION_TYPE_* are constants, not <functionEntry> symbols, and are
 # simply absent from every device's api.debug.xml (the review confirmed this
 # by grep, including for COMPLICATION_TYPE_BATTERY, the one type every target
-# supports unconditionally) -- so `check_complication_availability` compares
+# supports unconditionally) -- so `check_api_gated` compares
 # `since` against `Device.api_level` instead.
 
 COMPLICATION_DATA_DESIGN = """
@@ -809,8 +809,8 @@ def _resolved_for(write_design, bag, db, src: str, device_id: str, name: str = "
 
 def test_a_complication_above_the_devices_ceiling_warns_on_that_device(write_design, bag, db):
     resolved = _resolved_for(write_design, bag, db, COMPLICATION_DATA_DESIGN, "fr955")
-    lint.check_complication_availability(resolved, bag)
-    hits = [d for d in bag.items if d.code == "complication-gated"]
+    lint.check_api_gated(resolved, bag)
+    hits = [d for d in bag.items if d.code == "api-gated"]
     assert hits, bag.render()
     assert "score" in hits[0].message and "sleep_score" in hits[0].message
     assert "6.0.2" in hits[0].message and "5.2.0" in hits[0].message
@@ -824,8 +824,8 @@ def test_the_same_complication_is_silent_on_a_device_that_supports_it(write_desi
     `since` -- so the same binding that warns on fr955 must be silent here,
     in the same design."""
     resolved = _resolved_for(write_design, bag, db, COMPLICATION_DATA_DESIGN, "fenix8solar47mm")
-    lint.check_complication_availability(resolved, bag)
-    assert not [d for d in bag.items if d.code == "complication-gated"], bag.render()
+    lint.check_api_gated(resolved, bag)
+    assert not [d for d in bag.items if d.code == "api-gated"], bag.render()
 
 
 def test_an_ordinary_complication_type_never_fires_anywhere(write_design, bag, db):
@@ -840,8 +840,8 @@ def test_an_ordinary_complication_type_never_fires_anywhere(write_design, bag, d
     for device_id in ("fenix8solar47mm", "fenix8solar51mm", "fr955"):
         quiet = Bag()
         resolved = _resolved_for(write_design, quiet, db, design, device_id)
-        lint.check_complication_availability(resolved, quiet)
-        assert not [d for d in quiet.items if d.code == "complication-gated"], \
+        lint.check_api_gated(resolved, quiet)
+        assert not [d for d in quiet.items if d.code == "api-gated"], \
             (device_id, quiet.render())
 
 
@@ -852,8 +852,8 @@ def test_a_hold_target_above_the_devices_ceiling_warns_and_says_it_is_a_no_op(
     `WfbComplications.mc`'s `subscribe()` already absorbs both ways a device
     can decline a type."""
     resolved = _resolved_for(write_design, bag, db, COMPLICATION_HOLD_DESIGN, "fr955")
-    lint.check_complication_availability(resolved, bag)
-    hits = [d for d in bag.items if d.code == "complication-gated"]
+    lint.check_api_gated(resolved, bag)
+    hits = [d for d in bag.items if d.code == "api-gated"]
     assert hits, bag.render()
     assert "holding to launch" in hits[0].message
     assert "sleep_score" in hits[0].message
@@ -866,11 +866,11 @@ def test_complication_gated_is_suppressible_on_the_bound_element(write_design, b
     design = COMPLICATION_DATA_DESIGN.replace(
         "    color: palette.fg\n    at: {anchor: center}\n",
         "    color: palette.fg\n    at: {anchor: center}\n"
-        "    lint:\n      allow: [complication-gated]\n      reason: \"probing\"\n",
+        "    lint:\n      allow: [api-gated]\n      reason: \"probing\"\n",
     )
     resolved = _resolved_for(write_design, bag, db, design, "fr955")
-    lint.check_complication_availability(resolved, bag)
-    assert not [d for d in bag.items if d.code == "complication-gated"], bag.render()
+    lint.check_api_gated(resolved, bag)
+    assert not [d for d in bag.items if d.code == "api-gated"], bag.render()
 
 
 def test_complication_availability_degrades_honestly_without_an_api_level(
@@ -883,14 +883,384 @@ def test_complication_availability_degrades_honestly_without_an_api_level(
 
     resolved = _resolved_for(write_design, bag, db, COMPLICATION_DATA_DESIGN, "fr955")
     monkeypatch.setattr(type(resolved.device), "api_level", property(lambda self: "0.0.0"))
-    lint.check_complication_availability(resolved, bag)
+    lint.check_api_gated(resolved, bag)
     warnings = [d for d in bag.items
-                if d.code == "complication-gated" and d.severity == Severity.WARNING]
+                if d.code == "api-gated" and d.severity == Severity.WARNING]
     assert not warnings, bag.render()
     notes = [d for d in bag.items
-             if d.code == "complication-gated" and d.confidence
+             if d.code == "api-gated" and d.confidence
              and d.confidence.startswith("not checked")]
     assert notes and "complication" in notes[0].message.lower(), bag.render()
+
+
+# -- api-gated: the generalised cases beyond the complication-type-since check ------
+
+
+def _skip_unless_installed(db, *device_ids: str) -> None:
+    for device_id in device_ids:
+        if device_id not in db.ids():
+            pytest.skip(f"{device_id} not installed")
+
+
+FIELD_GAP_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f62
+  name: Test
+targets: [fenix6, fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: stress
+    type: text
+    value: activity.stress_score
+    format: "{:d}"
+    when_absent: hide
+    color: palette.fg
+    at: {anchor: center}
+"""
+
+MODULE_READ_DESIGN = FIELD_GAP_DESIGN.replace(
+    "value: activity.stress_score", "value: complication.body_battery")
+
+ON_HOLD_MODULE_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f63
+  name: Test
+targets: [fenix6, fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: hr
+    type: icon
+    icon: heart
+    size: 14%r
+    at: {anchor: center}
+    color: palette.fg
+    on_hold: body_battery
+"""
+
+SLOT_MODULE_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f64
+  name: Test
+targets: [fenix6, fenix8solar47mm, fr955]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+config:
+  data:
+    top:
+      default: complication.steps
+      choices: [complication.steps, complication.heart_rate]
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: top_reading
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+"""
+
+
+def test_api_gated_warns_for_a_field_gap(write_design, bag, db):
+    """Case 1 -- `activity.stress_score` reads `stressScore`, a plain field
+    fenix6 lacks (`tests/test_devices.py::test_fenix6_lacks_the_complications_
+    module_and_field`). Message names the field, the device, and says it
+    reads as absent; confidence calls out that a field's absence is exact."""
+    _skip_unless_installed(db, "fenix6")
+    resolved = _resolved_for(write_design, bag, db, FIELD_GAP_DESIGN, "fenix6")
+    lint.check_api_gated(resolved, bag)
+    hits = [d for d in bag.items if d.code == "api-gated"]
+    assert hits, bag.render()
+    assert hits[0].severity == Severity.WARNING
+    assert "stressScore" in hits[0].message and "fenix6" in hits[0].message
+    assert "reads as absent" in hits[0].message
+    assert "exact" in hits[0].confidence and "field" in hits[0].confidence
+
+
+def test_api_gated_is_silent_for_the_field_gap_on_fenix8(write_design, bag, db):
+    resolved = _resolved_for(write_design, bag, db, FIELD_GAP_DESIGN, "fenix8solar47mm")
+    lint.check_api_gated(resolved, bag)
+    assert not [d for d in bag.items if d.code == "api-gated"], bag.render()
+
+
+def test_api_gated_warns_for_a_complication_read_via_the_missing_module(write_design, bag, db):
+    """Case 1 again, but through a `complication.*` path's own module gate
+    (`Reader.requires_module`) -- and case 2 (the type-since check) must NOT
+    also fire for the same path: `body_battery` is since 4.2.0, well within
+    fenix6's ceiling if it had the module at all, so a second diagnostic here
+    would be the exact double-report the dedupe rule exists to prevent."""
+    _skip_unless_installed(db, "fenix6")
+    resolved = _resolved_for(write_design, bag, db, MODULE_READ_DESIGN, "fenix6")
+    lint.check_api_gated(resolved, bag)
+    hits = [d for d in bag.items if d.code == "api-gated"]
+    assert len(hits) == 1, bag.render()
+    assert "Complications" in hits[0].message and "fenix6" in hits[0].message
+    assert "reads as absent" in hits[0].message
+
+
+def test_api_gated_unguardable_function_is_an_error(write_design, bag, db, monkeypatch):
+    """Case 5 -- no installed device actually lacks a `Reader.requires`
+    function (see that field's own docstring), so this stubs one: `time.hour`
+    reads off the `clock` reader, which needs `System.getClockTime`. Pulling
+    that function out from under an otherwise-capable device is the only way
+    to reach the codegen's real blind spot (`wfb.availability.compute_guards`
+    only ever guards a module or a field, never a bare function), and the
+    result must be a build ERROR, not a warning -- silencing it would ship a
+    face that crashes on the wrist.
+    """
+    design = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f65
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: hour
+    type: text
+    value: time.hour
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+"""
+    resolved = _resolved_for(write_design, bag, db, design, "fenix8solar47mm")
+    real_has_symbol = type(resolved.device).has_symbol
+
+    def fake_has_symbol(self, qualified):
+        if qualified == "System.getClockTime":
+            return False
+        return real_has_symbol(self, qualified)
+
+    monkeypatch.setattr(type(resolved.device), "has_symbol", fake_has_symbol)
+    lint.check_api_gated(resolved, bag)
+    hits = [d for d in bag.items if d.code == "api-gated-unguardable"]
+    assert hits, bag.render()
+    assert hits[0].severity == Severity.ERROR
+    assert "System.getClockTime" in hits[0].message
+    assert "fenix8solar47mm" in hits[0].message
+    # not suppressible: it is not even in lint.SUPPRESSIBLE
+    assert "api-gated-unguardable" not in lint.SUPPRESSIBLE
+
+
+def test_api_gated_unguardable_is_not_silenced_by_lint_allow(write_design, bag, db, monkeypatch):
+    design = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f66
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: hour
+    type: text
+    value: time.hour
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+    lint:
+      allow: [api-gated-unguardable]
+      reason: "should not be allowed to silence this"
+"""
+    resolved = _resolved_for(write_design, bag, db, design, "fenix8solar47mm")
+    real_has_symbol = type(resolved.device).has_symbol
+
+    def fake_has_symbol(self, qualified):
+        if qualified == "System.getClockTime":
+            return False
+        return real_has_symbol(self, qualified)
+
+    monkeypatch.setattr(type(resolved.device), "has_symbol", fake_has_symbol)
+    lint.check_api_gated(resolved, bag)
+    hits = [d for d in bag.items if d.code == "api-gated-unguardable"]
+    assert hits, bag.render()
+
+
+def test_on_hold_module_gap_is_not_duplicated_with_hold_unsupported(write_design, bag, db):
+    """Case 3's dedupe rule: fenix6 lacks both `Complications` and `onPress`,
+    so `check_hold_targets` already fires `hold-unsupported` for the held
+    element -- `check_api_gated` must stay silent about the same hold rather
+    than saying the same "does nothing here" fact twice under a second code.
+    """
+    _skip_unless_installed(db, "fenix6")
+    resolved = _resolved_for(write_design, bag, db, ON_HOLD_MODULE_DESIGN, "fenix6")
+    lint.run(resolved, bag)
+    hold_hits = [d for d in bag.items if d.code == "hold-unsupported"]
+    api_gated_hits = [d for d in bag.items if d.code == "api-gated"]
+    assert hold_hits, bag.render()
+    assert not api_gated_hits, bag.render()
+
+
+def test_on_hold_module_gap_fires_standalone_when_onpress_is_available(
+        write_design, bag, db, monkeypatch):
+    """The other half of case 3: a (stubbed) device that has `onPress` but
+    not `Toybox.Complications` gets no help from `hold-unsupported` (it only
+    fires when `onPress` itself is missing), so `api-gated` must speak up on
+    its own -- fr955 really has `onPress`; only `Complications` is faked
+    absent here."""
+    resolved = _resolved_for(write_design, bag, db, ON_HOLD_MODULE_DESIGN, "fr955")
+    assert resolved.device.has_symbol("Toybox.WatchUi.WatchFaceDelegate.onPress") is True
+    real_has_module = type(resolved.device).has_module
+
+    def fake_has_module(self, name):
+        if name == "Complications":
+            return False
+        return real_has_module(self, name)
+
+    monkeypatch.setattr(type(resolved.device), "has_module", fake_has_module)
+    lint.run(resolved, bag)
+    hold_hits = [d for d in bag.items if d.code == "hold-unsupported"]
+    api_gated_hits = [d for d in bag.items if d.code == "api-gated"]
+    assert not hold_hits, bag.render()
+    assert api_gated_hits, bag.render()
+    assert "on_hold" in api_gated_hits[0].message
+    assert "Complications" in api_gated_hits[0].message and "fr955" in api_gated_hits[0].message
+
+
+def test_slot_module_gap_fires_alongside_config_unsupported_when_both_are_missing(
+        write_design, bag, db):
+    """Case 4 is deliberately NOT deduped against `config-unsupported`:
+    fenix6 has no native editor *and* no `Toybox.Complications`, and the two
+    warnings say different, both-true things -- `config-unsupported` (fixed
+    below to say so) that the slot shows its absent state rather than
+    "keeping its declared default" (the default is itself read through
+    `Toybox.Complications`, so a device missing that module cannot resolve
+    it either), and `api-gated` naming the same fact from `check_api_gated`'s
+    side. Contrast the `on_hold:`/`hold-unsupported` dedupe (case 3), which
+    stays a real dedupe because "the hold never fires" is true regardless of
+    whether `Complications` also works."""
+    _skip_unless_installed(db, "fenix6")
+    resolved = _resolved_for(write_design, bag, db, SLOT_MODULE_DESIGN, "fenix6")
+    lint.run(resolved, bag)
+    config_hits = [d for d in bag.items if d.code == "config-unsupported"]
+    api_gated_hits = [d for d in bag.items if d.code == "api-gated"]
+    assert config_hits, bag.render()
+    assert api_gated_hits, bag.render()
+    # config-unsupported must not claim the slot keeps a default it cannot
+    # actually resolve on a device that also lacks Complications.
+    assert "keep their declared defaults" not in config_hits[0].message
+    assert "config.data.top" in config_hits[0].message
+    assert "show as absent" in config_hits[0].message
+    assert "Complications" in config_hits[0].message
+    # api-gated says the same fact from the slot's own side.
+    assert "config.data.top" in api_gated_hits[0].message
+    assert "never the declared default" in api_gated_hits[0].message
+
+
+def test_config_unsupported_still_says_keeps_default_when_complications_works(
+        write_design, bag, db):
+    """The common case this fix must not break: fr955 lacks the editor but
+    *has* `Toybox.Complications`, so the slot's `default:` really can be
+    resolved and shown forever -- `config-unsupported`'s original wording
+    stays accurate, and `check_api_gated` has nothing to add (the module
+    check that gates case 4 is satisfied)."""
+    resolved = _resolved_for(write_design, bag, db, SLOT_MODULE_DESIGN, "fr955")
+    assert resolved.device.has_module("Complications") is True
+    lint.run(resolved, bag)
+    config_hits = [d for d in bag.items if d.code == "config-unsupported"]
+    api_gated_hits = [d for d in bag.items if d.code == "api-gated"]
+    assert config_hits, bag.render()
+    assert "keep their declared defaults" in config_hits[0].message
+    assert "config.data.top" in config_hits[0].message
+    assert not api_gated_hits, bag.render()
+
+
+def test_slot_module_gap_fires_standalone_when_the_editor_is_available(
+        write_design, bag, db, monkeypatch):
+    """The other half of case 4: a (stubbed) device that has the native
+    editor but not `Toybox.Complications` gets no help from
+    `config-unsupported` (it only fires when the editor itself is missing),
+    so `api-gated` must speak up on its own -- fenix8solar47mm really has
+    the editor; only `Complications` is faked absent here."""
+    resolved = _resolved_for(write_design, bag, db, SLOT_MODULE_DESIGN, "fenix8solar47mm")
+    from wfb.ir import CONFIG_SYMBOL
+    assert resolved.device.has_symbol(CONFIG_SYMBOL) is True
+    real_has_module = type(resolved.device).has_module
+
+    def fake_has_module(self, name):
+        if name == "Complications":
+            return False
+        return real_has_module(self, name)
+
+    monkeypatch.setattr(type(resolved.device), "has_module", fake_has_module)
+    lint.run(resolved, bag)
+    config_hits = [d for d in bag.items if d.code == "config-unsupported"]
+    api_gated_hits = [d for d in bag.items if d.code == "api-gated"]
+    assert not config_hits, bag.render()
+    assert api_gated_hits, bag.render()
+    assert "config.data.top" in api_gated_hits[0].message
+    assert "Complications" in api_gated_hits[0].message
+
+
+def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
+        write_design, bag, db):
+    """Cross-check against `wfb.availability.compute_guards`: every kind of
+    gap `check_api_gated` treats as a WARNING (reads-as-absent) must be a
+    kind the codegen can actually turn into a runtime guard, and the ERROR
+    kind must be exactly the one it cannot. `Guards` only ever has two
+    fields -- `complications` (a module) and `fields` (bare field names) --
+    never one for a function, which is precisely why `kind == "function"` is
+    promoted to the different, unsuppressible code."""
+    from dataclasses import fields as dc_fields
+
+    from wfb.availability import Guards, compute_guards
+
+    guards_field_names = {f.name for f in dc_fields(Guards)}
+    assert guards_field_names == {"complications", "fields"}
+
+    _skip_unless_installed(db, "fenix6")
+    face = load(write_design(FIELD_GAP_DESIGN), Bag())
+    assert face is not None
+    resolved = _resolved_for(write_design, bag, db, FIELD_GAP_DESIGN, "fenix6")
+    guards = compute_guards(face, [db.get("fenix6"), db.get("fenix8solar47mm")])
+    assert guards.fields == frozenset({"stressScore"})
+
+    lint.check_api_gated(resolved, bag)
+    warnings = [d for d in bag.items if d.code == "api-gated" and d.severity == Severity.WARNING]
+    assert warnings, bag.render()
+    # the field this WARNING is about is exactly one compute_guards flags
+    assert "stressScore" in warnings[0].message
+    assert "stressScore" in guards.fields
 
 
 def test_format_doc_lists_every_suppressible_code():

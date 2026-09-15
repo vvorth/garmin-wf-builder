@@ -20,36 +20,60 @@ from xml.sax.saxutils import escape
 from ..devices import Device
 from ..ir import Face
 
-#: The floor for generated faces.
+#: The floor for generated faces, and -- as of 2026-09-15 -- the *only*
+#: level this compiler ever emits.  ``manifest.xml`` is one file shared by
+#: every target device (`<iq:products>` lists them all under one
+#: `minApiLevel`), so raising it for a feature one device needs would raise
+#: it for every device in the same build, including targets that do not use
+#: that feature at all -- and, worse, a device whose own ConnectIQ ceiling
+#: sits *below* the raised floor cannot build at all even though nothing it
+#: lacks is unreachable on it (`examples/dashboard/face.yaml` targeting
+#: `fenix6`, ConnectIQ 3.4.5, is exactly this: it failed with
+#: `error[monkeyc]: Device 'fenix6' does not support API Level '4.2.0'`
+#: purely because the manifest carried a level the design's *other* targets
+#: needed, before this fix).
 #:
 #: Everything the generator emits -- ``Application.AppBase``, ``WatchUi.WatchFace``,
 #: custom bitmap fonts, and the ``Dc`` primitives in the element vocabulary --
 #: is documented at or below this level, and it sits far below every device this
-#: project targets (fr955 is 5.2.0; the fenix 8 Solar pair are 6.0.2).  Features
-#: that need more raise it through :data:`FEATURE_API_LEVELS`.
+#: project targets (fr955 is 5.2.0; the fenix 8 Solar pair are 6.0.2).
+#:
+#: A feature that needs a higher-level API (complications, API 4.2.0) is no
+#: longer handled by raising this floor.  Instead, every place the generated
+#: code would touch such a feature is guarded at *runtime* against the
+#: device that is actually running it, via `wfb.availability` --
+#: `Device.has_module`/`has_symbol`/`has_field`, never a level compare
+#: (CLAUDE.md constraint 6: `monkeyc` checks the SDK-wide API, not the
+#: device's, and a device's own ConnectIQ ceiling is not a reliable proxy for
+#: what it actually implements -- fr955 is 5.2.0 and still lacks
+#: `WatchFaceDelegate.onTap`). See `wfb/emit/monkeyc.py`'s guard emission
+#: (keyed off `wfb.availability.compute_guards`) and this module's own
+#: `permissions()` below, which still derives `ComplicationSubscriber` from
+#: the design regardless of whether every target can use it -- an
+#: unreachable permission declaration is harmless, unlike an unreachable
+#: `minApiLevel`.
+#:
+#: `config:` (the native on-device editor, ADR 0006 1) was always handled
+#: this way and never raised the floor: `docs/research/probes/
+#: watchface-config/` confirms `<watchface-config>` forces no `minApiLevel`
+#: bump, and the feature is gated entirely by
+#: `Device.has_symbol("WatchFaceConfig.getSettings")` (constraint 6: fr955
+#: reports 5.2.0, above the editor's documented 5.1.0, and still has no
+#: editor). Complications now follow the same shape, rather than being the
+#: one feature still bumping a shared floor.
 BASE_API_LEVEL = "3.2.0"
 
-#: Feature -> the API level it requires.  Resolved against each device's own
-#: symbol table as well; an API level alone is never treated as sufficient.
-#:
-#: `config:` (the native on-device editor, ADR 0006 1) is deliberately absent:
-#: `docs/research/probes/watchface-config/` confirms `<watchface-config>`
-#: forces no `minApiLevel` bump, and the feature is gated entirely by
-#: `Device.has_symbol("WatchFaceConfig.getSettings")` -- a runtime check, not
-#: a version compare (constraint 6: fr955 reports 5.2.0, above the editor's
-#: documented 5.1.0, and still has no editor).  An earlier version of this
-#: dict carried a "watchface_config": "5.1.0" entry that `wfb/emit/project.py`
-#: never actually added to a design's feature set; it is not restored here
-#: because doing so would raise the floor for every device, including one
-#: that never targets fr955, for a resource that does not need it.
-FEATURE_API_LEVELS: dict[str, str] = {
-    "complications": "4.2.0",
-}
 
+def api_level(face: Face) -> str:
+    """The floor every generated face declares -- always :data:`BASE_API_LEVEL`.
 
-def api_level(face: Face, features: set[str] = frozenset()) -> str:
-    levels = [BASE_API_LEVEL] + [FEATURE_API_LEVELS[f] for f in features if f in FEATURE_API_LEVELS]
-    return max(levels, key=lambda v: tuple(int(p) for p in v.split(".")))
+    Kept as a function, not a bare constant reference at the call site, so a
+    future feature that genuinely cannot be runtime-guarded (unlike
+    complications) has exactly one place to raise it again -- and so it
+    stays obvious from the name, at the `render()` call site below, that the
+    floor is a considered decision rather than a magic string.
+    """
+    return BASE_API_LEVEL
 
 
 def permissions(face: Face) -> list[str]:
@@ -88,7 +112,7 @@ def languages(devices: list[Device]) -> list[str]:
     return ["eng"]
 
 
-def render(face: Face, devices: list[Device], features: set[str] = frozenset()) -> str:
+def render(face: Face, devices: list[Device]) -> str:
     uuid = face.uuid.replace("-", "")
     lines = [
         '<?xml version="1.0"?>',
@@ -105,7 +129,7 @@ def render(face: Face, devices: list[Device], features: set[str] = frozenset()) 
         '                    name="@Strings.AppName"',
         f'                    entry="{face.entry}App"',
         '                    launcherIcon="@Drawables.LauncherIcon"',
-        f'                    minApiLevel="{api_level(face, features)}">',
+        f'                    minApiLevel="{api_level(face)}">',
         "        <iq:products>",
     ]
     for device in devices:

@@ -16,7 +16,7 @@ import difflib
 import math
 import re
 
-from . import catalog, complications
+from . import availability, catalog, complications
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
@@ -37,10 +37,15 @@ from .units import IntBox
 #: produces a face that does not work.
 SUPPRESSIBLE = frozenset({
     "palette-dither", "safe-area", "text-overflow", "contrast", "partial-update-budget",
-    "hold-unsupported", "hold-overlap", "complication-gated",
+    "hold-unsupported", "hold-overlap", "api-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
 })
+#: `api-gated-unguardable` is deliberately absent here -- see
+#: `check_api_gated`'s case 5: it means the generator would emit an unguarded
+#: call that crashes on a device that lacks it, the same "silencing this
+#: ships a broken face" reasoning the hard-platform-limit errors above it
+#: already follow.
 
 #: Every diagnostic code emitted anywhere in this compiler -- not just the
 #: checks in this file.  This is what lets :func:`check_lint_allow` tell a
@@ -52,7 +57,8 @@ SUPPRESSIBLE = frozenset({
 #: silently the way the two codes in Bug 1 did.
 ALL_CODES = frozenset({
     "antialias-dither",
-    "color", "color-scheme", "complication-gated", "complication-slot",
+    "api-gated", "api-gated-unguardable",
+    "color", "color-scheme", "complication-slot",
     "config", "config-unsupported",
     "contrast", "dead-element",
     "element-mapping",
@@ -87,7 +93,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_partial_update_budget(resolved, bag)
     check_hold_targets(resolved, bag)
     check_dead_element(resolved, bag)
-    check_complication_availability(resolved, bag)
+    check_api_gated(resolved, bag)
     check_graphics_pool(resolved, bag)
     check_static_overlap(resolved, bag)
     check_alpha(resolved, bag)
@@ -651,6 +657,18 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     compiles and runs every line `config:` generates; it just keeps the
     declared `default:` forever, which is a real, user-facing consequence of
     ADR 0006 2's chosen scope, not a bug -- and must not be silent.
+
+    **Except a `config.data.*` slot on a device that also lacks
+    `Toybox.Complications`** (fenix6, fenix6xpro, fr245 today): a slot's
+    `default:` is not a plain compiled constant the way
+    `accent_color`/`data_color`/`colors.<role>` are -- it is read through
+    `WfbComplications.valueOf` the same as any other choice, so a device
+    missing the module cannot resolve it either, and the slot shows its
+    absent state instead of "keeping" anything. That case is reported
+    separately below, with accurate wording, and is *not* the same fact as
+    `check_api_gated`'s own `api-gated` warning about the same slot -- see
+    that function's case 4 for why both fire together rather than one
+    deduping the other.
     """
     face = resolved.face
     if not face.has_config:
@@ -692,6 +710,27 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
         # `config-unsupported` to be about.
         return
     names = ", ".join(names_list)
+
+    # A config.data.* slot's own 'default:' is itself read through
+    # Toybox.Complications (WfbComplications.valueOf), not compiled in as a
+    # plain constant the way config.accent_color/data_color/colors.<role>
+    # are -- so on a device that *also* lacks that module (fenix6,
+    # fenix6xpro, fr245 today), "keeps its declared default forever" is
+    # false for a slot specifically: the default cannot resolve there
+    # either, and the slot shows its absent state instead. This is a
+    # genuinely different device population than "lacks the editor" (a
+    # fēnix 7-family device has the module but not the editor, and the
+    # claim below is correct there), so it is checked directly rather than
+    # assumed -- see check_api_gated's own case 4, which fires
+    # independently of this warning for exactly this reason.
+    has_complications = True
+    if slot_tokens:
+        has_complications = device.has_module("Complications")
+    kept_names_list = [n for n in names_list if n not in slot_tokens] + (
+        slot_tokens if has_complications else []
+    )
+    absent_slot_tokens: list[str] = [] if has_complications else slot_tokens
+
     # `_config_users`/`_config_colors_role_users`/`_slot_users` return raw IR
     # Elements, from `Face.walk()`, not the `resolved.items` layout wrappers
     # `_emit` expects -- so this routes through `_emit_for_element` instead,
@@ -704,13 +743,30 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
         users.extend(_config_colors_role_users(resolved.face, role))
     for name in face.config_data:
         users.extend(_slot_users(resolved.face, name))
-    notes = [
-        "the face still works: every element bound to a config.* colour, or "
-        "drawing a config.data.* slot, simply keeps its declared default "
-        "forever on this device",
+    notes = []
+    if kept_names_list:
+        if slot_tokens and has_complications:
+            notes.append(
+                "the face still works: every element bound to a config.* colour, or "
+                "drawing a config.data.* slot, simply keeps its declared default "
+                "forever on this device"
+            )
+        else:
+            notes.append(
+                "the face still works: every element bound to a config.* colour "
+                "simply keeps its declared default forever on this device"
+            )
+    if absent_slot_tokens:
+        notes.append(
+            "a config.data.* slot's own declared default is itself read through "
+            "Toybox.Complications, which this device also lacks -- so "
+            + ", ".join(absent_slot_tokens) + " show their absent state here instead of "
+            "any declared default (see the 'api-gated' warning for the same fact)"
+        )
+    notes.append(
         "this follows from ADR 0006 2's chosen scope -- the native editor is "
-        "fēnix 8 and newer only -- not from a missing feature in this compiler",
-    ]
+        "fēnix 8 and newer only -- not from a missing feature in this compiler"
+    )
     if len(non_default_entries) >= 1:
         notes.append(
             "with no editor to switch styles, every 'config: style:' entry but "
@@ -739,9 +795,22 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
             "nothing here binds a 'color:'/'track_color:'/'slot:' at all -- "
             "this is purely about the unreachable style entries named above"
         )
-    if names:
+    if kept_names_list and absent_slot_tokens:
+        message = (
+            f"{device.id}: has no on-device watch face editor, so "
+            f"{', '.join(kept_names_list)} keep their declared defaults here; it also "
+            f"lacks Toybox.Complications, so {', '.join(absent_slot_tokens)} show as "
+            f"absent here instead"
+        )
+    elif kept_names_list:
         message = (f"{device.id}: has no on-device watch face editor, so "
-                   f"{names} keep their declared defaults here")
+                   f"{', '.join(kept_names_list)} keep their declared defaults here")
+    elif absent_slot_tokens:
+        message = (
+            f"{device.id}: has no on-device watch face editor, and also lacks "
+            f"Toybox.Complications, so {', '.join(absent_slot_tokens)} show as absent "
+            f"here rather than their declared defaults"
+        )
     else:
         message = (f"{device.id}: has no on-device watch face editor, so "
                    f"every 'config: style:' entry but the default is stuck there")
@@ -1220,59 +1289,146 @@ def _overlapping(held: list) -> list[tuple]:
     return out
 
 
-# -- complication gating -----------------------------------------------------
+# -- api gating ---------------------------------------------------------------
 
 
-def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
-    """Does this device actually know the complication types this design uses?
+def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
+    """Does *this* device actually have what this design's bindings need?
 
-    The obvious fix -- wiring `catalog.Source.requires` through
-    `Device.has_symbol`, the way `check_hold_targets` resolves `onPress` --
-    was investigated and does not work: `COMPLICATION_TYPE_*` values are
-    constants, not `<functionEntry>` symbols, and simply do not appear in a
-    device's `api.debug.xml` at all (confirmed by grep against the real
-    vendored files for `COMPLICATION_TYPE_BATTERY`, the one type every target
-    is documented to support unconditionally -- it is absent from all three).
-    So this checks the thing that *does* carry the information:
-    `wfb.complications.ComplicationType.since`, the API level the SDK
-    introduced that type at (`Toybox/Complications.html`'s own Type table),
-    against `Device.api_level`, the device's own ConnectIQ ceiling
-    (`compiler.json`'s `connectIQVersion`). Unlike `check_hold_targets`'s
-    `onPress` question, a level comparison *is* honest here: `since` is
-    exactly the number the SDK publishes for a type's introduction, not an
-    inferred floor a device might silently miss (constraint 6's `onTap` trap
-    was about a *method* documented at one level and absent on a device above
-    it -- there is no equivalent "documented since but device doesn't really
-    have it" case known for a `COMPLICATION_TYPE_*` constant).
+    Generalises the old `complication-gated` check (renamed here outright,
+    no shim -- CLAUDE.md's standing rule against keeping a renamed thing
+    around) to *every* catalogue read a design binds, not only
+    `complication.*`, now that `wfb.availability` resolves any source path
+    against the device's own `api.debug.xml` (module/field) the same way
+    this file's `check_hold_targets` already resolved `onPress`
+    (`Device.has_symbol`). See `wfb/availability.py`'s module docstring and
+    `docs/research/probes/api-gating/README.md` (2026-09-15, user decision):
+    a target device that lacks a module or a field the design reads gets a
+    runtime `has`-guard in the one shared generated view
+    (`wfb.availability.compute_guards`, `wfb/emit/monkeyc.py`), and the
+    binding simply *reads as absent* there -- the same `when_absent`
+    contract every nullable source already has (CLAUDE.md constraint 8) --
+    rather than failing the build. This check is the human-facing half of
+    that policy: it tells the author *which* binding degrades on *which*
+    device and why, at build time, not on the wrist.
 
-    Two things a design can do with a gated type, both checked here, both
-    producing the same silent-degradation outcome at runtime rather than a
-    crash: **read** it (`complication.<name>` in `value:`/`color:`/etc, via
-    `Complications.getComplication` returning null -- the ordinary "absence is
-    normal" contract every nullable source already has) or **hold to launch
-    it** (`on_hold:`, via
-    `Complications.subscribeToUpdates` returning `false` or throwing
-    `ComplicationNotFoundException` -- both already caught, uniformly, by
-    `WfbComplications.mc`'s `subscribe()`). Either way the face still works;
-    the warning exists so the author can decide "fine, it just never updates
-    there" instead of discovering it on the wrist.
+    Five cases below, one code (`api-gated`, WARNING, suppressible) except
+    the last, which is a different code on purpose:
 
-    A WARNING, not an error (SPEC2 D1): runtime degrades gracefully, and an
-    error would force dropping a target or a source that is fine on the other
-    two devices.
+    1. **A catalogue read** -- any `value:`/`color:`/etc. source path an
+       element binds that `wfb.availability.source_unavailable` says the
+       device's own module or field table lacks. Covers every
+       `complication.*` read via its reader's `Toybox.Complications` gate
+       for free (`catalog.Reader.requires_module`), and every plain field
+       read (`activity.stress_score` on fenix6, `ambient.pressure` on
+       fr245, ...) the same way.
+    2. **A complication *type* newer than the device's own ConnectIQ
+       ceiling** (`ComplicationType.since` vs `Device.api_level`) -- the
+       original `complication-gated` check, kept close to verbatim (the
+       investigation in its old docstring still holds: `COMPLICATION_TYPE_*`
+       values are constants, not `<functionEntry>` symbols, so they never
+       appear in a device's `api.debug.xml` at all -- a level compare
+       against `since` is the only thing that *can* catch this one). Run
+       only when the device actually *has* `Toybox.Complications`: a device
+       missing the whole module is already case 1's (for a read) or case
+       3/4's (for a hold/slot) more fundamental cause, and reporting both
+       would say the same thing about the same binding twice -- "cut the
+       whole path, not one branch," read the other way round: report the
+       one path that is actually cut.
+    3. **`on_hold:` on a device with no `Toybox.Complications`** -- the hold
+       compiles to `Complications.exitTo`, which does nothing there
+       (guarded by the same `Toybox has :Complications` the generated
+       delegate already carries). Skipped when `check_hold_targets` already
+       fires `hold-unsupported` for this element -- the device also lacks
+       `onPress`, so the hold cannot even be triggered there, and that
+       warning already says so. Every installed device missing
+       `Complications` (fenix6, fenix6xpro, fr245) also lacks `onPress`
+       today, but this does not assume that stays true of every future
+       device -- it checks `onPress` directly.
+    4. **A `complication_slot` (`config: data:`) on a device with no
+       `Toybox.Complications`** -- the slot cannot resolve *any* type there,
+       `default:` included (`WfbComplications.valueOf`'s `Complications.Id`
+       construction is itself guarded), so it shows its absent state
+       forever, never the declared default. **Not** deduped against
+       `check_config_support`'s `config-unsupported` -- the two are
+       different facts, not the same one said twice: `config-unsupported`
+       (fired when the device merely lacks the *editor*) says the slot
+       "keeps its declared default forever", which is true only when the
+       device can still resolve that default through `Toybox.Complications`.
+       On a device missing *both* (fenix6, fenix6xpro, fr245 today), that
+       claim is false -- the default itself reads as null under the guard --
+       so both warnings fire, each correct about a different half of the
+       truth, and `check_config_support`'s own message is adjusted to say so
+       (see that function). Contrast case 3: a hold is deduped against
+       `hold-unsupported` because "it never fires" stays true regardless of
+       whether `Complications` also works -- there is no second fact being
+       hidden there.
+    5. **A missing *function* symbol** (`Unavailable.kind == "function"`,
+       from a reader's own `catalog.Reader.requires` or a
+       `catalog.Source.requires` entry). `wfb.availability.compute_guards`
+       and `wfb/emit/monkeyc.py` only ever guard a *module* or a *field* at
+       runtime (`Toybox has :Module`, `x has :field`) -- there is no guard
+       for an individual function, so the generated call would run
+       unguarded and crash on a device that lacks it. "Reads as absent"
+       would be a lie here, so this is a build **ERROR**, under the
+       distinct code `api-gated-unguardable`, deliberately left out of
+       `SUPPRESSIBLE` for the same reason the hard-platform-limit checks
+       are (this module's own docstring): suppressing it would ship a face
+       that crashes on the wrist. No installed device triggers this today
+       -- every `Reader.requires` function is confirmed present on every
+       currently-installed device (`catalog.Reader.requires`'s own
+       docstring), and after this task the catalogue has no `Source.requires`
+       entry left at all (`device.do_not_disturb`'s was a bug -- see
+       `catalog.Source.requires`'s docstring) -- so it is only reachable
+       with a stubbed device, exercised in
+       `tests/test_lint.py::test_api_gated_unguardable_function_is_an_error`.
     """
-    candidates: list[tuple] = []  # (placed, complication_name, span, kind)
+    device = resolved.device
+    try:
+        has_complications = device.has_module("Complications")
+        has_onpress = device.has_symbol(_HOLD_SYMBOL)
+    except Exception:
+        bag.note(
+            "api-gated",
+            f"{device.id}: no symbol table, so API-level gating is not checked",
+            confidence="not checked -- the device's api.debug.xml is unavailable",
+        )
+        return
+
+    candidates: list[tuple] = []  # (placed, complication_name, span, kind) -- case 2 only
     for placed in resolved.items:
         element = placed.element
         for expression in element.expressions():
             for path in expression.sources:
-                if not path.startswith("complication."):
-                    continue
-                name = path[len("complication."):]
-                if complications.get(name) is not None:
-                    candidates.append((placed, name, expression.span or element.span, "read"))
+                gap = availability.source_unavailable(path, device)
+                span = expression.span or element.span
+                if gap is not None:
+                    _emit_source_gap(bag, placed, path, span, gap, device)
+                if (has_complications and path.startswith("complication.")
+                        and complications.get(path[len("complication."):]) is not None):
+                    candidates.append((placed, path[len("complication."):], span, "read"))
+
         if element.on_hold is not None and complications.get(element.on_hold) is not None:
-            candidates.append((placed, element.on_hold, element.span, "hold"))
+            if has_complications:
+                candidates.append((placed, element.on_hold, element.span, "hold"))
+            elif not has_onpress:
+                pass  # hold-unsupported (check_hold_targets) already says so
+            else:
+                _emit(bag, placed, Diagnostic(
+                    Severity.WARNING,
+                    "api-gated",
+                    f"{placed.id}: on_hold: {element.on_hold!r} needs Toybox.Complications, "
+                    f"which {device.id} lacks, so it never fires there",
+                    element.span,
+                    notes=[
+                        "the generated delegate guards this call with 'Toybox has "
+                        ":Complications' (wfb.availability.compute_guards) -- the hold "
+                        "compiles in but is a silent no-op here, not a crash",
+                        "the face still works; the element itself still draws as usual",
+                    ],
+                    confidence=f"exact -- {device.id}'s own api.debug.xml",
+                ))
+
         if isinstance(element, ComplicationSlot):
             # `default:` is checked unconditionally -- it is compiled in and
             # is the only type a device with no native editor (fr955) ever
@@ -1284,11 +1440,96 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
             # unrestricted picker instead.
             slot = resolved.face.config_data.get(element.slot)
             if slot is not None:
-                choices = (slot.default,) if slot.allow_any else slot.choices
-                for name in choices:
-                    if complications.get(name) is not None:
-                        candidates.append((placed, name, element.span, "slot"))
+                if has_complications:
+                    choices = (slot.default,) if slot.allow_any else slot.choices
+                    for name in choices:
+                        if complications.get(name) is not None:
+                            candidates.append((placed, name, element.span, "slot"))
+                else:
+                    # Not deduped against `config-unsupported` (see this
+                    # function's own docstring, case 4): that warning, when
+                    # it also fires because this device lacks the editor
+                    # too, says the slot "keeps its declared default" --
+                    # true only if the default can still be resolved through
+                    # `Toybox.Complications`. It cannot here, so this is a
+                    # genuinely separate fact and fires independently of
+                    # whether the editor is present or absent.
+                    _emit(bag, placed, Diagnostic(
+                        Severity.WARNING,
+                        "api-gated",
+                        f"{placed.id}: slot config.data.{element.slot} needs "
+                        f"Toybox.Complications, which {device.id} lacks, so it shows its "
+                        f"absent state here -- never the declared default",
+                        element.span,
+                        notes=[
+                            "the generated code guards every reference to Complications "
+                            "for this slot (wfb.availability.compute_guards) -- this is "
+                            "silent, not a crash",
+                            "the slot's own 'default:' is itself read through "
+                            "WfbComplications.valueOf, so it is just as unreachable here "
+                            "as any other choice -- there is no fallback to a compiled-in "
+                            "value on a device with no Complications module at all",
+                        ],
+                        confidence=f"exact -- {device.id}'s own api.debug.xml",
+                    ))
 
+    _check_complication_since(bag, resolved, candidates)
+
+
+def _emit_source_gap(bag: Bag, placed, path: str, span, gap: "availability.Unavailable",
+                      device: Device) -> None:
+    """Case 1 (module/field, WARNING) and case 5 (function, ERROR) of
+    :func:`check_api_gated` -- factored out because both the plain
+    catalogue-read loop and (indirectly, via `source_unavailable`) every
+    kind of gap funnel through here."""
+    if gap.kind == "function":
+        _emit(bag, placed, Diagnostic(
+            Severity.ERROR,
+            "api-gated-unguardable",
+            f"{placed.id}: {path!r} needs {gap.symbol}, which {device.id} lacks -- the "
+            f"generator cannot gate this call yet",
+            span,
+            notes=[
+                "wfb.availability.compute_guards only ever emits a runtime guard for a "
+                "missing module ('Toybox has :Module') or field ('x has :field') -- there "
+                "is no guard for an individual missing function, so this call would run "
+                "unguarded and crash on this device",
+                "drop this target, drop the binding, or add a guard for "
+                f"{gap.symbol!r} to wfb/emit/monkeyc.py before shipping this",
+            ],
+            confidence="exact -- the device's own api.debug.xml",
+        ))
+        return
+    need = f"module Toybox.{gap.symbol}" if gap.kind == "module" else f"field {gap.symbol!r}"
+    confidence = f"exact -- {device.id}'s own api.debug.xml"
+    if gap.kind == "field":
+        confidence += " (a bare field name's absence from its symbol table is exact)"
+    _emit(bag, placed, Diagnostic(
+        Severity.WARNING,
+        "api-gated",
+        f"{placed.id}: {path!r} needs {need}, which {device.id} lacks, so it reads as "
+        f"absent there ('when_absent' applies)",
+        span,
+        notes=[
+            f"confirmed against {device.id}'s own api.debug.xml -- " + (
+                "not one of its <dataEntry type=\"module\"> rows"
+                if gap.kind == "module" else
+                f"{gap.symbol!r} is not one of its <symbolTable> field entries"
+            ),
+            "the generated view guards this at runtime (wfb.availability.compute_guards) "
+            "-- the build still succeeds; only this binding degrades on this device",
+        ],
+        confidence=confidence,
+    ))
+
+
+def _check_complication_since(bag: Bag, resolved: ResolvedFace, candidates: list[tuple]) -> None:
+    """Case 2 of :func:`check_api_gated`: a complication *type* introduced
+    after the device's own ConnectIQ ceiling, on a device that otherwise has
+    `Toybox.Complications` -- see that function's docstring for why a level
+    compare is the only thing that can catch this one, and why `candidates`
+    only ever holds entries from a device that has the module at all.
+    """
     if not candidates:
         return
 
@@ -1302,7 +1543,7 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
         # degrades honestly instead of firing a warning against every
         # gated type it happens to see.
         bag.note(
-            "complication-gated",
+            "api-gated",
             f"{device.id}: no ConnectIQ version found in compiler.json, so "
             f"complication-type availability is not checked",
             confidence="not checked -- the device's compiler.json has no usable "
@@ -1321,7 +1562,7 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
         if kind == "hold":
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
-                "complication-gated",
+                "api-gated",
                 f"{placed.id}: holding to launch {name!r} needs ConnectIQ {ctype.since}, "
                 f"but {device.id} tops out at {device_level}",
                 span,
@@ -1338,7 +1579,7 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
         elif kind == "slot":
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
-                "complication-gated",
+                "api-gated",
                 f"{placed.id}: slot config.data.{placed.element.slot}'s "
                 f"'complication.{name}' needs ConnectIQ {ctype.since}, but "
                 f"{device.id} tops out at {device_level}",
@@ -1357,7 +1598,7 @@ def check_complication_availability(resolved: ResolvedFace, bag: Bag) -> None:
         else:
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
-                "complication-gated",
+                "api-gated",
                 f"{placed.id}: 'complication.{name}' needs ConnectIQ {ctype.since}, "
                 f"but {device.id} tops out at {device_level}",
                 span,

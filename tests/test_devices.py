@@ -66,6 +66,48 @@ def test_unknown_symbol_is_false_not_an_error(device):
     assert device.has_symbol("Toybox.WatchUi.WatchFaceDelegate.onNothing") is False
 
 
+# -- has_module / has_field (wfb/availability.py's foundation) ---------------
+
+
+def test_fenix6_lacks_the_complications_module_and_field(db):
+    """fenix6 is ConnectIQ 3.4.5, below Complications' 4.2.0 floor -- and,
+    unlike a missing *function*, it lacks the module symbol entirely."""
+    if "fenix6" not in db.ids():
+        pytest.skip("fenix6 not installed")
+    fenix6 = db.get("fenix6")
+    assert fenix6.has_module("Complications") is False
+    assert fenix6.has_field("stressScore") is False
+
+
+def test_fr245_lacks_floors_climbed_but_has_the_complications_gap_too(db):
+    if "fr245" not in db.ids():
+        pytest.skip("fr245 not installed")
+    fr245 = db.get("fr245")
+    assert fr245.has_field("floorsClimbed") is False
+    assert fr245.has_module("Complications") is False
+
+
+def test_fenix8_has_every_module_and_field_the_lower_devices_lack(db):
+    f8 = db.get("fenix8solar47mm")
+    assert f8.has_module("Complications") is True
+    assert f8.has_field("stressScore") is True
+    assert f8.has_field("floorsClimbed") is True
+
+
+def test_every_target_has_weather_and_solar_intensity(db):
+    """A module/field every installed device shares -- the negative control:
+    `has_module`/`has_field` must not report every gap, only real ones."""
+    for device_id in db.ids():
+        device = db.get(device_id)
+        assert device.has_module("Weather") is True, device_id
+        assert device.has_field("solarIntensity") is True, device_id
+
+
+def test_unknown_module_and_field_are_false_not_errors(device):
+    assert device.has_module("NoSuchToyboxModule") is False
+    assert device.has_field("noSuchField") is False
+
+
 def test_unknown_device_names_the_installed_ones(db):
     from wfb.devices import DeviceError
 
