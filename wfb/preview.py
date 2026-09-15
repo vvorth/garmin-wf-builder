@@ -28,7 +28,7 @@ from .ir import Progress, Shape, Text
 from .layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
     PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
-    complication_slot_pair_geometry,
+    complication_slot_pair_geometry, pattern_text_anchor,
 )
 from .palette import MIP64_LEVELS, Color
 
@@ -410,7 +410,9 @@ class _Renderer:
         A polygon/line/circle part reuses `_hand_part` (a pattern part is
         authored exactly like a hand part, §5.2); an `arc` part has no
         rotate-the-vertices equivalent -- its *start angle* turns with the
-        copy instead (`_pattern_arc`).
+        copy instead (`_pattern_arc`); a `text` part draws upright glyphs
+        at the copy's own rounded anchor instead of rotating vertices
+        (`_pattern_text`, plan 06 §3.4).
 
         `when_absent: hide` (B7, 2026-09-15): the device reads every
         nullable source a pattern's colours/part `visible:`s use once, before
@@ -437,6 +439,8 @@ class _Renderer:
                     continue
                 if part.shape == "arc":
                     self._pattern_arc(part, ox, oy, index, placed, s, values)
+                elif part.shape == "text":
+                    self._pattern_text(part, ox, oy, sin_t, cos_t, index, values)
                 else:
                     self._hand_part(part, cx, cy, s, sin_t, cos_t, values)
 
@@ -495,6 +499,28 @@ class _Renderer:
             self.draw.arc([cx - r, cy - r, cx + r, cy + r], *span,
                           fill=fill, width=max(1, part.thickness * s))
 
+    def _pattern_text(self, part, ox: float, oy: float, sin_t: float, cos_t: float,
+                      index: int, values: dict) -> None:
+        """A `shape: text` template part (plan 06 §3.4): upright glyphs at
+        this copy's own anchor, rounded the same half-up way
+        `runtime-lib/WfbGeom.mc`'s `drawTextRotated` rounds it on the
+        device (:func:`pattern_text_anchor`) -- the anchor *turns* (radial)
+        or *steps* (linear) with the copy, but the glyphs themselves never
+        rotate, exactly as `_hand_part`'s vertex rotation does not apply to
+        them (plan 05 §5.2's "upright text is not rotation-invariant").
+        Draws through the very same `_draw_text` a `text` element uses
+        (`_text`), so a pattern's numerals and a standalone `text` element
+        can never disagree about how a font/align/vertical_align combination
+        looks.
+        """
+        text = part.texts[index]
+        color = self._color(part.color, values)
+        anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
+        font: BakedFont | None = (
+            self.resolved.fonts.get(part.font_reference) if part.font_is_custom else None
+        )
+        self._draw_text(font, text, anchor, part.align, part.vertical_align, part.font_px, color)
+
     def _text(self, placed: PlacedText) -> None:
         element = placed.element
         text = self._text_value(placed)
@@ -504,10 +530,8 @@ class _Renderer:
         font: BakedFont | None = (
             self.resolved.fonts.get(placed.font_reference) if placed.font_is_custom else None
         )
-        if font is not None:
-            self._blit_bitmap_text(font, text, placed, color)
-        else:
-            self._approximate_text(text, placed, color)
+        self._draw_text(font, text, placed.anchor_point, element.align, element.vertical_align,
+                        placed.font_px, color, box=placed.box)
 
     def _progress(self, placed: PlacedProgress) -> None:
         element = placed.element
@@ -812,19 +836,38 @@ class _Renderer:
                 return None
         return formatting.render(spec, value, value_type)
 
-    def _blit_bitmap_text(self, font: BakedFont, text: str, placed: PlacedText,
-                          color: tuple[int, int, int]) -> None:
+    def _draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
+                   align: str, vertical_align: str, font_px: int,
+                   color: tuple[int, int, int], box=None) -> None:
+        """Draw `text` upright at `anchor`, exactly as a `text` element and a
+        pattern `shape: text` part both want (plan 06 §3.4 B3): through the
+        baked sheet when `font` is a custom one, the Pillow stand-in
+        otherwise. The one place either kind of element actually puts ink
+        down, so `_text` and `_pattern_text` cannot drift apart. `box`, an
+        `IntBox` or `None`, is only ever used by the rare "no scalable
+        system face at all" fallback in `_approximate_text` -- a `text`
+        element has one (its own resolved box) to outline instead of
+        drawing nothing; a pattern text part has none to give, so it simply
+        draws nothing in that (untested, essentially unreachable) case.
+        """
+        if font is not None:
+            self._blit_bitmap_text(font, text, anchor, align, vertical_align, font_px, color, box)
+        else:
+            self._approximate_text(text, anchor, align, vertical_align, font_px, color, box)
+
+    def _blit_bitmap_text(self, font: BakedFont, text: str, anchor: tuple[int, int],
+                          align: str, vertical_align: str, font_px: int,
+                          color: tuple[int, int, int], box=None) -> None:
         """Draw with the *baked sheet*, so the preview shows the real glyphs."""
         sheet = getattr(font, "sheet_image", None)
         s = self.scale
         width, _ = font.measure(text)
-        x, y = placed.anchor_point[0] * s, placed.anchor_point[1] * s
-        element = placed.element
-        left = {"left": x, "center": x - width * s / 2, "right": x - width * s}[element.align]
-        top = y - font.line_height * s / 2 if element.vertical_align == "center" else y
+        x, y = anchor[0] * s, anchor[1] * s
+        left = {"left": x, "center": x - width * s / 2, "right": x - width * s}[align]
+        top = y - font.line_height * s / 2 if vertical_align == "center" else y
 
         if sheet is None:
-            self._approximate_text(text, placed, color)
+            self._approximate_text(text, anchor, align, vertical_align, font_px, color, box)
             return
         pen = left
         for char in text:
@@ -851,7 +894,8 @@ class _Renderer:
         position = (int(x + glyph.xoffset * s), int(y + glyph.yoffset * s))
         self.image.paste(tint, position, tile)
 
-    def _approximate_text(self, text: str, placed: PlacedText, color) -> None:
+    def _approximate_text(self, text: str, anchor: tuple[int, int], align: str,
+                          vertical_align: str, font_px: int, color, box=None) -> None:
         """Draw system-font text with the same stand-in `wfb.layout` measured.
 
         The real device faces are not available anywhere (see
@@ -861,18 +905,20 @@ class _Renderer:
         this one size, they cannot disagree.
         """
         s = self.scale
-        face = fallback.font_for_height(placed.font_px * s)
+        face = fallback.font_for_height(font_px * s)
         if face is None:
             # No scalable face at all: fall back to marking the extent, which is
-            # more honest than drawing text at the wrong size.
-            self.draw.rectangle(self._rect(placed.box), outline=(64, 64, 64), width=1)
+            # more honest than drawing text at the wrong size -- only possible
+            # for a `text` element, which has a `box` to outline; a pattern
+            # text part (`box is None`) simply draws nothing here.
+            if box is not None:
+                self.draw.rectangle(self._rect(box), outline=(64, 64, 64), width=1)
             return
 
-        x = placed.anchor_point[0] * s
-        y = placed.anchor_point[1] * s
-        element = placed.element
-        anchor_x = {"left": "l", "center": "m", "right": "r"}[element.align]
-        anchor_y = "m" if element.vertical_align == "center" else "a"
+        x = anchor[0] * s
+        y = anchor[1] * s
+        anchor_x = {"left": "l", "center": "m", "right": "r"}[align]
+        anchor_y = "m" if vertical_align == "center" else "a"
         self.draw.text((x, y), text, fill=color, font=face, anchor=anchor_x + anchor_y)
 
     # -- shared -----------------------------------------------------------
