@@ -75,37 +75,144 @@ targets:
 # Every colour below -- palette, color_scheme and config alike -- is one the
 # 64-colour MIP panel can show without dithering: each channel is 0x00, 0x55,
 # 0xAA or 0xFF.
+
+fonts:
+  hourfont:
+    # source: assets/MonteCarlo-Regular.ttf
+    source: assets/Dynalight-Regular.ttf
+    size: 30%r
+    antialias: true
+
 palette:
-  black: "#000000"
-  white: "#FFFFFF"
-  dark_gray: "#555555"
-  light_gray: "#AAAAAA"
-  orange: "#FF5500"
-  cyan: "#00FFFF"
+  # Primary Neutrals:
+  white: { value: "#FFFFFF", label: "White" }
+  black: { value: "#000000", label: "Black" }
+  light_gray: { value: "#AAAAAA", label: "Light Gray" }
+  dark_gray: { value: "#555555", label: "Dark Gray" }
+  # High-Visibility Accents (100% Saturation):
+  yellow: { value: "#FFFF00", label: "Yellow" }
+  cyan: { value: "#00FFFF", label: "Cyan" }
+  green: { value: "#00FF00", label: "Green" }
+  red: { value: "#FF0000", label: "Red" }
+  orange: { value: "#FF5500", label: "Orange" }
+  #
+  amber: { value: "#FFAA00", label: "Amber" }
+  magenta: { value: "#FF00FF", label: "Magenta" }
+  sky_blue: { value: "#00AAFF", label: "Sky Blue" }
+  lime_green: { value: "#AAFF00", label: "Lime Green" }
+  light_blue: { value: "#55FFFF", label: "Light Blue" }
+  #avoid
+  dark_blue: { value: "#0000FF", label: "Dark Blue" }
+  darker_blue: { value: "#0000AA", label: "Darker Blue" }
+  darkest_blue: { value: "#000055", label: "Darkest Blue" }
+  # have poor reflectivity. They turn into brownish-gray smudges on MIP.
+  dark_olive: { value: "#555500", label: "Dark Olive" }
+  maroon: { value: "#550000", label: "Maroon" }
+  dark_green: { value: "#005500", label: "Dark Green" }
 
 color_scheme:
   dark:
     label: "Dark"
-    colors: { bg: palette.black, fg: palette.white, track: palette.dark_gray }
+    colors: { bg: palette.black, fg: palette.white, track: palette.light_gray }
   light:
     label: "Light"
     colors: { bg: palette.white, fg: palette.black, track: palette.light_gray }
+  blue:
+    label: "Blue"
+    colors: { bg: palette.darkest_blue, fg: palette.white, track: palette.light_gray }
+  green:
+    label: "Blue"
+    colors: { bg: palette.dark_green, fg: palette.white, track: palette.light_gray }
 
 config:
   accent_color:
     default: palette.orange
-    choices: [palette.orange, palette.cyan, palette.white]
+    choices: [palette.orange, palette.cyan, palette.white, palette.red]
   style:
-    default: classic_dark
+    default: classic_green
     choices:
+      classic_blue: { label: "Classic · Blue", layout: classic, colors: blue }
+      classic_green: { label: "Classic · Green", layout: classic, colors: green } 
       classic_dark: { label: "Classic · Dark", layout: classic, colors: dark }
-      classic_light: { label: "Classic · Light", layout: classic, colors: light }
+      classic_light: { label: "Classic AI · Dark", layout: classic_generated, colors: dark }
       sport: { label: "Sport", layout: sport, colors: dark }
 
 # One named set per style, drawn pointing at 12 o'clock in a frame whose
 # origin is the axis (docs/format.md "Analog hands").
 hands:
   classic:
+    hour:
+      # color: config.colors.fg
+      parts:
+        - shape: polygon # backgrouond colored outline, same shape, a little bigger
+          color: palette.black
+          points: # background
+            - { dx:  -1%r, dy:  21%r }
+            - { dx:   1%r, dy:  21%r }
+            - { dx: -10%r, dy:  -1%r }
+            - { dx:  -2%r, dy: -71%r } # the tip, straight up
+            - { dx:   2%r, dy: -71%r } # the tip, straight up
+            - { dx:  10%r, dy:  -1%r }
+        - shape: polygon
+          color: config.colors.fg
+          points: # arrow
+            - { dx:   0%r, dy:  20%r }
+            - { dx:  -9%r, dy:  -1%r }
+            - { dx:  -1%r, dy: -70%r } # the tip, straight up
+            - { dx:   1%r, dy: -70%r } # the tip, straight up
+            - { dx:   9%r, dy:  -1%r }
+        - shape: polygon
+          color: config.colors.track #todo
+          points: # shade
+            - { dx:   0%r, dy:  16%r }
+            - { dx:  -7%r, dy:  -1%r }
+            - { dx:   0%r, dy: -60%r } # the tip, straight up
+        
+    minute:
+      color: config.colors.fg
+      parts:
+        - shape: polygon
+          color: palette.black
+          points: # background
+            - { dx:  -2%r, dy:  18%r }
+            - { dx:  -6%r, dy:  -1%r }
+            - { dx:  -2%r, dy: -96%r } # the tip, straight up
+            - { dx:   2%r, dy: -96%r } # the tip, straight up
+            - { dx:   6%r, dy:  -1%r }
+            - { dx:   2%r, dy:  19%r }
+        - shape: polygon
+          color: config.colors.fg
+          points: # arrow
+            - { dx:  -1%r, dy:  17%r }
+            - { dx:  -5%r, dy:  -1%r }
+            - { dx:   0%r, dy: -95%r } # the tip, straight up
+            - { dx:   1%r, dy: -95%r } # the tip, straight up
+            - { dx:   5%r, dy:  -1%r }
+            - { dx:   1%r, dy:  18%r }
+        - shape: polygon
+          color: config.colors.track #todo
+          points: # shade
+            - { dx:   0%r, dy:  14%r }
+            - { dx:  -1%r, dy:  14%r }
+            - { dx:  -4%r, dy:  -1%r }
+            - { dx:   -1%r, dy: -70%r } # the tip, straight up
+            - { dx:   0%r, dy: -70%r } # the tip, straight up
+    second:
+      color: config.colors.fg
+      parts:
+        # background
+        - { shape: line, at: { dy: 21%r }, to: { dy: -97%r }, thickness: 4%r, color: palette.black }
+        - { shape: circle, at: { dy: 21%r }, radius: 5%r, color: palette.black } # counterweight
+        - { shape: circle, radius: 4%r, color: palette.black } # centre cap
+        # arrow
+        - { shape: line, at: { dy: 20%r }, to: { dy: -70%r }, thickness: 2%r }
+        - { shape: circle, at: { dy: 20%r }, radius: 4%r } # counterweight
+        - { shape: circle, radius: 3%r } # centre cap
+        - { shape: circle, radius: 1%r, color: palette.black } # centre cap
+        - { shape: line, at: { dy: -96%r }, to: { dy: -70%r }, thickness: 2%r, color: config.accent_color }
+
+
+  classic_generated:
     hour:
       # color: config.colors.fg
       parts:
@@ -200,6 +307,189 @@ static:
 layouts:
   classic:
     static:
+      classic_background:
+        type: shape
+        shape: rectangle
+        at: { anchor: center }
+        size: { width: 100%, height: 100% }
+        color: config.colors.bg
+
+      minute_ticks:
+        type: pattern
+        pattern: radial
+        at: { anchor: center } # the centre every copy turns about
+        count: 60 # step defaults to 360deg / 60 = 6deg
+        skip_every: 5 # copies 0, 5, 10, ... are the hour ticks' places
+        color: config.colors.track
+        antialias: true
+        lint:
+          allow: [antialias-dither]
+          reason: "to look good"
+        #   reason: "A soft edge on the 64-colour MIP panel dithers; accepted so
+        #     the turned ticks do not stair-step. Reported against this element,
+        #     the first to draw anti-aliased, for the whole device."
+        parts: # copy 0, as it looks at 12 o'clock; origin = at:
+          - { shape: line, at: { dy: -98%r }, to: { dy: -93%r }, thickness: 1px }
+
+      hour_ticks:
+        type: pattern
+        pattern: radial
+        at: { anchor: center }
+        count: 12
+        step: 30deg
+        # skip: [0] # 12 o'clock gets the doubled marker below
+        color: config.colors.track
+        antialias: true
+        lint:
+          allow: [antialias-dither]
+          reason: "to look good"
+        parts:
+          - { shape: circle, at: { dy: 96%r }, radius: 3%r }
+
+      data_window:
+        type: group
+        at: { anchor: center, dx: 52%r }
+        size: { width: 25%r, height: 20%r }
+        # align: right
+        children:
+          data_window_shadow_dark:
+            type: shape
+            shape: rectangle
+            color: palette.dark_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 100% }
+          data_window_shadow:
+            type: shape
+            shape: rectangle
+            color: palette.light_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 80% }
+          data_window_bg:
+            type: shape
+            shape: rectangle
+            color: palette.white
+            at: { anchor: center }
+            size: { width: 100%, height: 40% }
+
+      hours:
+        type: group
+        children:
+          h12:
+            type: text
+            text: "12"
+            font: font.hourfont
+            at: { anchor: center, angle: 0deg, radius: 80%r }
+            align: center
+          h3:
+            type: text
+            text: "3"
+            font: font.hourfont
+            at: { anchor: center, angle: 90deg, radius: 80%r }
+            align: center
+          h6:
+            type: text
+            text: "6"
+            font: font.hourfont
+            at: { anchor: center, angle: 180deg, radius: 80%r }
+            align: center
+          h9:
+            type: text
+            text: "9"
+            font: font.hourfont
+            at: { anchor: center, angle: 270deg, radius: 80%r }
+            align: center
+
+          h1:
+            type: text
+            text: "1"
+            font: font.hourfont
+            at: { anchor: center, angle: 30deg, radius: 80%r }
+            align: center
+          h2:
+            type: text
+            text: "2"
+            font: font.hourfont
+            at: { anchor: center, angle: 60deg, radius: 80%r }
+            align: center
+
+          h4:
+            type: text
+            text: "4"
+            font: font.hourfont
+            at: { anchor: center, angle: 120deg, radius: 80%r }
+            align: center
+          h5:
+            type: text
+            text: "5"
+            font: font.hourfont
+            at: { anchor: center, angle: 150deg, radius: 80%r }
+            align: center
+
+          h7:
+            type: text
+            text: "7"
+            font: font.hourfont
+            at: { anchor: center, angle: 210deg, radius: 80%r }
+            align: center
+          h8:
+            type: text
+            text: "8"
+            font: font.hourfont
+            at: { anchor: center, angle: 240deg, radius: 80%r }
+            align: center
+
+          h10:
+            type: text
+            text: "10"
+            font: font.hourfont
+            at: { anchor: center, angle: 300deg, radius: 80%r }
+            align: center
+          h11:
+            type: text
+            text: "11"
+            font: font.hourfont
+            at: { anchor: center, angle: 330deg, radius: 80%r }
+            align: center
+            
+      
+      circle_inner:
+        type: shape
+        shape: circle
+        filled: false
+        at: { anchor: center }
+        radius: 67%r
+        thickness: 1px
+        color: palette.dark_gray #config.colors.track
+        antialias: true # soft rotated edges; `sport` stays crisp
+        lint:
+          allow: [antialias-dither]
+          reason: "good"
+
+    elements:
+      classic_hands:
+        type: hands
+        hands: classic
+        at: { anchor: center }
+        seconds: awake
+        antialias: true # soft rotated edges; `sport` stays crisp
+        lint:
+          allow: [antialias-dither]
+          reason: "good"
+
+      data_window_data: # on top of data_window
+        type: text
+        value: date.day
+        # shape: rectangle
+        color: palette.black
+        font: FONT_TINY
+        at: { anchor: center, dx: 61%r }
+        align: right
+
+
+#===================
+
+  classic_generated:
+    static:
       subdial_ring:
         type: shape
         shape: circle
@@ -212,7 +502,7 @@ layouts:
     elements:
       main_hands:
         type: hands
-        hands: classic
+        hands: classic_generated
         at: { anchor: center }
         seconds: awake
         antialias: true # soft rotated edges; `sport` stays crisp
