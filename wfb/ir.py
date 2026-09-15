@@ -675,6 +675,11 @@ class Element:
 class Group(Element):
     size: Size = field(default_factory=Size)
     items: list[Element] = field(default_factory=list)
+    #: Which horizontal/vertical edge of the group's own box sits at `at:`
+    #: (or the centre). Children resolve against the box this produces.
+    #: Defaults reproduce today's always-centred behaviour byte-identically.
+    align: str = "center"
+    vertical_align: str = "center"
 
     def children(self) -> list[Element]:
         return self.items
@@ -3208,6 +3213,8 @@ class Builder:
             **common,
             size=self._size(node.get("size")),
             items=self._build_elements(node["children"], path + ("children",)),
+            align=node.get("align", "center"),
+            vertical_align=node.get("vertical_align", "center"),
         )
         self._push_visible(group)
         return group

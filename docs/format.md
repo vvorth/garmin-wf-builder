@@ -1644,6 +1644,38 @@ emits no code of its own, so there is nothing else it could mean), which is why
 nesting composes: an inner group's condition and the outer one both have to hold
 for a leaf to draw. See "`visible:`" above.
 
+**`align`/`vertical_align` say which edge of the group's own box lands on `at`'s
+resolved point**, the same idea `text`'s `align`/`vertical_align` express for a
+text box (see "`text`" above), but for the group's box as a whole. Both default
+to `center`, which is today's behaviour: the box centred on `at:`. Children then
+resolve their own `%`/`%r` positions against whatever box this produces, so
+moving `align:` moves every child with it, without restating anything.
+
+```yaml
+- id: data_window_right
+  type: group
+  at: { anchor: center, dx: 50%r }
+  size: { width: 25%r, height: 20%r }
+  align: right        # the box's right edge sits at centre + 50%r, not its centre
+  children:
+    - id: data_r_shadow_dark
+      type: shape
+      shape: rectangle
+      color: palette.dark_gray
+      at: { anchor: center }
+      size: { width: 100%, height: 100% }
+```
+
+`left`/`right` put that edge of the box at the point instead of the centre;
+`vertical_align` does the same vertically with `top`/`bottom`. **A group has no
+baseline** — unlike `text`'s `vertical_align`, whose bottom value is
+`baseline`, a group's is plainly `bottom`: there is no line of glyphs to hang
+one from, just a rectangle.
+
+**Only `group` has these keys.** A `shape`, `progress` or `graph` element's box
+stays centred on its own `at:`, as it always has — wrap it in an aligned group
+(as above) to get the same effect.
+
 ### `graph`
 
 A time series, drawn as a line, a filled area or bars:

@@ -548,7 +548,9 @@ class Resolver:
         width = self._len(element.size.width, parent, Axis.X, parent.width)
         height = self._len(element.size.height, parent, Axis.Y, parent.height)
         cx, cy = self._point(element.at, parent)
-        return Box(cx - width / 2, cy - height / 2, width, height)
+        left = cx - {"left": 0, "center": width / 2, "right": width}[element.align]
+        top = cy - {"top": 0, "center": height / 2, "bottom": height}[element.vertical_align]
+        return Box(left, top, width, height)
 
     def _resolve_shape(self, element: Shape, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
