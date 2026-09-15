@@ -346,31 +346,6 @@ layouts:
         parts:
           - { shape: circle, at: { dy: 96%r }, radius: 3%r }
 
-      data_window:
-        type: group
-        at: { anchor: center, dx: 52%r }
-        size: { width: 25%r, height: 20%r }
-        # align: right
-        children:
-          data_window_shadow_dark:
-            type: shape
-            shape: rectangle
-            color: palette.dark_gray
-            at: { anchor: center }
-            size: { width: 100%, height: 100% }
-          data_window_shadow:
-            type: shape
-            shape: rectangle
-            color: palette.light_gray
-            at: { anchor: center }
-            size: { width: 100%, height: 80% }
-          data_window_bg:
-            type: shape
-            shape: rectangle
-            color: palette.white
-            at: { anchor: center }
-            size: { width: 100%, height: 40% }
-
       hours:
         type: group
         children:
@@ -466,6 +441,84 @@ layouts:
           reason: "good"
 
     elements:
+      data_border_left:
+        type: shape
+        shape: rectangle
+        color: palette.black
+        at: { anchor: center, dx: -45%r }
+        size: { width: 36%r, height: 22%r }
+      data_window_left:
+        type: group
+        at: { anchor: center, dx: -45%r }
+        size: { width: 34%r, height: 20%r }
+        # align: right
+        children:
+          data_l_shadow_dark:
+            type: shape
+            shape: rectangle
+            color: palette.dark_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 100% }
+          data_l_shadow:
+            type: shape
+            shape: rectangle
+            color: palette.light_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 80% }
+          data_l_bg:
+            type: shape
+            shape: rectangle
+            color: palette.white
+            at: { anchor: center }
+            size: { width: 100%, height: 40% }
+          data_l_data: # on top of data_window
+            type: text
+            value: date.day_of_week
+            # shape: rectangle
+            color: palette.black
+            font: FONT_TINY
+            at: { anchor: right, dx: -3%r }
+            align: right
+
+      data_border_right:
+        type: shape
+        shape: rectangle
+        color: palette.black
+        at: { anchor: center, dx: 50%r }
+        size: { width: 27%r, height: 22%r }
+      data_window_right:
+        type: group
+        at: { anchor: center, dx: 50%r }
+        size: { width: 25%r, height: 20%r }
+        # align: right
+        children:
+          data_r_shadow_dark:
+            type: shape
+            shape: rectangle
+            color: palette.dark_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 100% }
+          data_r_shadow:
+            type: shape
+            shape: rectangle
+            color: palette.light_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 80% }
+          data_r_bg:
+            type: shape
+            shape: rectangle
+            color: palette.white
+            at: { anchor: center }
+            size: { width: 100%, height: 40% }
+          data_r_data: # on top of data_window
+            type: text
+            value: date.day
+            # shape: rectangle
+            color: palette.black
+            font: FONT_TINY
+            at: { anchor: right, dx: -3%r }
+            align: right
+
       classic_hands:
         type: hands
         hands: classic
@@ -476,14 +529,6 @@ layouts:
           allow: [antialias-dither]
           reason: "good"
 
-      data_window_data: # on top of data_window
-        type: text
-        value: date.day
-        # shape: rectangle
-        color: palette.black
-        font: FONT_TINY
-        at: { anchor: center, dx: 61%r }
-        align: right
 
 
 #===================
