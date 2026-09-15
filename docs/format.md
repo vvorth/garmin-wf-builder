@@ -137,17 +137,47 @@ So far, `align:`/`vertical_align:` are accepted on:
 | `graph` | `size:` |
 | `icon` | the measured glyph box (the font's own extent for the drawn codepoint) |
 | `complication_slot` | the icon+reading pair's box, from `wfb.layout.complication_slot_pair_geometry` — estimated at build time, measured on the device |
+| a hand or pattern `rectangle` part | `size:`, in the part's own frame |
+| a hand or pattern `circle` part | `2·radius` × `2·radius`, in the part's own frame |
 
-**Not accepted on `shape` polygon or `shape` line**, each for its own reason:
-a polygon has no single `at:` of its own, and every vertex is already its own
-position, so there is no one point to align a box on; a line's `at:`/`to:`
-are already its two ends, so aligning would ask "align *what*" a second time.
-Writing either key there is a build error naming the reason, through the same
-"key not used by this shape" check any other misplaced geometry key goes
-through (see [`shape`](#shape)).
+**Not accepted on:**
 
-Only a hand or pattern `rectangle`/`circle` part does not take these keys
-yet — its box stays centred on `at:`, as it always has.
+- **`shape` polygon and line** — a polygon has no single `at:` of its own,
+  and every vertex is already its own position, so there is no one point to
+  align a box on; a line's `at:`/`to:` are already its two ends, so aligning
+  would ask "align *what*" a second time.
+- **A hand or pattern part's `polygon`, `line`, or (pattern only) `arc`** —
+  the same three reasons: a polygon part's vertices are each their own
+  position (and the part has no `at:` of its own either); a line part's
+  `at:`/`to:` are already its two ends; an arc part is always centred on the
+  copy's own origin (`docs/plans/05-patterns.md` D3), so there is no `at:`
+  to offset in the first place. A hand never produces `shape: arc` at all
+  (see [Analog hands](#analog-hands)), so this third case only ever arises
+  on a pattern part.
+- **`type: hands` and `type: pattern`** — their `at:` is a pivot, not a box:
+  a hands element's `at:` is the axis every part turns about, and a
+  pattern's `at:` is the origin every copy turns about (radial) or steps
+  from (linear). Moving a pivot to "align" it would break the very geometry
+  the element draws, so both refuse the keys outright — align a part
+  instead, or move `at:`.
+
+Each of these is a build error naming the reason: the shape and part
+rejections go through the same "key not used by this shape" check any other
+misplaced geometry key goes through (see [`shape`](#shape) and
+[Analog hands](#analog-hands)); `hands`/`pattern` refuse the keys with their
+own friendly pre-schema error, one per key, never swallowing an unrelated
+mistake on the same element.
+
+**A hand or pattern `rectangle`/`circle` part aligns in its own frame, and
+the shift turns or steps with the part.** The frame's directions are as the
+part is drawn at 12 o'clock (a hand) or as copy 0 is drawn (a pattern):
+`left` is `-x`, `top` is `-y` (towards 12 o'clock). For example, a hand
+rectangle part with `at: {dy: 0}` and `vertical_align: bottom` has its
+bottom edge on the axis — it extends from the axis towards the tip, saving
+`dy: -length/2`. This is a deliberate contrast with a pattern `shape: text`
+part (below): a rectangle/circle part's *box* moves in the frame and turns
+with the part, while a text part's glyphs stay upright and only its *anchor
+point* moves this way before turning or stepping.
 
 A `text` element, an `icon` (static or `icon_for:`) or a pattern `shape: text`
 part draws its glyphs through a runtime justify on the device rather than
@@ -1754,11 +1784,16 @@ moves every child with it, without restating anything.
 `left`/`right` put that edge of the box at the point instead of the centre;
 `vertical_align` does the same vertically with `top`/`bottom`.
 
-**`group`, `text`, `shape` (not polygon/line), `progress` and `graph` all have
-these keys now** (a pattern's `shape: text` part too). An `icon` or
-`complication_slot` element's box still stays centred on its own `at:` — wrap
-it in an aligned group to get the same effect until a later phase extends the
-rule to those kinds directly.
+**Every kind that has a placement box has these keys now:** `group`, `text`,
+`shape` (not polygon/line), `progress`, `graph`, `icon` and
+`complication_slot` — plus a hand or pattern `rectangle`/`circle` part
+(aligned in the part's own frame) and a pattern `shape: text` part (aligned
+at the anchor only). See the table in
+[Placement: `at:` and `align:`](#placement-at-and-align) for the full list,
+and its "Not accepted on" list for the handful of kinds with no single point
+to align on, or whose `at:` is a pivot rather than a box (`shape`
+polygon/line, the matching part shapes, and `type: hands`/`type: pattern`
+themselves).
 
 ### `graph`
 
@@ -1970,9 +2005,9 @@ one `sin`/`cos` pair per hand and the `runtime-lib/WfbHands.mc` barrel.
 | `shape:` | keys | on the watch | why it is allowed |
 |---|---|---|---|
 | `polygon` | `points` (3–64) | rotate each vertex, `fillPolygon` | vertices rotate exactly |
-| `rectangle` | `at` (its centre, default the axis), `size` | **becomes a 4-point polygon at build time**, then as above | a rotated rectangle is a polygon |
+| `rectangle` | `at` (its centre, default the axis), `size`, `align`, `vertical_align` | **becomes a 4-point polygon at build time**, then as above | a rotated rectangle is a polygon |
 | `line` | `at` (start, default the axis), `to`, `thickness` (default 1px) | rotate both ends, `setPenWidth`, `drawLine` | end points rotate exactly |
-| `circle` | `at` (centre, default the axis), `radius`, `filled` (default true), `thickness` (only when `filled: false`) | rotate the centre, `fillCircle`/`drawCircle` | a circle is its own rotation |
+| `circle` | `at` (centre, default the axis), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align`, `vertical_align` | rotate the centre, `fillCircle`/`drawCircle` | a circle is its own rotation |
 
 `rounded_rectangle` and `ellipse` are rejected (no `Dc` call draws either
 rotated — approximate with a `polygon`), as is `arc` (its start angle would
@@ -1980,7 +2015,12 @@ need to rotate with the hand too, which is not implemented yet — see
 [Not yet implemented](#not-yet-implemented)) and `text`/`icon` (a bitmap font
 cannot rotate). `filled: false` is rejected on `polygon`/`rectangle` — there
 is no `drawPolygon`. A key a part's shape does not read is an error, the
-same `SHAPE_GEOMETRY_KEYS` precedent the main `shape:` element uses.
+same `SHAPE_GEOMETRY_KEYS` precedent the main `shape:` element uses —
+including `align`/`vertical_align` on `polygon`/`line`, rejected for the same
+reasons as the main `shape:` element's (see
+[Placement: `at:` and `align:`](#placement-at-and-align), which also covers
+`rectangle`/`circle`'s own alignment, resolved in the part's own frame
+before it turns with the hand).
 
 **Colours** take what a `shape`'s `color:` does — palette entries, literal
 colours, `config.*` (`accent_color`, `data_color`, `colors.<role>`), and
@@ -2060,8 +2100,12 @@ config:
 A `type: hands` element takes `id`, `type`, `hands`, `at`, `seconds`,
 `modes`, `z`, `visible`, `antialias`, `lint` and `overrides` — every common
 key **except** `on_hold:` (a moving hand has no fixed box to hold — hold a
-`group` around it instead) and `static:` (rejected: a hand's angle is the
-time, and a static buffer is painted once and never refilled). `antialias:`
+`group` around it instead), `static:` (rejected: a hand's angle is the
+time, and a static buffer is painted once and never refilled), and
+`align`/`vertical_align` (rejected with a friendly reason: `at:` is the
+axis every hand turns about, not a box — see
+[Placement: `at:` and `align:`](#placement-at-and-align); align a part
+instead, or move `at:`). `antialias:`
 is accepted and inherited exactly like a shape's own, and counts toward the
 `antialias-dither` check the same way: the whole hand set draws soft, since
 the toggle brackets the element's one draw method. (*Until 2026-09-14 it
@@ -2151,10 +2195,10 @@ second rule.
 | `shape:` | keys | per copy |
 |---|---|---|
 | `polygon` | `points` (3–64) | each vertex transformed, `fillPolygon` |
-| `rectangle` | `at` (its centre, default the origin), `size` | **becomes a 4-point polygon at build time**, because a turned rectangle is a polygon |
+| `rectangle` | `at` (its centre, default the origin), `size`, `align`, `vertical_align` | **becomes a 4-point polygon at build time**, because a turned rectangle is a polygon |
 | `line` | `at` (start, default the origin), `to`, `thickness` (default 1px) | both ends transformed, `drawLine` |
-| `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`) | the centre transformed, `fillCircle`/`drawCircle` |
-| `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
+| `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align`, `vertical_align` | the centre transformed, `fillCircle`/`drawCircle` |
+| `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`, no `align`/`vertical_align`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
 | `text` | `at` (the anchor, default the origin), `value` **or** `text`, `format`, `font`, `align`, `vertical_align` | the anchor transformed and rounded half up; the glyphs stay **upright** (see [Text parts](#text-parts) below) |
 
 `rounded_rectangle` and `ellipse` are rejected, because no `Dc` call draws
@@ -2163,7 +2207,16 @@ implemented](#not-yet-implemented)). So is `filled: false` on
 `polygon`/`rectangle`, because there is no `drawPolygon`. `at:` on an `arc`
 part is rejected: an off-centre arc would have to move its centre as well
 as its angle, and nothing needed it yet. A key a part's shape does not read
-is an error, as everywhere else.
+is an error, as everywhere else — including `align`/`vertical_align` on
+`polygon`, `line` and `arc`, rejected for the reasons in
+[Placement: `at:` and `align:`](#placement-at-and-align), which also covers
+how `rectangle`/`circle` align in the template's own frame, turning or
+stepping with the copy like the rest of the part (unlike a `text` part's
+anchor-only alignment, above).
+
+The element itself, `type: pattern`, refuses `align`/`vertical_align` too —
+its `at:` is the origin every copy turns about or steps from, not a box —
+see [Placement: `at:` and `align:`](#placement-at-and-align).
 
 **Colours** work as on a hand. The element's `color:` is the default, and a
 part's own `color:` overrides it. A part left with neither is an error. A

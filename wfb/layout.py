@@ -88,8 +88,10 @@ def alignment_shift(width: float, height: float, align: str, vertical_align: str
     :meth:`Resolver._resolve_icon`'s lint box (a glyph kind's own box is
     still moved this way, even though the runtime anchor is not -- §3.2(b))
     and :meth:`Resolver._resolve_complication_slot`'s estimated box (§3.2(c))
-    call it as well. Later phases (hand/pattern rectangle and circle parts)
-    call it too, rather than write another copy.
+    call it as well. Since phase D (same day), :meth:`Resolver._resolve_hand_part`'s
+    `rectangle`/`circle` branches call it a fourth way -- in the part's own
+    frame, before `_round_away`, so the shift turns or steps with the hand or
+    copy like the rest of the part -- rather than write another copy.
     """
     dx = {"left": width / 2, "center": 0.0, "right": -width / 2}[align]
     dy = {"top": height / 2, "center": 0.0, "bottom": -height / 2}[vertical_align]
@@ -1050,6 +1052,15 @@ class Resolver:
             cx, cy = self._hand_point(part.at)
             width = self._hand_len(part.size.width)
             height = self._hand_len(part.size.height)
+            # Plan 07 phase D, mechanism (a): the placement box is the
+            # declared `size:`, in the part's own frame -- shift the centre
+            # before the corners (and `_round_away`) below, the same order
+            # `Resolver._resolve_shape` already uses in the parent's frame.
+            # `top`/`left` mean `-y`/`-x` here too: a hand's 12 o'clock rest
+            # pose is already `-y`, so no sign flip is needed to match §3.2's
+            # "towards 12 o'clock" convention.
+            dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
+            cx, cy = cx + dx, cy + dy
             hw, hh = width / 2.0, height / 2.0
             # top-left, top-right, bottom-right, bottom-left (§6) -- the same
             # corner order a rotated rectangle keeps no matter which corner
@@ -1119,6 +1130,12 @@ class Resolver:
         # circle
         cx, cy = self._hand_point(part.at)
         radius = _round_away(self._hand_len(part.radius))
+        # Plan 07 phase D: the placement box is the full `2*radius` square,
+        # at the resolved (already-rounded) radius the part draws with --
+        # shifted before `reach`/`_round_away` below, same as
+        # `Resolver._resolve_shape`'s circle branch in the parent's frame.
+        dx, dy = alignment_shift(2 * radius, 2 * radius, part.align, part.vertical_align)
+        cx, cy = cx + dx, cy + dy
         thickness = max(1, _round_away(self._hand_len(part.thickness, default=1)))
         pen_reach = radius if part.filled else radius + thickness / 2.0
         reach = math.hypot(cx, cy) + pen_reach

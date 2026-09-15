@@ -103,11 +103,20 @@ _ALL_SHAPE_GEOMETRY_KEYS = frozenset().union(*SHAPE_GEOMETRY_KEYS.values())
 #: `polygon`'s own row because a polygon's vertices are each already an
 #: absolute position in the hand's frame -- there is no separate centre to
 #: place.
+#: `align`/`vertical_align` (plan 07 phase D) are in the `rectangle` and
+#: `circle` rows only, the same "box-drawn kind" set §3.2(a) of the plan
+#: gives -- both resolved at build time, in the part's own frame, by
+#: `Resolver._resolve_hand_part` shifting `_hand_point(part.at)` through
+#: `wfb.layout.alignment_shift` before rounding. `polygon` and `line` are
+#: left out for the same reason `SHAPE_GEOMETRY_KEYS` leaves them out (a
+#: polygon has no single `at:`; a line's `at:`/`to:` are already its two
+#: ends), so the existing "key not used by this shape" sweep in
+#: `_check_hand_part_keys` rejects both there for free.
 HAND_PART_GEOMETRY_KEYS = {
     "polygon": frozenset({"points"}),
-    "rectangle": frozenset({"at", "size"}),
+    "rectangle": frozenset({"at", "size", "align", "vertical_align"}),
     "line": frozenset({"at", "to"}),
-    "circle": frozenset({"at", "radius"}),
+    "circle": frozenset({"at", "radius", "align", "vertical_align"}),
 }
 _ALL_HAND_PART_GEOMETRY_KEYS = frozenset().union(*HAND_PART_GEOMETRY_KEYS.values())
 
@@ -145,11 +154,16 @@ HAND_PART_REJECTED_SHAPES = {
 #: entry.  `rounded_rectangle`/`ellipse`/`text`/`icon` keep the same
 #: platform reasons a hand part gives -- no `Dc` call draws any of the three
 #: rotated *or* translated, and a bitmap font cannot do either.
+#: `align`/`vertical_align` (plan 07 phase D) join `rectangle` and `circle`
+#: here the same way they join the hand table above -- resolved at build
+#: time in the template's own frame, before `_round_away`, so the turned or
+#: stepped copy carries the shift for free. `polygon`/`line`/`arc` stay
+#: without them (arc has no `at` at all -- see its own row's note below).
 PATTERN_PART_GEOMETRY_KEYS = {
     "polygon": frozenset({"points"}),
-    "rectangle": frozenset({"at", "size"}),
+    "rectangle": frozenset({"at", "size", "align", "vertical_align"}),
     "line": frozenset({"at", "to"}),
-    "circle": frozenset({"at", "radius"}),
+    "circle": frozenset({"at", "radius", "align", "vertical_align"}),
     #: No `at` -- an arc part is always centred on the copy's own origin
     #: (docs/plans/05-patterns.md D3); `_check_hand_part_keys` reports a use
     #: of `at` here through the same "key not used by this shape" mechanism
@@ -164,6 +178,22 @@ PATTERN_PART_GEOMETRY_KEYS = {
     "text": frozenset({"at", "value", "text", "format", "font", "align", "vertical_align"}),
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
+
+#: The plan 07 R3 reason `_check_hand_part_keys` appends to the ordinary
+#: "not used by this part" note when the rejected key is `align` or
+#: `vertical_align` -- shared by hand and pattern parts, since `polygon` and
+#: `line` mean the same thing in both frames (`HAND_PART_GEOMETRY_KEYS` and
+#: `PATTERN_PART_GEOMETRY_KEYS` both leave them without either key); `arc`
+#: only ever reaches this table on a pattern part -- a hand part rejects
+#: `shape: arc` outright, through `HAND_PART_REJECTED_SHAPES`, before this
+#: table is ever consulted for one.
+_HAND_PART_NO_ALIGNMENT_REASON = {
+    "polygon": "every vertex is its own position; there is no single 'at:' "
+               "to align on -- a polygon part has no 'at:' of its own either",
+    "line": "'at:' and 'to:' are the part's two ends",
+    "arc": "an arc part is always centred on the copy's own origin -- there "
+           "is no 'at:' to offset in the first place",
+}
 
 #: The Monkey C a pattern colour's `copy` compiles to: the index of the loop
 #: `wfb.emit.monkeyc._emit_pattern` draws the copies in (`for (var i = 0; ...)`).
@@ -807,6 +837,15 @@ class HandPart:
     format: str | None = None
     font: str = "FONT_MEDIUM"
     font_is_custom: bool = False
+    #: Read on `rectangle`/`circle` parts (plan 07 phase D, resolved at build
+    #: time by `Resolver._resolve_hand_part` before rounding -- mechanism
+    #: (a), the same shift `wfb.layout.alignment_shift` gives every box-drawn
+    #: kind) and on `shape: text` parts (plan 06 §3, mechanism (b): the
+    #: anchor turns/steps with the copy, but the glyphs stay upright, unlike
+    #: a rectangle/circle part's box, which turns with the part).  `_check_
+    #: hand_part_keys` rejects both keys on `polygon`, `line` and (pattern
+    #: only) `arc`, with the reason (`_HAND_PART_NO_ALIGNMENT_REASON`), so
+    #: they are never set to anything but the default there.
     align: str = "center"
     vertical_align: str = "center"
     #: The host-rendered string for every copy index `0..count-1` -- set by
@@ -2582,6 +2621,8 @@ class Builder:
             if not is_hand and shape == "arc" and key == "at":
                 notes.append("an arc part is always centred on the copy's own "
                              "origin -- there is no separate centre to offset")
+            if key in ("align", "vertical_align") and shape in _HAND_PART_NO_ALIGNMENT_REASON:
+                notes.append(_HAND_PART_NO_ALIGNMENT_REASON[shape])
             self.bag.error(
                 "element",
                 f"{part_where}: {key!r} is not used by a {noun} 'shape: {shape}' part",

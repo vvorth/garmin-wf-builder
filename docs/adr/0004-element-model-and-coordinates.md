@@ -351,6 +351,28 @@ renderer can be trusted. It is a capability hand authors do not have.
 > the fix landed at the same time, and partly because the name never
 > described what it drew: the bottom of the full line box, never the
 > typographic baseline glyphs actually sit on.
+>
+> **Built 2026-09-15, plan 07 phase D:** the box-drawn mechanism reaches a
+> hand or pattern part's own `rectangle`/`circle`, in the part's own
+> **frame** (origin the axis/the pattern's `at:`) rather than the parent
+> box §6/§7 already resolve against — `Resolver._resolve_hand_part` shifts
+> the frame centre by `alignment_shift` before computing corners/reach and
+> before the hand-frame's `_round_away`, so the shift turns with a hand or
+> steps/turns with a pattern copy for free, the same way the rest of the
+> part's geometry already does. `polygon`, `line` and (pattern only) `arc`
+> parts reject both keys through the same "key not used by this shape"
+> sweep §6/§7 already had, with the reason (no single `at:`; `at:`/`to:`
+> already the two ends; always centred on the copy's own origin).
+> `type: hands` and `type: pattern` themselves refuse the two keys
+> outright, with a friendly pre-schema error: **their `at:` is the pivot
+> this whole section is built around — the axis a hand set turns about, or
+> the origin a pattern's copies turn about or step from — and "aligning" a
+> pivot has no meaning, since moving it would change what the element
+> draws, not just where its box sits** (plan 07 §6 choice 2). This is
+> deliberately narrower than every other rejection in this ADR: it is not
+> a missing platform primitive, but the same reasoning
+> `docs/plans/07-align-everywhere.md` §1.3's table already gave for both
+> element kinds before any of plan 07 was built.
 
 ## Consequences
 

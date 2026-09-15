@@ -71,6 +71,7 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
     bad_types = (
         _check_element_types(doc, bag) + _check_hand_frame(doc, bag)
         + _check_pattern_frame(doc, bag) + _check_baseline_renamed(doc, bag)
+        + _check_hands_pattern_alignment(doc, bag)
     )
 
     validator = Draft202012Validator(load_schema())
@@ -87,6 +88,14 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
         # oneOf, so `_narrow` hands either straight back unchanged.
         for narrowed in _narrow(error):
             if any(_under(list(narrowed.absolute_path), prefix) for prefix in bad_types):
+                continue
+            # `_check_hands_pattern_alignment` returns no `bad_types` prefix
+            # (an `additionalProperties` failure bundles a whole object's
+            # unexpected keys into one error, too coarse a prefix to skip
+            # without also hiding an unrelated mistake on the same element),
+            # so its one schema error is narrowed here instead.
+            narrowed = _drop_pivot_alignment_keys(narrowed)
+            if narrowed is None:
                 continue
             _report(doc, bag, narrowed)
     return len(bag.errors) == before
@@ -519,6 +528,105 @@ def _check_pattern_frame(doc: YamlDocument, bag: Bag) -> list[list]:
 
     visit(doc.data.get("elements"), ["elements"])
     return bad
+
+
+#: The R3/§6 choice 2 reason `type: hands`/`type: pattern` refuse element-level
+#: `align:`/`vertical_align:`: both elements' `at:` is a pivot the geometry
+#: turns about or steps from, not a box -- moving it would break the very
+#: thing the element draws, unlike every accepting kind in §3.1.
+_PIVOT_ALIGNMENT_REASON = {
+    "hands": "'at:' is the axis the hands turn about, not a box to align",
+    "pattern": "'at:' is the origin every copy turns about (radial) or steps "
+               "from (linear), not a box to align",
+}
+
+
+def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list]:
+    """Friendly refusal of `align:`/`vertical_align:` on `type: hands`/
+    `type: pattern` (plan 07 R3, §6 choice 2) -- the schema stays closed to
+    both keys on `handsElement`/`patternElement`, so this supplies the
+    reason a bare "unknown key" would not give.
+
+    Unlike `_check_hand_frame`/`_check_pattern_frame`/`_check_baseline_renamed`,
+    whose bad paths each point at one value the schema itself still has a
+    property for, `align`/`vertical_align` are not in either element's
+    `properties` at all -- an author who writes one trips the element's own
+    `additionalProperties` failure, which `jsonschema` reports *once per
+    object*, bundling every unexpected key of that object into a single
+    message (`_unexpected_keys`). Returning the whole element's path here
+    (as `bad_types`' prefix-skip expects) would therefore also swallow any
+    other, unrelated unexpected key on the same element -- and everything
+    nested under it, `_check_hands_seconds_always`'s coarser precedent, which
+    plan 07 R3 explicitly asks not to repeat ("any other, unrelated mistake
+    on the same element is still reported"). So nothing is returned for
+    `bad_types` here; `validate()` instead rewrites that one bundled schema
+    error itself (`_drop_pivot_alignment_keys`), dropping only 'align'/
+    'vertical_align' from its "unexpected" list and leaving any other
+    offending key on the same element reported exactly as before.
+    """
+    def visit(elements, path: list) -> None:
+        if not isinstance(elements, list):
+            return
+        for index, element in enumerate(elements):
+            if not isinstance(element, dict):
+                continue
+            here = path + [index]
+            kind = element.get("type")
+            reason = _PIVOT_ALIGNMENT_REASON.get(kind)
+            if reason is not None:
+                for key in ("align", "vertical_align"):
+                    if key in element:
+                        bag.error(
+                            "schema",
+                            f"{_dotted(here + [key])}: {key!r} is not accepted "
+                            f"on 'type: {kind}' -- {reason}",
+                            doc.span(element, key),
+                            notes=["align a hand or pattern part instead, or "
+                                   "move 'at:'"],
+                        )
+            visit(element.get("children"), here + ["children"])
+
+    visit(doc.data.get("elements"), ["elements"])
+    return []
+
+
+#: `align`/`vertical_align` (plan 07): the only two keys `_check_hands_pattern_
+#: alignment` ever reports on `type: hands`/`type: pattern` -- shared with
+#: `_drop_pivot_alignment_keys` below so the two stay in lockstep.
+_PIVOT_ALIGNMENT_KEYS = frozenset({"align", "vertical_align"})
+
+
+def _drop_pivot_alignment_keys(error: ValidationError) -> ValidationError | None:
+    """Narrow an `additionalProperties` failure on a `type: hands`/
+    `type: pattern` element so it no longer mentions `align`/`vertical_align`
+    -- `_check_hands_pattern_alignment` already gave the real reason for each
+    of those, one error per key. Leaves every *other* unexpected key on the
+    same element exactly as `jsonschema` reported it (R3: "any other,
+    unrelated mistake on the same element is still reported").
+
+    Returns the error unchanged when it has nothing to do with this (not an
+    `additionalProperties` failure, not on a hands/pattern element, or an
+    unexpected-keys set that never included an alignment key), and ``None``
+    when alignment keys were the *only* thing wrong -- the caller drops the
+    error entirely in that case, since it is now fully explained elsewhere.
+    """
+    if error.validator != "additionalProperties":
+        return error
+    if not isinstance(error.instance, dict) or error.instance.get("type") not in _PIVOT_ALIGNMENT_REASON:
+        return error
+    offending = set(_unexpected_keys(error))
+    remaining = sorted(offending - _PIVOT_ALIGNMENT_KEYS)
+    if len(remaining) == len(offending):
+        return error  # no alignment key was among the unexpected ones
+    if not remaining:
+        return None
+    joined = ", ".join(f"{k!r}" for k in remaining)
+    verb = "was" if len(remaining) == 1 else "were"
+    # The same wording `jsonschema` itself uses (verified against the
+    # installed version), so `_humanise`'s `.replace("Additional properties
+    # are not allowed", "unknown key")` still fires on it unchanged.
+    error.message = f"Additional properties are not allowed ({joined} {verb} unexpected)"
+    return error
 
 
 def _under(path: list, prefix: list) -> bool:

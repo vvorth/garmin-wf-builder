@@ -1495,7 +1495,7 @@
       }
     },
     "handPart": {
-      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the axis) and 'size'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true) and 'thickness' (only when 'filled: false'). 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon.",
+      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the axis), 'size', 'align' and 'vertical_align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' (plan 07 phase D) place the box in the part's own frame, before it turns with the hand -- see docs/format.md, \"Placement: at: and align:\"; not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends).",
       "type": "object",
       "required": [
         "shape"
@@ -1547,6 +1547,14 @@
         "color": {
           "description": "Overrides the hand's own default colour for this part only. Same data-binding restriction as the hand's own 'color:'.",
           "$ref": "#/$defs/colorExpression"
+        },
+        "align": {
+          "description": "'shape: rectangle' or 'circle' only.",
+          "$ref": "#/$defs/align"
+        },
+        "vertical_align": {
+          "description": "'shape: rectangle' or 'circle' only.",
+          "$ref": "#/$defs/verticalAlign"
         }
       }
     },
@@ -1723,7 +1731,7 @@
       }
     },
     "patternPart": {
-      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin) and 'size'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true) and 'thickness' (only when 'filled: false'); arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:', because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align' and 'vertical_align' (plan 06 §3) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon.",
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin), 'size', 'align' and 'vertical_align'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'; arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:' or alignment, because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align' and 'vertical_align' (plan 06 §3) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy, unlike a rectangle/circle part's box, which turns with the part (plan 07 phase D). 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' are not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends) -- see docs/format.md, \"Placement: at: and align:\".",
       "type": "object",
       "required": [
         "shape"
@@ -1805,11 +1813,11 @@
           "type": "string"
         },
         "align": {
-          "description": "'shape: text' only.",
+          "description": "'shape: rectangle', 'circle' or 'text' only. On rectangle/circle, the box is placed in the part's own frame, before it turns or steps with the copy (plan 07 phase D); on text, only the anchor point moves this way -- the glyphs stay upright (plan 06 §3).",
           "$ref": "#/$defs/align"
         },
         "vertical_align": {
-          "description": "'shape: text' only.",
+          "description": "'shape: rectangle', 'circle' or 'text' only. Same frame-vs-anchor distinction as 'align' above.",
           "$ref": "#/$defs/verticalAlign"
         }
       }
