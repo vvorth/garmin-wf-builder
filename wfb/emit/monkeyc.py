@@ -816,8 +816,16 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             out.append((f"{prefix}_WIDTH", placed.box.width, ""))
             out.append((f"{prefix}_HEIGHT", placed.box.height, ""))
     elif isinstance(placed, PlacedIcon):
-        out.append((f"{prefix}_CX", placed.center[0], ""))
-        out.append((f"{prefix}_CY", placed.center[1], ""))
+        # A glyph kind's anchor never itself moves for `align`/`vertical_
+        # align` (plan 07 §3.2(b)) -- only the device-side justify flags and
+        # `_emit_icon`'s `bottom` subtraction do -- so the constant names and
+        # values stay `_CX`/`_CY` (byte-identical for center/center) even
+        # when aligned; the comment says so only then, so the default note
+        # (`""`) is unchanged.
+        default = placed.element.align == "center" and placed.element.vertical_align == "center"
+        note = "" if default else "the anchor drawText justifies the glyph from, not its centre"
+        out.append((f"{prefix}_CX", placed.center[0], note))
+        out.append((f"{prefix}_CY", placed.center[1], note))
     elif isinstance(placed, PlacedGraph):
         out.append((f"{prefix}_X", placed.box.x, ""))
         out.append((f"{prefix}_Y", placed.box.y, ""))
@@ -2687,6 +2695,14 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     character -- the same table any static icon's build-time lookup uses, not
     a second, weather-only one. The font still has every glyph that call
     could return, baked in ahead of time (`wfb.emit.resources.icon_font_specs`).
+
+    `align`/`vertical_align` (plan 07 phase C) place the glyph the same way
+    a `text` element does (§3.2(b)): `placed.justify` (`Resolver._justify`)
+    picks the `TEXT_JUSTIFY_*` flags, and `_glyph_y_expr` handles `bottom`'s
+    missing platform flag by subtracting the *icon* font's own
+    `dc.getFontHeight` -- the anchor itself (`Layout.<P>_CX/_CY`) never
+    moves; center/center reproduces the exact literal flags this call has
+    always emitted.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -2702,10 +2718,12 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     else:
         w.comment(f"{element.icon!r}")
         glyph_expr = f'"{element.codepoint}"'
+    justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
+    y_expr = _glyph_y_expr(f"Layout.{prefix}_CY", element.vertical_align, "font")
     w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"dc.drawText(Layout.{prefix}_CX, Layout.{prefix}_CY, font,")
+    w.line(f"dc.drawText(Layout.{prefix}_CX, {y_expr}, font,")
     w.line(f"            {glyph_expr},")
-    w.line("            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);")
+    w.line(f"            {justify});")
 
 
 def _emit_pulsing_field(w: Writer) -> None:
@@ -2940,11 +2958,14 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     so it still shows even on a frame the reading itself could not be pulled
     -- verified buildable under `-l 3`
     (docs/research/probes/config-axes/ProbeView.mc's `iconFor`).  The icon
-    and the reading are centred on this element's own anchor as one pair, via
+    and the reading are placed on this element's own anchor as one pair, via
     `Dc.getTextWidthInPixels` -- the actual text is not known until the value
     is pulled, so unlike every other element this cannot be precomputed at
     build time (ADR 0004's one deliberate exception, and for exactly that
-    reason).
+    reason).  `align`/`vertical_align` (plan 07 phase C, §3.2(c)) move that
+    pair off the anchor with the same per-`icon_position:` arithmetic this
+    exception has always needed -- `center`/`center` is the fast path below,
+    byte-identical to every build before either key existed.
 
     Every `complication_slot` -- not only ones with `on_hold:` -- starts with
     a `_pulsing` guard: the native editor can animate *any* slot's highlight
@@ -3048,12 +3069,17 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
         placed.icon_position == "left"
         and element.icon_gap is None
         and icon_color_expr is None
+        and element.align == "center"
+        and element.vertical_align == "center"
     )
 
     if fast_path:
         # Byte-identical to every build before 'icon_position:'/'icon_gap:'/
         # 'icon_color:' existed (plan 03 §6.3) -- none of the three is
-        # authored, so this is exactly today's code, verbatim.
+        # authored, so this is exactly today's code, verbatim.  A non-default
+        # 'align:'/'vertical_align:' (plan 07 phase C) also falls through to
+        # the general path below, even on 'left' with neither of the other
+        # two authored.
         w.line(f"dc.setColor({text_color_expr}, Graphics.COLOR_TRANSPARENT);")
         w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
         w.line("var iconWidth = 0;")
@@ -3073,17 +3099,30 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
         w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
         return
 
-    # General path: any position other than the default 'left', or an
-    # authored 'icon_gap:'/'icon_color:' on 'left' itself.  Mirrors
-    # `wfb.layout.complication_slot_pair_geometry` -- not calling it, since
-    # the real text is not known until the value above is pulled (ADR 0004's
-    # one deliberate exception) -- through `Dc.getTextWidthInPixels`/
-    # `Dc.getFontHeight` instead of the build-time measurements that
-    # function's Python twin uses.
+    # General path: any position other than the default 'left', an authored
+    # 'icon_gap:'/'icon_color:' on 'left' itself, or a non-default 'align:'/
+    # 'vertical_align:' (plan 07 phase C, §3.2(c)) -- the pair's alignment
+    # arithmetic is runtime-only, mirroring `wfb.layout.alignment_shift`'s
+    # rule but never calling it, since neither the real text nor (for
+    # icon_position top/bottom, align != center) the real icon glyph width is
+    # known until the value above is pulled (ADR 0004's one deliberate
+    # exception) -- everything below goes through `Dc.getTextWidthInPixels`/
+    # `Dc.getFontHeight` instead of a build-time measurement.  Every offset
+    # below is computed once, at build time in Python, from `element.align`/
+    # `.vertical_align` alone (never a runtime branch): center reproduces the
+    # exact expression this function has always emitted.
     gap_expr = (f"Layout.{prefix}_ICON_GAP" if element.icon_gap is not None
                else str(COMPLICATION_SLOT_ICON_GAP))
     icon_present_guard = (f"iconGlyph != null && {icon_font_expr} != null"
                          if icon_font_expr is not None else None)
+    # Whether this slot can ever draw an icon at all (a resolvable
+    # `icon_size:`) -- not merely whether the *wearer's current pick* has one
+    # (that is `icon_present_guard`, a runtime condition). When this is
+    # `False`, every codegen branch below that only reads a width/height/gap
+    # from inside an `if (icon_present_guard)` block must not declare that
+    # local at all, or it warns as unused under -l 3 (the whole block is
+    # never emitted, not merely runtime-skipped).
+    has_icon = icon_present_guard is not None
     w.line(f"dc.setColor({text_color_expr}, Graphics.COLOR_TRANSPARENT);")
 
     def _set_icon_color() -> None:
@@ -3095,59 +3134,157 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
             w.line(f"dc.setColor({text_color_expr}, Graphics.COLOR_TRANSPARENT);")
 
     if placed.icon_position in ("left", "right"):
-        w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
-        w.line("var iconGlyphWidth = 0;")
-        if icon_present_guard is not None:
-            with w.block(f"if ({icon_present_guard})"):
-                w.line(f"iconGlyphWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr});")
-        w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
-               if icon_present_guard is not None else "var gap = 0;")
-        w.line("var totalWidth = iconGlyphWidth + gap + textWidth;")
-        w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
+        # 'textWidth'/'iconGlyphWidth'/'gap' are declared only when something
+        # actually reads them afterwards -- not merely when the value could
+        # in principle be non-zero. The position's own final offset for
+        # 'left' is unconditional (it always adds 'iconGlyphWidth + gap',
+        # icon present or not), but for 'right' the offset that reads
+        # 'textWidth + gap' sits inside 'if (icon_present_guard)' -- when
+        # this slot can never draw an icon at all (`has_icon` false: no
+        # choice resolves one), that whole block is never emitted, so
+        # 'textWidth'/'gap' would be declared and never read again unless
+        # 'totalWidth' below also needs them (whenever 'align:' is not
+        # 'left'). Checked exhaustively in `tests/test_align_glyph_kinds.py`
+        # (every `icon_position:` x every `align:`/`vertical_align:` x
+        # icon-present/icon-less).
+        need_icon_glyph_width = placed.icon_position == "left" or element.align != "left"
+        need_text_width = (placed.icon_position == "right" and has_icon) or element.align != "left"
+        need_gap = (
+            placed.icon_position == "left"
+            or (placed.icon_position == "right" and has_icon)
+            or element.align != "left"
+        )
+        if need_text_width:
+            w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
+        if need_icon_glyph_width:
+            w.line("var iconGlyphWidth = 0;")
+            if icon_present_guard is not None:
+                with w.block(f"if ({icon_present_guard})"):
+                    w.line(f"iconGlyphWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr});")
+        if need_gap:
+            w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
+                   if icon_present_guard is not None else "var gap = 0;")
+        # 'align:' shifts the row's horizontal start: 'startX = CX - {0,
+        # total/2, total}' for left/center/right (plan 07 §3.2(c)) -- center
+        # is exactly today's expression. 'totalWidth' is declared only when
+        # 'align:' actually reads it ('left' does not -- an unused local
+        # warns under -l 3).
+        if element.align == "left":
+            w.line(f"var startX = Layout.{prefix}_CX;")
+        elif element.align == "right":
+            w.line("var totalWidth = iconGlyphWidth + gap + textWidth;")
+            w.line(f"var startX = Layout.{prefix}_CX - totalWidth;")
+        else:
+            w.line("var totalWidth = iconGlyphWidth + gap + textWidth;")
+            w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
+        if element.vertical_align == "center":
+            row_y_expr = f"Layout.{prefix}_CY"
+        else:
+            # 'vertical_align:' shifts the row's own VCENTER axis by half the
+            # taller of the two drawn fonts' heights (plan 07 §3.2(c)) --
+            # measured on-device, since only one of the two may draw at all
+            # (an icon-less slot, or a frame the icon glyph did not resolve).
+            w.line(f"var rowHeight = dc.getFontHeight({font_expr});")
+            if icon_present_guard is not None:
+                with w.block(f"if ({icon_present_guard})"):
+                    w.line(f"var iconRowHeight = dc.getFontHeight({icon_font_expr});")
+                    with w.block("if (iconRowHeight > rowHeight)"):
+                        w.line("rowHeight = iconRowHeight;")
+            if element.vertical_align == "top":
+                w.line(f"var rowY = Layout.{prefix}_CY + rowHeight / 2;")
+            else:  # bottom
+                w.line(f"var rowY = Layout.{prefix}_CY - rowHeight / 2;")
+            row_y_expr = "rowY"
         if placed.icon_position == "left":
             if icon_present_guard is not None:
                 with w.block(f"if ({icon_present_guard})"):
                     _set_icon_color()
-                    w.line(f"dc.drawText(startX, Layout.{prefix}_CY, {icon_font_expr}, iconGlyph,")
+                    w.line(f"dc.drawText(startX, {row_y_expr}, {icon_font_expr}, iconGlyph,")
                     w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
             _reset_text_color()
-            w.line(f"dc.drawText(startX + iconGlyphWidth + gap, Layout.{prefix}_CY, {font_expr}, text,")
+            w.line(f"dc.drawText(startX + iconGlyphWidth + gap, {row_y_expr}, {font_expr}, text,")
             w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
         else:  # right
-            w.line(f"dc.drawText(startX, Layout.{prefix}_CY, {font_expr}, text,")
+            w.line(f"dc.drawText(startX, {row_y_expr}, {font_expr}, text,")
             w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
             if icon_present_guard is not None:
                 with w.block(f"if ({icon_present_guard})"):
                     _set_icon_color()
-                    w.line(f"dc.drawText(startX + textWidth + gap, Layout.{prefix}_CY, "
+                    w.line(f"dc.drawText(startX + textWidth + gap, {row_y_expr}, "
                            f"{icon_font_expr}, iconGlyph,")
                     w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
     else:  # "top" / "bottom"
-        w.line(f"var textHeight = dc.getFontHeight({font_expr});")
-        w.line("var iconHeight = 0;")
-        if icon_present_guard is not None:
-            with w.block(f"if ({icon_present_guard})"):
-                w.line(f"iconHeight = dc.getFontHeight({icon_font_expr});")
-        w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
-               if icon_present_guard is not None else "var gap = 0;")
-        w.line("var totalHeight = iconHeight + gap + textHeight;")
-        w.line(f"var startY = Layout.{prefix}_CY - totalHeight / 2;")
+        # Same reasoning as the left/right branch above, on the vertical
+        # axis, `has_icon` included: 'top's own final offset (unconditional)
+        # always reads 'iconHeight + gap'; 'bottom's matching offset reads
+        # 'textHeight + gap' only inside 'if (icon_present_guard)', which is
+        # never emitted at all when this slot can draw no icon
+        # ('has_icon` false). 'totalHeight' below needs all three, but only
+        # when 'vertical_align:' is not 'top'.
+        need_icon_height = placed.icon_position == "top" or element.vertical_align != "top"
+        need_text_height = (placed.icon_position == "bottom" and has_icon) or element.vertical_align != "top"
+        need_gap = (
+            placed.icon_position == "top"
+            or (placed.icon_position == "bottom" and has_icon)
+            or element.vertical_align != "top"
+        )
+        if need_text_height:
+            w.line(f"var textHeight = dc.getFontHeight({font_expr});")
+        if need_icon_height:
+            w.line("var iconHeight = 0;")
+            if icon_present_guard is not None:
+                with w.block(f"if ({icon_present_guard})"):
+                    w.line(f"iconHeight = dc.getFontHeight({icon_font_expr});")
+        if need_gap:
+            w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
+                   if icon_present_guard is not None else "var gap = 0;")
+        # 'vertical_align:' shifts the column's vertical start: 'startY = CY
+        # - {0, total/2, total}' for top/center/bottom (plan 07 §3.2(c)) --
+        # center is exactly today's expression. 'totalHeight' is declared
+        # only when 'vertical_align:' actually reads it ('top' does not --
+        # an unused local warns under -l 3).
+        if element.vertical_align == "top":
+            w.line(f"var startY = Layout.{prefix}_CY;")
+        elif element.vertical_align == "bottom":
+            w.line("var totalHeight = iconHeight + gap + textHeight;")
+            w.line(f"var startY = Layout.{prefix}_CY - totalHeight;")
+        else:
+            w.line("var totalHeight = iconHeight + gap + textHeight;")
+            w.line(f"var startY = Layout.{prefix}_CY - totalHeight / 2;")
+        if element.align == "center":
+            col_x_expr = f"Layout.{prefix}_CX"
+        else:
+            # 'align:' shifts the pair's own TEXT_JUSTIFY_CENTER axis by half
+            # the wider of the two drawn pieces (plan 07 §3.2(c)) -- the same
+            # "measure both, take the icon-guarded max" shape as the row case
+            # above, on the perpendicular axis.
+            w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
+            w.line("var iconGlyphWidth = 0;")
+            if icon_present_guard is not None:
+                with w.block(f"if ({icon_present_guard})"):
+                    w.line(f"iconGlyphWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr});")
+            w.line("var pairWidth = (iconGlyphWidth > textWidth) ? iconGlyphWidth : textWidth;")
+            if element.align == "left":
+                w.line(f"var pairX = Layout.{prefix}_CX + pairWidth / 2;")
+            else:  # right
+                w.line(f"var pairX = Layout.{prefix}_CX - pairWidth / 2;")
+            col_x_expr = "pairX"
         if placed.icon_position == "top":
             if icon_present_guard is not None:
                 with w.block(f"if ({icon_present_guard})"):
                     _set_icon_color()
-                    w.line(f"dc.drawText(Layout.{prefix}_CX, startY, {icon_font_expr}, iconGlyph,")
+                    w.line(f"dc.drawText({col_x_expr}, startY, {icon_font_expr}, iconGlyph,")
                     w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
             _reset_text_color()
-            w.line(f"dc.drawText(Layout.{prefix}_CX, startY + iconHeight + gap, {font_expr}, text,")
+            w.line(f"dc.drawText({col_x_expr}, startY + iconHeight + gap, {font_expr}, text,")
             w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
         else:  # bottom
-            w.line(f"dc.drawText(Layout.{prefix}_CX, startY, {font_expr}, text,")
+            w.line(f"dc.drawText({col_x_expr}, startY, {font_expr}, text,")
             w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
             if icon_present_guard is not None:
                 with w.block(f"if ({icon_present_guard})"):
                     _set_icon_color()
-                    w.line(f"dc.drawText(Layout.{prefix}_CX, startY + textHeight + gap, "
+                    w.line(f"dc.drawText({col_x_expr}, startY + textHeight + gap, "
                            f"{icon_font_expr}, iconGlyph,")
                     w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
 

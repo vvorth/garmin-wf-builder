@@ -84,9 +84,12 @@ def alignment_shift(width: float, height: float, align: str, vertical_align: str
     phase B (2026-09-15), :meth:`Resolver._resolve_shape` (rectangle,
     rounded_rectangle, ellipse, circle, arc -- not polygon or line),
     :meth:`Resolver._resolve_progress` (both styles) and
-    :meth:`Resolver._resolve_graph` call it too. Later phases (icon,
-    complication_slot, hand/pattern rectangle and circle parts) call it
-    too, rather than write another copy.
+    :meth:`Resolver._resolve_graph` call it too. Since phase C (same day),
+    :meth:`Resolver._resolve_icon`'s lint box (a glyph kind's own box is
+    still moved this way, even though the runtime anchor is not -- §3.2(b))
+    and :meth:`Resolver._resolve_complication_slot`'s estimated box (§3.2(c))
+    call it as well. Later phases (hand/pattern rectangle and circle parts)
+    call it too, rather than write another copy.
     """
     dx = {"left": width / 2, "center": 0.0, "right": -width / 2}[align]
     dy = {"top": height / 2, "center": 0.0, "bottom": -height / 2}[vertical_align]
@@ -178,6 +181,12 @@ class PlacedIcon(Placed):
     #: codegen actually draws, which it resolves on-device instead.
     codepoint: str = "?"
     anchor_point: tuple[int, int] = (0, 0)
+    #: `Toybox.Graphics.TEXT_JUSTIFY_*` flags, `Resolver._justify`'s own
+    #: precedent (plan 07 phase C) -- an icon is a glyph kind (§3.2(b)), so
+    #: its alignment is a device-side justify on the unshifted anchor, the
+    #: same mechanism `PlacedText.justify` already uses, not a build-time
+    #: box move.
+    justify: tuple[str, ...] = ()
 
 
 @dataclass
@@ -822,11 +831,18 @@ class Resolver:
             width, height = font.measure(measure_codepoint)
         else:
             width = height = px  # the font failed to bake; keep a plausible box
-        box = Box(cx - width / 2, cy - height / 2, width, height)
+        justify = self._justify(element)
+        # The lint box only -- like `_resolve_text`, the runtime `drawText`
+        # anchor stays `(cx, cy)` unshifted (mechanism (b), plan 07 §3.2): an
+        # icon's alignment is a device-side justify, not a build-time box
+        # move (see `wfb.emit.monkeyc._emit_icon`).
+        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
+        box = Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
         return PlacedIcon(
             element, box.rounded(), (round(cx), round(cy)), depth,
             size=px, font_key=key, codepoint=measure_codepoint,
             anchor_point=(round(cx), round(cy)),
+            justify=justify,
         )
 
     def _resolve_graph(self, element: Graph, parent: Box, depth: int) -> Placed:
@@ -908,7 +924,13 @@ class Resolver:
             text_width, line_height, gap_px,
         )
         height = max(geometry.height, 1)
-        box = Box(cx - geometry.width / 2, cy - height / 2, geometry.width, height)
+        # The estimated box only -- like a glyph kind's lint box, the runtime
+        # anchor (`anchor_point` below) stays `(cx, cy)` unshifted: this is
+        # mechanism (c), plan 07 §3.2 -- the pair is centred on the wearer's
+        # actual pick at runtime, in `wfb.emit.monkeyc._emit_complication_
+        # slot`'s own arithmetic, not here.
+        dx, dy = alignment_shift(geometry.width, height, element.align, element.vertical_align)
+        box = Box(cx + dx - geometry.width / 2, cy + dy - height / 2, geometry.width, height)
         return PlacedComplicationSlot(
             element, box.rounded(), (round(cx), round(cy)), depth,
             anchor_point=(round(cx), round(cy)),
@@ -1287,11 +1309,11 @@ class Resolver:
         return widest
 
     @staticmethod
-    def _justify(element: Text | HandPart) -> tuple[str, ...]:
+    def _justify(element: Text | HandPart | IconElement) -> tuple[str, ...]:
         """`Toybox.Graphics.TEXT_JUSTIFY_*` flags for anything with `.align`/
-        `.vertical_align` -- a `Text` element, or (plan 06 §3.4) a `shape:
-        text` pattern part, which carries the same two fields under the
-        same names.
+        `.vertical_align` -- a `Text` element, a `shape: text` pattern part
+        (plan 06 §3.4), or (plan 07 phase C) an `IconElement`, all of which
+        carry the same two fields under the same names.
         """
         flags = {
             "left": "TEXT_JUSTIFY_LEFT",

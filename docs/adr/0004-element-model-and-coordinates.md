@@ -311,8 +311,9 @@ renderer can be trusted. It is a capability hand authors do not have.
 >   plan 07 phase B** — confirming the prediction exactly: `wfb/emit/` and
 >   `runtime-lib/` needed no change, because `Layout`'s `_X`/`_CX` constants
 >   and the preview both already read the resolved `Placed.center`/`.box`.
-> - A **glyph-drawn** kind (`text`; a pattern's `shape: text` part; from a
->   later phase, `icon`) places its glyphs **on the device**, because the
+> - A **glyph-drawn** kind (`text`; a pattern's `shape: text` part; **`icon`,
+>   static and `icon_for:`, built 2026-09-15, plan 07 phase C**) places its
+>   glyphs **on the device**, because the
 >   drawn string can differ from the build-time estimate (a nullable
 >   source's fallback text, a live reading longer than the widest one
 >   measured). `align` picks `Dc`'s own `TEXT_JUSTIFY_LEFT/CENTER/RIGHT`
@@ -333,7 +334,11 @@ renderer can be trusted. It is a capability hand authors do not have.
 >   *translation* term of its rotation (the copy's own `cy`, left otherwise
 >   unchanged), so it shifts the drawn point straight up on screen
 >   regardless of the copy's angle — `runtime-lib/WfbGeom.mc`'s
->   `drawTextRotated` gained no new parameter for it.
+>   `drawTextRotated` gained no new parameter for it. **`icon`'s own anchor
+>   (`Layout.<P>_CX`/`_CY`) never moves either**, by the same reasoning: only
+>   its *lint* box moves, through the same build-time `alignment_shift` a
+>   box-drawn kind uses, so the geometry checks reason about where the glyph
+>   actually lands without the device needing a second code path.
 >
 > A real bug came with the plan's research, not only a naming
 > inconsistency: `text`'s old `vertical_align: baseline` had *already*
@@ -364,6 +369,16 @@ renderer can be trusted. It is a capability hand authors do not have.
   platform has no bottom-justify flag and only the device's own font metrics
   are exact for a system font. Unlike hands' and patterns' own rotation,
   this is a plain arithmetic term, not a per-vertex transform.
+  **`complication_slot`** was always a runtime exception on its own terms —
+  its icon+reading pair is centred via `Dc.getTextWidthInPixels`/
+  `Dc.getFontHeight` because the wearer's pick, and so the actual text, is not
+  known until the value is pulled (§8's `icon_size:`/`icon_position:`
+  discussion in `docs/format.md`). **Amended 2026-09-15, plan 07 phase C**:
+  a non-default `align`/`vertical_align` on it moves that same runtime
+  centring, with the equivalent arithmetic (`startX`/`startY` shifted by
+  `0`/half/all of the pair's measured extent) computed on the device for
+  every `icon_position:`, rather than a build-time box move — one more
+  reason this element's position is never fully resolved at build time.
 - The preview renderer consumes the **same resolved IR**, so preview and device
   cannot disagree about position. This is the anti-drift mechanism Phase 3.8 asks
   for, and it works only because layout is resolved before codegen.

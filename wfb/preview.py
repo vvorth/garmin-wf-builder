@@ -771,8 +771,15 @@ class _Renderer:
             placed.icon_gap_px,
         )
         ax, ay = placed.anchor_point
-        origin_x = ax - geometry.width / 2
-        origin_y = ay - geometry.height / 2
+        # `align`/`vertical_align` (plan 07 phase C, §3.2(c)) move the pair
+        # off the anchor -- the same `wfb.layout.alignment_shift` rule every
+        # other kind's preview uses, mirroring the arithmetic
+        # `wfb.emit.monkeyc._emit_complication_slot` computes at runtime from
+        # its own (real, pulled) measurements.  center/center adds exactly
+        # `0.0`, so this is unchanged from before either key existed.
+        dx, dy = alignment_shift(geometry.width, geometry.height, element.align, element.vertical_align)
+        origin_x = ax + dx - geometry.width / 2
+        origin_y = ay + dy - geometry.height / 2
 
         if icon_sheet is not None and glyph_obj is not None:
             self._paste_glyph(icon_sheet, glyph_obj,

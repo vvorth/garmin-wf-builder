@@ -1132,6 +1132,12 @@
         "at": {
           "$ref": "#/$defs/position"
         },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "vertical_align": {
+          "$ref": "#/$defs/verticalAlign"
+        },
         "modes": {
           "$ref": "#/$defs/modes"
         },
@@ -1363,6 +1369,12 @@
         },
         "at": {
           "$ref": "#/$defs/position"
+        },
+        "align": {
+          "$ref": "#/$defs/align"
+        },
+        "vertical_align": {
+          "$ref": "#/$defs/verticalAlign"
         },
         "modes": {
           "$ref": "#/$defs/modes"

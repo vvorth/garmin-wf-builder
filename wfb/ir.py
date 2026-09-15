@@ -681,10 +681,13 @@ class Element:
     #: and a pattern's `shape: text` part read anything but the default since
     #: phase A; `shape` (rectangle/rounded_rectangle/ellipse/circle/arc --
     #: not polygon/line), `progress` (both styles) and `graph` since phase B
-    #: (2026-09-15). The schema stays closed on every other kind until its
-    #: own phase adds the `$ref` (R2/R3). Read by `wfb.layout`'s
-    #: `alignment_shift` (box-drawn kinds) or `Resolver._justify` (glyph-drawn
-    #: kinds) -- never both for the same kind.
+    #: (2026-09-15); `icon` and `complication_slot` since phase C (same day).
+    #: The schema stays closed on every other kind until its own phase adds
+    #: the `$ref` (R2/R3). Read by `wfb.layout`'s `alignment_shift` (box-drawn
+    #: kinds), `Resolver._justify` (glyph-drawn kinds -- `text`, `icon`, a
+    #: pattern's `shape: text` part), or mirrored as runtime arithmetic in
+    #: `wfb.emit.monkeyc._emit_complication_slot` (`complication_slot`'s own
+    #: ADR 0004 exception) -- never more than one mechanism for the same kind.
     align: str = "center"
     vertical_align: str = "center"
 
@@ -3033,10 +3036,11 @@ class Builder:
         left the schema outright, `wfb.validate`'s friendly rename error
         catches it first), so this is a plain lookup with no validation of
         its own.  Shared by `_build_group`, `_build_text`,
-        `_build_hand_part`'s `shape: text` branch, and -- since phase B,
-        2026-09-15 -- `_build_shape`, `_build_progress` and `_build_graph`;
-        later phases call it for every other accepting kind instead of
-        reading the keys themselves.
+        `_build_hand_part`'s `shape: text` branch, `_build_shape`,
+        `_build_progress` and `_build_graph` (phase B, 2026-09-15), and --
+        since phase C, same day -- `_build_icon` and
+        `_build_complication_slot`; later phases call it for every other
+        accepting kind instead of reading the keys themselves.
         """
         return node.get("align", "center"), node.get("vertical_align", "center")
 
@@ -4123,6 +4127,8 @@ class Builder:
             )
             size = None
 
+        align, vertical_align = self._alignment(node)
+
         if has_icon_for:
             value_for = self._expression(node, "icon_for")
             if value_for is not None and (
@@ -4148,10 +4154,12 @@ class Builder:
                 value_for=value_for,
                 size=size,
                 color=self._color_expression(node, "color"),
+                align=align,
+                vertical_align=vertical_align,
             )
 
         if has_glyph:
-            return self._build_glyph_icon(node, common, size)
+            return self._build_glyph_icon(node, common, size, align, vertical_align)
 
         codepoint = self._resolve_icon_name(name, self.doc.span(node, "icon"))
         if codepoint is None:
@@ -4163,9 +4171,14 @@ class Builder:
             codepoint=codepoint,
             size=size,
             color=self._color_expression(node, "color"),
+            align=align,
+            vertical_align=vertical_align,
         )
 
-    def _build_glyph_icon(self, node: dict, common: dict, size) -> Element:
+    def _build_glyph_icon(
+        self, node: dict, common: dict, size, align: str = "center",
+        vertical_align: str = "center",
+    ) -> Element:
         """`glyph: "U+F0BC"` -- a codepoint the catalogue does not name.
 
         The only way to reach a glyph the catalogue does not name, and spelled
@@ -4187,6 +4200,8 @@ class Builder:
             codepoint=character,
             size=size,
             color=self._color_expression(node, "color"),
+            align=align,
+            vertical_align=vertical_align,
         )
 
     def _build_complication_slot(self, node: dict, common: dict, path: tuple) -> Element:
@@ -4291,6 +4306,7 @@ class Builder:
             )
 
         color = self._color_expression(node, "color")
+        align, vertical_align = self._alignment(node)
         element = ComplicationSlot(
             **common,
             slot=(slot.name if slot is not None else str(slot_raw)),
@@ -4303,6 +4319,8 @@ class Builder:
             unit=bool(node.get("unit", False)),
             when_absent=node.get("when_absent", "hide"),
             placeholder=node.get("placeholder"),
+            align=align,
+            vertical_align=vertical_align,
         )
         self._resolve_font(node, element)
 

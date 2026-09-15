@@ -135,6 +135,8 @@ So far, `align:`/`vertical_align:` are accepted on:
 | `progress` bar | `size:` |
 | `progress` arc | `2·radius` × `2·radius`, same as `shape: arc` |
 | `graph` | `size:` |
+| `icon` | the measured glyph box (the font's own extent for the drawn codepoint) |
+| `complication_slot` | the icon+reading pair's box, from `wfb.layout.complication_slot_pair_geometry` — estimated at build time, measured on the device |
 
 **Not accepted on `shape` polygon or `shape` line**, each for its own reason:
 a polygon has no single `at:` of its own, and every vertex is already its own
@@ -144,16 +146,20 @@ Writing either key there is a build error naming the reason, through the same
 "key not used by this shape" check any other misplaced geometry key goes
 through (see [`shape`](#shape)).
 
-Every other kind does not take these keys yet — its box stays centred on
-`at:`, as it always has. A future phase extends the same rule to `icon`,
-`complication_slot` and a hand/pattern rectangle or circle part.
+Only a hand or pattern `rectangle`/`circle` part does not take these keys
+yet — its box stays centred on `at:`, as it always has.
 
-A `text` element or a pattern `shape: text` part draws its glyphs through a
-runtime justify on the device rather than moving a build-time box (there is
-no bottom-justify flag on the platform, so `vertical_align: bottom` there
-subtracts the font's own on-device `getFontHeight` instead) — see
-[`text`](#text) and [Text parts](#text-parts) for the mechanism; the *rule*
-above is the same regardless of which mechanism draws it.
+A `text` element, an `icon` (static or `icon_for:`) or a pattern `shape: text`
+part draws its glyphs through a runtime justify on the device rather than
+moving a build-time box (there is no bottom-justify flag on the platform, so
+`vertical_align: bottom` there subtracts the font's own on-device
+`getFontHeight` instead) — see [`text`](#text), [`icon`](#icon) and
+[Text parts](#text-parts) for the mechanism; the *rule* above is the same
+regardless of which mechanism draws it. A `complication_slot` is different
+again: its pair is measured and placed on the **device**, at runtime, so its
+alignment arithmetic lives there too (ADR 0004's one deliberate exception) —
+see [`complication_slot`](#complication_slot); the box in the table above is
+still the same build-time *estimate* the geometry lints use.
 
 ---
 
@@ -556,6 +562,11 @@ no ordinary `value:` expression at all. Instead:
   `wfb.layout.complication_slot_pair_geometry`, shared by the layout
   resolver (the estimated box) and `wfb preview`, and mirrored (not called
   -- the real text is not known at build time) by the generated Monkey C.
+  **`align`/`vertical_align`** follow the one placement rule every accepting
+  kind shares: [Placement: `at:` and `align:`](#placement-at-and-align) --
+  but because the pair is measured on the device, its alignment arithmetic
+  runs there too, for every `icon_position:`, rather than moving a
+  build-time box (the same runtime exception as the centring above).
 * A `complication_slot` **cannot be static** (its reading changes every frame,
   and the wearer can repoint it at any time) -- an error, naming why.
 * **`on_hold:`** accepts exactly one value here: **`auto`**. Touch and hold
@@ -1573,6 +1584,11 @@ entry, subsetted to exactly the glyphs a design uses. Drawing an icon is
 drawing text: one `drawText` call against that baked font. No image ships in
 the `.prg`; the resource cost is the same small per-glyph bitmap a custom text
 font pays.
+
+`align`/`vertical_align` follow the one placement rule every accepting kind
+shares: [Placement: `at:` and `align:`](#placement-at-and-align) — an icon is
+a glyph kind, so it places the same way `text` does, by a runtime justify on
+the device, not a moved build-time box.
 
 **`size:` accepts only `px` and `%r`, not `%` or `pt`.** The icon's font has to
 be baked once, before layout runs, so its size cannot depend on a parent box
