@@ -2853,3 +2853,152 @@ firmwares (the SDK documents the constants, not which format yields
 which), and the per-frame cost of the ternary, which is evaluated seven
 times.
 
+## 2026-09-15 — pattern `when_absent: hide` and per-copy part `visible:`
+
+**The report.** Later the same day, the user tried a 5-copy move-bar
+indicator in `examples/patterns/face.yaml` (`test_visibility`), with four
+colour-expression options written as comments:
+
+- **1a** `copy <= ((system.battery - 10) / 20) ? palette.orange :
+  palette.black"` — already worked (`system.battery` is never absent).
+- **1b** the same thing off `activity.move_bar_level` directly — failed.
+- **1c** the same thing through `complication.battery` instead — failed.
+- **2** a separate `visibility: "copy <= activity.move_bar_level-1"` key
+  plus a plain `color: palette.orange` — the key does not exist at all.
+
+1b and 1c both failed for **one** reason, not two:
+`Builder._reject_hand_data_color(noun="pattern")` refused any pattern
+colour reading a source that could be absent, and every `complication.*`
+source is nullable, so 1c hit the exact same rule 1b did — it was never
+actually refused for being a complication, despite the user's own comment
+guessing otherwise.
+
+**The decision.** Build both: (A) `when_absent: hide` on `type: pattern`,
+required once any colour or part `visible:` reads a source that can be
+absent, and (B) a per-copy `visible:` on a pattern part, `copy` bound the
+same as in a colour. Together they make the user's option 2 the natural
+way to write this, and also unblock 1b/1c as colour-only alternatives.
+
+**What was built.**
+
+- `wfb/ir.py`: `PatternElement.when_absent` (schema `enum: ["hide"]`, the
+  `progressElement` precedent for a restricted enum). The old per-colour
+  `_reject_hand_data_color(noun="pattern")` branch is gone entirely —
+  patterns no longer reject any colour there — replaced by
+  `Builder._check_pattern_absence`, one check after the whole element is
+  built: collects every nullable colour and part `visible:`, reports
+  **one** error naming every nullable source found (not one per
+  expression) if `when_absent` is unset, or the usual "has no effect"
+  note if it is set but nothing is ever nullable. The element's own
+  `visible:` is deliberately excluded from that collection — it keeps its
+  ordinary "absent means hidden, no policy" rule, unchanged.
+- `HandPart.visible: Expression | None`, pattern-parts-only (`handPart`'s
+  schema stays closed to it, so it is rejected on a hand part by the
+  ordinary "unknown key" mechanism, not a new IR check). Compiled by the
+  existing `Builder._visible` inside the pattern's `copy`-bound scope,
+  alongside the part's colour. A constant `true` is dropped (nothing to
+  gate); a constant `false` is kept, so the `dead-element` lint and
+  codegen both see it and do the right thing.
+- `wfb/expr.py`: the `copy`-outside-a-pattern error now says `copy` is
+  defined in a pattern's colours *and* its parts' `visible:`, and hints
+  "put `visible:` on the parts, or use `skip:`" to hide some copies.
+- `wfb/lint.py`: `check_dead_element` gained a second pass, one entry per
+  `PatternElement` in `resolved.items`, warning `dead-element` against
+  `<id>.parts[N]` for a part whose `visible:` folded to constant `false`
+  — skipped when the whole element's own `visible:` is already dead, to
+  avoid two warnings for one fact.
+- `wfb/emit/monkeyc.py`: `_emit_pattern` excludes a constant-false part
+  entirely (no colour line, no draw call — `live`, computed once before
+  the loop). A part with a non-constant `visible:` wraps only its own
+  drawing (`_emit_pattern_part`'s whole output, pen included) in
+  `if (<condition>) { ... }`, with a `// visible: <text>` comment. Colour
+  state was the one subtle part: the gated part's `dc.setColor(...)` sits
+  **before** its `if`, exactly where the existing "set on change" logic
+  already puts it (unconditional colour-set already preceded the geometry
+  call in the old code, so the fix was to gate only the geometry, not
+  move the colour) — verified with a deliberate sabotage (moving
+  `setColor` inside the `if`) that a new test catches. The null guard
+  every element already gets generically (`plan.guards(placed)`, fed by
+  `PatternElement._own_expressions`, which now also returns every part
+  `visible:`) needed no new code at all — verified, not reimplemented,
+  including that `monkeyc -l 3` accepts the narrowed local used *inside*
+  the `for` body with no extra warning (see Verification).
+- `wfb/preview.py`: `_Renderer._pattern` checks `_pattern_absent` once
+  (any nullable source among the pattern's colours/part `visible:`s
+  missing from the sample) before drawing anything, mirroring the
+  device's pre-loop guard; per copy, each part's own `visible:` is
+  evaluated with the same `copy`-bound `values` its colour uses.
+- `examples/patterns/face.yaml`: the user committed their own
+  `test_visibility` mid-session (`c0939f9`), so it became the worked
+  example instead of a new element. `when_absent: hide` uncommented; the
+  misspelled `visibility:` key renamed to `visible:` (with a comment
+  saying so); part 3 gets `visible: "copy <= activity.move_bar_level-1"`
+  and a plain `color: palette.orange` (option 2, live); 1a/1b/1c stay as
+  commented alternatives, each comment corrected to say it now builds
+  (1c costs a `ComplicationSubscriber` and `minApiLevel: 4.2.0` that
+  1a/1b don't need); the stale "copy is the copy index, 0-6" comment
+  fixed to "0-4" (`count: 5`, not 7 — copied from `week_dots` and never
+  updated). The header comment gained a bullet naming the new element.
+- Docs updated in step: `format.md` (a new `when_absent:`/per-copy
+  `visible:` pair of subsections, the colours paragraph, the "Expressions"
+  paragraph on `copy`, the "Not yet implemented" list), ADR 0005 (a second
+  2026-09-15 amendment — the first one's own refusal reason, "hiding every
+  copy because one reading went missing would be a silent no-op," does
+  not survive an explicit, required, compiler-checked policy), this file,
+  `limitations.md` §1/§2, `docs/lore/roadmap.md`, root `CLAUDE.md` §6, and
+  `examples/CLAUDE.md`.
+
+**An observed inconsistency, left alone (not in scope):** a `shape` with a
+nullable `color:` is accepted today with **no** `when_absent:` at all, and
+just silently doesn't draw when the reading is absent — no error, no note.
+That is a real gap next to a pattern's own (now stricter, explicit) rule,
+but the brief for this session scoped it out explicitly, so it is recorded
+here rather than fixed.
+
+**Driven red** (each broken on purpose, confirmed failing, then restored):
+`Builder._check_pattern_absence`'s error (disabling the call made four
+tests fail with no diagnostic at all); the codegen colour-before-the-gate
+ordering (moving `setColor` inside the `if` made the dedicated ordering
+test fail, `assert 7 < 6`); `wfb.preview._Renderer._pattern_absent` (a
+`False and` short-circuit made the absence test draw the track anyway);
+per-copy part-`visible:` evaluation in the preview (the same trick left
+every copy lit); the `dead-element` lint's new part-level pass (an empty
+loop left the dedicated lint test with zero findings). All five turned
+their tests red before the fix, and green after restoring it — the exact
+fault each one is meant to catch.
+
+**Verification.**
+
+- `pytest -m "not slow"`: 1,288 collected, 3 failed (the pre-existing
+  `test_example_is_clean_on_every_target[big-clock-3|dashboard|enduro]`,
+  unchanged from before this session).
+- Slow: `test_every_catalog_source_compiles` and
+  `test_example_compiles[patterns]` pass.
+- `examples/patterns/face.yaml` builds warning-free with the real
+  `monkeyc -l 3` on all three targets: 4,321-4,323 B (3.3%), up from the
+  previous 3,581-3,583 B — `test_visibility` is a whole new element, not
+  a per-byte cost of `when_absent:`/`visible:` themselves.
+  `--build-stats` confirmed no warnings on any target.
+- A scratch design (outside the repo) with each of the user's four
+  options (1a/1b/1c/2) swapped in as the only active line, one at a time,
+  each built warning-free on all three targets: 1a and 2 both 4,321-4,323
+  B; 1b 4,325-4,327 B; 1c 5,232-5,234 B (the `ComplicationSubscriber`
+  subscription and the manifest's `minApiLevel="4.2.0"`, confirmed present
+  by reading the generated project). fr955 is API 5.2.0; `complication.
+  battery` needing 4.2.0 built there too, as expected.
+- `wfb preview examples/patterns/face.yaml`: the move-bar row shows
+  exactly 2 lit squares (sample `activity.move_bar_level: 2`) alongside
+  the untouched `week_dots` row lighting Wednesday — looked at the PNG.
+
+**Verified at compile time, first time exercised:** Monkey C's
+flow-narrowing of a nullable local survives *inside* a `for` loop body,
+not just a straight-line tail after an early return (`monkeyc -l 3`, no
+warning on the narrowed `activityMoveBarLevel`/`complicationBattery`
+locals used inside `_emit_pattern`'s loop; recorded in
+`docs/lore/monkeyc.md`).
+
+**Unverified, needing the user's host simulator or a watch:** what the
+move-bar row looks like on a panel, and the per-frame cost of the
+pre-loop absence check and the per-copy `visible:` evaluation, both
+unmeasured, same as every other pattern reading.
+

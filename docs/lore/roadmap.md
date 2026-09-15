@@ -183,6 +183,26 @@ and the ADR each is specified in):
     7 = Saturday, a `FORMAT_SHORT` reader) made `week_dots` in
     `examples/patterns/face.yaml` show today instead of seven identical
     dots. Unverified on-device.
+16. **Built 2026-09-15** (same day, second change): `when_absent: hide` on
+    a pattern, and per-copy part `visible:`. Item 15's "still refused"
+    absent-able colour is now allowed, given `when_absent: hide` on the
+    pattern -- absence then hides the whole pattern (every copy, every
+    part), checked once per frame before the loop, because a pattern has
+    no placeholder/fallback to substitute. A part also gains its own
+    `visible:`, a boolean expression evaluated per copy with `copy` bound
+    the same as in a colour; a nullable source read there is likewise
+    governed by the pattern's `when_absent: hide`, not by "absent hides
+    this one part," which is what the same reading would mean in an
+    ordinary element's `visible:` -- a deliberate difference, explained in
+    ADR 0005's second 2026-09-15 amendment. `examples/patterns/face.yaml`'s
+    `test_visibility` (a 5-copy move-bar row) is the worked example: an
+    always-drawn track, plus a lit part gated by
+    `visible: "copy <= activity.move_bar_level-1"`. Verified: warning-free
+    builds on all three targets (4,321-4,323 B, up from 3,581-3,583 B --
+    the `test_visibility` element itself, not per-byte overhead of the new
+    feature), and the same for `complication.battery` in place of
+    `activity.move_bar_level` (5,232-5,234 B, the `ComplicationSubscriber`
+    subscription and `minApiLevel: 4.2.0` included). Unverified on-device.
 
 **A previously-recorded loose end, now resolved — noted so nobody goes
 looking for the problem again:** commit `614d100` added

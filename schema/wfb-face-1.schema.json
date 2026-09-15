@@ -1570,7 +1570,7 @@
       ]
     },
     "patternElement": {
-      "description": "One template of 1-16 primitives (plan 05: 'pattern'), drawn repeatedly -- turned about 'at:' ('pattern: radial') or stepped along {dx, dy} ('pattern: linear'). No 'size:' (the extent is computed from the drawn ink, not authored), no 'on_hold:' (a repeated template has no single fixed hit region -- hold a 'group' around it instead) -- accepted here, like every other element, only so the compiler can say so against your own line instead of a generic 'unknown key'. 'static: true' is accepted unless a colour reads a data source, which a buffer filled once would freeze (the ordinary static-binding error); a colour that reads only 'copy' is fixed per copy and fine there -- unlike 'hands', whose angle is the clock.",
+      "description": "One template of 1-16 primitives (plan 05: 'pattern'), drawn repeatedly -- turned about 'at:' ('pattern: radial') or stepped along {dx, dy} ('pattern: linear'). No 'size:' (the extent is computed from the drawn ink, not authored), no 'on_hold:' (a repeated template has no single fixed hit region -- hold a 'group' around it instead) -- accepted here, like every other element, only so the compiler can say so against your own line instead of a generic 'unknown key'. 'static: true' is accepted unless a colour reads a data source, which a buffer filled once would freeze (the ordinary static-binding error); a colour that reads only 'copy' is fixed per copy and fine there -- unlike 'hands', whose angle is the clock. A colour (the element's own or any part's) or a part 'visible:' may read a source that can be absent, but only with 'when_absent: hide' declared -- see 'when_absent' below.",
       "type": "object",
       "required": [
         "id",
@@ -1634,7 +1634,7 @@
           "minimum": 2
         },
         "color": {
-          "description": "Default colour for every part that declares none of its own. May read 'copy' -- the index of the copy being drawn, 0-based, bound nowhere else -- and data sources that are never absent (time.*, date.*, system.battery, ...), e.g. \"copy == (date.weekday + 5) % 7 ? palette.on : palette.off\". A source that may be absent is an error: a pattern has no 'when_absent:'.",
+          "description": "Default colour for every part that declares none of its own. May read 'copy' -- the index of the copy being drawn, 0-based, bound nowhere else -- and any data source, including one that can be absent -- but a nullable source anywhere in the pattern (this colour, a part's colour, or a part's 'visible:') requires 'when_absent: hide' on the pattern (see 'when_absent'). e.g. \"copy == (date.weekday + 5) % 7 ? palette.on : palette.off\".",
           "$ref": "#/$defs/colorExpression"
         },
         "parts": {
@@ -1653,6 +1653,12 @@
         },
         "visible": {
           "$ref": "#/$defs/visible"
+        },
+        "when_absent": {
+          "description": "Required once any colour (the element's own or any part's) or any part 'visible:' reads a source that can be absent. The only value is 'hide': absence hides the whole pattern -- every copy, every part -- because the reading is taken once per frame, before the loop, not once per copy. There is no 'placeholder:'/'fallback:' here: a pattern has no single value to substitute one for.",
+          "enum": [
+            "hide"
+          ]
         },
         "static": {
           "$ref": "#/$defs/staticFlag"
@@ -1721,6 +1727,10 @@
         "color": {
           "description": "Overrides the pattern's own default colour for this part only. Same rules as the pattern's own 'color:', 'copy' included.",
           "$ref": "#/$defs/colorExpression"
+        },
+        "visible": {
+          "description": "Draw this part only while this expression is true, evaluated separately for each copy -- 'copy' is bound here, the same as in a colour. Must type as a boolean, the same rule the element-level 'visible:' uses. Other parts, and other copies of this same part, are unaffected. Unlike the element-level 'visible:', a source here that can be absent is not 'absent means this part is hidden': the reading is taken once per frame, before the loop, so its absence hides the whole pattern under 'when_absent: hide' (see the pattern's own 'when_absent'), not just this part for this copy.",
+          "type": "string"
         },
         "start_angle": {
           "description": "'shape: arc' only. The arc's own start angle as authored for copy 0; a radial pattern turns it with each copy (12 o'clock = 0, clockwise). Default 0deg.",

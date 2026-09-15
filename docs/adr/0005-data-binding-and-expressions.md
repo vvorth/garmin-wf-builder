@@ -293,3 +293,60 @@ change, and it could not be fixed in the YAML.
 04). A colour that reads a source still keeps its element out of `static:`.
 A colour that reads only `copy` may be static, because a copy's index never
 changes.
+
+## Amendment (2026-09-15): `when_absent: hide` on a pattern, and per-copy part `visible:`
+
+**What changed.** Two related relaxations, both requested by the user
+against `examples/patterns/face.yaml`'s `test_visibility` (a 5-copy move-bar
+row):
+
+1. A pattern's colours (the element's own and every part's) may now read a
+   source that **can** be absent, provided the pattern declares
+   `when_absent: hide`. Absence then hides the whole pattern -- every copy,
+   every part -- because the reading is taken once per frame, before the
+   copy loop, so its absence is a fact about the frame, not about any one
+   copy. The generated code is the null guard every element already gets
+   (`if (x == null) { return; }`), emitted before the loop. There is no
+   `placeholder:`/`fallback:`: a pattern has no single value to substitute
+   one for, only existence.
+2. A pattern part gains its own `visible:`, a boolean expression evaluated
+   **per copy**, with `copy` bound the same as in a colour: false hides that
+   part for that one copy only. A source that can be absent, read here, is
+   governed by the pattern's `when_absent: hide` -- the whole pattern hides
+   -- not by "absent means this part is hidden," which is what the same
+   nullable reading would mean inside an *ordinary* element's `visible:`.
+   This is a deliberate difference from element-level `visible:`, for the
+   same per-frame-not-per-copy reason as (1).
+
+**Why the previous amendment's own refusal no longer holds.** The
+first 2026-09-15 amendment above refused a pattern colour reading an absent-able
+source with one specific reason: "hiding every copy because one reading
+went missing would be a silent no-op." That reasoning is about *silence* --
+a reading vanishing and the whole pattern quietly disappearing with no
+policy on record. It does not hold once the author writes
+`when_absent: hide` explicitly: the policy is then declared, required by the
+compiler (`Builder._check_pattern_absence`), and reported as a note if it
+turns out to do nothing -- so it is never silent, the same standard every
+other element's `when_absent:` is already held to (§3: "every binding
+declares what absence renders as"). The old rule was a *blanket* refusal
+in place of a policy; this amendment replaces the blanket refusal with the
+policy itself.
+
+**Why this is not "growing the language" either.** Still no operator,
+function, loop, assignment or state. `visible:` on a part reuses the exact
+boolean-expression machinery (`Builder._visible`) the element level already
+has; the only addition is compiling it inside the pattern's `copy`-bound
+scope, alongside a colour, instead of outside it. The `when_absent:` field
+itself is not new syntax -- `text` and `progress` already have one; a
+pattern's is simply restricted to `hide` in the schema (`enum: ["hide"]`),
+the same restricted-enum precedent `progressElement`'s own `when_absent:`
+(`hide`/`fallback`, no `placeholder`) already set.
+
+**What stays true.** A hand colour still reads no data at all, absent-able
+or not -- this amendment is pattern-only. Element-level `visible:` is
+unchanged: "absent means hidden," no policy, and `copy` is still unbound
+there (compiled before the pattern builder's `copy` binding opens). §3's
+"every binding declares what absence renders as" is honoured, not
+relaxed -- a pattern's binding is now `hide`, spelled out, rather than an
+unconditional compiler refusal standing in for a policy nobody could
+actually choose.

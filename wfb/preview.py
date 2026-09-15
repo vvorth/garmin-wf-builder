@@ -411,7 +411,19 @@ class _Renderer:
         authored exactly like a hand part, §5.2); an `arc` part has no
         rotate-the-vertices equivalent -- its *start angle* turns with the
         copy instead (`_pattern_arc`).
+
+        `when_absent: hide` (B7, 2026-09-15): the device reads every
+        nullable source a pattern's colours/part `visible:`s use once, before
+        its loop, and returns early if any is null -- mirrored here by
+        `_pattern_absent`, checked once for the whole element, not per copy
+        (the reading is a fact about the frame, not about one copy). Per
+        copy, each part's own `visible:` (B) is evaluated with the same
+        `copy`-bound `values` its colour uses; false/`None` skips only that
+        part, for that copy.
         """
+        element = placed.element
+        if self._pattern_absent(element):
+            return
         s = self.scale
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
@@ -419,11 +431,49 @@ class _Renderer:
             # `copy` is the generated loop's `i`: a colour reading it is
             # evaluated afresh for every copy, exactly as the device does.
             values = {**self.values, expr.COPY: index}
-            for part in placed.parts:
+            for part_index, part in enumerate(placed.parts):
+                visible = element.parts[part_index].visible
+                if visible is not None and not self._pattern_part_visible(visible, values):
+                    continue
                 if part.shape == "arc":
                     self._pattern_arc(part, ox, oy, index, placed, s, values)
                 else:
                     self._hand_part(part, cx, cy, s, sin_t, cos_t, values)
+
+    def _pattern_absent(self, element) -> bool:
+        """Whether any nullable source this pattern's colours (`element.colors`,
+        already the element default plus every part's override, deduplicated)
+        or any part's own `visible:` reads is absent in the current sample
+        (`self.values` -- `SAMPLE` plus any `--sample`/`options.sample`
+        overrides) -- the host-side mirror of the null guard the device
+        emits before its own loop (`wfb.emit.monkeyc._emit_pattern`'s
+        `plan.guards(placed)`, fed by the same colours and part `visible:`s
+        via `PatternElement._own_expressions`).  A build that reached this
+        renderer already guarantees `when_absent: hide` is set whenever this
+        can be `True` (`Builder._check_pattern_absence`) -- checked on the
+        sources themselves, not the flag, so this cannot drift from the
+        guard the device actually runs.  The element's own `visible:` is
+        deliberately not consulted here -- that is a different, already-
+        handled axis (`_visible`), covering the whole element regardless of
+        `when_absent:`.
+        """
+        sources: set[str] = set()
+        for expression in element.colors:
+            sources.update(expression.sources)
+        for part in element.parts:
+            if part.visible is not None:
+                sources.update(part.visible.sources)
+        return any(
+            catalog.CATALOG[path].guard_needed and self.values.get(path) is None
+            for path in sources
+        )
+
+    def _pattern_part_visible(self, expression, values: dict) -> bool:
+        if expression.constant is not None:
+            return bool(expression.constant)
+        if expression.ast is None:
+            return True
+        return bool(expr.evaluate(expression.ast, values))
 
     def _pattern_arc(self, part, ox: float, oy: float, index: int,
                      placed: PlacedPattern, s: int, values: dict) -> None:

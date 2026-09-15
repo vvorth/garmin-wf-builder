@@ -375,3 +375,49 @@ def test_the_week_row_lights_todays_copy(write_design, db, bag, weekday, lit):
     for index in range(7):
         pixel = image.getpixel((CX - 60 + 20 * index, CY))
         assert pixel == (CYAN if index == lit else RED), (index, pixel)
+
+
+# -- `when_absent: hide` + per-copy part `visible:` (B7, 2026-09-15) -----------
+
+
+#: A 5-copy move-bar row: a blue "track" circle always drawn, an orange
+#: "lit" circle on top of it only for copies under the move-bar level.
+#: Radii chosen (6px/3px) so the orange dot, when drawn, fully covers the
+#: blue one at that copy's centre pixel -- a broken implementation that
+#: ignored `visible:` (always drawing orange) or that hid only the gated
+#: part instead of the whole pattern would both fail at least one pixel
+#: below.
+_BARS = """\
+elements:
+  bars:
+    type: pattern
+    pattern: linear
+    at: {anchor: center, dx: -30px, dy: 0px}
+    count: 5
+    step: {dx: 15px}
+    when_absent: hide
+    parts:
+      - {shape: circle, radius: 6px, color: palette.blue}
+      - shape: circle
+        radius: 3px
+        color: palette.orange
+        visible: "copy < activity.move_bar_level"
+"""
+
+
+def test_move_bar_level_2_lights_exactly_copies_0_and_1(write_design, db, bag):
+    image = _render(write_design, db, bag, _BARS, sample={"activity.move_bar_level": 2})
+    for index in range(5):
+        x = CX - 30 + 15 * index
+        expected = ORANGE if index < 2 else BLUE
+        assert image.getpixel((x, CY)) == expected, (index, image.getpixel((x, CY)))
+
+
+def test_move_bar_absent_hides_the_whole_pattern_track_included(write_design, db, bag):
+    """`when_absent: hide` on the pattern: with the source missing, nothing
+    draws at all -- not even the always-on blue track part, which has no
+    `visible:` of its own and would otherwise still be there."""
+    image = _render(write_design, db, bag, _BARS, sample={"activity.move_bar_level": None})
+    for index in range(5):
+        x = CX - 30 + 15 * index
+        assert image.getpixel((x, CY)) == BACKGROUND, (index, image.getpixel((x, CY)))

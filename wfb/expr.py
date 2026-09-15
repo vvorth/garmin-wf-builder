@@ -319,9 +319,12 @@ class Scope:
 
 
 #: The index of the copy being drawn, 0-based -- bound only while a `type:
-#: pattern`'s colours are compiled (`Builder._build_pattern_element`), to the
-#: generated loop's own `i`.  Every other expression sees it unbound, and
-#: `check` gives that its own error rather than "unknown data source".
+#: pattern`'s colours and its parts' `visible:` are compiled
+#: (`Builder._build_pattern_element`), to the generated loop's own `i`.
+#: Every other expression sees it unbound -- including the *element's own*
+#: `visible:`, compiled before the pattern builder binds `copy` at all
+#: (2026-09-15) -- and `check` gives that its own error rather than "unknown
+#: data source".
 COPY = "copy"
 
 
@@ -347,10 +350,12 @@ def check(node: Node, scope: Scope) -> Value:
         binding = scope.lookup(node.path)
         if binding is None and node.path == COPY:
             raise ExprError(
-                f"{COPY!r} is only defined in a 'type: pattern' colour",
+                f"{COPY!r} is only defined in a 'type: pattern' element's colours "
+                "and its parts' 'visible:'",
                 node.offset,
                 [f"{COPY!r} is the index of the copy being drawn, 0-based -- "
-                 "nothing but a pattern has copies"],
+                 "nothing but a pattern has copies",
+                 "to hide some copies, put 'visible:' on the parts, or use 'skip:'"],
             )
         if binding is None:
             from . import catalog

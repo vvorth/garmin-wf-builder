@@ -303,24 +303,106 @@ def _with_color(template: str, color: str, where: str) -> str:
         "    color: palette.fg\n", "")
 
 
+def _with_when_absent(template: str, value: str = "hide") -> str:
+    """`template` with `when_absent: <value>` added at the element level,
+    just above `parts:` -- every RADIAL_RING-derived fixture has exactly one
+    `parts:` line."""
+    assert template.count("    parts:\n") == 1
+    return template.replace("    parts:\n", f"    when_absent: {value}\n    parts:\n", 1)
+
+
 @pytest.mark.parametrize("where", ["element", "part"])
-def test_a_colour_reading_an_absent_able_source_is_rejected(write_design, bag, where):
-    """A pattern has no `when_absent:`, so a reading that can be absent is
-    still refused (2026-09-15) -- one error, naming the source."""
+def test_a_colour_reading_an_absent_able_source_needs_when_absent(write_design, bag, where):
+    """2026-09-15: a pattern colour may now read a source that can be
+    absent, but only with 'when_absent: hide' declared -- the old outright
+    refusal (`cannot read a source that may be absent`) is gone; this is
+    the new one-error-not-N replacement, `_check_pattern_absence`."""
     color = "activity.steps > 5000 ? palette.accent : palette.fg"
     bad = errors(design(_with_color(RADIAL_RING, color, where)), bag, write_design)
     assert len(bad) == 1, [d.message for d in bad]
-    assert "cannot read a source that may be absent ('activity.steps')" in bad[0].message
+    assert bad[0].code == "when-absent"
+    assert "reads 'activity.steps', which can be absent" in bad[0].message
+    assert "'when_absent: hide' is required" in bad[0].message
+
+
+def test_two_nullable_bindings_on_one_pattern_still_get_one_error(write_design, bag):
+    """The element colour *and* the one part's colour both read a nullable
+    source: `_check_pattern_absence` reports once for the whole element, not
+    once per expression."""
+    color = "activity.steps > 5000 ? palette.accent : palette.fg"
+    text = _with_color(RADIAL_RING, color, "element").replace(
+        "thickness: 2px}", f'thickness: 2px, color: "{color}"}}')
+    bad = errors(design(text), bag, write_design)
+    assert len(bad) == 1, [d.message for d in bad]
+    assert bad[0].code == "when-absent"
+
+
+@pytest.mark.parametrize("where", ["element", "part"])
+def test_a_colour_reading_an_absent_able_source_builds_with_when_absent_hide(write_design, bag, where):
+    color = "activity.steps > 5000 ? palette.accent : palette.fg"
+    text = _with_when_absent(_with_color(RADIAL_RING, color, where))
+    face = load(write_design(design(text)), bag)
+    assert face is not None, bag.render()
+    assert face.elements[0].when_absent == "hide"
+
+
+def test_a_colour_reading_a_complication_builds_clean_with_the_subscription(
+        write_design, bag, db, tmp_path):
+    """`complication.battery` (every `complication.*` source is nullable, so
+    it needed the same treatment as `activity.steps` above) -- builds with
+    `when_absent: hide`, and the generated project actually subscribes:
+    `ComplicationSubscriber` in the manifest, the right `minApiLevel`, and a
+    `WfbComplications.subscribe` call in the view (1c in the brief -- costlier
+    than a direct source, but it must still work end to end)."""
+    from wfb.emit.project import generate
+
+    color = "complication.battery > 50 ? palette.accent : palette.fg"
+    text = _with_when_absent(_with_color(RADIAL_RING, color, "part"))
+    face = load(write_design(design(text)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    project = generate(resolved.face, [device], tmp_path, {device.id: resolved.fonts})
+    assert 'id="ComplicationSubscriber"' in project.manifest_text
+    assert 'minApiLevel="4.2.0"' in project.manifest_text
+    files = project.files()
+    (view_path,) = [p for p in files if p.endswith("View.mc")]
+    assert "WfbComplications.subscribe(new Complications.Id(Complications.COMPLICATION_TYPE_BATTERY))" \
+        in files[view_path]
 
 
 @pytest.mark.parametrize("where", ["element", "part"])
 def test_a_colour_reading_a_never_absent_source_builds(write_design, bag, where):
     """The contrast: `date.weekday` is never absent, so a pattern may read it
-    -- until 2026-09-15 this was the same "cannot read data" error as above."""
+    with no 'when_absent:' at all -- until 2026-09-15 this was the same
+    "cannot read data" error as a hand's colour still gets."""
     color = "date.weekday == 1 ? palette.accent : palette.fg"
     face = load(write_design(design(_with_color(RADIAL_RING, color, where))), bag)
     assert face is not None, bag.render()
     assert face.elements[0].parts[0].color.sources == ("date.weekday",)
+
+
+def test_when_absent_hide_on_a_pattern_that_reads_nothing_nullable_is_a_note(write_design, bag):
+    """The mirror of the error above: `when_absent: hide` declared but
+    nothing on the pattern can ever be absent -- a note, not an error, the
+    same "has no effect" wording `_check_absence` gives every other element
+    kind."""
+    text = _with_when_absent(RADIAL_RING)
+    face = load(write_design(design(text)), bag)
+    assert face is not None, bag.render()
+    notes = [d for d in bag.items if d.code == "when-absent"]
+    assert len(notes) == 1, [d.message for d in bag.items]
+    assert "has no effect" in notes[0].message
+
+
+def test_when_absent_placeholder_is_a_schema_error_on_a_pattern(write_design, bag):
+    """The schema restricts a pattern's 'when_absent:' to 'hide' only (no
+    placeholder/fallback: a pattern has no single value to substitute one
+    for) -- `progressElement`'s own restricted enum is the precedent."""
+    text = _with_when_absent(RADIAL_RING, "placeholder")
+    face = load(write_design(design(text)), bag)
+    assert face is None
+    assert any(d.code == "schema" for d in bag.errors), bag.render()
 
 
 def test_a_hand_colour_still_may_not_read_a_never_absent_source(write_design, bag):
@@ -372,7 +454,8 @@ def test_copy_outside_a_pattern_has_its_own_error(write_design, bag):
 """
     bad = errors(design(shape), bag, write_design)
     assert len(bad) == 1
-    assert "'copy' is only defined in a 'type: pattern' colour" in bad[0].message
+    assert "'copy' is only defined in a 'type: pattern' element's colours " \
+           "and its parts' 'visible:'" in bad[0].message
 
 
 def test_copy_does_not_leak_past_the_pattern_that_bound_it(write_design, bag):
@@ -405,6 +488,117 @@ def test_copy_does_not_leak_past_a_rejected_pattern(write_design, bag):
     assert [d.message for d in bad if "'copy' is only defined" in d.message]
 
 
+def test_copy_in_the_element_level_visible_is_its_own_error(write_design, bag):
+    """B4: `copy` is bound only while a pattern's colours/parts' `visible:`
+    compile -- the element's own `visible:` is compiled earlier, in
+    `_build_element`, before `_build_pattern_element` (and its `copy`
+    binding) ever runs, so it gets the same "only defined in ..." error as
+    anywhere else outside a pattern."""
+    text = RADIAL_RING.replace(
+        "    at: {anchor: center}",
+        '    at: {anchor: center}\n    visible: "copy == 0"',
+    )
+    bad = errors(design(text), bag, write_design)
+    assert len(bad) == 1
+    assert "'copy' is only defined in a 'type: pattern' element's colours " \
+           "and its parts' 'visible:'" in bad[0].message
+
+
+# -- part `visible:` (B) -------------------------------------------------------
+
+
+def _with_part_visible(template: str, condition: str) -> str:
+    """RADIAL_RING's one part with `visible: <condition>` added."""
+    return template.replace("thickness: 2px}", f'thickness: 2px, visible: "{condition}"}}')
+
+
+def test_part_visible_reading_only_copy_builds(write_design, bag):
+    text = _with_part_visible(RADIAL_RING, "copy < 2")
+    face = load(write_design(design(text)), bag)
+    assert face is not None, bag.render()
+    part = face.elements[0].parts[0]
+    assert part.visible is not None
+    assert part.visible.sources == ()
+    assert part.visible.code == "(i < 2)"
+
+
+def test_part_visible_reading_only_copy_may_be_static(write_design, bag):
+    """A copy's index never changes once the buffer is filled -- the same
+    reasoning that already lets a colour reading only `copy` be static."""
+    text = _static(_with_part_visible(RADIAL_RING, "copy < 2"))
+    face = load(write_design(design(text)), bag)
+    assert face is not None, bag.render()
+
+
+def test_part_visible_reading_a_nullable_source_needs_when_absent(write_design, bag):
+    text = _with_part_visible(RADIAL_RING, "copy <= activity.move_bar_level - 1")
+    bad = errors(design(text), bag, write_design)
+    assert len(bad) == 1, [d.message for d in bad]
+    assert bad[0].code == "when-absent"
+    assert "activity.move_bar_level" in bad[0].message
+    assert "'when_absent: hide' is required" in bad[0].message
+
+
+def test_part_visible_reading_a_nullable_source_builds_with_when_absent_hide(write_design, bag):
+    text = _with_when_absent(_with_part_visible(RADIAL_RING, "copy <= activity.move_bar_level - 1"))
+    face = load(write_design(design(text)), bag)
+    assert face is not None, bag.render()
+    part = face.elements[0].parts[0]
+    assert part.visible.sources == ("activity.move_bar_level",)
+
+
+def test_part_visible_reading_a_data_source_inside_static_is_a_static_error(write_design, bag):
+    """Even a never-absent source: static freezes the reading, the same
+    ordinary static-binding error a colour reading `date.weekday` gets --
+    and the message says 'visible', not 'a value' (A3)."""
+    text = _static(_with_part_visible(RADIAL_RING, "date.weekday == 1"))
+    bad = errors(design(text), bag, write_design)
+    assert len(bad) == 1
+    assert bad[0].code == "static"
+    assert "visible" in bad[0].message
+    assert "date.weekday" in bad[0].message
+
+
+def test_part_visible_non_boolean_is_the_boolean_type_error(write_design, bag):
+    text = _with_part_visible(RADIAL_RING, "copy")
+    bad = errors(design(text), bag, write_design)
+    assert len(bad) == 1
+    assert "visible must be a boolean" in bad[0].message
+
+
+def test_visible_on_a_hand_part_is_rejected_by_the_schema(write_design, bag):
+    """`handPart` never gained `visible:` -- schema keeps `additionalProperties:
+    false`, unlike `patternPart` (B1)."""
+    hands = """
+hands:
+  classic:
+    hour:
+      color: palette.fg
+      parts:
+        - {shape: rectangle, at: {dy: -30%r}, size: {width: 3%r, height: 50%r}, visible: "true"}
+"""
+    elements = """  - id: h
+    type: hands
+    hands: classic
+    at: {anchor: center}
+"""
+    face = load(write_design(BASE + hands + "\nelements:\n" + elements), bag)
+    assert face is None
+    assert any(d.code == "schema" for d in bag.errors), bag.render()
+
+
+def test_copy_does_not_leak_past_a_pattern_whose_part_visible_bound_it(write_design, bag):
+    text = _with_part_visible(RADIAL_RING, "copy < 2")
+    shape = """  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 5px
+    color: "copy == 0 ? palette.accent : palette.fg"
+"""
+    bad = errors(design(text + shape), bag, write_design)
+    assert len(bad) == 1
+    assert "'copy' is only defined" in bad[0].message
 
 
 
@@ -803,3 +997,114 @@ def test_a_date_reading_is_declared_once_before_the_loop(write_design, bag, db, 
     assert "day_of_week" not in _loop_body(view)
     assert "dateShort as Gregorian.Info" in view  # the method's reader parameter
     assert "Gregorian.info(Time.now(), Time.FORMAT_SHORT)" in view
+
+
+# -- codegen: gated part `visible:` (B6) ----------------------------------------
+
+
+#: Three parts, same colour on the first (gated) and third (ungated) -- the
+#: precedent B6 names: "[A gated, color X] [B ungated, color X] -- B must
+#: not depend on A's branch."  A different colour on the middle part
+#: (`palette.bg`) keeps colour hoisting off, so each part's `dc.setColor`
+#: call is emitted (or, for the third part, *not* re-emitted, because the
+#: colour did not change) exactly the way a real multi-colour pattern would.
+GATED_ORDER = """  - id: bars
+    type: pattern
+    pattern: linear
+    at: {anchor: center}
+    count: 3
+    step: {dx: 10px}
+    when_absent: hide
+    parts:
+      - {shape: circle, radius: 6px, color: palette.bg}
+      - shape: rectangle
+        size: {width: 4px, height: 4px}
+        color: palette.fg
+        visible: "copy <= activity.move_bar_level - 1"
+      - {shape: rectangle, size: {width: 2px, height: 2px}, color: palette.fg}
+"""
+
+
+def test_a_gated_parts_draw_call_sits_inside_its_if(write_design, bag, db, tmp_path):
+    view = _view_for(design(GATED_ORDER), write_design, bag, db, tmp_path)
+    body = _loop_body(view)
+    assert "// visible: copy <= activity.move_bar_level - 1" in body
+    gate_index = body.index("if (")
+    draw_index = body.index("Layout.BARS_1_")  # the gated rectangle's own constants
+    assert gate_index < draw_index, "the gated part's own draw call must sit after its 'if'"
+
+
+def test_a_gated_parts_setcolor_sits_before_the_gate_not_inside_it(write_design, bag, db, tmp_path):
+    """B6's own worked example: a broken implementation that moved the
+    gated part's `dc.setColor` *inside* its `if` would leave the third
+    (ungated, same-colour) part's pen colour unset whenever the gate is
+    false at runtime -- this fails against exactly that mistake, because
+    `setColor(Palette.FG...)` would then appear *after* `if (`, not before
+    it, and it is emitted only once (not re-emitted for the third part)."""
+    view = _view_for(design(GATED_ORDER), write_design, bag, db, tmp_path)
+    body = _loop_body(view)
+    lines = body.splitlines()
+    set_fg = [i for i, line in enumerate(lines) if "setColor(Palette.FG" in line]
+    gates = [i for i, line in enumerate(lines) if line.strip().startswith("if (")]
+    assert len(set_fg) == 1, lines  # not re-set for the third, ungated part
+    assert len(gates) == 1, lines
+    assert set_fg[0] < gates[0], "Palette.FG must be set before the gate, not inside it"
+
+
+def test_a_nullable_source_read_by_part_visible_is_guarded_before_the_loop(
+        write_design, bag, db, tmp_path):
+    """The element-level null guard `_emit_element_method` already emits
+    generically for every element (from `element.expressions()`) covers a
+    part `visible:`'s own nullable sources too, the same as a colour's --
+    verified here, not reimplemented."""
+    text = _with_when_absent(_with_part_visible(RADIAL_RING, "copy <= activity.move_bar_level - 1"))
+    view = _view_for(design(text), write_design, bag, db, tmp_path)
+    before_loop = view.split("for (var i = 0; i <", 1)[0]
+    assert "var activityMoveBarLevel = " in before_loop
+    assert "if (activityMoveBarLevel == null)" in before_loop
+    assert "return;" in before_loop
+
+
+CONST_FALSE_PART = """  - id: bars2
+    type: pattern
+    pattern: linear
+    at: {anchor: center}
+    count: 2
+    step: {dx: 10px}
+    parts:
+      - {shape: circle, radius: 4px, color: palette.fg, visible: "false"}
+      - {shape: circle, radius: 2px, color: palette.bg}
+"""
+
+
+def test_a_constant_false_visible_part_emits_no_draw_code(write_design, bag, db, tmp_path):
+    view = _view_for(design(CONST_FALSE_PART), write_design, bag, db, tmp_path)
+    body = _loop_body(view)
+    assert "Palette.FG" not in body  # the dead part's own colour never appears
+    assert "fillCircle" in body  # the live (background) part still draws
+
+
+def test_a_constant_false_visible_part_warns_dead_element(lint_run):
+    bag = lint_run(design(CONST_FALSE_PART))
+    findings = [d for d in bag.items if d.code == "dead-element"]
+    assert len(findings) == 1, [d.message for d in bag.items]
+    assert "bars2.parts[0]" in findings[0].message
+    assert "never drawn" in findings[0].message
+
+
+CONST_TRUE_PART = """  - id: bars3
+    type: pattern
+    pattern: linear
+    at: {anchor: center}
+    count: 2
+    step: {dx: 10px}
+    parts:
+      - {shape: circle, radius: 4px, color: palette.fg, visible: "true"}
+"""
+
+
+def test_a_constant_true_visible_part_emits_no_gate(write_design, bag, db, tmp_path):
+    view = _view_for(design(CONST_TRUE_PART), write_design, bag, db, tmp_path)
+    body = _loop_body(view)
+    assert "if (" not in body
+    assert "fillCircle" in body

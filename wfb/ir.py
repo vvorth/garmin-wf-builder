@@ -733,6 +733,16 @@ class HandPart:
     #: same convention `Shape.start_angle`/`.sweep` use.
     start_angle: Angle | None = None
     sweep: Angle | None = None
+    #: `type: pattern` template parts only (schema keeps `handPart` closed to
+    #: it, `additionalProperties: false`) -- a boolean expression evaluated
+    #: per copy, `copy` bound the same as in a colour: false hides this part
+    #: for this copy only, other parts and copies unaffected (2026-09-15,
+    #: "per-copy part visible:").  `None` when not authored, or when the
+    #: condition folded to a build-time constant `true` -- there is nothing
+    #: to gate, so `_build_hand_part` drops it rather than keep a no-op
+    #: expression around.  A constant `false` is kept (not dropped): codegen
+    #: emits no draw code for it, and the `dead-element` lint names it.
+    visible: Expression | None = None
 
 
 @dataclass
@@ -825,6 +835,13 @@ class PatternElement(Element):
     #: override) this pattern uses, deduplicated in first-use order --
     #: `HandsElement.colors`'s own precedent.
     colors: tuple[Expression, ...] = ()
+    #: `when_absent: hide` as authored, or `None` (schema: `enum: ["hide"]`,
+    #: the only value -- a pattern has no placeholder/fallback, see
+    #: `Builder._check_pattern_absence`).  Required once any colour or part
+    #: `visible:` reads a source that can be absent (2026-09-15); absence
+    #: then hides the whole pattern, every copy and every part, because the
+    #: reading is taken once per frame, before the loop.
+    when_absent: str | None = None
 
     def drawn_indices(self) -> tuple[int, ...]:
         """Copy indices actually drawn, ascending: `0..count-1` minus `skip`
@@ -837,7 +854,11 @@ class PatternElement(Element):
         )
 
     def _own_expressions(self) -> list[Expression]:
-        return list(self.colors)
+        out = list(self.colors)
+        for part in self.parts:
+            if part.visible is not None:
+                out.append(part.visible)
+        return out
 
 
 @dataclass
@@ -2220,45 +2241,31 @@ class Builder:
             return None
         return Hand(parts=parts, color=hand_color)
 
-    def _reject_hand_data_color(
-        self, color: Expression, where: str, span: Span | None, *, noun: str = "hand",
-    ) -> bool:
-        """A hand colour "may not read a data source" (§5.4) -- a hand is
-        about the time.  A pattern colour may read one that is never absent
-        (`date.weekday`, `time.*`, `system.battery`, ...), but not one that
-        can be: a pattern has no `when_absent:` to fall back through, and
-        hiding every copy because one reading went missing would be a
-        silent no-op (2026-09-15, relaxing plan 05 §5.2 so a row of dots
-        can show the day of the week).  Returns whether the colour was
-        rejected.
+    def _reject_hand_data_color(self, color: Expression, where: str, span: Span | None) -> bool:
+        """A hand colour "may not read a data source" at all (§5.4) -- a hand
+        is about the time, with no `when_absent:` to fall back through if a
+        reading it named turned out absent.
+
+        Pattern-only until 2026-09-15 (`noun="pattern"` used to run a second,
+        looser rule here: any source was fine except one that could be
+        absent).  That rule is gone -- a pattern colour may now read
+        anything, absent-able or not -- so this is a hand-only check again,
+        and every pattern call site below simply stops calling it.  The
+        pattern-wide absence policy lives in `_check_pattern_absence`
+        instead: **one** error covering every colour and part `visible:` on
+        the element, not a rejection per expression.  Returns whether the
+        colour was rejected.
         """
         if not color.sources:
             return False
-        if noun == "pattern":
-            absent = [p for p in color.sources if catalog.CATALOG[p].guard_needed]
-            if not absent:
-                return False
-            self.bag.error(
-                "pattern",
-                f"{where}.color: a pattern colour cannot read a source that may "
-                f"be absent ({_and_paths(tuple(absent))})",
-                span or color.span,
-                notes=["allowed: palette entries, literal colours, config.*, "
-                       f"'{expr.COPY}' (the copy index), and sources that are never "
-                       "absent (time.*, date.*, system.battery, ...) -- and "
-                       "conditionals over those",
-                       "a pattern has no 'when_absent:' to fall back through if "
-                       "the reading turned out absent"],
-            )
-            return True
         self.bag.error(
-            "hands" if noun == "hand" else "pattern",
-            f"{where}.color: a {noun} colour cannot read data ({_and_paths(color.sources)})",
+            "hands",
+            f"{where}.color: a hand colour cannot read data ({_and_paths(color.sources)})",
             span or color.span,
             notes=["allowed: palette entries, literal colours and config.* "
                    "(accent_color, data_color, colors.<role>) -- and conditionals "
                    "over those",
-                   f"a {noun} has no 'when_absent:' to fall back through if the "
+                   "a hand has no 'when_absent:' to fall back through if the "
                    "reading it named turned out absent"],
         )
         return True
@@ -2304,8 +2311,8 @@ class Builder:
 
         ok = True
         part_color = self._color_expression(node, "color") if "color" in node else None
-        if part_color is not None and self._reject_hand_data_color(
-                part_color, part_where, self.doc.span(node, "color"), noun=noun):
+        if is_hand and part_color is not None and self._reject_hand_data_color(
+                part_color, part_where, self.doc.span(node, "color")):
             part_color = None
             ok = False
         elif "color" in node and part_color is None:
@@ -2323,6 +2330,21 @@ class Builder:
                        "every part without one inherits"],
             )
             ok = False
+
+        # `visible:` (B): pattern parts only -- the schema keeps `handPart`
+        # closed to it, so `context == "hand"` never sees the key at all.
+        # Compiled inside the caller's `copy`-bound scope
+        # (`Builder._build_pattern_element`), the same as a colour.  A
+        # constant `true` is dropped (nothing to gate); a constant `false`
+        # is kept, so the `dead-element` lint (B5) and codegen (which emits
+        # no draw code for it) both see it.
+        part_visible: Expression | None = None
+        if not is_hand and "visible" in node:
+            part_visible = self._visible(node)
+            if part_visible is None:
+                ok = False
+            elif part_visible.constant is not None and part_visible.constant:
+                part_visible = None
 
         raw_points = node.get("points") or []
         points = [self._position(raw, node, "points")
@@ -2375,6 +2397,7 @@ class Builder:
             thickness=thickness, radius=radius, filled=filled,
             color=effective_color, span=span,
             start_angle=start_angle, sweep=sweep,
+            visible=part_visible,
         )
 
     def _check_hand_part_keys(
@@ -2860,6 +2883,12 @@ class Builder:
         nullable source here means exactly one thing -- absent is hidden --
         and the emitter folds the null check into the same guard as the
         condition.
+
+        Reused verbatim for a `type: pattern` part's own `visible:` (B), with
+        `copy` bound in scope -- but there "absent is hidden" means the whole
+        *pattern* is hidden, not just this part: `_check_pattern_absence`
+        governs that, not this method, because the reading is taken once per
+        frame, before the loop, so its absence is not a per-copy fact.
         """
         expression = self._expression(node, "visible")
         if expression is None:
@@ -3097,7 +3126,11 @@ class Builder:
                 for expression in element.expressions():
                     if not expression.sources:
                         continue
-                    where = ("visible" if expression is element.visible
+                    is_part_visible = (
+                        isinstance(element, PatternElement)
+                        and any(expression is p.visible for p in element.parts)
+                    )
+                    where = ("visible" if expression is element.visible or is_part_visible
                              else "a value")
                     self.bag.error(
                         "static",
@@ -3520,14 +3553,10 @@ class Builder:
                 if element_color is None:
                     ok = False
                     color_declared_and_failed = True
-                else:
-                    rejected = self._reject_hand_data_color(
-                        element_color, element_id, self.doc.span(node, "color"),
-                        noun="pattern")
-                    if rejected:
-                        element_color = None
-                        ok = False
-                        color_declared_and_failed = True
+                # No `_reject_hand_data_color` here any more: a pattern
+                # colour may read any source, absent-able or not
+                # (2026-09-15) -- `_check_pattern_absence` below is the one
+                # place that now polices absence, for the element as a whole.
 
             for index, raw_part in enumerate(node.get("parts") or []):
                 part = self._build_hand_part(
@@ -3550,7 +3579,7 @@ class Builder:
             if part.color is not None and part.color not in colors:
                 colors.append(part.color)
 
-        return PatternElement(
+        element = PatternElement(
             **common,
             pattern=pattern_kind,
             count=count,
@@ -3562,7 +3591,76 @@ class Builder:
             parts=parts,
             color=element_color,
             colors=tuple(colors),
+            when_absent=node.get("when_absent"),
         )
+        self._check_pattern_absence(node, element)
+        return element
+
+    def _check_pattern_absence(self, node: dict, element: PatternElement) -> None:
+        """A2: one element-level `when_absent:` check for a pattern, in
+        place of the old per-colour refusal (`_reject_hand_data_color` used
+        to run once per colour; a pattern colour may now read a source that
+        can be absent, so the compiler needs a policy from the author
+        instead of a blanket rejection).
+
+        Collects every nullable colour (the element's own `color:`, and
+        each part's) and every nullable part `visible:` (B) -- deliberately
+        **not** the element's own `visible:`, which keeps its ordinary
+        "absent means hidden, no policy" rule (`_visible`'s own docstring) --
+        and reports **one** error naming every nullable source found, not
+        one per expression, the same "one error, not N" discipline
+        `docs/lore/codegen.md` asks for everywhere else. The wording is the
+        house `_check_other_absence` style, adapted: a pattern has no
+        `placeholder:`/`fallback:` to offer, only `hide`, and absence hides
+        the *whole* pattern (every copy, every part), not just the one
+        binding that went missing -- the reading is taken once per frame,
+        before the loop (B3).
+
+        The mirror case -- `when_absent: hide` declared but nothing on the
+        pattern is ever absent -- reuses `_check_absence`'s own "has no
+        effect" wording, so both notes read the same across every element
+        kind that has one.
+        """
+        nullable: list[Expression] = []
+        for expression in element.colors:
+            if expression.nullable and expression not in nullable:
+                nullable.append(expression)
+        for part in element.parts:
+            if part.visible is not None and part.visible.nullable \
+                    and part.visible not in nullable:
+                nullable.append(part.visible)
+
+        if nullable:
+            if element.when_absent is not None:
+                return
+            sources = tuple(sorted({
+                p for expression in nullable for p in expression.sources
+                if catalog.CATALOG[p].guard_needed
+            }))
+            first = nullable[0]
+            self.bag.error(
+                "when-absent",
+                f"{element.id}: reads {_and_paths(sources)}, which can be "
+                "absent, so 'when_absent: hide' is required",
+                first.span,
+                notes=[
+                    "every ActivityMonitor field is nullable and sensors are "
+                    "simply missing on some devices, so absence is the normal "
+                    "case, not an error",
+                    "a pattern has no placeholder or fallback -- absence hides "
+                    "the whole pattern, every copy and every part, because the "
+                    "reading is taken once per frame, before the loop",
+                    "add 'when_absent: hide' to the pattern",
+                ],
+            )
+            return
+        if element.when_absent is not None:
+            self.bag.note(
+                "when-absent",
+                f"{element.id}: 'when_absent' has no effect -- nothing this "
+                "pattern reads is ever absent",
+                self.doc.span(node, "when_absent"),
+            )
 
     def _build_text(self, node: dict, common: dict, path: tuple) -> Element:
         value = self._expression(node, "value") if "value" in node else None

@@ -232,6 +232,12 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     `examples/patterns/face.yaml`. **2026-09-15:** a pattern colour may
     read `copy` (the copy index, bound nowhere else) and never-absent
     sources, e.g. the new numeric `date.weekday` (ADR 0005 amended).
+    **2026-09-15 (same day):** a colour or part `visible:` may also read a
+    source that *can* be absent, given `when_absent: hide` on the pattern
+    (absence then hides the whole pattern, checked once per frame); a part
+    also gains its own per-copy `visible:`, `copy` bound the same as in a
+    colour (ADR 0005 amended again; `examples/patterns/face.yaml`'s
+    `test_visibility`).
   - **Built 2026-09-14** (plan 04): analog hands. `hands:` declares
     named hour/minute/second sets, each hand 1–16 parts of four kinds
     (`polygon`/`rectangle`/`line`/`circle`) drawn at 12 o'clock with the

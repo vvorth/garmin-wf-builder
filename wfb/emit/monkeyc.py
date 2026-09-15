@@ -2271,10 +2271,29 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     hands: the device performs the one piece of layout arithmetic ADR 0004
     leaves it (a rotation or a translation), everything else is a `Layout`
     constant.
+
+    Per-copy part `visible:` (B, 2026-09-15): a part whose `visible:` folded
+    to a compile-time `false` is dropped here entirely -- no colour line, no
+    draw call -- the `dead-element` lint already told the author (B5). A part
+    whose `visible:` is not constant is *gated*: its own drawing (everything
+    `_emit_pattern_part` writes for it, pen included) sits inside
+    `if (<condition>) { ... }`, but its `dc.setColor(...)` stays where it
+    already was, **before** the gate and unconditional -- so the pen colour
+    after this part is the same whichever branch ran, and the part *after*
+    it never has to ask whether this one actually drew (B6's colour-state
+    test).
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
-    parts = placed.parts
+    # `element.parts[i]` and `placed.parts[i]` are the same template, in the
+    # same order (`Resolver._resolve_pattern` builds one `ResolvedHandPart`
+    # per `HandPart`, 1:1) -- so the IR part is what carries `visible:`
+    # (geometry resolution never touches it), read here by plain index.
+    live = [
+        (index, part) for index, part in enumerate(placed.parts)
+        if not (element.parts[index].visible is not None
+                and element.parts[index].visible.is_constant)
+    ]
     radial = element.pattern == "radial"
     needs_trig = _pattern_needs_math(placed)
 
@@ -2287,10 +2306,12 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     # already follows within one hand).  A colour that reads `copy` is the
     # loop's own `i`, so it can never be hoisted: it is set inside the loop,
     # afresh on every copy.  (A data reading needs no such care -- its local
-    # is declared at the top of the method, before the loop.)
-    colors = [_color(part.color) for part in parts]
+    # is declared at the top of the method, before the loop.)  A dead part
+    # (constant-false `visible:`, excluded from `live`) contributes no
+    # colour at all -- it never draws, so its colour is nobody's concern.
+    colors = [_color(part.color) for _, part in live]
     distinct_colors = list(dict.fromkeys(colors))
-    per_copy = any(expr.reads_copy(part.color.ast) for part in parts
+    per_copy = any(expr.reads_copy(part.color.ast) for _, part in live
                    if part.color is not None)
     hoist_color = len(distinct_colors) == 1 and not per_copy
 
@@ -2298,9 +2319,9 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     # width and there is no arc part -- `WfbArc.drawSpan` resets the pen to
     # 1 itself on every call, which would undo a hoisted width on the very
     # next copy.
-    pen_parts = [(i, part) for i, part in enumerate(parts)
+    pen_parts = [(i, part) for i, part in live
                 if part.shape == "line" or (part.shape == "circle" and not part.filled)]
-    has_arc = any(part.shape == "arc" for part in parts)
+    has_arc = any(part.shape == "arc" for _, part in live)
     hoist_pen = (
         bool(pen_parts) and not has_arc
         and len({p.thickness for _, p in pen_parts}) == 1
@@ -2329,11 +2350,18 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
             w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
             w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
         current_color = distinct_colors[0] if hoist_color else None
-        for index, (color, part) in enumerate(zip(colors, parts)):
+        for color, (index, part) in zip(colors, live):
             if not hoist_color and color != current_color:
                 w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
                 current_color = color
-            _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen)
+            visible = element.parts[index].visible
+            if visible is not None:
+                # Non-constant, or `live` would have excluded it above.
+                w.comment(f"visible: {visible.text}")
+                with w.block(f"if ({visible.code})"):
+                    _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen)
+            else:
+                _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen)
     if hoist_pen:
         w.line("dc.setPenWidth(1);")
 

@@ -100,7 +100,15 @@ true only of a source that can be absent. A pattern colour may read `copy`,
 the index of the copy being drawn, and any source that is never absent,
 such as `date.weekday`, so `examples/patterns/`'s row of dots lights
 today's. The per-copy colour is evaluated inside the device loop, once per
-copy, and that cost is unmeasured too.)*
+copy, and that cost is unmeasured too.)* *(Second correction, same day: a
+colour -- or a part `visible:` -- may now read a source that **can** be
+absent too, given `when_absent: hide` on the pattern; absence then hides
+the whole pattern, checked once per frame before the loop, not per copy.
+`examples/patterns/`'s `test_visibility` (a move-bar row) is the worked
+example. Per-copy part `visible:` is new alongside it: a boolean expression
+evaluated per copy, `copy` bound the same as in a colour, that hides just
+that one part for that one copy. Neither the per-frame absence check nor
+the per-copy `visible:` evaluation's device cost is measured.)*
 
 ### `SensorHistory` is closed to a watch face, and solar has no history API at all
 
@@ -560,7 +568,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `wfb new -t analog` template | plan 04 §11 |
 | `text` parts in a `pattern` (hour numerals: each copy would need its own text, and a bitmap font cannot turn) | plan 05 §9 D5 |
 | `pattern: grid` (rows × columns) | plan 05 §9 D5 -- two nested linear steps; nothing has asked for it yet |
-| Pattern colours that read a source which can be absent, and per-copy variation other than `skip:`/`skip_every:` and colour | plan 05 §9 D5 -- a pattern has no `when_absent:`; a longer copy is a second pattern element today. *Per-copy colours (`copy`) and never-absent sources in a pattern colour were built 2026-09-15; this row used to list them too.* |
+| Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | plan 05 §9 D5 -- a longer or differently-shaped copy is a second pattern element today. *Per-copy colours (`copy`) and never-absent sources in a pattern colour were built 2026-09-15; pattern colours/part `visible:` that read a source which can be absent, given `when_absent: hide`, and per-copy part `visible:` itself, were built 2026-09-15 -- this row used to list "pattern colours that read a source which can be absent" too.* |
 | `on_hold:` and `low_power` on a `pattern` | plan 05 §5.1, §5.4 -- hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
 | `rounded_rectangle`/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |
 

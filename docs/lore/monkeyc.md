@@ -61,3 +61,16 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   `fillCircle` under strict typing with no cast at all — it is specifically
   a *parameter declared `Float`* that a `Decimal`-typed value cannot narrow
   into, not `Float` values in general.
+- **A nullable local's early-return narrowing survives *inside* a `for`
+  loop body**, not just a straight-line method tail. `wfb.emit.monkeyc`'s
+  pattern codegen (2026-09-15, `when_absent: hide` + per-copy part
+  `visible:`) declares a nullable source's local once, guards it with
+  `if (x == null) { return; }` **before** the copy loop, then reads that
+  same local unguarded *inside* `for (var i = 0; ...) { ... }` — both in
+  the loop's own gate condition (`if (i <= activityMoveBarLevel - 1)`) and
+  through arithmetic on it. Confirmed warning-free under `-l 3` on all
+  three targets, for a directly-nullable source (`activity.move_bar_level`)
+  and one reached through a `Toybox.Complications` pull
+  (`complication.battery`) alike — the local is never reassigned inside
+  the loop, which is presumably why the narrowing holds; not tested with a
+  local that *is* reassigned there.

@@ -2003,22 +2003,81 @@ colour may be a palette entry, a literal, `config.*`, or a conditional over
 those, and, unlike a hand's, it may also read two more things:
 
 * **`copy`**, the index of the copy being drawn (0-based, in the same
-  numbering `skip:` uses). It is bound in a pattern's colours and nowhere
-  else. `copy % 2 == 0 ? palette.a : palette.b` alternates two colours.
-* **A data source that is never absent**: `time.*`, `date.*`,
-  `system.battery`, and so on. `wfb sources` shows which sources can be
-  absent. **One that can be absent is an error**, because a pattern has no
-  `when_absent:` to fall back to, and hiding every copy because one reading
-  went missing would be a silent no-op.
+  numbering `skip:` uses). It is bound in a pattern's colours and its parts'
+  `visible:` (below), and nowhere else. `copy % 2 == 0 ? palette.a :
+  palette.b` alternates two colours.
+* **Any data source**, including one that can be absent. **2026-09-15:** this
+  used to be an error for a source that could be absent (`activity.steps`,
+  `complication.*`) -- a pattern had no `when_absent:` to fall back to.
+  It now has one: see **`when_absent:`** below. `wfb sources` shows which
+  sources can be absent.
 
-Together they let one copy stand out. `date.weekday` is 1 (Sunday) to 7
-(Saturday), so `(date.weekday + 5) % 7` is 0 on Monday, and
+Together `copy` and a data source let one copy stand out. `date.weekday` is
+1 (Sunday) to 7 (Saturday), so `(date.weekday + 5) % 7` is 0 on Monday, and
 `copy == (date.weekday + 5) % 7` is true for exactly one copy of a seven-copy
 row: today's.
 
 The data is read once per frame, before the loop. A colour that reads `copy`
 is set inside the loop, once per copy, and every other colour is set before
 the loop.
+
+#### `when_absent:` on a pattern
+
+A colour (the element's own, or any part's) or a part `visible:` (below) may
+read a source that can be absent, but only once the pattern declares
+`when_absent: hide`. There is no `placeholder:`/`fallback:` here -- unlike
+`text`/`progress`, a pattern has no single *value* to substitute one for.
+Absence hides the **whole pattern**: every copy, every part, not just the
+one binding that turned out missing. This is deliberately blunter than the
+per-element `visible:` rule ("absent means hidden," but only for *that*
+element): the reading is taken once per frame, before the copy loop, so its
+absence is a fact about the frame, not about one copy -- there is no "copy 3
+specifically has no data" to react to.
+
+`when_absent: hide` is **required** as soon as any such reading exists, and
+is a **note** ("has no effect") when declared but nothing on the pattern is
+ever absent -- the same wording the compiler gives every other element
+kind's unnecessary `when_absent:`.
+
+#### Per-copy part `visible:`
+
+A part may carry its own `visible:`, a boolean expression evaluated
+**separately for each copy**, with `copy` bound the same as in a colour:
+false hides that part, for that one copy, leaving other parts and other
+copies untouched. It takes the same boolean-only rule the element-level
+`visible:` does (no truthiness, `activity.steps > 0` not `activity.steps`).
+
+A move-bar row shows both together -- an always-drawn track, and a lit part
+gated per copy:
+
+```yaml
+elements:
+  move_bars:
+    type: pattern
+    pattern: linear
+    at: {anchor: center, dx: -20%r, dy: 25%r}
+    count: 5
+    step: {dx: 10%r}
+    when_absent: hide                 # required: the lit part below reads
+                                       # a source that can be absent
+    parts:
+      - {shape: rectangle, size: {width: 8%r, height: 8%r}, color: palette.gray}
+      - {shape: rectangle, size: {width: 6%r, height: 6%r}, color: palette.black}
+      - shape: rectangle
+        size: {width: 4%r, height: 4%r}
+        visible: "copy <= activity.move_bar_level - 1"
+        color: palette.orange
+```
+
+A source that can be absent, read inside a part `visible:`, is governed by
+the pattern's own `when_absent: hide` -- the whole pattern hides -- **not**
+by "absent means this part is hidden," which is what the same nullable
+reading would mean inside an ordinary element's `visible:`. This is a
+deliberate difference from element-level `visible:`, for the reason above:
+the reading is per-frame, not per-copy.
+
+A **hand** part does not accept `visible:` -- writing it there is a schema
+error naming the key, not a silent no-op.
 
 **Draw order** is copy by copy, in ascending index, with a copy's parts in
 list order.
@@ -2031,10 +2090,10 @@ A fixed pattern gains nothing from `onPartialUpdate`, and its clip would be
 its whole extent.
 
 **`static:` is where most patterns belong.** The loop then runs once, when
-the buffer is filled, instead of once a second. A pattern whose colour reads
-a data source cannot be static (the ordinary static-binding error: the buffer
-would freeze the reading). One that reads only `copy` can, because a copy's
-index never changes.
+the buffer is filled, instead of once a second. A pattern whose colour or
+part `visible:` reads a data source cannot be static (the ordinary
+static-binding error: the buffer would freeze the reading). One that reads
+only `copy` can, because a copy's index never changes.
 
 **`antialias:` works exactly as on a `shape`.** The element's own value,
 or the one it inherits from its group or the face, brackets the whole
@@ -2062,7 +2121,15 @@ first.
 * `start:` on a linear pattern;
 * radial copies that land on each other, `|step| × (count − 1) ≥ 360°`;
 * a `skip:` index that is out of range or repeated, a `skip_every:`
-  larger than `count`, and skipping every copy.
+  larger than `count`, and skipping every copy;
+* a colour or part `visible:` reading a source that can be absent, with no
+  `when_absent: hide` (one error, naming every such source, not one per
+  expression) -- and, the mirror case, `when_absent: hide` declared when
+  nothing on the pattern is ever absent (a note).
+
+A part `visible:` that folds to a build-time constant `false` is the
+suppressible `dead-element` lint, naming `<id>.parts[N]`: the part is never
+drawn, and emits no draw code at all.
 
 Per device, the `pattern-step` lint is an error when a linear step rounds
 to `{0, 0}` pixels, which would stack every copy on the first.
@@ -2074,7 +2141,9 @@ same way it checks hands, so a ring does not warn as cropped.
 
 See `examples/patterns/face.yaml` for every part shape, both kinds,
 `start:`, `skip:` and `skip_every:`, a two-part template, patterns in and
-out of `static:`, and a per-copy colour (`week_dots`, today lit).
+out of `static:`, a per-copy colour (`week_dots`, today lit), and
+`when_absent: hide` with a per-copy part `visible:` (`test_visibility`, a
+move-bar row).
 
 **What is verified, and what is not.** Verified: warning-free builds under
 `-l 3` on all three targets, and `wfb preview`, which transforms the same
@@ -2321,9 +2390,14 @@ Literals; references to sources and palette entries; `+ - * / %`; comparisons;
 `and` / `or` / `not`; `cond ? a : b`; and exactly seven functions — `min`, `max`,
 `clamp`, `round`, `floor`, `abs`, `percent`.
 
-One name is bound in one place only: **`copy`**, the index of the copy being
-drawn, in a `type: pattern` colour (see [`pattern`](#pattern)). Anywhere else
-it is an error saying so.
+One name is bound in one place: **`copy`**, the index of the copy being
+drawn, in a `type: pattern`'s colours *and* its parts' `visible:`
+(2026-09-15; see [`pattern`](#pattern)) -- both compile to the same
+generated loop index, so it is one binding, not two. Anywhere else it is an
+error saying so, including the *element-level* `visible:` on a pattern
+itself: that gates the whole element, compiled before the pattern's `copy`
+binding even opens, so it sees no more `copy` than a `shape`'s `visible:`
+does.
 
 No loops, no user-defined functions, no assignment, no state. Anything beyond
 this is a signal to use the escape hatch (ADR 0007), not to grow the language —
@@ -2589,11 +2663,14 @@ while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
 
 (**Patterns are implemented** -- see [`pattern`](#pattern) above -- with
 these pieces still open: `text` parts (hour numerals, which need
-per-copy text), `pattern: grid`, pattern colours that read a source which
-can be absent, `on_hold:` and `low_power` on a pattern, per-copy variation
-other than skipping and colour (`copy` in a colour, built 2026-09-15),
-`rounded_rectangle`/`ellipse` parts in a linear pattern, and an arc part
-off the pattern's centre. See `docs/limitations.md` §2.)
+per-copy text), `pattern: grid`, `on_hold:` and `low_power` on a pattern,
+per-copy variation other than skipping, colour (`copy` in a colour, built
+2026-09-15) and visibility (`when_absent: hide` and per-copy part
+`visible:`, built 2026-09-15), `rounded_rectangle`/`ellipse` parts in a
+linear pattern, and an arc part off the pattern's centre. *(Corrected
+2026-09-15: "pattern colours that read a source which can be absent" used
+to be listed here -- see the `when_absent:` subsection above.)* See
+`docs/limitations.md` §2.)
 
 (The editor's animated highlight on the Data axis -- `getComplicationDrawable`,
 `onTap`, `setSelectedComplication` -- **is** implemented; this paragraph used to

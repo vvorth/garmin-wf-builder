@@ -1106,6 +1106,34 @@ def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
         while index < len(items) and items[index].depth > placed.depth:
             index += 1
 
+    # A `type: pattern` part's own `visible:` (B5, 2026-09-15) -- the same
+    # constant-false rule, against one part instead of the whole element.
+    # Independent of the loop above: a pattern is never a group, so it is
+    # exactly one entry in `resolved.items` with no descendants to skip.
+    # Skipped when the *element's* own `visible:` is already dead -- that
+    # warning already says everything, and a part inside it would just be
+    # noise repeating the same fact.
+    for placed in resolved.items:
+        if not isinstance(placed.element, PatternElement):
+            continue
+        element_expression = placed.element.visible
+        if (element_expression is not None and element_expression.constant is not None
+                and not element_expression.constant):
+            continue
+        for part_index, part in enumerate(placed.element.parts):
+            expression = part.visible
+            if expression is None or expression.constant is None or expression.constant:
+                continue
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "dead-element",
+                f"{placed.id}.parts[{part_index}]: 'visible: {expression.text}' is "
+                f"always false, so this part is never drawn",
+                expression.span or placed.element.span,
+                notes=["delete the part, or fix the condition"],
+                confidence="exact -- constant-folded at build time",
+            ))
+
 
 # -- hold targets -----------------------------------------------------------
 
