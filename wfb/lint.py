@@ -906,6 +906,37 @@ def check_text_fit(resolved: ResolvedFace, bag: Bag) -> None:
 def check_glyphs(resolved: ResolvedFace, bag: Bag) -> None:
     """A subsetted font must contain every character the design can render."""
     for placed in resolved.items:
+        if isinstance(placed, PlacedPattern):
+            # A `shape: text` template part (plan 06 §3.3 check 6): every
+            # *drawn* copy's string is already known
+            # (`HandPart.texts`/`ResolvedHandPart.texts`), so this checks
+            # them directly rather than a "widest" estimate -- there is
+            # nothing to estimate, the whole set is exact.  Every drawn
+            # copy's missing characters are collected into **one** error per
+            # part ("one error, not N", docs/lore/codegen.md), not one per
+            # copy that happens to repeat the same missing glyph.
+            for index, part in enumerate(placed.parts):
+                if part.shape != "text" or not part.font_is_custom:
+                    continue
+                font = resolved.fonts.get(part.font_reference)
+                if font is None:
+                    continue
+                missing: set[str] = set()
+                for copy_index in placed.copies:
+                    missing |= font.missing(part.texts[copy_index])
+                if not missing:
+                    continue
+                characters = ", ".join(repr(c) for c in sorted(missing))
+                bag.error(
+                    "missing-glyph",
+                    f"{placed.id}.parts[{index}]: font "
+                    f"{part.font_reference!r} has no glyph for {characters}",
+                    placed.element.parts[index].span,
+                    notes=["widen the font's 'glyphs:' set, or remove it to let "
+                           "the compiler derive the set from the design"],
+                    confidence="exact -- the baked font's own character map",
+                )
+            continue
         if not isinstance(placed, PlacedText) or not placed.font_is_custom:
             continue
         font: BakedFont | None = resolved.fonts.get(placed.font_reference)

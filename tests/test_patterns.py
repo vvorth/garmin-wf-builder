@@ -230,7 +230,12 @@ def test_low_power_mode_is_rejected_on_a_pattern(write_design, bag):
 @pytest.mark.parametrize("shape,reason", [
     ("rounded_rectangle", "rotated or translated rounded rectangle"),
     ("ellipse", "rotated or translated ellipse"),
-    ("text", "cannot rotate or translate"),
+    # "text" left this table 2026-09-15 (plan 06 §3): a pattern text part's
+    # glyphs are upright, only the anchor rotates/steps, so it is a real,
+    # drawable shape now -- see tests/test_pattern_text.py. A hand part still
+    # rejects it outright (a bitmap font really cannot rotate) -- covered by
+    # test_a_hand_still_builds_clean_after_the_part_builder_was_parameterised's
+    # sibling regression in tests/test_pattern_text.py.
     ("icon", "cannot rotate or translate"),
 ])
 def test_bad_part_shapes_each_get_their_own_reason(write_design, bag, shape, reason):

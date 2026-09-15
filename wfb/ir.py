@@ -137,6 +137,13 @@ PATTERN_PART_GEOMETRY_KEYS = {
     #: of `at` here through the same "key not used by this shape" mechanism
     #: as any other part, with one extra note explaining why.
     "arc": frozenset({"radius", "start_angle", "sweep"}),
+    #: Upright glyphs whose anchor turns (radial) or steps (linear) with the
+    #: copy (plan 06 §3) -- unlike every other row here, a bitmap font
+    #: cannot itself rotate or translate, so only the anchor point goes
+    #: through `PlacedPattern.transform`. `value` xor `text` is enforced by
+    #: `Builder._build_hand_part`, not this table (a better message than a
+    #: schema `oneOf` would give).
+    "text": frozenset({"at", "value", "text", "format", "font", "align", "vertical_align"}),
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
 
@@ -144,12 +151,17 @@ _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.
 #: `wfb.emit.monkeyc._emit_pattern` draws the copies in (`for (var i = 0; ...)`).
 PATTERN_LOOP_INDEX = "i"
 
+#: `"text"` left this table 2026-09-15 (plan 06 §3) -- a pattern text part's
+#: glyphs are drawn upright, only the anchor point rotates or steps, so the
+#: platform reason that used to reject it ("a bitmap font cannot rotate or
+#: translate through this loop") no longer applies. `HAND_PART_REJECTED_SHAPES`
+#: keeps its own `"text"` entry: a hand's rotation really would have to spin
+#: the glyphs themselves, which is still impossible.
 PATTERN_PART_REJECTED_SHAPES = {
     "rounded_rectangle": "no Dc call draws a rotated or translated rounded "
                           "rectangle -- approximate it with 'polygon'",
     "ellipse": "no Dc call draws a rotated or translated ellipse -- "
                "approximate it with 'polygon'",
-    "text": "a bitmap font cannot rotate or translate through this loop",
     "icon": "a bitmap font cannot rotate or translate through this loop",
 }
 
@@ -748,6 +760,27 @@ class HandPart:
     #: expression around.  A constant `false` is kept (not dropped): codegen
     #: emits no draw code for it, and the `dead-element` lint names it.
     visible: Expression | None = None
+    #: `shape: text` template parts only (plan 06 §3 -- schema keeps
+    #: `handPart` closed to `shape: text`, so a hand part never sets any of
+    #: these).  `value:` compiled in the pattern's `copy`-bound scope; every
+    #: `Ref` in it must be `copy` (`Builder._build_hand_part`).  Exactly one
+    #: of `text_value`/`text_literal` is set once a text part reaches this
+    #: dataclass -- the other stays `None`.
+    text_value: Expression | None = None
+    #: `text:` -- a fixed string, the same for every copy.
+    text_literal: str | None = None
+    #: `format:` -- the numeric format of a `text` element, applies to
+    #: `text_value` only (rejected alongside `text_literal`).
+    format: str | None = None
+    font: str = "FONT_MEDIUM"
+    font_is_custom: bool = False
+    align: str = "center"
+    vertical_align: str = "center"
+    #: The host-rendered string for every copy index `0..count-1` -- set by
+    #: `Builder._build_pattern_element` once the element's `count:` is known
+    #: (a part alone does not know it).  Empty until then; empty forever on
+    #: a non-text part.
+    texts: tuple[str, ...] = ()
 
 
 @dataclass
@@ -863,6 +896,8 @@ class PatternElement(Element):
         for part in self.parts:
             if part.visible is not None:
                 out.append(part.visible)
+            if part.text_value is not None:
+                out.append(part.text_value)
         return out
 
 
@@ -2395,6 +2430,82 @@ class Builder:
             )
             ok = False
 
+        # `shape: text` (plan 06 §3): upright glyphs whose anchor turns
+        # (radial) or steps (linear) with the copy -- reachable only in a
+        # pattern's template, since `HAND_PART_REJECTED_SHAPES` still refuses
+        # `text` on a hand outright.  Each branch below is exclusive of the
+        # others ("one error, not N", docs/lore/codegen.md): a design with
+        # exactly one mistake here gets exactly one error.
+        text_value: Expression | None = None
+        text_literal: str | None = None
+        text_format: str | None = None
+        text_font = "FONT_MEDIUM"
+        text_font_is_custom = False
+        if shape == "text":
+            has_value = "value" in node
+            has_text = "text" in node
+            if has_value == has_text:  # both, or neither
+                self.bag.error(
+                    "pattern",
+                    f"{part_where}: a text part needs exactly one of "
+                    "'value:' (an expression; 'copy' is in scope) or "
+                    "'text:' (a fixed string)",
+                    span,
+                )
+                ok = False
+            elif has_value:
+                value = self._expression(node, "value")
+                if value is None:
+                    ok = False  # _expression already reported the real mistake
+                else:
+                    bad_refs = sorted({
+                        ref.path for ref in expr.walk(value.ast)
+                        if isinstance(ref, expr.Ref) and ref.path != expr.COPY
+                    })
+                    if bad_refs:
+                        self.bag.error(
+                            "pattern",
+                            f"{part_where}.value: a pattern text part's value "
+                            "may read only 'copy', not " + ", ".join(bad_refs),
+                            value.span,
+                            notes=["every copy's string must be known at build "
+                                   "time, for font subsetting and extents",
+                                   "data in a pattern text part is not "
+                                   "implemented (docs/limitations.md)"],
+                        )
+                        ok = False
+                    elif value.value.type not in (Type.NUMBER, Type.FLOAT, Type.STRING):
+                        self.bag.error(
+                            "pattern",
+                            f"{part_where}.value: must be a number or a "
+                            f"string, got {value.value}",
+                            value.span,
+                        )
+                        ok = False
+                    else:
+                        text_value = value
+                        if "format" in node:
+                            text_format = node.get("format")
+                            self._check_format(node, value, text_format)
+            else:  # has_text
+                if "format" in node:
+                    self.bag.error(
+                        "pattern",
+                        f"{part_where}.format: 'format:' applies only to "
+                        "'value:', not a fixed 'text:'",
+                        self.doc.span(node, "format"),
+                    )
+                    ok = False
+                else:
+                    text_literal = str(node.get("text"))
+
+            if "font" in node:
+                resolved = self._font_reference(str(node["font"]), self.doc.span(node, "font"))
+                if resolved is None:
+                    ok = False  # _font_reference already reported the real mistake
+                else:
+                    text_font, text_font_is_custom = resolved
+
         if not ok:
             return None
         return HandPart(
@@ -2403,6 +2514,9 @@ class Builder:
             color=effective_color, span=span,
             start_angle=start_angle, sweep=sweep,
             visible=part_visible,
+            text_value=text_value, text_literal=text_literal, format=text_format,
+            font=text_font, font_is_custom=text_font_is_custom,
+            align=node.get("align", "center"), vertical_align=node.get("vertical_align", "center"),
         )
 
     def _check_hand_part_keys(
@@ -2459,13 +2573,18 @@ class Builder:
             )
             ok = False
         if "filled" in node and shape not in HAND_PART_FILLED_SHAPES:
+            if shape == "line":
+                filled_note = "a line has no notion of being filled or not"
+            elif shape == "text":
+                filled_note = "glyphs have no notion of being filled or not"
+            else:
+                filled_note = ("an arc has no notion of being filled or not -- "
+                               "Toybox.Graphics.Dc has no filled-arc primitive")
             self.bag.error(
                 "element",
                 f"{part_where}: 'filled' is not used by a {noun} 'shape: {shape}' part",
                 self.doc.span(node, "filled") or self.doc.span(node),
-                notes=["a line has no notion of being filled or not"] if shape == "line" else
-                      ["an arc has no notion of being filled or not -- "
-                       "Toybox.Graphics.Dc has no filled-arc primitive"],
+                notes=[filled_note],
             )
             ok = False
         return ok
@@ -3576,6 +3695,41 @@ class Builder:
                 parts.append(part)
         finally:
             del self.scope.bindings[expr.COPY]
+
+        if ok:
+            # Per-copy strings (plan 06 §3.2 "Per-copy strings"): computed
+            # once here, device-independently, the same evaluation the host
+            # preview does for an ordinary `text` element
+            # (`wfb.preview._text_value`) -- what makes a text part's font
+            # subset, its measured extent, and the glyph lint all exact.
+            # `copy` no longer needs to be scope-bound for this: `expr.evaluate`
+            # walks the already-compiled tree directly against a plain dict.
+            from . import formatting
+            for part in parts:
+                if part.shape != "text":
+                    continue
+                if part.text_literal is not None:
+                    part.texts = (part.text_literal,) * count
+                    continue
+                texts: list[str] = []
+                for i in range(count):
+                    value = expr.evaluate(part.text_value.ast, {expr.COPY: i})
+                    if value is None:
+                        self.bag.error(
+                            "pattern",
+                            f"{element_id}: a pattern text part's value could "
+                            f"not be evaluated for copy {i}",
+                            part.text_value.span,
+                            notes=["expected a copy-only expression to "
+                                   "evaluate for every copy index"],
+                        )
+                        ok = False
+                        break
+                    texts.append(formatting.render(
+                        part.format or "{}", value, part.text_value.value.type))
+                else:
+                    part.texts = tuple(texts)
+
         if not ok:
             return None
 
@@ -4747,7 +4901,12 @@ class Builder:
                        notes=[f"declared fonts: {known}"])
         return None
 
-    def _resolve_font(self, node: dict, element: Text) -> None:
+    def _resolve_font(self, node: dict, element: Text | HandPart) -> None:
+        """Set `.font`/`.font_is_custom` from `node["font"]`, shared by a
+        `Text` element and a `shape: text` pattern part (plan 06 §3) -- both
+        carry the same two fields, so this is the one place either can go
+        through `_font_reference` without a second copy of its diagnostic.
+        """
         raw = node.get("font")
         if raw is None:
             return

@@ -20,7 +20,7 @@ from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
     ComplicationSlot, Element, Expression, Face, FontSpec, Graph, Group,
-    HandsElement, IconElement, PatternElement, Position, Progress, Shape, Size,
+    HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape, Size,
     Text, draw_sort_key,
 )
 from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
@@ -208,6 +208,31 @@ class ResolvedHandPart:
     #: there, not here, when the author omitted it).
     start_angle: float = 0.0
     sweep: float = 0.0
+    #: ``text`` only (plan 06 §3.4) -- ``x``/``y`` double as the part's own
+    #: anchor in the template frame (rounded via `_round_away`, the same as
+    #: a circle's centre), everything else stays at its default on every
+    #: other shape.  Upright glyphs are *not* rotation-invariant, so unlike
+    #: every other shape a text part's own ``reach`` (`Resolver.
+    #: _resolve_hand_part`'s return) is always `0.0`: the real farthest-ink
+    #: distance is folded into `Resolver._resolve_pattern`'s per-copy loop
+    #: instead, where each drawn copy's own upright box is known.
+    font_reference: str = ""
+    font_is_custom: bool = False
+    font_px: int = 0
+    #: `Toybox.Graphics.TEXT_JUSTIFY_*` flags, `Resolver._justify`'s own
+    #: precedent (a `Text` element's `PlacedText.justify`).
+    justify: tuple[str, ...] = ()
+    align: str = "center"
+    vertical_align: str = "center"
+    line_height: int = 0
+    #: The host-rendered string for every copy index ``0..count-1`` (skipped
+    #: copies included, so ``texts[i]`` is copy ``i``), `HandPart.texts`
+    #: carried through layout unchanged (device-independent).
+    texts: tuple[str, ...] = ()
+    #: Each string's measured pixel width, same length and order as
+    #: ``texts`` -- a baked font's `measure` or `fonts.fallback.measure` for
+    #: a system font, exactly as `Resolver._resolve_text` measures one.
+    widths: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -278,8 +303,27 @@ class PlacedPattern(Placed):
         return float(self.center[0] + index * self.dx), float(self.center[1] + index * self.dy), 0.0, 1.0
 
 
-def _pattern_part_ink(
+def pattern_text_anchor(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float,
+) -> tuple[int, int]:
+    """The whole-pixel anchor point of one copy of a `shape: text` pattern
+    part (plan 06 §3.2 D5): the template-frame point ``(part.x, part.y)``
+    put through this copy's :meth:`PlacedPattern.transform`, then rounded
+    **half up** (``floor(v + 0.5)``, not `_round_away`'s half-*away-from-
+    zero* -- a hand-frame mirror-symmetry rule that does not apply here) --
+    the device does the same ``(v + 0.5).toNumber()`` (`runtime-lib/
+    WfbGeom.mc`), so the preview pixel and the device pixel agree.  A
+    module-level function, not a method, so codegen and the preview
+    (`docs/plans/06-pattern-text-and-group-align.md` phases B2/B3) can share
+    it without importing a `Resolver`.
+    """
+    tx = ox + part.x * cos_t - part.y * sin_t
+    ty = oy + part.x * sin_t + part.y * cos_t
+    return math.floor(tx + 0.5), math.floor(ty + 0.5)
+
+
+def _pattern_part_ink(
+    part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
 ) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` of one resolved pattern part's ink
     for one copy, given that copy's :meth:`PlacedPattern.transform` (plan 05
@@ -287,7 +331,10 @@ def _pattern_part_ink(
     circle's centre padded by its radius (plus half the pen width when
     outlined); an arc's full circle -- always centred on the copy's own
     origin -- padded by half its pen width, conservatively ignoring
-    `start_angle`/`sweep`.
+    `start_angle`/`sweep`; a text part's box, from its rounded anchor
+    (:func:`pattern_text_anchor`) and this copy's own measured width
+    (``part.widths[index]``, plan 06 §3.4) -- the one shape here that needs
+    to know *which* copy it is, since upright text is not rotation-invariant.
     """
     def tf(x: float, y: float) -> tuple[float, float]:
         return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
@@ -306,6 +353,18 @@ def _pattern_part_ink(
         px, py = tf(part.x, part.y)
         pad = part.radius + (0.0 if part.filled else part.thickness / 2.0)
         return px - pad, py - pad, px + pad, py + pad
+    if part.shape == "text":
+        ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
+        width = part.widths[index] if part.widths else 0
+        height = part.line_height
+        left = {"left": ax, "center": ax - width / 2.0, "right": ax - width}[part.align]
+        if part.vertical_align == "center":
+            top = ay - height / 2.0
+        elif part.vertical_align == "top":
+            top = float(ay)
+        else:  # baseline
+            top = ay - height
+        return left, top, left + width, top + height
     # arc: always centred on the copy's own origin (plan 05 D3).
     px, py = tf(0.0, 0.0)
     pad = part.radius + part.thickness / 2.0
@@ -889,7 +948,9 @@ class Resolver:
             second=resolved.get("second"), reach=reach,
         )
 
-    def _resolve_hand_part(self, part) -> tuple[ResolvedHandPart, float]:
+    def _resolve_hand_part(
+        self, part, element_id: str = "", part_index: int = -1,
+    ) -> tuple[ResolvedHandPart, float]:
         """One hand part -> whole-pixel geometry in the hand's own frame,
         plus its own reach from the axis (the farthest ink any of its
         drawing touches).  Rounds with :func:`_round_away`, not the plain
@@ -897,6 +958,14 @@ class Resolver:
         rule is specific to a hand frame, which is the only geometry a
         symmetric pair of authored coordinates (`dx: -1.5px`/`dx: 1.5px`)
         can appear in.
+
+        `element_id`/`part_index` are used only by a `shape: text` part
+        (plan 06 §3.4, reachable only through a pattern's template, never a
+        hand's -- `wfb.ir.HAND_PART_REJECTED_SHAPES` still refuses it), to
+        name the part in `_font_for_ref`'s "no pixel metrics" warning the
+        same way `check_glyphs` names one (`hours.parts[0]`); every other
+        caller (every hand part) leaves them at their default and never
+        reaches a code path that reads them.
         """
         if part.shape == "polygon":
             points = tuple(
@@ -949,6 +1018,33 @@ class Resolver:
                 start_angle=start_angle, sweep=sweep,
             ), reach
 
+        if part.shape == "text":
+            # A pattern's template only (`wfb.ir.HAND_PART_REJECTED_SHAPES`
+            # keeps this off a hand) -- upright glyphs, so the anchor is the
+            # only thing that goes through `_hand_point` (§3.4); the glyphs
+            # themselves are measured, not rotated. `reach` is always `0.0`
+            # here: text is not rotation-invariant, so `Resolver.
+            # _resolve_pattern`'s per-copy loop computes the real farthest
+            # corner instead (plan 06 §3.4).
+            x0, y0 = self._hand_point(part.at)
+            x, y = _round_away(x0), _round_away(y0)
+            warn_id = f"{element_id}.parts[{part_index}]" if part_index >= 0 else element_id
+            font_px, reference, is_custom, baked = self._font_for_ref(
+                part.font, part.font_is_custom, warn_id)
+            if baked is not None:
+                widths = tuple(baked.measure(t)[0] for t in part.texts)
+                line_height = baked.line_height
+            else:
+                widths = tuple(fallback.measure(t, font_px)[0] for t in part.texts)
+                line_height = font_px
+            justify = self._justify(part)
+            return ResolvedHandPart(
+                "text", part.color, x=x, y=y,
+                font_reference=reference, font_is_custom=is_custom, font_px=font_px,
+                justify=justify, align=part.align, vertical_align=part.vertical_align,
+                line_height=line_height, texts=part.texts, widths=widths,
+            ), 0.0
+
         # circle
         cx, cy = self._hand_point(part.at)
         radius = _round_away(self._hand_len(part.radius))
@@ -977,14 +1073,22 @@ class Resolver:
         `box`, unlike `reach`, really does depend on which copies draw and
         where, so it is computed by applying :meth:`PlacedPattern.transform`
         to every drawn copy's ink (§5.5).
+
+        A `shape: text` part breaks the "rotation-invariant" half of that
+        shortcut (plan 06 §3.4): upright glyphs are not the same distance
+        from the centre at every angle, so `_resolve_hand_part` always
+        returns `0.0` reach for one, and the real farthest corner of any
+        *drawn* copy's text box is instead folded into the per-copy ink loop
+        below, alongside `box` -- the one other quantity that already has to
+        look at drawn copies individually.
         """
         cx, cy = self._point(element.at, parent)
         center = (round(cx), round(cy))
 
         parts: list[ResolvedHandPart] = []
         reach = 0.0
-        for part in element.parts:
-            resolved_part, part_reach = self._resolve_hand_part(part)
+        for part_index, part in enumerate(element.parts):
+            resolved_part, part_reach = self._resolve_hand_part(part, element.id, part_index)
             parts.append(resolved_part)
             reach = max(reach, part_reach)
 
@@ -1006,12 +1110,19 @@ class Resolver:
 
         min_x = min_y = math.inf
         max_x = max_y = -math.inf
+        text_reach = 0.0
+        cx_f, cy_f = float(center[0]), float(center[1])
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
             for part in parts:
-                lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(part, ox, oy, sin_t, cos_t)
+                lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(part, ox, oy, sin_t, cos_t, index)
                 min_x, min_y = min(min_x, lo_x), min(min_y, lo_y)
                 max_x, max_y = max(max_x, hi_x), max(max_y, hi_y)
+                if part.shape == "text" and element.pattern == "radial":
+                    for corner_x, corner_y in (
+                        (lo_x, lo_y), (lo_x, hi_y), (hi_x, lo_y), (hi_x, hi_y),
+                    ):
+                        text_reach = max(text_reach, math.hypot(corner_x - cx_f, corner_y - cy_f))
         if min_x > max_x:
             # Unreachable once the schema and `wfb.ir` have run (`parts:`
             # needs at least one entry, and every copy skipped is a build
@@ -1021,6 +1132,8 @@ class Resolver:
         else:
             box = Box(min_x, min_y, max_x - min_x, max_y - min_y)
         placed.box = box.rounded()
+        if text_reach > placed.reach:
+            placed.reach = text_reach
         return placed
 
     def _hand_point(self, at: Position) -> tuple[float, float]:
@@ -1074,19 +1187,31 @@ class Resolver:
         return spec.pixel_size(self.minor_radius)
 
     def _font_for(self, element: Text) -> tuple[int, str, bool, BakedFont | None]:
-        if element.font_is_custom:
-            baked = self.fonts.get(element.font)
-            spec = self.face.fonts[element.font]
+        return self._font_for_ref(element.font, element.font_is_custom, element.id)
+
+    def _font_for_ref(
+        self, font: str, font_is_custom: bool, warn_id: str,
+    ) -> tuple[int, str, bool, BakedFont | None]:
+        """The shared body of `_font_for`, taking a bare `font:`/`font_is_
+        custom` pair instead of a `Text` element -- what lets a `shape:
+        text` pattern part (`Resolver._resolve_hand_part`, plan 06 §3.4)
+        resolve its font through the exact same lookup and the exact same
+        "no pixel metrics" warning `_font_for` already gives a `Text`
+        element, with no second copy of either.
+        """
+        if font_is_custom:
+            baked = self.fonts.get(font)
+            spec = self.face.fonts[font]
             return (baked.size if baked else self._unbaked_font_size(spec)), \
-                element.font, True, baked
-        metric = self.device.system_fonts.get(element.font)
+                font, True, baked
+        metric = self.device.system_fonts.get(font)
         size = metric.size_px if metric else 0
         if metric is None:
             self.warnings.append(
-                f"{element.id}: no pixel metrics for {element.font} on {self.device.id}; "
+                f"{warn_id}: no pixel metrics for {font} on {self.device.id}; "
                 f"text extent is not checked"
             )
-        return size, element.font, False, None
+        return size, font, False, None
 
     def _widest_text(self, element: Text) -> str:
         if element.literal is not None:
@@ -1113,7 +1238,12 @@ class Resolver:
         return widest
 
     @staticmethod
-    def _justify(element: Text) -> tuple[str, ...]:
+    def _justify(element: Text | HandPart) -> tuple[str, ...]:
+        """`Toybox.Graphics.TEXT_JUSTIFY_*` flags for anything with `.align`/
+        `.vertical_align` -- a `Text` element, or (plan 06 §3.4) a `shape:
+        text` pattern part, which carries the same two fields under the
+        same names.
+        """
         flags = {
             "left": "TEXT_JUSTIFY_LEFT",
             "center": "TEXT_JUSTIFY_CENTER",

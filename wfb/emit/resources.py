@@ -24,7 +24,7 @@ from ..devices import Device
 from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
 from ..ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Face, FontSpec, IconElement, Text,
+    CONFIG_SYMBOL, ComplicationSlot, Face, FontSpec, IconElement, PatternElement, Text,
     config_data_ids, config_label_id, config_style_label_id,
 )
 from ..palette import Color
@@ -90,6 +90,20 @@ def glyph_set(face: Face) -> dict[str, str]:
                 bucket |= set(_COMPLICATION_TEXT_ALPHABET)
             if element.unit:
                 bucket |= set("".join(complications.UNIT_SUFFIX.values()))
+            continue
+        if isinstance(element, PatternElement):
+            # A `shape: text` template part (plan 06 §3.4): every *drawn*
+            # copy's string is already known at build time
+            # (`HandPart.texts`, `Builder._build_pattern_element`), so --
+            # unlike a `complication_slot`'s "every choice could render
+            # anything" widening above -- the font needs exactly those
+            # characters, nothing more.
+            for part in element.parts:
+                if part.shape != "text" or not part.font_is_custom:
+                    continue
+                bucket = needed.setdefault(part.font, set())
+                for index in element.drawn_indices():
+                    bucket |= set(part.texts[index])
             continue
         if not isinstance(element, Text) or not element.font_is_custom:
             continue

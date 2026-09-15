@@ -1693,7 +1693,7 @@
       }
     },
     "patternPart": {
-      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin) and 'size'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true) and 'thickness' (only when 'filled: false'); arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:', because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3). 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon.",
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin) and 'size'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true) and 'thickness' (only when 'filled: false'); arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:', because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align' and 'vertical_align' (plan 06 §3) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon.",
       "type": "object",
       "required": [
         "shape"
@@ -1701,7 +1701,7 @@
       "additionalProperties": false,
       "properties": {
         "shape": {
-          "description": "polygon/rectangle/line/circle/arc are the five primitives a pattern can repeat. rounded_rectangle, ellipse, text and icon are recognised here only so the compiler can reject each with its own platform reason (docs/format.md, 'pattern') instead of a bare 'not one of ...'.",
+          "description": "polygon/rectangle/line/circle/arc/text are the six primitives a pattern can repeat -- text is upright glyphs at an anchor point that turns (radial) or steps (linear) with the copy (plan 06 §3), unlike a hand part, which still rejects it (a bitmap font cannot rotate). rounded_rectangle, ellipse and icon are recognised here only so the compiler can reject each with its own platform reason (docs/format.md, 'pattern') instead of a bare 'not one of ...'.",
           "enum": [
             "polygon",
             "rectangle",
@@ -1757,6 +1757,40 @@
         "sweep": {
           "description": "'shape: arc' only. How far the arc spans, clockwise positive, default 360deg (a full ring) when omitted.",
           "$ref": "#/$defs/angle"
+        },
+        "value": {
+          "description": "'shape: text' only. An expression for the glyphs this copy draws -- may read only 'copy' (the index of the copy being drawn, bound nowhere else in this key), so every copy's string is known at build time for font subsetting and extents. Mutually exclusive with 'text'.",
+          "type": "string"
+        },
+        "text": {
+          "description": "'shape: text' only. A fixed string, drawn the same for every copy. Mutually exclusive with 'value'.",
+          "type": "string"
+        },
+        "format": {
+          "description": "'shape: text' only, and only with 'value:'. A Python-style format spec: {:d}, {:02d}, {:.1f}.",
+          "type": "string"
+        },
+        "font": {
+          "description": "'shape: text' only. A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...). Default FONT_MEDIUM.",
+          "type": "string"
+        },
+        "align": {
+          "description": "'shape: text' only. Horizontal placement of the glyphs relative to the anchor point.",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "default": "center"
+        },
+        "vertical_align": {
+          "description": "'shape: text' only. Vertical placement of the glyphs relative to the anchor point.",
+          "enum": [
+            "top",
+            "center",
+            "baseline"
+          ],
+          "default": "center"
         }
       }
     },
