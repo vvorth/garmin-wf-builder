@@ -94,10 +94,12 @@ $CIQ_SDK/bin/monkeyc … --build-stats 0                     # memory: the figur
 
 - **It builds fine in the sandbox.** The sibling project's `CLAUDE.md` says
   it cannot. That claim is false; do not import it.
-- **The simulator will not run in this container.** The cause is missing
-  webkit/soup libraries, and on 22.04 it segfaults on push. Do not spend a
-  session on it. Use `wfb preview`, or ask the user to run the simulator on
-  their host.
+- **The simulator does not survive `monkeydo` pushing an app, in any
+  environment tried so far** — headless container or a real GUI session
+  alike (confirmed 2026-09-16). It's a segfault inside the simulator's own
+  binary, not a missing-library or display-server problem. Do not spend a
+  session re-litigating it. Use `wfb preview`, or ask the user to run the
+  simulator on their host.
 - `Invalid device id specified` means the device files are missing **or**
   Java's `user.home` is wrong (it comes from passwd, not `$HOME`).
 - Details for all of this are in `docs/lore/toolchain.md` and

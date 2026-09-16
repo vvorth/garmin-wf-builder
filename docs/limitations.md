@@ -661,7 +661,26 @@ its own: `/dev/shm` at 64 MB and at 2 GB; Docker's default seccomp profile and
 definitions mounted read-only and copied in writable; and WebKit's
 `DISABLE_COMPOSITING_MODE` / `DISABLE_SANDBOX` escape hatches.
 
-`wfb preview` is the answer in that environment: it renders from the same
+**2026-09-16: this is not a container artifact.** Retested on a real Ubuntu
+22.04 desktop (Xwayland, no Docker, no Xvfb) where the simulator's window
+genuinely renders — a first. `monkeydo` still segfaults it on push, at the
+byte-identical crash (`0x8` faulting address, same instruction, same
+offset), across two devices and two example faces, and with `GDK_BACKEND`
+forced to `x11` and WebKit's JIT env vars set. Full account in
+`docs/research/probes/simulator/README.md`'s 2026-09-16 addendum. This
+headline should be read as "the simulator's app-load path is broken in
+this SDK build," not "…in a headless container."
+
+**Also on 2026-09-16: it is not a glibc/distro version either.** The
+leading hypothesis after the above was Ubuntu 22.04's glibc ≥2.34 folding
+`libpthread` into `libc` — a known crash source for old prebuilt binaries.
+Tested directly: the same host SDK's `bin/simulator`, run inside an Ubuntu
+20.04 container (glibc 2.31, pre-merge) with its window shared onto the
+host display, crashes identically byte-for-byte. There is no Ubuntu
+version to bump (or drop back to) that changes this. Full account in
+`docs/research/probes/simulator/README.md`.
+
+`wfb preview` is the answer in every environment tried so far: it renders from the same
 resolved geometry the generated code uses, so the two cannot disagree about
 position. What it does *not* claim to reproduce is glyph rasterisation for system
 fonts, arc cap shape, the transflective panel's real appearance, or — a

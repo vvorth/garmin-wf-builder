@@ -63,6 +63,49 @@ Each varied on its own, with the crash unchanged:
 
 `SYS_PTRACE` is needed for the `gdb` run, and for nothing else.
 
+**2026-09-16: retested outside Docker entirely, on a real Ubuntu 22.04 GUI
+session (Xwayland via GNOME, not Xvfb, not a container).** The simulator
+starts and renders its window correctly under `connectiq`, which is new —
+the older, wrong "software OpenGL" and "container-only" theories both
+predicted this would work. It still **segfaults the instant `monkeydo`
+pushes an app**, at the identical crash: `SIGSEGV` at faulting address
+`0x8`, same instruction (`mov rax, [0x8]` — an absolute, not
+register-relative, operand — immediately preceding a `ud2`), and the same
+`0x147ee` offset into the stripped binary run after run. Additionally ruled
+out, each on its own, all with the crash unchanged: `GDK_BACKEND=x11`
+(forcing Xwayland instead of whatever default), `JSC_useJIT=0` /
+`WEBKIT_JAVASCRIPTCORE_USE_JIT=0` (in case it was WebKit's JIT — moot
+anyway, since the backtrace never enters WebKit), two different devices
+(`fenix8solar47mm`, `fr955`), and two different `.prg`s (`examples/graph`,
+`examples/shapes`). The absolute-address load is consistent with a
+compile-time-folded null-pointer field access baked into the simulator's
+own optimized code, not an environment, display-server, or WebKit-ABI
+problem — this SDK 9.2.0 build's `monkeydo`-triggered app load is broken
+regardless of host. Nothing found in a search of `forums.garmin.com`
+matches this exact signature. `wfb preview` remains the answer.
+
+**2026-09-16, same day: tested the leading hypothesis (glibc's libpthread
+merge) directly, and it's wrong.** Ubuntu 22.04 was the first LTS built on
+glibc ≥2.34, which folded `libpthread` into `libc` itself — a well-known
+source of segfaults in old prebuilt Linux binaries that assume the
+pre-merge layout, and the crash's own instruction (an absolute-address
+load, not register-relative — consistent with a stale hardcoded offset)
+fit that story. So: built an Ubuntu 20.04 (`libc6 2.31-0ubuntu9.17`,
+pre-merge) container with the same native dependency list, ran the *actual
+host SDK's* `bin/simulator` inside it (bind-mounted, not re-downloaded)
+with the host's X11 socket shared (`--network host`, `-v
+/tmp/.X11-unix:/tmp/.X11-unix`, `xhost +local:` — Xauthority cookie
+forwarding failed under this host's Xwayland setup, `xhost` was the
+working substitute) so it could actually put a window on screen, and
+pushed to it with the host's `monkeydo`. **Identical crash**: same
+faulting address `0x8`, same instruction bytes, same `0x147ee` offset —
+on a glibc three years and one major ABI generation older. glibc version
+is not the variable. This closes off "try a different Ubuntu version" as
+a productive direction entirely: nothing about the host — container or
+not, glibc 2.31 or 2.35, X11 backend, WebKit flags, device, or example
+face — changes this outcome. The defect is in the SDK 9.2.0 simulator
+binary itself.
+
 ## Reproducing it
 
 Build the probe image (it downloads the SDK unpruned, so it is large):

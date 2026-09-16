@@ -3601,6 +3601,78 @@ hour hand's first part and the minute hand's first part were named
 identically — a finding that could not say which hand it meant. Hand
 parts are now `<element id>.<hand>.parts[<i>]`.
 
+## 2026-09-16 — Simulator retested on a real GUI session: same crash, confirmed not a container artifact
+
+**User ask:** this session runs in a VM with a real desktop rather than the
+usual headless container, so the user asked to try firing the simulator for
+a screenshot-based feedback loop, and to troubleshoot if it failed.
+
+It got further than ever before: `connectiq` (via `$CIQ_SDK/bin/simulator`)
+actually opened a visible, rendering "CIQ Simulator" window under
+GNOME/Xwayland — `gnome-screenshot` captured it. That much is new relative
+to every prior account, which only ever ran the simulator under Xvfb in a
+container.
+
+It still does not survive a push. `monkeydo` against that window kills it
+with `SIGSEGV` within seconds, at the exact signature
+`docs/research/probes/simulator/README.md` recorded before: faulting
+address `0x8`, the same absolute-address `mov` instruction, the same
+`0x147ee` offset into the stripped binary, gdb backtrace entirely inside
+the simulator's own code. Re-ruled-out here, each on its own: forcing
+`GDK_BACKEND=x11`, WebKit's `DISABLE_COMPOSITING_MODE` /
+`DISABLE_SANDBOX` flags, `JSC_useJIT=0` /
+`WEBKIT_JAVASCRIPTCORE_USE_JIT=0`, two devices (`fenix8solar47mm`,
+`fr955`), and two example faces (`examples/graph`, `examples/shapes`). A
+search of `forums.garmin.com` and elsewhere turned up plenty of *other*
+Connect IQ simulator segfaults (AD usernames, BLE registration, view-memory
+tooling) but nothing matching this one. Conclusion: this is a bug baked
+into the SDK 9.2.0 `monkeydo`/simulator app-load path itself, independent
+of container vs. real GUI, display backend, or WebKit configuration.
+
+Updated in the same pass: `docs/limitations.md`'s simulator section,
+`docs/research/probes/simulator/README.md` (a dated addendum rather than a
+rewrite, per house style), and root `CLAUDE.md` §3, which no longer blames
+"this container."
+
+Fell back to `wfb preview` for the actual feedback loop, confirmed working
+end to end: `wfb preview examples/graph/face.yaml -d fenix8solar47mm`
+rendered a 260×260 PNG matching the design (clock digits, the arc/graph/bar
+row) with no simulator involved.
+
+**Same session, follow-up: tested and ruled out a glibc version cause.**
+The user asked whether a specific Ubuntu version — bumped forward — might
+fix the simulator. Bumping forward is a dead end regardless: Ubuntu 24.04
+dropped `libwebkit2gtk-4.0`/`libjavascriptcoregtk-4.0` outright (renamed to
+`4.1`), so the simulator's libraries wouldn't even resolve there. The
+live hypothesis instead pointed backward — Ubuntu 22.04 was the first LTS
+on glibc ≥2.34, which merged `libpthread` into `libc` and is a documented
+cause of segfaults in old prebuilt Linux binaries assuming the old layout;
+this VM's `libpthread.so.0` is confirmed a 21 KB compatibility stub, and
+the crash's own instruction (an absolute-address load rather than
+register-relative) fit that story.
+
+Docker turned out to be installed after all (podman under a `docker` shim)
+where an earlier check had missed it. Built an Ubuntu 20.04 image
+(`libc6 2.31-0ubuntu9.17`, pre-merge) with the same native dependency list
+as the existing jammy probe Dockerfile, bind-mounted the *host's own*
+already-installed SDK into it rather than downloading a second copy, and
+shared the host's X11 socket (`--network host`, `-v
+/tmp/.X11-unix:/tmp/.X11-unix`) so the container's simulator window could
+actually appear on screen — Xauthority cookie forwarding didn't work under
+this host's Xwayland session, `xhost +local:` did. Confirmed the plumbing
+worked first with `xeyes` (found via `xwininfo -root -tree`, no `wmctrl`/
+`xdotool` on this host) before running the real thing.
+
+Pushed to the containerized simulator with the host's `monkeydo`
+(`monkeydo` itself just calls `java -cp monkeybrains.jar ...`, so it runs
+fine from the host against a simulator in a different libc, no need to put
+Java in the container too). **Identical crash**: `segfault at 8`, same
+instruction bytes, same `0x147ee` offset, on a glibc three years and one
+ABI generation older than jammy's. glibc version is not the variable —
+this rules out "try a different Ubuntu version" in either direction, for
+good. Updated `docs/research/probes/simulator/README.md` and
+`docs/limitations.md` with this result in the same pass.
+
 ## 2026-09-16 — readable, coloured CLI output
 
 The user found the CLI output hard to read and asked for better formatting
@@ -3748,3 +3820,4 @@ Left as found:
   2026, is a Thursday.
 - The showcase now carries three `partial-update-budget` warnings;
   `examples/CLAUDE.md` still calls it warning-free.
+
