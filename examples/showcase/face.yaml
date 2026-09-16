@@ -82,7 +82,7 @@ targets:
 fonts:
   digitalclock:
     source: assets/ChivoMono-Bold.ttf
-    size: 26%r
+    size: 60%r
     monospace: true
     align: center
     antialias: true
@@ -139,7 +139,7 @@ config:
       - palette.amber
       - palette.magenta
   style:
-    default: analog_dark
+    default: digital_dark
     choices:
       analog_dark:   { label: "Analog · Dark",  layout: analog,  colors: dark }
       analog_light:  { label: "Analog · Light", layout: analog,  colors: light }
@@ -199,38 +199,38 @@ static:
   left_card:
     type: shape
     shape: rounded_rectangle
-    at: { anchor: center, dx: -42%r }
-    size: { width: 32%r, height: 20%r }
+    at: { anchor: center, dx: -50%r, dy: -23%r }
+    size: { width: 42%r, height: 19%r }
     corner_radius: 3%r
     color: config.colors.dark
 
   right_card:
     type: shape
     shape: rounded_rectangle
-    at: { anchor: center, dx: 42%r }
-    size: { width: 32%r, height: 20%r }
+    at: { anchor: center, dx:  50%r, dy: -23%r }
+    size: { width: 42%r, height: 19%r }
     corner_radius: 3%r
     color: config.colors.dark
 
-  date_window:
-    type: shape
-    shape: rounded_rectangle
-    at: { anchor: center, dy: 48%r }
-    size: { width: 30%r, height: 12%r }
-    corner_radius: 2%r
-    color: config.colors.dark
-    lint:
-      allow: [static-overlap]
-      reason: "the digital layout's bottom status row (dnd/notification/alarm)
-        draws well clear of this window on every target; the overlap the
-        linter flags is between the two elements' declared boxes, not their
-        ink -- see docs/format.md 'static:'"
+  # date_window:
+  #   type: shape
+  #   shape: rounded_rectangle
+  #   at: { anchor: center, dy: 48%r }
+  #   size: { width: 30%r, height: 12%r }
+  #   corner_radius: 2%r
+  #   color: config.colors.dark
+  #   lint:
+  #     allow: [static-overlap]
+  #     reason: "the digital layout's bottom status row (dnd/notification/alarm)
+  #       draws well clear of this window on every target; the overlap the
+  #       linter flags is between the two elements' declared boxes, not their
+  #       ink -- see docs/format.md 'static:'"
 
 elements:
   left_register:
     type: complication_slot
     slot: config.data.left_register
-    at: { anchor: center, dx: -42%r }
+    at: { anchor: center, dx: -50%r, dy: -30%r }
     font: FONT_XTINY
     icon_size: 9%r
     icon_position: top
@@ -254,7 +254,7 @@ elements:
   right_register:
     type: complication_slot
     slot: config.data.right_register
-    at: { anchor: center, dx: 42%r }
+    at: { anchor: center, dx: 50%r, dy: -30%r }
     font: FONT_XTINY
     icon_size: 9%r
     icon_position: top
@@ -271,18 +271,18 @@ elements:
         full-dial-pattern bounding-box overstatement as left_register above,
         mirrored at dx +42%r"
 
-  date_text:
-    type: text
-    value: date.today
-    format: "{:%a %e %b}"
-    font: FONT_XTINY
-    at: { anchor: center, dy: 48%r }
-    color: config.colors.fg
-    lint:
-      allow: [static-overlap]
-      reason: "same full-dial-pattern bounding-box overstatement as the two
-        registers above -- this window sits on the 6 o'clock radius, clear
-        of the tick rings and numerals"
+  # date_text:
+  #   type: text
+  #   value: date.today
+  #   format: "{:%a %e %b}"
+  #   font: FONT_XTINY
+  #   at: { anchor: center, dy: 48%r }
+  #   color: config.colors.fg
+  #   lint:
+  #     allow: [static-overlap]
+  #     reason: "same full-dial-pattern bounding-box overstatement as the two
+  #       registers above -- this window sits on the 6 o'clock radius, clear
+  #       of the tick rings and numerals"
 
 layouts:
   # -------------------------------------------------------------------
@@ -382,17 +382,17 @@ layouts:
           reason: "a hairline rule is meant to be barely there; full contrast
             would make it compete with the data around it"
 
-      sep_bottom:
-        type: shape
-        shape: line
-        at: { anchor: bottom, dy: -20%, dx: 33% }
-        to: { anchor: bottom, dy: -20%, dx: -33% }
-        thickness: 1px
-        color: config.colors.dark
-        lint:
-          allow: [contrast]
-          reason: "a hairline rule is meant to be barely there; full contrast
-            would make it compete with the data around it"
+      # sep_bottom:
+      #   type: shape
+      #   shape: line
+      #   at: { anchor: bottom, dy: -20%, dx: 33% }
+      #   to: { anchor: bottom, dy: -20%, dx: -33% }
+      #   thickness: 1px
+      #   color: config.colors.dark
+      #   lint:
+      #     allow: [contrast]
+      #     reason: "a hairline rule is meant to be barely there; full contrast
+      #       would make it compete with the data around it"
 
     elements:
       date_line:
@@ -406,7 +406,7 @@ layouts:
       weather_icon:
         type: icon
         icon_for: weather.condition_today
-        size: 14%r
+        size: 16%r
         at: { anchor: top, dy: 20% }
         color: config.colors.fg
 
@@ -421,7 +421,7 @@ layouts:
         value: weather.feels_like_temperature
         format: "{:d}°"
         font: FONT_XTINY
-        at: { anchor: top, dy: 30% }
+        at: { anchor: top, dy: 20%, dx: -10% }
         align: center
         color: config.colors.fg
         when_absent: placeholder
@@ -433,13 +433,29 @@ layouts:
             is 1-3 digits and this box is centred with wide margin either
             side of it"
 
+      hr_graph_icon:
+        type: icon
+        glyph: "U+F21E"
+        size: 9%r
+        at: { anchor: top, dy: 30% }
+        align: center
+        color: config.data_color
+
+      center_card:
+        type: shape
+        shape: rounded_rectangle
+        at: { anchor: center, dy: -23%r }
+        size: { width: 54%r, height: 19%r }
+        corner_radius: 3%r
+        color: config.colors.dark
+
       hr_graph:
         type: graph
         series: heart_rate
         range: 4h
         style: area
-        at: { anchor: top, dy: 37% }
-        size: { width: 48%r, height: 8% }
+        at: { anchor: center, dy: -23%r }
+        size: { width: 52%r, height: 17%r }
         min: auto
         max: auto
         color: config.data_color
@@ -450,7 +466,7 @@ layouts:
         value: time.hour
         format: "{:02d}"
         font: font.digitalclock
-        at: { anchor: center, dx: -1%, dy: 2% }
+        at: { anchor: center, dx: -1%, dy: 7% }
         align: right
         color: config.colors.fg
         modes: [active, low_power]
@@ -460,70 +476,82 @@ layouts:
         value: time.minute
         format: "{:02d}"
         font: font.digitalclock
-        at: { anchor: center, dx: 1%, dy: 2% }
+        at: { anchor: center, dx: 1%, dy: 7% }
         align: left
         color: config.accent_color
         modes: [active, low_power]
 
-      hr_cluster:
+      bb_cluster:
         type: group
-        size: { width: 26%r, height: 12%r }
-        at: { anchor: top, dy: 62%, dx: -32% }
+        size: { width: 26%r, height: 11%r }
+        at: { anchor: top, dy: 75%, dx: -27% }
+        align: left
         on_hold: heart_rate
         children:
           hr_icon:
             type: icon
             icon: heart
             size: 9%r
-            at: { anchor: center, dx: -30% }
+            # at: { anchor: center, dx: -30% }
+            at: { anchor: left }
           hr_value:
             type: text
             value: heart_rate.current
             format: "{:d}"
             font: FONT_XTINY
-            at: { anchor: center, dx: 25% }
+            # at: { anchor: center, dx: 25% }
+            at: { anchor: left, dx: 14%r }
             color: config.colors.fg
             when_absent: placeholder
             placeholder: "--"
 
       steps_cluster:
         type: group
-        size: { width: 26%r, height: 12%r }
-        at: { anchor: top, dy: 62% }
+        size: { width: 38%r, height: 12%r }
+        at: { anchor: top, dy: 75% }
         on_hold: steps
         children:
           steps_icon:
             type: icon
             icon: steps
             size: 9%r
-            at: { anchor: center, dx: -30% }
+            # at: { anchor: center, dx: -10%r }
+            at: { anchor: left }
+            align: left
           steps_value:
             type: text
             value: "activity.steps / 1000.0"
             format: "{:.1f}k"
             font: FONT_XTINY
-            at: { anchor: center, dx: 30% }
+            # at: { anchor: center, dx: 15%r }
+            at: { anchor: right }
+            align: right
             color: config.colors.fg
             when_absent: placeholder
             placeholder: "--"
 
       calories_cluster:
         type: group
-        size: { width: 26%r, height: 12%r }
-        at: { anchor: top, dy: 62%, dx: 32% }
+        size: { width: 25%r, height: 12%r }
+        at: { anchor: top, dy: 75%, dx: 27% }
         on_hold: calories
+        align: right
         children:
           calories_icon:
             type: icon
             icon: flame
             size: 9%r
-            at: { anchor: center, dx: -30% }
+            # at: { anchor: center, dx: -30% }
+            at: { anchor: left }
+            align: left
           calories_value:
             type: text
             value: activity.calories
             format: "{:d}"
             font: FONT_XTINY
-            at: { anchor: center, dx: 30% }
+            # at: { anchor: center, dx: 30% }
+            at: { anchor: left, dx: 10%r }
+            align: left
             color: config.colors.fg
             when_absent: placeholder
             placeholder: "--"
@@ -533,13 +561,13 @@ layouts:
         style: bar
         value: activity.steps
         max: activity.step_goal
-        at: { anchor: top, dy: 70% }
-        size: { width: 56%r, height: 3%r }
+        at: { anchor: top, dy: 82% }
+        size: { width: 60%, height: 3%r }
         color: config.accent_color
         track_color: config.colors.dark
         when_absent: hide
 
-      battery_arc:
+      battery_arc_l:
         type: progress
         style: arc
         value: system.battery
@@ -547,8 +575,26 @@ layouts:
         at: { anchor: center }
         radius: 97%r
         thickness: 3%r
-        start_angle: 200deg
-        sweep: 140deg
+        start_angle: 180deg
+        sweep: 30deg
+        color: config.data_color
+        track_color: config.colors.dark
+        lint:
+          allow: [safe-area]
+          reason: "hugs the bezel by design, the same as a real chronograph's
+            outer track -- the pen straddles the round display's own edge
+            mask at this radius on every target"
+
+      battery_arc_r:
+        type: progress
+        style: arc
+        value: system.battery
+        max: 100
+        at: { anchor: center }
+        radius: 97%r
+        thickness: 3%r
+        start_angle: 180deg
+        sweep: -30deg
         color: config.data_color
         track_color: config.colors.dark
         lint:
@@ -561,7 +607,7 @@ layouts:
         type: icon
         icon: battery
         size: 8%r
-        at: { anchor: center, angle: 270deg, radius: 97%r }
+        at: { anchor: bottom, dy: -11%, dx: -18% }
         color: config.accent_color
         visible: system.charging
         lint:
@@ -572,15 +618,15 @@ layouts:
       dnd_icon:
         type: icon
         icon: dnd
-        size: 8%r
-        at: { anchor: bottom, dy: -8%, dx: -12% }
+        size: 12%r
+        at: { anchor: bottom, dy: -11%, dx: -12% }
         color: "device.do_not_disturb ? config.accent_color : config.colors.dark"
 
       notification_badge:
         type: icon
         icon: notification
-        size: 12%r
-        at: { anchor: bottom, dy: -8% }
+        size: 25%r
+        at: { anchor: bottom, dy: -10% }
         color: "device.notification_count > 0 ? config.accent_color : config.colors.dark"
 
       notification_count:
@@ -588,13 +634,14 @@ layouts:
         value: device.notification_count
         format: "{:d}"
         font: FONT_TINY
-        at: { anchor: bottom, dy: -9% }
+        at: { anchor: bottom, dy: -11% }
         visible: device.notification_count > 0
         color: config.colors.notify
 
       alarm_icon:
         type: icon
         icon: alarm
-        size: 8%r
-        at: { anchor: bottom, dy: -8%, dx: 12% }
+        size: 12%r
+        at: { anchor: bottom, dy: -11%, dx: 12% }
         color: "device.alarm_count > 0 ? config.accent_color : config.colors.dark"
+
