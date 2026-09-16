@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import catalog, complications, expr, icons, series, units
-from .catalog import Source, Type
+from . import catalog, complications, expr, formatting, icons, series, units
+from .catalog import Type
 from .desugar import layout_ids
 from .diagnostics import Bag, Span
 from .palette import Color, ColorError
@@ -159,11 +160,11 @@ HAND_PART_REJECTED_SHAPES = {
 #: time in the template's own frame, before `_round_away`, so the turned or
 #: stepped copy carries the shift for free. `polygon`/`line`/`arc` stay
 #: without them (arc has no `at` at all -- see its own row's note below).
+#: `polygon`/`rectangle`/`line`/`circle` are identical to `HAND_PART_
+#: GEOMETRY_KEYS`'s own rows -- inherited by dict expansion rather than
+#: repeated -- plus two rows a hand part never reaches at all:
 PATTERN_PART_GEOMETRY_KEYS = {
-    "polygon": frozenset({"points"}),
-    "rectangle": frozenset({"at", "size", "align", "vertical_align"}),
-    "line": frozenset({"at", "to"}),
-    "circle": frozenset({"at", "radius", "align", "vertical_align"}),
+    **HAND_PART_GEOMETRY_KEYS,
     #: No `at` -- an arc part is always centred on the copy's own origin
     #: (docs/plans/05-patterns.md D3); `_check_hand_part_keys` reports a use
     #: of `at` here through the same "key not used by this shape" mechanism
@@ -640,7 +641,6 @@ class Element:
     span: Span | None
     lint_allow: frozenset[str] = frozenset()
     lint_reason: str | None = None
-    overrides: dict = field(default_factory=dict)
     #: A `wfb.complications` name this element launches on touch and hold
     #: (ADR 0006 §6).  The platform offers exactly one door out of a watch face
     #: -- `Complications.exitTo` -- so an interactive element names a
@@ -984,12 +984,11 @@ class PatternElement(Element):
     def drawn_indices(self) -> tuple[int, ...]:
         """Copy indices actually drawn, ascending: `0..count-1` minus `skip`
         and minus every multiple of `skip_every` (§5.1).  A pattern with
-        nothing left to draw is a build error (`Builder._build_pattern_element`),
-        so this is never empty for an element that reached the IR."""
-        return tuple(
-            i for i in range(self.count)
-            if i not in self.skip and (self.skip_every is None or i % self.skip_every != 0)
-        )
+        nothing left to draw is a build error (`Builder._build_pattern_element`,
+        which computes the same thing through :func:`_drawn_copies` before
+        this element exists, to report an empty result), so this is never
+        empty for an element that reached the IR."""
+        return _drawn_copies(self.count, self.skip, self.skip_every)
 
     def _own_expressions(self) -> list[Expression]:
         out = list(self.colors)
@@ -1357,12 +1356,57 @@ class Face:
                 used |= expression.barrel
         return used
 
-    def uses_mode(self, mode: str) -> bool:
-        return any(mode in element.modes for element in self.walk())
-
 
 # --------------------------------------------------------------------------
 # the semantic pass
+
+
+class _NamedBlock:
+    """The "declared / accepted / rejected" bookkeeping a named top-level
+    block keeps -- `fonts:`, `palette:`, `layouts:`, `color_scheme:`,
+    `config: data:` and `hands:` each build one of these as they parse their
+    own entries.
+
+    `declared` is every name the block saw, whether or not it survived; a
+    rejected entry is still a *declared* one, and saying otherwise is how the
+    old `unknown font` note came to tell an author "declared fonts: (none
+    declared)" about a file declaring three.  `rejected` is the subset that
+    failed the block's own check.  A resolver elsewhere first looks a name up
+    in whatever dict the block's *accepted* values actually live in (`self.
+    fonts`, `self.palette`, ... -- shaped differently per block, so that
+    lookup stays at the call site); once that misses, :meth:`unknown` gives
+    the shared "one error, not N" cascade tail every one of those resolvers
+    used to reimplement: a name that was declared and then rejected here
+    stays quiet, because the real mistake already has its own error against
+    this block, and anything else is `unknown X`, with a note listing every
+    declared name (`docs/lore/codegen.md`).
+    """
+
+    def __init__(self) -> None:
+        self.declared: dict[str, Span | None] = {}
+        self.rejected: set[str] = set()
+
+    def declare(self, name: str, span: Span | None) -> None:
+        self.declared[name] = span
+
+    def reject(self, name: str) -> None:
+        self.rejected.add(name)
+
+    def unknown(
+        self, bag: Bag, name: str, span: Span | None, *,
+        code: str, message: str, note: str, prefix: str = "",
+    ) -> None:
+        """Report the shared "unknown X" diagnostic for `name`, or stay
+        quiet when it was declared and then rejected here.  `message` is the
+        error's full text; `note` is the fixed lead-in for the one note
+        ("declared palette entries", "declared fonts", ...), followed by the
+        declared names, sorted and `prefix`-qualified (`"palette."`,
+        `"font."`, `"config.data."`, or `""`), or "(none declared)".
+        """
+        if name in self.rejected:
+            return
+        known = ", ".join(f"{prefix}{n}" for n in sorted(self.declared)) or "(none declared)"
+        bag.error(code, message, span, notes=[f"{note}: {known}"])
 
 
 class Builder:
@@ -1381,46 +1425,45 @@ class Builder:
         self.config: dict[str, ConfigColor] = {}
         self.fonts: dict[str, FontSpec] = {}
         #: Every name in the `fonts:` block, whether or not it survived
-        #: `_build_fonts`.  A rejected entry is still a *declared* one, and
+        #: `_build_fonts` -- a rejected entry is still a *declared* one, and
         #: saying otherwise is how the old `unknown font` note came to tell an
-        #: author "declared fonts: (none declared)" about a file declaring three.
-        self.declared_fonts: dict[str, Span | None] = {}
-        #: Declared names that failed their own check.  Every element naming
-        #: one would otherwise raise a second, derived error blaming the
-        #: element for a mistake made in the `fonts:` block.
-        self.rejected_fonts: set[str] = set()
-        #: Every name in the `palette:` block, whether or not it survived
-        #: `_build_palette` -- the same "declared vs accepted" split
-        #: `declared_fonts`/`rejected_fonts` keep, needed now that a
-        #: `config:` `default:`/`choices:` entry can name a palette entry
-        #: and must get exactly one error when that name was rejected.
-        self.declared_palette: dict[str, Span | None] = {}
-        self.rejected_palette: set[str] = set()
+        #: author "declared fonts: (none declared)" about a file declaring
+        #: three.  `_NamedBlock` is the shared "declared vs accepted vs
+        #: rejected" bookkeeping every named top-level block below keeps, so
+        #: an element naming a name that was declared and then rejected for
+        #: its own fault gets exactly one error, at the real mistake, not a
+        #: second one blaming the reference (`docs/lore/codegen.md`).
+        self.fonts_block = _NamedBlock()
+        #: The same split for `palette:`, needed now that a `config:`
+        #: `default:`/`choices:` entry can name a palette entry and must get
+        #: exactly one error when that name was rejected.
+        self.palette_block = _NamedBlock()
         #: `config:` axes that were declared and then rejected.  Bound into
         #: scope anyway (`_build_scope`) so the author gets exactly one error,
-        #: at the real mistake -- the same cascade fix `rejected_fonts` above
-        #: exists for, and for the same reason: a second 'unknown data source'
-        #: error points at a correct line and blames the wrong thing.
+        #: at the real mistake -- the same cascade fix every `_NamedBlock`
+        #: exists for, and for the same reason: a second 'unknown data
+        #: source' error points at a correct line and blames the wrong
+        #: thing.  Partial (no `declared` dict of its own): every rejected
+        #: name is already a key of `self.config`'s own source block, so
+        #: there is nothing a second dict would add.
         self.rejected_config: set[str] = set()
-        #: `layouts:` entries, in declaration order, and the same
-        #: declared/rejected split every other named block keeps -- a
-        #: `config: style:` entry's `layout:` must get exactly one error
+        #: `layouts:` entries, in declaration order -- `layouts_block` keeps
+        #: the same declared/rejected split every other named block keeps, so
+        #: a `config: style:` entry's `layout:` must get exactly one error
         #: when it names a layout that was declared and then rejected, not a
         #: second one blaming the reference (plan 02
         #: §12.1).  Built by `_build_layouts`, before `_build_color_scheme`/
         #: `_build_config`, so a style entry can resolve `layout:` the same
         #: build pass it resolves `colors:` in.
         self.layouts: list[LayoutDecl] = []
-        self.declared_layouts: dict[str, Span | None] = {}
-        self.rejected_layouts: set[str] = set()
+        self.layouts_block = _NamedBlock()
         #: `color_scheme:` entries, and the same declared/rejected split
-        #: `declared_palette`/`rejected_palette` keep -- a scheme with a bad
-        #: role colour or a role-set mismatch is rejected, and a `config:
-        #: style:` entry's `colors:` referencing it by name must get exactly
-        #: one error, not a second one blaming the reference.
+        #: `palette_block` keeps -- a scheme with a bad role colour or a
+        #: role-set mismatch is rejected, and a `config: style:` entry's
+        #: `colors:` referencing it by name must get exactly one error, not a
+        #: second one blaming the reference.
         self.color_scheme: dict[str, ColorScheme] = {}
-        self.declared_color_scheme: dict[str, Span | None] = {}
-        self.rejected_color_scheme: set[str] = set()
+        self.color_scheme_block = _NamedBlock()
         #: The `config: style:` axis, once built -- `None` until then, and
         #: still `None` if it was declared and rejected (see
         #: `rejected_config`, which gets `"style"` added in that case).
@@ -1438,15 +1481,13 @@ class Builder:
         #: reference) gets exactly one error, at the real mistake, not a
         #: second one blaming the element that references it.
         self.config_data: dict[str, ConfigDataSlot] = {}
-        self.declared_config_data: dict[str, Span | None] = {}
-        self.rejected_config_data: set[str] = set()
+        self.config_data_block = _NamedBlock()
         #: `hands:` entries, and the same declared/rejected split every other
         #: named block keeps (plan 04) -- a `type: hands` element naming a
         #: set that was declared and then rejected gets exactly one error, at
         #: the real mistake, not a second one blaming the element.
         self.hand_sets: dict[str, HandSet] = {}
-        self.declared_hand_sets: dict[str, Span | None] = {}
-        self.rejected_hand_sets: set[str] = set()
+        self.hand_sets_block = _NamedBlock()
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it
@@ -1510,7 +1551,7 @@ class Builder:
         face = data["face"]
         name = face["name"]
         accepted_layouts = tuple(
-            n for n in self.declared_layouts if n not in self.rejected_layouts)
+            n for n in self.layouts_block.declared if n not in self.layouts_block.rejected)
         return Face(
             format=int(data["format"]),
             uuid=face["id"],
@@ -1559,7 +1600,7 @@ class Builder:
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.declared_layouts[name] = span
+            self.layouts_block.declare(name, span)
             self.layouts.append(LayoutDecl(
                 name=name,
                 lint_allow=frozenset((spec.get("lint") or {}).get("allow", ())),
@@ -1584,7 +1625,7 @@ class Builder:
         if self.layouts:
             by_id = {e.id: e for e in elements}
             for decl in self.layouts:
-                if decl.name in self.rejected_layouts:
+                if decl.name in self.layouts_block.rejected:
                     continue
                 for generated_id in layout_ids(decl.name):
                     group = by_id.get(generated_id)
@@ -1646,7 +1687,7 @@ class Builder:
         """
         for name, value in raw.items():
             span = self.doc.span(raw, name)
-            self.declared_palette[name] = span
+            self.palette_block.declare(name, span)
             if isinstance(value, dict):
                 raw_value = value.get("value")
                 value_span = self.doc.span(value, "value") or span
@@ -1667,13 +1708,13 @@ class Builder:
                         "through a palette entry",
                     ],
                 )
-                self.rejected_palette.add(name)
+                self.palette_block.reject(name)
                 continue
             try:
                 self.palette[name] = Color.parse(raw_value, what=f"palette.{name}")
             except ColorError as exc:
                 self.bag.error("palette", str(exc), value_span)
-                self.rejected_palette.add(name)
+                self.palette_block.reject(name)
                 continue
             if label is not None:
                 self.palette_labels[name] = label
@@ -1686,19 +1727,18 @@ class Builder:
         never declared or because it *was* declared and then rejected by
         `_build_palette` (an out-of-range colour, a `config.*` reference).  In
         the rejected case this stays quiet: the real mistake already has its
-        own error pointing at the `palette:` block, and the same
-        `rejected_fonts`/`rejected_config` cascade fix applies here -- one
-        error at the real mistake, not one more per reference blaming the
-        wrong line.
+        own error pointing at the `palette:` block, and the same cascade fix
+        every `_NamedBlock` applies here -- one error at the real mistake,
+        not one more per reference blaming the wrong line.
         """
         key = name[len("palette."):]
         if key in self.palette:
             return self.palette[key]
-        if key in self.rejected_palette:
-            return None
-        known = ", ".join(f"palette.{n}" for n in sorted(self.declared_palette)) or "(none declared)"
-        self.bag.error("config", f"unknown palette entry {name!r}", span,
-                       notes=[f"declared palette entries: {known}"])
+        self.palette_block.unknown(
+            self.bag, key, span, code="config",
+            message=f"unknown palette entry {name!r}",
+            note="declared palette entries", prefix="palette.",
+        )
         return None
 
     def _resolve_config_color(self, raw: object, what: str, span: Span | None) -> Color | None:
@@ -1734,7 +1774,7 @@ class Builder:
         role_sets: dict[str, dict[str, Color]] = {}
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.declared_color_scheme[name] = span
+            self.color_scheme_block.declare(name, span)
             label = spec.get("label")
             raw_colors = spec["colors"]
             colors: dict[str, Color] = {}
@@ -1748,7 +1788,7 @@ class Builder:
                     continue
                 colors[role] = color
             if not ok:
-                self.rejected_color_scheme.add(name)
+                self.color_scheme_block.reject(name)
                 continue
             self.color_scheme[name] = ColorScheme(name=name, label=label, colors=colors, span=span)
             role_sets[name] = colors
@@ -1775,7 +1815,7 @@ class Builder:
                     "whenever the wearer picks the scheme that lacks it",
                 ],
             )
-            self.rejected_color_scheme.add(name)
+            self.color_scheme_block.reject(name)
             del self.color_scheme[name]
 
     def _scheme_reference(self, name: str, span: Span | None) -> str | None:
@@ -1797,12 +1837,10 @@ class Builder:
         """
         if name in self.color_scheme:
             return name
-        if name in self.rejected_color_scheme:
-            return None
-        known = ", ".join(sorted(self.declared_color_scheme)) or "(none declared)"
-        self.bag.error(
-            "config", f"unknown color scheme {name!r}", span,
-            notes=[f"declared color_scheme entries: {known}"],
+        self.color_scheme_block.unknown(
+            self.bag, name, span, code="config",
+            message=f"unknown color scheme {name!r}",
+            note="declared color_scheme entries",
         )
         return None
 
@@ -1815,14 +1853,11 @@ class Builder:
         layout (`_build_layouts`), but the cascade exists anyway so a future
         rejection needs no change here.
         """
-        if name in self.declared_layouts and name not in self.rejected_layouts:
+        if name in self.layouts_block.declared and name not in self.layouts_block.rejected:
             return name
-        if name in self.rejected_layouts:
-            return None
-        known = ", ".join(sorted(self.declared_layouts)) or "(none declared)"
-        self.bag.error(
-            "config", f"unknown layout {name!r}", span,
-            notes=[f"declared layouts: {known}"],
+        self.layouts_block.unknown(
+            self.bag, name, span, code="config",
+            message=f"unknown layout {name!r}", note="declared layouts",
         )
         return None
 
@@ -1966,6 +2001,23 @@ class Builder:
         self.config_style = ConfigStyle(
             default=default_name, entries=tuple(entries), span=span)
 
+    @staticmethod
+    def _complication_suggestion_notes(name: str, noun: str) -> list[str]:
+        """The shared "unknown complication" notes: a "did you mean: ...?"
+        when :func:`wfb.complications.suggest` finds a near match, then
+        "run `wfb complications` for the full list of N <noun>" -- built
+        identically by `_complication_reference` (`noun="types"`) and
+        `_hold_target` (`noun="launch targets"`), which name the same table
+        for two different reasons.
+        """
+        near = complications.suggest(name)
+        notes = []
+        if near:
+            notes.append("did you mean: " + ", ".join(near) + "?")
+        notes.append(f"run `wfb complications` for the full list of "
+                     f"{len(complications.TYPES)} {noun}")
+        return notes
+
     def _complication_reference(self, raw: object, what: str, span: Span | None) -> str | None:
         """Resolve a `complication.<name>` reference used from `config: data:`'s
         own `default:`/`choices:`, against :mod:`wfb.complications` -- the same
@@ -1979,12 +2031,7 @@ class Builder:
         name = raw[len("complication."):]
         if complications.get(name) is not None:
             return name
-        near = complications.suggest(name)
-        notes = []
-        if near:
-            notes.append("did you mean: " + ", ".join(near) + "?")
-        notes.append(f"run `wfb complications` for the full list of "
-                     f"{len(complications.TYPES)} types")
+        notes = self._complication_suggestion_notes(name, "types")
         self.bag.error("config", f"{what}: unknown complication type {raw!r}", span, notes=notes)
         return None
 
@@ -2000,12 +2047,12 @@ class Builder:
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.declared_config_data[name] = span
+            self.config_data_block.declare(name, span)
             default_span = self.doc.span(spec, "default")
             default = self._complication_reference(
                 spec["default"], f"config.data.{name}.default", default_span)
             if default is None:
-                self.rejected_config_data.add(name)
+                self.config_data_block.reject(name)
                 continue
 
             raw_choices = spec["choices"]
@@ -2066,7 +2113,7 @@ class Builder:
                 seen[resolved] = index
                 choices.append(resolved)
             if not ok:
-                self.rejected_config_data.add(name)
+                self.config_data_block.reject(name)
                 continue
 
             if default not in choices:
@@ -2084,7 +2131,7 @@ class Builder:
                         "listed types: " + ", ".join(f"complication.{n}" for n in choices),
                     ],
                 )
-                self.rejected_config_data.add(name)
+                self.config_data_block.reject(name)
                 continue
 
             self.config_data[name] = ConfigDataSlot(
@@ -2110,13 +2157,10 @@ class Builder:
         name = raw[len("config.data."):]
         if name in self.config_data:
             return self.config_data[name]
-        if name in self.rejected_config_data:
-            return None
-        known = ", ".join(f"config.data.{n}" for n in sorted(self.declared_config_data)) \
-            or "(none declared)"
-        self.bag.error(
-            "complication-slot", f"unknown slot {raw!r}", span,
-            notes=[f"declared slots: {known}"],
+        self.config_data_block.unknown(
+            self.bag, name, span, code="complication-slot",
+            message=f"unknown slot {raw!r}",
+            note="declared slots", prefix="config.data.",
         )
         return None
 
@@ -2207,7 +2251,7 @@ class Builder:
         base = self.doc.path.parent
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.declared_fonts[name] = span
+            self.fonts_block.declare(name, span)
             source = base / str(spec["source"])
             if not source.exists():
                 self.bag.error(
@@ -2216,11 +2260,11 @@ class Builder:
                     self.doc.span(spec, "source"),
                     notes=[f"resolved against the design file, to {source}"],
                 )
-                self.rejected_fonts.add(name)
+                self.fonts_block.reject(name)
                 continue
             size = self._font_size(name, spec)
             if size is None:
-                self.rejected_fonts.add(name)
+                self.fonts_block.reject(name)
                 continue
             # `scale:` is no longer a key the schema recognises at all -- it
             # is only meaningful for the removed bare-number spelling, and
@@ -2243,7 +2287,7 @@ class Builder:
                         "add 'monospace: true', or drop 'align'",
                     ],
                 )
-                self.rejected_fonts.add(name)
+                self.fonts_block.reject(name)
                 continue
             self.fonts[name] = FontSpec(
                 name=name,
@@ -2325,14 +2369,14 @@ class Builder:
         """`hands:` -- named analog-hand sets, declared once, placed by name.
 
         The same declared/rejected cascade every other named block keeps
-        (`fonts:`, `color_scheme:`, `layouts:`): a set rejected for its own
-        fault stays bound in `declared_hand_sets`, so a `type: hands`
-        element naming it gets exactly one error, at the real mistake
-        (`docs/lore/codegen.md`).
+        (`fonts:`, `color_scheme:`, `layouts:`, via `_NamedBlock`): a set
+        rejected for its own fault stays bound in `hand_sets_block.declared`,
+        so a `type: hands` element naming it gets exactly one error, at the
+        real mistake (`docs/lore/codegen.md`).
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.declared_hand_sets[name] = span
+            self.hand_sets_block.declare(name, span)
             ok = True
             hands: dict[str, Hand | None] = {}
             for hand_name in ("hour", "minute", "second"):
@@ -2356,7 +2400,7 @@ class Builder:
                 )
                 ok = False
             if not ok:
-                self.rejected_hand_sets.add(name)
+                self.hand_sets_block.reject(name)
                 continue
             self.hand_sets[name] = HandSet(
                 name=name, hour=hands["hour"], minute=hands["minute"],
@@ -2653,28 +2697,21 @@ class Builder:
         noun = "hand" if is_hand else "pattern"
         geometry_keys = HAND_PART_GEOMETRY_KEYS if is_hand else PATTERN_PART_GEOMETRY_KEYS
         all_keys = _ALL_HAND_PART_GEOMETRY_KEYS if is_hand else _ALL_PATTERN_PART_GEOMETRY_KEYS
-        ok = True
-        for key in sorted(all_keys - geometry_keys[shape]):
-            if key not in node:
-                continue
-            owners = sorted(s for s, keys in geometry_keys.items() if key in keys)
-            notes = [
-                f"'shape: {shape}' reads: "
-                + (", ".join(sorted(geometry_keys[shape])) or "(no geometry keys)"),
-                f"{key!r} belongs to " + " and ".join(f"'shape: {s}'" for s in owners),
-            ]
+
+        def extra_notes(key: str) -> list[str]:
+            notes = []
             if not is_hand and shape == "arc" and key == "at":
                 notes.append("an arc part is always centred on the copy's own "
                              "origin -- there is no separate centre to offset")
             if key in ("align", "vertical_align") and shape in _HAND_PART_NO_ALIGNMENT_REASON:
                 notes.append(_HAND_PART_NO_ALIGNMENT_REASON[shape])
-            self.bag.error(
-                "element",
-                f"{part_where}: {key!r} is not used by a {noun} 'shape: {shape}' part",
-                self.doc.span(node, key) or self.doc.span(node),
-                notes=notes,
-            )
-            ok = False
+            return notes
+
+        ok = self._check_foreign_keys(
+            node, shape, geometry_keys, all_keys, code="element", disc="shape",
+            prefix=f"{part_where}: ", qualifier=f"a {noun} ", suffix=" part",
+            extra_notes=extra_notes,
+        )
         filled = bool(node.get("filled", True))
         thickness_always = {"line"} if is_hand else {"line", "arc"}
         thickness_ok = shape in thickness_always or (shape == "circle" and not filled)
@@ -2709,6 +2746,40 @@ class Builder:
             ok = False
         return ok
 
+    def _define_palette_color(self, name: str, constant: int) -> None:
+        """Bind `palette.<name>` to its Monkey C constant -- shared by an
+        accepted palette entry (`constant` is its real value) and a
+        declared-then-rejected one (`constant=0`, a placeholder: nothing is
+        emitted from a design that has an error, so it is never reached --
+        see the two call sites in `_build_scope` for the cascade this binds
+        into scope for).
+        """
+        self.scope.define(
+            f"palette.{name}",
+            expr.Binding(
+                expr.Value(Type.COLOR),
+                code=f"Palette.{name.upper()}",
+                constant=constant,
+                kind="palette",
+            ),
+        )
+
+    def _define_config_color(self, path: str, code: str) -> None:
+        """Bind `path` (`config.<name>` or `config.colors.<role>`) to the
+        view field `code` reads back from -- shared by every accepted or
+        declared-then-rejected config colour binding in `_build_scope`.
+
+        `constant=None` is deliberate, unlike a palette entry: the view
+        field this reads is user-editable at runtime (on a device with the
+        native editor), so `fold` must never inline it as the declared
+        default -- `expr.fold`'s Ref branch only substitutes when
+        `binding.constant` is set.
+        """
+        self.scope.define(
+            path,
+            expr.Binding(expr.Value(Type.COLOR), code=code, constant=None, kind="config"),
+        )
+
     def _build_scope(self) -> None:
         """Populate the expression scope: catalogue sources, palette, config.
 
@@ -2726,69 +2797,33 @@ class Builder:
                 ),
             )
         for name, color in self.palette.items():
-            self.scope.define(
-                f"palette.{name}",
-                expr.Binding(
-                    expr.Value(Type.COLOR),
-                    code=f"Palette.{name.upper()}",
-                    constant=color.value,
-                    kind="palette",
-                ),
-            )
-        for name in sorted(self.rejected_palette):
+            self._define_palette_color(name, color.value)
+        for name in sorted(self.palette_block.rejected):
             # Declared, then rejected above (an out-of-range colour, or a
             # `config.*`/`palette.*` reference `_build_palette` refuses).
             # Bound into scope anyway so an element's `color: palette.<name>`
             # gets the one real error already reported against the
             # `palette:` block, not a second "unknown data source" blaming
             # the element for a mistake made elsewhere -- the same cascade
-            # fix `rejected_fonts`/`rejected_config` exist for, in the same
-            # shape.  Nothing is emitted from a design that has an error, so
-            # the placeholder value here is never reached.
-            self.scope.define(
-                f"palette.{name}",
-                expr.Binding(
-                    expr.Value(Type.COLOR),
-                    code=f"Palette.{name.upper()}",
-                    constant=0,
-                    kind="palette",
-                ),
-            )
+            # fix every `_NamedBlock` exists for, in the same shape.
+            # Nothing is emitted from a design that has an error, so the
+            # placeholder value here is never reached.
+            self._define_palette_color(name, 0)
         for name, entry in self.config.items():
-            self.scope.define(
-                f"config.{name}",
-                expr.Binding(
-                    expr.Value(Type.COLOR),
-                    code=entry.field,
-                    # `constant=None` is deliberate, unlike a palette entry: the
-                    # view field this reads is user-editable at runtime (on a
-                    # device with the native editor), so `fold` must never
-                    # inline it as the declared default -- `expr.fold`'s Ref
-                    # branch only substitutes when `binding.constant` is set.
-                    constant=None,
-                    kind="config",
-                ),
-            )
+            self._define_config_color(f"config.{name}", entry.field)
         for name in sorted(self.rejected_config - {"style"}):
             # Declared, then rejected above.  Binding it anyway keeps the one
             # real error the only error: without this, every `color:
             # config.<name>` in the design adds an "unknown data source" that
             # is true only because the compiler threw the axis away -- the
-            # cascade `rejected_fonts` already exists to prevent, in the same
-            # shape.  Nothing is emitted from a design that has an error, so
-            # the field name here is never reached.  `"style"` is excluded --
+            # cascade every `_NamedBlock` already exists to prevent, in the
+            # same shape.  Nothing is emitted from a design that has an
+            # error, so the field name here is never reached.  `"style"` is
+            # excluded --
             # it is not a single-colour axis, so it cannot use `config_field`
             # the way every other rejected axis does, and is handled in the
             # `config.colors.<role>` block below instead.
-            self.scope.define(
-                f"config.{name}",
-                expr.Binding(
-                    expr.Value(Type.COLOR),
-                    code=config_field(name),
-                    constant=None,
-                    kind="config",
-                ),
-            )
+            self._define_config_color(f"config.{name}", config_field(name))
 
         # `config.colors.<role>` -- one binding per role of the *default*
         # entry's declared `config: style:` scheme, deliberately *not* one
@@ -2802,16 +2837,8 @@ class Builder:
         if self.config_style is not None and self.config_style.default_entry.colors is not None:
             default_scheme = self.color_scheme[self.config_style.default_entry.colors]
             self._config_colors_roles = tuple(sorted(default_scheme.colors))
-            for role, color in default_scheme.colors.items():
-                self.scope.define(
-                    f"config.colors.{role}",
-                    expr.Binding(
-                        expr.Value(Type.COLOR),
-                        code=config_field(f"colors_{role}"),
-                        constant=None,
-                        kind="config",
-                    ),
-                )
+            for role in default_scheme.colors:
+                self._define_config_color(f"config.colors.{role}", config_field(f"colors_{role}"))
         elif "style" in self.rejected_config:
             # The axis itself was declared and rejected (a bad default/choice
             # reference, or a default not among choices) -- the same cascade
@@ -2825,15 +2852,7 @@ class Builder:
             if roles:
                 self._config_colors_roles = tuple(sorted(roles))
                 for role in self._config_colors_roles:
-                    self.scope.define(
-                        f"config.colors.{role}",
-                        expr.Binding(
-                            expr.Value(Type.COLOR),
-                            code=config_field(f"colors_{role}"),
-                            constant=None,
-                            kind="config",
-                        ),
-                    )
+                    self._define_config_color(f"config.colors.{role}", config_field(f"colors_{role}"))
         self.scope.used.clear()
 
     # -- elements ---------------------------------------------------------
@@ -2887,7 +2906,6 @@ class Builder:
             span=span,
             lint_allow=frozenset((node.get("lint") or {}).get("allow", ())),
             lint_reason=(node.get("lint") or {}).get("reason"),
-            overrides=dict(node.get("overrides") or {}),
             on_hold=self._hold_target(node),
             visible=self._visible(node),
             static=bool(node.get("static", False)),
@@ -2967,7 +2985,6 @@ class Builder:
         for symbol in candidates:
             self.seen_symbols[symbol] = (element_id, span)
         return True
-        return ok
 
     def _hold_target(self, node: dict) -> str | None:
         """Validate `on_hold:` against the launchable complication table.
@@ -2997,12 +3014,7 @@ class Builder:
             return HOLD_AUTO
         if complications.get(name) is not None:
             return name
-        near = complications.suggest(name)
-        notes = []
-        if near:
-            notes.append("did you mean: " + ", ".join(near) + "?")
-        notes.append("run `wfb complications` for the full list of "
-                     f"{len(complications.TYPES)} launch targets")
+        notes = self._complication_suggestion_notes(name, "launch targets")
         self.bag.error(
             "on-hold",
             f"unknown hold target {name!r}",
@@ -3062,9 +3074,7 @@ class Builder:
         Forcing one shape onto both questions would make one of them wrong,
         so this stays a second, smaller helper rather than an import.
         """
-        if isinstance(element, Text):
-            return element.value.sources if element.value is not None else ()
-        if isinstance(element, Progress):
+        if isinstance(element, (Text, Progress)):
             return element.value.sources if element.value is not None else ()
         if isinstance(element, IconElement):
             return element.value_for.sources if element.value_for is not None else ()
@@ -3350,64 +3360,43 @@ class Builder:
         for child in element.children():
             self._mark_static(root, child)
 
+    #: `_check_static_subtrees`'s per-kind "cannot be static" table: each of
+    #: these reads its picture from something that is not an `Expression` at
+    #: all -- a graph's series, a complication_slot's pull, a hand's clock
+    #: angle -- so the generic "nothing here may read a data source" sweep
+    #: the method falls through to below would never catch any of them.
+    #: `phrase` fills "{element.id!r} is {phrase} and cannot be static", so
+    #: it carries its own article ("a graph", but "analog hands" -- hands
+    #: are plural, not "a analog hands").
+    _STATIC_FORBIDDEN_KINDS: tuple[tuple[type, str, str], ...] = (
+        (Graph, "a graph",
+         "a graph's series is recomputed once a minute -- a buffer filled "
+         "once would freeze it at whatever it showed on the first frame"),
+        (ComplicationSlot, "a complication_slot",
+         "its reading is pulled fresh every frame, and the wearer can "
+         "repoint it to a different complication at any time -- a buffer "
+         "filled once would freeze both"),
+        (HandsElement, "analog hands",
+         "a hand's angle is the time -- a buffer filled once would freeze "
+         "it at whatever it showed on the first frame"),
+    )
+
     def _check_static_subtrees(self, roots: list[Element]) -> bool:
         ok = True
         for root in roots:
             for element in walk_elements([root]):
-                if isinstance(element, Graph):
-                    # A graph's series isn't an `Expression` -- it is
-                    # recomputed on-device every minute -- so the generic
-                    # "nothing here may read a data source" check just below
-                    # would never see it. Checked explicitly: a buffer filled
-                    # once would freeze a picture that is supposed to move.
+                forbidden = next(
+                    (entry for entry in self._STATIC_FORBIDDEN_KINDS
+                     if isinstance(element, entry[0])),
+                    None,
+                )
+                if forbidden is not None:
+                    _, phrase, note = forbidden
                     self.bag.error(
                         "static",
-                        f"{element.id!r} is a graph and cannot be static",
+                        f"{element.id!r} is {phrase} and cannot be static",
                         element.span,
-                        notes=["a graph's series is recomputed once a minute -- a "
-                               "buffer filled once would freeze it at whatever it "
-                               "showed on the first frame",
-                               f"take it out of {root.id!r}"
-                               if element is not root else
-                               "drop `static: true` from it"],
-                    )
-                    ok = False
-                    continue
-                if isinstance(element, ComplicationSlot):
-                    # Its reading is not an `Expression` either -- it is a
-                    # fresh `WfbComplications.valueOf` pull every frame, and
-                    # the wearer can repoint the slot at a different metric on
-                    # a device with the native editor at any time -- so the
-                    # same "would freeze it" reasoning as a graph applies, for
-                    # the same reason the generic source check below would
-                    # never catch it.
-                    self.bag.error(
-                        "static",
-                        f"{element.id!r} is a complication_slot and cannot be static",
-                        element.span,
-                        notes=["its reading is pulled fresh every frame, and the "
-                               "wearer can repoint it to a different complication "
-                               "at any time -- a buffer filled once would freeze "
-                               "both",
-                               f"take it out of {root.id!r}"
-                               if element is not root else
-                               "drop `static: true` from it"],
-                    )
-                    ok = False
-                    continue
-                if isinstance(element, HandsElement):
-                    # A hand's angle is the time -- there is no `Expression`
-                    # for that either (§5.5: hands read the clock with no
-                    # author expression), so the generic source check below
-                    # would never catch it, the same reason a graph and a
-                    # complication_slot each get their own branch here.
-                    self.bag.error(
-                        "static",
-                        f"{element.id!r} is analog hands and cannot be static",
-                        element.span,
-                        notes=["a hand's angle is the time -- a buffer filled once "
-                               "would freeze it at whatever it showed on the first "
-                               "frame",
+                        notes=[note,
                                f"take it out of {root.id!r}"
                                if element is not root else
                                "drop `static: true` from it"],
@@ -3575,6 +3564,47 @@ class Builder:
                 )
         return element
 
+    def _check_foreign_keys(
+        self, node: dict, chosen: str, table: dict[str, frozenset[str]],
+        all_keys: frozenset[str], *, code: str, disc: str,
+        prefix: str = "", qualifier: str = "", suffix: str = "",
+        empty_label: str = "(no geometry keys)",
+        extra_notes: Callable[[str], list[str]] | None = None,
+    ) -> bool:
+        """Reject a key from another row of `table` that `chosen`'s own row
+        does not read -- the shared "key not used by this X" sweep
+        `_check_shape_keys`, `_check_hand_part_keys` and
+        `_check_graph_style_keys` each specialise, for `disc` (the
+        discriminator word: `shape`/`style`) in `'{disc}: {chosen}'`.
+
+        `prefix`/`qualifier`/`suffix` build the message around that quoted
+        phrase (``f"{prefix}{key!r} is not used by {qualifier}'{disc}:
+        {chosen}'{suffix}"``) so each caller keeps its own exact wording;
+        `extra_notes(key)` appends any further, caller-specific notes (an
+        alignment or an arc-centring reason) after the two standard ones.
+        Returns whether every key present belonged to `chosen`'s own row.
+        """
+        ok = True
+        for key in sorted(all_keys - table[chosen]):
+            if key not in node:
+                continue
+            owners = sorted(s for s, keys in table.items() if key in keys)
+            notes = [
+                f"'{disc}: {chosen}' reads: "
+                + (", ".join(sorted(table[chosen])) or empty_label),
+                f"{key!r} belongs to " + " and ".join(f"'{disc}: {s}'" for s in owners),
+            ]
+            if extra_notes is not None:
+                notes.extend(extra_notes(key))
+            self.bag.error(
+                code,
+                f"{prefix}{key!r} is not used by {qualifier}'{disc}: {chosen}'{suffix}",
+                self.doc.span(node, key) or self.doc.span(node),
+                notes=notes,
+            )
+            ok = False
+        return ok
+
     def _check_shape_keys(self, node: dict, shape: str) -> None:
         """Reject a geometry key the chosen `shape:` does not read.
 
@@ -3590,23 +3620,15 @@ class Builder:
         is read depends on `filled:`, not on the shape: a `line` and an `arc`
         always use it, any other shape uses it only when outlined.
         """
-        for key in sorted(_ALL_SHAPE_GEOMETRY_KEYS - SHAPE_GEOMETRY_KEYS[shape]):
-            if key not in node:
-                continue
-            owners = sorted(s for s, keys in SHAPE_GEOMETRY_KEYS.items() if key in keys)
-            notes = [
-                f"'shape: {shape}' reads: "
-                + (", ".join(sorted(SHAPE_GEOMETRY_KEYS[shape])) or "(no geometry keys)"),
-                f"{key!r} belongs to " + " and ".join(f"'shape: {s}'" for s in owners),
-            ]
-            if key in ("align", "vertical_align") and shape in _SHAPE_NO_ALIGNMENT_REASON:
-                notes.append(_SHAPE_NO_ALIGNMENT_REASON[shape])
-            self.bag.error(
-                "element",
-                f"{key!r} is not used by 'shape: {shape}'",
-                self.doc.span(node, key) or self.doc.span(node),
-                notes=notes,
-            )
+        self._check_foreign_keys(
+            node, shape, SHAPE_GEOMETRY_KEYS, _ALL_SHAPE_GEOMETRY_KEYS,
+            code="element", disc="shape",
+            extra_notes=lambda key: (
+                [_SHAPE_NO_ALIGNMENT_REASON[shape]]
+                if key in ("align", "vertical_align") and shape in _SHAPE_NO_ALIGNMENT_REASON
+                else []
+            ),
+        )
         if "thickness" in node and shape not in ("line", "arc") \
                 and bool(node.get("filled", True)):
             self.bag.error(
@@ -3631,14 +3653,10 @@ class Builder:
         element_id = common["id"]
         hand_set = self.hand_sets.get(name)
         if hand_set is None:
-            if name in self.rejected_hand_sets:
-                return None  # one error, not N -- already reported in `_build_hands`
-            known = ", ".join(sorted(self.declared_hand_sets)) or "(none declared)"
-            self.bag.error(
-                "hands",
-                f"{element_id}: unknown hand set {name!r}",
-                self.doc.span(node, "hands"),
-                notes=[f"declared hand sets: {known}"],
+            self.hand_sets_block.unknown(
+                self.bag, name, self.doc.span(node, "hands"), code="hands",
+                message=f"{element_id}: unknown hand set {name!r}",
+                note="declared hand sets",
             )
             return None
 
@@ -3684,11 +3702,9 @@ class Builder:
         for hand_name, hand in hand_set.hands():
             if hand_name == "second" and seconds == "never":
                 continue  # never drawn, so its colours reach no lint and no read
-            if hand.color is not None and hand.color not in colors:
-                colors.append(hand.color)
+            _dedup_append(colors, hand.color)
             for part in hand.parts:
-                if part.color is not None and part.color not in colors:
-                    colors.append(part.color)
+                _dedup_append(colors, part.color)
 
         return HandsElement(**common, hands=name, seconds=seconds, colors=tuple(colors))
 
@@ -3824,10 +3840,7 @@ class Builder:
                 self.doc.span(node, "skip_every"),
             )
             return None
-        drawn = tuple(
-            i for i in range(count)
-            if i not in skip and (skip_every is None or i % skip_every != 0)
-        )
+        drawn = _drawn_copies(count, skip, skip_every)
         if not drawn:
             self.bag.error(
                 "pattern",
@@ -3877,7 +3890,6 @@ class Builder:
             # subset, its measured extent, and the glyph lint all exact.
             # `copy` no longer needs to be scope-bound for this: `expr.evaluate`
             # walks the already-compiled tree directly against a plain dict.
-            from . import formatting
             for part in parts:
                 if part.shape != "text":
                     continue
@@ -3907,11 +3919,9 @@ class Builder:
             return None
 
         colors: list[Expression] = []
-        if element_color is not None and element_color not in colors:
-            colors.append(element_color)
+        _dedup_append(colors, element_color)
         for part in parts:
-            if part.color is not None and part.color not in colors:
-                colors.append(part.color)
+            _dedup_append(colors, part.color)
 
         element = PatternElement(
             **common,
@@ -4233,18 +4243,21 @@ class Builder:
                        "wfb.catalog.WEATHER_CONDITION_SOURCES for what it accepts"],
             )
 
-        size = self._length(node, "size")
-        if size is not None and size.unit not in units.SIZE_UNITS:
-            self.bag.error(
-                "icon",
-                f"icon size must be px or %r, not {size.unit}",
-                self.doc.span(node, "size"),
-                notes=["an icon's font is baked once, before layout runs, so its size "
-                       "cannot depend on a parent box (%) or an element's own font (pt)"],
-            )
-            size = None
+        size = self._baked_size_length(
+            node, "size", code="icon", label="icon size",
+            note="an icon's font is baked once, before layout runs, so its size "
+                 "cannot depend on a parent box (%) or an element's own font (pt)",
+        )
 
         align, vertical_align = self._alignment(node)
+        # Shared by every branch below: `**placement` is the four keys an
+        # `IconElement` needs regardless of which of 'icon'/'icon_for'/
+        # 'glyph' chose it -- one `_color_expression(node, "color")` call
+        # instead of one per branch.
+        placement = dict(
+            size=size, color=self._color_expression(node, "color"),
+            align=align, vertical_align=vertical_align,
+        )
 
         if has_icon_for:
             value_for = self._expression(node, "icon_for")
@@ -4265,37 +4278,20 @@ class Builder:
                 )
                 value_for = None
             return IconElement(
-                **common,
-                icon=None,
-                codepoint=icons.FALLBACK_CODEPOINT,
-                value_for=value_for,
-                size=size,
-                color=self._color_expression(node, "color"),
-                align=align,
-                vertical_align=vertical_align,
+                **common, icon=None, codepoint=icons.FALLBACK_CODEPOINT,
+                value_for=value_for, **placement,
             )
 
         if has_glyph:
-            return self._build_glyph_icon(node, common, size, align, vertical_align)
+            return self._build_glyph_icon(node, common, placement)
 
         codepoint = self._resolve_icon_name(name, self.doc.span(node, "icon"))
         if codepoint is None:
             codepoint = icons.FALLBACK_CODEPOINT
 
-        return IconElement(
-            **common,
-            icon=name,
-            codepoint=codepoint,
-            size=size,
-            color=self._color_expression(node, "color"),
-            align=align,
-            vertical_align=vertical_align,
-        )
+        return IconElement(**common, icon=name, codepoint=codepoint, **placement)
 
-    def _build_glyph_icon(
-        self, node: dict, common: dict, size, align: str = "center",
-        vertical_align: str = "center",
-    ) -> Element:
+    def _build_glyph_icon(self, node: dict, common: dict, placement: dict) -> Element:
         """`glyph: "U+F0BC"` -- a codepoint the catalogue does not name.
 
         The only way to reach a glyph the catalogue does not name, and spelled
@@ -4311,14 +4307,31 @@ class Builder:
         character = self._resolve_icon_glyph(raw, span)
         if character is None:
             character = icons.FALLBACK_CODEPOINT
-        return IconElement(
-            **common,
-            icon=raw.upper(),
-            codepoint=character,
-            size=size,
-            color=self._color_expression(node, "color"),
-            align=align,
-            vertical_align=vertical_align,
+        return IconElement(**common, icon=raw.upper(), codepoint=character, **placement)
+
+    def _check_slot_color_absence(
+        self, node: dict, element: "ComplicationSlot", key: str,
+        color: Expression | None, note: str,
+    ) -> None:
+        """A complication_slot's `color:`/`icon_color:` may not read
+        anything absent-able -- neither has a `when_absent:` of its own to
+        fall back through, unlike the pulled reading itself (shared by both
+        colours in `_build_complication_slot`; `note` carries the one
+        wording difference between them -- "colour ... its own" vs.
+        "colours ... their own" -- so the messages stay exactly what they
+        were before this was one method).
+        """
+        if color is None or not color.nullable:
+            return
+        self.bag.error(
+            "complication-slot",
+            f"{element.id}: '{key}:' reads {color.text!r}, which can be absent",
+            self.doc.span(node, key),
+            notes=[
+                note,
+                "guard it in the expression instead, e.g. "
+                "\"x != null and x > 100 ? palette.hot : palette.fg\"",
+            ],
         )
 
     def _build_complication_slot(self, node: dict, common: dict, path: tuple) -> Element:
@@ -4337,16 +4350,11 @@ class Builder:
         slot_raw = node["slot"]
         slot = self._resolve_slot_reference(str(slot_raw), self.doc.span(node, "slot"))
 
-        icon_size = self._length(node, "icon_size")
-        if icon_size is not None and icon_size.unit not in units.SIZE_UNITS:
-            self.bag.error(
-                "complication-slot",
-                f"icon_size must be px or %r, not {icon_size.unit}",
-                self.doc.span(node, "icon_size"),
-                notes=["an icon's font is baked once, before layout runs, so its size "
-                       "cannot depend on a parent box (%) or an element's own font (pt)"],
-            )
-            icon_size = None
+        icon_size = self._baked_size_length(
+            node, "icon_size", code="complication-slot", label="icon_size",
+            note="an icon's font is baked once, before layout runs, so its size "
+                 "cannot depend on a parent box (%) or an element's own font (pt)",
+        )
         # 'icon_size:' + 'choices: any' was rejected until 2026-09-13
         # (plan 03 §6.6): the set of icons
         # an unbounded picker could need was unbounded, and nothing could be
@@ -4360,18 +4368,13 @@ class Builder:
         # has for an individual choice.
 
         icon_position = node.get("icon_position", "left")
-        icon_gap = self._length(node, "icon_gap")
-        if icon_gap is not None and icon_gap.unit not in units.SIZE_UNITS:
-            self.bag.error(
-                "complication-slot",
-                f"icon_gap must be px or %r, not {icon_gap.unit}",
-                self.doc.span(node, "icon_gap"),
-                notes=["the same restriction 'icon_size:' has -- an icon's font is "
-                       "baked once, before layout runs, so the gap that sits "
-                       "against it cannot depend on a parent box (%) or an "
-                       "element's own font (pt)"],
-            )
-            icon_gap = None
+        icon_gap = self._baked_size_length(
+            node, "icon_gap", code="complication-slot", label="icon_gap",
+            note="the same restriction 'icon_size:' has -- an icon's font is "
+                 "baked once, before layout runs, so the gap that sits "
+                 "against it cannot depend on a parent box (%) or an "
+                 "element's own font (pt)",
+        )
         if icon_gap is not None and icon_gap.value < 0:
             self.bag.error(
                 "complication-slot",
@@ -4477,33 +4480,20 @@ class Builder:
 
         if color is None:
             self._require(node, "color", "a complication_slot needs a color")
-        elif color.nullable:
-            self.bag.error(
-                "complication-slot",
-                f"{element.id}: 'color:' reads {color.text!r}, which can be absent",
-                self.doc.span(node, "color"),
-                notes=[
-                    "a complication_slot's colour has no 'when_absent:' of its own "
-                    "-- 'when_absent:'/'placeholder:' governs the pulled reading, "
-                    "not the element's appearance",
-                    "guard it in the expression instead, e.g. "
-                    "\"x != null and x > 100 ? palette.hot : palette.fg\"",
-                ],
+        else:
+            self._check_slot_color_absence(
+                node, element, "color", color,
+                "a complication_slot's colour has no 'when_absent:' of its own "
+                "-- 'when_absent:'/'placeholder:' governs the pulled reading, "
+                "not the element's appearance",
             )
 
-        if icon_color is not None and icon_color.nullable:
-            self.bag.error(
-                "complication-slot",
-                f"{element.id}: 'icon_color:' reads {icon_color.text!r}, which can be absent",
-                self.doc.span(node, "icon_color"),
-                notes=[
-                    "a complication_slot's colours have no 'when_absent:' of their "
-                    "own -- 'when_absent:'/'placeholder:' governs the pulled "
-                    "reading, not the element's appearance",
-                    "guard it in the expression instead, e.g. "
-                    "\"x != null and x > 100 ? palette.hot : palette.fg\"",
-                ],
-            )
+        self._check_slot_color_absence(
+            node, element, "icon_color", icon_color,
+            "a complication_slot's colours have no 'when_absent:' of their "
+            "own -- 'when_absent:'/'placeholder:' governs the pulled "
+            "reading, not the element's appearance",
+        )
 
         if element.when_absent == "placeholder" and element.placeholder is None:
             self._require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:'")
@@ -4698,18 +4688,10 @@ class Builder:
     def _check_graph_style_keys(self, node: dict, style: str) -> None:
         if style not in GRAPH_STYLE_KEYS:
             return  # the schema has already rejected an unknown style
-        for key in sorted(_ALL_GRAPH_STYLE_KEYS - GRAPH_STYLE_KEYS[style]):
-            if key not in node:
-                continue
-            owners = sorted(s for s, keys in GRAPH_STYLE_KEYS.items() if key in keys)
-            self.bag.error(
-                "graph",
-                f"{key!r} is not used by 'style: {style}'",
-                self.doc.span(node, key) or self.doc.span(node),
-                notes=[f"'style: {style}' reads: "
-                       + (", ".join(sorted(GRAPH_STYLE_KEYS[style])) or "(nothing)"),
-                       f"{key!r} belongs to " + " and ".join(f"'style: {s}'" for s in owners)],
-            )
+        self._check_foreign_keys(
+            node, style, GRAPH_STYLE_KEYS, _ALL_GRAPH_STYLE_KEYS,
+            code="graph", disc="style", empty_label="(nothing)",
+        )
 
     def _graph_bound(self, node: dict, key: str) -> tuple[Expression | None, bool]:
         """`min:`/`max:` -- `auto` (the default) or a compiled numeric expression."""
@@ -4921,8 +4903,6 @@ class Builder:
                     self.doc.span(node, "value"),
                 )
             return
-        from . import formatting
-
         coded = formatting.is_time_spec(spec)
         if coded and not bound.value.type.is_formatted():
             self.bag.error(
@@ -5088,11 +5068,11 @@ class Builder:
         key = name[len("font."):]
         if key in self.fonts:
             return key, True
-        if key in self.rejected_fonts:
-            return None
-        known = ", ".join(f"font.{n}" for n in sorted(self.declared_fonts)) or "(none declared)"
-        self.bag.error("font", f"unknown font {name!r}", span,
-                       notes=[f"declared fonts: {known}"])
+        self.fonts_block.unknown(
+            self.bag, key, span, code="font",
+            message=f"unknown font {name!r}",
+            note="declared fonts", prefix="font.",
+        )
         return None
 
     def _resolve_font(self, node: dict, element: Text | HandPart) -> None:
@@ -5145,6 +5125,26 @@ class Builder:
             self.bag.error("units", str(exc), self.doc.span(node, key))
             return None
 
+    def _baked_size_length(
+        self, node: dict, key: str, *, code: str, label: str, note: str,
+    ) -> Length | None:
+        """`key`'s length, rejected unless it is `px`/`%r` -- shared by every
+        size baked before layout runs: an icon's own `size:`
+        (`_build_icon`), and a complication_slot's `icon_size:`/`icon_gap:`
+        (`_build_complication_slot`, plan 03 §6.1/§6.3).  `label` is the
+        quantity name the message leads with (``'icon size'``/``'icon_size'``
+        /``'icon_gap'``); `note` is the one explanatory note, worded enough
+        differently between the three ("its size" vs. "the gap that sits
+        against it") that this takes it as a parameter rather than deriving
+        one.
+        """
+        length = self._length(node, key)
+        if length is not None and length.unit not in units.SIZE_UNITS:
+            self.bag.error(code, f"{label} must be px or %r, not {length.unit}",
+                           self.doc.span(node, key), notes=[note])
+            return None
+        return length
+
     def _angle(self, node: dict, key: str) -> Angle | None:
         if key not in node:
             return None
@@ -5153,6 +5153,29 @@ class Builder:
         except UnitError as exc:
             self.bag.error("units", str(exc), self.doc.span(node, key))
             return None
+
+
+def _dedup_append(colors: list[Expression], color: Expression | None) -> None:
+    """Append `color` to `colors` in first-use order, unless it is `None` or
+    already present -- the "every effective colour, deduplicated" accumulation
+    `HandsElement.colors`/`PatternElement.colors` each build (§5.1)."""
+    if color is not None and color not in colors:
+        colors.append(color)
+
+
+def _drawn_copies(
+    count: int, skip: tuple[int, ...], skip_every: int | None,
+) -> tuple[int, ...]:
+    """Copy indices actually drawn, ascending: `0..count-1` minus `skip` and
+    minus every multiple of `skip_every` (§5.1) -- the pure computation
+    :meth:`PatternElement.drawn_indices` and `Builder._build_pattern_element`
+    (which needs the answer before the element exists, to report an empty
+    result as a build error) share.
+    """
+    return tuple(
+        i for i in range(count)
+        if i not in skip and (skip_every is None or i % skip_every != 0)
+    )
 
 
 def _and_paths(paths: tuple[str, ...]) -> str:
