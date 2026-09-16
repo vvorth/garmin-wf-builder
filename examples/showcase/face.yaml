@@ -72,7 +72,7 @@ format: 1
 face:
   id: 5ca5867b-1d30-4581-94c0-617033e6824c
   name: Showcase
-  version: 1.0.0
+  version: 1.1.0
 
 targets:
   - fenix8solar47mm
@@ -127,17 +127,19 @@ config:
       - palette.red
       - palette.amber
       - palette.cyan
-      - palette.sky_blue
       - palette.lime_green
       - palette.magenta
+      - palette.yellow
   data_color:
     default: palette.cyan
     choices:
+      - palette.orange
+      - palette.red
       - palette.cyan
-      - palette.light_blue
       - palette.lime_green
       - palette.amber
       - palette.magenta
+      - palette.yellow
   style:
     default: digital_dark
     choices:
@@ -346,7 +348,38 @@ layouts:
             font: font.dialfont
             at: { dy: -78%r }
 
+      bottom_card:
+        type: shape
+        shape: rounded_rectangle
+        at: { anchor: center, dy: 30%r }
+        size: { width: 42%r, height: 19%r }
+        corner_radius: 3%r
+        color: config.colors.dark
+
+      bottom_icon:
+        type: icon
+        glyph: "U+E241"
+        size: 9%r
+        at: { anchor: center, dy: 45%r }
+        color: config.data_color
+
+
     elements:
+      bottom_data:
+        type: text
+        value: "activity.steps / 1000.0"
+        format: "{:.1f}k" # always one decimal, so the width holds still
+        # value: complication.steps
+        at: { anchor: center, dy: 30%r }
+        font: FONT_XTINY
+        # icon_size: 9%r
+        # icon_position: top
+        # icon_gap: 1%r
+        # icon_color: config.data_color
+        color: config.colors.fg
+        when_absent: placeholder
+        placeholder: "--"
+
       analog_hands:
         type: hands
         hands: classic
@@ -486,17 +519,17 @@ layouts:
         size: { width: 26%r, height: 11%r }
         at: { anchor: top, dy: 75%, dx: -27% }
         align: left
-        on_hold: heart_rate
+        on_hold: body_battery
         children:
           hr_icon:
             type: icon
-            icon: heart
+            icon: body_battery
             size: 9%r
             # at: { anchor: center, dx: -30% }
             at: { anchor: left }
           hr_value:
             type: text
-            value: heart_rate.current
+            value: complication.body_battery
             format: "{:d}"
             font: FONT_XTINY
             # at: { anchor: center, dx: 25% }
@@ -605,8 +638,9 @@ layouts:
 
       charging_bolt:
         type: icon
-        icon: battery
-        size: 8%r
+        # icon: battery
+        glyph: "U+F140B"
+        size: 12%r
         at: { anchor: bottom, dy: -11%, dx: -18% }
         color: config.accent_color
         visible: system.charging
