@@ -345,87 +345,11 @@ layouts:
           reason: "to look good"
         parts:
           - { shape: circle, at: { dy: 96%r }, radius: 3%r }
-
-      hours:
-        type: group
-        children:
-          h12:
-            type: text
-            text: "12"
+          - shape: text
+            value: '(copy + 11) % 12 + 1'
             font: font.hourfont
-            at: { anchor: center, angle: 0deg, radius: 80%r }
+            at: { angle: 0deg, radius: 80%r }
             align: center
-          h3:
-            type: text
-            text: "3"
-            font: font.hourfont
-            at: { anchor: center, angle: 90deg, radius: 80%r }
-            align: center
-          h6:
-            type: text
-            text: "6"
-            font: font.hourfont
-            at: { anchor: center, angle: 180deg, radius: 80%r }
-            align: center
-          h9:
-            type: text
-            text: "9"
-            font: font.hourfont
-            at: { anchor: center, angle: 270deg, radius: 80%r }
-            align: center
-
-          h1:
-            type: text
-            text: "1"
-            font: font.hourfont
-            at: { anchor: center, angle: 30deg, radius: 80%r }
-            align: center
-          h2:
-            type: text
-            text: "2"
-            font: font.hourfont
-            at: { anchor: center, angle: 60deg, radius: 80%r }
-            align: center
-
-          h4:
-            type: text
-            text: "4"
-            font: font.hourfont
-            at: { anchor: center, angle: 120deg, radius: 80%r }
-            align: center
-          h5:
-            type: text
-            text: "5"
-            font: font.hourfont
-            at: { anchor: center, angle: 150deg, radius: 80%r }
-            align: center
-
-          h7:
-            type: text
-            text: "7"
-            font: font.hourfont
-            at: { anchor: center, angle: 210deg, radius: 80%r }
-            align: center
-          h8:
-            type: text
-            text: "8"
-            font: font.hourfont
-            at: { anchor: center, angle: 240deg, radius: 80%r }
-            align: center
-
-          h10:
-            type: text
-            text: "10"
-            font: font.hourfont
-            at: { anchor: center, angle: 300deg, radius: 80%r }
-            align: center
-          h11:
-            type: text
-            text: "11"
-            font: font.hourfont
-            at: { anchor: center, angle: 330deg, radius: 80%r }
-            align: center
-            
       
       circle_inner:
         type: shape
@@ -445,13 +369,14 @@ layouts:
         type: shape
         shape: rectangle
         color: palette.black
-        at: { anchor: center, dx: -45%r }
+        at: { anchor: center, dx: -63%r }
         size: { width: 36%r, height: 22%r }
+        align: left
       data_window_left:
         type: group
-        at: { anchor: center, dx: -45%r }
+        at: { anchor: center, dx: -62%r }
         size: { width: 34%r, height: 20%r }
-        # align: right
+        align: left
         children:
           data_l_shadow_dark:
             type: shape
@@ -484,13 +409,14 @@ layouts:
         type: shape
         shape: rectangle
         color: palette.black
-        at: { anchor: center, dx: 50%r }
+        at: { anchor: center, dx: 63%r }
         size: { width: 27%r, height: 22%r }
+        align: right
       data_window_right:
         type: group
-        at: { anchor: center, dx: 50%r }
+        at: { anchor: center, dx: 62%r }
         size: { width: 25%r, height: 20%r }
-        # align: right
+        align: right
         children:
           data_r_shadow_dark:
             type: shape
