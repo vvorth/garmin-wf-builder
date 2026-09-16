@@ -3600,3 +3600,39 @@ A pattern has one `parts:` list, but a hand set has up to three, so the
 hour hand's first part and the minute hand's first part were named
 identically — a finding that could not say which hand it meant. Hand
 parts are now `<element id>.<hand>.parts[<i>]`.
+
+## 2026-09-16 — readable, coloured CLI output
+
+The user found the CLI output hard to read and asked for better formatting
+and colour when writing to a terminal. The plan was split into a contract
+and two parallel pieces of work. `wfb/term.py` is the contract: it decides
+colour per stream (`--color`, then `NO_COLOR`, then `FORCE_COLOR`/
+`CLICOLOR_FORCE`, then TTY and `TERM != dumb`) and wraps only a real
+terminal. `wfb/diagnostics.py` was the first piece and `wfb/cli.py` the
+second.
+
+- **Diagnostics** (`Bag.render`) are now separated by a blank line and
+  ordered notes → warnings → errors, so errors land next to the summary;
+  `bag.items` keeps its order. A diagnostic whose `(code, notes,
+  confidence)` repeats an earlier one collapses to its header, its excerpt
+  and `note: same notes as the earlier [code] above`. This was the main
+  source of noise: `partial-update-budget`'s five notes printed once per
+  target device. The header keeps `path:line:col: severity[code]: message`
+  so it stays clickable. Notes are word-wrapped with a hanging indent only
+  on a TTY; a note with its own newlines is a snippet and is never
+  rewrapped.
+- **CLI**: `--color {auto,always,never}` works on either side of the
+  command name. It needs two argparse dests, because a subparser merges its
+  own default back over a flag given before the command. Status labels are
+  bold green. The `built` byte figures line up in one column, and the
+  memory share is coloured green, yellow from 75% and red from 90%. The
+  final line now reads `build succeeded -- …` / `build failed -- …`. There
+  is also `validate`'s `ok`/`invalid`, `doctor`'s `ok`/`MISSING` and
+  verdict, and bold listing headers. With colour off, output is plain text,
+  byte-identical except for the `build succeeded --` wording.
+
+Tests: `tests/test_diagnostics_render.py` and `tests/test_cli_color.py`,
+each driven red against deliberately broken versions. The fast suite shows
+the documented failures plus `test_example_is_clean_on_every_target[showcase]`,
+which is red with the original `diagnostics.py` too: a `partial-update-budget`
+lint from the user's own `9eb0b9f` edit to that example.

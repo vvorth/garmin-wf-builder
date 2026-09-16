@@ -20,6 +20,10 @@ Loaded automatically when working under `tests/`.
   - `test_hands_preview.py::test_at_3_00_the_minute_tip_is_up_and_the_hour_tip_is_to_the_right`
     and `::test_at_9_00_the_hour_tip_is_to_the_left`
 
+  **Also red since 2026-09-16**, from the user's `9eb0b9f` edit to
+  `examples/showcase/face.yaml` (a `partial-update-budget` lint):
+  - `test_example_is_clean_on_every_target[showcase]`
+
   (Until 2026-09-14 this list also named
   `test_ir_draw_order_matches_the_resolved_one[enduro]` and `[dashboard]`;
   both pass as of `aa9137a`.)

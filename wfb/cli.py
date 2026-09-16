@@ -11,6 +11,10 @@ its behaviour is documented; nothing here is duplicated into a markdown doc.
 `wfb doctor` reports what is installed and what to do about anything
 missing; `wfb sources` and `wfb devices` list what a design may bind and
 which watches it may target.
+
+Every subcommand takes `--color {auto,always,never}` (default auto), either
+before or after the command name -- `wfb --color never build x` and `wfb
+build --color never x` both work.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, catalog, icons, series as series_catalog
+from . import __version__, catalog, icons, series as series_catalog, term
 from .build import Toolchain, build as run_build, load, resolve_all, select_devices
 from .simulate import SimulatorError, push, screenshot
 from .devices import DeviceDatabase, DeviceError
@@ -30,18 +34,71 @@ from .diagnostics import Bag
 DEFAULT_OUTPUT = Path("build")
 
 
+def _error(message: str, *, file=sys.stderr) -> None:
+    """Print ``error: <message>``, with the label bold red when ``file`` is
+    coloured -- centralised so every failure path styles the same way
+    instead of re-deriving ``term.should_color(file)`` at each call site."""
+    label = term.style("error:", "bold", "red", enabled=term.should_color(file))
+    print(f"{label} {message}", file=file)
+
+
+def _status(label: str, *, color: bool) -> str:
+    """A status word -- ``generated``, ``built``, ``preview``, ``pushed``,
+    ``screenshot`` -- styled bold green when ``color``."""
+    return term.style(label, "bold", "green", enabled=color)
+
+
+def _memory_share(share: float, *, color: bool) -> str:
+    """The ``N.N%`` memory-share figure, styled green/yellow/red by how
+    close it is to the device's watch-face memory limit."""
+    text = f"{share:.1f}%"
+    if share >= 90:
+        name = "red"
+    elif share >= 75:
+        name = "yellow"
+    else:
+        name = "green"
+    return term.style(text, name, enabled=color)
+
+
+def _format_built(products: dict, memory: dict, *, color: bool) -> list[str]:
+    """Format ``_build``'s ``built`` lines, one per compiled device.
+
+    Pulled out of ``_build`` so alignment can be unit-tested with plain
+    dicts and ``Path`` objects, without invoking `monkeyc` -- a real build's
+    ``.prg`` names differ in length per device, which is exactly what used
+    to make the byte figures ragged.
+    """
+    name_width = max((len(path.name) for path in products.values()), default=0)
+    lines = []
+    for device_id, path in products.items():
+        stats = memory.get(device_id)
+        label = _status("built", color=color)
+        if stats:
+            share = 100.0 * stats["total"] / stats["limit"]
+            lines.append(f"{label}      {path.name:<{name_width}}  "
+                         f"{stats['total']:,} B / {stats['limit']:,} B "
+                         f"({_memory_share(share, color=color)})")
+        else:
+            lines.append(f"{label}      {path.name}")
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
     raw = sys.argv[1:] if argv is None else list(argv)
     parser = _parser()
     raw = _rewrite_trailing_help(raw, _subparsers(parser))
     args = parser.parse_args(raw)
+    # `color` only exists once a subcommand parser has run; `color_before` is
+    # always present from the top-level parser (see `_color_parser`).
+    term.set_mode(getattr(args, "color", None) or args.color_before or "auto")
     if not getattr(args, "command", None):
         parser.print_help()
         return 2
     try:
         return args.handler(args)
     except DeviceError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        _error(str(exc))
         return 1
     except KeyboardInterrupt:  # pragma: no cover
         return 130
@@ -76,6 +133,23 @@ def _rewrite_trailing_help(argv: list[str], commands: dict[str, argparse.Argumen
     return argv
 
 
+def _color_parser(dest: str = "color") -> argparse.ArgumentParser:
+    """A parent-parser fragment for ``--color``, mixed into the top-level
+    parser (as ``color_before``) and every subcommand (as ``color``) so the
+    flag works on either side of the command name.  They must be different
+    ``dest``s: a subparser's own ``parse_known_args`` call always merges its
+    *whole* namespace -- including unset options at their default -- back
+    into the shared one, so a single shared ``color`` dest would let ``wfb
+    --color never build x`` be silently overwritten by ``build``'s own
+    default the moment its subparser runs.  ``main`` combines the two,
+    subcommand-level taking precedence.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--color", dest=dest, choices=term.MODES, default=None,
+                        help="colour the output: auto (default), always or never")
+    return parser
+
+
 def _command(sub: argparse._SubParsersAction, name: str, handler) -> argparse.ArgumentParser:
     """Register one subcommand, with its help text sourced entirely from
     ``handler``'s docstring: the first line is the short summary ``wfb
@@ -89,6 +163,7 @@ def _command(sub: argparse._SubParsersAction, name: str, handler) -> argparse.Ar
     parser = sub.add_parser(
         name, help=summary, description=doc,
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[_color_parser()],
     )
     parser.set_defaults(handler=handler)
     return parser
@@ -108,7 +183,7 @@ def _help(args) -> int:
     commands = _subparsers(parser)
     target = commands.get(args.topic)
     if target is None:
-        print(f"error: no such command {args.topic!r}", file=sys.stderr)
+        _error(f"no such command {args.topic!r}")
         print(f"       commands: {', '.join(sorted(commands))}", file=sys.stderr)
         return 1
     target.print_help()
@@ -120,6 +195,7 @@ def _parser() -> argparse.ArgumentParser:
         prog="wfb",
         description=inspect.getdoc(sys.modules[__name__]),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[_color_parser("color_before")],
     )
     parser.add_argument("--version", action="version", version=f"wfb {__version__}")
     sub = parser.add_subparsers(dest="command")
@@ -232,22 +308,20 @@ def _build(args) -> int:
     )
     bag.print()
     if result is None or not bag.ok():
-        print(f"\nbuild failed -- {bag.summary()}", file=sys.stderr)
+        color_err = term.should_color(sys.stderr)
+        word = term.style("failed", "bold", "red", enabled=color_err)
+        print(f"\nbuild {word} -- {bag.summary(color=color_err)}", file=sys.stderr)
         return 1
 
+    color_out = term.should_color(sys.stdout)
     print()
-    print(f"generated  {result.output_dir}")
-    for device_id, path in result.products.items():
-        stats = result.memory.get(device_id)
-        if stats:
-            share = 100.0 * stats["total"] / stats["limit"]
-            print(f"built      {path.name}  "
-                  f"{stats['total']:,} B / {stats['limit']:,} B ({share:.1f}%)")
-        else:
-            print(f"built      {path.name}")
+    print(f"{_status('generated', color=color_out)}  {result.output_dir}")
+    for line in _format_built(result.products, result.memory, color=color_out):
+        print(line)
     if not result.products and args.no_compile:
         print("           (not compiled: --no-compile)")
-    print(f"\n{bag.summary()} in {result.duration:.1f}s")
+    word = term.style("succeeded", "bold", "green", enabled=color_out)
+    print(f"\nbuild {word} -- {bag.summary(color=color_out)} in {result.duration:.1f}s")
     return 0
 
 
@@ -273,9 +347,13 @@ def _validate(args) -> int:
                 resolve_all(face, devices, bag)
     bag.print()
     if face is None or not bag.ok():
-        print(f"\ninvalid -- {bag.summary()}", file=sys.stderr)
+        color_err = term.should_color(sys.stderr)
+        word = term.style("invalid", "red", enabled=color_err)
+        print(f"\n{word} -- {bag.summary(color=color_err)}", file=sys.stderr)
         return 1
-    print(f"{args.design}: ok -- {bag.summary()}")
+    color_out = term.should_color(sys.stdout)
+    word = term.style("ok", "bold", "green", enabled=color_out)
+    print(f"{args.design}: {word} -- {bag.summary(color=color_out)}")
     return 0
 
 
@@ -301,7 +379,7 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     style = getattr(args, "style", None)
     all_styles = getattr(args, "all_styles", False)
     if style is not None and all_styles:
-        print("error: --style and --all-styles are mutually exclusive", file=sys.stderr)
+        _error("--style and --all-styles are mutually exclusive")
         return 1, [args.design]
 
     time_arg = getattr(args, "time", None)
@@ -309,7 +387,7 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     if time_arg is not None:
         time = _parse_preview_time(time_arg)
         if time is None:
-            print(f"error: --time {time_arg!r} is not HH:MM or HH:MM:SS", file=sys.stderr)
+            _error(f"--time {time_arg!r} is not HH:MM or HH:MM:SS")
             return 1, [args.design]
 
     bag = Bag()
@@ -332,6 +410,8 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
 
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
                              time=time, asleep=getattr(args, "asleep", False))
+    color_out = term.should_color(sys.stdout)
+    label = _status("preview", color=color_out)
     try:
         for device_id, result in resolved.items():
             if all_styles:
@@ -340,15 +420,19 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
             else:
                 suffix = f"--{style}" if style is not None else ""
                 path = write_preview(result, args.output / f"{device_id}{suffix}.png", options)
-            print(f"preview    {path}  ({result.device.width}x{result.device.height} "
+            print(f"{label}    {path}  ({result.device.width}x{result.device.height} "
                   f"at {args.scale}x)", flush=True)
     except UnknownStyleError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        _error(str(exc))
         return 1, watched
     if not quiet:
-        print("\nRendered from the same resolved geometry the generated code uses, so the")
-        print("two cannot disagree about position.  Glyph rendering and arc caps are")
-        print("approximations -- the simulator is authoritative for those.")
+        print()
+        for line in (
+            "Rendered from the same resolved geometry the generated code uses, so the",
+            "two cannot disagree about position.  Glyph rendering and arc caps are",
+            "approximations -- the simulator is authoritative for those.",
+        ):
+            print(term.style(line, "dim", enabled=color_out))
     return 0, watched
 
 
@@ -394,6 +478,7 @@ def _preview(args) -> int:
                 out[path] = 0.0
         return out
 
+    color_out = term.should_color(sys.stdout)
     print(f"watching {args.design} -- press Ctrl-C to stop\n", flush=True)
     code, watched = _render_preview(args, db, quiet=True)
     seen = stamps(watched)
@@ -404,7 +489,8 @@ def _preview(args) -> int:
             if current == seen:
                 continue
             seen = current
-            print(f"\n--- {time.strftime('%H:%M:%S')} ---", flush=True)
+            separator = term.style(f"--- {time.strftime('%H:%M:%S')} ---", "dim", enabled=color_out)
+            print(f"\n{separator}", flush=True)
             code, watched = _render_preview(args, db, quiet=True)
             seen.update(stamps(watched))
     except KeyboardInterrupt:
@@ -453,11 +539,12 @@ def _simulate(args) -> int:
         print("\n  `wfb preview` renders the same resolved geometry with no simulator.",
               file=sys.stderr)
         return 1
-    print(f"\npushed {prg.name} to the {device_id} simulator")
+    color_out = term.should_color(sys.stdout)
+    print(f"\n{_status('pushed', color=color_out)} {prg.name} to the {device_id} simulator")
     if args.screenshot:
         try:
             path = screenshot(args.screenshot)
-            print(f"screenshot {path}")
+            print(f"{_status('screenshot', color=color_out)} {path}")
         except SimulatorError as exc:
             print(f"screenshot failed: {exc}", file=sys.stderr)
             return 1
@@ -491,14 +578,14 @@ def _new(args) -> int:
         return 0
 
     if not args.name:
-        print("error: a face name is required", file=sys.stderr)
+        _error("a face name is required")
         print(f"       usage: wfb new \"My Face\" [--template {'|'.join(templates)}]",
               file=sys.stderr)
         return 1
 
     source = TEMPLATE_DIR / f"{args.template}.yaml"
     if not source.exists():
-        print(f"error: no template {args.template!r}", file=sys.stderr)
+        _error(f"no template {args.template!r}")
         print(f"       available: {', '.join(templates)}", file=sys.stderr)
         return 1
 
@@ -507,7 +594,7 @@ def _new(args) -> int:
     )).strip("-") or "face"
     destination = args.output or Path(f"{slug}.yaml")
     if destination.exists():
-        print(f"error: {destination} already exists", file=sys.stderr)
+        _error(f"{destination} already exists")
         return 1
 
     # A fresh UUID every time: two faces sharing one id are the same app to the
@@ -540,8 +627,12 @@ def _doctor(args) -> int:
     from .build import Toolchain
     from .validate import SCHEMA_PATH
 
-    ok = "  ok "
-    missing = "MISSING"
+    color_out = term.should_color(sys.stdout)
+    # Pad the fixed-width column text *before* wrapping it in ANSI codes --
+    # styling after padding would count the escape bytes towards the width
+    # and misalign every line that follows.
+    ok = term.style("  ok ", "green", enabled=color_out)
+    missing = term.style("MISSING", "bold", "red", enabled=color_out)
     problems: list[str] = []
     blocking = 0
 
@@ -615,13 +706,16 @@ def _doctor(args) -> int:
         and (toolchain.key.exists() or os.access(toolchain.key.parent, os.W_OK))
     )
     if blocking == 0 and can_compile:
-        print("ready: validate, preview and build all work.")
+        word = term.style("ready", "green", enabled=color_out)
+        print(f"{word}: validate, preview and build all work.")
         return 0
     if blocking == 0:
-        print("partial: validate and preview work; `wfb build` cannot compile yet.")
+        word = term.style("partial", "yellow", enabled=color_out)
+        print(f"{word}: validate and preview work; `wfb build` cannot compile yet.")
         print("         fix: " + "; ".join(problems))
         return 0
-    print("not ready: " + "; ".join(problems))
+    word = term.style("not ready", "red", enabled=color_out)
+    print(f"{word}: " + "; ".join(problems))
     return 1
 
 
@@ -651,8 +745,10 @@ def _devices(args) -> int:
     to get them onto this machine.
     """
     db = DeviceDatabase.discover(args.devices_dir)
-    print(f"{'id':<24} {'screen':<12} {'shape':<10} {'display':<8} "
-          f"{'colors':<7} {'api':<8} {'watch face':<10} family")
+    color_out = term.should_color(sys.stdout)
+    header = (f"{'id':<24} {'screen':<12} {'shape':<10} {'display':<8} "
+              f"{'colors':<7} {'api':<8} {'watch face':<10} family")
+    print(term.style(header, "bold", enabled=color_out))
     for device_id in db.ids():
         device = db.get(device_id)
         limit = f"{device.watchface_memory_limit // 1024} KB" if device.supports_watchface else "-"
@@ -680,8 +776,9 @@ def _sources(args) -> int:
     a design that declares `config:` binds them the same way, as an ordinary
     colour expression.
     """
+    color_out = term.should_color(sys.stdout)
     for namespace, paths in catalog.namespaces().items():
-        print(f"\n{namespace}")
+        print(f"\n{term.style(namespace, 'bold', enabled=color_out)}")
         for path in paths:
             source = catalog.CATALOG[path]
             flags = []
@@ -694,8 +791,8 @@ def _sources(args) -> int:
             suffix = f"  [{', '.join(flags)}]" if flags else ""
             ref = f"  ({source.source_ref})" if source.source_ref else ""
             print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}{ref}")
-    print("\nconfig  (declared per design in 'config:' -- fēnix 8 Solar's native "
-          "editor only, see docs/format.md)")
+    print(f"\n{term.style('config', 'bold', enabled=color_out)}  (declared per design in "
+          "'config:' -- fēnix 8 Solar's native editor only, see docs/format.md)")
     print(f"  {'config.accent_color':<34} {'color':<8} the one accent-colour axis "
           "(<accentColors>, Settings.accentColor)")
     print(f"  {'config.data_color':<34} {'color':<8} the one data-colour axis "
