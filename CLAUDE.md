@@ -228,6 +228,23 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
 - **Recently built:**
+  - **Built 2026-09-16** (plan 08): `min_1px:` makes the relative-length
+    floor (a nonzero `%`/`%r` `size:`/`thickness:`/`bar_width:`/`radius:`
+    never resolving below 1 px, sign preserved) **opt-in**, per the user's
+    ask to gate it "globally... or per group, per item, etc." and to
+    "consider overrides both ways on any level" — the previous session's
+    unconditional version stays as the mechanism, not the trigger. Four
+    override levels, nearest declaration wins, both directions override,
+    exactly like `antialias:` but one level deeper: face → group →
+    element → a hand/pattern part's own value. Defaults to `false`
+    everywhere, so a face that never mentions it is byte-identical to
+    before. Not accepted on `text`/`icon`/`complication_slot`: a font
+    size already floors at 1 px on its own path
+    (`wfb.units.pixel_size`), so there is nothing to switch. New
+    suppressible warning `sub-pixel-length` fires per offending length
+    when the switch is off and a nonzero relative extent would have
+    rounded to 0 px on a device; suppressed on the owning element (a
+    part has none of its own).
   - **Built 2026-09-15** (plan 07): `align:`/`vertical_align:` as one
     placement rule on every element that has a placement box — `group`,
     `text`, `shape` (not polygon/line), `progress`, `graph`, `icon`,

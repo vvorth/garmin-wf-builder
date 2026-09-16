@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from . import catalog, complications, formatting, icons, units
 from .devices import Device
+from .diagnostics import Span
 from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
@@ -522,6 +523,30 @@ class PlacedComplicationSlot(Placed):
     icon_gap_px: int = COMPLICATION_SLOT_ICON_GAP
 
 
+@dataclass(frozen=True)
+class SubPixelLength:
+    """A nonzero %/%r extent that resolved below 1 px on this device with
+    `min_1px` off -- i.e. it rounds away to nothing here while drawing on
+    a target with a larger screen.  Collected by `Resolver`, read by
+    `wfb.lint.check_sub_pixel_length` (plan 08 §3.3/§4).
+
+    Fixed by the plan so phase B (the `sub-pixel-length` lint) could be
+    written against it without waiting on this phase: do not change this
+    shape without checking who else is already coding against it.
+    """
+
+    owner: str        # element id; "<id>.parts[<i>]" for a pattern part,
+                      # "<id>.<hand>.parts[<i>]" for a hand part (a hand set
+                      # has three `parts:` lists, a pattern only one)
+    key: str          # the authored key: "thickness", "size.width",
+                      # "size.height", "bar_width", "radius"
+    length: Length    # as authored, for the message ("0.4%r")
+    value: float      # the unclamped resolved value, in device px
+    span: Span | None # the authored line: the part's span for a part,
+                      # else the element's
+    element: Element  # the element to hang `lint: {allow: [...]}` on
+
+
 @dataclass
 class ResolvedFace:
     face: Face
@@ -531,6 +556,15 @@ class ResolvedFace:
     fonts: dict[str, BakedFont]
     screen: IntBox
     warnings: list[str] = field(default_factory=list)
+    #: Every `SubPixelLength` this device's resolve pass recorded, in resolve
+    #: order (plan 08 §3.3) -- empty on every design that never turns
+    #: `min_1px:` off where it would have mattered, which is every design
+    #: that predates this feature (nothing here clamps by default, so
+    #: nothing here is ever sub-pixel by surprise until an author writes a
+    #: relative hairline). Not deduplicated: one record per resolved length,
+    #: same key repeated across devices where it recurs -- the lint decides
+    #: how to present them.
+    sub_pixel: list[SubPixelLength] = field(default_factory=list)
 
     def in_mode(self, mode: str) -> list[Placed]:
         return [p for p in self.items if mode in p.element.modes]
@@ -590,6 +624,23 @@ class Resolver:
         self.minor_radius = device.minor_radius
         self.items: list[Placed] = []
         self.warnings: list[str] = []
+        #: Every `SubPixelLength` recorded so far (plan 08 §3.3) -- appended
+        #: by `_extent`/`_hand_extent`, the only two call sites that can see
+        #: "this nonzero relative length is under 1 px and `min_1px` is off
+        #: here".
+        self.sub_pixel: list[SubPixelLength] = []
+        #: The element/part currently being resolved, for `_record_sub_pixel`
+        #: to hang a finding on -- set for every element by `_resolve_list`
+        #: before it dispatches to that element's own `_resolve_*`, and
+        #: narrowed to a `<element id>.parts[<i>]` id/span by
+        #: `_resolve_hand_part` while it resolves one hand/pattern part
+        #: (`_owner_element` itself stays the owning `hands`/`pattern`
+        #: element throughout -- a part has no `lint:` key of its own to
+        #: suppress against). `None` only before the first element is
+        #: reached, which no call site here ever runs during.
+        self._owner_id: str = ""
+        self._owner_span: Span | None = None
+        self._owner_element: Element | None = None
 
     def resolve(self) -> ResolvedFace:
         self._resolve_list(self.face.elements, self.screen, depth=0)
@@ -601,6 +652,7 @@ class Resolver:
             device=self.device,
             items=self.items,
             fonts=self.fonts,
+            sub_pixel=self.sub_pixel,
             screen=IntBox(0, 0, self.device.width, self.device.height),
             warnings=self.warnings,
         )
@@ -609,10 +661,17 @@ class Resolver:
 
     def _resolve_list(self, elements: list[Element], parent: Box, depth: int) -> None:
         for element in elements:
+            # Set before dispatch, for `_extent`/`_hand_extent` to hang a
+            # `SubPixelLength` on (`_record_sub_pixel`) -- every element gets
+            # its own id/span/self as the owner; a hand or pattern part
+            # narrows id/span further inside `_resolve_hand_part`.
+            self._owner_id = element.id
+            self._owner_span = element.span
+            self._owner_element = element
             if isinstance(element, Group):
                 box = self._group_box(element, parent)
                 self.items.append(
-                    Placed(element, box.rounded(),
+                    Placed(element, box.rounded(min_1px=element.resolved_min_1px),
                            (round(box.center_x), round(box.center_y)), depth)
                 )
                 self._resolve_list(element.items, box, depth + 1)
@@ -636,18 +695,23 @@ class Resolver:
     # -- per-kind ---------------------------------------------------------
 
     def _group_box(self, element: Group, parent: Box) -> Box:
-        width = self._extent(element.size.width, parent, Axis.X, parent.width)
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height)
+        width = self._extent(element.size.width, parent, Axis.X, parent.width,
+                             min_1px=element.resolved_min_1px, what="size.width")
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
+                              min_1px=element.resolved_min_1px, what="size.height")
         cx, cy = self._point(element.at, parent)
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         return Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
 
     def _resolve_shape(self, element: Shape, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
-        thickness = round(self._extent(element.thickness, parent, Axis.MINOR, 1))
+        min_1px = element.resolved_min_1px
+        thickness = round(self._extent(element.thickness, parent, Axis.MINOR, 1,
+                                       min_1px=min_1px, what="thickness"))
 
         if element.shape == "circle":
-            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0))
+            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
+                                        min_1px=min_1px, what="radius"))
             # Plan 07 §3.2(a)/§3.1: the placement box is the full circle
             # (`2*radius` square) regardless of `filled`/`thickness` -- an
             # outline's pen pad is applied to `reach` below, around the
@@ -672,7 +736,8 @@ class Resolver:
                                thickness=max(1, thickness), end=(round(ex), round(ey)))
 
         if element.shape == "arc":
-            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0))
+            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
+                                        min_1px=min_1px, what="radius"))
             pen = max(1, thickness)
             # Plan 07 choice 3 (§6): align by the full circle, not the swept
             # span's box, so `start_angle:`/`sweep:` never move the centre.
@@ -708,8 +773,10 @@ class Resolver:
             centre = (round(sum(xs) / len(xs)), round(sum(ys) / len(ys)))
             return PlacedShape(element, box.rounded(), centre, depth, points=points)
 
-        width = self._extent(element.size.width, parent, Axis.X, parent.width)
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height)
+        width = self._extent(element.size.width, parent, Axis.X, parent.width,
+                             min_1px=min_1px, what="size.width")
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
+                              min_1px=min_1px, what="size.height")
         # rectangle, rounded_rectangle, ellipse: the placement box is the
         # declared `size:` (plan 07 §3.1) -- moved before the outline's pen
         # pad (below) is added, so the pad never itself moves the shift (R4).
@@ -727,7 +794,10 @@ class Resolver:
                                rx=rx, ry=ry, thickness=max(1, thickness))
 
         corner = round(self._len(element.corner_radius, parent, Axis.MINOR, 0))
-        rect = Box(cx - width / 2, cy - height / 2, width, height).rounded()
+        # `min_1px=min_1px`: this box's width/height is `width`/`height`
+        # straight from `_extent` above, the exact "float extent of at least
+        # 1 px" shape `Box.rounded`'s correction exists for (plan 08 §3.3).
+        rect = Box(cx - width / 2, cy - height / 2, width, height).rounded(min_1px=min_1px)
         if element.filled:
             return PlacedShape(element, rect, (round(cx), round(cy)), depth,
                                corner_radius=corner, thickness=max(1, thickness))
@@ -782,9 +852,12 @@ class Resolver:
 
     def _resolve_progress(self, element: Progress, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
+        min_1px = element.resolved_min_1px
         if element.style == "arc":
-            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0))
-            thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 1)))
+            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
+                                        min_1px=min_1px, what="radius"))
+            thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 1,
+                                                  min_1px=min_1px, what="thickness")))
             # Plan 07 §3.1: the placement box is the full circle (`2*radius`
             # square), moved before the pen pad below -- `start_angle:`/
             # `sweep:` never move it, same as `shape: arc`.
@@ -805,12 +878,14 @@ class Resolver:
                 garmin_start=garmin_start,
                 garmin_direction=direction,
             )
-        width = self._extent(element.size.width, parent, Axis.X, parent.width)
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height)
+        width = self._extent(element.size.width, parent, Axis.X, parent.width,
+                             min_1px=min_1px, what="size.width")
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
+                              min_1px=min_1px, what="size.height")
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         cx, cy = cx + dx, cy + dy
         box = Box(cx - width / 2, cy - height / 2, width, height)
-        return PlacedProgress(element, box.rounded(), (round(cx), round(cy)), depth,
+        return PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
                               size=(round(width), round(height)))
 
     def _resolve_icon(self, element: IconElement, parent: Box, depth: int) -> Placed:
@@ -849,15 +924,20 @@ class Resolver:
 
     def _resolve_graph(self, element: Graph, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
-        width = self._extent(element.size.width, parent, Axis.X, parent.width)
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height)
+        min_1px = element.resolved_min_1px
+        width = self._extent(element.size.width, parent, Axis.X, parent.width,
+                             min_1px=min_1px, what="size.width")
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
+                              min_1px=min_1px, what="size.height")
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         cx, cy = cx + dx, cy + dy
         box = Box(cx - width / 2, cy - height / 2, width, height)
-        thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 2)))
-        bar_width = max(1, round(self._extent(element.bar_width, parent, Axis.MINOR, 3)))
+        thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 2,
+                                              min_1px=min_1px, what="thickness")))
+        bar_width = max(1, round(self._extent(element.bar_width, parent, Axis.MINOR, 3,
+                                              min_1px=min_1px, what="bar_width")))
         return PlacedGraph(
-            element, box.rounded(), (round(cx), round(cy)), depth,
+            element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
             thickness=thickness, bar_width=bar_width, size=(round(width), round(height)),
         )
 
@@ -1008,8 +1088,18 @@ class Resolver:
                 # *drawn* hand").
                 continue
             parts = []
-            for part in hand.parts:
-                resolved_part, part_reach = self._resolve_hand_part(part)
+            for part_index, part in enumerate(hand.parts):
+                # `<id>.<hand>.parts[<i>]`, not `<id>.parts[<i>]`: a hand set
+                # has up to three independent `parts:` lists, so the plain
+                # element id would name the hour hand's first part and the
+                # minute hand's first part identically -- and a
+                # `sub-pixel-length` finding that cannot say *which* hand it
+                # is about sends the author to the wrong line.  A pattern has
+                # exactly one `parts:` list, so `_resolve_pattern` needs no
+                # such qualifier and keeps the bare id.
+                resolved_part, part_reach = self._resolve_hand_part(
+                    part, f"{element.id}.{name}", part_index,
+                    min_1px=element.resolved_min_1px)
                 parts.append(resolved_part)
                 reach = max(reach, part_reach)
             resolved[name] = ResolvedHand(parts=tuple(parts))
@@ -1022,7 +1112,7 @@ class Resolver:
         )
 
     def _resolve_hand_part(
-        self, part, element_id: str = "", part_index: int = -1,
+        self, part, element_id: str = "", part_index: int = -1, *, min_1px: bool,
     ) -> tuple[ResolvedHandPart, float]:
         """One hand part -> whole-pixel geometry in the hand's own frame,
         plus its own reach from the axis (the farthest ink any of its
@@ -1032,14 +1122,30 @@ class Resolver:
         symmetric pair of authored coordinates (`dx: -1.5px`/`dx: 1.5px`)
         can appear in.
 
-        `element_id`/`part_index` are used only by a `shape: text` part
-        (plan 06 §3.4, reachable only through a pattern's template, never a
-        hand's -- `wfb.ir.HAND_PART_REJECTED_SHAPES` still refuses it), to
-        name the part in `_font_for_ref`'s "no pixel metrics" warning the
-        same way `check_glyphs` names one (`hours.parts[0]`); every other
-        caller (every hand part) leaves them at their default and never
-        reaches a code path that reads them.
+        `element_id`/`part_index` name the part for two independent reasons
+        now: a `shape: text` part's `_font_for_ref` "no pixel metrics"
+        warning (plan 06 §3.4, reachable only through a pattern's template,
+        never a hand's -- `wfb.ir.HAND_PART_REJECTED_SHAPES` still refuses
+        it), and -- since plan 08 -- every part's own `SubPixelLength`
+        owner id (`_owner_id`, below), which every shape can reach.  Both
+        callers (`_resolve_hands`, `_resolve_pattern`) always pass real
+        values now.
+
+        `min_1px` is the *inherited* value from the owning element
+        (`element.resolved_min_1px`) -- combined with this part's own
+        authored override, if any, into `effective_min_1px` below exactly
+        the way `Builder._resolve_inherited_flag` combines an element's with
+        its group's, except this happens once per element *instance* rather
+        than once in the IR: `HandPart.min_1px` has no `resolved_` twin,
+        because one `hands:` set can be placed by more than one `type:
+        hands` element, and two placements can resolve `min_1px`
+        differently (see that field's docstring).
         """
+        owner_id = f"{element_id}.parts[{part_index}]" if part_index >= 0 else element_id
+        self._owner_id = owner_id
+        self._owner_span = part.span
+        effective_min_1px = part.min_1px if part.min_1px is not None else min_1px
+
         if part.shape == "polygon":
             points = tuple(
                 (_round_away(x), _round_away(y))
@@ -1050,8 +1156,10 @@ class Resolver:
 
         if part.shape == "rectangle":
             cx, cy = self._hand_point(part.at)
-            width = self._hand_extent(part.size.width)
-            height = self._hand_extent(part.size.height)
+            width = self._hand_extent(part.size.width,
+                                      min_1px=effective_min_1px, what="size.width")
+            height = self._hand_extent(part.size.height,
+                                       min_1px=effective_min_1px, what="size.height")
             # Plan 07 phase D, mechanism (a): the placement box is the
             # declared `size:`, in the part's own frame -- shift the centre
             # before the corners (and `_round_away`) below, the same order
@@ -1076,7 +1184,8 @@ class Resolver:
         if part.shape == "line":
             x1, y1 = self._hand_point(part.at)
             x2, y2 = self._hand_point(part.to)
-            thickness = max(1, _round_away(self._hand_extent(part.thickness, default=1)))
+            thickness = max(1, _round_away(self._hand_extent(
+                part.thickness, default=1, min_1px=effective_min_1px, what="thickness")))
             reach = max(math.hypot(x1, y1), math.hypot(x2, y2)) + thickness / 2.0
             return ResolvedHandPart(
                 "line", part.color,
@@ -1090,8 +1199,10 @@ class Resolver:
             # pattern's template does (plan 05 §5.2).  Always centred on the
             # origin (x=y=0, D3), so its reach is exactly the pen's own
             # extent -- no `at:` to add a distance-from-origin term.
-            radius = _round_away(self._hand_extent(part.radius))
-            thickness = max(1, _round_away(self._hand_extent(part.thickness, default=1)))
+            radius = _round_away(self._hand_extent(
+                part.radius, min_1px=effective_min_1px, what="radius"))
+            thickness = max(1, _round_away(self._hand_extent(
+                part.thickness, default=1, min_1px=effective_min_1px, what="thickness")))
             start_angle = (part.start_angle or Angle(0.0)).degrees
             sweep = (part.sweep or Angle(360.0)).degrees
             reach = radius + thickness / 2.0
@@ -1110,9 +1221,8 @@ class Resolver:
             # corner instead (plan 06 §3.4).
             x0, y0 = self._hand_point(part.at)
             x, y = _round_away(x0), _round_away(y0)
-            warn_id = f"{element_id}.parts[{part_index}]" if part_index >= 0 else element_id
             font_px, reference, is_custom, baked = self._font_for_ref(
-                part.font, part.font_is_custom, warn_id)
+                part.font, part.font_is_custom, owner_id)
             if baked is not None:
                 widths = tuple(baked.measure(t)[0] for t in part.texts)
                 line_height = baked.line_height
@@ -1129,14 +1239,16 @@ class Resolver:
 
         # circle
         cx, cy = self._hand_point(part.at)
-        radius = _round_away(self._hand_extent(part.radius))
+        radius = _round_away(self._hand_extent(
+            part.radius, min_1px=effective_min_1px, what="radius"))
         # Plan 07 phase D: the placement box is the full `2*radius` square,
         # at the resolved (already-rounded) radius the part draws with --
         # shifted before `reach`/`_round_away` below, same as
         # `Resolver._resolve_shape`'s circle branch in the parent's frame.
         dx, dy = alignment_shift(2 * radius, 2 * radius, part.align, part.vertical_align)
         cx, cy = cx + dx, cy + dy
-        thickness = max(1, _round_away(self._hand_extent(part.thickness, default=1)))
+        thickness = max(1, _round_away(self._hand_extent(
+            part.thickness, default=1, min_1px=effective_min_1px, what="thickness")))
         pen_reach = radius if part.filled else radius + thickness / 2.0
         reach = math.hypot(cx, cy) + pen_reach
         return ResolvedHandPart(
@@ -1176,7 +1288,8 @@ class Resolver:
         parts: list[ResolvedHandPart] = []
         reach = 0.0
         for part_index, part in enumerate(element.parts):
-            resolved_part, part_reach = self._resolve_hand_part(part, element.id, part_index)
+            resolved_part, part_reach = self._resolve_hand_part(
+                part, element.id, part_index, min_1px=element.resolved_min_1px)
             parts.append(resolved_part)
             reach = max(reach, part_reach)
 
@@ -1245,11 +1358,23 @@ class Resolver:
         return length.resolve(box=_HAND_FRAME_BOX, axis=Axis.MINOR,
                               minor_radius=self.minor_radius)
 
-    def _hand_extent(self, length: Length | None, default: float = 0) -> float:
+    def _hand_extent(self, length: Length | None, default: float = 0, *,
+                     min_1px: bool, what: str) -> float:
         """:meth:`_hand_len`, then :func:`units.at_least_one_px` -- the hand-
         frame counterpart of :meth:`_extent`, for a hand/pattern part's own
-        size, thickness or radius (never its `at:`/`to:`/polygon points)."""
-        return units.at_least_one_px(length, self._hand_len(length, default))
+        size, thickness or radius (never its `at:`/`to:`/polygon points).
+
+        `min_1px`/`what` and the `SubPixelLength` recording below are the
+        same contract `_extent` documents -- see that docstring; the only
+        difference is whose `_owner_id`/`_owner_span` end up on the record:
+        `_resolve_hand_part` narrows both to this part's own
+        `<element id>.parts[<i>]` and span just before calling this, for
+        every shape branch it has.
+        """
+        value = self._hand_len(length, default)
+        if not min_1px and units.is_sub_pixel_length(length, value):
+            self._record_sub_pixel(what, length, value)
+        return units.at_least_one_px(length, value, min_1px)
 
     # -- helpers ----------------------------------------------------------
 
@@ -1271,16 +1396,56 @@ class Resolver:
                               font_px=font_px)
 
     def _extent(self, length: Length | None, parent: Box, axis: Axis, default: float,
-                font_px: float | None = None) -> float:
+                font_px: float | None = None, *, min_1px: bool, what: str) -> float:
         """:meth:`_len`, then :func:`units.at_least_one_px` -- for a length
         that is a *size, thickness or radius* rather than a position: a
-        nonzero relative one never resolves to less than 1 px (the user's
-        ask; see that function's docstring).  Every call site here that
-        places rather than sizes an element (`at:`/`to:`/polygon points, a
-        linear pattern's `step:`) stays on `_len` -- this only wraps the
-        subset the docstring on `at_least_one_px` names.
+        nonzero relative one clamps to at least 1 px when `min_1px` is true
+        (plan 08 §3.3; before that plan this was unconditional -- see
+        `at_least_one_px`'s own docstring for the "why a switch at all"
+        reasoning). Every call site here that places rather than sizes an
+        element (`at:`/`to:`/polygon points, a linear pattern's `step:`)
+        stays on `_len` -- this only wraps the subset the docstring on
+        `at_least_one_px` names.
+
+        `min_1px` and `what` are both **required, with no default**: the
+        first is the caller's own gate (almost always the owning element's
+        `resolved_min_1px`), so a call site can never silently fall back to
+        "off" by omission; the second names the authored key
+        (`"size.width"`, `"size.height"`, `"thickness"`, `"bar_width"` or
+        `"radius"`) for the `SubPixelLength` record below, so a missed call
+        site cannot masquerade as a covered one under the wrong name.
+
+        When `min_1px` is false and `length`/`value` is exactly the case
+        :func:`units.is_sub_pixel_length` names -- a nonzero `%`/`%r` length
+        that resolved under 1 px, so it would have been clamped had the
+        switch been on -- this records one `SubPixelLength` against whichever
+        element/part `_owner_id`/`_owner_span`/`_owner_element` currently
+        name (`_resolve_list` sets them per element; `_resolve_hand_part`
+        narrows the first two per part). That record is exactly what the
+        suppressible `sub-pixel-length` lint (phase B) reads; this is the one
+        place in the resolver that can see the condition it needs, so it is
+        also the one place responsible for capturing it.
         """
-        return units.at_least_one_px(length, self._len(length, parent, axis, default, font_px))
+        value = self._len(length, parent, axis, default, font_px)
+        if not min_1px and units.is_sub_pixel_length(length, value):
+            self._record_sub_pixel(what, length, value)
+        return units.at_least_one_px(length, value, min_1px)
+
+    def _record_sub_pixel(self, key: str, length: Length | None, value: float) -> None:
+        """Append one `SubPixelLength` for whatever `_extent`/`_hand_extent`
+        just found -- see their docstrings for when that is. `length` is
+        never actually `None` here (both callers only reach this branch
+        after `units.is_sub_pixel_length` has already confirmed it is not),
+        but the parameter stays optional so this matches `_extent`'s own
+        `length` type rather than asserting a narrower one purely for this
+        internal call.
+        """
+        assert length is not None
+        assert self._owner_element is not None, "no element is being resolved yet"
+        self.sub_pixel.append(SubPixelLength(
+            owner=self._owner_id, key=key, length=length, value=value,
+            span=self._owner_span, element=self._owner_element,
+        ))
 
     def _unbaked_font_size(self, spec: FontSpec) -> int:
         """The size to assume for a custom font that was not baked.

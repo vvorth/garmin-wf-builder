@@ -36,6 +36,11 @@
       "type": "boolean",
       "default": false
     },
+    "min_1px": {
+      "description": "Face-wide default for whether a nonzero relative ('%'/'%r') size, thickness, 'bar_width:' or an element/part's own radius clamps up to at least 1 px instead of rounding away to nothing (sign preserved) -- the same hairline that draws as 1 px on one screen can otherwise round to 0 on another. Defaults to false: a face that never writes 'min_1px:' compiles to byte-identical output. Every 'group', 'shape', 'progress', 'graph', 'hands', 'pattern' element and hand/pattern part inherits this unless it declares its own 'min_1px:' (a group's own value becomes the default for its whole subtree in turn, and a hand/pattern part's own value wins outright over its element's) -- nearest declaration wins at every level, overriding either way, exactly the shape 'antialias:' uses. Only a size (width/height), thickness, 'bar_width:' or an element/part's own radius is affected -- never a position ('at:', 'to:', a polygon's points, a linear pattern's 'step:'), 'corner_radius:', a 'px'/'pt' length or an author-written exact 0. Not accepted on 'text', 'icon' or 'complication_slot': a font size (including an icon's 'size:'/'icon_size:') already floors at 1 px on its own path (no switch needed). Whenever this is off and a relative length would have been clamped, the suppressible 'sub-pixel-length' lint reports it.",
+      "type": "boolean",
+      "default": false
+    },
     "palette": {
       "description": "Named colours. Elements reference palette entries, never raw hex. Each entry is either the short form (a colour directly) or the long form ({value, label}), which adds a human-readable label a 'config:' choices: entry can pick up by referencing this entry as 'palette.<name>'.",
       "type": "object",
@@ -743,6 +748,9 @@
         "antialias": {
           "$ref": "#/$defs/antialias"
         },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
         "lint": {
           "$ref": "#/$defs/lint"
         },
@@ -856,6 +864,9 @@
         },
         "antialias": {
           "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
         },
         "lint": {
           "$ref": "#/$defs/lint"
@@ -1048,6 +1059,9 @@
         },
         "antialias": {
           "$ref": "#/$defs/antialias"
+        },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
         },
         "lint": {
           "$ref": "#/$defs/lint"
@@ -1279,6 +1293,9 @@
         "antialias": {
           "$ref": "#/$defs/antialias"
         },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
         "lint": {
           "$ref": "#/$defs/lint"
         },
@@ -1448,6 +1465,9 @@
         "antialias": {
           "$ref": "#/$defs/antialias"
         },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
         "lint": {
           "$ref": "#/$defs/lint"
         },
@@ -1555,6 +1575,10 @@
         "vertical_align": {
           "description": "'shape: rectangle' or 'circle' only.",
           "$ref": "#/$defs/verticalAlign"
+        },
+        "min_1px": {
+          "description": "As authored, or omitted to inherit the owning 'type: hands' element's own resolved value. This part's own value wins outright over its element's -- one 'hands:' set can be placed by more than one 'type: hands' element, so a shared part's effective value can differ per placement.",
+          "$ref": "#/$defs/min_1px"
         }
       }
     },
@@ -1722,6 +1746,9 @@
         "antialias": {
           "$ref": "#/$defs/antialias"
         },
+        "min_1px": {
+          "$ref": "#/$defs/min_1px"
+        },
         "lint": {
           "$ref": "#/$defs/lint"
         },
@@ -1819,6 +1846,10 @@
         "vertical_align": {
           "description": "'shape: rectangle', 'circle' or 'text' only. Same frame-vs-anchor distinction as 'align' above.",
           "$ref": "#/$defs/verticalAlign"
+        },
+        "min_1px": {
+          "description": "As authored, or omitted to inherit the owning pattern's own resolved value. This part's own value wins outright over its pattern's, applied on top of whichever copy repeats it.",
+          "$ref": "#/$defs/min_1px"
         }
       }
     },
@@ -1861,6 +1892,10 @@
     },
     "antialias": {
       "description": "Override the face-wide 'antialias:' default for this element. On a 'group' this is also the default for its whole subtree -- not a conjunction the way 'visible:' is, so a descendant's own 'antialias:' still wins outright over its group's. On 'shape', 'progress', 'graph', 'hands' and 'pattern' this flags the element's own Dc primitive drawing (for 'hands', every hand of the set; for 'pattern', every copy); on 'icon' and 'complication_slot' it flags the baked icon font -- two mechanisms gated in two different ways by the SDK (a resource attribute for a font, a runtime Dc call for a primitive), so they share this one key but not an implementation. Not accepted on 'text': a text element draws through a font declared in 'fonts:', one bitmap resource shared by every element that references it, so anti-aliasing cannot vary per element -- put it on that font's own 'antialias:' instead.",
+      "type": "boolean"
+    },
+    "min_1px": {
+      "description": "Override the face-wide 'min_1px:' default for this element. On a 'group' this is also the default for its whole subtree -- not a conjunction the way 'visible:' is, so a descendant's own 'min_1px:' still wins outright over its group's. Clamps a nonzero '%'/'%r' size (width/height), thickness, 'bar_width:' or this element's own radius up to at least 1 px instead of letting it round away to nothing, sign preserved -- never a position, 'corner_radius:', a 'px'/'pt' length or an author-written exact 0. Not accepted on 'text', 'icon' or 'complication_slot': a font size already floors at 1 px on its own path, with no switch to set. See the top-level 'min_1px:' for the full rule, and the suppressible 'sub-pixel-length' lint it enables while this is off.",
       "type": "boolean"
     },
     "overrides": {

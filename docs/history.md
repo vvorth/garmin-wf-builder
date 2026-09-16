@@ -3485,3 +3485,118 @@ four tests parametrized over every `examples/*/face.yaml`
 
 **Docs:** `examples/CLAUDE.md` gained a paragraph describing what
 `examples/showcase/` exercises, alongside its siblings.
+
+## 2026-09-16 — `min_1px:`: the sub-pixel clamp becomes opt-in
+
+**User ask:** the entry directly above this one, from the previous session,
+made the relative-length floor **unconditional**. Revisiting it, the user
+asked for it to be **opt-in instead** — "globally for the whole watchface
+like `antialias`, or per group, per item, etc.," and to "consider overrides
+both ways on any level." The unconditional version is kept as the
+mechanism (everything it built stays: `units.at_least_one_px`, the
+`Resolver._extent`/`_hand_extent` call sites, the `Box.rounded()` tie fix),
+but it stops firing by default.
+
+**What was built (plan 08):**
+
+- A new boolean `min_1px:`. **Absent means `false`** — a face that never
+  mentions it compiles to byte-identical output. Inheritance is a default,
+  not a conjunction, **identical in shape to `antialias:`** (the same
+  "nearest declaration wins" walk in `wfb/ir.py`, factored into one shared
+  helper and reused for both, so `antialias:`'s own behaviour could not
+  drift while this was built), but **one level deeper**: face → group →
+  element → an individual hand or pattern **part**'s own value, which
+  always wins outright over its owning element's. A part's effective value
+  is computed per element instance at layout time rather than stamped once
+  into the IR, because one `hands:` set can be referenced by more than one
+  `type: hands` element, and those elements can resolve `min_1px`
+  differently.
+- **Overrides go both ways at every level** — the half of the ask easiest
+  to leave untested: a `false` written under a `true` ancestor switches the
+  clamp back off exactly as readily as a `true` under a `false` one, at
+  the face, group, element or part level, and nothing accumulates.
+- Accepted on `group`, `shape`, `progress`, `graph`, `hands`, `pattern`,
+  and on an individual hand or pattern part — the same set the
+  unconditional version already clamped, no more. Still not accepted on
+  `text`, `icon` or `complication_slot`: a font size, including an icon's,
+  already floors at 1 px on its own path via `wfb.units.pixel_size`, so
+  there is nothing on those three kinds for the switch to gate, and the
+  schema simply omits the key there rather than needing a custom rejection
+  message the way `antialias:` does on `text`.
+- A new suppressible lint, **`sub-pixel-length`** (severity warning,
+  confidence exact — it is resolved device geometry, not an estimate):
+  fires once per offending length, not once per device, since each names a
+  different authored line with a different fix (unlike `antialias-dither`'s
+  single per-device representative). It reports the case the switch exists
+  for: a nonzero `%`/`%r` extent that resolves below 1 px on a device with
+  the clamp off, naming the element (and the part, for a hand/pattern
+  part), the key, the authored length, the resolved value and the device,
+  with a note on both fixes — turn `min_1px:` on at whichever level needs
+  it, or accept the vanish with `lint: {allow: [sub-pixel-length], reason:
+  ...}` on the owning element. A hand/pattern part has no `lint:` of its
+  own, so a part's finding is suppressed through its element, the same
+  path `min_1px:` itself falls back through when a part declares none of
+  its own.
+- `tests/test_min_relative_px.py` reworked: every case from the
+  unconditional version keeps its arithmetic contrast but now runs with
+  the switch explicitly on, plus a mirrored off case asserting the
+  pre-feature value. New cases per plan 08 §5: the default-off state; each
+  of the four levels turning the clamp on, and each turning it back off
+  under a `true` ancestor; nearest-declaration-wins through a three-deep
+  group nest; two `type: hands` elements sharing one `hands:` set
+  resolving their parts differently (the case that makes a `resolved_`
+  field on `HandPart` the wrong shape); every in-scope key named
+  individually so a missed call site fails loudly; and every out-of-scope
+  key (`at:`/`to:`/polygon `points:`/a linear pattern's `step:`,
+  `corner_radius:`, `px`, `pt`, an exact `0`, an icon/complication size)
+  proved still unclamped and lint-free even with the switch on. No new
+  example face — this is a modifier on existing elements, not a new
+  element type.
+
+**Docs:** `docs/format.md`'s "Lengths" paragraph is rewritten from stating
+the clamp as automatic to stating it as `min_1px:`-gated, off by default; a
+new "`min_1px:` — never let a relative length round to nothing" section,
+modelled on and placed beside "`antialias:` — soften an edge", covers the
+four levels, the both-ways overrides, and the lint. `min_1px` was added to
+the `type: hands` and `pattern` elements' common-key sentences and to the
+hand-part and pattern-part sections (each gains a paragraph on the part's
+own `min_1px:`, the one level `antialias:` never reaches), and to the
+suppressible-codes count and list near the end. `docs/limitations.md`
+gained `sub-pixel-length` in the "checks that are exact" list and in the
+"ordinary element-scoped diagnostics" suppression list, noting the
+part-suppresses-via-its-element wrinkle. Root `CLAUDE.md` §6 gained one
+entry (plan 08, deleted once built per `docs/CLAUDE.md`).
+
+**Verified:** `pytest -m "not slow"` — **1,612 passed, 8 failed, 37
+deselected**, the 8 being exactly the pre-existing baseline
+`tests/CLAUDE.md` already names (`test_hands_codegen.py` ×2,
+`test_hands_preview.py` ×2, and `test_example_is_clean_on_every_target`
+for `analog`, `big-clock-3`, `dashboard`, `enduro`), none new. Every
+golden in `tests/golden/` is byte-for-byte unchanged — `git status` reports
+nothing under it — which is the check that matters most here, since the
+whole claim of "opt-in" is that a face not mentioning `min_1px:` compiles
+exactly as it did before. `examples/graph/face.yaml` builds all three
+targets warning-free (3,417/3,418/3,417 B of 131,072 B), and so does the
+same face with `min_1px: true` added, at byte-identical sizes — that face
+has no sub-pixel length for the switch to change, which is the point: the
+switch costs nothing where it changes nothing. **No example face trips the
+new lint**: the smallest in-scope relative length anywhere in `examples/`
+is `1%r` (`examples/analog/face.yaml`), which is 1.3 px on the smallest
+target (130 px minor radius) and never sub-pixel on any of the three.
+
+Both halves of the inheritance were also checked end to end, outside the
+test suite, on one design carrying all four levels at once: a face-wide
+`true`, a group switching it back off, an element inside that group
+switching it on again, a third-level group switching it on, and a hand
+part switching it off under a `true` face. Each resolved to the value its
+nearest declaration asked for (1 px where on, 0 px where off), and the
+`sub-pixel-length` records appeared for exactly the two switched-off
+cases — the hand part correctly named `hands_a.hour.parts[1]`, with its
+suppression owner resolving to the `hands_a` element.
+
+*One correction made during integration:* a hand part's owner id was
+originally `<element id>.parts[<i>]`, the same format a pattern part uses.
+A pattern has one `parts:` list, but a hand set has up to three, so the
+hour hand's first part and the minute hand's first part were named
+identically — a finding that could not say which hand it meant. Hand
+parts are now `<element id>.<hand>.parts[<i>]`.

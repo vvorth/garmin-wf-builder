@@ -697,8 +697,11 @@ Data-source spelling; palette legality; anti-aliasing legality on a 64-colour
 panel (`antialias-dither` -- the same channel-quantization fact `palette-dither`
 checks, reached from the other direction); geometry against the framebuffer and
 the visible area (round and rectangle only); glyph coverage of a subsetted
-font; contrast arithmetic. (There is no longer a refresh-tier check to list
-here -- the tier concept itself was deleted; see §2 above.)
+font; contrast arithmetic; a relative length resolving below 1 px with
+`min_1px:` off (`sub-pixel-length` -- resolved device geometry, not an
+estimate, same as the safe-area/overlap checks). (There is no longer a
+refresh-tier check to list here -- the tier concept itself was deleted; see
+§2 above.)
 
 **Per-device API availability is checked three ways, by two different
 mechanisms, because the data supports only one of them in each case.**
@@ -837,9 +840,12 @@ them rather than to an arbitrary one:
   the allow is honoured only on an element naming that specific
   `config.colors.<role>`.
 
-`dead-element`, `static-overlap` and the two `hold-*` codes are ordinary
-element-scoped diagnostics, so `lint:` on the element itself reaches
-them -- for `static-overlap`, on the element that ends up on top.
+`dead-element`, `static-overlap`, the two `hold-*` codes and
+`sub-pixel-length` are ordinary element-scoped diagnostics, so `lint:` on
+the element itself reaches them -- for `static-overlap`, on the element
+that ends up on top; for `sub-pixel-length`, on the element even when the
+finding is actually about one of its hand/pattern **parts**, since a part
+has no `lint:` block of its own to hang an `allow:` on.
 
 A code in `allow:` that this compiler does not emit, or that is deliberately not
 suppressible, is now an **error** naming which of the two it is. Before that, both

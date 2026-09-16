@@ -40,6 +40,7 @@ SUPPRESSIBLE = frozenset({
     "hold-unsupported", "hold-overlap", "api-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
+    "sub-pixel-length",
 })
 #: `api-gated-unguardable` is deliberately absent here -- see
 #: `check_api_gated`'s case 5: it means the generator would emit an unguarded
@@ -72,7 +73,7 @@ ALL_CODES = frozenset({
     "palette-dither", "partial-update", "partial-update-budget", "pattern",
     "pattern-step", "permission",
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
-    "target",
+    "sub-pixel-length", "target",
     "static", "static-overlap", "string-label",
     "text-antialias", "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
@@ -87,6 +88,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_color_scheme_palette(resolved, bag)
     check_config_support(resolved, bag)
     check_geometry(resolved, bag)
+    check_sub_pixel_length(resolved, bag)
     check_text_fit(resolved, bag)
     check_glyphs(resolved, bag)
     check_contrast(resolved, bag)
@@ -867,6 +869,106 @@ def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
             f"{device.shape!r} screen, so element placement is not checked",
             confidence="not checked -- see ADR 0004",
         )
+
+
+# -- check 4b: sub-pixel relative lengths ------------------------------------
+
+
+def check_sub_pixel_length(resolved: ResolvedFace, bag: Bag) -> None:
+    """`min_1px:` (plan 08) is opt-in, so a nonzero `%`/`%r` length that
+    resolves under 1px with the switch off is legal -- the resolver clamps
+    nothing and rounds it away exactly as it always has. This is the case
+    the switch exists for, though: the same hairline draws on a device with
+    a larger screen and silently vanishes on this one, which an author
+    almost never means on purpose. `Resolver` has already done the one thing
+    this check cannot -- notice the condition while it still has the
+    authored `Length` and the unclamped value in hand -- and left one
+    `wfb.layout.SubPixelLength` per occurrence in `resolved.sub_pixel`
+    (`wfb.layout.Resolver._extent`/`._hand_extent`); this only turns each
+    one into a diagnostic.
+
+    **One diagnostic per record, not one per device-wide representative.**
+    `check_antialias_palette` collapses every anti-aliased primitive into a
+    single device-wide note, because "is anti-aliasing on anywhere" is the
+    only fact that check can responsibly state -- exactly how visible any
+    one soft edge is depends on geometry it deliberately does not model, so
+    a second offender adds no new information. This check is the opposite
+    case: every `SubPixelLength` names a *different* authored line (a
+    different `key`, a different `length`, sometimes a different element or
+    part entirely), and each one has its own fix -- turning `min_1px:` on
+    at a different level, or accepting that one specific line. Collapsing
+    them into "device X has N sub-pixel lengths, see the first" would hide
+    every fix but one; so, unlike `antialias-dither`, this fires once per
+    record.
+
+    **A part is suppressed through its owning element, not itself.** A hand
+    or pattern part has no `lint:` key of its own -- only an element does --
+    so `SubPixelLength.element` always names the `hands`/`pattern` element
+    that owns the offending part (never the part, which is not an
+    `Element` at all), and suppression is checked against that element via
+    `_emit`. One consequence worth stating plainly: `lint: {allow:
+    [sub-pixel-length], reason: ...}` on a `hands`/`pattern` element
+    silences *every* sub-pixel finding on *any* of its parts, not just the
+    one an author had in mind -- there is nowhere finer to hang the
+    acknowledgement. The note below says so, so an author who only meant to
+    accept one part is not surprised later by a second, silently-suppressed
+    one.
+
+    **Severity: WARNING, matching `antialias-dither`** for the same reason:
+    this is a legal, occasionally deliberate thing to write (a hairline that
+    is only ever meant to show on the larger targets in `targets:`), so it
+    is suppressible rather than an error -- but silent disappearance on a
+    real device is exactly the kind of thing an author needs to hear about
+    by default.
+
+    **Confidence: exact.** Unlike the memory and partial-update-budget
+    checks, this rests on nothing estimated: `resolved.sub_pixel` already
+    *is* this device's real resolved geometry, computed the same way the
+    device's own draw call would be were the switch on.
+    """
+    if not resolved.sub_pixel:
+        return
+    # One `Placed` per element (`Resolver._resolve_list` appends exactly one
+    # per element, including a `hands`/`pattern` element itself -- never per
+    # part), so a plain id lookup is enough to hand `_emit` something with a
+    # `.element` to check `lint: {allow: [...]}` against.
+    placed_by_id = {placed.id: placed for placed in resolved.items}
+    for sp in resolved.sub_pixel:
+        placed = placed_by_id[sp.element.id]
+        is_part = sp.owner != sp.element.id
+        # The element is the last level worth naming when the finding is the
+        # element's own; a part's finding has one more level below it, and
+        # naming both is the whole point there ("on the element, or on just
+        # the one part").  Naming the element twice when there is no part
+        # would read as two different places to put the key.
+        levels = (
+            f"the face, a containing group, '{sp.element.id}' itself, or just this part"
+            if is_part else
+            f"the face, a containing group, or '{sp.element.id}' itself"
+        )
+        notes = [
+            f"turn on 'min_1px: true' at whichever level actually needs it -- "
+            f"{levels} -- to floor it at 1px on every device",
+            f"or accept it deliberately with 'lint: {{allow: [sub-pixel-length], "
+            f"reason: ...}}' on '{sp.element.id}'",
+        ]
+        if is_part:
+            notes.append(
+                "a hand or pattern part has no 'lint:' key of its own, so that "
+                f"acknowledgement suppresses every sub-pixel-length finding on "
+                f"any part of '{sp.element.id}', not just this one"
+            )
+        _emit(bag, placed, Diagnostic(
+            Severity.WARNING,
+            "sub-pixel-length",
+            f"{sp.owner}: {sp.key} = {sp.length} resolves to {sp.value:.2f}px "
+            f"on {resolved.device.id} -- a nonzero relative length this thin "
+            f"rounds away to nothing and vanishes here, though it may draw "
+            f"fine on a target with a bigger screen",
+            sp.span,
+            notes=notes,
+            confidence="exact -- resolved device geometry",
+        ))
 
 
 # -- check 5: text overflow -------------------------------------------------

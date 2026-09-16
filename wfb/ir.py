@@ -705,6 +705,21 @@ class Element:
     #: On a `group` nothing reads it directly -- the field exists there only
     #: as the default source `_resolve_antialias` hands to the subtree.
     resolved_antialias: bool = False
+    #: `min_1px:` as the author wrote it, or `None` to inherit -- from the
+    #: enclosing group's own value, or from `Face.min_1px` when there is
+    #: none.  Same shape as `antialias` above (`_resolve_inherited_flag`
+    #: resolves both), one level deeper: a hand or pattern part may also
+    #: declare its own (`HandPart.min_1px`).  Accepted only on `group`,
+    #: `shape`, `progress`, `graph`, `hands` and `pattern` -- not `text`,
+    #: `icon` or `complication_slot`, whose font size already floors at 1 px
+    #: on its own path (`wfb.units.pixel_size`), no switch involved.
+    min_1px: bool | None = None
+    #: The resolved value -- never `None` once `Builder._resolve_min_1px` has
+    #: run over the whole tree.  Read by `wfb.layout.Resolver` at every
+    #: `_extent` call site this element owns, and handed down as the
+    #: inherited default to a hand/pattern part's own `min_1px` (which has no
+    #: `resolved_` twin of its own -- see `HandPart.min_1px`).
+    resolved_min_1px: bool = False
     #: Plan 07: the placement box's horizontal/vertical edge (or centre) that
     #: sits at the point `at:` resolves to -- one rule, on the base class, so
     #: every kind of element carries it the same way (R1/R8). Every accepting
@@ -854,6 +869,18 @@ class HandPart:
     #: (a part alone does not know it).  Empty until then; empty forever on
     #: a non-text part.
     texts: tuple[str, ...] = ()
+    #: `min_1px:` as authored, or `None` to inherit the owning `type: hands`/
+    #: `type: pattern` element's own resolved value -- **authored only**,
+    #: deliberately with no `resolved_` twin the way `Element.min_1px` gets
+    #: one.  A `HandPart` lives inside a shared `HandSet` in `Face.hands`,
+    #: which more than one `type: hands` element can place (`hands: <name>`
+    #: names it) -- and two placements can resolve `min_1px` differently
+    #: (one element's subtree on, the other's off), so a single value
+    #: stamped once onto the part in the IR would be wrong for at least one
+    #: of them.  `Resolver._resolve_hand_part` computes the effective value
+    #: itself, per element instance, at layout time: `part.min_1px if
+    #: part.min_1px is not None else <the owning element's resolved_min_1px>`.
+    min_1px: bool | None = None
 
 
 @dataclass
@@ -1202,6 +1229,14 @@ class Face:
     #: by build time; kept here mainly so a re-render (preview, a future
     #: `wfb explain`) does not need to re-derive it.
     antialias: bool = False
+    #: The top-level `min_1px:` default (plan 08) -- what a `group`, `shape`,
+    #: `progress`, `graph`, `hands` or `pattern` element inherits when it
+    #: declares no `min_1px:` of its own.  Already folded into every
+    #: element's own `resolved_min_1px` by build time; kept here for the
+    #: same "no need to re-derive it" reason `antialias` above is.  Defaults
+    #: to `False`, which is also the switch's off position -- a face that
+    #: never mentions `min_1px:` compiles to byte-identical output.
+    min_1px: bool = False
     #: `config:` entries, keyed by axis name (`accent_color`/`data_color`).
     #: Empty on every design that declares no `config:` block, which is what
     #: keeps every existing golden file and generated project unchanged --
@@ -1425,12 +1460,18 @@ class Builder:
         #: of its own follows the face) and it is not otherwise in scope by
         #: the time that method runs.
         self.face_antialias = False
+        #: The top-level `min_1px:` default (plan 08), read first in
+        #: `build()` for the same reason `face_antialias` above is -- nothing
+        #: needs it before element resolution runs, but keeping the two read
+        #: together avoids a second one-off special case later.
+        self.face_min_1px = False
 
     # -- entry point ------------------------------------------------------
 
     def build(self) -> Face | None:
         data = self.doc.data
         self.face_antialias = bool(data.get("antialias", False))
+        self.face_min_1px = bool(data.get("min_1px", False))
         # Layouts first: a `config: style:` entry's `layout:` resolves
         # against the declared names, the same build pass its `colors:`
         # resolves against `color_scheme:` (plan 02 §12.1).
@@ -1464,6 +1505,7 @@ class Builder:
         if not self.bag.ok():
             return None
         self._resolve_antialias(elements)
+        self._resolve_min_1px(elements)
 
         face = data["face"]
         name = face["name"]
@@ -1482,6 +1524,7 @@ class Builder:
             elements=elements,
             source_path=self.doc.path,
             antialias=self.face_antialias,
+            min_1px=self.face_min_1px,
             config=self.config,
             color_scheme=self.color_scheme,
             layouts=accepted_layouts,
@@ -2591,6 +2634,7 @@ class Builder:
             text_value=text_value, text_literal=text_literal, format=text_format,
             font=text_font, font_is_custom=text_font_is_custom,
             align=align, vertical_align=vertical_align,
+            min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
         )
 
     def _check_hand_part_keys(
@@ -2848,6 +2892,7 @@ class Builder:
             visible=self._visible(node),
             static=bool(node.get("static", False)),
             antialias=(bool(node["antialias"]) if "antialias" in node else None),
+            min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
         )
 
         builders = {
@@ -3186,36 +3231,67 @@ class Builder:
 
         visit(group.items)
 
-    def _resolve_antialias(self, elements: list[Element]) -> None:
-        """Resolve `antialias:` as an inherited *default*, root to leaf.
+    def _resolve_inherited_flag(
+        self, elements: list[Element], *, authored: str, resolved: str, default: bool,
+    ) -> None:
+        """Resolve a boolean key as an inherited *default*, root to leaf --
+        shared by `antialias:` and `min_1px:` (plan 08 §3.2), which are
+        identical in shape: `authored` names the field holding what the
+        author wrote (`None` = inherit), `resolved` the field to stamp the
+        answer into, `default` the face-wide default the root of the tree
+        inherits.
 
         Deliberately a single top-down pass over the finished tree, called
-        once from `build()`, rather than pushed per group the way
-        `_push_visible` is: `visible:` *conjoins*, so composing it bottom-up
-        as each group finishes building is safe and even necessary (an inner
-        group has already folded its own condition into its children before
-        the outer one runs). `antialias:` is a plain override, not something
-        that accumulates -- the nearest enclosing declaration simply wins --
-        so there is nothing to compose, and threading "does an ancestor
-        further up still have to hand this element a default" through the
-        bottom-up build order would need more bookkeeping than a second,
-        independent walk over the tree that already exists in full.
+        once from `build()` for each key, rather than pushed per group the
+        way `_push_visible` is: `visible:` *conjoins*, so composing it
+        bottom-up as each group finishes building is safe and even necessary
+        (an inner group has already folded its own condition into its
+        children before the outer one runs). Neither `antialias:` nor
+        `min_1px:` is something that accumulates -- the nearest enclosing
+        declaration simply wins -- so there is nothing to compose, and
+        threading "does an ancestor further up still have to hand this
+        element a default" through the bottom-up build order would need more
+        bookkeeping than a second, independent walk over the tree that
+        already exists in full. That is also why this is one helper with two
+        callers rather than one walk that resolves both keys at once: they
+        are two unrelated inherited defaults that happen to share a shape,
+        not one feature, and a future third one (or a change to just one of
+        them) should not have to touch the other's call site.
 
-        A child's own `antialias:` always wins outright over its group's
-        (unlike `visible:`, there is no meaningful "AND" of two booleans that
-        both mean "should this look soft" -- one of them is simply what the
-        author asked for here), which is exactly what leaving `inherited`
-        unchanged for an element that declares its own value, and only
-        substituting it for one that left `antialias:` as `None`, gives.
+        A child's own value always wins outright over its group's (unlike
+        `visible:`, there is no meaningful "AND" of two booleans that both
+        mean "should this look soft" or "should this clamp" -- one of them is
+        simply what the author asked for here), which is exactly what
+        leaving `inherited` unchanged for an element that declares its own
+        value, and only substituting it for one that left the key as `None`,
+        gives.
         """
         def visit(items: list[Element], inherited: bool) -> None:
             for element in items:
-                resolved = element.antialias if element.antialias is not None else inherited
-                element.resolved_antialias = resolved
+                authored_value = getattr(element, authored)
+                resolved_value = authored_value if authored_value is not None else inherited
+                setattr(element, resolved, resolved_value)
                 if isinstance(element, Group):
-                    visit(element.items, resolved)
+                    visit(element.items, resolved_value)
 
-        visit(elements, self.face_antialias)
+        visit(elements, default)
+
+    def _resolve_antialias(self, elements: list[Element]) -> None:
+        """`antialias:` -- see `_resolve_inherited_flag`, which does the work."""
+        self._resolve_inherited_flag(
+            elements, authored="antialias", resolved="resolved_antialias",
+            default=self.face_antialias,
+        )
+
+    def _resolve_min_1px(self, elements: list[Element]) -> None:
+        """`min_1px:` (plan 08) -- see `_resolve_inherited_flag`, which does
+        the work. A hand/pattern part's own `min_1px` is resolved separately,
+        per element instance, at layout time (`HandPart.min_1px`'s docstring
+        explains why it has no `resolved_` twin here)."""
+        self._resolve_inherited_flag(
+            elements, authored="min_1px", resolved="resolved_min_1px",
+            default=self.face_min_1px,
+        )
 
     # -- static subtrees ---------------------------------------------------
 

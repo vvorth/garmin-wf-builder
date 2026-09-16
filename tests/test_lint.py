@@ -239,6 +239,258 @@ def test_suppression_needs_a_reason_and_then_silences(check):
     assert "safe-area" not in codes(bag)
 
 
+# -- check 4b: sub-pixel relative lengths (plan 08 §4) -----------------------
+
+#: 0.3%r of fenix8solar47mm's 130px minor radius is 0.39px -- nonzero, and
+#: bare `round()` sends it to 0, so this is a relative length that would
+#: have been clamped had `min_1px:` been on. Same hairline
+#: `tests/test_min_relative_px.py` drives the switch's own mechanics with;
+#: here it drives the warning that fires while the switch stays off.
+HAIRLINE = "0.3%r"
+
+_SUB_PIXEL_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+{face_min_1px}palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+{elements}
+"""
+
+
+def _lint_design(write_design, bag, db, elements: str, *,
+                  face_min_1px: bool | None = None, name: str = "face.yaml"):
+    """Build, layout-resolve and lint a one-off design for
+    fenix8solar47mm -- independent of the `check` fixture's fixed template
+    above, which has no top-level line to put a face-wide `min_1px:` on.
+    """
+    face_line = (f"min_1px: {'true' if face_min_1px else 'false'}\n"
+                 if face_min_1px is not None else "")
+    text = _SUB_PIXEL_DESIGN.format(face_min_1px=face_line, elements=elements)
+    face = load(write_design(text, name=name), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    lint.run(resolved, bag)
+    return bag
+
+
+def test_sub_pixel_length_warns_naming_element_key_length_value_and_device(write_design, bag, db):
+    """Drives the check red: a relative hairline with the switch off must
+    warn, naming everything the plan requires -- the element, the key, the
+    authored length, the resolved value and the device -- plus both fixes."""
+    elements = f"""  - id: dot
+    type: shape
+    shape: circle
+    at: {{anchor: center}}
+    radius: {HAIRLINE}
+    color: palette.fg
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    warning = next(d for d in bag.items if d.code == "sub-pixel-length")
+    assert warning.severity is Severity.WARNING
+    assert "dot" in warning.message
+    assert "radius" in warning.message
+    assert HAIRLINE in warning.message
+    assert "0.39" in warning.message
+    assert "fenix8solar47mm" in warning.message
+    assert "exact" in warning.confidence
+    # The element is the innermost level the note offers here -- and it is
+    # named exactly once: there is no part below it to distinguish it from,
+    # so "'dot' itself, or this element" would read as two separate places.
+    assert any("min_1px: true" in note and "or 'dot' itself" in note
+               for note in warning.notes)
+    assert not any("or this element" in note for note in warning.notes)
+    assert any("lint: {allow: [sub-pixel-length]" in note for note in warning.notes)
+    # not a part, so the "no lint: key of its own" caveat must not appear
+    assert not any("no 'lint:' key" in note for note in warning.notes)
+
+
+def test_sub_pixel_length_is_silent_when_the_length_is_not_actually_sub_pixel(write_design, bag, db):
+    elements = """  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 5px
+    color: palette.fg
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    assert "sub-pixel-length" not in codes(bag)
+
+
+def test_sub_pixel_length_is_silent_once_the_face_turns_min_1px_on(write_design, bag, db):
+    elements = f"""  - id: dot
+    type: shape
+    shape: circle
+    at: {{anchor: center}}
+    radius: {HAIRLINE}
+    color: palette.fg
+"""
+    bag = _lint_design(write_design, bag, db, elements, face_min_1px=True)
+    assert "sub-pixel-length" not in codes(bag)
+
+
+def test_sub_pixel_length_is_silent_once_the_group_turns_min_1px_on(write_design, bag, db):
+    elements = f"""  - id: g
+    type: group
+    min_1px: true
+    at: {{anchor: center}}
+    size: {{width: 200px, height: 200px}}
+    children:
+      - id: dot
+        type: shape
+        shape: circle
+        at: {{anchor: center}}
+        radius: {HAIRLINE}
+        color: palette.fg
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    assert "sub-pixel-length" not in codes(bag)
+
+
+def test_sub_pixel_length_is_silent_once_the_element_turns_min_1px_on(write_design, bag, db):
+    elements = f"""  - id: dot
+    type: shape
+    shape: circle
+    at: {{anchor: center}}
+    radius: {HAIRLINE}
+    color: palette.fg
+    min_1px: true
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    assert "sub-pixel-length" not in codes(bag)
+
+
+def test_sub_pixel_length_is_silent_once_a_pattern_part_turns_min_1px_on(write_design, bag, db):
+    elements = f"""  - id: pat
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: 1
+    color: palette.fg
+    parts:
+      - {{shape: circle, radius: {HAIRLINE}, min_1px: true}}
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    assert "sub-pixel-length" not in codes(bag)
+
+
+def test_sub_pixel_length_fires_once_per_offending_length_not_once_per_device(write_design, bag, db):
+    """Unlike `antialias-dither`'s single device-wide representative, two
+    independent hairlines -- one on element 'a', two (radius and thickness)
+    on element 'b' -- must produce three diagnostics, each naming its own
+    element and key. Collapsing them into one device-wide note would hide
+    two of the three fixes."""
+    elements = f"""  - id: a
+    type: shape
+    shape: circle
+    at: {{anchor: center}}
+    radius: {HAIRLINE}
+    color: palette.fg
+  - id: b
+    type: shape
+    shape: arc
+    at: {{anchor: center}}
+    radius: {HAIRLINE}
+    thickness: {HAIRLINE}
+    color: palette.fg
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    warnings = [d for d in bag.items if d.code == "sub-pixel-length"]
+    assert len(warnings) == 3
+    messages = {d.message for d in warnings}
+    assert any(m.startswith("a: radius = ") for m in messages)
+    assert any(m.startswith("b: radius = ") for m in messages)
+    assert any(m.startswith("b: thickness = ") for m in messages)
+
+
+def test_sub_pixel_length_is_suppressed_by_lint_allow_on_the_element(write_design, bag, db):
+    elements = f"""  - id: dot
+    type: shape
+    shape: circle
+    at: {{anchor: center}}
+    radius: {HAIRLINE}
+    color: palette.fg
+    lint:
+      allow: [sub-pixel-length]
+      reason: "deliberately hairline; only meant to draw on the larger targets"
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    assert "sub-pixel-length" not in codes(bag)
+
+
+def test_sub_pixel_length_on_a_pattern_part_names_the_part_and_warns_it_has_no_lint_key(
+    write_design, bag, db,
+):
+    elements = f"""  - id: pat
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: 1
+    color: palette.fg
+    parts:
+      - {{shape: circle, radius: {HAIRLINE}}}
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    warning = next(d for d in bag.items if d.code == "sub-pixel-length")
+    assert "pat.parts[0]" in warning.message
+    assert any("min_1px: true" in note and "just this part" in note for note in warning.notes)
+    assert any("no 'lint:' key of its own" in note for note in warning.notes)
+
+
+def test_sub_pixel_length_on_a_pattern_part_is_suppressed_via_the_owning_element(
+    write_design, bag, db,
+):
+    """A part has no `lint:` of its own -- suppression is honoured on the
+    `SubPixelLength.element` the record carries, the owning `pattern`
+    element, not the part."""
+    elements = f"""  - id: pat
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: 1
+    color: palette.fg
+    lint:
+      allow: [sub-pixel-length]
+      reason: "hairline template on purpose"
+    parts:
+      - {{shape: circle, radius: {HAIRLINE}}}
+"""
+    bag = _lint_design(write_design, bag, db, elements)
+    assert "sub-pixel-length" not in codes(bag)
+
+
+def test_sub_pixel_length_on_a_hand_part_names_the_hand_and_part(write_design, bag, db):
+    """A hand set has three independent `parts:` lists, so the owner must
+    read `<id>.<hand>.parts[<i>]`, not the pattern's bare `<id>.parts[<i>]`
+    -- otherwise the hour hand's first part and the minute hand's first part
+    would be indistinguishable in the warning."""
+    elements = f"""  - id: hd
+    type: hands
+    hands: h
+    at: {{anchor: center}}
+"""
+    text = _SUB_PIXEL_DESIGN.format(face_min_1px="", elements=elements)
+    text = text.replace("targets: [fenix8solar47mm]", f"""targets: [fenix8solar47mm]
+hands:
+  h:
+    hour:
+      color: palette.fg
+      parts:
+        - {{shape: circle, radius: {HAIRLINE}}}""")
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    lint.run(resolved, bag)
+    warning = next(d for d in bag.items if d.code == "sub-pixel-length")
+    assert "hd.hour.parts[0]" in warning.message
+
+
 # -- check 6 ---------------------------------------------------------------
 
 

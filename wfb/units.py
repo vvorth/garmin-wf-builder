@@ -86,24 +86,53 @@ class Length:
         return f"{num}{self.unit}"
 
 
-def at_least_one_px(length: "Length | None", value: float) -> float:
-    """A nonzero relative length never resolves to less than 1 px.
+def is_sub_pixel_length(length: "Length | None", value: float) -> bool:
+    """True when ``length`` is a nonzero `%`/`%r` length whose resolved
+    magnitude is under 1 px -- the exact condition :func:`at_least_one_px`
+    clamps away when its switch is on, and the one `wfb.layout.Resolver`
+    records a `wfb.layout.SubPixelLength` for when its switch is off (plan 08
+    §3.3).  Pulled out as its own predicate, rather than folded into
+    `at_least_one_px` alone, so both call sites -- "should this be clamped"
+    and "would this have been clamped had the switch been on" -- share
+    exactly one definition of "sub-pixel", and can never drift apart the way
+    two independent `0 < abs(value) < 1` checks eventually would.
+
+    ``length`` is the original :class:`Length` (``None`` for "no length was
+    authored, a default applied" -- never sub-pixel, the default is not a
+    relative unit at all); ``value`` is what :meth:`Length.resolve` returned
+    for it, in device pixels, *before* rounding to a whole pixel.
+    """
+    return length is not None and length.unit in ("%", "%r") and 0 < abs(value) < 1
+
+
+def at_least_one_px(length: "Length | None", value: float, enabled: bool) -> float:
+    """A nonzero relative length never resolves to less than 1 px -- when
+    `min_1px:` (plan 08) switches this on for the caller's element/part.
 
     A `%`/`%r` length scales per device: the same hairline (`thickness:
     0.5%r`, say) that draws as 1 px on one screen can round to 0 on another,
     so it draws on one target and silently vanishes on the next.  Rounding
     down to nothing is only a real answer when the author actually wrote a
-    zero -- so this clamps a *nonzero* `%`/`%r` result's magnitude up to
-    1 px, sign preserved, and leaves everything else (`px`/`pt` lengths,
-    which are already exactly what the author wrote, and an exact `0`)
-    alone.
+    zero -- so, when `enabled`, this clamps a *nonzero* `%`/`%r` result's
+    magnitude up to 1 px, sign preserved, and leaves everything else
+    (`px`/`pt` lengths, which are already exactly what the author wrote, and
+    an exact `0`) alone.
+
+    ``enabled`` is **required, with no default**, deliberately: every call
+    site states its own gate (the owning element's `resolved_min_1px`)
+    explicitly, so the rule and its switch can never quietly drift apart --
+    see `wfb.layout.Resolver._extent`/`._hand_extent`, the only callers. When
+    `enabled` is false this returns `value` untouched -- today's pre-feature
+    arithmetic, exactly -- even where :func:`is_sub_pixel_length` is true;
+    the caller is the one that turns that case into a `SubPixelLength`
+    record for the suppressible `sub-pixel-length` lint.
 
     ``length`` is the original :class:`Length` (``None`` for "no length was
     authored, a default applied" -- never clamped, the default is not a
     relative unit at all); ``value`` is what :meth:`Length.resolve` returned
     for it, in device pixels, *before* rounding to a whole pixel.
     """
-    if length is not None and length.unit in ("%", "%r") and 0 < abs(value) < 1:
+    if enabled and is_sub_pixel_length(length, value):
         return math.copysign(1.0, value)
     return value
 
@@ -269,7 +298,7 @@ class Box:
             ) from None
         return self.x + fx * self.width, self.y + fy * self.height
 
-    def rounded(self) -> "IntBox":
+    def rounded(self, *, min_1px: bool = False) -> "IntBox":
         """Snap to whole pixels.
 
         Rounds each edge independently (round-half-to-even), then takes the
@@ -280,20 +309,37 @@ class Box:
         ``left = n - 0.5``, ``right = n + 0.5``, and round-half-to-even
         sends *both* to ``n`` when ``n`` is even -- width 0, even though a
         clamp upstream (:func:`at_least_one_px`) deliberately made this box
-        1 px wide.  That one case is corrected here: a float extent of at
-        least 1 px must not round away to nothing.  Any other width/height,
-        rounded or not, is left exactly as the edge-rounding above produces
-        it -- in particular the same rounding can still turn some other
-        float extent (say 25 px at a half-integer left edge) into a
-        different integer width; that is pre-existing behaviour, unchanged
-        here.
+        1 px wide.
+
+        That one case is corrected here, but only when ``min_1px`` is true --
+        plan 08 §3.3 made the clamp itself opt-in, and this correction exists
+        solely to protect *that* clamp's own work, so it must not fire on its
+        own where the clamp never ran.  ``min_1px`` therefore defaults to
+        `False`, today's pre-feature arithmetic exactly (this correction did
+        not exist at all before the clamp was added), and a caller passes
+        `True` only at the handful of call sites whose box width/height is
+        itself a raw, unrounded extent that went through
+        :meth:`wfb.layout.Resolver._extent` -- a `group`'s own `size:`, or a
+        `shape`/`progress`/`graph`'s plain rectangular `size:` box.  Every
+        other box here (a circle/arc/ellipse's doubled radius-plus-pad reach,
+        a polygon's point-derived bounds, a hand or pattern's swept-disc or
+        ink-bounds box) never hits this exact tie in the first place, so
+        those call sites are left at the default and get exactly the
+        arithmetic they always have.
+
+        Any other width/height, rounded or not, is left exactly as the
+        edge-rounding above produces it -- in particular the same rounding
+        can still turn some other float extent (say 25 px at a half-integer
+        left edge) into a different integer width; that is pre-existing
+        behaviour, unchanged here.
         """
         left, top = round(self.x), round(self.y)
         width, height = round(self.right) - left, round(self.bottom) - top
-        if self.width >= 1 and width < 1:
-            width = 1
-        if self.height >= 1 and height < 1:
-            height = 1
+        if min_1px:
+            if self.width >= 1 and width < 1:
+                width = 1
+            if self.height >= 1 and height < 1:
+                height = 1
         return IntBox(left, top, width, height)
 
 

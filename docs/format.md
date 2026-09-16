@@ -99,19 +99,26 @@ Anchors are the nine box positions: `top_left`, `top`, `top_right`, `left`,
 of the dial on a 260×260 and a 280×280 screen; `50%` of the width is not, once a
 screen stops being square.
 
-**A relative size, thickness or radius never resolves below 1 px.** `%`/`%r`
-scale per device, so a hairline such as `thickness: 0.5%r` can be a full
-pixel on one screen and round to nothing on the next — the same design draws
-on one target and silently vanishes on another. To keep that from happening,
-any nonzero `%`/`%r` length used as a `size:`, `thickness:`, `bar_width:` or
-an element/part's own `radius:` (a shape's `radius:`, a progress arc's, a
-hand or pattern part's) is clamped up to 1 px, sign preserved, if it would
-otherwise resolve smaller. Writing `0%`/`0%r` still means exactly zero — the
-clamp only ever lifts a nonzero result. `px` and `pt` lengths are never
-touched: a `px` value is already exactly what the author wrote, and a `pt`
-length is only ever a font size, which floors at 1 px on its own path. A
+**A relative size, thickness or radius can be told never to resolve below
+1 px, with `min_1px:`.** `%`/`%r` scale per device, so a hairline such as
+`thickness: 0.5%r` can be a full pixel on one screen and round to nothing on
+the next — the same design draws on one target and silently vanishes on
+another. The switch defaults to **off**: a face that never mentions
+`min_1px:` compiles exactly as it always has, rounding included. Switched
+on, any nonzero `%`/`%r` length used as a `size:`, `thickness:`,
+`bar_width:` or an element/part's own `radius:` (a shape's `radius:`, a
+progress arc's, a hand or pattern part's) is clamped up to 1 px, sign
+preserved, if it would otherwise resolve smaller. Writing `0%`/`0%r` still
+means exactly zero regardless of the switch — it only ever lifts a nonzero
+result. `px` and `pt` lengths are never touched: a `px` value is already
+exactly what the author wrote, and a `pt` length is only ever a font size,
+which floors at 1 px on its own path whether or not the switch is on. A
 position (`at:`/`to:`/polygon `points:`, a linear pattern's `step:`) and a
-`corner_radius:` are not sizes and are not clamped either.
+`corner_radius:` are not sizes and are never clamped either. See
+"`min_1px:` — never let a relative length round to nothing" below for the
+four override levels, the both-ways overrides, and the `sub-pixel-length`
+lint that reports a length the switch would have clamped, on a device where
+it is off.
 
 ### Angles
 
@@ -1403,6 +1410,96 @@ current targets, so it fires on every face that turns the feature on for a
 `lint: {allow: [antialias-dither], reason: ...}`, as the removed
 `examples/antialias/` did.
 
+### `min_1px:` — never let a relative length round to nothing
+
+```yaml
+min_1px: false             # face-wide default (also the default default)
+
+elements:
+  - id: dial
+    type: group
+    min_1px: true           # on for this subtree
+    children:
+      - id: rim
+        type: shape
+        shape: arc
+        radius: 92%r
+        thickness: 0.4%r     # inherits true from the group -> clamped to 1px
+      - id: tick_ring
+        type: pattern
+        min_1px: false       # override back off for this one element
+        pattern: radial
+        count: 60
+        parts:
+          - shape: line
+            thickness: 0.4%r  # inherits false from the element -> rounds to 0px
+          - shape: circle
+            min_1px: true     # ...but this one part opts back in
+            radius: 0.4%r     # -> clamped to 1px
+```
+
+`min_1px:` switches on the clamp described under "Lengths" above: a
+nonzero `%`/`%r` length resolved as a `size:`, `thickness:`, `bar_width:`
+or an element/part's own `radius:` is never allowed to round to 0 px. It
+defaults to `false` — the platform's own rounding, exactly as every face
+has always drawn — because the clamp is a real, visible change to a face's
+geometry (a hairline authored to vanish on a small screen now draws a
+pixel wide there), not a pure bugfix every existing face should start
+applying silently. Turning it on is a decision the author makes on
+purpose, for the whole face or for as small a subtree as one element or
+one part.
+
+**Inheritance is a default, not a conjunction, identical in shape to
+`antialias:`** (see above — the same reasoning applies verbatim): a
+face-wide `min_1px:` is the default every group, element and part
+inherits; a `group`'s own value becomes the default for its whole subtree;
+an element's own value always wins outright over its enclosing group's;
+and — one level deeper than `antialias:`, which stops at the element — a
+hand or pattern **part**'s own value always wins outright over its owning
+element's. Nothing accumulates and nothing is a logical AND: a `false`
+written under a `true` ancestor switches the clamp back off exactly as
+readily as a `true` written under a `false` ancestor switches it on, at
+every one of the four levels. This "both ways" half is the one worth
+stating plainly, because it is easy to assume away — it is tempting to
+read an inherited switch as "everything under a face-wide `true` is safely
+covered," but an override at any level is a plain replacement of whatever
+it inherited, not a floor underneath it.
+
+It reaches one level deeper than `antialias:` because that is where the
+in-scope lengths actually live: a `rectangle` part's `size:`, a
+`line`/`circle`/`arc` part's `thickness:`, a `circle`/`arc` part's
+`radius:`. `antialias:` brackets an element's *one* draw call, which a
+part does not have on its own — there was never a part-level "should this
+look soft" to ask. `min_1px:` is squarely about whether one specific
+length rounds to zero, and a hand or pattern template's parts are exactly
+where those lengths are authored.
+
+**Accepted on `group`, `shape`, `progress`, `graph`, `hands` and
+`pattern`, and on an individual hand or pattern part.** **Not accepted on
+`text`, `icon` or `complication_slot`.** Unlike `antialias:`, which needs
+a build-error redirect on `text` (there is another key to point the
+author at — the font's own `antialias:`), `min_1px:` needs no such
+redirect: a font size, including an icon's `size:`/`icon_size:`, already
+resolves through `wfb.units.pixel_size`, which floors at 1 px on its own,
+unconditional path. There is nothing left to switch for these three
+kinds, so the schema simply does not offer the key there, and writing it
+anyway gets the ordinary "unknown key" error every other unrecognised key
+already gets.
+
+**A new suppressible lint, `sub-pixel-length`, reports the case the
+switch exists for.** With the clamp off at the length's own nearest
+declaration — whether because a face never turns it on, or because a
+nearer declaration turns it back off — a nonzero `%`/`%r` length that
+resolves below 1 px on a given device emits a warning naming the element
+(and the part, for a hand/pattern part), the key, the authored length, the
+resolved value and the device, with a note on both fixes: turn `min_1px:`
+on at whichever level actually needs it, or accept the vanish
+deliberately with `lint: {allow: [sub-pixel-length], reason: ...}` on the
+owning element. A hand or pattern part has no `lint:` of its own, so a
+part's finding is suppressed the same way its `min_1px:` is inherited
+when it declares none of its own: through its owning element. See "Lint
+suppression" below and `docs/limitations.md`.
+
 ### `shape`
 
 ```yaml
@@ -2036,6 +2133,13 @@ reasons as the main `shape:` element's (see
 `rectangle`/`circle`'s own alignment, resolved in the part's own frame
 before it turns with the hand).
 
+**A part may also declare its own `min_1px:`**, overriding whatever it
+would otherwise inherit from its `type: hands` element — the one level
+deeper than `antialias:` that this key alone reaches (a part has no
+`antialias:` of its own). It governs exactly the `%`/`%r` lengths in the
+table above: a `rectangle` part's `size:`, a `line`/`circle`'s
+`thickness:`, a `circle`'s `radius:`. See "`min_1px:`" above.
+
 **Colours** take what a `shape`'s `color:` does — palette entries, literal
 colours, `config.*` (`accent_color`, `data_color`, `colors.<role>`), and
 conditionals over those — **except that a hand colour may not read data**: a
@@ -2112,19 +2216,24 @@ config:
 ```
 
 A `type: hands` element takes `id`, `type`, `hands`, `at`, `seconds`,
-`modes`, `z`, `visible`, `antialias`, `lint` and `overrides` — every common
-key **except** `on_hold:` (a moving hand has no fixed box to hold — hold a
-`group` around it instead), `static:` (rejected: a hand's angle is the
-time, and a static buffer is painted once and never refilled), and
-`align`/`vertical_align` (rejected with a friendly reason: `at:` is the
-axis every hand turns about, not a box — see
+`modes`, `z`, `visible`, `antialias`, `min_1px`, `lint` and `overrides` —
+every common key **except** `on_hold:` (a moving hand has no fixed box to
+hold — hold a `group` around it instead), `static:` (rejected: a hand's
+angle is the time, and a static buffer is painted once and never
+refilled), and `align`/`vertical_align` (rejected with a friendly reason:
+`at:` is the axis every hand turns about, not a box — see
 [Placement: `at:` and `align:`](#placement-at-and-align); align a part
 instead, or move `at:`). `antialias:`
 is accepted and inherited exactly like a shape's own, and counts toward the
 `antialias-dither` check the same way: the whole hand set draws soft, since
 the toggle brackets the element's one draw method. (*Until 2026-09-14 it
 linted but emitted nothing when a hands element was the face's only
-anti-aliased one. See `docs/history.md`.*)
+anti-aliased one. See `docs/history.md`.*) `min_1px:` is accepted the same
+way, inherited from the element's group or the face — but, unlike
+`antialias:`, a hand's individual part may also declare its own
+`min_1px:`, overriding the element's, since a part's `radius:`/
+`thickness:`/rectangle `size:` are exactly the lengths the switch clamps.
+See "`min_1px:`" above.
 
 See `examples/analog/face.yaml` for a design exercising two hand sets, an
 off-centre small-seconds subdial, all four part shapes, a `config.*` hand
@@ -2227,6 +2336,12 @@ is an error, as everywhere else — including `align`/`vertical_align` on
 how `rectangle`/`circle` align in the template's own frame, turning or
 stepping with the copy like the rest of the part (unlike a `text` part's
 anchor-only alignment, above).
+
+**A part may also declare its own `min_1px:`**, overriding whatever it
+would otherwise inherit from the pattern element. It governs the same
+`%`/`%r` lengths as everywhere else this key applies: a `rectangle` part's
+`size:`, a `line`/`circle`/`arc` part's `thickness:`, a `circle`/`arc`
+part's `radius:`. See "`min_1px:`" above.
 
 The element itself, `type: pattern`, refuses `align`/`vertical_align` too —
 its `at:` is the origin every copy turns about or steps from, not a box —
@@ -2378,7 +2493,7 @@ error naming the key, not a silent no-op.
 list order.
 
 **It takes the common keys** `id`, `type`, `at`, `modes`, `z`, `visible`,
-`static`, `antialias`, `lint` and `overrides`. `size:` does not exist,
+`static`, `antialias`, `min_1px`, `lint` and `overrides`. `size:` does not exist,
 because the extent comes from the ink. `on_hold:` is not accepted; hold a
 `group` around the pattern instead. `modes:` may not contain `low_power`.
 A fixed pattern gains nothing from `onPartialUpdate`, and its clip would be
@@ -2395,6 +2510,12 @@ or the one it inherits from its group or the face, brackets the whole
 pattern. It counts toward `antialias-dither` like any other primitive. A
 turned tick is where anti-aliasing helps most: without it, a rotated edge
 stair-steps.
+
+**`min_1px:` works the same way, one level deeper.** The element's own
+value, or the one it inherits from its group or the face, is what every
+part inherits in turn — and, unlike `antialias:`, a part may override it
+again with its own `min_1px:`, both ways, exactly as everywhere else this
+key applies. See "`min_1px:`" above.
 
 **How it is drawn: the watch loops.** The template (every part, and the
 origin) is resolved to per-device `Layout` constants like any other
@@ -2925,11 +3046,11 @@ off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
 `api-gated-unguardable`) are **not** suppressible: silencing one produces a
 face that does not work.
 
-Fifteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+Sixteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
-`duplicate-style` and `unreachable-layout`.
+`duplicate-style`, `unreachable-layout` and `sub-pixel-length`.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
 the normative list -- this prose has drifted from it before, so check there
 rather than here if the two ever disagree. **A code that is not one of them is a
@@ -2957,6 +3078,11 @@ either, but there is no element to hang either on at all: `duplicate-style`
 goes on the **`config: style:` entry's own** `lint:` (the second entry of
 the duplicate pair), and `unreachable-layout` on the **`layouts:` entry's
 own** `lint:` -- neither is an element.
+`sub-pixel-length` is an ordinary element-scoped diagnostic like the rest
+-- **except** that a finding about a hand or pattern **part** goes on the
+part's **owning element**, the same element `min_1px:` inherits through
+when the part declares none of its own: a part has no `lint:` block to
+hang an `allow:` on.
 See `docs/limitations.md` 3.
 
 ---
