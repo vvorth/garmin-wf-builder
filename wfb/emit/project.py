@@ -8,10 +8,11 @@ from pathlib import Path
 
 from .. import formatting
 from ..availability import compute_guards
+from ..catalog import Type
 from ..devices import Device
 from ..fonts import BakedFont
 from ..ir import Face
-from ..layout import ResolvedFace
+from ..layout import ResolvedFace, resolve
 from . import jungle, manifest, monkeyc, resources, strhash
 
 RUNTIME_LIB = Path(__file__).resolve().parent.parent.parent / "runtime-lib"
@@ -65,8 +66,6 @@ class GeneratedProject:
 def generate(face: Face, devices: list[Device], root: Path,
              baked: dict[str, dict[str, BakedFont]] | None = None) -> GeneratedProject:
     """Build the project in memory.  :func:`write` puts it on disk."""
-    from ..layout import resolve
-
     project = GeneratedProject(face=face, devices=devices, root=root)
 
     project.sources.append(monkeyc.emit_app(face))
@@ -183,8 +182,6 @@ def write(project: GeneratedProject, *, clean: bool = True) -> list[Path]:
 
 
 def _is_time_value(element) -> bool:
-    from ..catalog import Type
-
     return element.value is not None and element.value.value.type is Type.TIME
 
 

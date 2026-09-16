@@ -17,8 +17,10 @@ from __future__ import annotations
 
 from xml.sax.saxutils import escape
 
+from .. import complications as launchable
 from ..devices import Device
 from ..ir import Face
+from .monkeyc import hold_targets
 
 #: The floor for generated faces, and -- as of 2026-09-15 -- the *only*
 #: level this compiler ever emits.  ``manifest.xml`` is one file shared by
@@ -91,11 +93,8 @@ def permissions(face: Face) -> list[str]:
     `WfbComplications.valueOf` is called regardless of what the design binds
     directly.
     """
-    from .. import complications as launchable
-    from .monkeyc import launches_a_glance
-
     needed = set(face.requirements().permissions)
-    if launches_a_glance(face):
+    if hold_targets(face):
         needed.add(launchable.EXIT_TO_PERMISSION)
     if face.config_data:
         needed.add(launchable.EXIT_TO_PERMISSION)

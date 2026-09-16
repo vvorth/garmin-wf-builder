@@ -18,13 +18,15 @@ for emitting code that fails strict checking.
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from .. import __version__, catalog, complications, expr, formatting, icons, series
 from ..availability import Guards
 from ..catalog import READERS, Type
 from ..ir import (
-    CONFIG_SYMBOL, HOLD_AUTO, ComplicationSlot, Expression, Face, Graph,
+    HOLD_AUTO, ComplicationSlot, Expression, Face, Graph,
     HandsElement, IconElement, PatternElement, Position, Progress, Shape, Text,
     complication_slot_hold_method, complication_slot_icon_method, config_data_ids,
     config_field, element_const_prefix, element_method_name, font_resource_id,
@@ -37,7 +39,6 @@ from ..layout import (
     ResolvedFace,
 )
 from ..series import Acquisition
-from ..units import IntBox
 from .writer import Writer
 
 #: Base Toybox imports every generated face needs.
@@ -67,9 +68,6 @@ def source_label(path) -> str:
     otherwise.  An absolute path would make generated output differ between
     machines, which would defeat the golden-file tests and make every diff noisy.
     """
-    import os
-    from pathlib import Path
-
     try:
         relative = os.path.relpath(Path(path).resolve(), Path.cwd())
     except (OSError, ValueError):
@@ -283,11 +281,6 @@ def needs_delegate(face: Face) -> bool:
     return bool(hold_targets(face)) or face.has_config
 
 
-def launches_a_glance(face: Face) -> bool:
-    """Does anything in this design actually emit `Complications.exitTo`?"""
-    return any(element.on_hold is not None for element in face.walk())
-
-
 def _emit_on_watchface_config_edited(w: Writer) -> None:
     """`onWatchFaceConfigEdited` -- re-read settings after an on-device edit.
 
@@ -321,6 +314,23 @@ def _emit_on_watchface_config_edited(w: Writer) -> None:
             with w.block("if (settings != null)"):
                 w.line("_view.applyConfig(settings);")
     w.blank()
+
+
+def _emit_exit_to(w: Writer, exit_arg: str, guard: str | None = None) -> None:
+    """`Complications.exitTo(<exit_arg>); return true;`, optionally wrapped in
+    a runtime guard -- both hold-target shapes below (a `complication_slot`'s
+    `on_hold: auto` and a fixed `on_hold:` target) reach exactly this pair of
+    lines, guarded or not, and only differ in what `exit_arg` and ``guard``
+    are.
+    """
+    def _lines() -> None:
+        w.line(f"Complications.exitTo({exit_arg});")
+        w.line("return true;")
+    if guard is not None:
+        with w.block(f"if ({guard})"):
+            _lines()
+    else:
+        _lines()
 
 
 def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
@@ -367,7 +377,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
     imports = ["import Toybox.Lang;", "import Toybox.WatchUi;"]
     if has_config:
         imports.insert(0, "import Toybox.Application.WatchFaceConfig;")
-    if launches_a_glance(face):
+    if targets:
         imports.insert(0, "import Toybox.Complications;")
     w.lines(*imports).blank()
     w.doc(
@@ -459,15 +469,13 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                             # unsupported *type* (wfb.complications module
                             # docstring).
                             w.line(f"var id = _view.{complication_slot_hold_method(element.id)}();")
-                            with w.block("if (id != null)"):
-                                w.line("Complications.exitTo(id);")
-                                w.line("return true;")
+                            _emit_exit_to(w, "id", guard="id != null")
                         else:
-                            w.line(f"Complications.exitTo(_view.{complication_slot_hold_method(element.id)}());")
-                            w.line("return true;")
+                            _emit_exit_to(w, f"_view.{complication_slot_hold_method(element.id)}()")
                     continue
                 launch = complications.TYPES[element.on_hold]
                 w.comment(f"`{element.id}` -> {element.on_hold}")
+                exit_arg = f"new Complications.Id(Complications.{launch.constant})"
                 with w.block(condition):
                     if guards.complications:
                         # `Complications.exitTo`/`Complications.Id` cannot be
@@ -476,14 +484,9 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                         # own docstring) -- so unlike the slot case above
                         # (which the field's own null already gates), a fixed
                         # `on_hold:` target needs its own `has` guard here.
-                        with w.block("if (Toybox has :Complications)"):
-                            w.line(f"Complications.exitTo(new Complications.Id("
-                                   f"Complications.{launch.constant}));")
-                            w.line("return true;")
+                        _emit_exit_to(w, exit_arg, guard="Toybox has :Complications")
                     else:
-                        w.line(f"Complications.exitTo(new Complications.Id("
-                               f"Complications.{launch.constant}));")
-                        w.line("return true;")
+                        _emit_exit_to(w, exit_arg)
             w.blank()
             w.line("return false;")
     return SourceFile(f"source/{face.entry}Delegate.mc", w.render())
@@ -750,6 +753,38 @@ class McLiteral:
     code: str
 
 
+def _box_constants(prefix: str, box, note: str = "") -> list[tuple[str, float, str]]:
+    """The `_X/_Y/_WIDTH/_HEIGHT` quartet for one resolved box -- shared by a
+    rectangular shape, a bar-style progress, a graph and a complication_slot's
+    editor highlight box (``prefix`` already carries that last one's own
+    `_BOX` suffix).  ``note`` documents the `_X` constant only, the same
+    "first constant of the block carries the note" convention every other
+    multi-constant block here follows.
+    """
+    return [
+        (f"{prefix}_X", box.x, note),
+        (f"{prefix}_Y", box.y, ""),
+        (f"{prefix}_WIDTH", box.width, ""),
+        (f"{prefix}_HEIGHT", box.height, ""),
+    ]
+
+
+def _arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
+    """The `_RADIUS/_THICKNESS/_START/_SWEEP` quartet for one resolved arc --
+    shared by a `shape: arc` and a `progress` arc, which both resolve
+    `placed.radius`/`.thickness`/`.garmin_start`/`.start_angle`/`.sweep`
+    through `wfb.layout.garmin_arc` the same way, so the two could never
+    disagree about the angle convention even before this was one function.
+    """
+    return [
+        (f"{prefix}_RADIUS", placed.radius, ""),
+        (f"{prefix}_THICKNESS", placed.thickness, "pen width; there is no filled-arc primitive"),
+        (f"{prefix}_START", float(placed.garmin_start),
+         f"{placed.start_angle:g}deg clockwise from 12 o'clock, in Garmin's convention"),
+        (f"{prefix}_SWEEP", float(placed.sweep), "clockwise-positive degrees"),
+    ]
+
+
 def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
     prefix = _const_prefix(placed.id)
     out: list[tuple[str, float | McLiteral, str]] = []
@@ -765,13 +800,7 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             out.append((f"{prefix}_END_Y", placed.end[1], ""))
             out.append((f"{prefix}_THICKNESS", placed.thickness, ""))
         elif element.shape == "arc":
-            out.append((f"{prefix}_RADIUS", placed.radius, ""))
-            out.append((f"{prefix}_THICKNESS", placed.thickness,
-                        "pen width; there is no filled-arc primitive"))
-            out.append((f"{prefix}_START", float(placed.garmin_start),
-                        f"{placed.start_angle:g}deg clockwise from 12 o'clock, "
-                        f"in Garmin's convention"))
-            out.append((f"{prefix}_SWEEP", float(placed.sweep), "clockwise-positive degrees"))
+            out.extend(_arc_constants(prefix, placed))
         elif element.shape == "ellipse":
             out.append((f"{prefix}_RX", placed.rx, "semi-axis along x"))
             out.append((f"{prefix}_RY", placed.ry, "semi-axis along y"))
@@ -786,10 +815,7 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             ))
         else:
             rect = placed.rect or placed.box
-            out.append((f"{prefix}_X", rect.x, ""))
-            out.append((f"{prefix}_Y", rect.y, ""))
-            out.append((f"{prefix}_WIDTH", rect.width, ""))
-            out.append((f"{prefix}_HEIGHT", rect.height, ""))
+            out.extend(_box_constants(prefix, rect))
             if element.shape == "rounded_rectangle":
                 out.append((f"{prefix}_CORNER", placed.corner_radius, ""))
             if not element.filled:
@@ -805,16 +831,9 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         out.append((f"{prefix}_CX", placed.center[0], ""))
         out.append((f"{prefix}_CY", placed.center[1], ""))
         if placed.element.style == "arc":
-            out.append((f"{prefix}_RADIUS", placed.radius, ""))
-            out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width; there is no filled-arc primitive"))
-            out.append((f"{prefix}_START", float(placed.garmin_start),
-                        f"{placed.start_angle:g}deg clockwise from 12 o'clock, in Garmin's convention"))
-            out.append((f"{prefix}_SWEEP", float(placed.sweep), "clockwise-positive degrees"))
+            out.extend(_arc_constants(prefix, placed))
         else:
-            out.append((f"{prefix}_X", placed.box.x, ""))
-            out.append((f"{prefix}_Y", placed.box.y, ""))
-            out.append((f"{prefix}_WIDTH", placed.box.width, ""))
-            out.append((f"{prefix}_HEIGHT", placed.box.height, ""))
+            out.extend(_box_constants(prefix, placed.box))
     elif isinstance(placed, PlacedIcon):
         # A glyph kind's anchor never itself moves for `align`/`vertical_
         # align` (plan 07 §3.2(b)) -- only the device-side justify flags and
@@ -827,10 +846,7 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         out.append((f"{prefix}_CX", placed.center[0], note))
         out.append((f"{prefix}_CY", placed.center[1], note))
     elif isinstance(placed, PlacedGraph):
-        out.append((f"{prefix}_X", placed.box.x, ""))
-        out.append((f"{prefix}_Y", placed.box.y, ""))
-        out.append((f"{prefix}_WIDTH", placed.box.width, ""))
-        out.append((f"{prefix}_HEIGHT", placed.box.height, ""))
+        out.extend(_box_constants(prefix, placed.box))
         if placed.element.style == "line":
             out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
         elif placed.element.style == "bars":
@@ -848,10 +864,8 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         # own docstring).  Emitted for every slot regardless of `on_hold:`:
         # the editor can animate any slot, not only ones that also launch
         # something on a live face.
-        out.append((f"{prefix}_BOX_X", placed.box.x, "the editor's animated highlight box (estimated)"))
-        out.append((f"{prefix}_BOX_Y", placed.box.y, ""))
-        out.append((f"{prefix}_BOX_WIDTH", placed.box.width, ""))
-        out.append((f"{prefix}_BOX_HEIGHT", placed.box.height, ""))
+        out.extend(_box_constants(f"{prefix}_BOX", placed.box,
+                                  "the editor's animated highlight box (estimated)"))
         if placed.element.icon_gap is not None:
             # Only emitted when the author actually wrote 'icon_gap:' --
             # otherwise the generated view keeps embedding the literal
@@ -1037,7 +1051,7 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
     behavioural change.
     """
     used = any(
-isinstance(placed, ANTIALIASED_PRIMITIVES) and placed.element.resolved_antialias
+        isinstance(placed, ANTIALIASED_PRIMITIVES) and placed.element.resolved_antialias
         for placed in resolved.items
     )
     return resolved.face.antialias if used else None
@@ -1074,11 +1088,21 @@ def _emit_antialias_helper(w: Writer) -> None:
     w.blank()
 
 
+def _has_partial_update(resolved: ResolvedFace) -> bool:
+    """Does this build actually get an `onPartialUpdate` -- both the design
+    declaring a `low_power` mode and the device itself supporting partial
+    updates (AMOLED forbids it, CLAUDE.md constraint 5).  Named once rather
+    than repeated at each of its three call sites (`emit_view`, twice, and
+    `_emit_sleep_hooks`), which otherwise have to agree independently.
+    """
+    return resolved.in_mode("low_power") and resolved.device.supports_partial_update
+
+
 def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
     face, device = resolved.face, resolved.device
     guards = guards if guards is not None else _NO_GUARDS
     plan = ReadPlan(resolved, guards)
-    if resolved.in_mode("low_power") and device.supports_partial_update:
+    if _has_partial_update(resolved):
         plan.modules.add("Toybox.System")  # onPowerBudgetExceeded reports via println
 
     graphs = [p for p in resolved.items if isinstance(p, PlacedGraph)]
@@ -1171,7 +1195,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static)
         _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
-        if resolved.in_mode("low_power") and device.supports_partial_update:
+        if _has_partial_update(resolved):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
         _emit_sleep_hooks(w, resolved, needs_sleeping, always_on)
         if plan.complication_readers():
@@ -1631,6 +1655,18 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
     w.blank()
 
 
+def _emit_complication_subscribe_lines(w: Writer, event: list[str]) -> None:
+    """The register-callback line, then one `WfbComplications.subscribe` per
+    reader -- emitted identically whether or not it sits behind a `Toybox has
+    :Complications` guard, so `_emit_on_layout`'s guarded and unguarded
+    branches cannot drift apart.
+    """
+    w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
+    for name in event:
+        reader = READERS[name]
+        w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
+
+
 def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                     static: "StaticPlan | None" = None) -> None:
     face = resolved.face
@@ -1671,15 +1707,9 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                 # SDK-wide API, not the device's -- this only fails at runtime).
                 w.comment("Toybox.Complications is absent on at least one target device")
                 with w.block("if (Toybox has :Complications)"):
-                    w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
-                    for name in event:
-                        reader = READERS[name]
-                        w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
+                    _emit_complication_subscribe_lines(w, event)
             else:
-                w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
-                for name in event:
-                    reader = READERS[name]
-                    w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
+                _emit_complication_subscribe_lines(w, event)
         if has_config:
             if loaded or event:
                 w.blank()
@@ -1770,6 +1800,24 @@ def _emit_layout_guarded_calls(w: Writer, face: Face, calls: list) -> None:
         index = end
 
 
+def _draw_calls(resolved: ResolvedFace, plan: "ReadPlan", mode: str,
+                skip: frozenset[str] = frozenset()) -> list:
+    """`(element, call_line)` pairs for every element drawn in ``mode``, in
+    draw order -- shared by `_emit_mode_body` (which passes ``skip``, a
+    static id already painted into the buffer) and `_emit_on_partial_update`
+    (which never skips anything: it draws `low_power` fresh every call, with
+    no static blit of its own).
+    """
+    calls = []
+    for placed in resolved.items:
+        if placed.kind == "group" or mode not in placed.element.modes:
+            continue
+        if placed.id in skip:
+            continue  # painted into the buffer above
+        calls.append((placed.element, f"{_method(placed.id)}(dc{plan.arguments(placed)});"))
+    return calls
+
+
 def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: str,
                     static: "StaticPlan | None") -> None:
     """One mode's draw sequence: the static blit, then everything dynamic."""
@@ -1784,13 +1832,7 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
     plan.emit_reads(w, mode)
     w.blank()
     skip = static.ids if static is not None else set()
-    calls = []
-    for placed in resolved.items:
-        if placed.kind == "group" or mode not in placed.element.modes:
-            continue
-        if placed.id in skip:
-            continue  # painted into the buffer above
-        calls.append((placed.element, f"{_method(placed.id)}(dc{plan.arguments(placed)});"))
+    calls = _draw_calls(resolved, plan, mode, skip)
     _emit_layout_guarded_calls(w, resolved.face, calls)
 
 
@@ -1821,11 +1863,7 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         plan.emit_reads(w, "low_power")
         w.blank()
-        calls = []
-        for placed in resolved.items:
-            if placed.kind == "group" or "low_power" not in placed.element.modes:
-                continue
-            calls.append((placed.element, f"{_method(placed.id)}(dc{plan.arguments(placed)});"))
+        calls = _draw_calls(resolved, plan, "low_power")
         _emit_layout_guarded_calls(w, resolved.face, calls)
         w.line("dc.clearClip();")
     w.blank()
@@ -1853,7 +1891,7 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
             w.line("_sleeping = true;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
-    if resolved.in_mode("low_power") and resolved.device.supports_partial_update:
+    if _has_partial_update(resolved):
         w.doc(
             "The power budget was exceeded and partial updates are now off for the\n"
             "rest of this app's lifecycle.  Nothing can re-enable them; the face\n"
@@ -2088,6 +2126,24 @@ def _emit_guard(w: Writer, placed, guards: list[str], note: str | None = None) -
     w.blank()
 
 
+def _emit_arc_span(w: Writer, prefix: str) -> None:
+    """The two-line `WfbArc.drawSpan(...)` call against one arc's own
+    `_CX/_CY/_RADIUS/_THICKNESS/_START/_SWEEP` constants -- identical whether
+    it is a plain `shape: arc` or a `progress` arc's unfilled track, which is
+    exactly why the two go through the one barrel helper: they cannot
+    disagree about the angle convention or the full-circle case (drawArc
+    draws a complete circle when start == end).
+    """
+    w.line(
+        f"WfbArc.drawSpan(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, "
+        f"Layout.{prefix}_RADIUS,"
+    )
+    w.line(
+        f"                Layout.{prefix}_THICKNESS, Layout.{prefix}_START, "
+        f"Layout.{prefix}_SWEEP);"
+    )
+
+
 def _emit_shape(w: Writer, placed: PlacedShape) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -2116,14 +2172,7 @@ def _emit_shape(w: Writer, placed: PlacedShape) -> None:
         # The same barrel call a `progress` track uses, so the two arcs cannot
         # disagree about the angle convention or about the full-circle case
         # (drawArc draws a complete circle when start == end).
-        w.line(
-            f"WfbArc.drawSpan(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, "
-            f"Layout.{prefix}_RADIUS,"
-        )
-        w.line(
-            f"                Layout.{prefix}_THICKNESS, Layout.{prefix}_START, "
-            f"Layout.{prefix}_SWEEP);"
-        )
+        _emit_arc_span(w, prefix)
     elif element.shape == "ellipse":
         if element.filled:
             w.line(f"dc.fillEllipse(Layout.{prefix}_CX, Layout.{prefix}_CY,")
@@ -2208,34 +2257,50 @@ def _emit_one_hand(w: Writer, prefix: str, hand_name: str, angle_fn: str, hand,
         if color != current:
             w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
             current = color
-        if part.shape == "polygon":
-            w.line(f"WfbGeom.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
-        elif part.shape == "line":
-            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
-            w.line(
-                f"WfbGeom.drawLineRotated(dc, Layout.{part_prefix}_X1, "
-                f"Layout.{part_prefix}_Y1,"
-            )
-            w.line(
-                f"                        Layout.{part_prefix}_X2, "
-                f"Layout.{part_prefix}_Y2, cx, cy, sin, cos);"
-            )
-            w.line("dc.setPenWidth(1);")
-        elif part.filled:
-            w.line(
-                f"WfbGeom.fillCircleRotated(dc, Layout.{part_prefix}_X, "
-                f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
-            )
-            w.line("                          cx, cy, sin, cos);")
-        else:
-            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
-            w.line(
-                f"WfbGeom.drawCircleRotated(dc, Layout.{part_prefix}_X, "
-                f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
-            )
-            w.line("                          cx, cy, sin, cos);")
-            w.line("dc.setPenWidth(1);")
+        _emit_rotated_part(w, part, part_prefix)
     return True
+
+
+def _emit_rotated_part(w: Writer, part, part_prefix: str, *, set_pen: bool = True) -> None:
+    """One polygon/line/circle part's `WfbGeom.*Rotated` call about `(cx, cy)`
+    -- shared by `_emit_one_hand` and a radial pattern's own
+    `_emit_pattern_part`, which otherwise duplicate the exact two-line
+    wrapping and `dc.setPenWidth(...)`/`dc.setPenWidth(1);` bracketing.  A
+    hand never hoists its pen (``set_pen`` always true there); a radial
+    pattern with one shared pen width across every line/outlined-circle part
+    passes ``set_pen=False`` and brackets the whole loop itself instead.
+    """
+    if part.shape == "polygon":
+        w.line(f"WfbGeom.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
+    elif part.shape == "line":
+        if set_pen:
+            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+        w.line(
+            f"WfbGeom.drawLineRotated(dc, Layout.{part_prefix}_X1, "
+            f"Layout.{part_prefix}_Y1,"
+        )
+        w.line(
+            f"                        Layout.{part_prefix}_X2, "
+            f"Layout.{part_prefix}_Y2, cx, cy, sin, cos);"
+        )
+        if set_pen:
+            w.line("dc.setPenWidth(1);")
+    elif part.filled:
+        w.line(
+            f"WfbGeom.fillCircleRotated(dc, Layout.{part_prefix}_X, "
+            f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
+        )
+        w.line("                          cx, cy, sin, cos);")
+    else:
+        if set_pen:
+            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+        w.line(
+            f"WfbGeom.drawCircleRotated(dc, Layout.{part_prefix}_X, "
+            f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
+        )
+        w.line("                          cx, cy, sin, cos);")
+        if set_pen:
+            w.line("dc.setPenWidth(1);")
 
 
 # --------------------------------------------------------------------------
@@ -2347,57 +2412,42 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
         return
     if part.shape == "polygon":
         if radial:
-            w.line(f"WfbGeom.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
+            _emit_rotated_part(w, part, part_prefix)
         else:
             w.line(f"WfbGeom.fillTranslated(dc, Layout.{part_prefix}_POINTS, ox, oy);")
         return
     if part.shape == "line":
-        if not hoist_pen:
-            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
         if radial:
-            w.line(
-                f"WfbGeom.drawLineRotated(dc, Layout.{part_prefix}_X1, "
-                f"Layout.{part_prefix}_Y1,"
-            )
-            w.line(
-                f"                        Layout.{part_prefix}_X2, "
-                f"Layout.{part_prefix}_Y2, cx, cy, sin, cos);"
-            )
+            _emit_rotated_part(w, part, part_prefix, set_pen=not hoist_pen)
         else:
+            if not hoist_pen:
+                w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
             w.line(f"dc.drawLine(ox + Layout.{part_prefix}_X1, oy + Layout.{part_prefix}_Y1,")
             w.line(f"            ox + Layout.{part_prefix}_X2, oy + Layout.{part_prefix}_Y2);")
-        if not hoist_pen:
-            w.line("dc.setPenWidth(1);")
+            if not hoist_pen:
+                w.line("dc.setPenWidth(1);")
         return
     if part.shape == "circle":
         if part.filled:
             if radial:
-                w.line(
-                    f"WfbGeom.fillCircleRotated(dc, Layout.{part_prefix}_X, "
-                    f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
-                )
-                w.line("                          cx, cy, sin, cos);")
+                _emit_rotated_part(w, part, part_prefix)
             else:
                 w.line(
                     f"dc.fillCircle(ox + Layout.{part_prefix}_X, "
                     f"oy + Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS);"
                 )
             return
-        if not hoist_pen:
-            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
         if radial:
-            w.line(
-                f"WfbGeom.drawCircleRotated(dc, Layout.{part_prefix}_X, "
-                f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
-            )
-            w.line("                          cx, cy, sin, cos);")
+            _emit_rotated_part(w, part, part_prefix, set_pen=not hoist_pen)
         else:
+            if not hoist_pen:
+                w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
             w.line(
                 f"dc.drawCircle(ox + Layout.{part_prefix}_X, "
                 f"oy + Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS);"
             )
-        if not hoist_pen:
-            w.line("dc.setPenWidth(1);")
+            if not hoist_pen:
+                w.line("dc.setPenWidth(1);")
         return
     # arc: always centred on the copy's own origin (D3).  A radial pattern
     # turns the author start angle by plain degree subtraction -- the same
@@ -2553,29 +2603,24 @@ def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: li
         element.value.code,
         element.value.value.type,
     )
-    if element.when_absent == "placeholder" and guards:
+    if element.when_absent in ("placeholder", "fallback") and guards:
         # Build the string once rather than duplicating the draw call in both
-        # branches: the placeholder is a different *value*, not a different draw.
-        w.comment(f"when_absent: placeholder")
+        # branches: a placeholder is a different *value*, not a different
+        # draw; a fallback is the same, except its substitute is itself a
+        # compiled expression rather than a literal string, run through the
+        # same format spec the real value uses.
+        if element.when_absent == "placeholder":
+            w.comment("when_absent: placeholder")
+            initial = f'"{element.placeholder}"'
+        else:
+            initial = formatting.emit(
+                element.format or "{}",
+                element.fallback.code,
+                element.fallback.value.type,
+            )
+            w.comment("when_absent: fallback")
         available = " && ".join(f"{name} != null" for name in guards)
-        w.line(f'var text = "{element.placeholder}";')
-        with w.block(f"if ({available})"):
-            w.line(f"text = {value_code};")
-        w.blank()
-        _emit_text_draw(w, placed, "text")
-        return
-    if element.when_absent == "fallback" and guards:
-        # Same shape as placeholder above, except the substitute is itself a
-        # compiled expression rather than a literal string, so it is run
-        # through the same format spec the real value uses.
-        fallback_code = formatting.emit(
-            element.format or "{}",
-            element.fallback.code,
-            element.fallback.value.type,
-        )
-        w.comment("when_absent: fallback")
-        available = " && ".join(f"{name} != null" for name in guards)
-        w.line(f"var text = {fallback_code};")
+        w.line(f"var text = {initial};")
         with w.block(f"if ({available})"):
             w.line(f"text = {value_code};")
         w.blank()
@@ -2646,14 +2691,7 @@ def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str]) -> None
         if element.track_color is not None:
             w.comment("the unfilled track")
             w.line(f"dc.setColor({_color(element.track_color)}, Graphics.COLOR_TRANSPARENT);")
-            w.line(
-                f"WfbArc.drawSpan(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, "
-                f"Layout.{prefix}_RADIUS,"
-            )
-            w.line(
-                f"                Layout.{prefix}_THICKNESS, Layout.{prefix}_START, "
-                f"Layout.{prefix}_SWEEP);"
-            )
+            _emit_arc_span(w, prefix)
             w.blank()
         w.comment("the filled portion")
         w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
@@ -2990,7 +3028,6 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     element = placed.element
     prefix = _const_prefix(placed.id)
     face = resolved.face
-    slot = face.config_data[element.slot]
     field = config_field(f"data_{element.slot}")
     unique = config_data_ids(face)[element.slot]
 
@@ -3588,10 +3625,7 @@ class ReadPlan:
             for placed in self.resolved.items:
                 if mode not in placed.element.modes:
                     continue
-                for path in self._per_element[placed.id]:
-                    reader = catalog.CATALOG[path].reader
-                    if reader not in readers:
-                        readers.append(reader)
+                readers = self._dedupe_readers(self._per_element[placed.id], readers)
             self._readers_for_mode[mode] = readers
 
     # -- emission ---------------------------------------------------------
@@ -3696,11 +3730,18 @@ class ReadPlan:
                 names.append(local_name(path))
         return names
 
+    def _guarded_locals(self, paths: list[str]) -> list[str]:
+        """``paths`` narrowed to the ones that actually need a null check
+        (`_guard_needed`), each turned into its local's name -- the one
+        filter-then-name step `value_guards`/`visible_guards`/`other_guards`
+        all perform, over three different path lists.
+        """
+        return [local_name(path) for path in paths if self._guard_needed(catalog.CATALOG[path])]
+
     def value_guards(self, placed) -> list[str]:
         """Locals reached through the element's own *value* expression(s)."""
 
-        return [local_name(path) for path in self._value_bound[placed.id]
-                if self._guard_needed(catalog.CATALOG[path])]
+        return self._guarded_locals(self._value_bound[placed.id])
 
     def visible_guards(self, placed) -> list[str]:
         """Locals `visible:` dereferences, in declaration order.
@@ -3711,8 +3752,7 @@ class ReadPlan:
         no `when_absent:` to consult here.
         """
 
-        return [local_name(path) for path in self._visible_bound[placed.id]
-                if self._guard_needed(catalog.CATALOG[path])]
+        return self._guarded_locals(self._visible_bound[placed.id])
 
     def other_guards(self, placed) -> list[str]:
         """Locals dereferenced by a *different* expression (colour, track
@@ -3723,8 +3763,7 @@ class ReadPlan:
         only the text's dereference does nothing to protect.
         """
 
-        return [local_name(path) for path in self._other_bound[placed.id]
-                if self._guard_needed(catalog.CATALOG[path])]
+        return self._guarded_locals(self._other_bound[placed.id])
 
     @staticmethod
     def _value_expressions(element) -> tuple:
@@ -3777,7 +3816,7 @@ class ReadPlan:
                 # any) always runs first, so `.size()` never hits a null array.
                 guard_parts.append(source.array_guard)
 
-            intermediate = getattr(source, "intermediate", None)
+            intermediate = source.intermediate
             # `_guard_needed`/`wfb.availability.design_fields` both key a
             # device-absent field by its *first* dotted segment -- for a
             # dotted `field_name` that is the intermediate object itself
@@ -3829,8 +3868,17 @@ class ReadPlan:
         return out
 
     def _readers_used_by(self, placed) -> list[str]:
-        readers: list[str] = []
-        for path in self._per_element[placed.id]:
+        return self._dedupe_readers(self._per_element[placed.id])
+
+    @staticmethod
+    def _dedupe_readers(paths: list[str], into: list[str] | None = None) -> list[str]:
+        """The reader each of ``paths`` reads through, in first-seen order
+        with no repeats -- shared by `_analyse` (which folds every element in
+        one mode's readers together, passing its running list as ``into``)
+        and `_readers_used_by` (one element at a time, starting fresh).
+        """
+        readers = list(into) if into is not None else []
+        for path in paths:
             reader = catalog.CATALOG[path].reader
             if reader not in readers:
                 readers.append(reader)
