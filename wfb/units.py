@@ -10,7 +10,7 @@ ADR 0004: absolute pixels are not the primary model.  A length is one of
 
 Angles are degrees with **12 o'clock = 0 and clockwise positive**, because that
 is how a watch designer thinks.  Garmin's ``drawArc`` uses 3 o'clock = 0 and
-counter-clockwise positive; :func:`to_garmin_degrees` performs the conversion so
+counter-clockwise positive; :meth:`Angle.to_garmin` performs the conversion so
 the author never has to.
 """
 
@@ -200,8 +200,6 @@ class Angle:
             raise UnitError(f"{what}: {raw!r} is not an angle.  Use deg, rad or turn, e.g. '45deg'")
         value, unit = float(m.group("num")), m.group("unit") or "deg"
         if unit == "rad":
-            import math
-
             value = math.degrees(value)
         elif unit == "turn":
             value *= 360.0
@@ -213,10 +211,6 @@ class Angle:
 
     def __str__(self) -> str:
         return f"{self.degrees:g}deg"
-
-
-def to_garmin_degrees(degrees: float) -> float:
-    return (90.0 - degrees) % 360.0
 
 
 @dataclass(frozen=True)

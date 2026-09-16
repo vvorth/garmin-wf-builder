@@ -24,7 +24,7 @@ from .ir import (
     HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape, Size,
     Text, draw_sort_key,
 )
-from .units import ANCHORS, Angle, Axis, Box, IntBox, Length
+from .units import Angle, Axis, Box, IntBox, Length
 
 
 @dataclass
@@ -54,17 +54,16 @@ class Placed:
 _HAND_FRAME_BOX = Box(0.0, 0.0, 0.0, 0.0)
 
 
-def _round_away(value: float) -> int:
+def round_half_away(value: float) -> int:
     """Round half away from zero -- plan 04 §5.3: a mirrored ``dx: -1.5px``/
     ``dx: 1.5px`` pair must resolve to ``-2``/``2``, so a symmetric hand
     stays symmetric on the panel.
 
     Plain ``round()`` (round half *to even*) happens to be sign-symmetric
     too, but lands on a different integer for some ``.5`` cases (``0.5``
-    rounds to ``0``, not ``1``) -- the same distinction `wfb.preview`'s own
-    `_round_away` (for `WfbArc`'s degrees) already draws, duplicated here
-    rather than imported, because `wfb.layout` is resolved before any
-    preview or codegen module and must not depend on either.
+    rounds to ``0``, not ``1``).  The one implementation, imported by
+    `wfb.preview` for the same distinction over `WfbArc`'s degrees, rather
+    than kept as two copies that could drift apart.
     """
     return int(value - 0.5) if value < 0 else int(value + 0.5)
 
@@ -91,7 +90,7 @@ def alignment_shift(width: float, height: float, align: str, vertical_align: str
     and :meth:`Resolver._resolve_complication_slot`'s estimated box (§3.2(c))
     call it as well. Since phase D (same day), :meth:`Resolver._resolve_hand_part`'s
     `rectangle`/`circle` branches call it a fourth way -- in the part's own
-    frame, before `_round_away`, so the shift turns or steps with the hand or
+    frame, before `round_half_away`, so the shift turns or steps with the hand or
     copy like the rest of the part -- rather than write another copy.
     """
     dx = {"left": width / 2, "center": 0.0, "right": -width / 2}[align]
@@ -114,6 +113,40 @@ def garmin_arc(start: float, sweep: float) -> tuple[float, str]:
         (90.0 - start) % 360.0,
         "ARC_CLOCKWISE" if sweep >= 0 else "ARC_COUNTER_CLOCKWISE",
     )
+
+
+def _arc_box(
+    radius: int, pen: int, cx: float, cy: float, align: str, vertical_align: str,
+    start_angle: Angle | None, sweep_angle: Angle | None,
+) -> tuple[IntBox, float, float, float, float, float, str]:
+    """The geometry `shape: arc` and `progress: {style: arc}` share once
+    `radius`/`pen` (a shape's own `max(1, thickness)`, a progress's own
+    `max(1, round(...))`) are already resolved: the alignment shift by the
+    full circle -- `start_angle:`/`sweep:` never move the centre (plan 07
+    choice 3, §6) -- the pen's own reach (the same reach a `progress` arc
+    claims: the pen straddles the radius, so the ink runs half a pen width
+    past it either side), and the author-to-Garmin angle conversion
+    (`garmin_arc`).
+
+    Takes `radius`/`pen` already resolved rather than resolving them itself:
+    the two callers' own `_extent` calls for `radius` and `thickness` run in
+    opposite order (`_resolve_shape` resolves `thickness` before dispatching
+    to the `arc` branch, `_resolve_progress` resolves `radius` first inside
+    it), and preserving each one's own order is what keeps `Resolver.
+    sub_pixel`'s record order unchanged, so that part stays in each caller.
+
+    Returns ``(box, cx, cy, start_degrees, sweep_degrees, garmin_start,
+    garmin_direction)`` -- the shifted centre, since both callers embed it
+    in their own `Placed*.center`.
+    """
+    dx, dy = alignment_shift(2 * radius, 2 * radius, align, vertical_align)
+    cx, cy = cx + dx, cy + dy
+    reach = radius + pen // 2 + 1
+    box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
+    start = (start_angle or Angle(0.0)).degrees
+    sweep = (sweep_angle or Angle(360.0)).degrees
+    garmin_start, direction = garmin_arc(start, sweep)
+    return box.rounded(), cx, cy, start, sweep, garmin_start, direction
 
 
 @dataclass
@@ -246,7 +279,7 @@ class ResolvedHandPart:
     start_angle: float = 0.0
     sweep: float = 0.0
     #: ``text`` only (plan 06 §3.4) -- ``x``/``y`` double as the part's own
-    #: anchor in the template frame (rounded via `_round_away`, the same as
+    #: anchor in the template frame (rounded via `round_half_away`, the same as
     #: a circle's centre), everything else stays at its default on every
     #: other shape.  Upright glyphs are *not* rotation-invariant, so unlike
     #: every other shape a text part's own ``reach`` (`Resolver.
@@ -346,7 +379,7 @@ def pattern_text_anchor(
     """The whole-pixel anchor point of one copy of a `shape: text` pattern
     part (plan 06 §3.2 D5): the template-frame point ``(part.x, part.y)``
     put through this copy's :meth:`PlacedPattern.transform`, then rounded
-    **half up** (``floor(v + 0.5)``, not `_round_away`'s half-*away-from-
+    **half up** (``floor(v + 0.5)``, not `round_half_away`'s half-*away-from-
     zero* -- a hand-frame mirror-symmetry rule that does not apply here) --
     the device does the same ``(v + 0.5).toNumber()`` (`runtime-lib/
     WfbGeom.mc`), so the preview pixel and the device pixel agree.  A
@@ -694,14 +727,37 @@ class Resolver:
 
     # -- per-kind ---------------------------------------------------------
 
+    def _sized_shift(
+        self, size: Size, parent: Box, cx: float, cy: float, align: str, vertical_align: str, *,
+        min_1px: bool,
+    ) -> tuple[float, float, float, float]:
+        """Width, height (`_extent`, width then height -- the order every
+        `SubPixelLength` record relies on) and `(cx, cy)` shifted by
+        `alignment_shift` -- the "size, then align" placement box
+        `_group_box`, `_resolve_shape`'s rectangle/rounded_rectangle/ellipse
+        tail, `_resolve_progress`'s bar branch and `_resolve_graph` all
+        share (plan 07 §3.2(a)).
+
+        Takes the already-resolved anchor point rather than resolving it
+        itself: `_resolve_shape` needs that same point earlier, for its
+        circle/line/arc/polygon branches, before this is ever reached, and
+        `_point` never records a `SubPixelLength` (it calls `_len`, not
+        `_extent`), so calling it before or after these two `_extent` calls
+        makes no difference to `Resolver.sub_pixel`'s order.
+        """
+        width = self._extent(size.width, parent, Axis.X, parent.width,
+                             min_1px=min_1px, what="size.width")
+        height = self._extent(size.height, parent, Axis.Y, parent.height,
+                              min_1px=min_1px, what="size.height")
+        dx, dy = alignment_shift(width, height, align, vertical_align)
+        return width, height, cx + dx, cy + dy
+
     def _group_box(self, element: Group, parent: Box) -> Box:
-        width = self._extent(element.size.width, parent, Axis.X, parent.width,
-                             min_1px=element.resolved_min_1px, what="size.width")
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
-                              min_1px=element.resolved_min_1px, what="size.height")
         cx, cy = self._point(element.at, parent)
-        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
-        return Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
+        width, height, cx, cy = self._sized_shift(
+            element.size, parent, cx, cy, element.align, element.vertical_align,
+            min_1px=element.resolved_min_1px)
+        return Box(cx - width / 2, cy - height / 2, width, height)
 
     def _resolve_shape(self, element: Shape, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
@@ -739,19 +795,11 @@ class Resolver:
             radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
                                         min_1px=min_1px, what="radius"))
             pen = max(1, thickness)
-            # Plan 07 choice 3 (§6): align by the full circle, not the swept
-            # span's box, so `start_angle:`/`sweep:` never move the centre.
-            dx, dy = alignment_shift(2 * radius, 2 * radius, element.align, element.vertical_align)
-            cx, cy = cx + dx, cy + dy
-            # The same reach a `progress` arc claims: the pen straddles the
-            # radius, so the ink runs half a pen width past it either side.
-            reach = radius + pen // 2 + 1
-            box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
-            start = (element.start_angle or Angle(0.0)).degrees
-            sweep = (element.sweep or Angle(360.0)).degrees
-            garmin_start, direction = garmin_arc(start, sweep)
+            box, cx, cy, start, sweep, garmin_start, direction = _arc_box(
+                radius, pen, cx, cy, element.align, element.vertical_align,
+                element.start_angle, element.sweep)
             return PlacedShape(
-                element, box.rounded(), (round(cx), round(cy)), depth,
+                element, box, (round(cx), round(cy)), depth,
                 radius=radius, thickness=pen,
                 start_angle=start, sweep=sweep,
                 garmin_start=garmin_start, garmin_direction=direction,
@@ -773,15 +821,11 @@ class Resolver:
             centre = (round(sum(xs) / len(xs)), round(sum(ys) / len(ys)))
             return PlacedShape(element, box.rounded(), centre, depth, points=points)
 
-        width = self._extent(element.size.width, parent, Axis.X, parent.width,
-                             min_1px=min_1px, what="size.width")
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
-                              min_1px=min_1px, what="size.height")
         # rectangle, rounded_rectangle, ellipse: the placement box is the
         # declared `size:` (plan 07 §3.1) -- moved before the outline's pen
         # pad (below) is added, so the pad never itself moves the shift (R4).
-        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
-        cx, cy = cx + dx, cy + dy
+        width, height, cx, cy = self._sized_shift(
+            element.size, parent, cx, cy, element.align, element.vertical_align, min_1px=min_1px)
 
         if element.shape == "ellipse":
             rx = round(width / 2)
@@ -858,32 +902,21 @@ class Resolver:
                                         min_1px=min_1px, what="radius"))
             thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 1,
                                                   min_1px=min_1px, what="thickness")))
-            # Plan 07 §3.1: the placement box is the full circle (`2*radius`
-            # square), moved before the pen pad below -- `start_angle:`/
-            # `sweep:` never move it, same as `shape: arc`.
-            dx, dy = alignment_shift(2 * radius, 2 * radius, element.align, element.vertical_align)
-            cx, cy = cx + dx, cy + dy
-            reach = radius + thickness // 2 + 1
-            box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
-            start = (element.start_angle or Angle(0.0)).degrees
-            sweep = (element.sweep or Angle(360.0)).degrees
             # The author's clockwise-positive angle becomes Garmin's
             # counter-clockwise one; a positive sweep therefore draws clockwise
             # on the device.  `shape: arc` calls the same helper.
-            garmin_start, direction = garmin_arc(start, sweep)
+            box, cx, cy, start, sweep, garmin_start, direction = _arc_box(
+                radius, thickness, cx, cy, element.align, element.vertical_align,
+                element.start_angle, element.sweep)
             return PlacedProgress(
-                element, box.rounded(), (round(cx), round(cy)), depth,
+                element, box, (round(cx), round(cy)), depth,
                 radius=radius, thickness=thickness,
                 start_angle=start, sweep=sweep,
                 garmin_start=garmin_start,
                 garmin_direction=direction,
             )
-        width = self._extent(element.size.width, parent, Axis.X, parent.width,
-                             min_1px=min_1px, what="size.width")
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
-                              min_1px=min_1px, what="size.height")
-        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
-        cx, cy = cx + dx, cy + dy
+        width, height, cx, cy = self._sized_shift(
+            element.size, parent, cx, cy, element.align, element.vertical_align, min_1px=min_1px)
         box = Box(cx - width / 2, cy - height / 2, width, height)
         return PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
                               size=(round(width), round(height)))
@@ -925,12 +958,8 @@ class Resolver:
     def _resolve_graph(self, element: Graph, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
         min_1px = element.resolved_min_1px
-        width = self._extent(element.size.width, parent, Axis.X, parent.width,
-                             min_1px=min_1px, what="size.width")
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
-                              min_1px=min_1px, what="size.height")
-        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
-        cx, cy = cx + dx, cy + dy
+        width, height, cx, cy = self._sized_shift(
+            element.size, parent, cx, cy, element.align, element.vertical_align, min_1px=min_1px)
         box = Box(cx - width / 2, cy - height / 2, width, height)
         thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 2,
                                               min_1px=min_1px, what="thickness")))
@@ -1048,11 +1077,9 @@ class Resolver:
                 continue
             value_type = Type.STRING if ctype.value_type == "string" else Type.NUMBER
             candidate = formatting.widest("{}", None, value_type)
-            if len(candidate) > len(widest):
-                widest = candidate
+            widest = _longer(widest, candidate)
         if element.when_absent == "placeholder" and element.placeholder:
-            if len(element.placeholder) > len(widest):
-                widest = element.placeholder
+            widest = _longer(widest, element.placeholder)
         # `label:`/`unit:` are deliberately NOT folded in here, unlike the
         # digit-count estimate above: `Complication.shortLabel`/`.longLabel`
         # and a String `.unit` are localised device strings with no
@@ -1116,7 +1143,7 @@ class Resolver:
     ) -> tuple[ResolvedHandPart, float]:
         """One hand part -> whole-pixel geometry in the hand's own frame,
         plus its own reach from the axis (the farthest ink any of its
-        drawing touches).  Rounds with :func:`_round_away`, not the plain
+        drawing touches).  Rounds with :func:`round_half_away`, not the plain
         `round()` every other element here uses -- §5.3's mirror-symmetry
         rule is specific to a hand frame, which is the only geometry a
         symmetric pair of authored coordinates (`dx: -1.5px`/`dx: 1.5px`)
@@ -1148,7 +1175,7 @@ class Resolver:
 
         if part.shape == "polygon":
             points = tuple(
-                (_round_away(x), _round_away(y))
+                (round_half_away(x), round_half_away(y))
                 for x, y in (self._hand_point(p) for p in part.points)
             )
             reach = max((math.hypot(x, y) for x, y in points), default=0.0)
@@ -1162,7 +1189,7 @@ class Resolver:
                                        min_1px=effective_min_1px, what="size.height")
             # Plan 07 phase D, mechanism (a): the placement box is the
             # declared `size:`, in the part's own frame -- shift the centre
-            # before the corners (and `_round_away`) below, the same order
+            # before the corners (and `round_half_away`) below, the same order
             # `Resolver._resolve_shape` already uses in the parent's frame.
             # `top`/`left` mean `-y`/`-x` here too: a hand's 12 o'clock rest
             # pose is already `-y`, so no sign flip is needed to match §3.2's
@@ -1177,20 +1204,20 @@ class Resolver:
                 (cx - hw, cy - hh), (cx + hw, cy - hh),
                 (cx + hw, cy + hh), (cx - hw, cy + hh),
             ]
-            points = tuple((_round_away(x), _round_away(y)) for x, y in corners)
+            points = tuple((round_half_away(x), round_half_away(y)) for x, y in corners)
             reach = max(math.hypot(x, y) for x, y in points)
             return ResolvedHandPart("polygon", part.color, points=points), reach
 
         if part.shape == "line":
             x1, y1 = self._hand_point(part.at)
             x2, y2 = self._hand_point(part.to)
-            thickness = max(1, _round_away(self._hand_extent(
+            thickness = max(1, round_half_away(self._hand_extent(
                 part.thickness, default=1, min_1px=effective_min_1px, what="thickness")))
             reach = max(math.hypot(x1, y1), math.hypot(x2, y2)) + thickness / 2.0
             return ResolvedHandPart(
                 "line", part.color,
-                x1=_round_away(x1), y1=_round_away(y1),
-                x2=_round_away(x2), y2=_round_away(y2),
+                x1=round_half_away(x1), y1=round_half_away(y1),
+                x2=round_half_away(x2), y2=round_half_away(y2),
                 thickness=thickness,
             ), reach
 
@@ -1199,9 +1226,9 @@ class Resolver:
             # pattern's template does (plan 05 §5.2).  Always centred on the
             # origin (x=y=0, D3), so its reach is exactly the pen's own
             # extent -- no `at:` to add a distance-from-origin term.
-            radius = _round_away(self._hand_extent(
+            radius = round_half_away(self._hand_extent(
                 part.radius, min_1px=effective_min_1px, what="radius"))
-            thickness = max(1, _round_away(self._hand_extent(
+            thickness = max(1, round_half_away(self._hand_extent(
                 part.thickness, default=1, min_1px=effective_min_1px, what="thickness")))
             start_angle = (part.start_angle or Angle(0.0)).degrees
             sweep = (part.sweep or Angle(360.0)).degrees
@@ -1220,7 +1247,7 @@ class Resolver:
             # _resolve_pattern`'s per-copy loop computes the real farthest
             # corner instead (plan 06 §3.4).
             x0, y0 = self._hand_point(part.at)
-            x, y = _round_away(x0), _round_away(y0)
+            x, y = round_half_away(x0), round_half_away(y0)
             font_px, reference, is_custom, baked = self._font_for_ref(
                 part.font, part.font_is_custom, owner_id)
             if baked is not None:
@@ -1239,21 +1266,21 @@ class Resolver:
 
         # circle
         cx, cy = self._hand_point(part.at)
-        radius = _round_away(self._hand_extent(
+        radius = round_half_away(self._hand_extent(
             part.radius, min_1px=effective_min_1px, what="radius"))
         # Plan 07 phase D: the placement box is the full `2*radius` square,
         # at the resolved (already-rounded) radius the part draws with --
-        # shifted before `reach`/`_round_away` below, same as
+        # shifted before `reach`/`round_half_away` below, same as
         # `Resolver._resolve_shape`'s circle branch in the parent's frame.
         dx, dy = alignment_shift(2 * radius, 2 * radius, part.align, part.vertical_align)
         cx, cy = cx + dx, cy + dy
-        thickness = max(1, _round_away(self._hand_extent(
+        thickness = max(1, round_half_away(self._hand_extent(
             part.thickness, default=1, min_1px=effective_min_1px, what="thickness")))
         pen_reach = radius if part.filled else radius + thickness / 2.0
         reach = math.hypot(cx, cy) + pen_reach
         return ResolvedHandPart(
             "circle", part.color,
-            x=_round_away(cx), y=_round_away(cy), radius=radius,
+            x=round_half_away(cx), y=round_half_away(cy), radius=radius,
             thickness=thickness, filled=part.filled,
         ), reach
 
@@ -1300,8 +1327,8 @@ class Resolver:
             start = step = 0.0
             reach = 0.0  # only a radial pattern reports a disc (§5.5)
             step_position = element.step or Position()
-            dx = _round_away(self._len(step_position.dx, parent, Axis.X, 0))
-            dy = _round_away(self._len(step_position.dy, parent, Axis.Y, 0))
+            dx = round_half_away(self._len(step_position.dx, parent, Axis.X, 0))
+            dy = round_half_away(self._len(step_position.dy, parent, Axis.Y, 0))
 
         placed = PlacedPattern(
             element, IntBox(0, 0, 0, 0), center, depth,
@@ -1494,8 +1521,7 @@ class Resolver:
         widest = formatting.widest(spec, source, element.value.value.type,
                                    element.value.scale)
         if element.when_absent == "placeholder" and element.placeholder:
-            if len(element.placeholder) > len(widest):
-                widest = element.placeholder
+            widest = _longer(widest, element.placeholder)
         if element.when_absent == "fallback" and element.fallback is not None:
             # 'fallback:' is drawn through the exact same format spec as the
             # real value (see _emit_text in wfb.emit.monkeyc), so its widest
@@ -1503,9 +1529,7 @@ class Resolver:
             # from the *value*'s digit range alone can come up short for a
             # wider fallback (e.g. a longer literal string on a nullable
             # STRING source).
-            fallback_widest = _fallback_widest(element.fallback, spec)
-            if len(fallback_widest) > len(widest):
-                widest = fallback_widest
+            widest = _longer(widest, _fallback_widest(element.fallback, spec))
         return widest
 
     @staticmethod
@@ -1524,6 +1548,16 @@ class Resolver:
         if element.vertical_align == "center":
             out.append("TEXT_JUSTIFY_VCENTER")
         return tuple(out)
+
+
+def _longer(current: str, candidate: str) -> str:
+    """`candidate` if it is strictly longer than `current`, else `current`
+    unchanged -- "a placeholder/estimate longer than the widest-so-far
+    wins," the one rule `_widest_text` (placeholder, fallback) and
+    `Resolver._complication_slot_widest` (per-choice estimate, placeholder)
+    each repeated as their own ``if len(x) > len(y): y = x``.
+    """
+    return candidate if len(candidate) > len(current) else current
 
 
 def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
@@ -1645,7 +1679,6 @@ __all__ = [
     "ResolvedHandPart",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
     "inside_visible_area_for", "circular_extent", "garmin_arc",
-    "alignment_shift",
+    "alignment_shift", "round_half_away",
     "is_full_bleed",
-    "ANCHORS", "Size",
 ]

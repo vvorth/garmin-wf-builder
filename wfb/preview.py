@@ -24,7 +24,6 @@ from PIL import Image, ImageDraw
 from . import catalog, complications, expr, formatting
 from .catalog import Type
 from .fonts import BakedFont, fallback
-from .ir import Progress, Shape, Text
 from .layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
     PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
@@ -272,7 +271,7 @@ class _Renderer:
     # -- dispatch ---------------------------------------------------------
 
     def render_element(self, placed) -> None:
-        if not self._visible(placed):
+        if not self._visible(placed.element.visible):
             return
         if isinstance(placed, PlacedShape):
             self._shape(placed)
@@ -435,7 +434,7 @@ class _Renderer:
             values = {**self.values, expr.COPY: index}
             for part_index, part in enumerate(placed.parts):
                 visible = element.parts[part_index].visible
-                if visible is not None and not self._pattern_part_visible(visible, values):
+                if not self._visible(visible, values):
                     continue
                 if part.shape == "arc":
                     self._pattern_arc(part, ox, oy, index, placed, s, values)
@@ -471,13 +470,6 @@ class _Renderer:
             catalog.CATALOG[path].guard_needed and self.values.get(path) is None
             for path in sources
         )
-
-    def _pattern_part_visible(self, expression, values: dict) -> bool:
-        if expression.constant is not None:
-            return bool(expression.constant)
-        if expression.ast is None:
-            return True
-        return bool(expr.evaluate(expression.ast, values))
 
     def _pattern_arc(self, part, ox: float, oy: float, index: int,
                      placed: PlacedPattern, s: int, values: dict) -> None:
@@ -609,13 +601,13 @@ class _Renderer:
         """
         element = placed.element
         values = _synthetic_series(max(0, element.sample_count))
+        present = ([v for v in values if v is not None]
+                  if element.min_auto or element.max_auto else [])
         if element.min_auto:
-            present = [v for v in values if v is not None]
             lo = min(present) if present else 0.0
         else:
             lo = self._graph_bound(element.min, 0.0)
         if element.max_auto:
-            present = [v for v in values if v is not None]
             hi = max(present) if present else 1.0
         else:
             hi = self._graph_bound(element.max, 1.0)
@@ -673,8 +665,8 @@ class _Renderer:
         if n < 2:
             return
         s = self.scale
-        x, y = placed.box.x, placed.box.y
-        w, h = placed.size
+        y = placed.box.y
+        h = placed.size[1]
         i = 0
         while i < n:
             if values[i] is None:
@@ -960,8 +952,11 @@ class _Renderer:
         s = self.scale
         return [box.x * s, box.y * s, box.right * s - 1, box.bottom * s - 1]
 
-    def _visible(self, placed) -> bool:
-        """`visible:` -- the same rule the device runs, on the sample readings.
+    def _visible(self, expression, values: dict | None = None) -> bool:
+        """`visible:` -- the same rule the device runs, on the sample
+        readings (`self.values`, or a pattern part's own `values` with
+        `copy` bound to the copy being drawn -- `values` overrides
+        `self.values` the same way `_color`'s does).
 
         Absent means hidden, so `expr.evaluate` returning ``None`` (which is
         exactly what it does when any input is missing) hides the element,
@@ -969,16 +964,16 @@ class _Renderer:
         merely approximating it.  A group's condition is already conjoined into
         every descendant by `wfb.ir`, so nothing here has to walk the tree --
         which is also why the preview cannot silently disagree with the device
-        about a subtree.
+        about a subtree.  `expression is None` means "no condition authored" --
+        an element with no `visible:`, or a pattern part with none of its own.
         """
-        expression = placed.element.visible
         if expression is None:
             return True
         if expression.constant is not None:
             return bool(expression.constant)
         if expression.ast is None:
             return True
-        return bool(expr.evaluate(expression.ast, self.values))
+        return bool(expr.evaluate(expression.ast, self.values if values is None else values))
 
     def _color(self, expression, values: dict | None = None) -> tuple[int, int, int]:
         """`values` overrides `self.values` -- a pattern passes its own, with
@@ -1052,16 +1047,16 @@ def _mask_round(image: Image.Image, scale: int) -> Image.Image:
     return out
 
 
-def write(resolved: ResolvedFace, path: Path, options: PreviewOptions | None = None) -> Path:
-    image = render(resolved, options)
+def _save(image: Image.Image, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, format="PNG")
     return path
+
+
+def write(resolved: ResolvedFace, path: Path, options: PreviewOptions | None = None) -> Path:
+    return _save(render(resolved, options), path)
 
 
 def write_all_styles(resolved: ResolvedFace, path: Path,
                      options: PreviewOptions | None = None) -> Path:
-    image = render_all_styles(resolved, options)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    image.save(path, format="PNG")
-    return path
+    return _save(render_all_styles(resolved, options), path)
