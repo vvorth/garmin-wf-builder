@@ -19,6 +19,19 @@ with four diagonal readouts (`complication_slot`, a `group`, a `graph`,
 `text`), each aligned to grow away from the centre, covering all four
 `align`×`vertical_align` combinations, plus every accepting shape, both
 `progress` styles, a static `icon`, and aligned hand/pattern parts.
+`showcase/` is the widest single face in this directory: two `layouts:`
+switched by Styles -- a quiet classic three-hand `analog` dial (`hands:`, a
+radial tick `pattern`, twelve numerals as one `shape: text` pattern part)
+and a data-rich `digital` dashboard (a monospaced two-tone clock, a
+weather row with a dynamic `icon_for:` condition icon, a heart-rate
+`graph`, `group`+`on_hold:` icon/value clusters, both `progress` styles,
+and a conditional-colour status row) -- plus two shared
+`complication_slot` "registers" (the Data axis, one with per-choice icon
+overrides, one `choices: any`), three `color_scheme:` entries and five
+`config: style:` entries pairing them with the two layouts, and
+several-colour `accent_color`/`data_color` axes. Builds warning-free on
+all three targets at 14.4% of the 128 KB budget.
+
 The Phase 2 slice is no longer an
 example: it is the test fixture `tests/fixtures/slice/`.
 

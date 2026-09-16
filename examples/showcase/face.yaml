@@ -1,0 +1,600 @@
+# Showcase -- one face, two very different faces of it, meant to exercise as
+# much of this builder's format as a single design can reasonably carry.
+#
+# **Two `layouts:` entries** switched by Styles, in the sense
+# `examples/styles/face.yaml` and `examples/analog/face.yaml` already
+# establish:
+#
+# * `analog` -- a classic three-hand dial (`hands:`), a radial minute/hour
+#   tick `pattern`, twelve numerals as a single radial `shape: text`
+#   `pattern` part (not twelve elements), and a thin accent-coloured second
+#   hand. Deliberately quiet: no data rows, no icons on the dial face itself
+#   -- the two shared side "registers" (below) are its only readings, the
+#   way a chronograph's sub-dials are.
+# * `digital` -- dense and data-rich: a two-tone monospaced clock, a date
+#   line, a weather row (a dynamic `icon_for:` condition glyph plus
+#   high/low/feels-like readings), a heart-rate `graph` (`style: area`),
+#   three icon+value clusters in `group`s (heart rate, steps, calories),
+#   a linear `progress` bar (steps vs. goal) and an arc `progress` ring
+#   (battery), a charging indicator gated by `visible:`, and a
+#   notification/DND/alarm status row with conditional colours -- the
+#   `examples/dashboard/` vocabulary, reassembled as one of two styles
+#   instead of the whole face.
+#
+# **Shared content, drawn beneath both layouts** (docs/format.md "Styles and
+# layouts": layout content always draws above shared content): a
+# background, and two side "data registers" -- `type: complication_slot`
+# behind a `rounded_rectangle` card, one with an explicit `choices:` list
+# (steps / heart rate / calories, the last with `icon: none`) and one with
+# `choices: any` (the editor's own unrestricted picker) -- plus a small date
+# window at 6 o'clock. A `complication_slot` may only ever live in shared
+# content (never inside a `layouts:` body), so this is also the only legal
+# place for it -- and it happens to be exactly where a real chronograph
+# keeps its registers, which is why both layouts read well with them there.
+#
+# **Configuration: all three axes this compiler wires up.** Three named
+# `color_scheme:` entries (`dark`, `light`, `navy`) and **five** `config:
+# style:` entries pairing them with the two layouts (`analog` gets all
+# three schemes, `digital` gets two) -- "however many entries the author
+# wants," not a generated layout x scheme product (plan 02 §4.1). Both
+# colour axes (`accent_color`, `data_color`) each offer a several-colour
+# `choices:` list. The Data axis (`config: data:`) is the two registers
+# above.
+#
+# Every colour -- palette, `color_scheme:` and `config:` alike -- is one the
+# 64-colour MIP panel shows without dithering: each channel is 0x00, 0x55,
+# 0xAA or 0xFF.
+#
+# `fr955` has no native editor at all (CLAUDE.md constraint 6) -- it simply
+# keeps every compiled-in default forever (the `analog_dark` style, both
+# registers' default complication, the default accent/data colours), the
+# same "keeps every declared default" behaviour every other `config:`-using
+# example in this repository already has there. The suppressible
+# `config-unsupported` warning is accepted explicitly, once per axis, on
+# whichever element the compiler reports it against.
+#
+# What is verified: this design builds warning-free through the real
+# `monkeyc` on all three targets. What is NOT verified anywhere in this
+# project: what any of it looks like on a panel, or any behaviour of the
+# on-device editor itself -- there is no simulator and no watch in this
+# container. `wfb preview --style <entry>` / `--all-styles` renders the same
+# resolved geometry the generated code draws from.
+#
+# Build it with:            ./wfb.py build examples/showcase/face.yaml
+# Preview the dial:         ./wfb.py preview examples/showcase/face.yaml --style analog_navy
+# Preview the dashboard:    ./wfb.py preview examples/showcase/face.yaml --style digital_dark
+# Preview every style:      ./wfb.py preview examples/showcase/face.yaml --all-styles
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 5ca5867b-1d30-4581-94c0-617033e6824c
+  name: Showcase
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+fonts:
+  digitalclock:
+    source: assets/ChivoMono-Bold.ttf
+    size: 26%r
+    monospace: true
+    align: center
+    antialias: true
+  dialfont:
+    source: assets/Dynalight-Regular.ttf
+    size: 13%r
+    antialias: true
+
+palette:
+  black: { value: "#000000", label: "Black" }
+  white: { value: "#FFFFFF", label: "White" }
+  light_gray: { value: "#AAAAAA", label: "Light Gray" }
+  dark_gray: { value: "#555555", label: "Dark Gray" }
+  darkest_blue: { value: "#000055", label: "Midnight" }
+  red: { value: "#FF0000", label: "Red" }
+  orange: { value: "#FF5500", label: "Orange" }
+  amber: { value: "#FFAA00", label: "Amber" }
+  yellow: { value: "#FFFF00", label: "Yellow" }
+  green: { value: "#00FF00", label: "Green" }
+  lime_green: { value: "#AAFF00", label: "Lime Green" }
+  cyan: { value: "#00FFFF", label: "Cyan" }
+  sky_blue: { value: "#00AAFF", label: "Sky Blue" }
+  light_blue: { value: "#55FFFF", label: "Light Blue" }
+  magenta: { value: "#FF00FF", label: "Magenta" }
+
+color_scheme:
+  dark:
+    label: "Dark"
+    colors: { bg: palette.black, fg: palette.white, dim: palette.light_gray, dark: palette.dark_gray, track: palette.light_gray, notify: palette.black }
+  light:
+    label: "Light"
+    colors: { bg: palette.white, fg: palette.black, dim: palette.dark_gray, dark: palette.light_gray, track: palette.dark_gray, notify: palette.white }
+  navy:
+    label: "Navy"
+    colors: { bg: palette.darkest_blue, fg: palette.white, dim: palette.light_gray, dark: palette.dark_gray, track: palette.light_gray, notify: palette.black }
+
+config:
+  accent_color:
+    default: palette.orange
+    choices:
+      - palette.orange
+      - palette.red
+      - palette.amber
+      - palette.cyan
+      - palette.sky_blue
+      - palette.lime_green
+      - palette.magenta
+  data_color:
+    default: palette.cyan
+    choices:
+      - palette.cyan
+      - palette.light_blue
+      - palette.lime_green
+      - palette.amber
+      - palette.magenta
+  style:
+    default: analog_dark
+    choices:
+      analog_dark:   { label: "Analog · Dark",  layout: analog,  colors: dark }
+      analog_light:  { label: "Analog · Light", layout: analog,  colors: light }
+      analog_navy:   { label: "Analog · Navy",  layout: analog,  colors: navy }
+      digital_dark:  { label: "Digital · Dark", layout: digital, colors: dark }
+      digital_light: { label: "Digital · Light", layout: digital, colors: light }
+  data:
+    left_register:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - complication.heart_rate
+        - { type: complication.calories, icon: none }
+    right_register:
+      default: complication.body_battery
+      choices: any
+
+# One named hand set, authored pointing at 12 o'clock, origin = the axis
+# (docs/format.md "Analog hands"). Tapered hour/minute polygons plus a
+# needle-thin second hand whose tip is the one native accent-colour axis.
+hands:
+  classic:
+    hour:
+      color: config.colors.fg
+      parts:
+        - shape: polygon
+          points:
+            - { dx: -3%r, dy: 8%r }
+            - { dx: -2%r, dy: -38%r }
+            - { dy: -46%r }
+            - { dx: 2%r, dy: -38%r }
+            - { dx: 3%r, dy: 8%r }
+    minute:
+      color: config.colors.fg
+      parts:
+        - { shape: rectangle, at: { dy: -34%r }, size: { width: 3%r, height: 78%r } }
+        - { shape: circle, radius: 4%r }
+    second:
+      color: config.colors.dim
+      parts:
+        - { shape: line, at: { dy: 14%r }, to: { dy: -76%r }, thickness: 1px }
+        - { shape: circle, at: { dy: 14%r }, radius: 3%r }
+        - { shape: circle, radius: 2%r, color: config.accent_color }
+        - { shape: line, at: { dy: -76%r }, to: { dy: -64%r }, thickness: 2px, color: config.accent_color }
+
+# Shared: drawn underneath both layouts, in every one of them -- two side
+# "registers" (a re-pointable complication behind a card) and a small date
+# window, the same three shapes every layout benefits from.
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: config.colors.bg
+
+  left_card:
+    type: shape
+    shape: rounded_rectangle
+    at: { anchor: center, dx: -42%r }
+    size: { width: 32%r, height: 20%r }
+    corner_radius: 3%r
+    color: config.colors.dark
+
+  right_card:
+    type: shape
+    shape: rounded_rectangle
+    at: { anchor: center, dx: 42%r }
+    size: { width: 32%r, height: 20%r }
+    corner_radius: 3%r
+    color: config.colors.dark
+
+  date_window:
+    type: shape
+    shape: rounded_rectangle
+    at: { anchor: center, dy: 48%r }
+    size: { width: 30%r, height: 12%r }
+    corner_radius: 2%r
+    color: config.colors.dark
+    lint:
+      allow: [static-overlap]
+      reason: "the digital layout's bottom status row (dnd/notification/alarm)
+        draws well clear of this window on every target; the overlap the
+        linter flags is between the two elements' declared boxes, not their
+        ink -- see docs/format.md 'static:'"
+
+elements:
+  left_register:
+    type: complication_slot
+    slot: config.data.left_register
+    at: { anchor: center, dx: -42%r }
+    font: FONT_XTINY
+    icon_size: 9%r
+    icon_position: top
+    icon_gap: 1%r
+    icon_color: config.data_color
+    color: config.colors.fg
+    label: none
+    when_absent: placeholder
+    placeholder: "--"
+    on_hold: auto
+    lint:
+      allow: [config-unsupported, static-overlap]
+      reason: "fr955 has no native editor and keeps this register's declared
+        default forever -- see the header comment. static-overlap: the
+        analog layout's full-dial tick/numeral patterns bound this register
+        card's overlap box (any dynamic element trivially overlaps a
+        full-circle pattern's bounding disc), but no ink from either pattern
+        actually falls inside this card at dx -42%r -- the numerals sit at
+        radius 78%r along the 3/9 o'clock row, well clear of it"
+
+  right_register:
+    type: complication_slot
+    slot: config.data.right_register
+    at: { anchor: center, dx: 42%r }
+    font: FONT_XTINY
+    icon_size: 9%r
+    icon_position: top
+    icon_gap: 1%r
+    icon_color: config.data_color
+    color: config.colors.fg
+    label: none
+    when_absent: placeholder
+    placeholder: "--"
+    lint:
+      allow: [config-unsupported, static-overlap]
+      reason: "fr955 has no native editor and keeps this register's declared
+        default forever -- see the header comment. static-overlap: same
+        full-dial-pattern bounding-box overstatement as left_register above,
+        mirrored at dx +42%r"
+
+  date_text:
+    type: text
+    value: date.today
+    format: "{:%a %e %b}"
+    font: FONT_XTINY
+    at: { anchor: center, dy: 48%r }
+    color: config.colors.fg
+    lint:
+      allow: [static-overlap]
+      reason: "same full-dial-pattern bounding-box overstatement as the two
+        registers above -- this window sits on the 6 o'clock radius, clear
+        of the tick rings and numerals"
+
+layouts:
+  # -------------------------------------------------------------------
+  # Analog: a classic three-hand dial. Quiet on purpose -- the two shared
+  # registers above are its only readings.
+  # -------------------------------------------------------------------
+  analog:
+    static:
+      dial_ring:
+        type: shape
+        shape: arc
+        at: { anchor: center }
+        radius: 94%r
+        thickness: 2px
+        start_angle: 0deg
+        sweep: 360deg
+        color: config.colors.track
+        lint:
+          allow: [config-unsupported]
+          reason: "fr955 has no native editor and keeps every declared
+            default forever -- see the header comment"
+
+      minute_ticks:
+        type: pattern
+        pattern: radial
+        at: { anchor: center }
+        count: 60
+        skip_every: 5
+        color: config.colors.track
+        antialias: true
+        lint:
+          allow: [antialias-dither]
+          reason: "a soft edge on the 64-colour MIP panel dithers; accepted
+            so the turned ticks do not stair-step -- reported against this
+            element, the first to draw anti-aliased, for the whole device"
+        parts:
+          - { shape: line, at: { dy: -90%r }, to: { dy: -86%r }, thickness: 1px }
+
+      hour_ticks:
+        type: pattern
+        pattern: radial
+        at: { anchor: center }
+        count: 12
+        step: 30deg
+        color: config.colors.fg
+        antialias: true
+        parts:
+          - { shape: rectangle, at: { dy: -87%r }, size: { width: 2%r, height: 6%r } }
+
+      # Twelve numerals as one radial `shape: text` pattern part, rather
+      # than twelve polar `text` elements (docs/format.md "Text parts").
+      hour_numerals:
+        type: pattern
+        pattern: radial
+        at: { anchor: center }
+        count: 12
+        color: config.colors.fg
+        parts:
+          - shape: text
+            value: "(copy + 11) % 12 + 1"
+            font: font.dialfont
+            at: { dy: -78%r }
+
+    elements:
+      analog_hands:
+        type: hands
+        hands: classic
+        at: { anchor: center }
+        seconds: awake
+        antialias: true
+        lint:
+          allow: [antialias-dither]
+          reason: "a soft edge on the 64-colour MIP panel dithers; accepted
+            so the rotated hands do not stair-step"
+
+      center_pin:
+        type: shape
+        shape: circle
+        at: { anchor: center }
+        radius: 3%r
+        color: config.colors.bg
+
+  # -------------------------------------------------------------------
+  # Digital: dense and data-rich.
+  # -------------------------------------------------------------------
+  digital:
+    static:
+      sep_top:
+        type: shape
+        shape: line
+        at: { anchor: top, dy: 24%, dx: 38% }
+        to: { anchor: top, dy: 24%, dx: -38% }
+        thickness: 1px
+        color: config.colors.dark
+        lint:
+          allow: [contrast]
+          reason: "a hairline rule is meant to be barely there; full contrast
+            would make it compete with the data around it"
+
+      sep_bottom:
+        type: shape
+        shape: line
+        at: { anchor: bottom, dy: -20%, dx: 33% }
+        to: { anchor: bottom, dy: -20%, dx: -33% }
+        thickness: 1px
+        color: config.colors.dark
+        lint:
+          allow: [contrast]
+          reason: "a hairline rule is meant to be barely there; full contrast
+            would make it compete with the data around it"
+
+    elements:
+      date_line:
+        type: text
+        value: date.today
+        format: "{:%a, %e %b}"
+        font: FONT_XTINY
+        at: { anchor: top, dy: 10% }
+        color: config.colors.dim
+
+      weather_icon:
+        type: icon
+        icon_for: weather.condition_today
+        size: 14%r
+        at: { anchor: top, dy: 20% }
+        color: config.colors.fg
+
+      # `weather.*` has no documented value range in the catalogue, so the
+      # text-overflow lint sizes its box from the format's conservative
+      # 5-digit fallback ("88888°", `wfb/formatting.py`'s `DEFAULT_DIGITS`)
+      # rather than a realistic temperature -- centring it, rather than
+      # offsetting it with `dx:`, keeps that oversized box symmetric and
+      # well inside the round bezel regardless.
+      weather_now:
+        type: text
+        value: weather.feels_like_temperature
+        format: "{:d}°"
+        font: FONT_XTINY
+        at: { anchor: top, dy: 30% }
+        align: center
+        color: config.colors.fg
+        when_absent: placeholder
+        placeholder: "--°"
+        lint:
+          allow: [text-overflow]
+          reason: "weather.feels_like_temperature has no documented range, so
+            the lint's fallback assumes 5 digits ('88888°'); a real reading
+            is 1-3 digits and this box is centred with wide margin either
+            side of it"
+
+      hr_graph:
+        type: graph
+        series: heart_rate
+        range: 4h
+        style: area
+        at: { anchor: top, dy: 37% }
+        size: { width: 48%r, height: 8% }
+        min: auto
+        max: auto
+        color: config.data_color
+        on_hold: heart_rate
+
+      hours:
+        type: text
+        value: time.hour
+        format: "{:02d}"
+        font: font.digitalclock
+        at: { anchor: center, dx: -1%, dy: 2% }
+        align: right
+        color: config.colors.fg
+        modes: [active, low_power]
+
+      minutes:
+        type: text
+        value: time.minute
+        format: "{:02d}"
+        font: font.digitalclock
+        at: { anchor: center, dx: 1%, dy: 2% }
+        align: left
+        color: config.accent_color
+        modes: [active, low_power]
+
+      hr_cluster:
+        type: group
+        size: { width: 26%r, height: 12%r }
+        at: { anchor: top, dy: 62%, dx: -32% }
+        on_hold: heart_rate
+        children:
+          hr_icon:
+            type: icon
+            icon: heart
+            size: 9%r
+            at: { anchor: center, dx: -30% }
+          hr_value:
+            type: text
+            value: heart_rate.current
+            format: "{:d}"
+            font: FONT_XTINY
+            at: { anchor: center, dx: 25% }
+            color: config.colors.fg
+            when_absent: placeholder
+            placeholder: "--"
+
+      steps_cluster:
+        type: group
+        size: { width: 26%r, height: 12%r }
+        at: { anchor: top, dy: 62% }
+        on_hold: steps
+        children:
+          steps_icon:
+            type: icon
+            icon: steps
+            size: 9%r
+            at: { anchor: center, dx: -30% }
+          steps_value:
+            type: text
+            value: "activity.steps / 1000.0"
+            format: "{:.1f}k"
+            font: FONT_XTINY
+            at: { anchor: center, dx: 30% }
+            color: config.colors.fg
+            when_absent: placeholder
+            placeholder: "--"
+
+      calories_cluster:
+        type: group
+        size: { width: 26%r, height: 12%r }
+        at: { anchor: top, dy: 62%, dx: 32% }
+        on_hold: calories
+        children:
+          calories_icon:
+            type: icon
+            icon: flame
+            size: 9%r
+            at: { anchor: center, dx: -30% }
+          calories_value:
+            type: text
+            value: activity.calories
+            format: "{:d}"
+            font: FONT_XTINY
+            at: { anchor: center, dx: 30% }
+            color: config.colors.fg
+            when_absent: placeholder
+            placeholder: "--"
+
+      steps_bar:
+        type: progress
+        style: bar
+        value: activity.steps
+        max: activity.step_goal
+        at: { anchor: top, dy: 70% }
+        size: { width: 56%r, height: 3%r }
+        color: config.accent_color
+        track_color: config.colors.dark
+        when_absent: hide
+
+      battery_arc:
+        type: progress
+        style: arc
+        value: system.battery
+        max: 100
+        at: { anchor: center }
+        radius: 97%r
+        thickness: 3%r
+        start_angle: 200deg
+        sweep: 140deg
+        color: config.data_color
+        track_color: config.colors.dark
+        lint:
+          allow: [safe-area]
+          reason: "hugs the bezel by design, the same as a real chronograph's
+            outer track -- the pen straddles the round display's own edge
+            mask at this radius on every target"
+
+      charging_bolt:
+        type: icon
+        icon: battery
+        size: 8%r
+        at: { anchor: center, angle: 270deg, radius: 97%r }
+        color: config.accent_color
+        visible: system.charging
+        lint:
+          allow: [safe-area]
+          reason: "sits on the same bezel-hugging arc as battery_arc, for
+            the same reason"
+
+      dnd_icon:
+        type: icon
+        icon: dnd
+        size: 8%r
+        at: { anchor: bottom, dy: -8%, dx: -12% }
+        color: "device.do_not_disturb ? config.accent_color : config.colors.dark"
+
+      notification_badge:
+        type: icon
+        icon: notification
+        size: 12%r
+        at: { anchor: bottom, dy: -8% }
+        color: "device.notification_count > 0 ? config.accent_color : config.colors.dark"
+
+      notification_count:
+        type: text
+        value: device.notification_count
+        format: "{:d}"
+        font: FONT_TINY
+        at: { anchor: bottom, dy: -9% }
+        visible: device.notification_count > 0
+        color: config.colors.notify
+
+      alarm_icon:
+        type: icon
+        icon: alarm
+        size: 8%r
+        at: { anchor: bottom, dy: -8%, dx: 12% }
+        color: "device.alarm_count > 0 ? config.accent_color : config.colors.dark"

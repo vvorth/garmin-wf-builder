@@ -3318,3 +3318,82 @@ accurate past-tense provenance rather than a forward-looking claim.
 value (from font ascent) and element-level alignment of a *linear*
 pattern's drawn-ink box (plan 07 §6's two choices made without a
 round-trip) -- both recorded in `docs/limitations.md` §2.
+
+## 2026-09-16 — `examples/showcase/`: a two-layout face covering most of the format
+
+User request: one example face carrying as much of the format's surface as
+reasonably fits together, with at least two `layouts:` — a classic analog
+dial (`examples/analog/`'s idiom) and a data-rich digital one
+(`examples/dashboard/`'s), selectable complications, and several colour
+schemes and accent colours.
+
+Built `examples/showcase/face.yaml`, two `assets/` fonts copied in
+(`Dynalight-Regular.ttf` from `examples/analog/`, `ChivoMono-Bold.ttf` from
+`examples/dashboard/`, both already vendored elsewhere in this repo — no
+new licensing surface). Two `layouts:` switched by Styles:
+
+- `analog` — deliberately quiet: `hands:` (a tapered polygon hour/minute
+  and a needle second hand whose tip reads `config.accent_color`), a
+  radial minute/hour tick `pattern`, and twelve numerals as **one** radial
+  `shape: text` pattern part rather than twelve elements.
+- `digital` — dense: a monospaced, two-tone `time.hour`/`time.minute`
+  clock (`modes: [active, low_power]`), a date line, a dynamic
+  `icon_for: weather.condition_today` icon plus a feels-like reading, a
+  `heart_rate` `graph` (`style: area`), three `group`+`on_hold:`
+  icon/value clusters, both `progress` styles (a steps `bar`, a battery
+  `arc`), a `visible:`-gated charging icon, and a DND/notification/alarm
+  row with conditional colours.
+
+Shared beneath both layouts (a `complication_slot` may only ever live in
+shared content, never inside a `layouts:` body): two "chronograph
+register" `complication_slot`s behind `rounded_rectangle` cards — one
+with an explicit `choices:` list including a per-choice `icon: none`
+override, one `choices: any` — plus a small date window, all at radii
+chosen to clear the analog dial's own ticks/numerals. Three
+`color_scheme:` entries (`dark`/`light`/`navy`) and five `config: style:`
+entries pair them with the two layouts unevenly (`analog` gets all three,
+`digital` two) — plan 02 §4.1's "however many entries the author wants,"
+not a generated product. `accent_color`/`data_color` each carry a
+several-colour `choices:` list.
+
+**Geometry lessons surfaced along the way, not format bugs:**
+
+- `on_hold: auto` on a `group` cannot resolve — `Source.launch_complication`
+  only ever looks at the element's own value binding (`text`'s `value:`,
+  an `icon`'s `icon_for:`, a `progress`'s `value:`), and a group has none
+  of its own even though its children do. Named the target explicitly on
+  each cluster instead (`on_hold: heart_rate`/`steps`/`calories`).
+- `weather.*` sources carry no documented value range in the catalogue
+  (`wfb/catalog.py`), so `wfb/formatting.py`'s `DEFAULT_DIGITS = 5`
+  fallback sizes a `{:d}°` box for `"88888°"` — a real reading is 1-3
+  digits, but the lint cannot know that. Dropped the high/low flanking
+  readings (three side-by-side 56px-wide boxes overflowed a 260px round
+  screen) down to one centred feels-like reading, which stays symmetric
+  and comfortably inside the bezel regardless of the oversized estimate;
+  suppressed the resulting `text-overflow` with a reason naming the cause
+  rather than fighting the estimate.
+- A dynamic element (a shared `complication_slot`) trivially "overlaps" a
+  full-circle `pattern`'s bounding disc by box alone, the same
+  `static-overlap` situation `examples/analog/face.yaml` already
+  documents for its own dial furniture — accepted with a reason once per
+  register, same as that example.
+- A bezel-hugging `progress style: arc`/`icon` at `radius: 97%r` trips
+  `safe-area` by design, the same way `examples/dashboard/`'s own arcs
+  would — accepted with a reason rather than pulling the ring off the rim.
+
+**Verified:** `wfb validate` and `wfb build` are clean (0 warnings, 0
+errors) on all three targets; the three signed `.prg`s are 18,849 B /
+18,854 B / 18,856 B of 131,072 B (14.4%) — plenty of headroom under the
+128 KB face budget. `wfb preview --all-styles` rendered all five style
+entries side by side and caught one real geometry mistake before it
+shipped: the hour-numeral pattern (originally `radius: 70%r`) visually
+collided with the shared date window (`dy: 62%r`) at the 5/6/7 o'clock
+numerals — fixed by moving the numerals out to `78%r` and the date window
+in to `48%r`. `pytest -m "not slow"` — same 8 pre-existing failures as the
+`main` baseline (the ones `tests/CLAUDE.md` already names), none new; the
+four tests parametrized over every `examples/*/face.yaml`
+(`test_strhash.py`, `test_static.py`, `test_templates.py` x2) all pass for
+`showcase`.
+
+**Docs:** `examples/CLAUDE.md` gained a paragraph describing what
+`examples/showcase/` exercises, alongside its siblings.
