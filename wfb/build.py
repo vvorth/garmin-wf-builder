@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -20,18 +19,13 @@ from pathlib import Path
 
 from . import desugar, lint, validate, yamlsrc
 from .devices import Device, DeviceDatabase, DeviceError
-from .diagnostics import Bag, BuildError
+from .diagnostics import Bag
 from .emit import GeneratedProject, generate
 from .emit import strhash
 from .emit.project import write as write_project
 from .fonts import BakedFont
 from .ir import Face, build as build_ir
 from .layout import ResolvedFace
-
-#: Typecheck and optimization levels live in the generated jungle, not here, so
-#: that a hand-run `monkeyc -f monkey.jungle` reproduces this build exactly.
-#: Passing them on the command line as well makes monkeyc warn that one of the
-#: two specifications is being ignored.
 
 
 @dataclass
@@ -42,7 +36,6 @@ class BuildResult:
     output_dir: Path
     products: dict[str, Path] = field(default_factory=dict)
     memory: dict[str, dict] = field(default_factory=dict)
-    compiled: bool = False
     duration: float = 0.0
 
 
@@ -160,7 +153,7 @@ def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None 
     if not bag.ok():
         return None
 
-    build_dir = (output / _slug(face.name)).resolve()
+    build_dir = (output / slug(face.name)).resolve()
     project = generate(face, devices, build_dir, baked)
     for collision in project.string_collisions:
         shown = " and ".join(
@@ -205,14 +198,17 @@ def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None 
         else:
             for device in devices:
                 _compile(result, device, toolchain, bag)
-            result.compiled = bool(result.products)
 
     result.duration = time.monotonic() - started
     return result
 
 
 def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag) -> None:
-    output = result.output_dir / f"{_slug(result.face.name)}-{device.id}.prg"
+    output = result.output_dir / f"{slug(result.face.name)}-{device.id}.prg"
+    #: Typecheck and optimization levels live in the generated jungle, not here, so
+    #: that a hand-run `monkeyc -f monkey.jungle` reproduces this build exactly.
+    #: Passing them on the command line as well makes monkeyc warn that one of the
+    #: two specifications is being ignored.
     command = [
         str(toolchain.monkeyc),
         "-f", "monkey.jungle",
@@ -269,6 +265,6 @@ def _strip_noise(text: str) -> str:
     return _JVM_NOISE.sub("", _NOISE.sub("", text))
 
 
-def _slug(name: str) -> str:
+def slug(name: str) -> str:
     cleaned = "".join(c.lower() if c.isalnum() else "-" for c in name)
     return re.sub(r"-+", "-", cleaned).strip("-") or "face"

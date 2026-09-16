@@ -25,8 +25,8 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, catalog, icons, series as series_catalog, term
-from .build import Toolchain, build as run_build, load, resolve_all, select_devices
+from . import __version__, catalog, complications, icons, series as series_catalog, term
+from .build import Toolchain, build as run_build, load, resolve_all, select_devices, slug
 from .simulate import SimulatorError, push, screenshot
 from .devices import DeviceDatabase, DeviceError
 from .diagnostics import Bag
@@ -568,7 +568,6 @@ def _new(args) -> int:
     -- installing the second replaces the first -- so every call mints its
     own.
     """
-    import re
     import uuid
 
     templates = sorted(p.stem for p in TEMPLATE_DIR.glob("*.yaml"))
@@ -589,10 +588,7 @@ def _new(args) -> int:
         print(f"       available: {', '.join(templates)}", file=sys.stderr)
         return 1
 
-    slug = re.sub(r"-+", "-", "".join(
-        c.lower() if c.isalnum() else "-" for c in args.name
-    )).strip("-") or "face"
-    destination = args.output or Path(f"{slug}.yaml")
+    destination = args.output or Path(f"{slug(args.name)}.yaml")
     if destination.exists():
         _error(f"{destination} already exists")
         return 1
@@ -623,8 +619,6 @@ def _doctor(args) -> int:
     possible at all.  Everything except the last two checks is needed only to
     *compile*; validation and preview work without them.
     """
-    from . import __version__
-    from .build import Toolchain
     from .validate import SCHEMA_PATH
 
     color_out = term.should_color(sys.stdout)
@@ -843,8 +837,6 @@ def _complications(args) -> int:
     the generated code guard every use of it at runtime (`wfb.availability`,
     `wfb/emit/monkeyc.py`), so the binding simply reads as absent there.
     """
-    from . import complications, icons
-
     width = max(len(name) for name in complications.names())
     icon_width = max(len(icons.COMPLICATION_ICON.get(name, "")) for name in complications.names())
     for name in complications.names():

@@ -15,9 +15,12 @@ formats become unmaintainable.
 from __future__ import annotations
 
 import difflib
+import math
+import operator
 import re
 from dataclasses import dataclass, field
 
+from . import catalog
 from .catalog import Type
 
 # --------------------------------------------------------------------------
@@ -359,8 +362,6 @@ def check(node: Node, scope: Scope) -> Value:
                  "to hide some copies, put 'visible:' on the parts, or use 'skip:'"],
             )
         if binding is None:
-            from . import catalog
-
             renamed = catalog.renamed_to(node.path)
             if renamed is not None:
                 raise ExprError(
@@ -565,8 +566,6 @@ def _apply(op: str, a: object, b: object) -> tuple[object, Type] | None:
                 return None
             result = a % b  # type: ignore[operator]
         elif op in ("<", "<=", ">", ">=", "==", "!="):
-            import operator
-
             fn = {"<": operator.lt, "<=": operator.le, ">": operator.gt,
                   ">=": operator.ge, "==": operator.eq, "!=": operator.ne}[op]
             return (bool(fn(a, b)), Type.BOOLEAN)
@@ -582,8 +581,6 @@ def _apply(op: str, a: object, b: object) -> tuple[object, Type] | None:
 
 
 def _apply_call(name: str, args: list) -> tuple[object, Type] | None:
-    import math
-
     try:
         if name == "min":
             value = min(args)
@@ -693,7 +690,7 @@ def _emit_call(name: str, args: list[str]) -> str:
     triples the generated text for no gain and makes the output hard to read,
     which ADR 0003 does not allow.
     """
-    if name in ("min", "max", "clamp", "abs", "percent"):
+    if name in CALL_BARREL:
         return f"WfbMath.{name}({', '.join(args)})"
     if name == "round":
         return f"Math.round({args[0]}).toNumber()"

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -31,8 +32,6 @@ def _venv_python() -> Path | None:
 
 
 def _dependencies_present() -> bool:
-    from importlib.util import find_spec
-
     try:
         return all(find_spec(m) is not None for m in ("ruamel.yaml", "jsonschema", "PIL"))
     except (ImportError, ValueError):

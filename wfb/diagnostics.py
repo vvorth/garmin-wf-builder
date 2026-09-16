@@ -207,7 +207,3 @@ class Bag:
             text = f"{n_n} note{'s' if n_n != 1 else ''}"
             parts.append(term.style(text, *SEVERITY_STYLE["note"], enabled=color))
         return ", ".join(parts) if parts else "no diagnostics"
-
-
-class BuildError(Exception):
-    """Raised to abort a build once errors have been reported."""

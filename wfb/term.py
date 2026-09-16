@@ -44,10 +44,6 @@ def set_mode(mode: str) -> None:
     _mode = mode
 
 
-def get_mode() -> str:
-    return _mode
-
-
 def should_color(stream: TextIO) -> bool:
     """Whether text written to ``stream`` should carry ANSI colour."""
     if _mode == "always":

@@ -40,6 +40,7 @@ Every entry below needs no permission -- `Toybox.ActivityMonitor` and
 
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass
 from enum import Enum
 
@@ -246,8 +247,6 @@ def names() -> list[str]:
 
 def suggest(name: str, limit: int = 3) -> list[str]:
     """Nearest series names, for the "unknown series" diagnostic."""
-    import difflib
-
     return difflib.get_close_matches(name, SERIES, n=limit, cutoff=0.5)
 
 

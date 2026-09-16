@@ -1085,6 +1085,16 @@ def test_on_hold_on_a_group_covers_the_whole_box_not_one_child(write_design, bag
 # `on_hold: auto` -- resolved from the element's own value binding (D3)
 
 
+def test_auto_is_not_a_complication_type():
+    """`on_hold: auto`'s sentinel (`wfb.ir.HOLD_AUTO`) is checked before the
+    real-name lookup into `complications.TYPES` -- nothing pins that "auto"
+    itself could never collide with a real complication name and be resolved
+    the wrong way (2026-09-architecture-review.md F8)."""
+    from wfb import complications
+
+    assert "auto" not in complications.TYPES
+
+
 def _generated(write_design, bag, db, source: str) -> dict:
     from wfb.emit import generate
     from wfb.emit.resources import bake_fonts

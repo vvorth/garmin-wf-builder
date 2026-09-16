@@ -95,10 +95,6 @@ class Device:
         """AMOLED forbids ``onPartialUpdate`` outright; MIP depends on it."""
         return not self.is_amoled
 
-    @property
-    def bits_per_pixel(self) -> int:
-        return int(self.compiler.get("bitsPerPixel", 8))
-
     @cached_property
     def _scraped(self) -> dict:
         """The SDK device-reference scrape, for facts the device files omit."""
@@ -123,14 +119,6 @@ class Device:
     @property
     def alpha_blending(self) -> bool:
         return bool(self.compiler.get("alphaBlendingSupport", False))
-
-    @property
-    def touch(self) -> bool:
-        return bool(self.simulator.get("display", {}).get("isTouch", False))
-
-    @property
-    def ppi(self) -> int | None:
-        return self.simulator.get("ppi")
 
     @property
     def graphics_pool_bytes(self) -> int | None:
@@ -198,12 +186,20 @@ class Device:
     # -- symbols ----------------------------------------------------------
 
     @cached_property
-    def _symbols(self) -> tuple[set[tuple[str, str]], dict[str, str]]:
-        """``({(parent, name)}, {classId: fully_qualified_label})``."""
+    def _api_debug_xml(self) -> str:
+        """The raw text of the device's own ``<id>.api.debug.xml``, read once
+        and shared by :attr:`_symbols`, :attr:`_modules` and :attr:`_fields`,
+        which each scan it for a different tag.
+        """
         path = self.root / f"{self.id}.api.debug.xml"
         if not path.exists():
             raise DeviceError(f"{self.id}: missing {path.name}")
-        text = path.read_text(encoding="utf-8", errors="replace")
+        return path.read_text(encoding="utf-8", errors="replace")
+
+    @cached_property
+    def _symbols(self) -> tuple[set[tuple[str, str]], dict[str, str]]:
+        """``({(parent, name)}, {classId: fully_qualified_label})``."""
+        text = self._api_debug_xml
         functions = {
             (m.group("parent"), m.group("name"))
             for m in re.finditer(
@@ -261,10 +257,7 @@ class Device:
         ``type="module"`` independently within one tag rather than assuming
         either comes first.
         """
-        path = self.root / f"{self.id}.api.debug.xml"
-        if not path.exists():
-            raise DeviceError(f"{self.id}: missing {path.name}")
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = self._api_debug_xml
         modules: set[str] = set()
         for tag in re.finditer(r"<dataEntry\b[^>]*/>", text):
             body = tag.group(0)
@@ -315,10 +308,7 @@ class Device:
         *reader* it comes off is available (`has_symbol`/`has_module`), which
         narrows the class independently.
         """
-        path = self.root / f"{self.id}.api.debug.xml"
-        if not path.exists():
-            raise DeviceError(f"{self.id}: missing {path.name}")
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = self._api_debug_xml
         fields: set[str] = set()
         for tag in re.finditer(r"<entry\b[^>]*/>", text):
             body = tag.group(0)

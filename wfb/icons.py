@@ -614,10 +614,3 @@ COMPLICATION_ICON: dict[str, str] = {
     "forecast_weather_2day": "weather",
     "forecast_weather_3day": "weather",
 }
-
-
-def icon_for_complication(type_name: str) -> Icon | None:
-    """The catalogue icon conventionally paired with a `wfb.complications.TYPES`
-    name, if any -- the reverse direction `COMPLICATION_ICON` records."""
-    name = COMPLICATION_ICON.get(type_name)
-    return CATALOG.get(name) if name else None

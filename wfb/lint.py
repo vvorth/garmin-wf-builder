@@ -13,7 +13,6 @@ Only :func:`check_memory` needs a real build.
 from __future__ import annotations
 
 import difflib
-import math
 import re
 
 from . import availability, catalog, complications
@@ -21,13 +20,12 @@ from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Element, Face, HandsElement, LayoutDecl,
-    PatternElement, StyleEntry, Text, authored_draw_order, never_together,
+    CONFIG_SYMBOL, ComplicationSlot, Element, Face, HandsElement,
+    PatternElement, StyleEntry, authored_draw_order, never_together,
 )
 from .layout import (
-    ANTIALIASED_PRIMITIVES, PlacedHands, PlacedPattern, PlacedProgress, PlacedShape,
-    PlacedText, ResolvedFace,
-    inside_screen, inside_visible_area, inside_visible_area_for, is_full_bleed,
+    ANTIALIASED_PRIMITIVES, PlacedPattern, PlacedText, ResolvedFace,
+    inside_screen, inside_visible_area_for, is_full_bleed,
 )
 from .palette import Color
 from .units import IntBox
@@ -98,7 +96,6 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_api_gated(resolved, bag)
     check_graphics_pool(resolved, bag)
     check_static_overlap(resolved, bag)
-    check_alpha(resolved, bag)
     check_pattern_step(resolved, bag)
     for warning in resolved.warnings:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
@@ -1266,6 +1263,17 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
         ))
 
 
+def _always_false(expression) -> bool:
+    """Is this a constant-folded `visible:` expression that is always false?
+
+    Shared by every "is this dead" test in :func:`check_dead_element`: an
+    expression with no constant fold at all (`None`, or one whose value is
+    not known at build time) is never reported, only one the compiler has
+    proven folds to `False`.
+    """
+    return expression is not None and expression.constant is not None and not expression.constant
+
+
 def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
     """A `visible:` that folded to a constant `false` -- the element never draws.
 
@@ -1291,7 +1299,7 @@ def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
         placed = items[index]
         index += 1
         expression = placed.element.visible
-        if expression is None or expression.constant is None or expression.constant:
+        if not _always_false(expression):
             continue
         _emit(bag, placed, Diagnostic(
             Severity.WARNING,
@@ -1319,12 +1327,11 @@ def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
         if not isinstance(placed.element, PatternElement):
             continue
         element_expression = placed.element.visible
-        if (element_expression is not None and element_expression.constant is not None
-                and not element_expression.constant):
+        if _always_false(element_expression):
             continue
         for part_index, part in enumerate(placed.element.parts):
             expression = part.visible
-            if expression is None or expression.constant is None or expression.constant:
+            if not _always_false(expression):
                 continue
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
@@ -1692,59 +1699,53 @@ def _check_complication_since(bag: Bag, resolved: ResolvedFace, candidates: list
             f"exact -- {name!r}'s since ({ctype.since}, Toybox/Complications.html) "
             f"vs {device.id}'s api_level ({device_level}, compiler.json)"
         )
+        # The three cases differ only in message and notes -- the device,
+        # complication type, and confidence text are the same regardless of
+        # what kind of binding named it, so only those two vary below.
         if kind == "hold":
-            _emit(bag, placed, Diagnostic(
-                Severity.WARNING,
-                "api-gated",
+            message = (
                 f"{placed.id}: holding to launch {name!r} needs ConnectIQ {ctype.since}, "
-                f"but {device.id} tops out at {device_level}",
-                span,
-                notes=[
-                    "Complications.subscribeToUpdates returning false or throwing "
-                    "ComplicationNotFoundException is already caught uniformly by "
-                    "WfbComplications.mc's subscribe() -- the hold simply becomes a "
-                    "no-op on this device, not a crash",
-                    "pick a launch target with a lower 'since' for this device, or "
-                    "accept that the hold does nothing here",
-                ],
-                confidence=confidence,
-            ))
+                f"but {device.id} tops out at {device_level}"
+            )
+            notes = [
+                "Complications.subscribeToUpdates returning false or throwing "
+                "ComplicationNotFoundException is already caught uniformly by "
+                "WfbComplications.mc's subscribe() -- the hold simply becomes a "
+                "no-op on this device, not a crash",
+                "pick a launch target with a lower 'since' for this device, or "
+                "accept that the hold does nothing here",
+            ]
         elif kind == "slot":
-            _emit(bag, placed, Diagnostic(
-                Severity.WARNING,
-                "api-gated",
+            message = (
                 f"{placed.id}: slot config.data.{placed.element.slot}'s "
                 f"'complication.{name}' needs ConnectIQ {ctype.since}, but "
-                f"{device.id} tops out at {device_level}",
-                span,
-                notes=[
-                    "Complications.getComplication returns null for a type the device "
-                    "does not support -- the same 'absence is normal' contract every "
-                    "other nullable source already has, so this reads as absent rather "
-                    "than crashing",
-                    "the wearer simply cannot pick this type on this device (or, if it "
-                    "is the slot's 'default:', the slot never shows it here); drop it "
-                    "from 'choices:', or accept that it is unreachable on this target",
-                ],
-                confidence=confidence,
-            ))
+                f"{device.id} tops out at {device_level}"
+            )
+            notes = [
+                "Complications.getComplication returns null for a type the device "
+                "does not support -- the same 'absence is normal' contract every "
+                "other nullable source already has, so this reads as absent rather "
+                "than crashing",
+                "the wearer simply cannot pick this type on this device (or, if it "
+                "is the slot's 'default:', the slot never shows it here); drop it "
+                "from 'choices:', or accept that it is unreachable on this target",
+            ]
         else:
-            _emit(bag, placed, Diagnostic(
-                Severity.WARNING,
-                "api-gated",
+            message = (
                 f"{placed.id}: 'complication.{name}' needs ConnectIQ {ctype.since}, "
-                f"but {device.id} tops out at {device_level}",
-                span,
-                notes=[
-                    "Complications.getComplication returns null for a type the device "
-                    "does not support -- the same 'absence is normal' contract every "
-                    "other nullable source already has, so this reads as absent rather "
-                    "than crashing",
-                    "drop this binding for this target, bind a lower-'since' source "
-                    "instead, or accept that it never updates here",
-                ],
-                confidence=confidence,
-            ))
+                f"but {device.id} tops out at {device_level}"
+            )
+            notes = [
+                "Complications.getComplication returns null for a type the device "
+                "does not support -- the same 'absence is normal' contract every "
+                "other nullable source already has, so this reads as absent rather "
+                "than crashing",
+                "drop this binding for this target, bind a lower-'since' source "
+                "instead, or accept that it never updates here",
+            ]
+        _emit(bag, placed, Diagnostic(
+            Severity.WARNING, "api-gated", message, span, notes=notes, confidence=confidence,
+        ))
 
 
 # -- the static hoist -------------------------------------------------------
@@ -1894,17 +1895,6 @@ def check_graphics_pool(resolved: ResolvedFace, bag: Bag) -> None:
             Severity.NOTE, "graphics-pool", detail, roots[0].element.span,
             notes=notes, confidence=confidence,
         ))
-
-
-# -- alpha ------------------------------------------------------------------
-
-
-def check_alpha(resolved: ResolvedFace, bag: Bag) -> None:
-    if resolved.device.alpha_blending:
-        return
-    # Nothing in format 1 expresses transparency yet; this check exists so the
-    # gate is in place before any property that implies it is added.
-    return
 
 
 # -- pattern-step -------------------------------------------------------------

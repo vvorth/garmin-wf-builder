@@ -24,14 +24,14 @@ of them can ever execute a symbol the device running it does not have.
   device, so a design whose targets all support everything it uses
   generates the exact same code it always did (no guard is ever emitted
   for a thing every target has).
-* A lint pass (not built here -- see the working agreement this task
-  inherited) needs the *per-element, per-device* detail: which of *this*
-  element's expression source paths are unavailable on *this* device, and
-  whether that is because a module, a function or a field is missing, with
-  the missing symbol's name, so it can point at the YAML line responsible.
-  `source_unavailable`/`reader_unavailable` (and `Unavailable` itself)
-  exist for that; `compute_guards` is built out of them, not the other way
-  around, so the two views cannot drift apart.
+* A lint pass (`wfb.lint.check_api_gated`) needs the *per-element,
+  per-device* detail: which of *this* element's expression source paths are
+  unavailable on *this* device, and whether that is because a module, a
+  function or a field is missing, with the missing symbol's name, so it can
+  point at the YAML line responsible. `source_unavailable`/
+  `reader_unavailable` (and `Unavailable` itself) exist for that;
+  `compute_guards` is built out of them, not the other way around, so the
+  two views cannot drift apart.
 
 **Policy, not just mechanism** (decided by the user, see the plan this task
 was assigned from -- not re-litigated here): a binding a target device lacks
@@ -162,20 +162,6 @@ def source_unavailable(path: str, device: Device) -> Unavailable | None:
     return None
 
 
-def unavailable_sources(paths: Iterable[str], device: Device) -> dict[str, Unavailable]:
-    """`{path: Unavailable}` for every path in `paths` that `device` cannot
-    provide -- a path that is available, or not a real catalogue path at
-    all, is simply absent from the result. The per-element entry point a
-    lint pass iterates: give it one element's `expression.sources` and one
-    target device, get back exactly the paths worth warning about."""
-    out: dict[str, Unavailable] = {}
-    for path in paths:
-        gap = source_unavailable(path, device)
-        if gap is not None:
-            out[path] = gap
-    return out
-
-
 # --------------------------------------------------------------------------
 # design-wide queries (what this Face uses, independent of any one device)
 
@@ -233,14 +219,12 @@ def uses_complications(face: Face) -> bool:
        a `complication_slot`'s `on_hold: auto`), which compiles to
        `Complications.exitTo`.
     """
-    if any(READERS[name].requires_module == "Complications"
-           for name in face.requirements().readers):
-        return True
-    if face.config_data:
-        return True
-    if any(element.on_hold is not None for element in face.walk()):
-        return True
-    return False
+    return (
+        any(READERS[name].requires_module == "Complications"
+            for name in face.requirements().readers)
+        or bool(face.config_data)
+        or any(element.on_hold is not None for element in face.walk())
+    )
 
 
 # --------------------------------------------------------------------------

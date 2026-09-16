@@ -439,8 +439,6 @@ def _max_digits(source: Source | None, scale: float = 1.0) -> int:
     """
     digits = DEFAULT_DIGITS if source is None else _SOURCE_DIGITS.get(source.path, DEFAULT_DIGITS)
     if scale and scale != 1.0:
-        import math
-
         digits = max(1, digits - max(0, round(math.log10(1.0 / scale))))
     return digits
 

@@ -47,6 +47,7 @@ from.
 
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -759,8 +760,6 @@ def suggest(path: str, limit: int = 3) -> list[str]:
     with their own, more specific diagnostic (`renamed_to`), not something a
     fuzzy match should surface as a "did you mean" guess.
     """
-    import difflib
-
     return difflib.get_close_matches(path, CATALOG.keys(), n=limit, cutoff=0.5)
 
 

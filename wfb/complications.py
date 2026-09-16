@@ -51,6 +51,7 @@ no device this project targets that would ever see the old shape.
 
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass
 
 
@@ -260,6 +261,4 @@ def names() -> list[str]:
 
 def suggest(name: str, limit: int = 3) -> list[str]:
     """Nearest names, for the "misspelled hold target" diagnostic."""
-    import difflib
-
     return difflib.get_close_matches(name, TYPES, n=limit, cutoff=0.5)
