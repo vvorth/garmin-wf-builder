@@ -1,13 +1,13 @@
 """The semantic pass (ADR 0008 stage 2): `Builder` walks a validated YAML
-document and produces a `wfb.ir.model.Face` -- resolving data sources against
+document and produces a `wfb.ir.model.Face`, resolving data sources against
 the catalogue, type-checking and compiling expressions, and requiring null
 handling wherever the platform makes absence normal.  Also holds
-`_NamedBlock` (the "declared / accepted / rejected" bookkeeping a named
-top-level block keeps), `_dedup_append`, the per-shape/part/style key tables
-and rejection-reason tables this pass alone consults, and the private
-sentinels and helpers it uses internally.
+`_NamedBlock` (the declared/accepted/rejected bookkeeping a named top-level
+block keeps), `_dedup_append`, and the per-shape/part/style key and
+rejection-reason tables this pass alone consults.
 
-Nothing here knows a screen size.  Per-device work happens in :mod:`wfb.layout`.
+Nothing here knows a screen size -- per-device work happens in
+:mod:`wfb.layout`.
 """
 
 from __future__ import annotations
@@ -37,37 +37,37 @@ from .naming import (
     element_const_prefix, element_method_name, local_name, static_group_method,
 )
 
-#: Sentinels for `Builder._resolve_choice_icon_override`'s three-way result --
+#: Sentinels for `Builder._resolve_choice_icon_override`'s three-way result:
 #: a per-choice icon override in a `config: data:` slot's `choices:` mapping
-#: form (plan 03 §6.1) is either "not declared at all" (this dict entry does
-#: not exist; fall back to `wfb.icons.COMPLICATION_ICON`), "declared and
-#: invalid" (already reported; drop the whole slot like every other rejected
+#: form is either "not declared at all" (this dict entry does not exist;
+#: fall back to `wfb.icons.COMPLICATION_ICON`), "declared and invalid"
+#: (already reported; drop the whole slot like every other rejected
 #: `config: data:` entry), or a real `icons.SlotIcon | None` value (`None`
 #: itself being the third, legitimate case: `icon: none`).  Two distinct
-#: sentinel objects rather than reusing `None` for "not declared" -- `None`
-#: already means something on the *inside* of this three-way result (the
-#: explicit "no icon" a `{type, icon: none}` choice asks for), so it cannot
-#: also mean "no override key was present" without conflating the two.
+#: sentinel objects rather than reusing `None` for "not declared": `None`
+#: already means the explicit "no icon" a `{type, icon: none}` choice asks
+#: for, so it cannot also mean "no override key was present".
 _NO_ICON_OVERRIDE = object()
 _ICON_OVERRIDE_ERROR = object()
 
-#: Which geometry keys each `shape:` actually reads.  Anything outside its own
-#: row is parsed by the schema and then dropped on the floor -- the bug
-#: `filled:` had on a rectangle for several phases, and the reason a
-#: `radius:` typed onto a rounded_rectangle used to do nothing at all.
+#: Which geometry keys each `shape:` actually reads.  A key outside its own
+#: row is parsed by the schema and then dropped on the floor unless
+#: `_check_shape_keys` below catches it -- e.g. a `radius:` typed onto a
+#: rounded_rectangle instead of `corner_radius:` would otherwise silently do
+#: nothing.
 #:
 #: `color:` and `filled:` are common to every shape and are not listed;
 #: `filled:` has its own refusals on `arc` and `polygon`.  `thickness:` is
 #: handled separately below, because whether it is read depends on `filled:`
 #: rather than on the shape alone.
 #:
-#: `align`/`vertical_align` (plan 07 phase B) are in every row **except**
-#: `polygon` and `line` -- a polygon has no single `at:` to align on (every
-#: vertex is its own position, and it has no `at:` of its own either), and a
-#: line's `at:`/`to:` are already its two ends. Leaving the two keys out of
-#: those two rows is what makes `_check_shape_keys` below reject them there,
-#: through the same "key not used by this shape" sweep every other geometry
-#: key already goes through -- not a second, parallel check.
+#: `align`/`vertical_align` are in every row **except** `polygon` and
+#: `line`: a polygon has no single `at:` to align on (every vertex is its
+#: own position, and it has no `at:` of its own either), and a line's
+#: `at:`/`to:` are already its two ends.  Leaving the two keys out of those
+#: rows is what makes `_check_shape_keys` below reject them there, through
+#: the same "key not used by this shape" sweep every other geometry key
+#: goes through.
 SHAPE_GEOMETRY_KEYS = {
     "rectangle": frozenset({"size", "align", "vertical_align"}),
     "rounded_rectangle": frozenset({"size", "corner_radius", "align", "vertical_align"}),
@@ -78,10 +78,10 @@ SHAPE_GEOMETRY_KEYS = {
     "polygon": frozenset({"points"}),
 }
 
-#: The plan 07 R3 reason `_check_shape_keys` appends to the ordinary
-#: "not used by this shape" note when the rejected key is `align` or
-#: `vertical_align` -- `polygon` and `line` are the only two rows above
-#: without either key, so this is a `dict`, not a per-shape branch.
+#: The extra reason `_check_shape_keys` appends to the ordinary "not used
+#: by this shape" note when the rejected key is `align` or `vertical_align`
+#: -- `polygon` and `line` are the only two rows above without either key,
+#: so this is a `dict`, not a per-shape branch.
 _SHAPE_NO_ALIGNMENT_REASON = {
     "polygon": "every vertex is its own position; there is no single 'at:' "
                "to align on -- a polygon has no 'at:' of its own either",
@@ -91,22 +91,21 @@ _SHAPE_NO_ALIGNMENT_REASON = {
 #: Every geometry key, for the "not used by this shape" check.
 _ALL_SHAPE_GEOMETRY_KEYS = frozenset().union(*SHAPE_GEOMETRY_KEYS.values())
 
-#: The same precedent as `SHAPE_GEOMETRY_KEYS`, for a hand part (plan 04
-#: §5.2) -- four primitives, the rotatable ones.  `filled`/`thickness` are
-#: handled separately below, exactly as the main `Shape` handles them: which
-#: shapes accept `filled` at all is one set, and whether `thickness` is read
+#: The same precedent as `SHAPE_GEOMETRY_KEYS`, for a hand part -- four
+#: primitives, the rotatable ones.  `filled`/`thickness` are handled
+#: separately below, exactly as the main `Shape` handles them: which shapes
+#: accept `filled` at all is one set, and whether `thickness` is read
 #: depends on `filled`, not on the shape alone.  `at` is absent from
 #: `polygon`'s own row because a polygon's vertices are each already an
 #: absolute position in the hand's frame -- there is no separate centre to
 #: place.
-#: `align`/`vertical_align` (plan 07 phase D) are in the `rectangle` and
-#: `circle` rows only, the same "box-drawn kind" set §3.2(a) of the plan
-#: gives -- both resolved at build time, in the part's own frame, by
-#: `Resolver._resolve_hand_part` shifting `_hand_point(part.at)` through
-#: `wfb.layout.alignment_shift` before rounding. `polygon` and `line` are
+#: `align`/`vertical_align` are in the `rectangle` and `circle` rows only --
+#: the box-drawn kinds -- resolved at build time, in the part's own frame,
+#: by `Resolver._resolve_hand_part` shifting `_hand_point(part.at)` through
+#: `wfb.layout.alignment_shift` before rounding.  `polygon` and `line` are
 #: left out for the same reason `SHAPE_GEOMETRY_KEYS` leaves them out (a
 #: polygon has no single `at:`; a line's `at:`/`to:` are already its two
-#: ends), so the existing "key not used by this shape" sweep in
+#: ends), so the "key not used by this shape" sweep in
 #: `_check_hand_part_keys` rejects both there for free.
 HAND_PART_GEOMETRY_KEYS = {
     "polygon": frozenset({"points"}),
@@ -118,17 +117,17 @@ _ALL_HAND_PART_GEOMETRY_KEYS = frozenset().union(*HAND_PART_GEOMETRY_KEYS.values
 
 #: Which hand part shapes accept `filled:` at all -- `line` has no notion of
 #: being filled, so it is left out here the same way `arc` is left out of
-#: `filled:`'s acceptance on the main `Shape` (§5.2).
+#: `filled:`'s acceptance on the main `Shape`.
 HAND_PART_FILLED_SHAPES = frozenset({"polygon", "rectangle", "circle"})
 
 #: The two shapes for which `filled: false` is rejected outright -- a hand's
-#: rectangle part becomes a polygon at build time (§6), so both share the
-#: main `Shape`'s own "no drawPolygon" reasoning.
+#: rectangle part becomes a polygon at build time, so both share the main
+#: `Shape`'s own "no drawPolygon" reasoning.
 HAND_PART_NO_UNFILLED = frozenset({"polygon", "rectangle"})
 
 #: `shape:` values a hand part's schema recognises but this compiler does
-#: not draw, each with its own platform reason (§5.2) -- accepted by the
-#: schema alongside the four real ones (`schema/wfb-face-1.schema.json`,
+#: not draw, each with its own platform reason -- accepted by the schema
+#: alongside the four real ones (`schema/wfb-face-1.schema.json`,
 #: `handPart.shape`) precisely so this dedicated message fires instead of a
 #: blunt "not one of ..." enum mismatch naming eight options with no
 #: explanation.
@@ -143,39 +142,39 @@ HAND_PART_REJECTED_SHAPES = {
     "icon": "a bitmap font cannot rotate",
 }
 
-#: The same precedent, for a `type: pattern` template part (plan 05 §5.2) --
-#: the hand vocabulary plus `arc`, which a pattern's copies can rotate the
-#: start angle of (`WfbArc.drawSpan` already takes a plain Float start), so it
-#: is a real, drawable shape here rather than a `HAND_PART_REJECTED_SHAPES`
+#: The same precedent, for a `type: pattern` template part -- the hand
+#: vocabulary plus `arc`, which a pattern's copies can rotate the start
+#: angle of (`WfbArc.drawSpan` already takes a plain Float start), so it is
+#: a real, drawable shape here rather than a `HAND_PART_REJECTED_SHAPES`
 #: entry.  `rounded_rectangle`/`ellipse`/`text`/`icon` keep the same
 #: platform reasons a hand part gives -- no `Dc` call draws any of the three
 #: rotated *or* translated, and a bitmap font cannot do either.
-#: `align`/`vertical_align` (plan 07 phase D) join `rectangle` and `circle`
-#: here the same way they join the hand table above -- resolved at build
-#: time in the template's own frame, before `_round_away`, so the turned or
-#: stepped copy carries the shift for free. `polygon`/`line`/`arc` stay
-#: without them (arc has no `at` at all -- see its own row's note below).
+#: `align`/`vertical_align` join `rectangle` and `circle` here the same way
+#: they join the hand table above -- resolved at build time in the
+#: template's own frame, before `_round_away`, so the turned or stepped
+#: copy carries the shift for free.  `polygon`/`line`/`arc` stay without
+#: them (arc has no `at` at all -- see its own row's note below).
 #: `polygon`/`rectangle`/`line`/`circle` are identical to `HAND_PART_
 #: GEOMETRY_KEYS`'s own rows -- inherited by dict expansion rather than
 #: repeated -- plus two rows a hand part never reaches at all:
 PATTERN_PART_GEOMETRY_KEYS = {
     **HAND_PART_GEOMETRY_KEYS,
-    #: No `at` -- an arc part is always centred on the copy's own origin
-    #: (docs/plans/05-patterns.md D3); `_check_hand_part_keys` reports a use
-    #: of `at` here through the same "key not used by this shape" mechanism
-    #: as any other part, with one extra note explaining why.
+    #: No `at` -- an arc part is always centred on the copy's own origin;
+    #: `_check_hand_part_keys` reports a use of `at` here through the same
+    #: "key not used by this shape" mechanism as any other part, with one
+    #: extra note explaining why.
     "arc": frozenset({"radius", "start_angle", "sweep"}),
     #: Upright glyphs whose anchor turns (radial) or steps (linear) with the
-    #: copy (plan 06 §3) -- unlike every other row here, a bitmap font
-    #: cannot itself rotate or translate, so only the anchor point goes
-    #: through `PlacedPattern.transform`. `value` xor `text` is enforced by
+    #: copy -- unlike every other row here, a bitmap font cannot itself
+    #: rotate or translate, so only the anchor point goes through
+    #: `PlacedPattern.transform`.  `value` xor `text` is enforced by
     #: `Builder._build_hand_part`, not this table (a better message than a
     #: schema `oneOf` would give).
     "text": frozenset({"at", "value", "text", "format", "font", "align", "vertical_align"}),
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
 
-#: The plan 07 R3 reason `_check_hand_part_keys` appends to the ordinary
+#: The extra reason `_check_hand_part_keys` appends to the ordinary
 #: "not used by this part" note when the rejected key is `align` or
 #: `vertical_align` -- shared by hand and pattern parts, since `polygon` and
 #: `line` mean the same thing in both frames (`HAND_PART_GEOMETRY_KEYS` and
@@ -191,12 +190,12 @@ _HAND_PART_NO_ALIGNMENT_REASON = {
            "is no 'at:' to offset in the first place",
 }
 
-#: `"text"` left this table 2026-09-15 (plan 06 §3) -- a pattern text part's
-#: glyphs are drawn upright, only the anchor point rotates or steps, so the
-#: platform reason that used to reject it ("a bitmap font cannot rotate or
-#: translate through this loop") no longer applies. `HAND_PART_REJECTED_SHAPES`
-#: keeps its own `"text"` entry: a hand's rotation really would have to spin
-#: the glyphs themselves, which is still impossible.
+#: `"text"` is not in this table: a pattern text part's glyphs are drawn
+#: upright, and only the anchor point rotates or steps, so "a bitmap font
+#: cannot rotate or translate through this loop" does not apply to it.
+#: `HAND_PART_REJECTED_SHAPES` keeps its own `"text"` entry: a hand's
+#: rotation really would have to spin the glyphs themselves, which is still
+#: impossible.
 PATTERN_PART_REJECTED_SHAPES = {
     "rounded_rectangle": "no Dc call draws a rotated or translated rounded "
                           "rectangle -- approximate it with 'polygon'",
@@ -232,23 +231,22 @@ _CONFIG_COLORS_RE = re.compile(
 
 
 class _NamedBlock:
-    """The "declared / accepted / rejected" bookkeeping a named top-level
-    block keeps -- `fonts:`, `palette:`, `layouts:`, `color_scheme:`,
+    """The declared/accepted/rejected bookkeeping a named top-level block
+    keeps -- `fonts:`, `palette:`, `layouts:`, `color_scheme:`,
     `config: data:` and `hands:` each build one of these as they parse their
     own entries.
 
     `declared` is every name the block saw, whether or not it survived; a
-    rejected entry is still a *declared* one, and saying otherwise is how the
-    old `unknown font` note came to tell an author "declared fonts: (none
-    declared)" about a file declaring three.  `rejected` is the subset that
-    failed the block's own check.  A resolver elsewhere first looks a name up
-    in whatever dict the block's *accepted* values actually live in (`self.
-    fonts`, `self.palette`, ... -- shaped differently per block, so that
-    lookup stays at the call site); once that misses, :meth:`unknown` gives
-    the shared "one error, not N" cascade tail every one of those resolvers
-    used to reimplement: a name that was declared and then rejected here
-    stays quiet, because the real mistake already has its own error against
-    this block, and anything else is `unknown X`, with a note listing every
+    rejected entry is still a *declared* one, so a reference to a name that
+    was declared and then rejected can be told apart from one that was never
+    declared at all.  `rejected` is the subset that failed the block's own
+    check.  A resolver elsewhere first looks a name up in whatever dict the
+    block's *accepted* values actually live in (`self.fonts`, `self.palette`,
+    ... -- shaped differently per block, so that lookup stays at the call
+    site); once that misses, :meth:`unknown` gives the shared "one error, not
+    N" cascade tail: a name that was declared and then rejected here stays
+    quiet, because the real mistake already has its own error against this
+    block, and anything else is `unknown X`, with a note listing every
     declared name (`docs/lore/codegen.md`).
     """
 
@@ -295,14 +293,8 @@ class Builder:
         self.config: dict[str, ConfigColor] = {}
         self.fonts: dict[str, FontSpec] = {}
         #: Every name in the `fonts:` block, whether or not it survived
-        #: `_build_fonts` -- a rejected entry is still a *declared* one, and
-        #: saying otherwise is how the old `unknown font` note came to tell an
-        #: author "declared fonts: (none declared)" about a file declaring
-        #: three.  `_NamedBlock` is the shared "declared vs accepted vs
-        #: rejected" bookkeeping every named top-level block below keeps, so
-        #: an element naming a name that was declared and then rejected for
-        #: its own fault gets exactly one error, at the real mistake, not a
-        #: second one blaming the reference (`docs/lore/codegen.md`).
+        #: `_build_fonts` -- see `_NamedBlock`'s own docstring for why a
+        #: rejected entry stays declared.
         self.fonts_block = _NamedBlock()
         #: The same split for `palette:`, needed now that a `config:`
         #: `default:`/`choices:` entry can name a palette entry and must get
@@ -321,10 +313,9 @@ class Builder:
         #: the same declared/rejected split every other named block keeps, so
         #: a `config: style:` entry's `layout:` must get exactly one error
         #: when it names a layout that was declared and then rejected, not a
-        #: second one blaming the reference (plan 02
-        #: §12.1).  Built by `_build_layouts`, before `_build_color_scheme`/
-        #: `_build_config`, so a style entry can resolve `layout:` the same
-        #: build pass it resolves `colors:` in.
+        #: second one blaming the reference.  Built by `_build_layouts`,
+        #: before `_build_color_scheme`/`_build_config`, so a style entry can
+        #: resolve `layout:` the same build pass it resolves `colors:` in.
         self.layouts: list[LayoutDecl] = []
         self.layouts_block = _NamedBlock()
         #: `color_scheme:` entries, and the same declared/rejected split
@@ -342,8 +333,8 @@ class Builder:
         #: -- set in `_build_scope`, consulted only by `_expression`'s
         #: dedicated error for a bad or missing role (see its own docstring).
         #: `None` means "no `config: style:` axis at all", not "zero roles".
-        #: Named for the expression namespace (`config.colors.*`), which is
-        #: unchanged -- only the declaring block's own name moved to `style:`.
+        #: Named for the expression namespace (`config.colors.*`), not the
+        #: `config: style:` block that declares it.
         self._config_colors_roles: tuple[str, ...] | None = None
         #: `config: data:` slots, keyed by name -- the same declared/rejected
         #: split every other `config:` sub-block keeps, so a `slot:` naming a
@@ -353,9 +344,9 @@ class Builder:
         self.config_data: dict[str, ConfigDataSlot] = {}
         self.config_data_block = _NamedBlock()
         #: `hands:` entries, and the same declared/rejected split every other
-        #: named block keeps (plan 04) -- a `type: hands` element naming a
-        #: set that was declared and then rejected gets exactly one error, at
-        #: the real mistake, not a second one blaming the element.
+        #: named block keeps -- a `type: hands` element naming a set that was
+        #: declared and then rejected gets exactly one error, at the real
+        #: mistake, not a second one blaming the element.
         self.hand_sets: dict[str, HandSet] = {}
         self.hand_sets_block = _NamedBlock()
         self.scope = expr.Scope()
@@ -367,14 +358,14 @@ class Builder:
         #: through a `Redefinition of ...` error pointing at generated code.
         self.seen_symbols: dict[str, tuple[str, Span | None]] = {}
         #: The top-level `antialias:` default, read first in `build()` --
-        #: `_build_fonts` needs it (R5: a `fonts:` entry with no `antialias:`
-        #: of its own follows the face) and it is not otherwise in scope by
-        #: the time that method runs.
+        #: `_build_fonts` needs it (a `fonts:` entry with no `antialias:` of
+        #: its own follows the face) and it is not otherwise in scope by the
+        #: time that method runs.
         self.face_antialias = False
-        #: The top-level `min_1px:` default (plan 08), read first in
-        #: `build()` for the same reason `face_antialias` above is -- nothing
-        #: needs it before element resolution runs, but keeping the two read
-        #: together avoids a second one-off special case later.
+        #: The top-level `min_1px:` default, read first in `build()` for the
+        #: same reason `face_antialias` above is -- nothing needs it before
+        #: element resolution runs, but keeping the two read together avoids
+        #: a second one-off special case later.
         self.face_min_1px = False
 
     # -- entry point ------------------------------------------------------
@@ -385,7 +376,7 @@ class Builder:
         self.face_min_1px = bool(data.get("min_1px", False))
         # Layouts first: a `config: style:` entry's `layout:` resolves
         # against the declared names, the same build pass its `colors:`
-        # resolves against `color_scheme:` (plan 02 §12.1).
+        # resolves against `color_scheme:`.
         self._build_layouts(data.get("layouts") or {})
         self._build_palette(data.get("palette") or {})
         self._build_color_scheme(data.get("color_scheme") or {})
@@ -395,10 +386,10 @@ class Builder:
         self._build_scope()
         # Hands need the scope built first: a hand's `color:` may read
         # `palette.*`/`config.*` through the same `_color_expression` an
-        # element's own `color:` uses, and it needs `self.scope` in place
-        # (plan 04 §6).  They need to run before `_build_elements` so a
-        # `type: hands` element can resolve `hands: <name>` against
-        # `self.hand_sets` the same build pass.
+        # element's own `color:` uses, and it needs `self.scope` in place.
+        # They need to run before `_build_elements` so a `type: hands`
+        # element can resolve `hands: <name>` against `self.hand_sets` the
+        # same build pass.
         self._build_hands(data.get("hands") or {})
 
         elements = self._build_elements(data.get("elements") or [], ("elements",))
@@ -407,8 +398,7 @@ class Builder:
         # Before `_apply_static`: a `complication_slot` inside a layout's own
         # `static:` must get the layout error alone, not also the
         # static-subtree one, so `Element.layout` has to be assigned -- and
-        # the slot rule applied -- while the tree is still whole (plan 02
-        # §12.2, §12.5).
+        # the slot rule applied -- while the tree is still whole.
         self._assign_layouts(elements)
         if not self.bag.ok():
             return None
@@ -449,7 +439,7 @@ class Builder:
 
     def _build_layouts(self, raw: dict) -> None:
         """`layouts:` -- named widget sets, declared as containers, form A
-        only (plan 02 §12.1, §12.2).
+        only.
 
         Post-desugar, each body is just `{}` or `{lint: ...}` --
         `wfb/desugar.py`'s `_layouts_block` has already folded `static:`/
@@ -458,7 +448,7 @@ class Builder:
         (`wfb.desugar.layout_ids`) and walked to set `Element.layout` once
         `elements` itself exists (`_assign_layouts`, called later in
         `build()`).  So this only records the *names*, in declaration order,
-        plus each layout's own `lint:` (consulted by a later phase's
+        plus each layout's own `lint:` (consulted by the lint pass's
         `unreachable-layout`).
 
         A layout body has little of its own that can be rejected today --
@@ -481,8 +471,7 @@ class Builder:
     def _assign_layouts(self, elements: list[Element]) -> None:
         """Stamp `Element.layout` on each layout's synthetic groups and their
         descendants, by the reserved id `wfb.desugar.layout_ids` defines,
-        then apply the slot rule (plan 02 §12.2,
-        §12.5).
+        then apply the slot rule.
 
         Runs right after `_build_elements`, before `_apply_static` -- see
         `build()`'s own comment for why the ordering matters.  Only the
@@ -522,8 +511,7 @@ class Builder:
 
     def _check_layouts_reachable(self, data: dict) -> None:
         """`layouts:` declared with no `config: style:` entry ever naming one
-        as its `layout:` is an error -- nothing lets the wearer pick it
-        (plan 02 §12.1).
+        as its `layout:` is an error -- nothing lets the wearer pick it.
 
         Called after `_build_config`, once `self.config_style`/
         `self.rejected_config` are both known.  A `config: style:` that was
@@ -690,7 +678,7 @@ class Builder:
 
     def _scheme_reference(self, name: str, span: Span | None) -> str | None:
         """Resolve a bare `color_scheme:` name used from a `config: style:`
-        entry's own `colors:` (plan 02 §12.4).
+        entry's own `colors:`.
 
         Bare, not `color_scheme.<name>` -- that qualifying form is for
         expressions (`color: color_scheme.dark` is not even legal there
@@ -716,7 +704,7 @@ class Builder:
 
     def _layout_reference(self, name: str, span: Span | None) -> str | None:
         """Resolve a bare `layouts:` name used from a `config: style:`
-        entry's own `layout:` (plan 02 §12.4).
+        entry's own `layout:`.
 
         Same declared/rejected cascade `_scheme_reference` already has for
         `colors:` -- there is currently little that can reject a *declared*
@@ -734,9 +722,8 @@ class Builder:
     def _build_config_style(self, spec: dict, span: Span | None) -> None:
         """`config: style:` -- an author-named, ordered set of entries riding
         Styles, the one axis Garmin gives no meaning to at all
-        (docs/research/09 §3, plan 02 §12.4).
-        Replaces `config: colors:` outright, no shim (plan 02 §12, decision
-        3).
+        (docs/research/09 §3).  `config: colors:` is not a key; the schema
+        rejects it.
 
         Unlike `accent_color`/`data_color`, entries are named by the
         *author* -- `choices:` is an ordered mapping, not a list -- so
@@ -938,8 +925,8 @@ class Builder:
             for index, item in enumerate(raw_choices):
                 item_span = self.doc.span(raw_choices, index)
                 if isinstance(item, dict):
-                    # The mapping form (plan 03 §6.1): `{type: complication.
-                    # <name>, icon: ...}` or `{..., glyph: ...}` -- carries
+                    # The mapping form: `{type: complication.<name>,
+                    # icon: ...}` or `{..., glyph: ...}` -- carries
                     # information the bare string form cannot express, so
                     # this is not a desugar rewrite of it (docs/lore/
                     # codegen.md's desugar note does not apply here).
@@ -1136,14 +1123,10 @@ class Builder:
             if size is None:
                 self.fonts_block.reject(name)
                 continue
-            # `scale:` is no longer a key the schema recognises at all -- it
-            # is only meaningful for the removed bare-number spelling, and
-            # `%r`/`px` each already say whether a length is per-device. A
-            # design still writing it gets the ordinary unknown-key schema
-            # error before this stage ever runs, the same "the rename shim is
-            # gone, this is just not a key any more" precedent `on_tap:` set
-            # (`tests/test_semantics.py::
-            # test_the_old_on_tap_spelling_is_now_an_ordinary_unknown_key`).
+            # `scale:` is not a key the schema recognises -- `%r`/`px`
+            # already say whether a length is per-device, so a design
+            # writing it gets the ordinary unknown-key schema error before
+            # this stage ever runs.
             monospace = bool(spec.get("monospace", False))
             if "align" in spec and not monospace:
                 self.bag.error(
@@ -1164,7 +1147,7 @@ class Builder:
                 source=source,
                 size=size,
                 glyphs=spec.get("glyphs"),
-                # R5: a font with no `antialias:` of its own follows the
+                # A font with no `antialias:` of its own follows the
                 # face-wide default rather than a hardcoded False -- there is
                 # nothing further beneath a `fonts:` entry to inherit from, so
                 # this is resolved here, not deferred to a tree walk the way an
@@ -1178,14 +1161,12 @@ class Builder:
     def _font_size(self, name: str, spec: dict) -> Length | None:
         """`fonts.<name>.size`, as a `Length`.
 
-        A bare number used to be a second, legacy spelling -- pixels on the
-        *smallest* target, scaled per device by the ratio of minor radii
-        (`scale: true`, the default) or taken verbatim (`scale: false`).  It
-        is rejected here, with the exact conversion named, rather than
-        accepted and silently reinterpreted: this stage of the compiler has
-        no device knowledge at all (the module docstring: "nothing here
-        knows a screen size"), so it cannot look up a target's minor radius
-        and hand back a computed number -- only the rule to apply by hand.
+        A bare number is rejected here, with the exact `%r`/`px` conversion
+        named in the error, rather than accepted and silently reinterpreted:
+        this stage of the compiler has no device knowledge at all (the
+        module docstring: "nothing here knows a screen size"), so it cannot
+        look up a target's minor radius and hand back a computed number --
+        only the rule to apply by hand.
         """
         raw = spec["size"]
         if isinstance(raw, (int, float)) and not isinstance(raw, bool):
@@ -1233,7 +1214,7 @@ class Builder:
             return None
         return size
 
-    # -- hands (plan 04) ---------------------------------------------------
+    # -- hands --------------------------------------------------------------
 
     def _build_hands(self, raw: dict) -> None:
         """`hands:` -- named analog-hand sets, declared once, placed by name.
@@ -1312,19 +1293,15 @@ class Builder:
         return Hand(parts=parts, color=hand_color)
 
     def _reject_hand_data_color(self, color: Expression, where: str, span: Span | None) -> bool:
-        """A hand colour "may not read a data source" at all (§5.4) -- a hand
-        is about the time, with no `when_absent:` to fall back through if a
+        """A hand colour may not read a data source at all -- a hand is
+        about the time, with no `when_absent:` to fall back through if a
         reading it named turned out absent.
 
-        Pattern-only until 2026-09-15 (`noun="pattern"` used to run a second,
-        looser rule here: any source was fine except one that could be
-        absent).  That rule is gone -- a pattern colour may now read
-        anything, absent-able or not -- so this is a hand-only check again,
-        and every pattern call site below simply stops calling it.  The
-        pattern-wide absence policy lives in `_check_pattern_absence`
-        instead: **one** error covering every colour and part `visible:` on
-        the element, not a rejection per expression.  Returns whether the
-        colour was rejected.
+        Hand-only: a pattern colour may read any source, absent-able or
+        not -- the pattern-wide absence policy lives in
+        `_check_pattern_absence` instead, which reports **one** error
+        covering every colour and part `visible:` on the element, not a
+        rejection per expression.  Returns whether the colour was rejected.
         """
         if not color.sources:
             return False
@@ -1347,13 +1324,13 @@ class Builder:
     ) -> HandPart | None:
         """One primitive of a hand, or of a `type: pattern` template -- the
         same per-shape precedent as `_build_shape`/`_check_shape_keys`,
-        scoped to the rotatable-or-translatable primitives (§5.2, plan 05
-        §5.2).  `context` selects which vocabulary applies: a hand part
-        rejects `arc` outright (no runtime support for a rotating start
-        angle existed until the pattern barrel added it); a pattern part
-        accepts it.  Hand behaviour is unchanged by this parameter -- every
-        table it reads defaults to the hand's own, so `context="hand"`
-        (every existing caller) takes exactly the code path it always did.
+        scoped to the rotatable-or-translatable primitives.  `context`
+        selects which vocabulary applies: a hand part rejects `arc` outright
+        (no runtime support for a rotating start angle); a pattern part
+        accepts it, through the pattern barrel.  Hand behaviour is
+        unchanged by this parameter -- every table it reads defaults to the
+        hand's own, so `context="hand"` (every existing caller) takes
+        exactly the same code path.
         """
         is_hand = context == "hand"
         noun = "hand" if is_hand else "pattern"
@@ -1401,13 +1378,13 @@ class Builder:
             )
             ok = False
 
-        # `visible:` (B): pattern parts only -- the schema keeps `handPart`
+        # `visible:`: pattern parts only -- the schema keeps `handPart`
         # closed to it, so `context == "hand"` never sees the key at all.
         # Compiled inside the caller's `copy`-bound scope
         # (`Builder._build_pattern_element`), the same as a colour.  A
         # constant `true` is dropped (nothing to gate); a constant `false`
-        # is kept, so the `dead-element` lint (B5) and codegen (which emits
-        # no draw code for it) both see it.
+        # is kept, so the `dead-element` lint and codegen (which emits no
+        # draw code for it) both see it.
         part_visible: Expression | None = None
         if not is_hand and "visible" in node:
             part_visible = self._visible(node)
@@ -1460,8 +1437,8 @@ class Builder:
             )
             ok = False
 
-        # `shape: text` (plan 06 §3): upright glyphs whose anchor turns
-        # (radial) or steps (linear) with the copy -- reachable only in a
+        # `shape: text`: upright glyphs whose anchor turns (radial) or
+        # steps (linear) with the copy -- reachable only in a
         # pattern's template, since `HAND_PART_REJECTED_SHAPES` still refuses
         # `text` on a hand outright.  Each branch below is exclusive of the
         # others ("one error, not N", docs/lore/codegen.md): a design with
@@ -1557,11 +1534,11 @@ class Builder:
         """Reject a geometry key this part's `shape:` does not read, plus the
         separately-handled `thickness`/`filled` rules -- the same "a key a
         part's shape does not read is an error" precedent as
-        `Builder._check_shape_keys` (§5.2, §5.11).  Also how an `arc`
-        pattern part's `at:` is refused (plan 05 D3): `at` is not in
-        `PATTERN_PART_GEOMETRY_KEYS["arc"]`, so it falls out of the same
-        "key belongs to another shape" sweep as any other misplaced key,
-        with one extra note explaining the platform reason.
+        `Builder._check_shape_keys`.  Also how an `arc` pattern part's `at:`
+        is refused: `at` is not in `PATTERN_PART_GEOMETRY_KEYS["arc"]`, so it
+        falls out of the same "key belongs to another shape" sweep as any
+        other misplaced key, with one extra note explaining the platform
+        reason.
         """
         is_hand = context == "hand"
         noun = "hand" if is_hand else "pattern"
@@ -1751,10 +1728,11 @@ class Builder:
         if not self._check_symbol_collision(element_id, node, span):
             return None
         if node.get("overrides"):
-            # Parsed and stored since Phase 2, applied by nothing (ADR 0004 4 is
-            # still unbuilt).  Accepting it silently is the worst of the three
-            # options: a misspelled device id and an invented key both validate
-            # clean, and the author is left believing a per-device tweak landed.
+            # Parsed and stored, but applied by nothing (ADR 0004 4 is still
+            # unbuilt).  Accepting it silently would be the worst of the
+            # three options: a misspelled device id and an invented key both
+            # validate clean, and the author would be left believing a
+            # per-device tweak landed.
             self.bag.error(
                 "overrides",
                 f"{element_id}: per-device 'overrides:' is not implemented yet, "
@@ -1871,10 +1849,7 @@ class Builder:
         sentinel and passing it through unresolved -- this runs from
         `common`, *before* the kind-specific builder gives the element a
         value binding to resolve `auto` from.  `Builder._resolve_hold_auto`
-        does the actual resolution once the element is fully built (SPEC.md
-        D3), the same deferred-pass shape `_check_tiers` used to run at
-        (deleted along with the per-source refresh-cadence concept -- see
-        CLAUDE.md's Phase 3 notes on this session).
+        does the actual resolution once the element is fully built.
         """
         raw = node.get("on_hold")
         if raw is None:
@@ -1897,11 +1872,9 @@ class Builder:
         """Resolve `on_hold: auto`.
 
         Deferred here, called from `_build_element` right after the
-        kind-specific builder returns -- exactly where `_check_tiers` used to
-        run before the per-source refresh-cadence concept was deleted, and for the same
-        reason: this needs a *fully-built* element, since `_hold_target`
-        (called from `common`, before the builder runs) has no value binding
-        yet to resolve `auto` from.
+        kind-specific builder returns: this needs a *fully-built* element,
+        since `_hold_target` (called from `common`, before the builder runs)
+        has no value binding yet to resolve `auto` from.
 
         By the time this returns, `element.on_hold` is either a real
         `wfb.complications.TYPES` key or `None` -- never the `HOLD_AUTO`
@@ -1928,21 +1901,21 @@ class Builder:
     def _hold_auto_sources(element: Element) -> tuple[str, ...]:
         """The catalogue paths `on_hold: auto` may resolve from, for one element.
 
-        SPEC.md D3: the element's own **value** expression(s) only --
-        deliberately not `color:`/`max:`, since a conditional colour's
-        reference is not what the element is *about*.  A `text`'s `value:`,
-        a `progress`'s `value:` (not `max:`), and an `icon`'s `icon_for:`
-        (not a static `icon:`/`glyph:`, which reads no source at all).
+        The element's own **value** expression(s) only -- deliberately not
+        `color:`/`max:`, since a conditional colour's reference is not what
+        the element is *about*.  A `text`'s `value:`, a `progress`'s
+        `value:` (not `max:`), and an `icon`'s `icon_for:` (not a static
+        `icon:`/`glyph:`, which reads no source at all).
 
         This intentionally is **not** `wfb.emit.monkeyc.ReadPlan.
         _value_expressions` reused: that helper answers a different question
         (which expressions a `when_absent:` policy governs) and its answer
-        differs from this one in exactly the two ways SPEC.md calls out --
-        `Progress` there includes `max:` too (one absent reading is as
-        absent as the other, for a fill *fraction*), and it does not cover
-        `IconElement` at all (an icon has no `when_absent:` to govern).
-        Forcing one shape onto both questions would make one of them wrong,
-        so this stays a second, smaller helper rather than an import.
+        differs from this one in two ways -- `Progress` there includes
+        `max:` too (one absent reading is as absent as the other, for a
+        fill *fraction*), and it does not cover `IconElement` at all (an
+        icon has no `when_absent:` to govern).  Forcing one shape onto both
+        questions would make one of them wrong, so this stays a second,
+        smaller helper rather than an import.
         """
         if isinstance(element, (Text, Progress)):
             return element.value.sources if element.value is not None else ()
@@ -1954,7 +1927,7 @@ class Builder:
                              span: Span | None) -> str | None:
         """Resolve `auto` to exactly one `wfb.complications.TYPES` name.
 
-        SPEC.md D3's three outcomes: exactly one distinct non-None
+        Three outcomes: exactly one distinct non-None
         `Source.launch_complication` among ``sources`` resolves; zero
         (including no value binding at all) is `hold-auto-unresolved`; more
         than one distinct is `hold-auto-ambiguous`.  Both are errors, not
@@ -1997,10 +1970,10 @@ class Builder:
 
     def _alignment(self, node: dict) -> tuple[str, str]:
         """`(align, vertical_align)`, defaulting to `"center"`/`"center"` --
-        the one place that reads the two keys plan 07 made a placement
-        property of every kind (R1/R8).  The schema is normative on which
+        the one place that reads the two keys, a placement property of every
+        kind that has a placement box.  The schema is normative on which
         values reach here (`$defs/align`/`$defs/verticalAlign`; `baseline`
-        left the schema outright, `wfb.validate`'s friendly rename error
+        is not in the schema -- `wfb.validate`'s friendly rename error
         catches it first), so this is a plain lookup with no validation of
         its own.  Shared by every accepting kind's builder -- `_build_group`,
         `_build_text`, `_build_hand_part`'s `shape: text`/`rectangle`/
@@ -2024,7 +1997,7 @@ class Builder:
         and the emitter folds the null check into the same guard as the
         condition.
 
-        Reused verbatim for a `type: pattern` part's own `visible:` (B), with
+        Reused verbatim for a `type: pattern` part's own `visible:`, with
         `copy` bound in scope -- but there "absent is hidden" means the whole
         *pattern* is hidden, not just this part: `_check_pattern_absence`
         governs that, not this method, because the reading is taken once per
@@ -2115,28 +2088,27 @@ class Builder:
         self, elements: list[Element], *, authored: str, resolved: str, default: bool,
     ) -> None:
         """Resolve a boolean key as an inherited *default*, root to leaf --
-        shared by `antialias:` and `min_1px:` (plan 08 §3.2), which are
-        identical in shape: `authored` names the field holding what the
-        author wrote (`None` = inherit), `resolved` the field to stamp the
-        answer into, `default` the face-wide default the root of the tree
-        inherits.
+        shared by `antialias:` and `min_1px:`, which are identical in shape:
+        `authored` names the field holding what the author wrote (`None` =
+        inherit), `resolved` the field to stamp the answer into, `default`
+        the face-wide default the root of the tree inherits.
 
         Deliberately a single top-down pass over the finished tree, called
         once from `build()` for each key, rather than pushed per group the
         way `_push_visible` is: `visible:` *conjoins*, so composing it
         bottom-up as each group finishes building is safe and even necessary
         (an inner group has already folded its own condition into its
-        children before the outer one runs). Neither `antialias:` nor
-        `min_1px:` is something that accumulates -- the nearest enclosing
-        declaration simply wins -- so there is nothing to compose, and
-        threading "does an ancestor further up still have to hand this
-        element a default" through the bottom-up build order would need more
-        bookkeeping than a second, independent walk over the tree that
-        already exists in full. That is also why this is one helper with two
-        callers rather than one walk that resolves both keys at once: they
-        are two unrelated inherited defaults that happen to share a shape,
-        not one feature, and a future third one (or a change to just one of
-        them) should not have to touch the other's call site.
+        children before the outer one runs).  Neither `antialias:` nor
+        `min_1px:` accumulates -- the nearest enclosing declaration simply
+        wins -- so there is nothing to compose, and threading "does an
+        ancestor further up still have to hand this element a default"
+        through the bottom-up build order would need more bookkeeping than a
+        second, independent walk over the finished tree.  That is also why
+        this is one helper with two callers rather than one walk that
+        resolves both keys at once: they are two unrelated inherited
+        defaults that happen to share a shape, not one feature, and a future
+        third one (or a change to just one of them) should not have to touch
+        the other's call site.
 
         A child's own value always wins outright over its group's (unlike
         `visible:`, there is no meaningful "AND" of two booleans that both
@@ -2164,7 +2136,7 @@ class Builder:
         )
 
     def _resolve_min_1px(self, elements: list[Element]) -> None:
-        """`min_1px:` (plan 08) -- see `_resolve_inherited_flag`, which does
+        """`min_1px:` -- see `_resolve_inherited_flag`, which does
         the work. A hand/pattern part's own `min_1px` is resolved separately,
         per element instance, at layout time (`HandPart.min_1px`'s docstring
         explains why it has no `resolved_` twin here)."""
@@ -2478,13 +2450,12 @@ class Builder:
     def _check_shape_keys(self, node: dict, shape: str) -> None:
         """Reject a geometry key the chosen `shape:` does not read.
 
-        Every one of these was previously parsed by the schema, resolved into
-        the IR, and then never looked at -- so `shape: rounded_rectangle` with
-        a `radius:` (rather than `corner_radius:`) drew square corners and said
-        nothing, and `thickness:` on a shape left filled did nothing at all.
-        That is the same silent-key class as the `filled:` bug, and ADR 0009's
-        rule applies to it: a design must not quietly lose something it asked
-        for.
+        Without this check, an unread key would be parsed by the schema,
+        resolved into the IR, and then never looked at -- so `shape:
+        rounded_rectangle` with a `radius:` (rather than `corner_radius:`)
+        would draw square corners and say nothing, and `thickness:` on a
+        shape left filled would do nothing at all.  ADR 0009's rule applies:
+        a design must not quietly lose something it asked for.
 
         `thickness:` is checked separately from the table because whether it
         is read depends on `filled:`, not on the shape: a `line` and an `arc`
@@ -2516,8 +2487,8 @@ class Builder:
 
         `common["at"]` is already the axis (resolved exactly like any
         element's `at:`); there is no `size:` to build, because the
-        element's extent is the disc it sweeps (§5.8, computed later in
-        `wfb.layout`), not a box.
+        element's extent is the disc it sweeps, computed later in
+        `wfb.layout`, not a box.
         """
         name = node["hands"]
         element_id = common["id"]
@@ -2542,7 +2513,7 @@ class Builder:
             )
             return None
         if seconds is None and hand_set.second is not None:
-            seconds = "awake"  # the default (§5.6)
+            seconds = "awake"  # the default
         if seconds == "never" and hand_set.hour is None and hand_set.minute is None:
             # The one combination that draws nothing at all -- refused rather
             # than generated as a method with no drawing in it (no silent
@@ -2581,11 +2552,11 @@ class Builder:
     def _build_pattern_element(self, node: dict, common: dict, path: tuple) -> Element | None:
         """`type: pattern` -- one template, drawn `count:` times, turned
         about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
-        (`pattern: linear`) (plan 05).
+        (`pattern: linear`).
 
         Every check here is a build-time error, each driven red by its own
-        test (§5.4): a mismatched `step:`/`start:` shape for this pattern
-        kind, a zero or self-overlapping radial step, an out-of-range or
+        test: a mismatched `step:`/`start:` shape for this pattern kind, a
+        zero or self-overlapping radial step, an out-of-range or
         exhaustive `skip:`/`skip_every:`, `low_power`, and the part rules
         `_build_hand_part` already enforces.  Every branch below returns
         `None` on its own violation rather than falling through to the next
@@ -2735,10 +2706,10 @@ class Builder:
                 if element_color is None:
                     ok = False
                     color_declared_and_failed = True
-                # No `_reject_hand_data_color` here any more: a pattern
-                # colour may read any source, absent-able or not
-                # (2026-09-15) -- `_check_pattern_absence` below is the one
-                # place that now polices absence, for the element as a whole.
+                # `_reject_hand_data_color` does not run here: a pattern
+                # colour may read any source, absent-able or not --
+                # `_check_pattern_absence` below is the one place that
+                # polices absence, for the element as a whole.
 
             for index, raw_part in enumerate(node.get("parts") or []):
                 part = self._build_hand_part(
@@ -2753,13 +2724,13 @@ class Builder:
             del self.scope.bindings[expr.COPY]
 
         if ok:
-            # Per-copy strings (plan 06 §3.2 "Per-copy strings"): computed
-            # once here, device-independently, the same evaluation the host
-            # preview does for an ordinary `text` element
-            # (`wfb.preview._text_value`) -- what makes a text part's font
-            # subset, its measured extent, and the glyph lint all exact.
-            # `copy` no longer needs to be scope-bound for this: `expr.evaluate`
-            # walks the already-compiled tree directly against a plain dict.
+            # Per-copy strings: computed once here, device-independently,
+            # the same evaluation the host preview does for an ordinary
+            # `text` element (`wfb.preview._text_value`) -- what makes a
+            # text part's font subset, its measured extent, and the glyph
+            # lint all exact.  `copy` does not need to be scope-bound for
+            # this: `expr.evaluate` walks the already-compiled tree directly
+            # against a plain dict.
             for part in parts:
                 if part.shape != "text":
                     continue
@@ -2811,24 +2782,23 @@ class Builder:
         return element
 
     def _check_pattern_absence(self, node: dict, element: PatternElement) -> None:
-        """A2: one element-level `when_absent:` check for a pattern, in
-        place of the old per-colour refusal (`_reject_hand_data_color` used
-        to run once per colour; a pattern colour may now read a source that
-        can be absent, so the compiler needs a policy from the author
-        instead of a blanket rejection).
+        """One element-level `when_absent:` check for a pattern, in place of
+        a per-colour refusal: a pattern colour may read a source that can be
+        absent, so the compiler needs a policy from the author instead of a
+        blanket rejection.
 
         Collects every nullable colour (the element's own `color:`, and
-        each part's) and every nullable part `visible:` (B) -- deliberately
+        each part's) and every nullable part `visible:` -- deliberately
         **not** the element's own `visible:`, which keeps its ordinary
         "absent means hidden, no policy" rule (`_visible`'s own docstring) --
         and reports **one** error naming every nullable source found, not
         one per expression, the same "one error, not N" discipline
-        `docs/lore/codegen.md` asks for everywhere else. The wording is the
+        `docs/lore/codegen.md` asks for everywhere else.  The wording is the
         house `_check_other_absence` style, adapted: a pattern has no
         `placeholder:`/`fallback:` to offer, only `hide`, and absence hides
         the *whole* pattern (every copy, every part), not just the one
         binding that went missing -- the reading is taken once per frame,
-        before the loop (B3).
+        before the loop.
 
         The mirror case -- `when_absent: hide` declared but nothing on the
         pattern is ever absent -- reuses `_check_absence`'s own "has no
@@ -2913,10 +2883,8 @@ class Builder:
         outline or an icon's own, per-glyph font.  The schema still parses
         `antialias:` here rather than rejecting it as an unknown key, purely
         so this can name the actual font instead of jsonschema's generic
-        "unknown key" message -- the same trick a discriminated-pair key uses
-        own rename against the author's line, and for the same reason: by
-        the time `_resolve_font` above has run, `element.font` is the real
-        answer, not a guess.
+        "unknown key" message: by the time `_resolve_font` above has run,
+        `element.font` is the real answer, not a guess.
         """
         span = self.doc.span(node, "antialias")
         if element.font_is_custom:
@@ -2980,11 +2948,11 @@ class Builder:
     def _resolve_icon_name(self, name: str, span: Span | None) -> str | None:
         """A catalogue name -> its codepoint, or `None` plus a reported error.
 
-        The shared "unknown icon" diagnostic: originally `_build_icon`'s own
-        inline check, factored out so a `complication_slot` choice's
-        `icon:` override (`_resolve_choice_icon_override`) reports the exact
-        same message rather than a second, slightly-different one for what
-        is the same mistake either place it is made.
+        The shared "unknown icon" diagnostic: used by `_build_icon`'s own
+        inline check and by a `complication_slot` choice's `icon:` override
+        (`_resolve_choice_icon_override`), so both report the exact same
+        message rather than a second, slightly-different one for what is
+        the same mistake either place it is made.
         """
         codepoint = icons.resolve_codepoint(name)
         if codepoint is None:
@@ -3003,11 +2971,11 @@ class Builder:
     def _resolve_icon_glyph(self, raw: str, span: Span | None) -> str | None:
         """`"U+F0BC"` -> the character, or `None` plus a reported error.
 
-        The shared `glyph:` diagnostics: originally `_build_glyph_icon`'s own
-        inline checks, factored out for the same reason `_resolve_icon_name`
-        was -- a `complication_slot` choice's `glyph:` override
-        (`_resolve_choice_icon_override`) needs the identical "not that
-        notation" / "not in the font" messages, not a second copy of them.
+        The shared `glyph:` diagnostics: used by `_build_glyph_icon`'s own
+        inline checks and by a `complication_slot` choice's `glyph:`
+        override (`_resolve_choice_icon_override`), which needs the
+        identical "not that notation" / "not in the font" messages, not a
+        second copy of them.
         The "this glyph is already a catalogue name" note is a `bag.note`,
         not an error, so it does not affect the caller's success/failure
         return either way.
@@ -3049,7 +3017,7 @@ class Builder:
         self, item: dict, what: str, fallback_span: Span | None,
     ) -> "icons.SlotIcon | None | object":
         """A `config: data:` choice's own `icon:`/`glyph:`, if it declares
-        one (plan 03 §6.1/§6.2).
+        one.
 
         Returns `_NO_ICON_OVERRIDE` when the choice names neither key (fall
         back to `wfb.icons.COMPLICATION_ICON`), `_ICON_OVERRIDE_ERROR` when
@@ -3166,11 +3134,12 @@ class Builder:
 
         The only way to reach a glyph the catalogue does not name, and spelled
         so that it survives a code review: `U+F0BC` is greppable and visible,
-        where the character itself renders as a blank box (or nothing) in most
-        editors and diffs.  `icon:` briefly accepted a pasted character too;
-        that was removed, for the reason this docstring gives.  Everything downstream -- baking, sizing, the
-        per-codepoint font key -- is identical once it is a character, because
-        this is exactly what a catalogue name resolves to.
+        where the character itself renders as a blank box (or nothing) in
+        most editors and diffs.  `icon:` does not accept a raw pasted
+        character; this is the one place a codepoint outside the catalogue
+        belongs.  Everything downstream -- baking, sizing, the per-codepoint
+        font key -- is identical once it is a character, because this is
+        exactly what a catalogue name resolves to.
         """
         raw = str(node.get("glyph"))
         span = self.doc.span(node, "glyph")
@@ -3225,13 +3194,9 @@ class Builder:
             note="an icon's font is baked once, before layout runs, so its size "
                  "cannot depend on a parent box (%) or an element's own font (pt)",
         )
-        # 'icon_size:' + 'choices: any' was rejected until 2026-09-13
-        # (plan 03 §6.6): the set of icons
-        # an unbounded picker could need was unbounded, and nothing could be
-        # baked ahead of time. Lifted by user direction once every native
-        # type had a catalogue icon (`wfb.icons.COMPLICATION_ICON` now covers
-        # all 42) -- 'any' now resolves against that whole table
-        # (`ConfigDataSlot.icons`), and a Connect IQ-app complication (or any
+        # 'icon_size:' + 'choices: any' resolves against
+        # `wfb.icons.COMPLICATION_ICON`, which covers all 42 native types
+        # (`ConfigDataSlot.icons`); a Connect IQ-app complication (or any
         # native type a future SDK adds that this table does not yet know)
         # simply is not one of the switch's cases and draws no icon, the
         # same "unmapped means text-only" contract every other slot already
@@ -3527,8 +3492,8 @@ class Builder:
                             range_value: int, buckets: int) -> int:
         """The build-time-known upper bound on this graph's sample count.
 
-        `range: 14d` on `steps` is an error, not a clamp (SPEC.md): silently
-        drawing 7 when 14 was asked for is exactly the quiet wrongness this
+        `range: 14d` on `steps` is an error, not a clamp: silently drawing 7
+        when 14 was asked for is exactly the quiet wrongness this
         compiler exists to remove.  Only checked against a *documented*
         maximum (`SeriesDef.max_count`) -- the forecast arrays document none,
         so a design asking for more than the provider actually has simply
@@ -3629,16 +3594,16 @@ class Builder:
                              bound: Expression | None) -> None:
         """A nullable binding outside `value` still needs an explicit `when_absent:`.
 
-        `_check_absence` above only ever ran for `value` -- a nullable
-        `color`/`track_color` sailed through validation with no policy at
-        all, and codegen (`wfb.emit.monkeyc`'s `ReadPlan.other_guards`)
-        always treats an absent non-value binding as 'hide', regardless of
-        which policy is chosen for the value, because there is no sensible
-        placeholder or fallback for a colour. The requirement here is only
-        that the author has consciously picked *something*, the same ADR
-        0005 3 contract `value` already has -- not that the chosen policy's
-        exact semantics (placeholder text, a substitute number) apply to a
-        colour, which they do not.
+        `_check_absence` above only ever runs for `value` -- without this
+        check, a nullable `color`/`track_color` would sail through
+        validation with no policy at all.  Codegen (`wfb.emit.monkeyc`'s
+        `ReadPlan.other_guards`) always treats an absent non-value binding
+        as 'hide', regardless of which policy is chosen for the value,
+        because there is no sensible placeholder or fallback for a colour.
+        The requirement here is only that the author has consciously picked
+        *something*, the same ADR 0005 3 contract `value` already has -- not
+        that the chosen policy's exact semantics (placeholder text, a
+        substitute number) apply to a colour, which they do not.
         """
         if bound is None or not bound.nullable:
             return
@@ -3835,10 +3800,9 @@ class Builder:
             # nothing under `config.colors.*` is bound in scope except the
             # roles a real axis actually has (`_build_scope`).  Overridden
             # with a domain-specific message rather than left as a generic
-            # typo report, which would otherwise be the only diagnostic a
-            # `color: config.colors` (missing its role) or a misspelled role
-            # ever gets -- "much less helpful", per the brief this shipped
-            # against.
+            # typo report: a bare `color: config.colors` (missing its role)
+            # or a misspelled role deserves better than a "did you mean"
+            # guess against an unrelated name.
             if self._config_colors_roles is not None:
                 match = _CONFIG_COLORS_RE.match(message)
                 if match is not None:
@@ -3919,12 +3883,11 @@ class Builder:
         Returns ``None`` when the name does not resolve.  The one subtlety is
         what happens for a font that *was* declared and then rejected by
         `_build_fonts` (a missing `source:`, a bad `size:`, `align:` without
-        `monospace:`): the build is already failing, with an error pointing at
-        the real mistake in the `fonts:` block, so this stays quiet rather than
-        adding one more error per element blaming the element for it.  The old
-        behaviour was worse than noisy -- it reported `declared fonts: (none
-        declared)` from a file that declared several, because a rejected entry
-        never reached `self.fonts`.
+        `monospace:`): the build is already failing, with an error pointing
+        at the real mistake in the `fonts:` block, so this stays quiet
+        rather than adding one more error per element blaming the element
+        for it -- see `_NamedBlock`'s docstring for why the name still
+        resolves here.
         """
         if not name.startswith("font."):
             if name in SYSTEM_FONTS:
@@ -3947,9 +3910,9 @@ class Builder:
 
     def _resolve_font(self, node: dict, element: Text | HandPart) -> None:
         """Set `.font`/`.font_is_custom` from `node["font"]`, shared by a
-        `Text` element and a `shape: text` pattern part (plan 06 §3) -- both
-        carry the same two fields, so this is the one place either can go
-        through `_font_reference` without a second copy of its diagnostic.
+        `Text` element and a `shape: text` pattern part -- both carry the
+        same two fields, so this is the one place either can go through
+        `_font_reference` without a second copy of its diagnostic.
         """
         raw = node.get("font")
         if raw is None:
@@ -4001,8 +3964,8 @@ class Builder:
         """`key`'s length, rejected unless it is `px`/`%r` -- shared by every
         size baked before layout runs: an icon's own `size:`
         (`_build_icon`), and a complication_slot's `icon_size:`/`icon_gap:`
-        (`_build_complication_slot`, plan 03 §6.1/§6.3).  `label` is the
-        quantity name the message leads with (``'icon size'``/``'icon_size'``
+        (`_build_complication_slot`).  `label` is the quantity name the
+        message leads with (``'icon size'``/``'icon_size'``
         /``'icon_gap'``); `note` is the one explanatory note, worded enough
         differently between the three ("its size" vs. "the gap that sits
         against it") that this takes it as a parameter rather than deriving
@@ -4028,7 +3991,7 @@ class Builder:
 def _dedup_append(colors: list[Expression], color: Expression | None) -> None:
     """Append `color` to `colors` in first-use order, unless it is `None` or
     already present -- the "every effective colour, deduplicated" accumulation
-    `HandsElement.colors`/`PatternElement.colors` each build (§5.1)."""
+    `HandsElement.colors`/`PatternElement.colors` each build."""
     if color is not None and color not in colors:
         colors.append(color)
 
