@@ -137,7 +137,7 @@ config:
       - palette.magenta
       - palette.yellow
   data_color:
-    default: palette.red
+    default: palette.amber
     choices:
       - palette.amber
       - palette.red
