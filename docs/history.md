@@ -3636,3 +3636,98 @@ each driven red against deliberately broken versions. The fast suite shows
 the documented failures plus `test_example_is_clean_on_every_target[showcase]`,
 which is red with the original `diagnostics.py` too: a `partial-update-budget`
 lint from the user's own `9eb0b9f` edit to that example.
+
+## 2026-09-17 — review, consolidation, package split, present-tense comments
+
+The user asked for a review of the code and its layout, with optimisation
+and refactoring wherever incremental development had left a mark. They made
+three decisions up front: split both large modules, trim comments to
+present tense, and land the work on a branch (`refactor/consolidate`) with
+one commit per theme. Partway through, they asked for the work to be
+dispatched to Sonnet subagents with an orchestrator. Every agent worked in
+its own git worktree on a file-disjoint slice, and the orchestrator
+cherry-picked its commit.
+
+**No behaviour changed.** Every step was held to two guards:
+
+- A snapshot of every example: the generated project (`build --no-compile`),
+  `validate` output, and previews (awake, `--asleep --time 3:45:12`,
+  `--all-styles`). It was byte-identical before and after (811 files),
+  except for one comment line in the copied `runtime-lib/WfbSeries.mc`,
+  whose path citation now reads `wfb/ir/model.py`.
+- The fast suite: the same 9 documented failures throughout. The slow
+  real-`monkeyc` suite was 37 passed before and after.
+
+The comment phase added a third guard: an AST comparison with docstrings
+stripped, plus a byte check on `wfb --help` text. It was driven red with a
+deliberate code edit and a help-text edit before it was trusted.
+
+What changed:
+
+- **Dead code removed:**
+  - `Device.bits_per_pixel` was defined twice, and the first definition was
+    silently shadowed.
+  - An unreachable `return ok` referenced an undefined name.
+  - `Element.overrides` was always empty.
+  - Also removed as unused or no-op: `Face.uses_mode`, `BuildError`,
+    `BuildResult.compiled`, `lint.check_alpha`,
+    `availability.unavailable_sources`, `units.to_garmin_degrees`,
+    `Device.touch`/`ppi`, `icons.icon_for_complication`, `term.get_mode`,
+    `launches_a_glance` (it was `bool(hold_targets(face))`), and about 20
+    unused imports.
+- **Duplication consolidated:**
+  - `ir`: a `_NamedBlock` holds the declared/accepted/rejected cascade that
+    seven named blocks each re-implemented, the "one error, not N" rule
+    from `docs/lore/codegen.md`. Other shared helpers: one foreign-key sweep
+    for shapes, parts and graph styles; a table-driven static-subtree
+    check; and helpers for scope bindings and complication suggestions.
+  - `emit`: one routine draws rotated primitives for hands and patterns,
+    and box/arc layout constants, draw-call lists and exit-to lines are
+    shared.
+  - `layout`: one sized-box helper and one arc-box helper, and
+    `round_half_away` is shared with `preview`. ADR 0004 carries a dated
+    correction for this.
+  - `devices`: the api.debug.xml file is read once. `lint`: the api-gated
+    warnings are table-driven. `build.slug` is public and reused by
+    `wfb new`.
+- **Review finding F8 closed:** `test_auto_is_not_a_complication_type`
+  pins that `auto` is not a complication type.
+- **Package split, a pure move:**
+  - `wfb/ir.py` became `wfb/ir/{model,naming,builder}.py`.
+  - `wfb/emit/monkeyc.py` became `wfb/emit/monkeyc/{common,app,delegate,
+    layout_constants,readplan,view,shapes,rotated,complication_slot,
+    graph}.py`.
+  - Each package `__init__` re-exports every former top-level name, private
+    ones included. Tests reach `monkeyc._emit_complication_slot`, and
+    `tests/test_strhash.py` monkeypatches `monkeyc.emit_icon_glyphs`
+    through the package attribute.
+  - Living docs, test comments and `runtime-lib/` now cite the new paths.
+    Historical records (this file, `docs/review/`, the dated research) keep
+    the old ones.
+- **Comments:** comments and docstrings under `wfb/` now describe the
+  present. Markers of changelog narration went from 287 to none: dates,
+  "used to", `plan NN §x`, `phase C`, `SPEC.md`, `Bug N`, "before this
+  existed". SDK, research-probe, ADR and constraint citations stay. The
+  volume fell only about 3% (8,117 to 7,878 lines), because most narration
+  was restated as a present-tense rule rather than deleted.
+
+Lessons for the next orchestrated session:
+
+- An agent worktree is created from the original checkout's commit, not
+  the branch the orchestrator is on. The first split attempt was built on
+  pre-consolidation code and had to be redone. Pin the base commit in the
+  brief and make the agent confirm it before editing.
+- A usage limit stops every agent at once. Worktrees keep uncommitted
+  edits, so a stopped agent can be resumed, or, when its edits already pass
+  the guards, applied and committed directly.
+- `test_cli.py::test_the_entry_point_finds_its_own_interpreter` fails in a
+  worktree only because a worktree has no `.venv`.
+
+Left as found:
+
+- `_emit_complication_slot`'s mirrored left/right/top/bottom general path.
+- The three "no symbol table" fallbacks in `lint`, which carry different
+  notes.
+- `docs/lore/roadmap.md`'s phone-settings paragraph, which describes the
+  frozen branch's own layout.
+- One old path inside `tests/test_catalog.py` test code.
