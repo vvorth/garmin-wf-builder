@@ -23,14 +23,12 @@ is two independent steps, kept independent on both sides of the build:
    :mod:`wfb.emit.monkeyc` directly from :data:`wfb.icon_catalog.CATALOG`, not
    hand-written) both just index the one catalogue by name.
 
-An earlier version collapsed both steps into `WfbWeather.mc` itself, which
-meant a raw glyph character embedded directly in that hand-written switch --
-a second, parallel table on the Monkey C side that only `wfb.icon_catalog`
-was supposed to be the one copy of. Splitting "which name" from "which glyph"
-on the device, the same way the Python side already split them, removed it:
-`WfbWeather.mc` now only ever deals in ASCII catalogue *names*, and every
-actual glyph character in the whole project -- static icon or weather
-condition alike -- is written exactly once, in `wfb/icon_catalog.py`.
+Keeping the split on the device, not just in Python, matters: `WfbWeather.mc`
+only ever deals in ASCII catalogue *names*, so every actual glyph character
+in the project -- static icon or weather condition alike -- is written
+exactly once, in `wfb/icon_catalog.py`. Letting the hand-written switch carry
+a raw glyph instead would create a second, parallel table nothing keeps in
+sync with the catalogue.
 """
 
 from __future__ import annotations
@@ -47,7 +45,7 @@ from .units import Length
 @dataclass(frozen=True)
 class SlotIcon:
     """One resolved icon for one `complications.TYPES` key, as
-    `wfb.ir.ConfigDataSlot.icons` returns it (plan 03 §6.2).
+    `wfb.ir.ConfigDataSlot.icons` returns it.
 
     ``key`` is what the generated per-slot switch (`wfb.emit.monkeyc.
     _emit_complication_slot_icon_method`) returns -- either a
@@ -57,8 +55,7 @@ class SlotIcon:
     and ``codepoint`` is the character itself, exactly as a `SourceFile`
     consumer (baking, measuring, drawing) needs regardless of which of the
     two `key` is. Kept as one small pair rather than two parallel dicts so
-    every consumer that used to write `icons.CATALOG[name].codepoint` after
-    looking a name up now gets both at once, from one place.
+    every consumer gets both the key and the codepoint from one lookup.
     """
 
     key: str
@@ -114,7 +111,7 @@ def codepoint_key(character: str) -> str:
 
     Used wherever a glyph, not a catalogue name, has to serve as a stable
     dict/switch key -- a `complication_slot` choice's ``glyph:`` override
-    (`wfb.ir.ConfigDataSlot.icons`, plan 03 §6.2) is the first user: the
+    (`wfb.ir.ConfigDataSlot.icons`) is the first user: the
     per-slot icon switch returns this string, and `IconGlyphs.glyph()` gains
     a matching ``case`` for it, generated from the same
     :data:`wfb.icon_catalog.CATALOG`-shaped table every other dynamic icon
@@ -149,15 +146,13 @@ def font_has(character: str) -> bool:
 def resolve_codepoint(name: str) -> str | None:
     """A catalogue name's glyph, or ``None`` if the catalogue does not name it.
 
-    This used to also accept a literal character pasted into the YAML, as the
-    escape hatch for the ~10,000 glyphs the maintained catalogue does not name.
-    ``glyph: "U+F09B"`` replaced it and is strictly better: the codepoint is
-    greppable, visible in a diff, and survives a copy-paste, where the
-    character itself renders as a blank box or as nothing at all in most
-    editors -- and, worse, a paste that silently fails still parses as valid
-    YAML. That is the exact hazard :mod:`wfb.icon_catalog`'s docstring bans
-    for this project's own source; there was no reason to keep offering it to
-    authors.
+    ``glyph: "U+F09B"`` (not a literal character pasted into the YAML) is the
+    escape hatch for the ~10,000 glyphs the maintained catalogue does not
+    name: the codepoint is greppable, visible in a diff, and survives a
+    copy-paste, where a pasted character renders as a blank box or nothing at
+    all in most editors -- and, worse, a paste that silently fails still
+    parses as valid YAML. That is the exact hazard :mod:`wfb.icon_catalog`'s
+    docstring bans for this project's own source.
     """
     icon = CATALOG.get(name)
     return icon.codepoint if icon is not None else None
@@ -169,18 +164,17 @@ def _available_glyphs() -> frozenset[str]:
     checks a `glyph: "U+XXXX"` codepoint against.
 
     Includes codepoints above the Basic Multilingual Plane (Material Design
-    Icons, used by this catalogue, lives entirely above it). An earlier version
-    of this function excluded them out of caution about how Monkey C would
-    handle a UTF-16 surrogate pair. Checked since, against the real toolchain:
-    `monkeyc` compiles such a character in a string literal without complaint,
-    but the **resource compiler's `filter` attribute** on a `<font>` element --
-    which is Java, and parses that attribute as UTF-16 code units -- splits the
-    character into two surrogate halves that match no real glyph and fails the
-    build with "does not have characters in the given filter". That is a real,
-    reproduced compile error, not a guess. `wfb.emit.resources.build_bundle`
-    works around it by omitting `filter` for any font that needs a glyph above
-    U+FFFF; the `.fnt` itself, which this project's own baking already subsets
-    correctly, is authoritative regardless. See that function for the detail.
+    Icons, used by this catalogue, lives entirely above it). `monkeyc` itself
+    compiles such a character in a string literal without complaint, but the
+    **resource compiler's `filter` attribute** on a `<font>` element -- which
+    is Java, and parses that attribute as UTF-16 code units -- splits the
+    character into two surrogate halves that match no real glyph and fails
+    the build with "does not have characters in the given filter" (a real,
+    reproduced compile error). `wfb.emit.resources.build_bundle` works
+    around it by omitting `filter` for any font that needs a glyph above
+    U+FFFF; the `.fnt` itself, which this project's own baking already
+    subsets correctly, is authoritative regardless. See that function for
+    the detail.
     """
     from fontTools.ttLib import TTFont
 
@@ -190,10 +184,8 @@ def _available_glyphs() -> frozenset[str]:
 
 
 # An icon's `size:` and a custom font's `size:` are the *same* declaration
-# resolved the *same* way -- `wfb.units.pixel_size` and `wfb.units.SIZE_UNITS`,
-# which used to live here and were lifted out when `fonts.<name>.size` gained
-# the `Length` spelling an icon already had.  What stays icon-only is
-# `bake_size` below; its docstring says why.
+# resolved the *same* way, by `wfb.units.pixel_size` and `wfb.units.SIZE_UNITS`.
+# What stays icon-only is `bake_size` below; its docstring says why.
 
 
 def _ink_height(codepoint: str, nominal_size: int) -> int:
@@ -223,14 +215,13 @@ def bake_size(codepoint: str, target_px: int) -> int:
     a Font Awesome or Codicons one was (confirmed by measurement: MDI glyphs
     typically fill 77-90% of the nominal size vertically, the older Font
     Awesome/Codicons choices 81-94%). Baking every icon at its declared size
-    as a literal font size, as an earlier version of this module did, made
-    `size:` mean a different *visual* size depending on which icon set
-    happened to supply a name's glyph -- an author moving `heart` from a
-    Font Awesome glyph to a Material Design one saw it shrink by ~15-20% at
-    the same declared `size:`, with no way to tell why from the YAML alone.
-    Compensating here makes `size:` honest: the same declared value produces
-    the same rendered height regardless of which of the font's ~10 aggregated
-    icon sets contributed the glyph.
+    as a literal font size would make `size:` mean a different *visual* size
+    depending on which icon set happened to supply a name's glyph -- moving
+    `heart` from a Font Awesome glyph to a Material Design one would shrink
+    it by ~15-20% at the same declared `size:`, with no way to tell why from
+    the YAML alone. Compensating here makes `size:` honest: the same
+    declared value produces the same rendered height regardless of which of
+    the font's ~10 aggregated icon sets contributed the glyph.
 
     The compensated size is *searched*, not computed from a single measured
     ratio, because FreeType's hinting rounds glyph outlines differently at
@@ -338,9 +329,8 @@ def font_key(length: Length | None, glyph_key: str, antialias: bool = False) -> 
     they would collide into one font resource and whichever icon baked second
     would silently overwrite the other's sheet.  Left out of the key when
     `False` (the default) rather than always appended, so a design that never
-    mentions `antialias:` gets byte-identical keys, and therefore byte-
-    identical generated output, to before this parameter existed.  Safe to key
-    by directly, for the same device-independence reason as the length and the
+    mentions `antialias:` gets a plain, unsuffixed key.  Safe to key by
+    directly, for the same device-independence reason as the length and the
     glyph: `antialias:` is a design decision an author makes once, not
     something that varies by which screen the face happens to be running on.
     """
@@ -522,49 +512,18 @@ def icon_for_source(source_path: str) -> Icon | None:
 
 #: `wfb.complications.TYPES` key -> a :data:`CATALOG` name.
 #:
-#: **Superseded 2026-09-13** (plan 03 §6.4, user direction: "map all
-#: available complications to some icon ... i will review and adjust
-#: later"): every one of the 42 types is now mapped. The original account
-#: below -- kept in place per house style, since it was the real reasoning
-#: at the time and explains *why* each of these 24 additions needed its own
-#: new catalogue entry rather than reusing one of the original 8 -- no
-#: longer describes this table's shape, but still describes the standard
-#: each new entry had to clear: no reusing an unrelated glyph (the
-#: `body_battery`-is-not-`battery`, `pulse_ox`-is-not-`heart` caution
-#: applies to every new entry just as much as the original 8), and the two
-#: weather-reading types (`current_weather`/`forecast_weather_*day`) still
-#: get one fixed, *type*-keyed icon (`wfb.icon_catalog.CATALOG["weather"]`)
-#: rather than the value-keyed condition icon `icon_for: weather.condition`
-#: resolves on-device -- that reason for a gap was real and stays real; the
-#: user's direction was to close every *other* kind of gap, not that one.
+#: Every one of the 42 types is mapped, each to a glyph that reads
+#: unambiguously as that metric: reusing an unrelated icon is a content bug,
+#: not a layout bug (`body_battery` is not `battery`, which means device
+#: charge; `pulse_ox` is not `heart`, which is heart rate).
 #:
-#: Original account (2026-09 pre-dated entry, describing the 8-of-42 table):
-#: **Not every one of the 42 types is here, deliberately.** Three reasons a
-#: type is left out, each real rather than an oversight:
-#:
-#: * **The icon would depend on the pulled *value*, not the type.**
-#:   `current_weather`/`forecast_weather_*day` report a `Weather.CONDITION_*`
-#:   *as their value* -- resolving their icon needs the same
-#:   value-to-glyph step `icon_for: weather.condition` already does, which
-#:   this element's type-keyed switch has no way to reach without a second,
-#:   nested lookup this task does not build. The reading is still drawn as
-#:   plain text.
-#: * **No catalogue glyph reads unambiguously as that metric.** Reusing an
-#:   unrelated icon is a content bug, not a layout bug, and CLAUDE.md already
-#:   records one real instance of exactly this mistake (a heart icon
-#:   mistakenly standing in for do-not-disturb) -- `body_battery` is not
-#:   `battery` (that means device charge), and `pulse_ox` is not `heart`
-#:   (blood oxygen, not heart rate). Left unmapped rather than guessed.
-#: * **No existing catalogue entry fits at all** (a calendar glyph, a
-#:   golf-score glyph, a race-time glyph, ...). Growing the *named* catalogue
-#:   for these is future work, the same "grow it as real designs need it"
-#:   policy `wfb.icon_catalog`'s own docstring already states -- not
-#:   something this table should paper over with an unrelated glyph.
-#:
-#: The weather types keep drawing a fixed, generic glyph (`weather`) for
-#: every one of `current_weather`/`forecast_weather_1day`/`2day`/`3day` --
-#: the *value*-keyed condition icon those types would ideally show is still
-#: future work, tracked the same way it always was.
+#: The two weather-reading types (`current_weather`/`forecast_weather_*day`)
+#: are the one deliberate exception: they draw a single fixed, *type*-keyed
+#: glyph (`wfb.icon_catalog.CATALOG["weather"]`) rather than the value-keyed
+#: condition icon `icon_for: weather.condition` resolves on-device, because
+#: their icon would otherwise depend on the pulled *value* -- a
+#: `Weather.CONDITION_*` reading -- which this element's type-keyed switch
+#: has no way to reach without a second, nested lookup.
 #:
 #: `wfb.ir.ConfigDataSlot.icons` is the one place this table (plus any
 #: per-choice override) actually gets resolved into what a design draws --

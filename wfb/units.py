@@ -90,8 +90,8 @@ def is_sub_pixel_length(length: "Length | None", value: float) -> bool:
     """True when ``length`` is a nonzero `%`/`%r` length whose resolved
     magnitude is under 1 px -- the exact condition :func:`at_least_one_px`
     clamps away when its switch is on, and the one `wfb.layout.Resolver`
-    records a `wfb.layout.SubPixelLength` for when its switch is off (plan 08
-    §3.3).  Pulled out as its own predicate, rather than folded into
+    records a `wfb.layout.SubPixelLength` for when its switch is off.
+    Pulled out as its own predicate, rather than folded into
     `at_least_one_px` alone, so both call sites -- "should this be clamped"
     and "would this have been clamped had the switch been on" -- share
     exactly one definition of "sub-pixel", and can never drift apart the way
@@ -107,7 +107,7 @@ def is_sub_pixel_length(length: "Length | None", value: float) -> bool:
 
 def at_least_one_px(length: "Length | None", value: float, enabled: bool) -> float:
     """A nonzero relative length never resolves to less than 1 px -- when
-    `min_1px:` (plan 08) switches this on for the caller's element/part.
+    `min_1px:` switches this on for the caller's element/part.
 
     A `%`/`%r` length scales per device: the same hairline (`thickness:
     0.5%r`, say) that draws as 1 px on one screen can round to 0 on another,
@@ -305,21 +305,18 @@ class Box:
         clamp upstream (:func:`at_least_one_px`) deliberately made this box
         1 px wide.
 
-        That one case is corrected here, but only when ``min_1px`` is true --
-        plan 08 §3.3 made the clamp itself opt-in, and this correction exists
-        solely to protect *that* clamp's own work, so it must not fire on its
-        own where the clamp never ran.  ``min_1px`` therefore defaults to
-        `False`, today's pre-feature arithmetic exactly (this correction did
-        not exist at all before the clamp was added), and a caller passes
-        `True` only at the handful of call sites whose box width/height is
-        itself a raw, unrounded extent that went through
+        That one case is corrected here, but only when ``min_1px`` is true:
+        the clamp itself is opt-in (`min_1px:`), and this correction exists
+        solely to protect *that* clamp's own work, so it must not fire where
+        the clamp never ran.  ``min_1px`` therefore defaults to `False`, and
+        a caller passes `True` only at the handful of call sites whose box
+        width/height is itself a raw, unrounded extent that went through
         :meth:`wfb.layout.Resolver._extent` -- a `group`'s own `size:`, or a
         `shape`/`progress`/`graph`'s plain rectangular `size:` box.  Every
         other box here (a circle/arc/ellipse's doubled radius-plus-pad reach,
         a polygon's point-derived bounds, a hand or pattern's swept-disc or
         ink-bounds box) never hits this exact tie in the first place, so
-        those call sites are left at the default and get exactly the
-        arithmetic they always have.
+        those call sites are left at the default.
 
         Any other width/height, rounded or not, is left exactly as the
         edge-rounding above produces it -- in particular the same rounding

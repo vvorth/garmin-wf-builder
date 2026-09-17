@@ -302,11 +302,10 @@ class Device:
         hypothetical unrelated class's own `stressScore` field would be
         indistinguishable). Every catalogue field this project currently
         binds happens to have a name that is unique enough in practice
-        (checked against the installed device set at the time this was
-        written), so the approximation has not yet produced a false
-        positive; a caller that needs certainty should also check the
-        *reader* it comes off is available (`has_symbol`/`has_module`), which
-        narrows the class independently.
+        (checked against the installed device set), so the approximation has
+        not produced a false positive; a caller that needs certainty should
+        also check the *reader* it comes off is available
+        (`has_symbol`/`has_module`), which narrows the class independently.
         """
         text = self._api_debug_xml
         fields: set[str] = set()
@@ -356,8 +355,8 @@ class Device:
 def version_key(v: str) -> tuple[int, ...]:
     """``"5.2.0"`` -> ``(5, 2, 0)``, so two dotted version strings sort right.
 
-    Public (was module-private) so a per-device gating check outside this
-    module -- ``wfb.lint``'s complication-availability check -- can compare a
+    Public so a per-device gating check outside this module --
+    ``wfb.lint``'s complication-availability check -- can compare a
     ``wfb.complications.ComplicationType.since`` string against
     :attr:`Device.api_level` without re-deriving this.
     """

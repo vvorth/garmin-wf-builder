@@ -253,11 +253,12 @@ def render(spec: str, value, value_type: Type, values: dict | None = None) -> st
 
     Shares `_emit_time`/`_emit_date`/`_emit_numeric`'s own tables and spec
     parsing (`parse`, `parse_time`, `_NUMERIC_SPEC_RE`) rather than a second,
-    hand-written ladder, which is what makes this answer and the device's
-    unable to disagree -- the bug this function replaces was exactly that
-    disagreement: `{:d}` on a Float rendered `8.5` here and `8` on the wrist,
-    because Python's `format(8.5, 'd')` raises and the old code silently fell
-    back to `str(value)`.
+    hand-written ladder, which is what keeps this answer and the device's
+    from disagreeing: `{:d}` on a Float must render the same truncated digits
+    here as on the wrist, and a second ladder is exactly how that drifts --
+    Python's `format(8.5, 'd')` raises where Monkey C's `.toNumber()`
+    truncates silently, so a hand-written fallback here would paper over
+    the difference instead of catching it.
 
     ``values`` supplies the clock/date fields, by the same keys
     `wfb.preview.SAMPLE` uses: ``time.hour``, ``time.minute``, ``time.second``,

@@ -12,24 +12,19 @@ one carries the things the compiler must know about it:
 Every source also names the Monkey C symbol it reads, so availability can be
 resolved against the device's own ``api.debug.xml`` rather than an API level.
 
-**There is no refresh-tier concept here.** An earlier phase graded every
-source frame/slow/event and cached the slower grades -- a TTL for one, a
-subscription-fed field for the other -- on the theory that some API calls
-were too expensive to make every frame. That was wasted code solving a
-problem the platform doesn't have: Garmin's own SDK documents its calls as
-already cached on its side -- ``Toybox/Weather.html`` describes
+**There is no refresh-tier concept here: every `Reader` is read fresh, every
+frame, unconditionally.** Garmin's own SDK documents its calls as already
+cached on its side -- ``Toybox/Weather.html`` describes
 ``getCurrentConditions()`` as "get the **most recently cached** weather
-conditions", not "fetch weather conditions". A second cache inside the
-128 KB watch face budget was pure overhead for no freshness gained, so it is
-gone: every ``Reader`` here is read fresh, every frame, unconditionally.
-Dropping that grading also drops the restriction that came with it -- ``weather.*``
-and ``complication.*`` are now bindable from ``low_power``/``always_on``
-elements same as anything else. The tradeoff that restriction used to guard
-against is real and still exists: overrunning the ``onPartialUpdate`` budget
-calls ``onPowerBudgetExceeded`` and disables partial updates for the rest of
-the app's lifecycle (CLAUDE.md constraint 4). It is now the author's own
-responsibility to watch for, backed by the existing (suppressible)
-``partial-update-budget`` lint rather than a hard compile-time rule.
+conditions", not "fetch weather conditions" -- so a second cache inside the
+128 KB watch face budget would be pure overhead for no freshness gained.
+``weather.*`` and ``complication.*`` are bindable from ``low_power``/
+``always_on`` elements the same as anything else; overrunning the
+``onPartialUpdate`` budget still calls ``onPowerBudgetExceeded`` and disables
+partial updates for the rest of the app's lifecycle (CLAUDE.md constraint 4),
+so watching for that is the author's own responsibility, backed by the
+suppressible ``partial-update-budget`` lint rather than a hard compile-time
+rule.
 
 **One rule, no exceptions, for where a value comes from:** ``complication.*``
 is *always* read through ``Toybox.Complications``; every other path here is
@@ -40,9 +35,8 @@ over that table, not hand-copied, because a 42-entry hand copy is exactly
 the drift this project keeps warning about.
 
 The long-term plan (ADR 0005) is to generate the rest of this table from the
-SDK too. This Phase 2/3 table is otherwise hand-written but deliberately
-shaped like the generated one, and each entry cites the SDK page it came
-from.
+SDK too. This table is otherwise hand-written but deliberately shaped like
+the generated one, and each entry cites the SDK page it came from.
 """
 
 from __future__ import annotations
@@ -98,36 +92,24 @@ _COMPLICATION_CAST: dict[str, str] = {
 class Reader:
     """One generated local a `Source` reads its value off.
 
-    Covers two different shapes now, not one -- see finding F4 in
-    ``docs/review/2026-09-architecture-review.md``. Tell them apart by
-    `complication_type` (below): set means the second shape, ``None`` means
-    the first.
+    Covers two shapes, told apart by `complication_type` (below): set means
+    the complication shape, ``None`` means the shared-accessor shape.
 
-    **The original shape** (10 of 52 readers -- ``activity``,
-    ``weather_current``, ``date``, etc.): a shared accessor several sources
-    read fields off. Fetching ``ActivityMonitor.getInfo()`` once per frame
-    and reading three fields off it is both cheaper and clearer than three
-    separate calls, so the generator groups sources by reader and hoists one
-    ``var`` that every source sharing it reads through.
+    **Shared accessor** (e.g. ``activity``, ``weather_current``, ``date``):
+    several sources read fields off one call. Fetching
+    ``ActivityMonitor.getInfo()`` once per frame and reading three fields
+    off it is both cheaper and clearer than three separate calls, so the
+    generator groups sources by reader and hoists one ``var`` that every
+    source sharing it reads through.
 
-    **The complication shape** (42 of 52, one per `complications.TYPES`
-    entry -- see the ``READERS.update(...)`` loop below): a single-use
-    wrapper that exists so `ReadPlan`'s declare/guard/parameter pipeline
-    (``wfb/emit/monkeyc.py``, keyed by reader, not by source) has something
-    to key off of. Each of these serves exactly one `Source`
-    (``complication.<name>``), and `call` is already the whole read --
+    **Complication** (one per `complications.TYPES` entry -- see the
+    ``READERS.update(...)`` loop below): a single-use wrapper, generated
+    rather than hand-copied per the module docstring's "one rule, no
+    exceptions" paragraph, so it can share `ReadPlan`'s declare/guard/
+    parameter pipeline (`wfb.emit.monkeyc.readplan`, keyed by reader) even
+    though each one serves exactly one `Source` and `call` -- e.g.
     ``WfbComplications.valueOf(new Complications.Id(Complications.<CONSTANT>))``
-    -- not an object several fields come off afterwards, so the
-    field-sharing benefit the class was designed around never applies to
-    any of the 42. That is not a bug: generating all 42 from one loop over
-    `complications.TYPES`, rather than hand-copying near-identical entries,
-    is still exactly right by this project's own standing rule against
-    catalogue drift (see the module docstring's "one rule, no exceptions"
-    paragraph, and CLAUDE.md's account of catalogue-table bugs this project
-    has already hit) -- it is cheaper to reuse the one pipeline that already
-    declares/guards/parameterises a reader correctly than to invent a
-    second, complication-only code path that would have to stay in step
-    with it by hand.
+    -- is already the whole read, with no fields to share afterwards.
     """
 
     name: str  # the local variable the generator declares
@@ -138,15 +120,14 @@ class Reader:
     #: ``Parent.name`` symbols (`Device.has_symbol`'s own namespace) this
     #: reader's `call` actually invokes at runtime, checked against the
     #: device's own `api.debug.xml` by `wfb.availability` rather than an API
-    #: level (CLAUDE.md constraint 6d). Every reader below sets exactly one --
-    #: the function `call` is built from -- confirmed present in every
-    #: currently-installed device's symbol table, `fenix6`/`fr245` (this
-    #: project's lowest-level installed devices) included, so today this
-    #: field never actually gates anything; it exists so a future device that
-    #: genuinely lacks one of these core calls is caught the same structural
-    #: way `requires_module` below already catches `Complications`, rather
-    #: than by a level compare that constraint 6 already showed is not
-    #: trustworthy.
+    #: level (CLAUDE.md constraint 6d). Every reader below sets exactly the
+    #: one function `call` is built from, confirmed present in every
+    #: currently-installed device's symbol table, `fenix6`/`fr245` (the
+    #: lowest API level installed) included -- so today this field never
+    #: actually gates anything; it exists so a future device genuinely
+    #: lacking one of these core calls is caught the same structural way
+    #: `requires_module` below already catches `Complications`, rather than
+    #: by an API-level compare (constraint 6).
     requires: tuple[str, ...] = ()
     #: The bare `Toybox` module name (`Device.has_module`'s own namespace,
     #: e.g. ``"Complications"``) this reader's `call` needs to exist at all,
@@ -161,20 +142,17 @@ class Reader:
     requires_module: str | None = None
     #: Only set for a `complication.*` reader: the `Complications.Type`
     #: constant this reader pulls (`WfbComplications.valueOf`, a plain read --
-    #: see module docstring, there is no cache here). Still needed for two
-    #: things unrelated to caching: `wfb.availability.uses_complications`
-    #: reads it (via `requires_module` above, which is set on exactly the
-    #: same readers) to decide whether a design needs `Toybox.Complications`
-    #: at all -- no longer to raise `minApiLevel` (removed 2026-09-15: the
-    #: manifest is one file shared by every target device, so a per-feature
-    #: level bump broke any build that also targeted a lower-level device --
-    #: see `wfb/emit/manifest.py`'s module docstring -- availability is
-    #: gated at runtime instead) -- and `wfb/emit/monkeyc.py` reads it to
-    #: build the `onLayout` subscription list -- subscribing is kept even
-    #: though the read itself is a pull, purely so a value that arrives
-    #: after the first draw is not stuck stale forever (see docs/adr/0005
-    #: and the complication-pull research probe for why pull-without-
-    #: subscribe is deliberately not relied on).
+    #: see module docstring, there is no cache here). Used for two things:
+    #: `wfb.availability.uses_complications` reads it (via `requires_module`
+    #: above, set on exactly the same readers) to decide whether a design
+    #: needs `Toybox.Complications` at all -- availability is gated per
+    #: device at runtime, never by raising the manifest's one shared
+    #: `minApiLevel` (`wfb/emit/manifest.py`'s module docstring) -- and
+    #: `wfb/emit/monkeyc/view.py` reads it to build the `onLayout`
+    #: subscription list: subscribing is kept even though the read itself is
+    #: a pull, so a value that arrives after the first draw is not stuck
+    #: stale forever (`docs/adr/0005`,
+    #: `docs/research/probes/complication-pull`).
     complication_type: str | None = None
 
 
@@ -266,30 +244,21 @@ def _complication_reader_key(name: str) -> str:
 def _complication_local_name(name: str) -> str:
     """``body_battery`` -> ``bodyBatteryComplication``.
 
-    The suffix, rather than a ``complication`` prefix, is deliberate and was
-    forced by a real build.  A reader's local and a *source's* local live in
-    the same scope in the generated element method -- the reader arrives as the
-    method's parameter, and ``ReadPlan.declarations`` then declares the value
-    read off it.  ``wfb.ir.local_name`` derives the value local straight from
-    the source path, so ``complication.body_battery`` already owns
-    ``complicationBodyBattery``; naming the reader the same way produced
-    ``Redefinition of variable 'complicationBodyBattery'`` from ``monkeyc`` on
-    all three targets.  Suffixing keeps the two distinct while both still read
-    as what they are: ``bodyBatteryComplication`` is the ``Complication``
-    object, ``complicationBodyBattery`` is the value pulled off it.
+    The suffix, not a ``complication`` prefix, is deliberate: a reader's
+    local and a *source's* local live in the same scope in the generated
+    element method (the reader arrives as the method's parameter, and
+    ``ReadPlan.declarations`` then declares the value read off it).
+    ``wfb.ir.local_name`` derives the value local straight from the source
+    path, so ``complication.body_battery`` already owns
+    ``complicationBodyBattery``; naming the reader the same way would
+    collide. Suffixing keeps the two distinct while both still read as what
+    they are: ``bodyBatteryComplication`` is the ``Complication`` object,
+    ``complicationBodyBattery`` is the value pulled off it.
 
-    That claim used to end here saying "``tests/test_catalog.py`` pins this
-    apart, so the collision cannot come back silently" -- true only for this
-    one naming convention, and only by accident: no test asserted the two
-    families stayed distinct, so a differently-shaped regression (a new
-    catalogue path whose ``local_name`` happened to land on some *other*
-    reader's name, say) would have shipped silently until the next
-    ``@pytest.mark.slow`` full-catalogue build. Fixed by
-    ``tests/test_catalog.py::test_reader_and_value_locals_never_collide``,
-    a fast, catalogue-wide pairwise-distinctness check over every
-    `Reader.name`, every `wfb.ir.local_name(path)`, the ``...Obj``
-    intermediate form, and the emitter's own fixed scope-local names -- not
-    scoped to this one suffix.
+    ``tests/test_catalog.py::test_reader_and_value_locals_never_collide``
+    checks this catalogue-wide: every `Reader.name`, every
+    `wfb.ir.local_name(path)`, the ``...Obj`` intermediate form, and the
+    emitter's own fixed scope-local names, not just this one suffix.
     """
     return "".join(
         part if index == 0 else part.capitalize()
@@ -343,20 +312,12 @@ class Source:
     #: covered by its reader's own `Reader.requires`/`requires_module` plus
     #: `field_name` -> `Device.has_field`, checked automatically by
     #: `wfb.availability.source_unavailable`). **Do not put a field name
-    #: here** -- `device.do_not_disturb` did exactly that
-    #: (``requires=("DeviceSettings.doNotDisturb",)``) and was silently
-    #: broken from the day it was written: `doNotDisturb` is a *field*
-    #: (``<entry field="true" symbol="doNotDisturb"/>`` in every device's
-    #: `api.debug.xml`, confirmed via `git log -S -- wfb/catalog.py`), so
-    #: `has_symbol` -- which only ever matches `<functionEntry>` rows -- could
-    #: never find it and reported it absent on *every* device, including
-    #: ones that plainly have it. It went unnoticed for a session and a half
-    #: because nothing read `Source.requires` until `wfb.availability` was
-    #: built (this field predates that module: see CLAUDE.md's roadmap,
-    #: "`Source.requires`, which is read by nothing"). The field check via
-    #: `field_name` already covers a bare field's own presence/absence
-    #: correctly; this tuple is for a genuine extra *function* dependency
-    #: only.
+    #: here**: `has_symbol` only ever matches `<functionEntry>` rows in
+    #: `api.debug.xml`, never a ``<entry field="true" .../>`` row, so a
+    #: field named here reports absent on every device, including ones that
+    #: have it. The `field_name` -> `Device.has_field` check above already
+    #: covers a bare field's own presence/absence correctly; this tuple is
+    #: for a genuine extra *function* dependency only.
     requires: tuple[str, ...] = ()
     unit: str | None = None
     doc: str = ""
@@ -380,7 +341,7 @@ class Source:
     #: `Number or String` though FORMAT_SHORT always yields the Number.
     #: **Contract:** `Source.read_expr` deliberately does NOT
     #: bake this cast into the expression it returns -- the emitter
-    #: (`wfb/emit/monkeyc.py`) is the one that knows the surrounding
+    #: (`wfb/emit/monkeyc/`) is the one that knows the surrounding
     #: expression shape (a bare read vs. inside a ternary guard vs. inside a
     #: larger expression) and can append `` as {cast}`` with the parentheses
     #: the context actually needs. Treat `read_expr` as "what to read" and
@@ -391,8 +352,8 @@ class Source:
     #: glance this value conventionally belongs to, or ``None``. Set
     #: automatically to a `complication.*` source's own name; set by hand on
     #: a handful of direct-read sources that have an established
-    #: counterpart (see the table in SPEC.md / this module's CATALOG
-    #: comments). `on_hold: auto` (`wfb/ir.py`) resolves to this field.
+    #: counterpart (see each entry's own comment below). `on_hold: auto`
+    #: (`wfb/ir/builder.py`) resolves to this field.
     launch_complication: str | None = None
 
     @property
@@ -482,12 +443,9 @@ CATALOG: dict[str, Source] = {
            source_ref="Toybox/System/DeviceSettings.html"),
         # No `requires=` here: `doNotDisturb` is a *field*
         # (`<entry field="true" symbol="doNotDisturb"/>`), already covered by
-        # `field_name` -> `Device.has_field` in `source_unavailable`. An
-        # earlier `requires=("DeviceSettings.doNotDisturb",)` here named it
-        # as if it were a function symbol; `has_symbol` only ever matches
-        # `<functionEntry>` rows, so that entry reported this field absent on
-        # every device, including ones that have it -- see `Source.requires`'
-        # own docstring above for the full account.
+        # `field_name` -> `Device.has_field` in `source_unavailable` -- see
+        # `Source.requires`'s own docstring above for why this field must
+        # not be named there instead.
         _s("device.do_not_disturb", Type.BOOLEAN, "settings", "doNotDisturb", False,
            doc="do-not-disturb is on", source_ref="Toybox/System/DeviceSettings.html"),
         _s("device.notification_count", Type.NUMBER, "settings", "notificationCount", False,
@@ -592,9 +550,8 @@ CATALOG: dict[str, Source] = {
         # Toybox/Weather/CurrentConditions.html, Toybox/Weather/DailyForecast.html.
         # `condition` is one of the 54 `Weather.CONDITION_*` values (0-53) --
         # see wfb/icons.py's GARMIN_WEATHER_CONDITION_ICON for the full table
-        # and `icon_for:` (wfb/ir.py) for turning one of these into a drawn
-        # icon. Read fresh every frame like everything else now -- see module
-        # docstring for why there is no cache here.
+        # and `icon_for:` (`wfb.ir`) for turning one of these into a drawn
+        # icon.
         _s("weather.condition", Type.NUMBER, "weather_current", "condition", True,
            doc="the current weather condition (Weather.CONDITION_*)",
            source_ref="Toybox/Weather/CurrentConditions.html",
@@ -692,13 +649,11 @@ CATALOG: dict[str, Source] = {
 }
 
 
-#: The nine complication-backed paths this catalogue used to expose directly
-#: (reading data.mc-style through a shortcut instead of `complication.*`),
-#: renamed once `complication.*` became the one and only way to read a
-#: complication (see module docstring's "one rule, no exceptions"). Kept so
-#: an author's old design gets a diagnostic naming the replacement rather
-#: than a bare "unknown data source". No example YAML in this repo
-#: binds any of these (checked before the rename).
+#: The nine paths superseded by `complication.*`, now the one and only way
+#: to read a complication (module docstring's "one rule, no exceptions").
+#: Kept so an author's old design gets a diagnostic naming the replacement
+#: rather than a bare "unknown data source". No example YAML in this repo
+#: binds any of these.
 RENAMED_SOURCES: dict[str, str] = {
     "body_battery.current": "complication.body_battery",
     "system.solar_input": "complication.solar_input",
@@ -715,14 +670,14 @@ RENAMED_SOURCES: dict[str, str] = {
 def renamed_to(path: str) -> str | None:
     """The new path for a renamed source, or ``None`` if ``path`` was never
     one of the nine complication-backed paths this catalogue moved under
-    `complication.*`. Callers (`wfb/ir.py`, `wfb/expr.py`) should check this
+    `complication.*`. Callers (`wfb.ir`, `wfb.expr`) should check this
     *before* falling back to `suggest`'s fuzzy match -- a renamed path is an
     exact former name, not a typo, and deserves the more specific
     diagnostic."""
     return RENAMED_SOURCES.get(path)
 
 
-#: The only sources `icon_for:` may bind to (wfb/ir.py) -- a Weather.CONDITION_*
+#: The only sources `icon_for:` may bind to (`wfb.ir`) -- a Weather.CONDITION_*
 #: value is meaningless without the specific glyph-mapping WfbWeather.mc and
 #: wfb.icons.weather_icon_for_condition() both provide, so this is deliberately
 #: not a generic "bind any Number source" mechanism.

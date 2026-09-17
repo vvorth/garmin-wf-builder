@@ -10,7 +10,8 @@ by every element that binds it, hoisted once per frame and read through the
 expression compiler. A series is a *history* -- an iterator or a short array,
 acquired, binned or looped over, and cached across frames because its sample
 interval is minutes, not seconds (see `runtime-lib/WfbSeries.mc`'s module
-docstring for why that caching is not the TTL cache this project deleted).
+docstring for why this caching is distinct from the refresh-tier TTL cache
+`wfb.catalog`'s module docstring rules out for scalar sources).
 Nothing about that shape fits `Source`, so this is a second, smaller table
 with its own dataclass, not a reuse of the first.
 
@@ -256,9 +257,8 @@ def suggest(name: str, limit: int = 3) -> list[str]:
 #: Every one of these is a real quantity the watch measures and displays in
 #: its own native widgets, which is exactly why the name gets typed. Answering
 #: "unknown series 'pressure'" would send the author looking for a spelling
-#: mistake that does not exist -- the same failure mode `source-renamed` and
-#: `on-tap-renamed` were added to avoid. See research 08 §1 and CLAUDE.md
-#: constraint 14b.
+#: mistake that does not exist -- the same failure mode `source-renamed`
+#: exists to avoid. See research 08 §1 and CLAUDE.md constraint 14b.
 UNAVAILABLE: dict[str, str] = {
     name: ("Toybox.SensorHistory is the only API that serves it as a history, "
            "and a watch face may not declare that permission -- "
