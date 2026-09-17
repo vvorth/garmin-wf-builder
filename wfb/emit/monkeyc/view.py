@@ -1,0 +1,1203 @@
+"""`<Face>View.mc` -- the generated view: fields, lifecycle methods and one
+method per drawn element."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from ... import complications, expr, series
+from ...availability import Guards
+from ...catalog import READERS
+from ...ir import (
+    HOLD_AUTO, Face, config_data_ids, config_field, font_resource_id, local_name,
+    static_group_method,
+)
+from ...layout import (
+    ANTIALIASED_PRIMITIVES, PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
+    PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+)
+from ...series import Acquisition
+from .common import (
+    CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _and_list, _describe,
+    _editor_slot_pairs, _field, _loaded_fonts, _mc_bool, _method, _pattern_needs_math,
+    header, hold_targets,
+)
+from .complication_slot import (
+    _emit_complication_slot, _emit_complication_slot_editor_methods,
+    _emit_complication_slot_hold_method, _emit_complication_slot_icon_method,
+    _emit_pulsing_field,
+)
+from .graph import _emit_graph, _emit_graph_fields, _emit_graph_rebuild
+from .readplan import ReadPlan
+from .rotated import _emit_hands, _emit_pattern
+from .shapes import _emit_icon, _emit_progress, _emit_shape, _emit_text
+from ..writer import Writer
+
+
+# --------------------------------------------------------------------------
+# the view
+
+
+#: The view field holding the offscreen buffer, and the method that fills it.
+#: Fixed names rather than derived ones: there is at most one buffer per face
+#: (an opaque full-screen blit cannot coexist with a second one -- see
+#: `docs/research/probes/static-buffer/`), so there is nothing to disambiguate.
+STATIC_FIELD = "_staticBuffer"
+
+
+STATIC_RENDER = "renderStatic"
+
+
+#: Re-paints the static buffer from the *current* field values -- the one
+#: caller is `applyConfig`, for a config colour drawn into static content
+#: (ADR 0006 1).  A fixed literal name, like the two above, not derived from
+#: any element id -- so unlike `static_group_method`'s "drawStatic<Id>",
+#: nothing an author writes can make this collide, and it does not need an
+#: entry in `Builder._check_symbol_collision`.
+REPAINT_STATIC_METHOD = "repaintStatic"
+
+
+@dataclass
+class StaticPlan:
+    """Which drawn elements go into the offscreen buffer, and in what order.
+
+    Built from the *resolved* items rather than the element tree, because the
+    emitter works on the flattened draw order and `Element.static_root`
+    (`wfb.ir.Builder._apply_static`) is what survives the flattening.
+
+    `wfb.ir` has already guaranteed everything this relies on: `draw_sort_key`
+    hoists the members to a contiguous prefix of draw order and keeps each
+    root's members one unbroken run, nothing here reads a data source, and
+    every member draws in the same modes.  So this class computes, it does not
+    check.
+    """
+
+    #: ``(placed_root, [placed_member, ...])``, in draw order.
+    groups: list
+    #: Every buffered element, in draw order.
+    members: list
+    #: The modes the blit happens in -- all members agree on this.
+    modes: tuple[str, ...]
+
+    @property
+    def ids(self) -> set[str]:
+        return {placed.id for placed in self.members}
+
+    def method(self, placed) -> str:
+        """The method that paints one root: its own for a leaf, a wrapper else."""
+        return (static_group_method(placed.id) if placed.kind == "group"
+                else _method(placed.id))
+
+
+def static_plan(resolved: ResolvedFace) -> StaticPlan | None:
+    """The face's one static buffer, or None when nothing is static."""
+    members = [p for p in resolved.items
+               if p.kind != "group" and p.element.static_root is not None]
+    if not members:
+        return None
+    roots = {p.id: p for p in resolved.items if p.element.static}
+    groups: list = []
+    for placed in members:
+        root = roots.get(placed.element.static_root)
+        if root is None:  # unreachable: `_apply_static` sets both together
+            continue
+        if not groups or groups[-1][0] is not root:
+            groups.append((root, []))
+        groups[-1][1].append(placed)
+    modes = tuple(members[0].element.modes)
+    return StaticPlan(groups=groups, members=members, modes=modes)
+
+
+def _antialias_default(resolved: ResolvedFace) -> bool | None:
+    """The face-wide `antialias:` default, or `None` when the feature is unused.
+
+    `Element.resolved_antialias` already folds every inheritance step (face ->
+    group -> element) into one per-element boolean (`wfb.ir.Builder.
+    _resolve_antialias`), so "does any primitive-drawing element actually draw
+    anti-aliased" is exactly "does any `ANTIALIASED_PRIMITIVES` member have
+    `resolved_antialias == True`" -- no separate walk of the face default and
+    the override tree is needed here.  The same tuple drives
+    `_emit_element_method`'s toggle and `wfb.lint.check_antialias_palette`
+    (this gate once kept a private copy without `PlacedHands`, so a face
+    whose one anti-aliased element was a `type: hands` emitted no
+    `applyAntiAlias` at all).
+
+    `None` is the R3 gate: a design that never turns this on for a
+    primitive-drawing element -- whether because the face default is `false` and
+    nothing overrides it, or because the face default is `true` and every
+    primitive-drawing element overrides it back to `false` -- must generate
+    exactly the code it did before this feature existed.  Returning `None`
+    rather than `False` here is what lets every call site below skip emitting
+    anything at all, instead of dutifully emitting `applyAntiAlias(dc, false)`
+    calls that would be legal but would move every existing golden file for no
+    behavioural change.
+    """
+    used = any(
+        isinstance(placed, ANTIALIASED_PRIMITIVES) and placed.element.resolved_antialias
+        for placed in resolved.items
+    )
+    return resolved.face.antialias if used else None
+
+
+def _emit_antialias_helper(w: Writer) -> None:
+    """`applyAntiAlias` -- the guarded `Dc.setAntiAlias` call.
+
+    `Dc.setAntiAlias` is API 3.2.0 and present on only 113 of 164 devices;
+    `doc/docs/Core_Topics/Graphics.html` gives this exact `has` idiom for it.
+    A build-time gate is not an option: `wfb/emit/project.py` generates one
+    view shared across every target device, so the decision cannot become a
+    per-device constant -- the call has to type-check under `-l 3` even on a
+    device whose `api.debug.xml` lacks the symbol.
+
+    Deliberately **not** named `setAntiAlias`: a same-named private method on
+    the view shadows `Dc`'s own, so `:setAntiAlias` resolves to this class's
+    symbol instead and `monkeyc` warns about it on every target --
+    `docs/research/probes/antialias/README.md` 3 measured this directly
+    before this name was chosen.
+    """
+    w.doc(
+        "Turn primitive anti-aliasing on or off, where the device supports it.\n"
+        "\n"
+        "Guarded rather than called directly: `Dc.setAntiAlias` is absent on "
+        "roughly a\n"
+        "third of Connect IQ devices, and this view's generated code has to "
+        "type-check\n"
+        "on every target regardless of which one actually has the symbol."
+    )
+    with w.block("private function applyAntiAlias(dc as Dc, on as Boolean) as Void"):
+        with w.block("if (dc has :setAntiAlias)"):
+            w.line("dc.setAntiAlias(on);")
+    w.blank()
+
+
+def _has_partial_update(resolved: ResolvedFace) -> bool:
+    """Does this build actually get an `onPartialUpdate` -- both the design
+    declaring a `low_power` mode and the device itself supporting partial
+    updates (AMOLED forbids it, CLAUDE.md constraint 5).  Named once rather
+    than repeated at each of its three call sites (`emit_view`, twice, and
+    `_emit_sleep_hooks`), which otherwise have to agree independently.
+    """
+    return resolved.in_mode("low_power") and resolved.device.supports_partial_update
+
+
+def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
+    face, device = resolved.face, resolved.device
+    guards = guards if guards is not None else _NO_GUARDS
+    plan = ReadPlan(resolved, guards)
+    if _has_partial_update(resolved):
+        plan.modules.add("Toybox.System")  # onPowerBudgetExceeded reports via println
+
+    graphs = [p for p in resolved.items if isinstance(p, PlacedGraph)]
+    graph_modules: set[str] = set()
+    if graphs:
+        # System.getClockTime() drives the rebuild-cadence check on every
+        # graph, regardless of series -- the same call the low-power branch
+        # above adds System for, just unconditional here.
+        graph_modules.add("Toybox.System")
+        for placed in graphs:
+            src = placed.element.series_def
+            graph_modules.add(series.ACQUISITION[src.acquisition].module)
+            if src.acquisition is Acquisition.HEART_RATE and placed.element.range_kind == "duration":
+                graph_modules.add("Toybox.Time")  # new Time.Duration(seconds)
+
+    config_modules: set[str] = set()
+    if face.has_config:
+        # `Application has :WatchFaceConfig` (onLayout's guard) needs the
+        # first; `WatchFaceConfig.Settings`/`.getSettings` (applyConfig)
+        # need the second.
+        config_modules = {"Toybox.Application", "Toybox.Application.WatchFaceConfig"}
+    if face.config_data:
+        # `Complications.Id`/`Complications.COMPLICATION_TYPE_*` -- needed
+        # even when no ordinary `complication.*` source is bound, which is
+        # why this is not folded into `plan.modules` (derived from bound
+        # sources only).
+        config_modules.add("Toybox.Complications")
+
+    hands_items = [p for p in resolved.items if isinstance(p, PlacedHands)]
+    trig_modules: set[str] = set()
+    if hands_items:
+        # The view computes each hand's own sin/cos directly (the probe's
+        # shape), not just the barrel -- so Toybox.Math is imported here too,
+        # not only in WfbHands.mc (plan 04 §6).
+        trig_modules.add("Toybox.Math")
+    pattern_items = [p for p in resolved.items if isinstance(p, PlacedPattern)]
+    if any(_pattern_needs_math(p) for p in pattern_items):
+        # Same reasoning, plan 05 §6.4/§6.5: a radial pattern with at least
+        # one non-arc part computes its own sin/cos in the loop, so Math
+        # has to be in scope here too -- not only when hands are also on
+        # the design.  `_pattern_needs_math` is the one place this decision
+        # is made, shared with `_emit_pattern` itself.
+        trig_modules.add("Toybox.Math")
+    hands_awake_second = any(
+        p.second is not None and p.element.seconds == "awake" for p in hands_items
+    )
+
+    w = Writer()
+    w.doc(header(face, f"Device:    {device.id}")).blank()
+    for module in sorted(set(_BASE_IMPORTS) | plan.modules | graph_modules
+                         | config_modules | trig_modules):
+        w.line(f"import {module};")
+    w.blank()
+
+    w.doc(
+        f"{face.name}.\n"
+        "\n"
+        "One private method per design element, in draw order.  Each is named after\n"
+        "the element's `id:` in the source YAML, so a change on screen leads back to\n"
+        "a line in the design file."
+    )
+    always_on = bool(resolved.in_mode("always_on"))
+    # `_sleeping` is shared by two independent reasons -- `always_on` (which
+    # element set to draw) and an `awake`-only second hand (whether to draw
+    # it at all) -- either one alone is enough to need the field and the two
+    # hooks (plan 04 §5.6).  A design using neither must generate exactly
+    # what it did before this feature existed: `needs_sleeping` reduces to
+    # `always_on` whenever `hands_awake_second` is False.
+    needs_sleeping = always_on or hands_awake_second
+    static = static_plan(resolved)
+    antialias_default = _antialias_default(resolved)
+    slot_pairs = _editor_slot_pairs(face)
+    with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
+        _emit_fields(w, resolved)
+        _emit_config_fields(w, face, guards)
+        _emit_static_field(w, static)
+        _emit_graph_fields(w, graphs)
+        if slot_pairs:
+            _emit_pulsing_field(w)
+        if needs_sleeping:
+            w.doc(_sleep_flag_doc(always_on, hands_awake_second))
+            w.line("private var _sleeping as Boolean = false;")
+            w.blank()
+        _emit_initialize(w, face, has_slots=bool(slot_pairs), guards=guards)
+        if antialias_default is not None:
+            _emit_antialias_helper(w)
+        if face.has_config:
+            _emit_apply_config(w, face, static)
+        if face.has_config and any(t.layout is not None for t in hold_targets(face)):
+            _emit_config_layout_accessor(w)
+        _emit_on_layout(w, resolved, plan, static)
+        _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
+        if _has_partial_update(resolved):
+            _emit_on_partial_update(w, resolved, plan, antialias_default)
+        _emit_sleep_hooks(w, resolved, needs_sleeping, always_on)
+        if plan.complication_readers():
+            _emit_complication_callback(w, plan)
+        for placed in graphs:
+            _emit_graph_rebuild(w, placed)
+        for placed in resolved.items:
+            if isinstance(placed, PlacedComplicationSlot) and placed.icon_font_key is not None:
+                _emit_complication_slot_icon_method(w, resolved, placed)
+            if isinstance(placed, PlacedComplicationSlot) and placed.element.on_hold == HOLD_AUTO:
+                _emit_complication_slot_hold_method(w, placed, guards)
+        if slot_pairs:
+            _emit_complication_slot_editor_methods(w, face, slot_pairs)
+        if static is not None:
+            _emit_static_methods(w, face, static, antialias_default, needs_repaint=face.has_config)
+        for placed in resolved.items:
+            if placed.kind == "group":
+                continue
+            w.blank()
+            _emit_element_method(w, resolved, placed, plan, antialias_default)
+    return SourceFile(f"source/{face.entry}View.mc", w.render())
+
+
+def _sleep_flag_doc(always_on: bool, hands_awake_second: bool = False) -> str:
+    reasons = []
+    if always_on:
+        reasons.append(
+            "onUpdate reads it to choose which element set to draw: the 'always_on'\n"
+            "elements while asleep, the 'active' ones while awake."
+        )
+    if hands_awake_second:
+        reasons.append(
+            "An awake-only second hand ('seconds: awake') reads it too, so its own\n"
+            "draw method skips the second hand while asleep instead of drawing it\n"
+            "frozen at whatever second the once-a-minute sleeping update landed on."
+        )
+    return ("Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep "
+            "below.\n\n" + "\n\n".join(reasons))
+
+
+def _emit_static_field(w: Writer, static: "StaticPlan | None") -> None:
+    """The offscreen buffer the static content is painted into, once."""
+    if static is None:
+        return
+    w.doc("The static content, painted once in onLayout and blitted every frame\n"
+          "afterwards.\n"
+          "\n"
+          "Allocated from the graphics pool, which is separate from the watch face's\n"
+          "own memory limit -- so this costs a full screen of pixels there, not here.\n"
+          "Null on a device without createBufferedBitmap, or if the pool declines the\n"
+          "allocation; onUpdate then draws the same content directly instead, so the\n"
+          "face renders either way.")
+    w.line(f"private var {STATIC_FIELD} as BufferedBitmap?;")
+    w.blank()
+
+
+def _emit_static_allocation(w: Writer, static: "StaticPlan") -> None:
+    """Allocate the buffer and fill it -- the `onLayout` half of the feature.
+
+    `.get()` rather than the reference it comes back as: the Core Topics
+    Graphics page is explicit that a purged BufferedBitmap is *not* restored the
+    way a resource is, and nothing here would ever refill it, so the lock is
+    correctness rather than an optimisation.  Same shape as
+    `$CIQ_SDK/samples/Analog/source/AnalogView.mc`, and `Graphics has
+    :createBufferedBitmap` guards it for the same reason that sample does.
+
+    No `:palette`: a reduced palette cannot take an anti-aliased font, which the
+    Analog sample hit and worked around with a second buffer.  A static group may
+    hold text, so it gets the system colours.  The same absence of `:palette` is
+    also what makes `applyAntiAlias` legal on this buffer's own Dc --
+    `Dc.setAntiAlias` is documented unsupported only for a palette'd
+    `BufferedBitmap` -- so a static anti-aliased shape or progress element needs
+    no special case in `renderStatic`.
+    """
+    w.comment("the static content, painted once into a buffer in the graphics pool")
+    with w.block("if (Graphics has :createBufferedBitmap)"):
+        w.line(f"{STATIC_FIELD} = Graphics.createBufferedBitmap({{")
+        w.line("    :width => dc.getWidth(),")
+        w.line("    :height => dc.getHeight()")
+        w.line("}).get() as BufferedBitmap?;")
+    w.line(f"var buffer = {STATIC_FIELD};")
+    with w.block("if (buffer != null)"):
+        w.line(f"{STATIC_RENDER}(buffer.getDc());")
+
+
+def _emit_static_blit(w: Writer, static: "StaticPlan") -> None:
+    """One blit, or the same drawing done live when there is no buffer."""
+    w.comment("static content: one blit of the buffer filled in onLayout")
+    w.line(f"var buffer = {STATIC_FIELD};")
+    with w.block("if (buffer != null)"):
+        w.line("dc.drawBitmap(0, 0, buffer);")
+    with w.block("else"):
+        w.comment("no buffer on this device: draw the same content directly")
+        w.line(f"{STATIC_RENDER}(dc);")
+
+
+def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
+                         antialias_default: bool | None = None,
+                         needs_repaint: bool = False) -> None:
+    """`renderStatic`, plus one `drawStatic<Id>` per static *group*.
+
+    `renderStatic` takes a Dc rather than the buffer, and is called with the
+    buffer's Dc from onLayout and with the screen's from onUpdate.  That is the
+    whole of the fallback: one method, two call sites, and no second version of
+    the drawing to drift.
+
+    It clears first.  The buffer's initial contents are not documented anywhere
+    in the SDK, so it has to; and because the static content is always the
+    prefix of draw order (`wfb.ir.draw_sort_key` puts it there), clearing on the
+    *screen* path too is both safe (nothing has been drawn yet this frame) and
+    what makes the two paths identical.  Black is also what
+    `wfb preview` starts from, so the host renderer and the device agree.
+
+    Anti-aliasing is reset here too, for the same one-method-two-call-sites
+    reason: `_emit_static_allocation` allocates the buffer without `:palette`
+    (`Dc.setAntiAlias` is documented unsupported only for a palette'd
+    `BufferedBitmap`), so the call is legal on both the buffer's Dc and the
+    screen's, and putting the reset inside `renderStatic` itself, rather than
+    at each of its two call sites, is what keeps that true without saying it
+    twice.
+
+    Each root's *call* -- not its `drawStatic<Id>` body -- is what a layout
+    guard wraps: a static root's members are all shared, or all one layout's
+    own (`Builder._apply_static` marks a whole subtree from one root, and
+    `Builder._assign_layouts` stamps `Element.layout` on a whole subtree from
+    one synthetic group, so the two can never disagree within one root --
+    asserted below, not just assumed).  `drawStatic<Id>` itself stays
+    unguarded, the same body regardless of which layout is active, because it
+    is only ever called from behind that one guard.
+    """
+    w.blank()
+    w.doc("Everything that never changes, drawn once.\n"
+          "\n"
+          "Called with the offscreen buffer's Dc from onLayout, and with the screen's\n"
+          "own Dc from onUpdate when there is no buffer.  One method, so the buffered\n"
+          "and unbuffered paths cannot drift apart.")
+    with w.block(f"private function {STATIC_RENDER}(dc as Dc) as Void"):
+        w.comment("a fresh buffer's contents are undefined, and this is the first")
+        w.comment("thing drawn in the frame either way, so start from a known ground")
+        w.line("dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);")
+        w.line("dc.clear();")
+        if antialias_default is not None:
+            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
+        calls = []
+        for root, members in static.groups:
+            assert all(p.element.layout == root.element.layout for p in members), (
+                f"static root {root.id!r} mixes layouts across its own members -- "
+                "_apply_static/_assign_layouts should make that unreachable"
+            )
+            calls.append((root.element, f"{static.method(root)}(dc);"))
+        _emit_layout_guarded_calls(w, face, calls)
+    if needs_repaint:
+        w.blank()
+        w.doc("Re-paint the static buffer from the current field values, in place.\n"
+              "\n"
+              "Called only from `applyConfig`: a config colour drawn into static "
+              "content\n"
+              "was already baked into the buffer once in onLayout, so a wearer's "
+              "edit\n"
+              "needs this to show before the buffer is blitted again.  Narrows "
+              "through a\n"
+              "local rather than calling `.getDc()` straight off the field -- "
+              "`monkeyc`\n"
+              "cannot narrow a `Null` check across a field read (CLAUDE.md).")
+        with w.block(f"private function {REPAINT_STATIC_METHOD}() as Void"):
+            w.line(f"var buffer = {STATIC_FIELD};")
+            with w.block("if (buffer != null)"):
+                w.line(f"{STATIC_RENDER}(buffer.getDc());")
+    for root, members in static.groups:
+        if root.kind != "group":
+            continue  # a static leaf is drawn by its own method, called above
+        w.blank()
+        w.doc(f"`{root.element.id}` -- the static subtree, in draw order.")
+        with w.block(f"private function {static.method(root)}(dc as Dc) as Void"):
+            for placed in members:
+                w.line(f"{_method(placed.id)}(dc);")
+
+
+def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
+    loaded = _loaded_fonts(resolved)
+    if not loaded:
+        return
+    w.doc("Bitmap fonts -- custom text and icon glyphs alike -- loaded once in\n"
+          "onLayout rather than per frame.")
+    for name in loaded:
+        w.line(f"private var _{_field(name)} as FontResource?;")
+    w.blank()
+
+
+def _emit_config_fields(w: Writer, face: Face, guards: "Guards" = _NO_GUARDS) -> None:
+    """One field per declared `config:` colour entry, one per role of the
+    *default* `config: style:` entry's `color_scheme:`, and one
+    `Complications.Id` per declared `config: data:` slot -- each initialised
+    to its compiled-in default.
+
+    The compiled-in default is not a fallback path -- it is *the* path: a
+    device with no native editor (fr955) never calls `applyConfig` at all
+    and simply keeps running with this.  A Styles role starts at the
+    *default entry's* scheme colour for that role, and a `config: data:`
+    slot starts at its own declared `default:` type, the same "default is
+    the path, not a fallback" reasoning applied to a colour and a
+    complication type alike.  A layout-only default entry (`colors is
+    None`) has no scheme to start a role from, so it emits no role fields at
+    all.
+
+    A `config: data:` slot's field is the one exception to "initialised
+    inline, right here": when some target lacks `Toybox.Complications`
+    (`guards.complications`), `new Complications.Id(...)` cannot run
+    unconditionally -- a field initialiser runs at *construction*, on every
+    device, before any `has` guard could ever skip it, so an inline
+    `new Complications.Id(...)` here would crash a device like fenix6 the
+    instant the view is constructed, guard or no guard elsewhere. The field
+    is declared nullable and left `null` here instead; `_emit_initialize`
+    constructs it, guarded, in the constructor, where a `Toybox has
+    :Complications` check actually runs before the construction it guards.
+    """
+    if not face.has_config:
+        return
+    w.doc("Colours and complications the wearer can change in the native "
+          "on-device editor\n"
+          "(fēnix 8 and newer only).  Each starts at its declared default, "
+          "which is also\n"
+          "the only value a device with no editor -- fr955 -- ever shows.")
+    for name, entry in face.config.items():
+        w.line(f"private var {entry.field} as Number = {entry.default.as_monkeyc()};")
+    if face.config_style is not None and face.config_style.default_entry.colors is not None:
+        default_scheme = face.color_scheme[face.config_style.default_entry.colors]
+        for role, color in default_scheme.colors.items():
+            field = config_field(f"colors_{role}")
+            w.line(f"private var {field} as Number = {color.as_monkeyc()};")
+    if face.layouts:
+        # The default entry's layout, in declaration order -- always set,
+        # since `layout:` is required on every entry once `layouts:` is
+        # declared (plan 02 §12.4).  Not a fallback path: fr955 has no
+        # native editor and never calls `applyConfig` at all, so this is the
+        # only layout it ever shows.
+        default_layout = face.config_style.default_entry.layout
+        default_index = face.layouts.index(default_layout)
+        w.line(f"private var {CONFIG_LAYOUT_FIELD} as Number = {default_index};")
+    for name, slot in face.config_data.items():
+        ctype = complications.TYPES[slot.default]
+        if guards.complications:
+            w.line(f"private var {slot.field} as Complications.Id? = null;  "
+                   f"// set in initialize() -- see this method's own doc")
+        else:
+            w.line(f"private var {slot.field} as Complications.Id = "
+                   f"new Complications.Id(Complications.{ctype.constant});")
+    w.blank()
+
+
+def _emit_apply_config(w: Writer, face: Face, static: "StaticPlan | None") -> None:
+    """`applyConfig` -- turn one `WatchFaceConfig.Settings` snapshot into view
+    state.  Called from both `onLayout`'s first read and the delegate's
+    `onWatchFaceConfigEdited`, so there is exactly one place that does this.
+
+    Every field on the way in is nullable twice over -- `Settings.accentColor`
+    is `Color?` and its own `.color` is `ColorType?` again
+    (`docs/research/probes/watchface-config/`) -- so each axis gets its own
+    two-deep guard, matching the probe's `apply()` exactly rather than
+    inventing a shorter form.  `styleId` (the `config: style:` axis, if
+    declared) is only nullable once, and is range-checked rather than
+    dereferenced twice -- see `_emit_resolve_style`.
+    """
+    w.doc(
+        "Apply one WatchFaceConfig.Settings snapshot.\n"
+        "\n"
+        "Every field is nullable twice over, so a missing value simply leaves the\n"
+        "existing (defaulted) field alone rather than being treated as an error."
+    )
+
+    with w.block("function applyConfig(settings as WatchFaceConfig.Settings) as Void"):
+        if face.config_style is not None:
+            style_local = local_name("config_style")
+            w.line(f"var {style_local} = settings.styleId;")
+            with w.block(
+                f"if ({style_local} != null && {style_local} >= 0 && "
+                f"{style_local} < {len(face.config_style.entries)})"
+            ):
+                w.line(f"{RESOLVE_STYLE_METHOD}({style_local});")
+        for name, entry in face.config.items():
+            axis = entry.axis
+            local = local_name(f"config_{name}")
+            w.line(f"var {local} = settings.{axis.settings_field};")
+            with w.block(f"if ({local} != null)"):
+                value_local = f"{local}Value"
+                w.line(f"var {value_local} = {local}.color;")
+                with w.block(f"if ({value_local} != null)"):
+                    w.line(f"{entry.field} = {value_local} as Number;")
+        if face.config_data:
+            ids = config_data_ids(face)
+            w.blank()
+            w.comment("config: data: -- each ComplicationRef names the slot it belongs")
+            w.comment("to by 'uniqueIdentifier', matching the <complication id=...> below")
+            w.line("var slots = settings.complicationSettings;")
+            with w.block("if (slots != null)"):
+                with w.block("for (var i = 0; i < slots.size(); i += 1)"):
+                    w.line("var ref = slots[i];")
+                    w.line("var unique = ref.uniqueIdentifier;")
+                    w.line("var picked = ref.complicationId;")
+                    with w.block("if (unique == null || picked == null)"):
+                        w.line("continue;")
+                    # Plain sequential `if`s rather than an `if`/`else if`
+                    # chain -- `unique` cannot equal two distinct slot ids at
+                    # once, so the two are equivalent, and independent blocks
+                    # are simpler for `Writer` to emit correctly (the same
+                    # reasoning `_emit_resolve_style` already uses).
+                    for name, slot_id in ids.items():
+                        slot = face.config_data[name]
+                        with w.block(f"if (unique == {slot_id})"):
+                            w.line(f"{slot.field} = picked;")
+        if static is not None:
+            w.blank()
+            w.comment("a config colour may be painted into the static buffer -- repaint")
+            w.comment("it now so a wearer's change shows without waiting for onLayout")
+            w.line(f"{REPAINT_STATIC_METHOD}();")
+        w.line("WatchUi.requestUpdate();")
+    w.blank()
+    if face.config_style is not None:
+        _emit_resolve_style(w, face)
+
+
+def _emit_config_layout_accessor(w: Writer) -> None:
+    """`configLayout()` -- the view's public accessor for `_configLayout`.
+
+    Public, not `private`: the one and only reader is the generated
+    delegate's `onPress`, a *different* class, and `private` genuinely
+    blocks a cross-class method call (confirmed by building both ways --
+    docs/lore/monkeyc.md) the same way it would a field.  Emitted only when
+    some `on_hold:` target actually belongs to a layout (`emit_view`'s own
+    call site) -- there is no reason to emit a method nothing calls.
+    """
+    w.doc("The active layout's index, for the delegate's onPress to test a "
+          "layout-scoped\n"
+          "hold target against.  Public: a delegate method cannot reach a "
+          "private field\n"
+          "on this class.")
+    with w.block(f"function {CONFIG_LAYOUT_METHOD}() as Number"):
+        w.line(f"return {CONFIG_LAYOUT_FIELD};")
+    w.blank()
+
+
+#: Fixed generated method name -- there is at most one `config: style:` axis
+#: per face (unlike `drawStatic<Id>`/`draw<Id>`, nothing here is derived from
+#: an author id), so it needs no per-design collision check the way those do.
+RESOLVE_STYLE_METHOD = "resolveStyle"
+
+
+#: The view field the active layout's declaration-order index is cached in
+#: -- `_configLayout`, read by every guard below (`_emit_layout_guarded_calls`)
+#: and by the view's own `configLayout()` accessor.  Emitted only when
+#: `face.layouts` is non-empty: there is nothing for it to hold otherwise.
+CONFIG_LAYOUT_FIELD = config_field("layout")
+
+
+def _emit_resolve_style(w: Writer, face: Face) -> None:
+    """`resolveStyle` -- decode one Styles id into this design's `config:
+    style:` entries.
+
+    One `if (style == i)` block per entry, in `choices:` order (index 0
+    first, matching `<style id="N">` in the generated resource) -- this is
+    the only place a `styleId` (an opaque `Number` Garmin gives no meaning to
+    at all, docs/research/09 §3) is given one.  A colour-carrying entry's
+    block assigns that entry's scheme's roles; a layout-carrying entry's also
+    sets `_configLayout` to that layout's declaration-order index (the same
+    index plan 02 §12.2's desugar rewrite and every
+    guard below test).  A layout-only entry has no colour lines, and a
+    colour-only entry has no `_configLayout` line -- both read straight off
+    which of `entry.colors`/`entry.layout` is set.  Plain sequential `if`s
+    rather than an `if`/`else if` chain: `style` cannot equal two distinct
+    literals at once, so the two are equivalent, and independent blocks are
+    simpler for `Writer` to emit correctly.
+
+    An out-of-range id is guarded by the caller (`applyConfig`) before this is
+    ever called, and any id it does not recognise here is silently ignored: a
+    rebuild with fewer entries can leave a saved style id past the end.
+    """
+    assert face.config_style is not None
+    w.doc(
+        "Decode one Styles id into this design's config: style: entries.  styleId is\n"
+        "an opaque Number Garmin gives no meaning to -- this is the only place\n"
+        "that meaning is assigned, in 'choices:' order, index 0 first."
+    )
+    with w.block(f"private function {RESOLVE_STYLE_METHOD}(style as Number) as Void"):
+        for index, entry in enumerate(face.config_style.entries):
+            with w.block(f"if (style == {index})"):
+                comment = []
+                if entry.colors is not None:
+                    comment.append(f"color_scheme.{entry.colors}")
+                if entry.layout is not None:
+                    comment.append(f"layouts.{entry.layout}")
+                w.comment(f"{entry.name} -- {', '.join(comment)}")
+                if entry.colors is not None:
+                    scheme = face.color_scheme[entry.colors]
+                    for role, color in scheme.colors.items():
+                        field = config_field(f"colors_{role}")
+                        w.line(f"{field} = {color.as_monkeyc()};")
+                if entry.layout is not None:
+                    layout_index = face.layouts.index(entry.layout)
+                    w.line(f"{CONFIG_LAYOUT_FIELD} = {layout_index};")
+    w.blank()
+
+
+def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
+                     guards: "Guards" = _NO_GUARDS) -> None:
+    """The view's constructor.
+
+    `editMode` is accepted, not stored, when the design has at least one
+    `complication_slot`: `getComplicationDrawable`/`onTap` are self-gating --
+    the system simply never calls them outside the editor -- and this
+    project pulls every complication fresh every frame rather than caching
+    or subscribing the way the SDK sample's own `_editMode` flag skips a
+    subscription, so there is nothing left here for it to gate.  An unused
+    *parameter* does not warn (verified, the same as the delegate's own
+    `view` parameter), which is what lets `AppBase.onStart` detect edit mode
+    at all without forcing an unused *field* here too (verified the other
+    way: a written-but-never-read member variable does warn -- "Member
+    variable '_editMode' is not used." -- so the App class reads its own
+    field back by passing it on to this constructor, and this constructor's
+    signature is the whole reason that counts as a read).
+
+    When `guards.complications`, this is also where every `config: data:`
+    slot's `Complications.Id` field actually gets built -- see
+    `_emit_config_fields`'s own doc for why a field *initialiser* is the
+    wrong place for it (it runs before any `has` guard could matter) and the
+    constructor, which runs code rather than merely declaring a default, is
+    the right one.
+    """
+    if has_slots:
+        w.doc(
+            "`editMode` is accepted, not stored: getComplicationDrawable/onTap\n"
+            "(the delegate) are self-gating -- the system simply never calls them\n"
+            "outside the native editor -- and every complication here is pulled\n"
+            "fresh every frame rather than cached or subscribed, so there is\n"
+            "nothing else in this view for edit mode to change.  An unused\n"
+            "*parameter* does not warn (verified, same as the delegate's own\n"
+            "`view` parameter); a written-but-never-read *field* does (verified\n"
+            "the other way -- \"Member variable '_editMode' is not used.\"), which\n"
+            "is why AppBase.onStart's own flag is forwarded here rather than kept."
+        )
+    signature = "function initialize(editMode as Boolean)" if has_slots else "function initialize()"
+    with w.block(signature):
+        w.line("WatchFace.initialize();")
+        if guards.complications and face.config_data:
+            w.blank()
+            w.comment("Toybox.Complications is absent on at least one target -- leave")
+            w.comment("every slot's Id null there, which config: data: draw code below")
+            w.comment("already treats as \"nothing chosen\" (when_absent-style absence)")
+            with w.block("if (Toybox has :Complications)"):
+                for name, slot in face.config_data.items():
+                    ctype = complications.TYPES[slot.default]
+                    w.line(f"{slot.field} = new Complications.Id(Complications.{ctype.constant});")
+    w.blank()
+
+
+def _emit_complication_subscribe_lines(w: Writer, event: list[str]) -> None:
+    """The register-callback line, then one `WfbComplications.subscribe` per
+    reader -- emitted identically whether or not it sits behind a `Toybox has
+    :Complications` guard, so `_emit_on_layout`'s guarded and unguarded
+    branches cannot drift apart.
+    """
+    w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
+    for name in event:
+        reader = READERS[name]
+        w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
+
+
+def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
+                    static: "StaticPlan | None" = None) -> None:
+    face = resolved.face
+    loaded = _loaded_fonts(resolved)
+    event = plan.complication_readers()
+    has_config = face.has_config
+    w.doc("Load resources once.  Loading is expensive and must not happen per frame."
+          + ("\n\nThis is also where the static content is painted, once, into its\n"
+             "offscreen buffer -- every later frame just blits it." if static else "")
+          + ("\n\nThe first config read happens here too, so the very first frame\n"
+             "already reflects the wearer's own choice rather than the compiled-in\n"
+             "default -- guarded, since a device with no native editor (fr955) has\n"
+             "no WatchFaceConfig module to call at all." if has_config else ""))
+    with w.block("function onLayout(dc as Dc) as Void"):
+        if not loaded and not event and static is None and not has_config:
+            w.line("// No resources to load: this face draws entirely from system fonts.")
+        for name in loaded:
+            resource = font_resource_id(name)
+            w.line(
+                f"_{_field(name)} = WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
+            )
+        if event:
+            if loaded:
+                w.blank()
+            w.comment(
+                "complications: one subscription per type, which keeps the "
+                "platform's own reading fresh -- the value itself is pulled in "
+                "onUpdate, not delivered here. WfbComplications.subscribe absorbs "
+                "a device that does not support a given type"
+            )
+            if plan.device_guards.complications:
+                # Unlike an unsupported *type* (WfbComplications.subscribe's own
+                # job), a device that lacks Toybox.Complications entirely --
+                # fenix6, fr245 -- fails on the bare reference to
+                # registerComplicationChangeCallback/Complications.Id, before
+                # WfbComplications is ever reached, so the guard has to sit
+                # here, not in the barrel (CLAUDE.md: monkeyc checks the
+                # SDK-wide API, not the device's -- this only fails at runtime).
+                w.comment("Toybox.Complications is absent on at least one target device")
+                with w.block("if (Toybox has :Complications)"):
+                    _emit_complication_subscribe_lines(w, event)
+            else:
+                _emit_complication_subscribe_lines(w, event)
+        if has_config:
+            if loaded or event:
+                w.blank()
+            w.comment("the native on-device editor, where this device has one -- absent on")
+            w.comment("fr955, which keeps running on the compiled-in defaults above")
+            with w.block("if (Application has :WatchFaceConfig)"):
+                w.line("var settings = WatchFaceConfig.getSettings(null);")
+                with w.block("if (settings != null)"):
+                    w.line("applyConfig(settings);")
+        if static is not None:
+            if loaded or event or has_config:
+                w.blank()
+            _emit_static_allocation(w, static)
+    w.blank()
+
+
+def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_on: bool,
+                    static: "StaticPlan | None" = None,
+                    antialias_default: bool | None = None) -> None:
+    w.doc(
+        "Draw the full face.\n"
+        "\n"
+        "Called once a minute in low-power mode and once a second while the watch is\n"
+        "awake." + (
+            "  While asleep, draws the 'always_on' set instead of 'active' -- see\n"
+            "_sleeping, set by onEnterSleep/onExitSleep below."
+            if always_on else ""
+        ) + (
+            "  The static content comes first, as one blit of a buffer painted in\n"
+            "onLayout -- or, on a device that could not allocate one, drawn straight\n"
+            "onto the screen instead."
+            if static is not None else ""
+        ) + (
+            "  Anti-aliasing is reset to the face default here, once, so it covers\n"
+            "both the asleep and awake branches below; an element that overrides the\n"
+            "default sets and restores it around its own drawing."
+            if antialias_default is not None else ""
+        )
+    )
+    with w.block("function onUpdate(dc as Dc) as Void"):
+        w.line("dc.clearClip();")
+        if antialias_default is not None:
+            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
+        if always_on:
+            with w.block("if (_sleeping)"):
+                _emit_mode_body(w, resolved, plan, "always_on", static)
+            with w.block("else"):
+                _emit_mode_body(w, resolved, plan, "active", static)
+        else:
+            _emit_mode_body(w, resolved, plan, "active", static)
+    w.blank()
+
+
+def _emit_layout_guarded_calls(w: Writer, face: Face, calls: list) -> None:
+    """Emit a sequence of ``(element, call_line)`` pairs, grouping
+    *consecutive* calls whose ``element.layout`` agrees into one
+    ``if (_configLayout == N) { ... }`` block; ``layout is None`` (shared
+    content) emits with no guard at all -- **guards test the layout, never
+    the config entry** (plan 02 §6.4): however many
+    `config: style:` entries share one layout, this still emits only the one
+    guard for it.
+
+    The one place any draw sequence decides how a layout gates a call, so
+    ``_emit_mode_body``, ``_emit_on_partial_update`` and
+    ``_emit_static_methods``'s per-root calls in ``renderStatic`` cannot
+    drift into guarding differently.  A design with no `layouts:` has
+    ``element.layout is None`` on every element, so every call falls into
+    the single unguarded branch below and the emitted sequence is exactly
+    what it always was -- the golden files and the baseline byte-identity
+    both rest on that.
+    """
+    index = 0
+    total = len(calls)
+    while index < total:
+        element, line = calls[index]
+        layout = element.layout
+        end = index + 1
+        while end < total and calls[end][0].layout == layout:
+            end += 1
+        if layout is None:
+            for k in range(index, end):
+                w.line(calls[k][1])
+        else:
+            guard = f"{CONFIG_LAYOUT_FIELD} == {face.layouts.index(layout)}"
+            with w.block(f"if ({guard})"):
+                for k in range(index, end):
+                    w.line(calls[k][1])
+        index = end
+
+
+def _draw_calls(resolved: ResolvedFace, plan: "ReadPlan", mode: str,
+                skip: frozenset[str] = frozenset()) -> list:
+    """`(element, call_line)` pairs for every element drawn in ``mode``, in
+    draw order -- shared by `_emit_mode_body` (which passes ``skip``, a
+    static id already painted into the buffer) and `_emit_on_partial_update`
+    (which never skips anything: it draws `low_power` fresh every call, with
+    no static blit of its own).
+    """
+    calls = []
+    for placed in resolved.items:
+        if placed.kind == "group" or mode not in placed.element.modes:
+            continue
+        if placed.id in skip:
+            continue  # painted into the buffer above
+        calls.append((placed.element, f"{_method(placed.id)}(dc{plan.arguments(placed)});"))
+    return calls
+
+
+def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: str,
+                    static: "StaticPlan | None") -> None:
+    """One mode's draw sequence: the static blit, then everything dynamic."""
+    buffered = static is not None and mode in static.modes
+    if buffered:
+        _emit_static_blit(w, static)
+        w.blank()
+    # Reads everything unconditionally, layout guards included below -- a
+    # read only a hidden layout's element uses is wasted work.  A real
+    # optimisation (moving reads inside the guards), left for later and only
+    # worth doing if it is measured (plan 02 §6.4).
+    plan.emit_reads(w, mode)
+    w.blank()
+    skip = static.ids if static is not None else set()
+    calls = _draw_calls(resolved, plan, mode, skip)
+    _emit_layout_guarded_calls(w, resolved.face, calls)
+
+
+def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
+                            antialias_default: bool | None = None) -> None:
+    clip = resolved.clip_for("low_power")
+    fraction = 100.0 * clip.area / (resolved.device.width * resolved.device.height) if clip else 0
+    w.doc(
+        "Redraw only the low-power elements, once a second, while asleep.\n"
+        "\n"
+        "The clip is the tightest box around them because setClip is charged by\n"
+        f"region area: {fraction:.0f}% of the screen here.  Overrunning the power\n"
+        "budget calls onPowerBudgetExceeded and disables partial updates for the\n"
+        "rest of the app's lifecycle.  Nothing here is rate-limited by the\n"
+        "compiler: since the refresh-tier concept was deleted, any source a\n"
+        "low_power element binds -- weather.* and complication.* included --\n"
+        "is read on every one of these updates.  The suppressible\n"
+        "partial-update-budget lint is the only thing watching that."
+    )
+    with w.block("function onPartialUpdate(dc as Dc) as Void"):
+        w.line(
+            "dc.setClip(Layout.LOW_POWER_CLIP_X, Layout.LOW_POWER_CLIP_Y,"
+        )
+        w.line(
+            "           Layout.LOW_POWER_CLIP_WIDTH, Layout.LOW_POWER_CLIP_HEIGHT);"
+        )
+        if antialias_default is not None:
+            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
+        plan.emit_reads(w, "low_power")
+        w.blank()
+        calls = _draw_calls(resolved, plan, "low_power")
+        _emit_layout_guarded_calls(w, resolved.face, calls)
+        w.line("dc.clearClip();")
+    w.blank()
+
+
+def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
+                      always_on: bool) -> None:
+    w.doc("Awake: full-power updates resume.")
+    with w.block("function onExitSleep() as Void"):
+        if needs_sleeping:
+            w.line("_sleeping = false;")
+        w.line("WatchUi.requestUpdate();")
+    w.blank()
+    if always_on:
+        doc = "Asleep: the next onUpdate draws the 'always_on' layout."
+    elif needs_sleeping:
+        # `always_on` is unused: an awake-only second hand is the only other
+        # reason `needs_sleeping` is true (plan 04 §5.6).
+        doc = "Asleep: the next onUpdate hides the awake-only second hand."
+    else:
+        doc = "Asleep: the next onUpdate draws the low-power layout."
+    w.doc(doc)
+    with w.block("function onEnterSleep() as Void"):
+        if needs_sleeping:
+            w.line("_sleeping = true;")
+        w.line("WatchUi.requestUpdate();")
+    w.blank()
+    if _has_partial_update(resolved):
+        w.doc(
+            "The power budget was exceeded and partial updates are now off for the\n"
+            "rest of this app's lifecycle.  Nothing can re-enable them; the face\n"
+            "simply falls back to once-a-minute updates."
+        )
+        with w.block("function onPowerBudgetExceeded(powerInfo as WatchUi.WatchFacePowerInfo) as Void"):
+            w.line('System.println("wfb: partial-update power budget exceeded: "')
+            w.line('               + powerInfo.executionTimeAverage.format("%.2f") + " ms average");')
+        w.blank()
+
+
+def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
+    """`onComplicationChanged`: one callback, one statement.
+
+    This used to carry a `switch` writing each changed value into a private
+    per-type field that `onUpdate` then read -- a cache, and an unnecessary
+    one.  `Complications.getComplication(id)` is a plain pull that needs no
+    prior subscription at all: the SDK's own `ConfigurableWatchFace` sample
+    calls it from `onLayout` before it subscribes, and again in edit mode
+    where it never subscribes.  So `onUpdate` reads complications the same
+    ordinary way it reads `ActivityMonitor.getInfo()`, and nothing has to be
+    stored between frames.
+
+    What is left is only the redraw: a complication can change between two
+    scheduled updates, and this is how the face learns to draw sooner.  The
+    subscription in `onLayout` remains for the same reason -- it is what keeps
+    the platform's own value fresh, which is a different thing from caching it
+    here.  See `docs/research/probes/complication-pull/`.
+    """
+    w.doc(
+        "A subscribed complication changed.  Nothing is stored: onUpdate pulls\n"
+        "every complication it needs, so this only asks for an earlier redraw\n"
+        "than the next scheduled one."
+    )
+    with w.block("function onComplicationChanged(id as Complications.Id) as Void"):
+        w.line("WatchUi.requestUpdate();")
+    w.blank()
+
+
+# --------------------------------------------------------------------------
+# one method per element
+
+
+def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadPlan",
+                         antialias_default: bool | None = None) -> None:
+    element = placed.element
+    w.doc(_method_doc(placed))
+    signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
+    # 'placeholder'/'fallback' are policies for the *value* -- a substitute
+    # text or fill fraction takes over instead of the element simply not
+    # drawing.  They say nothing about a nullable colour, track colour or
+    # max: there is no placeholder for a colour, so those always get a real
+    # guard regardless of which policy the value chose (Bug 5).
+    substitutes_value = (
+        isinstance(placed, (PlacedText, PlacedProgress))
+        and getattr(element, "when_absent", None) in ("placeholder", "fallback")
+    )
+    with w.block(signature):
+        declarations = plan.declarations(placed)
+        if declarations:
+            w.comment("the values this element is bound to")
+            for name, read in declarations:
+                w.line(f"var {name} = {read};")
+            w.blank()
+        _emit_visible_guard(w, placed, plan)
+        if isinstance(placed, PlacedComplicationSlot):
+            # Deliberately no element-level guard: the reading is not an
+            # element-level binding at all (it is a fresh per-frame pull off
+            # a wearer-editable `Complications.Id`), so there is nothing for
+            # `plan.guards`/`value_guards` to say about it -- `color:` is the
+            # only ordinary expression here, and `Builder._build_complication_
+            # slot` already requires it to be non-nullable.
+            _emit_complication_slot(w, resolved, placed, plan.device_guards)
+            return
+        value_guards = plan.value_guards(placed)
+        if substitutes_value:
+            other_guards = plan.other_guards(placed)
+            if other_guards:
+                _emit_guard(w, placed, other_guards,
+                           note="hide -- a nullable colour/track_color/max always hides "
+                                "the element, regardless of the value's own when_absent")
+        else:
+            other_guards = plan.guards(placed)
+            if other_guards:
+                _emit_guard(w, placed, other_guards)
+        # Anti-aliasing only ever varies for a primitive-drawing element
+        # (`ANTIALIASED_PRIMITIVES`) -- text and icons draw glyphs, whose anti-aliasing is a font-resource matter
+        # (baked at build time, see wfb.icons/wfb.fonts), not a per-frame Dc
+        # call, so they emit no setAntiAlias-related code at all.  The toggle
+        # brackets only the actual drawing call below, deliberately *after*
+        # every guard above: a guard can return early, and doing this any
+        # earlier would leave the Dc's anti-alias state changed on a frame
+        # that drew nothing, breaking the invariant every other draw method
+        # relies on -- that Dc is already at the face default by the time its
+        # own drawing runs.
+        overrides_antialias = (
+            antialias_default is not None
+            and isinstance(placed, ANTIALIASED_PRIMITIVES)
+            and element.resolved_antialias != antialias_default
+        )
+        if overrides_antialias:
+            w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
+            w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
+        if isinstance(placed, PlacedShape):
+            _emit_shape(w, placed)
+        elif isinstance(placed, PlacedText):
+            _emit_text(w, resolved, placed, value_guards)
+        elif isinstance(placed, PlacedProgress):
+            _emit_progress(w, placed, value_guards)
+        elif isinstance(placed, PlacedIcon):
+            _emit_icon(w, placed)
+        elif isinstance(placed, PlacedGraph):
+            _emit_graph(w, placed)
+        elif isinstance(placed, PlacedHands):
+            _emit_hands(w, placed)
+        elif isinstance(placed, PlacedPattern):
+            _emit_pattern(w, placed)
+        if overrides_antialias:
+            w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
+
+
+def _method_doc(placed) -> str:
+    element = placed.element
+    lines = [f"`{element.id}` -- {_describe(placed)}."]
+    # `visible:` gets its own line below rather than being listed as a
+    # binding: it says when the element draws, not what it shows.
+    bindings = [e.text for e in element.expressions()
+                if e.sources and e is not element.visible]
+    if bindings:
+        lines.append("")
+        lines.append("Bound to " + _and_list(f"`{text}`" for text in bindings) + ".")
+    if element.visible is not None:
+        lines.append(f"Drawn only when `{element.visible.text}` "
+                     "(absent readings count as hidden).")
+    policy = getattr(element, "when_absent", None)
+    if policy:
+        lines.append(f"When the value is absent: {policy}.")
+    modes = ", ".join(element.modes)
+    lines.append(f"Drawn in: {modes}.")
+    return "\n".join(lines)
+
+
+def _negated(expression) -> str:
+    """The Monkey C for "this condition does **not** hold".
+
+    A condition that is itself a `not` is un-negated rather than wrapped: the
+    guard for `visible: "not system.charging"` reads `if (systemCharging)`, not
+    `if (!(!systemCharging))`, which is not something a person would have
+    written.  `expr.emit` renders a `not` as exactly `(!<operand>)`, so this is
+    a slice off a known shape rather than a second, drifting emitter.
+    """
+    code = expression.code
+    node = expression.ast
+    if isinstance(node, expr.Unary) and node.op == "not":
+        assert code.startswith("(!") and code.endswith(")"), code
+        return code[2:-1]
+    return f"!{_negatable(code)}"
+
+
+def _negatable(code: str) -> str:
+    """``code`` wrapped in parentheses unless it already is one group.
+
+    `expr.emit` parenthesises every operator it emits, so a condition almost
+    always arrives as `(a < b)` and `!((a < b))` would be the honest but
+    unreadable result of wrapping it again.  Only a single enclosing group
+    counts: `(a) || (b)` starts and ends with a bracket without being one.
+    """
+    if not (code.startswith("(") and code.endswith(")")):
+        return f"({code})"
+    depth = 0
+    for index, char in enumerate(code):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0 and index != len(code) - 1:
+                return f"({code})"
+    return code
+
+
+def _emit_visible_guard(w: Writer, placed, plan: "ReadPlan") -> None:
+    """`visible:` -- one guard covering both absence and the condition.
+
+    Emitted before every other guard, and before a complication_slot's own
+    early return, because visibility gates the element as a whole.
+
+    The shape is `if (x == null || !(cond)) { return; }`, one `== null` per
+    nullable local the condition reads.  That is "absent means hidden" written
+    out: there is no `when_absent:` for existence, so an unavailable reading
+    and a false condition are the same outcome and belong in the same test.
+    Verified that `monkeyc` narrows the local across the `||` -- the condition
+    on the right dereferences it -- with a real warning-free `-w` build under
+    the jungle's `project.typecheck = strict`.
+
+    A condition that folded to a build-time constant is handled honestly
+    rather than specially: a constant `true` emits nothing (there is nothing
+    to check), and a constant `false` emits the guard as written, which
+    `monkeyc` accepts without an unreachable-code warning (verified the same
+    way) and `-O 3z` folds away.  The `dead-element` lint is what tells the
+    author about the second case.
+    """
+    element = placed.element
+    expression = element.visible
+    if expression is None:
+        return
+    if expression.constant is not None and expression.constant:
+        w.comment(f"visible: {expression.text} -- always true, nothing to check")
+        w.blank()
+        return
+    parts = [f"{name} == null" for name in plan.visible_guards(placed)]
+    parts.append(_negated(expression))
+    w.comment(f"visible: {expression.text}"
+              + (" -- absent means hidden" if len(parts) > 1 else ""))
+    with w.block(f"if ({' || '.join(parts)})"):
+        w.line("return;")
+    w.blank()
+
+
+def _emit_guard(w: Writer, placed, guards: list[str], note: str | None = None) -> None:
+    """Emit the null check, and say which `when_absent:` produced it.
+
+    ``note`` overrides the default "when_absent: <policy>" comment for the
+    case (Bug 5) where the guard covers only bindings the value's own policy
+    does not govern -- a nullable colour still just hides the element even
+    when the value itself falls back to a placeholder.
+    """
+    element = placed.element
+    condition = " || ".join(f"{name} == null" for name in guards)
+    w.comment(note if note is not None else f"when_absent: {getattr(element, 'when_absent', None) or 'hide'}")
+    with w.block(f"if ({condition})"):
+        w.line("return;")
+    w.blank()
