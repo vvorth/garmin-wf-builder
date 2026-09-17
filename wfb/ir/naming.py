@@ -30,13 +30,11 @@ def local_name(source_path: str) -> str:
 def config_field(name: str) -> str:
     """The view field a `config:` axis is cached in (``_configAccentColor``).
 
-    Module-level rather than only a `ConfigColor` property because
+    Module-level rather than only a `ConfigColor` property, because
     `Builder._build_scope` has to name the field for an axis that was
-    *rejected* -- there is no `ConfigColor` for one of those, and deriving it
-    a second time inline would be the same kind of duplicated symbol
-    derivation `element_const_prefix`/`element_method_name` were moved here to
-    stop (a mismatch between two copies is a `Redefinition` from `monkeyc`
-    pointing at a generated line number).
+    *rejected* -- there is no `ConfigColor` for one of those. Deriving the
+    same symbol two different ways risks a mismatch, which surfaces as a
+    `Redefinition` error from `monkeyc` pointing at a generated line number.
     """
     return "_config" + _pascal(name)
 
@@ -149,8 +147,9 @@ def graph_max_field(element_id: str) -> str:
 
 def graph_built_field(element_id: str) -> str:
     """The minute-of-last-rebuild field a graph checks every frame
-    (``hrGraphBuiltAt``) -- see `runtime-lib/WfbSeries.mc`'s module docstring
-    for why this is not the TTL cache this project deleted."""
+    (``hrGraphBuiltAt``). Not a TTL cache: it rebuilds only when the clock
+    minute changes, since a series's own sample interval is minutes -- see
+    `runtime-lib/WfbSeries.mc`'s module docstring."""
     return _lower_first(_element_suffix(element_id)) + "BuiltAt"
 
 

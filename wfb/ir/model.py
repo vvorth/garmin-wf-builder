@@ -24,7 +24,7 @@ from .naming import _pascal, config_field, font_resource_id
 MODES = ("active", "low_power", "always_on")
 
 #: `on_hold: auto` -- resolved later, once the element has a value binding to
-#: resolve *from* (SPEC.md D3).  A plain string rather than a dedicated
+#: resolve *from*.  A plain string rather than a dedicated
 #: sentinel object so it survives unchanged through `Element.on_hold`, typed
 #: `str | None` -- and safe to compare against, because `"auto"` is not and
 #: will not become a real `wfb.complications.TYPES` key (constant names are
@@ -135,12 +135,10 @@ class FontSpec:
     #: rasterised before any element is placed, so there is no parent box to
     #: take a `%` of and no font in scope to take a `pt` of).
     #:
-    #: There used to be a second spelling, a bare number meaning em pixels on
-    #: the *reference* device (the smallest target) scaled per device by a
-    #: `scale:` flag.  Removed: `%r` is that same transparent scaling, spelled
-    #: directly instead of through an unnamed reference screen, and `px` is
-    #: what `scale: false` used to give.  `Builder._font_size` is where a bare
-    #: number is now rejected, with the exact `%r` conversion.
+    #: A bare number is not accepted: `%r` gives the same transparent
+    #: per-device scaling directly, without an unnamed reference screen.
+    #: `Builder._font_size` rejects a bare number with the exact `%r`
+    #: conversion to use instead.
     size: Length
     glyphs: str | None
     antialias: bool
@@ -158,9 +156,8 @@ class FontSpec:
 
     def pixel_size(self, minor_radius: float) -> int:
         """The nominal em size this font's sheet is rasterised at, on a device
-        whose screen has this minor radius.  The size is always a `Length`
-        now, so its own unit already says whether it is per-device -- there is
-        no reference device to consult any more.
+        whose screen has this minor radius.  The size is a `Length`, so its
+        own unit already says whether it is per-device.
         """
         return units.pixel_size(self.size, minor_radius)
 
@@ -260,20 +257,18 @@ class ColorScheme:
 
 @dataclass(frozen=True)
 class LayoutDecl:
-    """One declared `layouts:` entry -- a named widget set (plan 02
-    §12.1, §12.2).  Form A only: an author never writes
-    membership on an element.
+    """One declared `layouts:` entry -- a named widget set.  Form A only: an
+    author never writes membership on an element.
 
     By the time this reaches the IR, `wfb/desugar.py`'s `_layouts_block` has
     already folded this entry's own `static:`/`elements:` into two synthetic
     groups appended to the top-level `elements:`, found again here by their
     reserved id (`wfb.desugar.layout_ids`) and walked to set `Element.layout`
     (`Builder._assign_layouts`) -- so this carries little beyond the name
-    itself and the entry's own `lint:`, consulted by a later phase's
-    `unreachable-layout` (plan 02 §12.6): a layout has no element of its own
-    to hang `lint:` on, so its own body is the suppression site, the same
-    reasoning a `config: style:` entry's own `lint:` follows for
-    `duplicate-style`.
+    itself and the entry's own `lint:`, consulted by `unreachable-layout`: a
+    layout has no element of its own to hang `lint:` on, so its own body is
+    the suppression site, the same reasoning a `config: style:` entry's own
+    `lint:` follows for `duplicate-style`.
     """
 
     name: str
@@ -284,15 +279,13 @@ class LayoutDecl:
 
 @dataclass(frozen=True)
 class StyleEntry:
-    """One `config: style:` entry -- one line of the editor's Style list
-    (plan 02 §4.1, §12.4).
+    """One `config: style:` entry -- one line of the editor's Style list.
 
     Every entry carries at least one of `layout`/`colors` (`Builder.
     _build_config_style` rejects one with neither), and either may be
-    `None` -- a colour-only entry, a layout-only entry, or both.  Codegen for
-    `layout` is Phase 3 (`resolveStyle` gains a `_configLayout = N;` line
-    alongside the colour assignments, plan 02 §6.4); Phase 2 only resolves
-    and validates it.
+    `None` -- a colour-only entry, a layout-only entry, or both.  A
+    layout-carrying entry makes `resolveStyle` set `_configLayout` alongside
+    the colour assignments; a colour-only entry emits no such line.
     """
 
     name: str
@@ -315,10 +308,8 @@ class StyleEntry:
 class ConfigStyle:
     """The `config: style:` axis -- an author-named, ordered set of entries
     riding Styles, the one axis Garmin gives no meaning to at all
-    (docs/research/09 §3, ADR 0006 1's second amendment, plan 02).
-    Replaces `config: colors:`/the old `ConfigColorAxis` outright (plan 02
-    §12, decision 3) -- no shim, and `examples/config`/`enduro`/`dashboard`
-    are migrated in the same change.
+    (docs/research/09 §3, ADR 0006 1's amendment).  `config: colors:` is not
+    a key; the schema rejects it.
 
     Shaped differently from :class:`ConfigColor`/:class:`ConfigAxis` on
     purpose: entries are named by the *author*, not by the scheme (or,
@@ -365,8 +356,8 @@ class ConfigDataSlot:
     #: `"any"`, or the explicit picklist the editor offers, as
     #: `wfb.complications.TYPES` keys in `choices:` order.
     choices: "str | tuple[str, ...]"
-    #: Per-choice icon override (plan 03 §6.1/§6.2): `wfb.complications.
-    #: TYPES` key -> `wfb.icons.SlotIcon`, or `None` for an explicit
+    #: Per-choice icon override: `wfb.complications.TYPES` key ->
+    #: `wfb.icons.SlotIcon`, or `None` for an explicit
     #: `icon: none` that removes any catalogue default for that type.  A type
     #: absent from this dict declared no override at all -- `.icons` falls
     #: back to `wfb.icons.COMPLICATION_ICON` for it.  Always empty when
@@ -388,27 +379,20 @@ class ConfigDataSlot:
     @property
     def icons(self) -> dict[str, "icons.SlotIcon"]:
         """`wfb.complications.TYPES` key -> icon, for every choice that ends
-        up with one -- the single resolution point plan 03 §6.2 asks for.
-
-        Before this existed, `{name: icons.COMPLICATION_ICON[name] for name
-        in slot.choices if name in icons.COMPLICATION_ICON}` was copied into
-        `wfb.layout`, `wfb.emit.resources`, `wfb.emit.monkeyc` (twice) and
-        `wfb.preview` -- five places that had to agree, by inspection, that
-        they resolved a slot's icon the same way. This is now the one place.
+        up with one -- the single resolution point `wfb.layout`,
+        `wfb.emit.resources`, `wfb.emit.monkeyc` and `wfb.preview` all read
+        instead of each resolving a slot's icon its own way.
 
         A per-choice override in `icon_overrides` wins outright over the
         catalogue default; an explicit `icon: none` override removes the
-        entry rather than falling back to one. `choices: any` (**allowed
-        together with `icon_size:` since 2026-09-13**, plan 03 §6.6 --
-        previously rejected, see `wfb.ir.Builder._build_complication_slot`'s
-        comment at the removed check for the superseded reasoning) resolves
-        against the *whole* of `wfb.icons.COMPLICATION_ICON` -- every native
-        type this compiler knows an icon for -- since there is no author
-        `choices:` list to intersect against; a Connect IQ-app complication,
-        or any native type a future SDK adds that this table does not yet
-        know, simply is not a key here and draws no icon, the same
-        "unmapped means text-only, not an error" contract every other
-        unmapped type already has.
+        entry rather than falling back to one. `choices: any` (allowed
+        together with `icon_size:`) resolves against the *whole* of
+        `wfb.icons.COMPLICATION_ICON` -- every native type this compiler
+        knows an icon for -- since there is no author `choices:` list to
+        intersect against; a Connect IQ-app complication, or any native type
+        a future SDK adds that this table does not yet know, simply is not a
+        key here and draws no icon, the same "unmapped means text-only, not
+        an error" contract every other unmapped type already has.
         """
         if self.allow_any:
             return {
@@ -450,7 +434,7 @@ class Element:
     #: inside the on-device config editor, on every device that has it.
     on_hold: str | None = None
     #: `visible:` -- a BOOLEAN expression gating whether this element draws at
-    #: all (SPEC.md T5).  A separate axis from `when_absent:`, which governs
+    #: all.  A separate axis from `when_absent:`, which governs
     #: the element's *value*: **absent means hidden**, because there is no
     #: meaningful placeholder for existence, so a nullable source read here
     #: contributes a null check to the same guard as the condition itself.
@@ -481,14 +465,13 @@ class Element:
     #: own `z:` ordered the roots themselves.
     static_rank: int | None = None
     #: The declared `layouts:` name this element belongs to, or `None` for
-    #: shared content drawn in every layout (plan 02
-    #: §12.1).  Never set by the author directly -- there is no element-level
-    #: membership key (form A only) -- but by `Builder._assign_layouts`,
-    #: which walks the two synthetic groups `wfb/desugar.py`'s
-    #: `_layouts_block` appended for each declared layout and stamps this on
-    #: the group and every descendant, by id.  Read by :func:`draw_sort_key`
-    #: (the layer rank: shared content draws below layout content) and, from
-    #: Phase 3, by codegen's layout guards.
+    #: shared content drawn in every layout.  Never set by the author
+    #: directly -- there is no element-level membership key (form A only) --
+    #: but by `Builder._assign_layouts`, which walks the two synthetic
+    #: groups `wfb/desugar.py`'s `_layouts_block` appended for each declared
+    #: layout and stamps this on the group and every descendant, by id.
+    #: Read by :func:`draw_sort_key` (the layer rank: shared content draws
+    #: below layout content) and by codegen's layout guards.
     layout: str | None = None
     #: `antialias:` as the author wrote it, or `None` to inherit -- from the
     #: enclosing group's own value, or from `Face.antialias` when there is
@@ -499,10 +482,10 @@ class Element:
     antialias: bool | None = None
     #: The resolved value -- never `None` once `Builder._resolve_antialias`
     #: has run over the whole tree.  What every downstream stage reads: on
-    #: `shape`/`progress` this is the flag for anti-aliased `Dc` primitive
-    #: drawing (a later stage of this work, not emitted yet -- see
-    #: docs/limitations.md); on `icon` it is threaded into
-    #: `wfb.icons.font_key` and the baked sheet.
+    #: `shape`/`progress` this drives the guarded `Dc.setAntiAlias` call
+    #: (`docs/limitations.md` -- `wfb preview` does not reproduce it, since
+    #: it draws primitives with plain `PIL.ImageDraw`); on `icon` it is
+    #: threaded into `wfb.icons.font_key` and the baked sheet.
     #: On a `group` nothing reads it directly -- the field exists there only
     #: as the default source `_resolve_antialias` hands to the subtree.
     resolved_antialias: bool = False
@@ -521,16 +504,14 @@ class Element:
     #: inherited default to a hand/pattern part's own `min_1px` (which has no
     #: `resolved_` twin of its own -- see `HandPart.min_1px`).
     resolved_min_1px: bool = False
-    #: Plan 07: the placement box's horizontal/vertical edge (or centre) that
-    #: sits at the point `at:` resolves to -- one rule, on the base class, so
-    #: every kind of element carries it the same way (R1/R8). Every accepting
-    #: kind reads anything but the default: `group`, `text` and a pattern's
-    #: `shape: text` part since phase A; `shape` (rectangle/rounded_rectangle/
-    #: ellipse/circle/arc -- not polygon/line), `progress` (both styles) and
-    #: `graph` since phase B (2026-09-15); `icon` and `complication_slot`
-    #: since phase C (same day); a hand or pattern `rectangle`/`circle` part
-    #: since phase D (same day). The schema stays closed on every other kind
-    #: (R2/R3). Read by `wfb.layout`'s `alignment_shift` (box-drawn
+    #: The placement box's horizontal/vertical edge (or centre) that sits at
+    #: the point `at:` resolves to -- one rule, on the base class, so every
+    #: kind of element carries it the same way. Meaningful on `group`,
+    #: `text`, a pattern's `shape: text` part, `shape` (rectangle/
+    #: rounded_rectangle/ellipse/circle/arc -- not polygon/line), `progress`
+    #: (both styles), `graph`, `icon`, `complication_slot`, and a hand or
+    #: pattern `rectangle`/`circle` part; the schema stays closed on every
+    #: other kind. Read by `wfb.layout`'s `alignment_shift` (box-drawn
     #: kinds), `Resolver._justify` (glyph-drawn kinds -- `text`, `icon`, a
     #: pattern's `shape: text` part), or mirrored as runtime arithmetic in
     #: `wfb.emit.monkeyc._emit_complication_slot` (`complication_slot`'s own
@@ -567,11 +548,10 @@ class Element:
 class Group(Element):
     size: Size = field(default_factory=Size)
     items: list[Element] = field(default_factory=list)
-    #: `align`/`vertical_align` (which horizontal/vertical edge of the
-    #: group's own box sits at `at:`, or the centre) moved onto `Element`
-    #: itself 2026-09-15 (plan 07 phase A) -- see the base class.  Children
-    #: resolve against the box this produces.  Defaults reproduce today's
-    #: always-centred behaviour byte-identically.
+    #: `align`/`vertical_align`, inherited from `Element`, pick which
+    #: horizontal/vertical edge of the group's own box sits at `at:` (or the
+    #: centre, the default).  Children resolve against the box this
+    #: produces.
 
     def children(self) -> list[Element]:
         return self.items
@@ -603,10 +583,9 @@ class Shape(Element):
 @dataclass
 class HandPart:
     """One primitive of a hand, in the hand's own frame: origin = the axis,
-    drawn pointing at 12 o'clock (plan 04 §5.1, §5.2).  `at`/`to`/`points`
-    positions have no `anchor` -- the schema's `handPosition` never accepts
-    one, so the axis is the only reference point a part's coordinates can be
-    measured from (R4).
+    drawn pointing at 12 o'clock.  `at`/`to`/`points` positions have no
+    `anchor` -- the schema's `handPosition` never accepts one, so the axis
+    is the only reference point a part's coordinates can be measured from.
     """
 
     shape: str = "polygon"
@@ -621,30 +600,30 @@ class HandPart:
     radius: Length | None = None
     filled: bool = True
     #: Always set once built -- the part's own `color:`, or its hand's
-    #: default: "a part left with no colour is an error" (§5.1), so by the
-    #: time a `HandPart` exists this is never `None`.
+    #: default: a part left with no colour is a build error, so by the time
+    #: a `HandPart` exists this is never `None`.
     color: Expression | None = None
     span: Span | None = None
-    #: `arc` only (`type: pattern`'s template, plan 05 §5.2 -- a hand part
-    #: rejects `arc` outright, so these stay `None` there).  Author degrees,
-    #: same convention `Shape.start_angle`/`.sweep` use.
+    #: `arc` only (`type: pattern`'s template -- a hand part rejects `arc`
+    #: outright, so these stay `None` there).  Author degrees, same
+    #: convention `Shape.start_angle`/`.sweep` use.
     start_angle: Angle | None = None
     sweep: Angle | None = None
     #: `type: pattern` template parts only (schema keeps `handPart` closed to
     #: it, `additionalProperties: false`) -- a boolean expression evaluated
     #: per copy, `copy` bound the same as in a colour: false hides this part
-    #: for this copy only, other parts and copies unaffected (2026-09-15,
-    #: "per-copy part visible:").  `None` when not authored, or when the
-    #: condition folded to a build-time constant `true` -- there is nothing
-    #: to gate, so `_build_hand_part` drops it rather than keep a no-op
-    #: expression around.  A constant `false` is kept (not dropped): codegen
-    #: emits no draw code for it, and the `dead-element` lint names it.
+    #: for this copy only, other parts and copies unaffected.  `None` when
+    #: not authored, or when the condition folded to a build-time constant
+    #: `true` -- there is nothing to gate, so `_build_hand_part` drops it
+    #: rather than keep a no-op expression around.  A constant `false` is
+    #: kept (not dropped): codegen emits no draw code for it, and the
+    #: `dead-element` lint names it.
     visible: Expression | None = None
-    #: `shape: text` template parts only (plan 06 §3 -- schema keeps
-    #: `handPart` closed to `shape: text`, so a hand part never sets any of
-    #: these).  `value:` compiled in the pattern's `copy`-bound scope; every
-    #: `Ref` in it must be `copy` (`Builder._build_hand_part`).  Exactly one
-    #: of `text_value`/`text_literal` is set once a text part reaches this
+    #: `shape: text` template parts only (schema keeps `handPart` closed to
+    #: `shape: text`, so a hand part never sets any of these).  `value:`
+    #: compiled in the pattern's `copy`-bound scope; every `Ref` in it must
+    #: be `copy` (`Builder._build_hand_part`).  Exactly one of
+    #: `text_value`/`text_literal` is set once a text part reaches this
     #: dataclass -- the other stays `None`.
     text_value: Expression | None = None
     #: `text:` -- a fixed string, the same for every copy.
@@ -654,15 +633,15 @@ class HandPart:
     format: str | None = None
     font: str = "FONT_MEDIUM"
     font_is_custom: bool = False
-    #: Read on `rectangle`/`circle` parts (plan 07 phase D, resolved at build
-    #: time by `Resolver._resolve_hand_part` before rounding -- mechanism
-    #: (a), the same shift `wfb.layout.alignment_shift` gives every box-drawn
-    #: kind) and on `shape: text` parts (plan 06 §3, mechanism (b): the
-    #: anchor turns/steps with the copy, but the glyphs stay upright, unlike
-    #: a rectangle/circle part's box, which turns with the part).  `_check_
-    #: hand_part_keys` rejects both keys on `polygon`, `line` and (pattern
-    #: only) `arc`, with the reason (`_HAND_PART_NO_ALIGNMENT_REASON`), so
-    #: they are never set to anything but the default there.
+    #: Read on `rectangle`/`circle` parts, resolved at build time by
+    #: `Resolver._resolve_hand_part` before rounding -- the same shift
+    #: `wfb.layout.alignment_shift` gives every box-drawn kind -- and on
+    #: `shape: text` parts, where the anchor turns/steps with the copy but
+    #: the glyphs stay upright, unlike a rectangle/circle part's box, which
+    #: turns with the part.  `_check_hand_part_keys` rejects both keys on
+    #: `polygon`, `line` and (pattern only) `arc`, with the reason
+    #: (`_HAND_PART_NO_ALIGNMENT_REASON`), so they are never set to anything
+    #: but the default there.
     align: str = "center"
     vertical_align: str = "center"
     #: The host-rendered string for every copy index `0..count-1` -- set by
@@ -687,7 +666,7 @@ class HandPart:
 @dataclass
 class Hand:
     """`hour:`/`minute:`/`second:` inside a `hands:` set -- a default colour
-    for its parts, plus the parts themselves, in draw order (§5.1)."""
+    for its parts, plus the parts themselves, in draw order."""
 
     parts: list[HandPart] = field(default_factory=list)
     #: The hand's own `color:`, before a part's own overrides it -- kept
@@ -700,7 +679,7 @@ class Hand:
 @dataclass
 class HandSet:
     """One named `hands:` entry -- a shape, like a `fonts:` entry, not
-    something drawn on its own (§5.1).  Placed on screen by a `type: hands`
+    something drawn on its own.  Placed on screen by a `type: hands`
     element naming it.
     """
 
@@ -712,8 +691,8 @@ class HandSet:
 
     def hands(self) -> list[tuple[str, Hand]]:
         """The declared hands, in fixed draw order: hour, then minute, then
-        second (§5.1) -- never author order, because the platform has no
-        notion of drawing a minute hand under an hour hand on purpose."""
+        second -- never author order, because the platform has no notion of
+        drawing a minute hand under an hour hand on purpose."""
         return [(name, hand) for name, hand in
                 (("hour", self.hour), ("minute", self.minute), ("second", self.second))
                 if hand is not None]
@@ -722,7 +701,7 @@ class HandSet:
 @dataclass
 class HandsElement(Element):
     """`type: hands` -- places a declared `hands:` set on screen, axis at
-    `at:` (plan 04).  `_own_expressions` returns every effective part colour
+    `at:`.  `_own_expressions` returns every effective part colour
     (already resolved at build time, `Builder._build_hands_element`) so
     permissions, the barrel, the read plan and the config-user lints pick
     them up exactly the way a shape's own `color:` does.
@@ -732,7 +711,7 @@ class HandsElement(Element):
     #: `awake` (drawn only while awake), `never` (not drawn at all), or
     #: `None` when the set has no second hand at all -- there is nothing to
     #: gate.  `seconds: always` never reaches the IR: `wfb/validate.py`
-    #: refuses it before the schema even runs (§5.6, §11).
+    #: refuses it before the schema even runs.
     seconds: str | None = None
     #: Every effective colour (hand-level default, and each part's own
     #: override) this element's set uses, deduplicated in first-use order.
@@ -746,7 +725,7 @@ class HandsElement(Element):
 class PatternElement(Element):
     """`type: pattern` -- one template of 1-16 primitives, drawn repeatedly:
     turned about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
-    (`pattern: linear`) (plan 05).  The template is authored exactly like a
+    (`pattern: linear`).  The template is authored exactly like a
     hand part (`Builder._build_hand_part`, parameterised by context), and
     the repeat itself is the one piece of layout arithmetic the *device*
     performs, the same bargain ADR 0004 already struck for hands -- `step_angle`/
@@ -777,14 +756,14 @@ class PatternElement(Element):
     #: `when_absent: hide` as authored, or `None` (schema: `enum: ["hide"]`,
     #: the only value -- a pattern has no placeholder/fallback, see
     #: `Builder._check_pattern_absence`).  Required once any colour or part
-    #: `visible:` reads a source that can be absent (2026-09-15); absence
-    #: then hides the whole pattern, every copy and every part, because the
-    #: reading is taken once per frame, before the loop.
+    #: `visible:` reads a source that can be absent; absence then hides the
+    #: whole pattern, every copy and every part, because the reading is
+    #: taken once per frame, before the loop.
     when_absent: str | None = None
 
     def drawn_indices(self) -> tuple[int, ...]:
         """Copy indices actually drawn, ascending: `0..count-1` minus `skip`
-        and minus every multiple of `skip_every` (§5.1).  A pattern with
+        and minus every multiple of `skip_every`.  A pattern with
         nothing left to draw is a build error (`Builder._build_pattern_element`,
         which computes the same thing through :func:`_drawn_copies` before
         this element exists, to report an empty result), so this is never
@@ -809,8 +788,6 @@ class Text(Element):
     font: str = "FONT_MEDIUM"
     font_is_custom: bool = False
     color: Expression | None = None
-    #: `align`/`vertical_align` moved onto `Element` 2026-09-15 (plan 07
-    #: phase A) -- see the base class.
     when_absent: str | None = None
     placeholder: str | None = None
     fallback: Expression | None = None
@@ -903,24 +880,23 @@ class ComplicationSlot(Element):
     icon_size: Length | None = None
     color: Expression | None = None
     #: `left` (default) | `right` | `top` | `bottom` -- where the icon sits
-    #: relative to the reading (plan 03 §6.1/§6.3).  Rejected, together with
+    #: relative to the reading.  Rejected, together with
     #: `icon_gap:`/`icon_color:`, when `icon_size:` is not declared at all
     #: (`Builder._build_complication_slot`) -- none of the three means
     #: anything without an icon to place, colour or space.
     icon_position: str = "left"
-    #: Pixel/`%r` gap between icon and reading, or `None` for today's fixed
+    #: Pixel/`%r` gap between icon and reading, or `None` for the fixed
     #: `wfb.layout.COMPLICATION_SLOT_ICON_GAP` (4px).  Kept `None` rather
     #: than always resolving to that constant so a design that never
-    #: mentions `icon_gap:` gets byte-identical generated code to before
-    #: this key existed -- the literal `4` stays inline; only an *authored*
-    #: gap becomes a per-device `Layout.<ID>_ICON_GAP` constant, the same
-    #: "declared vs. resolved, and only when it matters" reasoning
-    #: `wfb.icons.font_key` already applies to a font size.
+    #: mentions `icon_gap:` emits none of it -- the literal `4` stays
+    #: inline; only an *authored* gap becomes a per-device
+    #: `Layout.<ID>_ICON_GAP` constant, the same "declared vs. resolved, and
+    #: only when it matters" reasoning `wfb.icons.font_key` already applies
+    #: to a font size.
     icon_gap: Length | None = None
-    #: The icon's own colour, or `None` to share `color:` (today's only
-    #: behaviour, and what an unauthored design keeps generating).  Must not
-    #: be nullable, exactly like `color:` -- there is no `when_absent:` for
-    #: either colour, only for the pulled reading.
+    #: The icon's own colour, or `None` to share `color:` (the default).
+    #: Must not be nullable, exactly like `color:` -- there is no
+    #: `when_absent:` for either colour, only for the pulled reading.
     icon_color: Expression | None = None
     #: `none` (default) | `short` | `long` -- `Complication.shortLabel`/
     #: `.longLabel`, read alongside the value, never authored.
@@ -1022,14 +998,14 @@ class Face:
     fonts: dict[str, FontSpec]
     elements: list[Element]
     source_path: Path
-    #: The top-level `antialias:` default (§R1) -- what a font, icon or
+    #: The top-level `antialias:` default -- what a font, icon or
     #: primitive-drawing element inherits when it declares no `antialias:`
     #: of its own.  Already folded into every element's own
     #: `resolved_antialias` and every `fonts:` entry's `FontSpec.antialias`
     #: by build time; kept here mainly so a re-render (preview, a future
     #: `wfb explain`) does not need to re-derive it.
     antialias: bool = False
-    #: The top-level `min_1px:` default (plan 08) -- what a `group`, `shape`,
+    #: The top-level `min_1px:` default -- what a `group`, `shape`,
     #: `progress`, `graph`, `hands` or `pattern` element inherits when it
     #: declares no `min_1px:` of its own.  Already folded into every
     #: element's own `resolved_min_1px` by build time; kept here for the
@@ -1057,14 +1033,12 @@ class Face:
     #: `Builder._build_color_scheme` the same way a bad `config:` axis never
     #: reaches `Face.config`.
     color_scheme: dict[str, ColorScheme] = field(default_factory=dict)
-    #: Declared `layouts:` names, in declaration order (plan 02
-    #: §12.1).  Empty when the design declares no
-    #: `layouts:` at all.  Every element's `layout` (when not `None`) is one
-    #: of these names.
+    #: Declared `layouts:` names, in declaration order.  Empty when the
+    #: design declares no `layouts:` at all.  Every element's `layout`
+    #: (when not `None`) is one of these names.
     layouts: tuple[str, ...] = ()
     #: `layouts:` entries, keyed by name -- each one's own `lint:`, consulted
-    #: by a later phase's `unreachable-layout`.  Empty exactly when `layouts`
-    #: is.
+    #: by `unreachable-layout`.  Empty exactly when `layouts` is.
     layout_decls: dict[str, LayoutDecl] = field(default_factory=dict)
     #: The `config: style:` axis, or `None` when it was never declared (or
     #: was declared and rejected).  Unlike `config`, this is not a dict --
@@ -1073,7 +1047,7 @@ class Face:
     #: `config: data:` slots, keyed by name.  A third, independent way to
     #: turn on the whole on-device-config feature -- see `has_config`.
     config_data: dict[str, ConfigDataSlot] = field(default_factory=dict)
-    #: `hands:` entries, keyed by name (plan 04).  Empty on a design with no
+    #: `hands:` entries, keyed by name.  Empty on a design with no
     #: analog hands, which is what keeps every existing golden file and
     #: generated project byte-identical.
     hands: dict[str, HandSet] = field(default_factory=dict)
@@ -1085,32 +1059,26 @@ class Face:
         Three independent things can turn it on: a declared `accent_color:`/
         `data_color:` (`self.config`), a declared `config: style:` (`self.
         config_style`), or a declared `config: data:` (`self.
-        config_data`).  Every emitter site that used to test `bool(face.
-        config)` alone -- `needs_delegate`, the view's config fields/
-        `applyConfig`/`onLayout`, the static-buffer repaint flag, the
-        generated `<watchface-config>` resource, `check_config_support` --
-        now goes through this instead, so a design declaring only
+        config_data`).  Every emitter site that cares -- `needs_delegate`,
+        the view's config fields/`applyConfig`/`onLayout`, the static-buffer
+        repaint flag, the generated `<watchface-config>` resource,
+        `check_config_support` -- goes through this rather than testing
+        `bool(face.config)` alone, so a design declaring only
         `color_scheme:`/`config: style:`/`config: data:` (no colour axis at
         all) still gets a delegate, `applyConfig` and the generated resource.
-        See CLAUDE.md's own "Integration risk" note on this task for why
-        every site matters.
         """
         return bool(self.config) or self.config_style is not None or bool(self.config_data)
 
     def style_label(self, entry: "StyleEntry") -> str | None:
-        """The label the generated `<style>` and (a later phase's) preview
-        both show for one `config: style:` entry.
+        """The label the generated `<style>` and preview both show for one
+        `config: style:` entry.
 
         An entry's own `label:` wins.  Failing that, an entry that names only
         a `colors:` scheme (no `layout:`) falls back to that scheme's own
-        `label:`, which is what makes migrating a `config: colors:` block a
-        pure re-spelling: the generated `<style label=...>` text does not
-        move (plan 02 §12.4).  A layout-carrying
-        entry gets no fallback, colour-only or not -- §12.4 restricts it to
-        colours-only entries on purpose, since a scheme's own label was
-        never written with a layout in mind.  The one place this fallback is
-        computed -- every reader calls this rather than re-deriving it, so
-        the two can never drift.
+        `label:`.  A layout-carrying entry gets no fallback, colour-only or
+        not -- a scheme's own label was never written with a layout in mind.
+        The one place this fallback is computed -- every reader calls this
+        rather than re-deriving it, so the two can never drift.
         """
         if entry.label is not None:
             return entry.label
@@ -1162,7 +1130,7 @@ def _drawn_copies(
     count: int, skip: tuple[int, ...], skip_every: int | None,
 ) -> tuple[int, ...]:
     """Copy indices actually drawn, ascending: `0..count-1` minus `skip` and
-    minus every multiple of `skip_every` (§5.1) -- the pure computation
+    minus every multiple of `skip_every` -- the pure computation
     :meth:`PatternElement.drawn_indices` and `Builder._build_pattern_element`
     (which needs the answer before the element exists, to report an empty
     result as a build error) share.
@@ -1195,11 +1163,11 @@ def authored_draw_order(elements: list[Element]) -> list[Element]:
     elements the hoist swapped, and so :meth:`Builder._apply_static` can rank
     the static roots by where the author actually put them rather than by
     where they happen to appear in the document.  Sorted by layer first
-    (shared content, then layout content -- plan 02
-    §12.3) so the *fixed* layer rule is never itself reported as something
-    the hoist swapped: a layout element with a low `z:` sorting after a
-    shared element with a high one is the rule working as designed, not a
-    surprise `check_static_overlap` should flag.
+    (shared content, then layout content) so the *fixed* layer rule is
+    never itself reported as something the hoist swapped: a layout element
+    with a low `z:` sorting after a shared element with a high one is the
+    rule working as designed, not a surprise `check_static_overlap` should
+    flag.
     """
     drawn = [e for e in walk_elements(elements) if e.kind != "group"]
     return sorted(drawn, key=lambda e: (
@@ -1212,16 +1180,15 @@ def draw_sort_key(element: Element) -> tuple:
     """The sort key that puts an element in draw order, static content first.
 
     The static buffer is opaque and full-screen (`docs/research/probes/
-    static-buffer/`), so its blit erases whatever was drawn under it.  That
-    used to be an error -- static content had to *be* a contiguous prefix of
-    draw order, and a design where it was not simply failed to build.  It is
-    now a **rule** instead: static content is *made* the prefix, here, by
-    sorting, and the only thing the author is told is what changed --
-    `warning[static-overlap]`, on the pairs whose relative order the hoist
-    actually swapped *and* whose boxes overlap, where it can make a visible
-    difference.
+    static-buffer/`), so its blit erases whatever was drawn under it.
+    Static content must therefore *be* a contiguous prefix of draw order:
+    this function makes it one, here, by sorting, rather than requiring the
+    author to have written it that way. The only thing the author is told
+    is what changed -- `warning[static-overlap]`, on the pairs whose
+    relative order the hoist actually swapped *and* whose boxes overlap,
+    where it can make a visible difference.
 
-    Four ranks, in order (plan 02 §12.3):
+    Four ranks, in order:
 
     * ``0`` for static content, ``1`` for everything else -- the hoist itself;
     * the **layer** rank ``L`` -- ``0`` for shared content, ``1`` for layout
@@ -1261,9 +1228,9 @@ def draw_order(elements: list[Element]) -> list[Element]:
 
 def never_together(a: Element, b: Element) -> bool:
     """True only when `a` and `b` can never be on screen at the same time
-    because they belong to different layouts (plan 02
-    §12.1): "two elements are never on screen together exactly when both
-    have a layout and the two layouts differ."  Shared content (`layout is
+    because they belong to different layouts: two elements are never on
+    screen together exactly when both have a layout and the two layouts
+    differ.  Shared content (`layout is
     None`) is on screen in every layout, so it is never exempted this way --
     only a *pair of layout elements*, and only when their layouts disagree.
 

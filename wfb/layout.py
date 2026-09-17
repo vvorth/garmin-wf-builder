@@ -55,7 +55,7 @@ _HAND_FRAME_BOX = Box(0.0, 0.0, 0.0, 0.0)
 
 
 def round_half_away(value: float) -> int:
-    """Round half away from zero -- plan 04 §5.3: a mirrored ``dx: -1.5px``/
+    """Round half away from zero: a mirrored ``dx: -1.5px``/
     ``dx: 1.5px`` pair must resolve to ``-2``/``2``, so a symmetric hand
     stays symmetric on the panel.
 
@@ -70,28 +70,25 @@ def round_half_away(value: float) -> int:
 
 def alignment_shift(width: float, height: float, align: str, vertical_align: str) -> tuple[float, float]:
     """How far a placement box's centre sits from the point ``at:`` resolves
-    to (plan 07 §3.2(a)), for a box-drawn kind: ``align``/``vertical_align``
-    say which edge (or the centre) of the box sits on that point,
-    independently per axis. ``center``/``center`` -- the default, and the
-    only value every pre-plan-07 design used -- adds exactly ``0.0`` on both
-    axes, so a caller's default path is byte-identical to before this
-    existed (R5).
+    to, for a box-drawn kind: ``align``/``vertical_align`` say which edge
+    (or the centre) of the box sits on that point, independently per axis.
+    ``center``/``center`` -- the default -- adds exactly ``0.0`` on both
+    axes, so a design that never sets either key resolves unchanged.
 
-    The one implementation of the rule for every box-drawn kind (R8):
+    The one implementation of the rule for every box-drawn kind:
     :meth:`Resolver._group_box`, :meth:`Resolver._resolve_text`'s lint box
     and :func:`_pattern_part_ink`'s text branch all call this instead of
-    keeping their own ``left``/``center``/``right`` dict literal. Since
-    phase B (2026-09-15), :meth:`Resolver._resolve_shape` (rectangle,
-    rounded_rectangle, ellipse, circle, arc -- not polygon or line),
-    :meth:`Resolver._resolve_progress` (both styles) and
-    :meth:`Resolver._resolve_graph` call it too. Since phase C (same day),
+    keeping their own ``left``/``center``/``right`` dict literal, as do
+    :meth:`Resolver._resolve_shape` (rectangle, rounded_rectangle, ellipse,
+    circle, arc -- not polygon or line), :meth:`Resolver._resolve_progress`
+    (both styles) and :meth:`Resolver._resolve_graph`.
     :meth:`Resolver._resolve_icon`'s lint box (a glyph kind's own box is
-    still moved this way, even though the runtime anchor is not -- §3.2(b))
-    and :meth:`Resolver._resolve_complication_slot`'s estimated box (§3.2(c))
-    call it as well. Since phase D (same day), :meth:`Resolver._resolve_hand_part`'s
-    `rectangle`/`circle` branches call it a fourth way -- in the part's own
-    frame, before `round_half_away`, so the shift turns or steps with the hand or
-    copy like the rest of the part -- rather than write another copy.
+    still moved this way, even though the runtime anchor is not) and
+    :meth:`Resolver._resolve_complication_slot`'s estimated box call it as
+    well. :meth:`Resolver._resolve_hand_part`'s `rectangle`/`circle`
+    branches call it a fourth way -- in the part's own frame, before
+    `round_half_away`, so the shift turns or steps with the hand or copy
+    like the rest of the part -- rather than write another copy.
     """
     dx = {"left": width / 2, "center": 0.0, "right": -width / 2}[align]
     dy = {"top": height / 2, "center": 0.0, "bottom": -height / 2}[vertical_align]
@@ -122,8 +119,8 @@ def _arc_box(
     """The geometry `shape: arc` and `progress: {style: arc}` share once
     `radius`/`pen` (a shape's own `max(1, thickness)`, a progress's own
     `max(1, round(...))`) are already resolved: the alignment shift by the
-    full circle -- `start_angle:`/`sweep:` never move the centre (plan 07
-    choice 3, §6) -- the pen's own reach (the same reach a `progress` arc
+    full circle -- `start_angle:`/`sweep:` never move the centre -- the
+    pen's own reach (the same reach a `progress` arc
     claims: the pen straddles the radius, so the ink runs half a pen width
     past it either side), and the author-to-Garmin angle conversion
     (`garmin_arc`).
@@ -218,10 +215,9 @@ class PlacedIcon(Placed):
     codepoint: str = "?"
     anchor_point: tuple[int, int] = (0, 0)
     #: `Toybox.Graphics.TEXT_JUSTIFY_*` flags, `Resolver._justify`'s own
-    #: precedent (plan 07 phase C) -- an icon is a glyph kind (§3.2(b)), so
-    #: its alignment is a device-side justify on the unshifted anchor, the
-    #: same mechanism `PlacedText.justify` already uses, not a build-time
-    #: box move.
+    #: precedent -- an icon is a glyph kind, so its alignment is a
+    #: device-side justify on the unshifted anchor, the same mechanism
+    #: `PlacedText.justify` already uses, not a build-time box move.
     justify: tuple[str, ...] = ()
 
 
@@ -242,14 +238,14 @@ class PlacedGraph(Placed):
 
 @dataclass(frozen=True)
 class ResolvedHandPart:
-    """One hand part, or one pattern template part (plan 05), resolved for
+    """One hand part, or one pattern template part, resolved for
     one device: whole pixels, in the shared frame (origin = the axis /
     the pattern's own ``at:``, pointing at 12 o'clock) -- the shape the
-    watch rotates (or translates) at runtime (plan 04 §5.3).  One class
+    watch rotates (or translates) at runtime.  One class
     covers every runtime shape (``polygon``, ``line``, ``circle``, ``arc``)
     the same way :class:`PlacedShape` covers every ``shape:``; a rectangle
     part is folded into ``polygon`` here (`Resolver._resolve_hand_part`),
-    because a rotated rectangle is a polygon (§5.2).  A hand never produces
+    because a rotated rectangle is a polygon.  A hand never produces
     an ``"arc"`` part -- `wfb.ir.HAND_PART_REJECTED_SHAPES` refuses it before
     this is reached -- so ``start_angle``/``sweep`` are pattern-only.
     """
@@ -271,14 +267,14 @@ class ResolvedHandPart:
     thickness: int = 1
     filled: bool = True
     #: ``arc`` only.  Author degrees (12 o'clock = 0, clockwise) -- a radial
-    #: pattern's runtime rotation adds ``start + i * step`` to ``start_angle``
-    #: (plan 05 §5.3); a linear one leaves it as authored.  The `0.0` default
+    #: pattern's runtime rotation adds ``start + i * step`` to ``start_angle``;
+    #: a linear one leaves it as authored.  The `0.0` default
     #: is never actually relied on: `Resolver._resolve_hand_part` always sets
     #: both explicitly for a real ``arc`` part (`sweep` defaulting to `360deg`
     #: there, not here, when the author omitted it).
     start_angle: float = 0.0
     sweep: float = 0.0
-    #: ``text`` only (plan 06 §3.4) -- ``x``/``y`` double as the part's own
+    #: ``text`` only -- ``x``/``y`` double as the part's own
     #: anchor in the template frame (rounded via `round_half_away`, the same as
     #: a circle's centre), everything else stays at its default on every
     #: other shape.  Upright glyphs are *not* rotation-invariant, so unlike
@@ -313,7 +309,7 @@ class ResolvedHand:
 @dataclass
 class PlacedHands(Placed):
     """A `type: hands` element, resolved: the axis, each declared hand's
-    resolved parts, and the swept disc's reach (plan 04 §5.8).
+    resolved parts, and the swept disc's reach.
 
     ``box`` is the square around that disc, and ``center`` is the axis --
     both set by :meth:`Resolver._resolve_hands`, the same shape every other
@@ -333,7 +329,7 @@ class PlacedHands(Placed):
 class PlacedPattern(Placed):
     """A `type: pattern` element, resolved: the resolved template, which
     copies are actually drawn, and the repeat rule -- radial (turn about
-    `center`) or linear (step by `dx`/`dy`) (plan 05 §6.2).
+    `center`) or linear (step by `dx`/`dy`).
 
     ``box`` is the bounding box of the ink of every *drawn* copy (computed by
     :meth:`Resolver._resolve_pattern` from :meth:`transform`), and ``center``
@@ -362,9 +358,9 @@ class PlacedPattern(Placed):
         """``(ox, oy, sin, cos)`` for copy ``index``: radial =
         ``(cx, cy, sin(theta), cos(theta))``; linear =
         ``(cx + i*dx, cy + i*dy, 0.0, 1.0)``.  The one formula the preview and
-        the extent computation share (plan 05 §6.2) -- apply it to a
+        the extent computation share -- apply it to a
         template point ``(x, y)`` as ``ox + x*cos - y*sin, oy + x*sin +
-        y*cos`` (§5.3's rotation, which collapses to a plain translation when
+        y*cos`` (a rotation, which collapses to a plain translation when
         ``sin``/``cos`` are ``0``/``1``).
         """
         if self.element.pattern == "radial":
@@ -377,15 +373,14 @@ def pattern_text_anchor(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float,
 ) -> tuple[int, int]:
     """The whole-pixel anchor point of one copy of a `shape: text` pattern
-    part (plan 06 §3.2 D5): the template-frame point ``(part.x, part.y)``
+    part: the template-frame point ``(part.x, part.y)``
     put through this copy's :meth:`PlacedPattern.transform`, then rounded
     **half up** (``floor(v + 0.5)``, not `round_half_away`'s half-*away-from-
     zero* -- a hand-frame mirror-symmetry rule that does not apply here) --
     the device does the same ``(v + 0.5).toNumber()`` (`runtime-lib/
     WfbGeom.mc`), so the preview pixel and the device pixel agree.  A
-    module-level function, not a method, so codegen and the preview
-    (`docs/plans/06-pattern-text-and-group-align.md` phases B2/B3) can share
-    it without importing a `Resolver`.
+    module-level function, not a method, so codegen and the preview can
+    share it without importing a `Resolver`.
     """
     tx = ox + part.x * cos_t - part.y * sin_t
     ty = oy + part.x * sin_t + part.y * cos_t
@@ -396,14 +391,14 @@ def _pattern_part_ink(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
 ) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` of one resolved pattern part's ink
-    for one copy, given that copy's :meth:`PlacedPattern.transform` (plan 05
-    §5.5): polygon vertices; a line's ends padded by half its pen width; a
+    for one copy, given that copy's :meth:`PlacedPattern.transform`:
+    polygon vertices; a line's ends padded by half its pen width; a
     circle's centre padded by its radius (plus half the pen width when
     outlined); an arc's full circle -- always centred on the copy's own
     origin -- padded by half its pen width, conservatively ignoring
     `start_angle`/`sweep`; a text part's box, from its rounded anchor
     (:func:`pattern_text_anchor`) and this copy's own measured width
-    (``part.widths[index]``, plan 06 §3.4) -- the one shape here that needs
+    (``part.widths[index]``) -- the one shape here that needs
     to know *which* copy it is, since upright text is not rotation-invariant.
     """
     def tf(x: float, y: float) -> tuple[float, float]:
@@ -431,7 +426,7 @@ def _pattern_part_ink(
         left = ax + dx - width / 2.0
         top = ay + dy - height / 2.0
         return left, top, left + width, top + height
-    # arc: always centred on the copy's own origin (plan 05 D3).
+    # arc: always centred on the copy's own origin.
     px, py = tf(0.0, 0.0)
     pad = part.radius + part.thickness / 2.0
     return px - pad, py - pad, px + pad, py + pad
@@ -451,8 +446,8 @@ ANTIALIASED_PRIMITIVES = (PlacedShape, PlacedProgress, PlacedGraph, PlacedHands,
 #: `PlacedShape`'s outline padding is a fixed `+1`/`+2` rather than scaled --
 #: there is no `size:`-like key in the format to derive one from, and getting
 #: this exact does not change what the element *is*.  Stays the fallback for
-#: a design that never authors `icon_gap:` (plan 03 §6.1/§6.3): the literal
-#: `4` a generated view embeds today, kept byte-identical rather than
+#: a design that never authors `icon_gap:`: the literal
+#: `4` a generated view embeds, kept inline rather than
 #: promoted to a per-device constant when nothing asked for one.
 COMPLICATION_SLOT_ICON_GAP = 4
 
@@ -460,7 +455,7 @@ COMPLICATION_SLOT_ICON_GAP = 4
 @dataclass(frozen=True)
 class SlotPairGeometry:
     """The icon+reading pair's combined extent, and each piece's offset from
-    the pair's own top-left corner (plan 03 §6.3) -- shared by
+    the pair's own top-left corner -- shared by
     `Resolver._resolve_complication_slot` (the estimated box the geometry
     lints size against), `wfb.preview._complication_slot` (the pixels
     actually drawn, from real measured extents) and mirrored, not called, in
@@ -484,13 +479,12 @@ def complication_slot_pair_geometry(
 ) -> SlotPairGeometry:
     """The icon+reading pair's combined box, and each piece's offset within
     it, for one `icon_position:` (`left` (default) | `right` | `top` |
-    `bottom`) -- plan 03 §6.3, the one place this geometry is computed in
-    Python.
+    `bottom`) -- the one place this geometry is computed in Python.
 
     `icon_w`/`icon_h` are `(0, 0)` when the slot draws no icon at all (no
     declared choice resolves one, or the wearer's live pick does not on the
     device side) -- the gap then drops too and the text centres alone in
-    every position, matching today's `left`-only behaviour.
+    every position, matching plain `left`-only behaviour with no icon.
     """
     has_icon = icon_w > 0 or icon_h > 0
     gap = gap if has_icon else 0
@@ -561,11 +555,8 @@ class SubPixelLength:
     """A nonzero %/%r extent that resolved below 1 px on this device with
     `min_1px` off -- i.e. it rounds away to nothing here while drawing on
     a target with a larger screen.  Collected by `Resolver`, read by
-    `wfb.lint.check_sub_pixel_length` (plan 08 §3.3/§4).
-
-    Fixed by the plan so phase B (the `sub-pixel-length` lint) could be
-    written against it without waiting on this phase: do not change this
-    shape without checking who else is already coding against it.
+    `wfb.lint.check_sub_pixel_length`.  Do not change this shape without
+    checking who else is coding against it.
     """
 
     owner: str        # element id; "<id>.parts[<i>]" for a pattern part,
@@ -590,13 +581,12 @@ class ResolvedFace:
     screen: IntBox
     warnings: list[str] = field(default_factory=list)
     #: Every `SubPixelLength` this device's resolve pass recorded, in resolve
-    #: order (plan 08 §3.3) -- empty on every design that never turns
-    #: `min_1px:` off where it would have mattered, which is every design
-    #: that predates this feature (nothing here clamps by default, so
-    #: nothing here is ever sub-pixel by surprise until an author writes a
-    #: relative hairline). Not deduplicated: one record per resolved length,
-    #: same key repeated across devices where it recurs -- the lint decides
-    #: how to present them.
+    #: order -- empty on every design that never turns
+    #: `min_1px:` off where it would have mattered (nothing here clamps by
+    #: default, so nothing here is ever sub-pixel by surprise until an
+    #: author writes a relative hairline). Not deduplicated: one record per
+    #: resolved length, same key repeated across devices where it recurs --
+    #: the lint decides how to present them.
     sub_pixel: list[SubPixelLength] = field(default_factory=list)
 
     def in_mode(self, mode: str) -> list[Placed]:
@@ -629,8 +619,8 @@ class ResolvedFace:
         low-power element wrapped in a size-less group blew the clip up to the
         full screen).
 
-        **Unions across every layout, not just the active one** (plan 02
-        §5.3, §5.6).  `_configLayout` is a runtime value
+        **Unions across every layout, not just the active one.**
+        `_configLayout` is a runtime value
         this stage never resolves, so a per-layout clip is not something this
         can compute at all -- and the guard `wfb/emit/monkeyc.py` wraps each
         low-power call in (`_emit_on_partial_update`) only narrows *which*
@@ -657,7 +647,7 @@ class Resolver:
         self.minor_radius = device.minor_radius
         self.items: list[Placed] = []
         self.warnings: list[str] = []
-        #: Every `SubPixelLength` recorded so far (plan 08 §3.3) -- appended
+        #: Every `SubPixelLength` recorded so far -- appended
         #: by `_extent`/`_hand_extent`, the only two call sites that can see
         #: "this nonzero relative length is under 1 px and `min_1px` is off
         #: here".
@@ -736,7 +726,7 @@ class Resolver:
         `alignment_shift` -- the "size, then align" placement box
         `_group_box`, `_resolve_shape`'s rectangle/rounded_rectangle/ellipse
         tail, `_resolve_progress`'s bar branch and `_resolve_graph` all
-        share (plan 07 §3.2(a)).
+        share.
 
         Takes the already-resolved anchor point rather than resolving it
         itself: `_resolve_shape` needs that same point earlier, for its
@@ -768,10 +758,10 @@ class Resolver:
         if element.shape == "circle":
             radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
                                         min_1px=min_1px, what="radius"))
-            # Plan 07 §3.2(a)/§3.1: the placement box is the full circle
-            # (`2*radius` square) regardless of `filled`/`thickness` -- an
-            # outline's pen pad is applied to `reach` below, around the
-            # already-moved centre, so it never itself moves the shift.
+            # The placement box is the full circle (`2*radius` square)
+            # regardless of `filled`/`thickness` -- an outline's pen pad is
+            # applied to `reach` below, around the already-moved centre, so
+            # it never itself moves the shift.
             dx, dy = alignment_shift(2 * radius, 2 * radius, element.align, element.vertical_align)
             cx, cy = cx + dx, cy + dy
             reach = radius if element.filled else radius + max(1, thickness) // 2 + 1
@@ -780,7 +770,7 @@ class Resolver:
                                radius=radius, thickness=max(1, thickness))
 
         if element.shape == "line":
-            # No `align`/`vertical_align` on a line (plan 07 R3): `at:` and
+            # No `align`/`vertical_align` on a line: `at:` and
             # `to:` are its two ends, so there is no single point to align a
             # box on. `SHAPE_GEOMETRY_KEYS`/`_check_shape_keys` reject the
             # keys before this is ever reached with either one set.
@@ -822,8 +812,8 @@ class Resolver:
             return PlacedShape(element, box.rounded(), centre, depth, points=points)
 
         # rectangle, rounded_rectangle, ellipse: the placement box is the
-        # declared `size:` (plan 07 §3.1) -- moved before the outline's pen
-        # pad (below) is added, so the pad never itself moves the shift (R4).
+        # declared `size:` -- moved before the outline's pen
+        # pad (below) is added, so the pad never itself moves the shift.
         width, height, cx, cy = self._sized_shift(
             element.size, parent, cx, cy, element.align, element.vertical_align, min_1px=min_1px)
 
@@ -840,15 +830,14 @@ class Resolver:
         corner = round(self._len(element.corner_radius, parent, Axis.MINOR, 0))
         # `min_1px=min_1px`: this box's width/height is `width`/`height`
         # straight from `_extent` above, the exact "float extent of at least
-        # 1 px" shape `Box.rounded`'s correction exists for (plan 08 §3.3).
+        # 1 px" shape `Box.rounded`'s correction exists for.
         rect = Box(cx - width / 2, cy - height / 2, width, height).rounded(min_1px=min_1px)
         if element.filled:
             return PlacedShape(element, rect, (round(cx), round(cy)), depth,
                                corner_radius=corner, thickness=max(1, thickness))
         # An unfilled rectangle is stroked *on* its edge, so the ink straddles
         # the declared rectangle the same way a circle's outline straddles its
-        # radius.  Until `filled:` was honoured at all this shape was always
-        # filled, so this branch is new -- see `PlacedShape.rect`.
+        # radius -- see `PlacedShape.rect`.
         pad = max(1, thickness) // 2 + 1
         reach = Box(rect.x - pad, rect.y - pad,
                     rect.width + 2 * pad, rect.height + 2 * pad).rounded()
@@ -874,12 +863,9 @@ class Resolver:
         x, y = self._point(element.at, parent)
         justify = self._justify(element)
         # The lint box only -- the runtime `drawText` anchor stays `(x, y)`
-        # unshifted (mechanism (b), plan 07 §3.2): a glyph kind's alignment
-        # is a device-side justify, not a build-time box move. `bottom`
-        # (renamed from `baseline`, R6) already put this box's top at
-        # `y - line_height`, which is where the §1.2 bug's *box* was always
-        # right; only the actual draw call and the preview disagreed with it
-        # (fixed below / in `wfb.emit.monkeyc` / `wfb.preview`).
+        # unshifted: a glyph kind's alignment is a device-side justify, not
+        # a build-time box move. `bottom` puts this box's top at
+        # `y - line_height`, matching the actual draw call and the preview.
         dx, dy = alignment_shift(width, line_height, element.align, element.vertical_align)
         box = Box(x + dx - width / 2, y + dy - line_height / 2, width, line_height)
         return PlacedText(
@@ -943,9 +929,9 @@ class Resolver:
             width = height = px  # the font failed to bake; keep a plausible box
         justify = self._justify(element)
         # The lint box only -- like `_resolve_text`, the runtime `drawText`
-        # anchor stays `(cx, cy)` unshifted (mechanism (b), plan 07 §3.2): an
-        # icon's alignment is a device-side justify, not a build-time box
-        # move (see `wfb.emit.monkeyc._emit_icon`).
+        # anchor stays `(cx, cy)` unshifted: an icon's alignment is a
+        # device-side justify, not a build-time box move (see
+        # `wfb.emit.monkeyc._emit_icon`).
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         box = Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
         return PlacedIcon(
@@ -982,19 +968,19 @@ class Resolver:
         widest`, the same "widest plausible rendering" idea `_widest_text`
         already uses), and -- when `icon_size:` is set -- one shared,
         multi-glyph icon font covering every icon `slot.icons` can resolve
-        (the declared choices plus any per-choice override, or -- since
-        2026-09-13 -- the whole of `wfb.icons.COMPLICATION_ICON` for
-        `choices: any`), keyed by this slot's own name so two different
-        slots never collide into one font resource.
+        (the declared choices plus any per-choice override, or, for
+        `choices: any`, the whole of `wfb.icons.COMPLICATION_ICON`), keyed
+        by this slot's own name so two different slots never collide into
+        one font resource.
 
         The estimated box's extent, for any `icon_position:`, comes from
         `complication_slot_pair_geometry` -- the one place this geometry is
-        computed (plan 03 §6.3) -- using `icon_px` (the *declared* visual
+        computed -- using `icon_px` (the *declared* visual
         icon height, not the measured glyph height) as the icon's height,
-        matching this element's own long-standing `left`-position height
-        estimate (`max(line_height, icon_px, 1)`) so a design that changes
-        none of `icon_position:`/`icon_gap:` keeps generating the exact same
-        numbers it did before either key existed.
+        matching the `left`-position height estimate
+        (`max(line_height, icon_px, 1)`) so a design that never sets
+        `icon_position:`/`icon_gap:` generates the same numbers as one that
+        only ever used `left`.
         """
         cx, cy = self._point(element.at, parent)
         font_px, reference, is_custom, baked = self._font_for(element)
@@ -1036,10 +1022,10 @@ class Resolver:
         )
         height = max(geometry.height, 1)
         # The estimated box only -- like a glyph kind's lint box, the runtime
-        # anchor (`anchor_point` below) stays `(cx, cy)` unshifted: this is
-        # mechanism (c), plan 07 §3.2 -- the pair is centred on the wearer's
-        # actual pick at runtime, in `wfb.emit.monkeyc._emit_complication_
-        # slot`'s own arithmetic, not here.
+        # anchor (`anchor_point` below) stays `(cx, cy)` unshifted: the pair
+        # is centred on the wearer's actual pick at runtime, in
+        # `wfb.emit.monkeyc._emit_complication_slot`'s own arithmetic, not
+        # here.
         dx, dy = alignment_shift(geometry.width, height, element.align, element.vertical_align)
         box = Box(cx + dx - geometry.width / 2, cy + dy - height / 2, geometry.width, height)
         return PlacedComplicationSlot(
@@ -1096,10 +1082,10 @@ class Resolver:
 
     def _resolve_hands(self, element: HandsElement, parent: Box, depth: int) -> Placed:
         """`type: hands` -- the axis, plus every part of every declared hand
-        resolved to whole pixels in the hand's own frame (plan 04 §5.3,
-        §5.8).  The rotation itself is the one piece of layout arithmetic
-        the *device* performs (ADR 0004, amended) -- everything here is
-        still a build-time constant.
+        resolved to whole pixels in the hand's own frame.  The rotation
+        itself is the one piece of layout arithmetic the *device* performs
+        (ADR 0004, amended) -- everything here is still a build-time
+        constant.
         """
         cx, cy = self._point(element.at, parent)
         hand_set = self.face.hands[element.hands]
@@ -1107,12 +1093,12 @@ class Resolver:
         reach = 0.0
         for name, hand in hand_set.hands():
             if name == "second" and element.seconds == "never":
-                # "the set's second hand is not drawn at all" (§5.6) -- left
+                # The set's second hand is not drawn at all -- left
                 # unresolved, exactly as if the set declared no `second:` at
                 # all, so codegen's `if hand is None: continue` already
                 # covers it with no extra check, and its geometry does not
-                # inflate the swept disc's reach (§5.8: "any part of any
-                # *drawn* hand").
+                # inflate the swept disc's reach (only a *drawn* hand's ink
+                # counts).
                 continue
             parts = []
             for part_index, part in enumerate(hand.parts):
@@ -1144,19 +1130,19 @@ class Resolver:
         """One hand part -> whole-pixel geometry in the hand's own frame,
         plus its own reach from the axis (the farthest ink any of its
         drawing touches).  Rounds with :func:`round_half_away`, not the plain
-        `round()` every other element here uses -- §5.3's mirror-symmetry
-        rule is specific to a hand frame, which is the only geometry a
+        `round()` every other element here uses -- a mirror-symmetry
+        rule specific to a hand frame, which is the only geometry a
         symmetric pair of authored coordinates (`dx: -1.5px`/`dx: 1.5px`)
         can appear in.
 
-        `element_id`/`part_index` name the part for two independent reasons
-        now: a `shape: text` part's `_font_for_ref` "no pixel metrics"
-        warning (plan 06 §3.4, reachable only through a pattern's template,
+        `element_id`/`part_index` name the part for two independent reasons:
+        a `shape: text` part's `_font_for_ref` "no pixel metrics"
+        warning (reachable only through a pattern's template,
         never a hand's -- `wfb.ir.HAND_PART_REJECTED_SHAPES` still refuses
-        it), and -- since plan 08 -- every part's own `SubPixelLength`
+        it), and every part's own `SubPixelLength`
         owner id (`_owner_id`, below), which every shape can reach.  Both
         callers (`_resolve_hands`, `_resolve_pattern`) always pass real
-        values now.
+        values.
 
         `min_1px` is the *inherited* value from the owning element
         (`element.resolved_min_1px`) -- combined with this part's own
@@ -1187,17 +1173,17 @@ class Resolver:
                                       min_1px=effective_min_1px, what="size.width")
             height = self._hand_extent(part.size.height,
                                        min_1px=effective_min_1px, what="size.height")
-            # Plan 07 phase D, mechanism (a): the placement box is the
-            # declared `size:`, in the part's own frame -- shift the centre
+            # The placement box is the declared `size:`, in the part's own
+            # frame -- shift the centre
             # before the corners (and `round_half_away`) below, the same order
             # `Resolver._resolve_shape` already uses in the parent's frame.
             # `top`/`left` mean `-y`/`-x` here too: a hand's 12 o'clock rest
-            # pose is already `-y`, so no sign flip is needed to match §3.2's
+            # pose is already `-y`, so no sign flip is needed to match the
             # "towards 12 o'clock" convention.
             dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
             cx, cy = cx + dx, cy + dy
             hw, hh = width / 2.0, height / 2.0
-            # top-left, top-right, bottom-right, bottom-left (§6) -- the same
+            # top-left, top-right, bottom-right, bottom-left -- the same
             # corner order a rotated rectangle keeps no matter which corner
             # ends up where once the device rotates it.
             corners = [
@@ -1223,8 +1209,8 @@ class Resolver:
 
         if part.shape == "arc":
             # A hand never produces this shape (rejected in `wfb.ir`); a
-            # pattern's template does (plan 05 §5.2).  Always centred on the
-            # origin (x=y=0, D3), so its reach is exactly the pen's own
+            # pattern's template does.  Always centred on the
+            # origin (x=y=0), so its reach is exactly the pen's own
             # extent -- no `at:` to add a distance-from-origin term.
             radius = round_half_away(self._hand_extent(
                 part.radius, min_1px=effective_min_1px, what="radius"))
@@ -1241,11 +1227,11 @@ class Resolver:
         if part.shape == "text":
             # A pattern's template only (`wfb.ir.HAND_PART_REJECTED_SHAPES`
             # keeps this off a hand) -- upright glyphs, so the anchor is the
-            # only thing that goes through `_hand_point` (§3.4); the glyphs
+            # only thing that goes through `_hand_point`; the glyphs
             # themselves are measured, not rotated. `reach` is always `0.0`
             # here: text is not rotation-invariant, so `Resolver.
             # _resolve_pattern`'s per-copy loop computes the real farthest
-            # corner instead (plan 06 §3.4).
+            # corner instead.
             x0, y0 = self._hand_point(part.at)
             x, y = round_half_away(x0), round_half_away(y0)
             font_px, reference, is_custom, baked = self._font_for_ref(
@@ -1268,7 +1254,7 @@ class Resolver:
         cx, cy = self._hand_point(part.at)
         radius = round_half_away(self._hand_extent(
             part.radius, min_1px=effective_min_1px, what="radius"))
-        # Plan 07 phase D: the placement box is the full `2*radius` square,
+        # The placement box is the full `2*radius` square,
         # at the resolved (already-rounded) radius the part draws with --
         # shifted before `reach`/`round_half_away` below, same as
         # `Resolver._resolve_shape`'s circle branch in the parent's frame.
@@ -1287,7 +1273,7 @@ class Resolver:
     def _resolve_pattern(self, element: PatternElement, parent: Box, depth: int) -> Placed:
         """`type: pattern` -- the template resolved once, in its own frame
         (`_resolve_hand_part`, reused: a pattern part is authored exactly
-        like a hand part, plan 05 §5.2), plus which copies are drawn and the
+        like a hand part), plus which copies are drawn and the
         repeat rule.  The repeat transform itself -- turning or stepping the
         template -- is the one piece of layout arithmetic the device
         performs (ADR 0004, amended a second time), same bargain as hands.
@@ -1299,10 +1285,10 @@ class Resolver:
         are actually drawn, since every drawn copy shares one template.
         `box`, unlike `reach`, really does depend on which copies draw and
         where, so it is computed by applying :meth:`PlacedPattern.transform`
-        to every drawn copy's ink (§5.5).
+        to every drawn copy's ink.
 
         A `shape: text` part breaks the "rotation-invariant" half of that
-        shortcut (plan 06 §3.4): upright glyphs are not the same distance
+        shortcut: upright glyphs are not the same distance
         from the centre at every angle, so `_resolve_hand_part` always
         returns `0.0` reach for one, and the real farthest corner of any
         *drawn* copy's text box is instead folded into the per-copy ink loop
@@ -1325,7 +1311,7 @@ class Resolver:
             dx = dy = 0
         else:
             start = step = 0.0
-            reach = 0.0  # only a radial pattern reports a disc (§5.5)
+            reach = 0.0  # only a radial pattern reports a disc
             step_position = element.step or Position()
             dx = round_half_away(self._len(step_position.dx, parent, Axis.X, 0))
             dy = round_half_away(self._len(step_position.dy, parent, Axis.Y, 0))
@@ -1370,7 +1356,7 @@ class Resolver:
         the same clockwise-from-12 convention every other polar position
         uses (`_point`, which this deliberately does not call: that one
         starts from `parent.anchor_point`, and a hand frame has no box to
-        anchor to at all -- §5.1, §5.8)."""
+        anchor to at all)."""
         if at.is_polar:
             radius = self._hand_len(at.radius)
             theta = math.radians(at.angle.degrees)
@@ -1427,8 +1413,7 @@ class Resolver:
         """:meth:`_len`, then :func:`units.at_least_one_px` -- for a length
         that is a *size, thickness or radius* rather than a position: a
         nonzero relative one clamps to at least 1 px when `min_1px` is true
-        (plan 08 §3.3; before that plan this was unconditional -- see
-        `at_least_one_px`'s own docstring for the "why a switch at all"
+        (see `at_least_one_px`'s own docstring for the "why a switch at all"
         reasoning). Every call site here that places rather than sizes an
         element (`at:`/`to:`/polygon points, a linear pattern's `step:`)
         stays on `_len` -- this only wraps the subset the docstring on
@@ -1449,7 +1434,7 @@ class Resolver:
         element/part `_owner_id`/`_owner_span`/`_owner_element` currently
         name (`_resolve_list` sets them per element; `_resolve_hand_part`
         narrows the first two per part). That record is exactly what the
-        suppressible `sub-pixel-length` lint (phase B) reads; this is the one
+        suppressible `sub-pixel-length` lint reads; this is the one
         place in the resolver that can see the condition it needs, so it is
         also the one place responsible for capturing it.
         """
@@ -1479,7 +1464,7 @@ class Resolver:
 
         A real build always bakes every declared font, so this is the path a
         caller who resolved layout with an empty ``fonts`` dict takes -- a unit
-        test, or a geometry-only pass.  `size:` is always a `Length` now, and
+        test, or a geometry-only pass.  `size:` is always a `Length`, and
         its unit already refers to this device, so it resolves exactly here.
         """
         return spec.pixel_size(self.minor_radius)
@@ -1492,7 +1477,7 @@ class Resolver:
     ) -> tuple[int, str, bool, BakedFont | None]:
         """The shared body of `_font_for`, taking a bare `font:`/`font_is_
         custom` pair instead of a `Text` element -- what lets a `shape:
-        text` pattern part (`Resolver._resolve_hand_part`, plan 06 §3.4)
+        text` pattern part (`Resolver._resolve_hand_part`)
         resolve its font through the exact same lookup and the exact same
         "no pixel metrics" warning `_font_for` already gives a `Text`
         element, with no second copy of either.
@@ -1535,9 +1520,9 @@ class Resolver:
     @staticmethod
     def _justify(element: Text | HandPart | IconElement) -> tuple[str, ...]:
         """`Toybox.Graphics.TEXT_JUSTIFY_*` flags for anything with `.align`/
-        `.vertical_align` -- a `Text` element, a `shape: text` pattern part
-        (plan 06 §3.4), or (plan 07 phase C) an `IconElement`, all of which
-        carry the same two fields under the same names.
+        `.vertical_align` -- a `Text` element, a `shape: text` pattern part,
+        or an `IconElement`, all of which carry the same two fields under
+        the same names.
         """
         flags = {
             "left": "TEXT_JUSTIFY_LEFT",
@@ -1562,7 +1547,7 @@ def _longer(current: str, candidate: str) -> str:
 
 def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
     """The widest string a `fallback:` expression could render, through the
-    same format spec the bound value uses (see Bug 1's `_emit_text`).
+    same format spec the bound value uses (see `wfb.emit.monkeyc._emit_text`).
 
     A literal string fallback (`fallback: "N/A"`) renders exactly as written,
     the same way `placeholder:` already does above -- `formatting.widest`'s

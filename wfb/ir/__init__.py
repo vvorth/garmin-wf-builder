@@ -3,21 +3,18 @@
 Stage 2 of validation (ADR 0008): everything that is device-independent.  Data
 sources are resolved against the catalogue, expressions are type-checked and
 compiled, and null handling is required where the platform makes absence
-normal.  (There used to be a third thing here, a per-source refresh cadence
-enforced against the mode an element draws in -- deleted along with the
-runtime TTL cache it existed to protect: every value already comes from a
-Garmin SDK call that caches it itself, so a plain per-frame read is correct
-everywhere now, including under `onPartialUpdate`.  The suppressible
-`partial-update-budget` lint, not this file, is where that tradeoff is
-managed today.)
+normal.  Every value comes from a Garmin SDK call that caches it itself, so a
+plain per-frame read is correct everywhere, including under
+`onPartialUpdate`; the suppressible `partial-update-budget` lint is where
+that tradeoff is managed.
 
 Nothing here knows a screen size.  Per-device work happens in :mod:`wfb.layout`.
 
-A package since the module-split: :mod:`wfb.ir.model` holds the constants and
-dataclasses, :mod:`wfb.ir.naming` the generated-symbol derivation, and
+A package: :mod:`wfb.ir.model` holds the constants and dataclasses,
+:mod:`wfb.ir.naming` the generated-symbol derivation, and
 :mod:`wfb.ir.builder` the semantic pass (`Builder`) itself.  This file
-re-exports every name the three used to share as one module, `ir.py`, so
-nothing outside this package has to know it was ever split.
+re-exports every name from all three, so callers can `import wfb.ir` without
+knowing which submodule a name lives in.
 """
 
 from __future__ import annotations
