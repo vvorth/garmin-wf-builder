@@ -92,7 +92,7 @@ def glyph_set(face: Face) -> dict[str, str]:
                 bucket |= set("".join(complications.UNIT_SUFFIX.values()))
             continue
         if isinstance(element, PatternElement):
-            # A `shape: text` template part (plan 06 §3.4): every *drawn*
+            # A `shape: text` template part: every *drawn*
             # copy's string is already known at build time
             # (`HandPart.texts`, `Builder._build_pattern_element`), so --
             # unlike a `complication_slot`'s "every choice could render
@@ -120,8 +120,8 @@ def glyph_set(face: Face) -> dict[str, str]:
             bucket |= set(element.placeholder)
         if element.when_absent == "fallback" and element.fallback is not None:
             # 'fallback:' is drawn through the same format spec as the real
-            # value (see Bug 1's _emit_text in wfb.emit.monkeyc) -- a literal
-            # string fallback renders exactly as written, the same way
+            # value (see `_emit_text` in `wfb/emit/monkeyc/shapes.py`) -- a
+            # literal string fallback renders exactly as written, the same way
             # 'placeholder:' is handled above; anything else goes through the
             # same digit-set formatting.glyphs already adds for the value.
             fallback = element.fallback
@@ -179,8 +179,8 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
             if slot is None:
                 continue  # rejected slot
             mapped = slot.icons  # 'choices: any' resolves against the whole
-                                 # of COMPLICATION_ICON since 2026-09-13 --
-                                 # see ConfigDataSlot.icons's own docstring.
+                                 # of COMPLICATION_ICON -- see
+                                 # ConfigDataSlot.icons's own docstring.
             if not mapped:
                 # None of this slot's choices has a catalogue icon -- it
                 # simply draws none, which is a documented, legitimate
@@ -335,7 +335,7 @@ def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> Res
 
 
 def config_resource(face: Face) -> str:
-    """`resources-<device>/configs/watchface.xml` -- ADR 0006 1, twice amended.
+    """`resources-<device>/configs/watchface.xml` -- ADR 0006 1.
 
     Called only for a device with the native editor
     (`Device.has_symbol(CONFIG_SYMBOL)`); the caller (`build_bundle`) is
@@ -395,7 +395,7 @@ def config_resource(face: Face) -> str:
 def config_label_strings(face: Face) -> list[tuple[str, str]]:
     """`(string id, label text)` for every labelled `config:` choice, plus
     every `config: style:` entry that resolves a label -- its own `label:`,
-    or (§12.4's fallback, `Face.style_label`) the `color_scheme:` entry's own
+    or (the fallback in `Face.style_label`) the `color_scheme:` entry's own
     `label:` when the style entry has none of its own.
 
     Shared across every device -- a label is authored text, not something

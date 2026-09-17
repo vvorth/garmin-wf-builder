@@ -17,8 +17,7 @@ def _emit_graph_fields(w: Writer, graphs: list) -> None:
     """One cached series (plus its auto bounds, where asked for) per `graph`.
 
     Rebuilt once a minute (`_emit_graph`'s cadence check), not per frame --
-    see `runtime-lib/WfbSeries.mc`'s module docstring for why this is not the
-    TTL cache this project deleted.
+    see `runtime-lib/WfbSeries.mc`'s module docstring for why.
     """
     if not graphs:
         return

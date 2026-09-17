@@ -17,10 +17,10 @@ _HAND_ANGLE_FUNCTIONS = (("hour", "hourAngle"), ("minute", "minuteAngle"), ("sec
 
 def _emit_hands(w: Writer, placed: "PlacedHands") -> None:
     """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
-    draw each of its parts (plan 04 §5, the analog-hands probe).  Shaped
-    exactly like the probe's `drawMainHands`: the axis first, then hour,
-    minute, second in that fixed order (§5.1), with an `awake` second hand's
-    parts wrapped in `if (!_sleeping)` (§5.6).
+    draw each of its parts, shaped exactly like the analog-hands probe's
+    `drawMainHands` (`docs/research/probes/analog-hands/`): the axis first,
+    then hour, minute, second in that fixed order, with an `awake` second
+    hand's parts wrapped in `if (!_sleeping)`.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -55,8 +55,8 @@ def _emit_one_hand(w: Writer, prefix: str, hand_name: str, angle_fn: str, hand,
     w.line(f"{keyword}angle = WfbHands.{angle_fn}(clock);")
     w.line(f"{keyword}sin = Math.sin(angle);")
     w.line(f"{keyword}cos = Math.cos(angle);")
-    # One setColor per colour *change* (plan 04 §6): consecutive parts of one
-    # hand usually share its default colour.  Reset per hand rather than
+    # One setColor per colour *change*: consecutive parts of one hand
+    # usually share its default colour.  Reset per hand rather than
     # carried across hands, because an `awake` second hand sits inside its
     # own `if` block and cannot rely on a colour set before it.
     current = None
@@ -113,15 +113,15 @@ def _emit_rotated_part(w: Writer, part, part_prefix: str, *, set_pen: bool = Tru
 
 
 # --------------------------------------------------------------------------
-# type: pattern (plan 05)
+# type: pattern
 
 
 def _pattern_skip_condition(element: "PatternElement") -> str:
     """The loop's skip test, in one fixed order: `skip_every:` first, then
-    every explicit `skip:` index it does not already cover (plan 05 §6.4)
-    -- an index `skip_every:` already catches would otherwise test true a
-    second time for no reason.  Empty when nothing is skipped, which is
-    what lets :func:`_emit_pattern` omit the `if` entirely.
+    every explicit `skip:` index it does not already cover -- an index
+    `skip_every:` already catches would otherwise test true a second time
+    for no reason.  Empty when nothing is skipped, which is what lets
+    :func:`_emit_pattern` omit the `if` entirely.
     """
     terms: list[str] = []
     if element.skip_every is not None:
@@ -134,10 +134,10 @@ def _pattern_skip_condition(element: "PatternElement") -> str:
 
 def _pattern_angle_expr(element: "PatternElement") -> tuple[str, str]:
     """The radial loop's `angle` expression (radians, bare `Float`
-    literals) and the degrees comment beside it (plan 05 §6.4):
-    `<start> + i * <step>`, with the start term dropped from the *code*
-    when `start: 0deg` (the common case) -- the comment always spells out
-    both numbers, so the general rule stays visible even then.
+    literals) and the degrees comment beside it: `<start> + i * <step>`,
+    with the start term dropped from the *code* when `start: 0deg` (the
+    common case) -- the comment always spells out both numbers, so the
+    general rule stays visible even then.
     """
     step_rad = _mc_float(math.radians(element.step_angle))
     comment = f"({element.start_angle:g} + {element.step_angle:g} i) degrees"
@@ -150,18 +150,17 @@ def _pattern_angle_expr(element: "PatternElement") -> tuple[str, str]:
 def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index: int,
                        part, radial: bool, hoist_pen: bool,
                        text_fonts: dict[str, str] | None = None) -> None:
-    """One template part, drawn for the current copy `i` (plan 05 §6.4):
-    rotated about `(cx, cy)` through `WfbGeom` for a radial pattern,
-    translated by `(ox, oy)` for a linear one -- the same two drawing
-    shapes `_emit_one_hand` already uses for a hand, generalised from
-    "the axis" to "this copy's origin".  An `arc` part is the one shape
-    neither calling convention covers on its own: it always goes through
-    `WfbArc.drawSpan`, radial or linear alike, with the centre as its only
-    per-copy input (plan 05 D3 -- an arc part is never `at:`-offset).  A
-    `text` part (plan 06 §3.4) is the other one-off: only its *anchor*
-    moves -- `WfbGeom.drawTextRotated` for radial, a plain `dc.drawText(ox +
-    ..., oy + ..., ...)` for linear, no helper needed there since a linear
-    pattern never rotates anything.  Its value is either the part's own
+    """One template part, drawn for the current copy `i`: rotated about
+    `(cx, cy)` through `WfbGeom` for a radial pattern, translated by
+    `(ox, oy)` for a linear one -- the same two drawing shapes
+    `_emit_one_hand` already uses for a hand, generalised from "the axis" to
+    "this copy's origin".  An `arc` part is the one shape neither calling
+    convention covers on its own: it always goes through `WfbArc.drawSpan`,
+    radial or linear alike, with the centre as its only per-copy input (an
+    arc part is never `at:`-offset).  A `text` part is the other one-off:
+    only its *anchor* moves -- `WfbGeom.drawTextRotated` for radial, a plain
+    `dc.drawText(ox + ..., oy + ..., ...)` for linear, no helper needed there
+    since a linear pattern never rotates anything.  Its value is either the part's own
     `text:` literal or its `value:` compiled through `formatting.emit` (the
     same call `_emit_text` makes for a `text` element), read off
     `element.parts[index]` -- the *IR* part, which is what carries
@@ -191,7 +190,7 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
             # call, not the variable itself (other parts of the same copy
             # still rotate about the unshifted origin) -- the subtraction
             # lands outside the rotation, so it moves the drawn point
-            # straight up on screen regardless of `theta` (plan 07 §3.2(b)).
+            # straight up on screen regardless of `theta`.
             cy_expr = _glyph_y_expr("cy", part.vertical_align, font_expr)
             pad = " " * len("WfbGeom.drawTextRotated(")
             w.line(
@@ -246,7 +245,7 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
             if not hoist_pen:
                 w.line("dc.setPenWidth(1);")
         return
-    # arc: always centred on the copy's own origin (D3).  A radial pattern
+    # arc: always centred on the copy's own origin.  A radial pattern
     # turns the author start angle by plain degree subtraction -- the same
     # arithmetic `wfb.layout.garmin_arc` performs at build time for a
     # standalone `shape: arc`, just with `i * step` folded in at runtime --
@@ -272,22 +271,20 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
 
 def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     """`type: pattern` -- loop over the drawn copies, turning (radial) or
-    translating (linear) the template resolved once at build time (plan 05
-    §5.3, §6.4).  The same bargain `_emit_hands` already struck for analog
-    hands: the device performs the one piece of layout arithmetic ADR 0004
-    leaves it (a rotation or a translation), everything else is a `Layout`
-    constant.
+    translating (linear) the template resolved once at build time.  The
+    same bargain `_emit_hands` already struck for analog hands: the device
+    performs the one piece of layout arithmetic ADR 0004 leaves it (a
+    rotation or a translation), everything else is a `Layout` constant.
 
-    Per-copy part `visible:` (B, 2026-09-15): a part whose `visible:` folded
-    to a compile-time `false` is dropped here entirely -- no colour line, no
-    draw call -- the `dead-element` lint already told the author (B5). A part
+    Per-copy part `visible:`: a part whose `visible:` folded to a
+    compile-time `false` is dropped here entirely -- no colour line, no
+    draw call -- the `dead-element` lint already told the author. A part
     whose `visible:` is not constant is *gated*: its own drawing (everything
     `_emit_pattern_part` writes for it, pen included) sits inside
     `if (<condition>) { ... }`, but its `dc.setColor(...)` stays where it
     already was, **before** the gate and unconditional -- so the pen colour
     after this part is the same whichever branch ran, and the part *after*
-    it never has to ask whether this one actually drew (B6's colour-state
-    test).
+    it never has to ask whether this one actually drew.
 
     A `text` part's custom font is loaded into a local **once, before the
     loop** -- the same "load once, guard once" rule `_emit_text_draw` follows

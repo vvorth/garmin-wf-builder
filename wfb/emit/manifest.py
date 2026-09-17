@@ -22,47 +22,40 @@ from ..devices import Device
 from ..ir import Face
 from .monkeyc import hold_targets
 
-#: The floor for generated faces, and -- as of 2026-09-15 -- the *only*
-#: level this compiler ever emits.  ``manifest.xml`` is one file shared by
-#: every target device (`<iq:products>` lists them all under one
-#: `minApiLevel`), so raising it for a feature one device needs would raise
-#: it for every device in the same build, including targets that do not use
-#: that feature at all -- and, worse, a device whose own ConnectIQ ceiling
-#: sits *below* the raised floor cannot build at all even though nothing it
-#: lacks is unreachable on it (`examples/dashboard/face.yaml` targeting
-#: `fenix6`, ConnectIQ 3.4.5, is exactly this: it failed with
-#: `error[monkeyc]: Device 'fenix6' does not support API Level '4.2.0'`
-#: purely because the manifest carried a level the design's *other* targets
-#: needed, before this fix).
+#: The floor every generated face declares, and the only level this compiler
+#: ever emits.  ``manifest.xml`` is one file shared by every target device
+#: (`<iq:products>` lists them all under one `minApiLevel`), so raising it
+#: for a feature one device needs raises it for every device in the same
+#: build, including targets that never use that feature -- and, worse, a
+#: device whose own ConnectIQ ceiling sits *below* the raised floor cannot
+#: build at all even though nothing it lacks is actually unreachable on it
+#: (a floor raised to 4.2.0 for complications fails `fenix6`, ConnectIQ
+#: 3.4.5, even on a design that never touches complications on that device).
 #:
 #: Everything the generator emits -- ``Application.AppBase``, ``WatchUi.WatchFace``,
 #: custom bitmap fonts, and the ``Dc`` primitives in the element vocabulary --
 #: is documented at or below this level, and it sits far below every device this
 #: project targets (fr955 is 5.2.0; the fenix 8 Solar pair are 6.0.2).
 #:
-#: A feature that needs a higher-level API (complications, API 4.2.0) is no
-#: longer handled by raising this floor.  Instead, every place the generated
-#: code would touch such a feature is guarded at *runtime* against the
-#: device that is actually running it, via `wfb.availability` --
-#: `Device.has_module`/`has_symbol`/`has_field`, never a level compare
-#: (CLAUDE.md constraint 6: `monkeyc` checks the SDK-wide API, not the
-#: device's, and a device's own ConnectIQ ceiling is not a reliable proxy for
-#: what it actually implements -- fr955 is 5.2.0 and still lacks
-#: `WatchFaceDelegate.onTap`). See `wfb/emit/monkeyc.py`'s guard emission
-#: (keyed off `wfb.availability.compute_guards`) and this module's own
-#: `permissions()` below, which still derives `ComplicationSubscriber` from
-#: the design regardless of whether every target can use it -- an
-#: unreachable permission declaration is harmless, unlike an unreachable
-#: `minApiLevel`.
+#: A feature that needs a higher-level API (complications, API 4.2.0) is
+#: instead guarded at *runtime* against the device that is actually running
+#: it, via `wfb.availability` -- `Device.has_module`/`has_symbol`/`has_field`,
+#: never a level compare (CLAUDE.md constraint 6: `monkeyc` checks the
+#: SDK-wide API, not the device's, and a device's own ConnectIQ ceiling is
+#: not a reliable proxy for what it actually implements -- fr955 is 5.2.0
+#: and still lacks `WatchFaceDelegate.onTap`). See `wfb/emit/monkeyc/`'s
+#: guard emission (keyed off `wfb.availability.compute_guards`) and this
+#: module's own `permissions()` below, which still derives
+#: `ComplicationSubscriber` from the design regardless of whether every
+#: target can use it -- an unreachable permission declaration is harmless,
+#: unlike an unreachable `minApiLevel`.
 #:
-#: `config:` (the native on-device editor, ADR 0006 1) was always handled
-#: this way and never raised the floor: `docs/research/probes/
-#: watchface-config/` confirms `<watchface-config>` forces no `minApiLevel`
-#: bump, and the feature is gated entirely by
+#: `config:` (the native on-device editor, ADR 0006 1) is gated the same
+#: way: `docs/research/probes/watchface-config/` confirms `<watchface-config>`
+#: forces no `minApiLevel` bump, and the feature is gated entirely by
 #: `Device.has_symbol("WatchFaceConfig.getSettings")` (constraint 6: fr955
 #: reports 5.2.0, above the editor's documented 5.1.0, and still has no
-#: editor). Complications now follow the same shape, rather than being the
-#: one feature still bumping a shared floor.
+#: editor).
 BASE_API_LEVEL = "3.2.0"
 
 

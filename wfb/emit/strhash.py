@@ -7,13 +7,13 @@ build dies inside `Compiler2.assembleProject` with "Redefinition of label
 (data) str___<N>", which the user sees only as monkeyc's generic "A critical
 error has occurred".
 
-Reproduced directly (2026-09-13, docs/lore/toolchain.md): the `distance`
-glyph U+F08F0 and the `temperature` glyph U+F050F both hash to 1798574, and
-a slot whose `choices:` list holds just those two types fails, while
-38 other types together build clean. A glyph above the Basic Multilingual
-Plane is two UTF-16 code units `(hi, lo)`, whose hash is `31*hi + lo`, so two
-glyphs collide whenever they are 993 codepoints apart within the right
-range -- common in Material Design Icons.
+Reproduced directly (docs/lore/toolchain.md): the `distance` glyph U+F08F0
+and the `temperature` glyph U+F050F both hash to 1798574, and a slot whose
+`choices:` list holds just those two types fails, while 38 other types
+together build clean. A glyph above the Basic Multilingual Plane is two
+UTF-16 code units `(hi, lo)`, whose hash is `31*hi + lo`, so two glyphs
+collide whenever they are 993 codepoints apart within the right range --
+common in Material Design Icons.
 
 This module only *finds* collisions. `wfb.emit.project.generate` resolves the
 ones it can (an `IconGlyphs` glyph is rebuilt at runtime with

@@ -231,13 +231,12 @@ def _emit_icon(w: Writer, placed: PlacedIcon) -> None:
     a second, weather-only one. The font still has every glyph that call
     could return, baked in ahead of time (`wfb.emit.resources.icon_font_specs`).
 
-    `align`/`vertical_align` (plan 07 phase C) place the glyph the same way
-    a `text` element does (§3.2(b)): `placed.justify` (`Resolver._justify`)
-    picks the `TEXT_JUSTIFY_*` flags, and `_glyph_y_expr` handles `bottom`'s
-    missing platform flag by subtracting the *icon* font's own
-    `dc.getFontHeight` -- the anchor itself (`Layout.<P>_CX/_CY`) never
-    moves; center/center reproduces the exact literal flags this call has
-    always emitted.
+    `align`/`vertical_align` place the glyph the same way a `text` element
+    does: `placed.justify` (`Resolver._justify`) picks the `TEXT_JUSTIFY_*`
+    flags, and `_glyph_y_expr` handles `bottom`'s missing platform flag by
+    subtracting the *icon* font's own `dc.getFontHeight` -- the anchor
+    itself (`Layout.<P>_CX/_CY`) never moves; center/center yields the same
+    literal flags whether or not `align`/`vertical_align` are given.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)

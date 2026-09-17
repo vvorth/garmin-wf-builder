@@ -20,9 +20,10 @@ def _emit_pulsing_field(w: Writer) -> None:
     Read by every `complication_slot`'s own draw method
     (`_emit_complication_slot`'s guard) and written only from `setPulsing`,
     itself called only from the delegate's `getComplicationDrawable` -- which
-    fires solely inside the on-device config editor (research 07 §1), so this
-    stays 0 for the entire life of the app on a device with no editor, or
-    while the face is simply being looked at.
+    fires solely inside the on-device config editor
+    (`docs/research/07-carousel-interaction.md`), so this stays 0 for the
+    entire life of the app on a device with no editor, or while the face is
+    simply being looked at.
     """
     w.doc(
         "Which complication_slot the native editor is animating right now (a\n"
@@ -106,7 +107,7 @@ def emit_slot_drawable(face: Face) -> SourceFile:
     Only ever generated, and only ever constructed, when the design has at
     least one `complication_slot` element (`_editor_slot_pairs`): the whole
     file is dead weight on a passive face, since `getComplicationDrawable`
-    itself never fires there (research 07 §1).
+    itself never fires there (`docs/research/07-carousel-interaction.md`).
 
     Shape verified against `docs/research/probes/config-axes/SlotDrawable.mc`,
     which built warning-free under `-l 3` on all three targets, including
@@ -205,9 +206,9 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
     mapped = slot.icons
     # `slot.choices` is an ordered tuple for an explicit list, but the
     # literal string "any" for 'choices: any' (allowed together with
-    # `icon_size:` since 2026-09-13) -- iterating that would walk its three
-    # characters, not a type list, so the switch's case order falls back to
-    # a stable alphabetical one there instead, over every mapped type.
+    # `icon_size:`) -- iterating that would walk its three characters, not a
+    # type list, so the switch's case order falls back to a stable
+    # alphabetical one there instead, over every mapped type.
     names = slot.choices if not slot.allow_any else sorted(mapped)
     w.blank()
     w.doc(f"`{element.id}`'s icon, chosen from the wearer's picked type alone -- not\n"
@@ -251,10 +252,10 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     `Dc.getTextWidthInPixels` -- the actual text is not known until the value
     is pulled, so unlike every other element this cannot be precomputed at
     build time (ADR 0004's one deliberate exception, and for exactly that
-    reason).  `align`/`vertical_align` (plan 07 phase C, §3.2(c)) move that
-    pair off the anchor with the same per-`icon_position:` arithmetic this
-    exception has always needed -- `center`/`center` is the fast path below,
-    byte-identical to every build before either key existed.
+    reason).  `align`/`vertical_align` move that pair off the anchor with
+    the same per-`icon_position:` arithmetic this exception needs --
+    `center`/`center` is the fast path below, the same plain expression
+    used when neither key is authored.
 
     Every `complication_slot` -- not only ones with `on_hold:` -- starts with
     a `_pulsing` guard: the native editor can animate *any* slot's highlight
@@ -362,12 +363,11 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     )
 
     if fast_path:
-        # Byte-identical to every build before 'icon_position:'/'icon_gap:'/
-        # 'icon_color:' existed (plan 03 §6.3) -- none of the three is
-        # authored, so this is exactly today's code, verbatim.  A non-default
-        # 'align:'/'vertical_align:' (plan 07 phase C) also falls through to
-        # the general path below, even on 'left' with neither of the other
-        # two authored.
+        # The plain case: none of 'icon_position:'/'icon_gap:'/'icon_color:'/
+        # 'align:'/'vertical_align:' is authored away from its default, so
+        # this is exactly the expression those keys produce when unused. Any
+        # one of them authored (even 'left' with a non-default 'align:'/
+        # 'vertical_align:') falls through to the general path below.
         w.line(f"dc.setColor({text_color_expr}, Graphics.COLOR_TRANSPARENT);")
         w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
         w.line("var iconWidth = 0;")
@@ -389,16 +389,16 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
 
     # General path: any position other than the default 'left', an authored
     # 'icon_gap:'/'icon_color:' on 'left' itself, or a non-default 'align:'/
-    # 'vertical_align:' (plan 07 phase C, §3.2(c)) -- the pair's alignment
-    # arithmetic is runtime-only, mirroring `wfb.layout.alignment_shift`'s
-    # rule but never calling it, since neither the real text nor (for
-    # icon_position top/bottom, align != center) the real icon glyph width is
-    # known until the value above is pulled (ADR 0004's one deliberate
-    # exception) -- everything below goes through `Dc.getTextWidthInPixels`/
-    # `Dc.getFontHeight` instead of a build-time measurement.  Every offset
-    # below is computed once, at build time in Python, from `element.align`/
-    # `.vertical_align` alone (never a runtime branch): center reproduces the
-    # exact expression this function has always emitted.
+    # 'vertical_align:' -- the pair's alignment arithmetic is runtime-only,
+    # mirroring `wfb.layout.alignment_shift`'s rule but never calling it,
+    # since neither the real text nor (for icon_position top/bottom, align
+    # != center) the real icon glyph width is known until the value above is
+    # pulled (ADR 0004's one deliberate exception) -- everything below goes
+    # through `Dc.getTextWidthInPixels`/`Dc.getFontHeight` instead of a
+    # build-time measurement.  Every offset below is computed once, at build
+    # time in Python, from `element.align`/`.vertical_align` alone (never a
+    # runtime branch): center reproduces the same expression the fast path
+    # above emits.
     gap_expr = (f"Layout.{prefix}_ICON_GAP" if element.icon_gap is not None
                else str(COMPLICATION_SLOT_ICON_GAP))
     icon_present_guard = (f"iconGlyph != null && {icon_font_expr} != null"
@@ -453,8 +453,8 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
             w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
                    if icon_present_guard is not None else "var gap = 0;")
         # 'align:' shifts the row's horizontal start: 'startX = CX - {0,
-        # total/2, total}' for left/center/right (plan 07 §3.2(c)) -- center
-        # is exactly today's expression. 'totalWidth' is declared only when
+        # total/2, total}' for left/center/right -- center
+        # is the plain expression above with no shift. 'totalWidth' is declared only when
         # 'align:' actually reads it ('left' does not -- an unused local
         # warns under -l 3).
         if element.align == "left":
@@ -469,7 +469,7 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
             row_y_expr = f"Layout.{prefix}_CY"
         else:
             # 'vertical_align:' shifts the row's own VCENTER axis by half the
-            # taller of the two drawn fonts' heights (plan 07 §3.2(c)) --
+            # taller of the two drawn fonts' heights --
             # measured on-device, since only one of the two may draw at all
             # (an icon-less slot, or a frame the icon glyph did not resolve).
             w.line(f"var rowHeight = dc.getFontHeight({font_expr});")
@@ -527,8 +527,8 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
             w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
                    if icon_present_guard is not None else "var gap = 0;")
         # 'vertical_align:' shifts the column's vertical start: 'startY = CY
-        # - {0, total/2, total}' for top/center/bottom (plan 07 §3.2(c)) --
-        # center is exactly today's expression. 'totalHeight' is declared
+        # - {0, total/2, total}' for top/center/bottom --
+        # center is the plain expression above with no shift. 'totalHeight' is declared
         # only when 'vertical_align:' actually reads it ('top' does not --
         # an unused local warns under -l 3).
         if element.vertical_align == "top":
@@ -543,7 +543,7 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
             col_x_expr = f"Layout.{prefix}_CX"
         else:
             # 'align:' shifts the pair's own TEXT_JUSTIFY_CENTER axis by half
-            # the wider of the two drawn pieces (plan 07 §3.2(c)) -- the same
+            # the wider of the two drawn pieces -- the same
             # "measure both, take the icon-guarded max" shape as the row case
             # above, on the perpendicular axis.
             w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")

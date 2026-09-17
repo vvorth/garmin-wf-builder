@@ -99,8 +99,9 @@ def generate(face: Face, devices: list[Device], root: Path,
     project.sources.append(monkeyc.emit_view(first, guards))
     if monkeyc.complication_slots(face):
         # The native editor's animated highlight over a complication_slot --
-        # dead weight on a design with none (research 07 §1: the callback
-        # that would ever construct one never fires outside the editor).
+        # the callback that constructs it never fires outside the editor
+        # (docs/research/07-carousel-interaction.md), so a design with no
+        # slots emits none of it.
         project.sources.append(monkeyc.emit_slot_drawable(face))
     if monkeyc.needs_delegate(face):
         # Shared across devices like the view: the hit regions it references
@@ -223,14 +224,13 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
             # A pattern needs WfbGeom only when it actually rotates or
             # translates something *through* it: a radial pattern with at
             # least one non-arc part (WfbGeom.*Rotated -- a `shape: text`
-            # part included, plan 06 §3.4: `drawTextRotated` still rotates
-            # its anchor), or a linear pattern with a polygon part
-            # (WfbGeom.fillTranslated -- a linear line/circle/text draws
-            # straight off `ox`/`oy` with no helper at all).  An all-arc
-            # pattern, radial or linear, only ever calls WfbArc.drawSpan
-            # (plan 05 §6.4/§6.5) -- mirrors `_emit_pattern_part` in
-            # `wfb/emit/monkeyc.py`, the source of truth this has to agree
-            # with.
+            # part's `drawTextRotated` still rotates its anchor), or a
+            # linear pattern with a polygon part (WfbGeom.fillTranslated --
+            # a linear line/circle/text draws straight off `ox`/`oy` with no
+            # helper at all).  An all-arc pattern, radial or linear, only
+            # ever calls WfbArc.drawSpan -- mirrors `_emit_pattern_part` in
+            # `wfb/emit/monkeyc/rotated.py`, the source of truth this has to
+            # agree with.
             radial = placed.element.pattern == "radial"
             needs_geom = (
                 any(part.shape != "arc" for part in placed.parts) if radial
