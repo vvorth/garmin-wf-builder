@@ -121,22 +121,24 @@ color_scheme:
 
 config:
   accent_color:
-    default: palette.orange
+    default: palette.red
     choices:
       - palette.orange
       - palette.red
       - palette.amber
       - palette.cyan
       - palette.lime_green
+      - palette.green
       - palette.magenta
       - palette.yellow
   data_color:
-    default: palette.cyan
+    default: palette.green
     choices:
       - palette.orange
       - palette.red
       - palette.cyan
       - palette.lime_green
+      - palette.green
       - palette.amber
       - palette.magenta
       - palette.yellow
