@@ -7,6 +7,7 @@ showcase does not.  Run from the repo root:
 
     ./.venv/bin/python tools/readme-shots.py
 """
+import io
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from PIL import Image
+from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parent.parent
 DESIGN = ROOT / "examples/showcase/face.yaml"
@@ -42,17 +44,40 @@ EXAMPLES = {
     "analog-styles": ("analog", ["--all-styles"]),
 }
 
-# On-device editor variants: each is a set of textual swaps applied to a
-# throwaway copy of the design, so face.yaml itself is never touched.
+# On-device editor variants: each sets `config:` defaults, by key, in a
+# throwaway copy of the design, so face.yaml itself is never touched.  A
+# value must be one of that axis's `choices:` (or the axis `choices: any`),
+# so a variant that no longer fits the design fails with the reason.
 VARIANTS = [
     {},
-    {"default: palette.orange": "default: palette.lime_green",
-     "default: palette.cyan": "default: palette.magenta",
-     "default: complication.steps": "default: complication.heart_rate"},
-    {"default: palette.orange": "default: palette.magenta",
-     "default: palette.cyan": "default: palette.amber",
-     "default: complication.body_battery": "default: complication.calories"},
+    {"accent_color": "palette.lime_green",
+     "data_color": "palette.magenta",
+     "data.left_register": "complication.heart_rate"},
+    {"accent_color": "palette.magenta",
+     "data_color": "palette.amber",
+     "data.right_register": "complication.calories"},
 ]
+
+
+def with_defaults(text, defaults):
+    """``text`` (a design) with each ``config:`` axis's default replaced."""
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    doc = yaml.load(text)
+    for path, value in defaults.items():
+        axis = doc["config"]
+        for key in path.split("."):
+            axis = axis[key]
+        choices = axis["choices"]
+        names = [c["type"] if isinstance(c, dict) else c for c in choices]
+        if choices != "any" and value not in names:
+            sys.exit(f"variant: {value} is not a choice of config.{path}: {names}")
+        if value == axis["default"]:
+            sys.exit(f"variant: {value} is already config.{path}'s default")
+        axis["default"] = value
+    out = io.StringIO()
+    yaml.dump(doc, out)
+    return out.getvalue()
 
 
 def render(style, extra, dest, design=DESIGN):
@@ -84,15 +109,11 @@ def main():
             OUT / "showcase-styles.png", optimize=True)
         print(f"wrote {OUT.relative_to(ROOT)}/showcase-styles.png")
         panels = []
-        for i, swaps in enumerate(VARIANTS):
+        for i, defaults in enumerate(VARIANTS):
             copy = Path(tmp) / f"variant{i}"
-            shutil.copytree(DESIGN.parent, copy,
-                            ignore=shutil.ignore_patterns("screenshots"))
-            text = DESIGN.read_text()
-            for old, new in swaps.items():
-                assert old in text, old
-                text = text.replace(old, new, 1)
-            (copy / DESIGN.name).write_text(text)
+            shutil.copytree(DESIGN.parent, copy)
+            (copy / DESIGN.name).write_text(
+                with_defaults(DESIGN.read_text(), defaults))
             panels.append(Image.open(render(
                 "digital_dark", ["--scale", "2"], copy / "out", copy / DESIGN.name)))
         strip = Image.new("RGB", (sum(p.width for p in panels), panels[0].height))

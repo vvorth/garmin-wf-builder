@@ -179,7 +179,7 @@ steps_cluster:
   children:
     steps_icon:  { type: icon, icon: steps, size: 9%r, at: { anchor: left }, align: left }
     steps_value: { type: text, value: "activity.steps / 1000.0", format: "{:.1f}k",
-                   font: FONT_XTINY, at: { anchor: right }, align: right }
+                   font: FONT_XTINY, at: { anchor: left, dx: 13%r }, align: left }
 
 steps_bar:
   type: progress
@@ -278,8 +278,8 @@ config:
     choices:
       analog_dark:  { label: "Analog · Dark",  layout: analog,  colors: dark }
       digital_dark: { label: "Digital · Dark", layout: digital, colors: dark }
-  accent_color: { default: palette.orange, choices: [palette.orange, palette.lime_green, ...] }
-  data_color:   { default: palette.cyan,   choices: [palette.cyan, palette.magenta, ...] }
+  accent_color: { default: palette.red, choices: [palette.red, palette.lime_green, ...] }
+  data_color:   { default: palette.red, choices: [palette.red, palette.magenta, ...] }
   data:
     left_register:
       default: complication.steps
