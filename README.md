@@ -3,6 +3,12 @@
 Describe a Garmin Connect IQ watch face in one YAML file, and `wfb` builds a
 signed `.prg` for each target watch, ready to sideload.
 
+Connect IQ is Garmin's platform for third-party watch apps and faces. A `.prg`
+is a compiled Connect IQ app. Sideloading means copying it onto the watch over
+USB yourself instead of installing it from the Connect IQ Store. `wfb` writes
+the Monkey C code (Garmin's programming language) for you and runs Garmin's
+compiler, so you don't need to know Monkey C.
+
 **Targets:** fēnix 8 Solar 47 mm / 51 mm, Forerunner 955. **Distribution:**
 personal sideload, not the Connect IQ Store. **Status:** early (`wfb` 0.1.0), a
 personal project that works end to end and is still changing. The format is
@@ -14,15 +20,24 @@ what isn't built yet.
 *[`examples/showcase`](examples/showcase/face.yaml): one file, five on-device
 styles made from two layouts and three colour schemes.*
 
-This page is a tour by example. Sections 1–10 follow the showcase face, and
-section 11 covers features from the other examples. Each snippet sits next to
-what it draws. [`docs/format.md`](docs/format.md) is the full reference.
+This page is a tour by example. Section 1 gets you from nothing to a face on
+your watch. Sections 2–10 follow the showcase face, and section 11 covers
+features from the other examples. Each snippet sits next to what it draws.
+[`docs/format.md`](docs/format.md) is the full reference.
 
-All screenshots come from `wfb preview` on a fēnix 8 47 mm, with sample data at
-10:09:42. The preview uses the same resolved geometry as the compiled face, so
-positions match the watch. Glyph shapes are approximate, and
-[a few data values differ](#preview-caveats). To regenerate the screenshots,
-run `./.venv/bin/python tools/readme-shots.py`.
+The screenshots come from `wfb preview`, which draws the face on your computer.
+Positions match the watch; glyph shapes and some data values are approximate
+([preview caveats](#preview-caveats)).
+
+**A few terms used below:**
+
+| Term | Meaning |
+|---|---|
+| complication | a piece of data the watch publishes for faces to show, such as Body Battery or sunrise time. A *complication slot* lets the wearer choose which one appears. |
+| glance | Garmin's full-screen view of one metric, which a face can open |
+| MIP / AMOLED | the two kinds of watch screen. MIP (all three targets) is always on and has 64 colours. AMOLED needs a sparse always-on layout to avoid burn-in. |
+| active / low power | the watch is *awake* (right after you raise your wrist) or *asleep* (the rest of the time) |
+| `%r` | a length as a percentage of the screen's radius (§3) |
 
 ---
 
@@ -32,11 +47,11 @@ run `./.venv/bin/python tools/readme-shots.py`.
 
 | | |
 |---|---|
-| **Linux** | Tested. `tools/setup-env.sh` installs everything else. You need `bash`, `curl`, `unzip`, `openssl`, Python 3 with `venv` (or `uv`), and a Java runtime for Garmin's compiler. |
+| **Linux** | Tested. `tools/setup-env.sh` installs everything else. You need `bash`, `curl`, `unzip`, `openssl`, Python 3 with `venv` (or `uv`), and Java 21 or newer (Garmin's compiler is a Java program). The script checks for all of these first. |
 | **macOS** | Use the Docker image. It is tested with [OrbStack](https://orbstack.dev). `setup-env.sh` fetches the Linux SDK, so it doesn't work on a Mac itself. |
 | **Windows** | Not tested. |
 | **A Garmin account** | Needed once, to download the device definitions (step 1). |
-| **A watch** | fēnix 8 Solar 47 mm / 51 mm or Forerunner 955, and its USB cable. |
+| **A watch** | fēnix 8 Solar 47 mm / 51 mm or Forerunner 955, and its USB cable. Other Connect IQ watches can work too: list your face's watches under `targets:`, and `wfb devices` shows which ones you have definitions for. Only these three are tested. |
 
 ### Step 1: get the device definitions
 
@@ -51,10 +66,13 @@ hand:
    - macOS: `~/Library/Application Support/Garmin/ConnectIQ/Devices`
    - Linux: `~/.Garmin/ConnectIQ/Devices`
    - Windows: `%APPDATA%\Garmin\ConnectIQ\Devices`
-3. On Linux, `setup-env.sh` finds them there. If they came from another
-   machine, copy that folder's contents into `vendor/devices/` in this
-   repository. The folder is gitignored, because the files are your licensed
-   copy. With Docker, mount the folder instead (step 2).
+3. Where to put them depends on how you run `wfb`:
+   - **Linux, downloaded on this machine:** nothing to do. `setup-env.sh` finds
+     them in `~/.Garmin/ConnectIQ/Devices`.
+   - **Linux, downloaded on another machine:** copy that folder's contents
+     into `vendor/devices/` in this repository. That folder is gitignored,
+     because the files are your licensed copy.
+   - **Docker:** nothing to copy. Step 2 mounts the folder into the container.
 
 ### Step 2: install
 
@@ -65,9 +83,10 @@ hand:
 alias wfb="$PWD/wfb.py"             # put this in your shell profile
 ```
 
-The script prints two `export` lines, `CIQ_SDK` and `PATH`. Add them to your
-shell profile too. `wfb.py` runs under the project's `.venv` on its own, so
-you don't need to activate it.
+The script is safe to re-run. It also prints two `export` lines (`CIQ_SDK`
+and `PATH`); add them to your shell profile too. `wfb.py` runs
+under the project's `.venv` on its own, so you don't need to activate it. Run
+`wfb doctor` to check that everything is in place.
 
 **macOS (Docker):**
 
@@ -84,11 +103,9 @@ runs. See [`docs/container.md`](docs/container.md) for details.
 
 ```sh
 wfb new "My Face"                   # writes my-face.yaml from a template (--list for more)
-wfb preview my-face.yaml --watch    # PNG re-rendered on every save
+wfb preview my-face.yaml            # draws it to build/preview/<watch>.png
 wfb validate my-face.yaml           # schema, semantic checks and lints; no SDK needed
 wfb build my-face.yaml              # generate Monkey C and compile
-wfb sources | series | complications  # what you can bind, plot, and open on hold
-wfb doctor                          # what is installed, and what is missing
 ```
 
 ```
@@ -97,6 +114,37 @@ built      my-face-fenix8solar47mm.prg  2,775 B / 131,072 B (2.1%)
 built      my-face-fenix8solar51mm.prg  2,775 B / 131,072 B (2.1%)
 built      my-face-fr955.prg            2,775 B / 131,072 B (2.1%)
 ```
+
+While you edit, `wfb preview my-face.yaml --watch` redraws the PNG every time
+you save; it keeps running until you press Ctrl-C. Three commands list what a
+face can use: `wfb sources` (data you can show), `wfb series` (data you can
+plot) and `wfb complications` (what touch-and-hold can open).
+
+The smallest complete face is a clock. Everything else on this page adds to
+this:
+
+```yaml
+format: 1
+face: { id: 6f1c2b7e-3d4a-4e5f-9a1b-2c3d4e5f6a7b, name: Minimal Clock, version: 1.0.0 }
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:
+  fg: "#FFFFFF"                      # MIP screens: each channel 00, 55, AA or FF
+
+elements:
+  clock:
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_HOT
+    at: { anchor: center }
+    align: center
+    vertical_align: center
+    color: palette.fg
+```
+
+`face.id` identifies the app to the watch: two faces with the same id replace
+each other. `wfb new` generates a fresh one for you.
 
 ### Step 4: put it on the watch
 
@@ -125,27 +173,46 @@ the file.
 The memory figure comes from the compiler's own measurement, not an estimate.
 Every watch face gets 128 KB.
 
+### If something goes wrong
+
+- **Start with `wfb doctor`.** It lists what is installed and what to do about
+  anything missing.
+- **`Invalid device id specified`** from the compiler means the device
+  definitions are missing (step 1).
+- **`unknown data source`** from `wfb validate` means a `value:` or `color:`
+  names something that doesn't exist. The error suggests close matches, and
+  `wfb sources` lists them all.
+- **Warnings** fail nothing, but each one explains itself and says how sure
+  it is. §10 shows how to keep a design that a warning flags on purpose.
+
 ## 2. File skeleton
 
 ```yaml
-format: 1
-face: { id: <uuid>, name: Showcase, version: 1.1.0 }
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+format: 1                                              # required
+face: { id: <uuid>, name: Showcase, version: 1.1.0 }   # required
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]     # required
 
+# optional
 fonts:    { ... }   # TTF files -> device fonts
 palette:  { ... }   # named colours (MIP: each channel 00/55/AA/FF)
 color_scheme: { ... }   # named sets of colour roles: bg, fg, dim, ...
 config:   { ... }   # what the wearer can change on the watch
 hands:    { ... }   # analog hand sets
 
-static:   { ... }   # drawn once, then copied: backgrounds, cards
-elements: { ... }   # redrawn every update
-layouts:  { ... }   # alternative static/elements sets, picked by a style
+static:   { ... }   # optional: drawn once, then copied: backgrounds, cards
+elements: { ... }   # required: redrawn every update
+layouts:  { ... }   # optional: alternative static/elements sets, picked by a style
 ```
 
 You can write element lists as a mapping, where the key is the id (as the
 showcase does), or as a list of items that each carry an `id:`. Both mean the
 same thing.
+
+The snippets below refer to values by prefix. `palette.<name>` and
+`font.<name>` point to your own `palette:` and `fonts:`. `config.*` are values
+the wearer picks on the watch (§9), such as `config.colors.fg` from the chosen
+colour scheme or `config.accent_color`. Everything else, such as `time.*`,
+`activity.*` or `weather.*`, is live watch data; `wfb sources` lists it all.
 
 ## 3. Placement: `at:`, anchors and units
 
@@ -191,7 +258,7 @@ fonts:
 elements:
   hours:   { type: text, value: time.hour,   format: "{:02d}", font: font.digitalclock,
              at: { anchor: center, dx: -1%, dy: 7% }, align: right, color: config.colors.fg,
-             modes: [active, low_power] }        # keeps ticking while the watch sleeps
+             modes: [active, low_power] }        # also redrawn every second while asleep
   minutes: { type: text, value: time.minute, format: "{:02d}", font: font.digitalclock,
              at: { anchor: center, dx: 1%,  dy: 7% }, align: left,  color: config.accent_color,
              modes: [active, low_power] }
@@ -201,6 +268,12 @@ elements:
 
 `FONT_XTINY` … `FONT_NUMBER_THAI_HOT` name the watch's built-in fonts. A
 `font.<name>` reference uses one of your own from `fonts:`.
+
+`modes:` says when an element is redrawn. The default, `[active]`, redraws it
+every second while the watch is awake and once a minute while it is asleep.
+Adding `low_power` also redraws it every second while asleep. That works on
+MIP screens only, and it costs battery, so `wfb` warns when the redrawn area
+gets large.
 
 ### Icons from Nerd Fonts
 
@@ -227,7 +300,8 @@ weather_icon:                        # chosen on the watch from live data
   icon_for: weather.condition_today
 ```
 
-![named, codepoint and weather icons](docs/screenshots/showcase-registers.png)
+The §5 screenshot shows the steps icon and the heartbeat glyph, and the §3
+screenshot shows the weather icon.
 
 - **Named icons** (`icon:`) cover the common metrics: steps, heart, flame,
   battery, notification, alarm, and so on, plus a `weather_*` set.
@@ -274,6 +348,7 @@ elements:
     icon_position: top
     icon_color: config.data_color
     when_absent: placeholder
+    placeholder: "--"
     on_hold: auto                    # touch and hold opens that complication
 
   hr_graph:
@@ -286,7 +361,20 @@ elements:
     on_hold: heart_rate
 ```
 
-![complication slots and heart-rate graph](docs/screenshots/showcase-registers.png)
+![complication slots, icons and heart-rate graph](docs/screenshots/showcase-registers.png)
+
+- **`static:`** holds things that never change, like the dark cards behind
+  each slot. The watch draws them once and copies the result on every update.
+- **A `complication_slot`** shows whichever complication the wearer picked for
+  it (§9), with that complication's icon and reading. When the reading is
+  missing, `when_absent: placeholder` shows the `placeholder:` text instead of
+  leaving it blank.
+- **`on_hold:`** makes the element a touch-and-hold target that opens a Garmin
+  glance. On a slot, `auto` opens the glance for whatever the slot currently
+  shows. Elsewhere, name one, such as `heart_rate`; `wfb complications` lists
+  the names.
+- **A `graph`** plots recent history. Here it is the last four hours of heart
+  rate.
 
 ## 6. Groups, touch-and-hold, progress bar
 
@@ -618,6 +706,9 @@ Glyphs and data are not:
   there is no weather data.
 - **Graphs always draw a synthetic curve**, even for a series whose other
   readings are absent (the forecast).
+
+The screenshots on this page were drawn on a fēnix 8 47 mm with sample data at
+10:09:42. To regenerate them, run `./.venv/bin/python tools/readme-shots.py`.
 
 ---
 

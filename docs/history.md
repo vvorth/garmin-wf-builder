@@ -3868,3 +3868,38 @@ Left as found:
 - The "Wed" that spills out of its date window in `analog-styles.png` is a
   preview artefact of the `FONT_TINY` stand-in (`wfb.fonts.fallback`), now
   explained under Preview caveats rather than changed.
+
+## 2026-09-17 — README and setup script, reviewed as a newcomer
+
+- A newcomer's read of the README found one line that broke when copied
+  (`wfb sources | series | complications` runs as a shell pipe) and a
+  `preview --watch` in the middle of the Step 3 block, which never returns.
+  Both are now prose. Added: a short explanation of Connect IQ, `.prg` and
+  sideloading; a table of terms (complication, glance, MIP/AMOLED,
+  active/low power, `%r`); a minimal complete face (a clock, checked
+  warning-free with `validate`, `build` and `preview`); troubleshooting;
+  a note that other Connect IQ watches can work through `targets:`;
+  which top-level keys are required (`format`, `face`, `targets`,
+  `elements`, per the schema); what the `palette.`/`font.`/`config.`
+  prefixes mean; what `modes:` does; and prose for §5. Step 1.3 is split
+  into one line per case, and the note about how screenshots are made moved
+  under Preview caveats.
+- `modes:` wording comes from the generated view: `onUpdate` draws every
+  element awake or asleep, so an `active`-only element is still redrawn
+  once a minute asleep. The showcase snippet's comment "keeps ticking while
+  the watch sleeps" was misleading and now reads "also redrawn every second
+  while asleep". The first draft of the minimal clock had `modes: [active,
+  low_power]`, which drew a `partial-update-budget` warning for no benefit
+  on an HH:MM clock, so it was removed.
+- `tools/setup-env.sh` was written for the sandbox. A human user saw
+  "`/etc/sandbox-persistent.sh` not writable" and a missing-devices error
+  that said "Ask the user…" and pointed to a Claude-only path. Now it checks
+  for `curl`/`unzip`/`openssl`/`python3`/`java` first; a missing device
+  folder produces SDK Manager steps with the real destination paths; and the
+  exports are printed as "add these to your shell profile". The sandbox
+  paths are still searched and still written to. It only writes when
+  `/etc/sandbox-persistent.sh` already exists, where before it would also
+  create the file in a writable `/etc` (i.e. as root), which nothing on a
+  normal machine sources. Java 21 is the tested floor: the Docker image
+  uses Temurin 21 and the sandbox has 25. Both error paths were run with a
+  faked `HOME`/`PATH`.

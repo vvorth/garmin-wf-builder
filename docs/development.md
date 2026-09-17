@@ -56,8 +56,10 @@ wherever they already are at `~/.Garmin/ConnectIQ/Devices`.
 
 **Platforms.** `setup-env.sh` is tested on Linux only. It downloads the Linux
 SDK, and it appends `CIQ_SDK`/`PATH` to `/etc/sandbox-persistent.sh` when that
-file is writable (the development sandbox). Otherwise it prints the two exports
-for you to add to your shell profile. On macOS, use the Docker image; it is
+file exists and is writable (the development sandbox). Otherwise it prints the
+two exports for you to add to your shell profile. It checks for `curl`,
+`unzip`, `openssl`, `python3` and `java` before doing anything, and a missing
+device folder produces step-by-step instructions rather than a bare error. On macOS, use the Docker image; it is
 tested with OrbStack. Windows is untested.
 
 ### Running `wfb`

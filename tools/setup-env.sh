@@ -9,7 +9,7 @@
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host
-# SDK Manager installation. See CLAUDE.md section 2.
+# SDK Manager installation. See README.md, "Step 1: get the device definitions".
 
 set -euo pipefail
 
@@ -19,11 +19,33 @@ SDK_URL="https://developer.garmin.com/downloads/connect-iq/sdks/${SDK_FILE}"
 SDK_ROOT="${HOME}/ciq/sdks/${SDK_VERSION}"
 KEY_DER="${HOME}/ciq/developer_key.der"
 DEVICES_DEST="${HOME}/.Garmin/ConnectIQ/Devices"
+# Only the development sandbox has this file; everywhere else the exports are
+# printed for the user's shell profile instead.
 PERSIST="/etc/sandbox-persistent.sh"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 say() { printf '\n=== %s ===\n' "$1"; }
+
+# ------------------------------------------------------ prerequisites --------
+say "prerequisites"
+missing=()
+for tool in curl unzip openssl python3 java; do
+    command -v "${tool}" >/dev/null 2>&1 || missing+=("${tool}")
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+    cat >&2 <<EOF
+ERROR: missing required tools: ${missing[*]}
+
+Install them with your package manager and re-run this script. On Debian/Ubuntu:
+
+  sudo apt-get install -y curl unzip openssl python3 python3-venv openjdk-21-jre-headless
+
+java runs Garmin's compiler (monkeyc); Java 21 or newer is tested.
+EOF
+    exit 1
+fi
+echo "found: curl unzip openssl python3 java"
 
 # ---------------------------------------------------------------- SDK --------
 say "Connect IQ SDK ${SDK_VERSION}"
@@ -60,6 +82,8 @@ dest_had_devices=false
 [ -d "${DEVICES_DEST}" ] && [ -n "$(ls -A "${DEVICES_DEST}" 2>/dev/null)" ] && dest_had_devices=true
 
 src=""
+# vendor/devices/ is the documented place. The two .devices-import paths are
+# where the development sandbox receives a copy from its host.
 for cand in \
     "${REPO_ROOT}/vendor/devices" \
     "${REPO_ROOT}/../.devices-import" \
@@ -75,14 +99,25 @@ if [ -z "${src}" ]; then
     if [ "${dest_had_devices}" = true ]; then
         echo "already installed: $(ls "${DEVICES_DEST}" | wc -l) devices"
     else
-        cat >&2 <<'EOF'
-ERROR: no device definitions found.
+        cat >&2 <<EOF
+ERROR: no Garmin device definitions found.
 
-They cannot be downloaded -- api.gcs.garmin.com returns HTTP 401 (Garmin SSO).
-Ask the user to run this on their macOS host, then re-run this script:
+The compiler needs them, and a script cannot download them: Garmin's server
+requires you to sign in. Get them once by hand:
 
-  cp -R ~/Library/Application\ Support/Garmin/ConnectIQ/Devices \
-        ~/claude/garmin-watchface-protomolecule/.devices-import
+  1. Install Garmin's Connect IQ SDK Manager
+     (https://developer.garmin.com/connect-iq/sdk/), sign in, and download
+     the devices you build for.
+  2. On this Linux machine, the SDK Manager saves them to
+     ${DEVICES_DEST}
+     and this script finds them there.
+     If you downloaded them on another machine (macOS keeps them in
+     ~/Library/Application Support/Garmin/ConnectIQ/Devices), copy that
+     folder's contents into
+     ${REPO_ROOT}/vendor/devices/
+  3. Re-run this script.
+
+See README.md, "Step 1: get the device definitions".
 EOF
         exit 1
     fi
@@ -117,14 +152,16 @@ python3 "${REPO_ROOT}/tools/fetch-icon-font.py"
 
 # ------------------------------------------------------------- env ----------
 say "environment"
-if [ -w "${PERSIST}" ] || [ -w "$(dirname "${PERSIST}")" ]; then
+if [ -f "${PERSIST}" ] && [ -w "${PERSIST}" ]; then
     grep -q "CIQ_SDK=${SDK_ROOT}" "${PERSIST}" 2>/dev/null || {
         echo "export CIQ_SDK=${SDK_ROOT}" >> "${PERSIST}"
         echo "export PATH=\$PATH:${SDK_ROOT}/bin" >> "${PERSIST}"
         echo "appended CIQ_SDK and PATH to ${PERSIST}"
     }
+    echo "CIQ_SDK and PATH are set in ${PERSIST}"
 else
-    echo "note: ${PERSIST} not writable; export these yourself:"
+    echo "Add these two lines to your shell profile (~/.bashrc or ~/.zshrc):"
+    echo ""
     echo "  export CIQ_SDK=${SDK_ROOT}"
     echo "  export PATH=\$PATH:${SDK_ROOT}/bin"
 fi
@@ -166,11 +203,15 @@ cat <<EOF
 
 Setup complete. Build an example end to end:
 
-  ./.venv/bin/python wfb.py build examples/graph/face.yaml
+  ./wfb.py build examples/graph/face.yaml
 
 Expected: three signed .prg files and a measured memory figure per device, with
 no warnings. Then:
 
-  ./.venv/bin/python wfb.py preview examples/graph/face.yaml   # PNG, no toolchain
-  ./.venv/bin/python -m pytest                                 # the test suite
+  ./wfb.py preview examples/graph/face.yaml    # PNG in build/preview/, no toolchain
+  ./wfb.py doctor                              # what is installed, and what is missing
+
+To run \`wfb\` from any folder, add this alias to your shell profile:
+
+  alias wfb="${REPO_ROOT}/wfb.py"
 EOF
