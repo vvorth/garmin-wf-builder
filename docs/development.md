@@ -48,8 +48,34 @@ host dependencies.
 
 The SDK downloads freely. **Device definitions cannot be downloaded** —
 `api.gcs.garmin.com` returns HTTP 401 and needs a Garmin SSO login that cannot be
-completed headlessly. They are vendored in `vendor/devices/` (gitignored: they
-are the user's own licensed copy). See `CLAUDE.md` §2.
+completed headlessly. Get them with Garmin's SDK Manager
+([README step 1](../README.md#step-1-get-the-device-definitions)). The script
+takes them from `vendor/devices/` (gitignored, because they are your own licensed
+copy), from `~/Library/Application Support/Garmin/ConnectIQ/Devices`, or from
+wherever they already are at `~/.Garmin/ConnectIQ/Devices`.
+
+**Platforms.** `setup-env.sh` is tested on Linux only. It downloads the Linux
+SDK, and it appends `CIQ_SDK`/`PATH` to `/etc/sandbox-persistent.sh` when that
+file is writable (the development sandbox). Otherwise it prints the two exports
+for you to add to your shell profile. On macOS, use the Docker image; it is
+tested with OrbStack. Windows is untested.
+
+### Running `wfb`
+
+There is no installed `wfb` command. `wfb` in these docs means `wfb.py` at the
+repository root. It is executable, and it re-runs itself under the project's
+`.venv` when the Python that started it lacks the dependencies. That means an
+alias works from any directory, with no venv to activate:
+
+```sh
+alias wfb="/path/to/garmin-wf-builder/wfb.py"
+```
+
+`./.venv/bin/python wfb.py …` is the same thing, spelled out. In the Docker
+image, `wfb` is a real command and is the entrypoint. On a Mac, alias it to the
+whole `docker run …` line (README step 2), and run it from the folder that
+holds your face, because the container sees only the directory mounted at
+`/work`.
 
 ## Commands
 

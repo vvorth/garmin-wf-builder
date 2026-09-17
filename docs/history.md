@@ -3844,3 +3844,27 @@ Left as found:
   and `monkeyc` rejects it. `wfb validate` does not catch duplicate
   choices. Left as found.
 
+
+## 2026-09-17 — README getting-started, MIT licence, font licences
+
+- A first-time read of the README found it clear on *what* the project is but
+  not on how to start. README §1 is now four steps: device definitions (SDK
+  Manager, per-OS paths, `vendor/devices/`), install (Linux `setup-env.sh`
+  plus an alias to `wfb.py`; macOS through Docker, tested with OrbStack;
+  Windows untested), make and build (real `my-face` output), and sideload
+  over MTP to `GARMIN/APPS/`. The sideload steps were written from general
+  knowledge, not tried on a watch in this session. `docs/development.md`
+  gained "Running `wfb`" (no installed command; `wfb.py` re-execs under
+  `.venv`).
+- The code is MIT (`LICENSE`). Every tracked font was checked by its embedded
+  name table: all OFL-1.1 except Open Sans (Apache-2.0, test fixture) and
+  `big-clock-3`'s `intro_inline.otf` (Fontfabric, "All rights reserved", no
+  licence), which was only a commented-out option. It is removed, and
+  replaced by Bungee Inline (OFL, from `google/fonts`), which builds at
+  `size: 60%r` but overflows at the `70%r` the other option uses. The file is
+  still in git history. Each font folder now has an `OFL.txt` with its
+  copyright lines; `dashboard/face.yaml` still mentions `intro_inline.otf` in
+  a comment, left alone as the playground.
+- The "Wed" that spills out of its date window in `analog-styles.png` is a
+  preview artefact of the `FONT_TINY` stand-in (`wfb.fonts.fallback`), now
+  explained under Preview caveats rather than changed.

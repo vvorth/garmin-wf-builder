@@ -28,7 +28,7 @@ The generated Monkey C is byte-identical to a host build of the same design.
 
 | | |
 |---|---|
-| **Docker** | any recent version, or Podman with `podman` in place of `docker` |
+| **Docker** | any recent version, or Podman with `podman` in place of `docker`. On macOS it is tested with [OrbStack](https://orbstack.dev) |
 | **Disk** | ~600 MB for the image; the build downloads the 204 MB SDK once |
 | **Device definitions** | **required, and must come from you** — see below |
 | **Network** | only at image build time, for the SDK, the icon font and the Python packages |

@@ -61,7 +61,7 @@ fonts:
     align: right
 
   test:
-    # source: assets/intro_inline.otf
+    # source: assets/BungeeInline-Regular.ttf   # OFL; wider than Chivo Mono, fits at size: 60%r
     source: assets/ChivoMono-Bold.ttf
     size: 70%r
 

@@ -4,7 +4,10 @@ Describe a Garmin Connect IQ watch face in one YAML file, and `wfb` builds a
 signed `.prg` for each target watch, ready to sideload.
 
 **Targets:** fēnix 8 Solar 47 mm / 51 mm, Forerunner 955. **Distribution:**
-personal sideload.
+personal sideload, not the Connect IQ Store. **Status:** early (`wfb` 0.1.0), a
+personal project that works end to end and is still changing. The format is
+versioned (`format: 1`). [`docs/limitations.md`](docs/limitations.md) lists
+what isn't built yet.
 
 ![All five styles of the showcase face](docs/screenshots/showcase-styles.png)
 
@@ -23,29 +26,90 @@ run `./.venv/bin/python tools/readme-shots.py`.
 
 ---
 
-## 1. Setup and the loop
+## 1. Getting started
+
+### What you need
+
+| | |
+|---|---|
+| **Linux** | Tested. `tools/setup-env.sh` installs everything else. You need `bash`, `curl`, `unzip`, `openssl`, Python 3 with `venv` (or `uv`), and a Java runtime for Garmin's compiler. |
+| **macOS** | Use the Docker image. It is tested with [OrbStack](https://orbstack.dev). `setup-env.sh` fetches the Linux SDK, so it doesn't work on a Mac itself. |
+| **Windows** | Not tested. |
+| **A Garmin account** | Needed once, to download the device definitions (step 1). |
+| **A watch** | fēnix 8 Solar 47 mm / 51 mm or Forerunner 955, and its USB cable. |
+
+### Step 1: get the device definitions
+
+The compiler needs Garmin's description of each watch, and a script can't
+download it because Garmin's server requires you to sign in. So get it once by
+hand:
+
+1. Install Garmin's
+   [Connect IQ SDK Manager](https://developer.garmin.com/connect-iq/sdk/), sign
+   in, and download the devices you build for.
+2. The SDK Manager saves them here:
+   - macOS: `~/Library/Application Support/Garmin/ConnectIQ/Devices`
+   - Linux: `~/.Garmin/ConnectIQ/Devices`
+   - Windows: `%APPDATA%\Garmin\ConnectIQ\Devices`
+3. On Linux, `setup-env.sh` finds them there. If they came from another
+   machine, copy that folder's contents into `vendor/devices/` in this
+   repository. The folder is gitignored, because the files are your licensed
+   copy. With Docker, mount the folder instead (step 2).
+
+### Step 2: install
+
+**Linux:**
 
 ```sh
-./tools/setup-env.sh                # SDK, developer key, device files, icon font, .venv
+./tools/setup-env.sh                # SDK, signing key, device files, icon font, .venv
+alias wfb="$PWD/wfb.py"             # put this in your shell profile
 ```
 
-Or use the Docker image: see [`docs/container.md`](docs/container.md). Garmin's
-device definitions can't be downloaded without a login, so you supply your own
-copy. See [`docs/development.md`](docs/development.md).
+The script prints two `export` lines, `CIQ_SDK` and `PATH`. Add them to your
+shell profile too. `wfb.py` runs under the project's `.venv` on its own, so
+you don't need to activate it.
+
+**macOS (Docker):**
 
 ```sh
-wfb new "My Face"                   # a known-good starting file (--list for templates)
+docker build -t garmin-wf-builder .
+alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys garmin-wf-builder'
+```
+
+The container sees only the current directory, so run `wfb` from the folder
+that holds your face. The `wfb-keys` volume keeps your signing key between
+runs. See [`docs/container.md`](docs/container.md) for details.
+
+### Step 3: make a face and build it
+
+```sh
+wfb new "My Face"                   # writes my-face.yaml from a template (--list for more)
 wfb preview my-face.yaml --watch    # PNG re-rendered on every save
 wfb validate my-face.yaml           # schema, semantic checks and lints; no SDK needed
 wfb build my-face.yaml              # generate Monkey C and compile
 wfb sources | series | complications  # what you can bind, plot, and open on hold
+wfb doctor                          # what is installed, and what is missing
 ```
 
 ```
-built      showcase-fenix8solar47mm.prg  19,412 B / 131,072 B (14.8%)
-built      showcase-fenix8solar51mm.prg  19,418 B / 131,072 B (14.8%)
-built      showcase-fr955.prg            19,419 B / 131,072 B (14.8%)
+generated  /home/you/faces/build/my-face
+built      my-face-fenix8solar47mm.prg  2,775 B / 131,072 B (2.1%)
+built      my-face-fenix8solar51mm.prg  2,775 B / 131,072 B (2.1%)
+built      my-face-fr955.prg            2,775 B / 131,072 B (2.1%)
 ```
+
+### Step 4: put it on the watch
+
+1. Connect the watch over USB. These watches connect over MTP, not as a USB
+   drive. On macOS, use [OpenMTP](https://openmtp.ganeshrvel.com). On Linux,
+   your file manager handles MTP.
+2. Copy the `.prg` for your model, for example
+   `build/my-face/my-face-fenix8solar47mm.prg`, into the watch's
+   `GARMIN/APPS/` folder.
+3. Unplug the watch, then choose the face in its watch-face list.
+
+To update the face, copy a new build over the old file. To remove it, delete
+the file.
 
 **What the build produces** (in `build/<name>/`):
 
@@ -505,6 +569,11 @@ Each style can use its own hand set. A set can omit any hand, and a `type:
 hands` element can sit anywhere, such as a small-seconds subdial at 6 o'clock
 (fourth panel).
 
+In the first three panels, "Wed" spills out of its date window. That is the
+preview, not the watch: the window's text uses the system font `FONT_TINY`, and
+the preview draws system fonts with a stand-in whose letter widths differ
+from Garmin's own face ([Preview caveats](#preview-caveats)).
+
 ### Features with no example face yet
 
 - **`antialias:` at every level.** Set it on the face, a group, an element, or
@@ -518,7 +587,8 @@ hands` element can sit anywhere, such as a small-seconds subdial at 6 o'clock
   min_1px: true            # face-wide; a group, element or part can override it
   ```
 - **`modes: [always_on]`.** A separate element set for AMOLED watches, which
-  can't use low-power updates. The targets here are MIP, so nothing uses it.
+  can't use low-power updates. None of the three targets is AMOLED (they all
+  have MIP screens), so no example uses it.
 - **`seconds:` on the analog dial.** `seconds: awake` (the default) hides the
   second hand while the watch sleeps. `seconds: always` isn't built yet.
 - **`wfb new -t <template>`.** Starts from a known-good design (`--list` shows
@@ -526,9 +596,19 @@ hands` element can sit anywhere, such as a small-seconds subdial at 6 o'clock
 
 ## Preview caveats
 
-`wfb preview` runs on your computer, with no watch data. It uses sample
-values, so a few things look different from the watch:
+`wfb preview` runs on your computer, without the watch's fonts or data, so
+it isn't what the watch or the Connect IQ simulator shows. Positions are exact,
+because the preview uses the same resolved geometry as the compiled face.
+Glyphs and data are not:
 
+- **System fonts (`FONT_*`) are stand-ins.** Garmin doesn't ship its watch
+  typefaces, and it publishes only each font's height. The preview draws
+  system-font text in a generic face scaled to that height, so its width is an
+  estimate. Text can look wider or narrower than on the watch, and can spill
+  out of a box even where it would fit on the watch (the "Wed" in §11's
+  analog panels). The text-overflow lint uses the same estimate. Custom fonts from
+  `fonts:` are baked from your TTF and do match the watch. To check
+  system-font text exactly, use the simulator or the watch.
 - **`complication.*` read by a `text` or `progress` element has no sample
   value.** It shows as absent. For example, the showcase's Body Battery
   readout shows `--` right next to a slot showing `62`, and
@@ -550,4 +630,13 @@ values, so a few things look different from the watch:
 | setup details, the generated code, repository layout, tests | [`docs/development.md`](docs/development.md) |
 | to run it without installing anything | [`docs/container.md`](docs/container.md) |
 | the decisions and why | [`docs/adr/README.md`](docs/adr/README.md) |
-| to take over the project | **`CLAUDE.md`** |
+| to maintain the project (the handoff notes, written for Claude Code) | [`CLAUDE.md`](CLAUDE.md) |
+
+## License
+
+The code is MIT-licensed ([`LICENSE`](LICENSE)). The example fonts keep their
+own licences: the SIL Open Font License, in an `OFL.txt` next to each set of
+fonts, and Apache-2.0 for the test fixture's Open Sans. The Nerd Fonts icon
+font isn't in the repository; setup downloads it with its licence. Garmin's SDK
+and device definitions are not part of this project, and Garmin's own terms
+cover them.
