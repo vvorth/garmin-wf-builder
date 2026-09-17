@@ -59,6 +59,19 @@ VARIANTS = [
 ]
 
 
+# The README's top image: every style, with accent and data colours that
+# differ even when the design's own defaults coincide.
+STYLES_DEFAULTS = {"data_color": "palette.amber"}
+
+
+def variant_copy(tmp, name, defaults):
+    """A throwaway copy of the showcase with ``defaults`` applied; its path."""
+    copy = Path(tmp) / name
+    shutil.copytree(DESIGN.parent, copy)
+    (copy / DESIGN.name).write_text(with_defaults(DESIGN.read_text(), defaults))
+    return copy / DESIGN.name
+
+
 def with_defaults(text, defaults):
     """``text`` (a design) with each ``config:`` axis's default replaced."""
     yaml = YAML()
@@ -100,8 +113,9 @@ def main():
                 image = image.crop(tuple(v * SCALE for v in box))
             image.save(OUT / f"{name}.png", optimize=True)
             print(f"wrote {OUT.relative_to(ROOT)}/{name}.png")
+        styles_design = variant_copy(tmp, "styles", STYLES_DEFAULTS)
         subprocess.run(
-            [sys.executable, str(ROOT / "wfb.py"), "preview", str(DESIGN),
+            [sys.executable, str(ROOT / "wfb.py"), "preview", str(styles_design),
              "-d", DEVICE, "--all-styles", "-o", tmp],
             check=True, capture_output=True,
         )
@@ -110,12 +124,9 @@ def main():
         print(f"wrote {OUT.relative_to(ROOT)}/showcase-styles.png")
         panels = []
         for i, defaults in enumerate(VARIANTS):
-            copy = Path(tmp) / f"variant{i}"
-            shutil.copytree(DESIGN.parent, copy)
-            (copy / DESIGN.name).write_text(
-                with_defaults(DESIGN.read_text(), defaults))
+            design = variant_copy(tmp, f"variant{i}", defaults)
             panels.append(Image.open(render(
-                "digital_dark", ["--scale", "2"], copy / "out", copy / DESIGN.name)))
+                "digital_dark", ["--scale", "2"], design.parent / "out", design)))
         strip = Image.new("RGB", (sum(p.width for p in panels), panels[0].height))
         for i, panel in enumerate(panels):
             strip.paste(panel, (i * panel.width, 0))
