@@ -53,7 +53,7 @@ SUPPRESSIBLE = frozenset({
 #: grep of every ``bag.error/warning/note`` and ``Diagnostic(...)`` call across
 #: ``wfb/`` -- ``tests/test_lint.py`` re-runs that grep and fails the build the
 #: day this set drifts from what the compiler actually emits, so it cannot rot
-#: silently the way the two codes in Bug 1 did.
+#: silently.
 ALL_CODES = frozenset({
     "antialias-dither",
     "api-gated", "api-gated-unguardable",
@@ -220,14 +220,14 @@ def check_duplicate_style(face: Face, bag: Bag) -> None:
 def check_unreachable_layout(face: Face, bag: Bag) -> None:
     """A declared `layouts:` entry no `config: style:` entry ever names as
     its `layout:` -- its content ships in the `.prg` (every layout's
-    elements, fonts and code are in the build together, plan 02 §1) but can
-    never be drawn, because nothing lets the wearer switch to it.
+    elements, fonts and code are in the build together) but can never be
+    drawn, because nothing lets the wearer switch to it.
 
     A warning, not an error -- an author may be mid-iteration, with a layout
     built but not yet wired to an entry -- and suppressible, on the layout's
-    own `lint:` (plan 02 §12.6): a layout has no element of its own to hang
-    `lint:` on, the same reasoning a `config: style:` entry's own `lint:`
-    follows for `duplicate-style`.
+    own `lint:`: a layout has no element of its own to hang `lint:` on, the
+    same reasoning a `config: style:` entry's own `lint:` follows for
+    `duplicate-style`.
 
     Design-level, not per-target (a layout's reachability never varies by
     device), so -- like :func:`check_permissions`/:func:`check_duplicate_style`
@@ -310,9 +310,9 @@ def check_lint_allow(face: Face, bag: Bag) -> None:
     device is resolved, so -- like :func:`check_permissions` -- this runs once
     per build rather than once per device.  A `config: style:` entry's own
     ``lint:`` (the suppression site for `duplicate-style`) and a `layouts:`
-    entry's own ``lint:`` (the suppression site for `unreachable-layout`,
-    plan 02 §12.6) are both validated the same way, through the same helper
-    -- there is no per-target device dependency at either site either.
+    entry's own ``lint:`` (the suppression site for `unreachable-layout`)
+    are both validated the same way, through the same helper -- there is no
+    per-target device dependency at either site either.
     """
     for element in face.walk():
         for code in sorted(element.lint_allow):
@@ -355,13 +355,13 @@ def _users_of(face: Face, token: str) -> list[Element]:
     A `HandsElement` has no `color:` field of its own -- its colours live on
     the `hour:`/`minute:`/`second:` hands its `hands:` names, already folded
     into `HandsElement.colors` at build time (`Builder._build_hands_element`)
-    -- so it is matched by exact text there instead, the plan 04 §6 promise
-    that "every check that reads a shape's `.color` also reads the part
-    colours."  A `PatternElement` *does* have its own `color:` (the default
-    every part without one inherits, plan 05 §6.1), but a part may override
-    it -- so it is matched the same way, through its own `.colors`, checked
-    first so its `color:` field is never read through the generic branch
-    below and short-circuit a part's override out of the match.
+    -- so it is matched by exact text there instead: every check that reads
+    a shape's `.color` must also read the part colours.  A `PatternElement`
+    *does* have its own `color:` (the default every part without one
+    inherits), but a part may override it -- so it is matched the same way,
+    through its own `.colors`, checked first so its `color:` field is never
+    read through the generic branch below and short-circuit a part's
+    override out of the match.
     """
     out = []
     for element in face.walk():
@@ -872,7 +872,7 @@ def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 def check_sub_pixel_length(resolved: ResolvedFace, bag: Bag) -> None:
-    """`min_1px:` (plan 08) is opt-in, so a nonzero `%`/`%r` length that
+    """`min_1px:` is opt-in, so a nonzero `%`/`%r` length that
     resolves under 1px with the switch off is legal -- the resolver clamps
     nothing and rounds it away exactly as it always has. This is the case
     the switch exists for, though: the same hairline draws on a device with
@@ -1006,8 +1006,8 @@ def check_glyphs(resolved: ResolvedFace, bag: Bag) -> None:
     """A subsetted font must contain every character the design can render."""
     for placed in resolved.items:
         if isinstance(placed, PlacedPattern):
-            # A `shape: text` template part (plan 06 §3.3 check 6): every
-            # *drawn* copy's string is already known
+            # A `shape: text` template part: every *drawn* copy's string is
+            # already known
             # (`HandPart.texts`/`ResolvedHandPart.texts`), so this checks
             # them directly rather than a "widest" estimate -- there is
             # nothing to estimate, the whole set is exact.  Every drawn
@@ -1316,8 +1316,8 @@ def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
         while index < len(items) and items[index].depth > placed.depth:
             index += 1
 
-    # A `type: pattern` part's own `visible:` (B5, 2026-09-15) -- the same
-    # constant-false rule, against one part instead of the whole element.
+    # A `type: pattern` part's own `visible:` -- the same constant-false
+    # rule, against one part instead of the whole element.
     # Independent of the loop above: a pattern is never a group, so it is
     # exactly one entry in `resolved.items` with no descendants to skip.
     # Skipped when the *element's* own `visible:` is already dead -- that
@@ -1417,7 +1417,7 @@ def _overlapping(held: list) -> list[tuple]:
     A pair `ir.never_together` rules out is skipped: two hold targets in
     different layouts are never on screen at the same time, so a wearer's
     touch can never land on both at once regardless of where their boxes
-    fall (plan 02 §12.1, §12.7).
+    fall.
     """
     out = []
     for index, later in enumerate(held):
@@ -1435,14 +1435,12 @@ def _overlapping(held: list) -> list[tuple]:
 def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
     """Does *this* device actually have what this design's bindings need?
 
-    Generalises the old `complication-gated` check (renamed here outright,
-    no shim -- CLAUDE.md's standing rule against keeping a renamed thing
-    around) to *every* catalogue read a design binds, not only
-    `complication.*`, now that `wfb.availability` resolves any source path
+    Covers *every* catalogue read a design binds, not only
+    `complication.*`: `wfb.availability` resolves any source path
     against the device's own `api.debug.xml` (module/field) the same way
-    this file's `check_hold_targets` already resolved `onPress`
+    this file's `check_hold_targets` resolves `onPress`
     (`Device.has_symbol`). See `wfb/availability.py`'s module docstring and
-    `docs/research/probes/api-gating/README.md` (2026-09-15, user decision):
+    `docs/research/probes/api-gating/README.md`:
     a target device that lacks a module or a field the design reads gets a
     runtime `has`-guard in the one shared generated view
     (`wfb.availability.compute_guards`, `wfb/emit/monkeyc.py`), and the
@@ -1463,13 +1461,12 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
        read (`activity.stress_score` on fenix6, `ambient.pressure` on
        fr245, ...) the same way.
     2. **A complication *type* newer than the device's own ConnectIQ
-       ceiling** (`ComplicationType.since` vs `Device.api_level`) -- the
-       original `complication-gated` check, kept close to verbatim (the
-       investigation in its old docstring still holds: `COMPLICATION_TYPE_*`
-       values are constants, not `<functionEntry>` symbols, so they never
-       appear in a device's `api.debug.xml` at all -- a level compare
-       against `since` is the only thing that *can* catch this one). Run
-       only when the device actually *has* `Toybox.Complications`: a device
+       ceiling** (`ComplicationType.since` vs `Device.api_level`):
+       `COMPLICATION_TYPE_*` values are constants, not `<functionEntry>`
+       symbols, so they never appear in a device's `api.debug.xml` at all --
+       a level compare against `since` is the only thing that *can* catch
+       this one. Run only when the device actually *has*
+       `Toybox.Complications`: a device
        missing the whole module is already case 1's (for a read) or case
        3/4's (for a hold/slot) more fundamental cause, and reporting both
        would say the same thing about the same binding twice -- "cut the
@@ -1517,10 +1514,9 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
        that crashes on the wrist. No installed device triggers this today
        -- every `Reader.requires` function is confirmed present on every
        currently-installed device (`catalog.Reader.requires`'s own
-       docstring), and after this task the catalogue has no `Source.requires`
-       entry left at all (`device.do_not_disturb`'s was a bug -- see
-       `catalog.Source.requires`'s docstring) -- so it is only reachable
-       with a stubbed device, exercised in
+       docstring), and the catalogue has no `Source.requires` entry at all
+       (see `catalog.Source.requires`'s docstring) -- so it is only
+       reachable with a stubbed device, exercised in
        `tests/test_lint.py::test_api_gated_unguardable_function_is_an_error`.
     """
     device = resolved.device
@@ -1768,7 +1764,7 @@ def check_static_overlap(resolved: ResolvedFace, bag: Bag) -> None:
     pair in different modes, or in different layouts (`ir.never_together`),
     is never on screen together at all, so overlapping boxes there mean
     nothing -- a digital clock and analog hands sharing the centre on
-    purpose is exactly this case (plan 02 §12.7).
+    purpose is exactly this case.
 
     A WARNING, not an error, and suppressible: the element on top is usually
     where the author wanted it anyway -- writing the static content first says
@@ -1901,9 +1897,9 @@ def check_graphics_pool(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 def check_pattern_step(resolved: ResolvedFace, bag: Bag) -> None:
-    """A linear pattern's `step:` that rounds to `{0, 0}` px on this device
-    (plan 05 §5.4 item 7) -- every copy lands on top of copy 0, the same
-    "draws nothing distinguishable" failure a radial `step: 0deg` is a
+    """A linear pattern's `step:` that rounds to `{0, 0}` px on this
+    device -- every copy lands on top of copy 0, the same "draws nothing
+    distinguishable" failure a radial `step: 0deg` is a
     build-time error for (`Builder._build_pattern_element`).  This one can
     only be caught per device: `step: {dx: 1%}` is a real, nonzero gap on a
     280x280 screen and rounds away to nothing on a screen too small (or an

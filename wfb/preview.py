@@ -107,14 +107,14 @@ class PreviewOptions:
     style: str | None = None
     #: `(hour, minute, second)` to render analog hands at, overriding
     #: `SAMPLE`'s `time.hour`/`time.minute`/`time.second` -- `wfb preview
-    #: --time HH:MM[:SS]` (plan 04 §7).  `None` keeps the sample time
-    #: (10:09:42), which is also what every non-hands element still reads
-    #: through the ordinary `time.hour`/`time.minute`/`time.second` sources.
+    #: --time HH:MM[:SS]`.  `None` keeps the sample time (10:09:42), which
+    #: is also what every non-hands element still reads through the
+    #: ordinary `time.hour`/`time.minute`/`time.second` sources.
     time: tuple[int, int, int] | None = None
     #: Render the sleeping `onUpdate` frame instead of the awake one --
-    #: `wfb preview --asleep` (plan 04 §7).  Draws the `always_on` element
-    #: set when the design has one, the `active` set otherwise, and hides
-    #: every `awake`-only second hand either way -- the same choice the
+    #: `wfb preview --asleep`.  Draws the `always_on` element set when the
+    #: design has one, the `active` set otherwise, and hides every
+    #: `awake`-only second hand either way -- the same choice the
     #: generated view's own `_sleeping` branch makes.
     asleep: bool = False
 
@@ -149,7 +149,7 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     if options.time is not None:
         # `--time HH:MM[:SS]` -- overrides the sample clock for both hands
         # (which read hour/minute/second directly, with no author
-        # expression: §5.5) and any ordinary `time.*`-bound element, so the
+        # expression) and any ordinary `time.*`-bound element, so the
         # two agree in one rendered frame.
         hour, minute, second = options.time
         values["time.hour"] = hour
@@ -192,9 +192,9 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     # `wfb/emit/monkeyc.py`'s `_emit_layout_guarded_calls` compiles into
     # `if (_configLayout == N)`, run here at preview time instead.
     active_layout = entry.layout if entry is not None else None
-    # `--asleep` (plan 04 §7): the sleeping `onUpdate` frame draws the
-    # `always_on` element set when the design has one, `active` otherwise --
-    # the same choice `wfb/emit/monkeyc.py`'s own `_sleeping` branch makes.
+    # `--asleep`: the sleeping `onUpdate` frame draws the `always_on`
+    # element set when the design has one, `active` otherwise -- the same
+    # choice `wfb/emit/monkeyc.py`'s own `_sleeping` branch makes.
     draw_mode = "always_on" if options.asleep and resolved.in_mode("always_on") else "active"
     renderer = _Renderer(resolved, draw, image, scale, values, options)
     for placed in resolved.items:
@@ -346,9 +346,9 @@ class _Renderer:
 
     def _hands(self, placed: PlacedHands) -> None:
         """`type: hands` -- the same three angle formulas
-        `runtime-lib/WfbHands.mc` computes on the device (plan 04 §5.5),
-        applied here to the *resolved* geometry so this can never disagree
-        with the generated code about a hand's shape or its axis.
+        `runtime-lib/WfbHands.mc` computes on the device, applied here to
+        the *resolved* geometry so this can never disagree with the
+        generated code about a hand's shape or its axis.
 
         `--asleep` hides an `awake`-only second hand, the same choice the
         generated `if (!_sleeping)` branch makes; a `seconds: never` hand
@@ -401,21 +401,20 @@ class _Renderer:
 
     def _pattern(self, placed: PlacedPattern) -> None:
         """`type: pattern` -- one template, drawn once per copy through
-        :meth:`PlacedPattern.transform` (plan 05 §5.3/§6.2): the very same
-        `(ox, oy, sin, cos)` the generated draw method computes on the
-        device, so this preview and codegen cannot disagree about where a
-        copy lands. Copies draw ascending, parts in list order within a
-        copy (§5.3) -- the same nested-loop order the generated code uses.
-        A polygon/line/circle part reuses `_hand_part` (a pattern part is
-        authored exactly like a hand part, §5.2); an `arc` part has no
-        rotate-the-vertices equivalent -- its *start angle* turns with the
-        copy instead (`_pattern_arc`); a `text` part draws upright glyphs
-        at the copy's own rounded anchor instead of rotating vertices
-        (`_pattern_text`, plan 06 §3.4).
+        :meth:`PlacedPattern.transform`: the very same `(ox, oy, sin, cos)`
+        the generated draw method computes on the device, so this preview
+        and codegen cannot disagree about where a copy lands. Copies draw
+        ascending, parts in list order within a copy -- the same
+        nested-loop order the generated code uses. A polygon/line/circle
+        part reuses `_hand_part` (a pattern part is authored exactly like a
+        hand part); an `arc` part has no rotate-the-vertices equivalent --
+        its *start angle* turns with the copy instead (`_pattern_arc`); a
+        `text` part draws upright glyphs at the copy's own rounded anchor
+        instead of rotating vertices (`_pattern_text`).
 
-        `when_absent: hide` (B7, 2026-09-15): the device reads every
-        nullable source a pattern's colours/part `visible:`s use once, before
-        its loop, and returns early if any is null -- mirrored here by
+        `when_absent: hide`: the device reads every nullable source a
+        pattern's colours/part `visible:`s use once, before its loop, and
+        returns early if any is null -- mirrored here by
         `_pattern_absent`, checked once for the whole element, not per copy
         (the reading is a fact about the frame, not about one copy). Per
         copy, each part's own `visible:` (B) is evaluated with the same
@@ -474,13 +473,13 @@ class _Renderer:
     def _pattern_arc(self, part, ox: float, oy: float, index: int,
                      placed: PlacedPattern, s: int, values: dict) -> None:
         """An `arc` template part -- always centred on the copy's own
-        origin (plan 05 D3, `at:` is rejected on it), so there are no
-        vertices to rotate: only its *start angle* turns with the copy,
-        exactly as `WfbArc.drawSpan` is called on the device (plan 05
-        §6.4): `part.start_angle + start + index * step`, which collapses
-        to plain `part.start_angle` for a linear pattern (`placed.start`/
-        `placed.step` are both `0` there, D3/§5.3). Drawn through the same
-        whole-degree `arc_span` rule a `shape: arc` element uses.
+        origin (`at:` is rejected on it), so there are no vertices to
+        rotate: only its *start angle* turns with the copy, exactly as
+        `WfbArc.drawSpan` is called on the device: `part.start_angle +
+        start + index * step`, which collapses to plain `part.start_angle`
+        for a linear pattern (`placed.start`/`placed.step` are both `0`
+        there). Drawn through the same whole-degree `arc_span` rule a
+        `shape: arc` element uses.
         """
         fill = self._color(part.color, values)
         cx, cy = ox * s, oy * s
@@ -493,14 +492,14 @@ class _Renderer:
 
     def _pattern_text(self, part, ox: float, oy: float, sin_t: float, cos_t: float,
                       index: int, values: dict) -> None:
-        """A `shape: text` template part (plan 06 §3.4): upright glyphs at
-        this copy's own anchor, rounded the same half-up way
-        `runtime-lib/WfbGeom.mc`'s `drawTextRotated` rounds it on the
-        device (:func:`pattern_text_anchor`) -- the anchor *turns* (radial)
-        or *steps* (linear) with the copy, but the glyphs themselves never
-        rotate, exactly as `_hand_part`'s vertex rotation does not apply to
-        them (plan 05 §5.2's "upright text is not rotation-invariant").
-        Draws through the very same `_draw_text` a `text` element uses
+        """A `shape: text` template part: upright glyphs at this copy's own
+        anchor, rounded the same half-up way `runtime-lib/WfbGeom.mc`'s
+        `drawTextRotated` rounds it on the device
+        (:func:`pattern_text_anchor`) -- the anchor *turns* (radial) or
+        *steps* (linear) with the copy, but the glyphs themselves never
+        rotate (upright text is not rotation-invariant), so `_hand_part`'s
+        vertex rotation does not apply to them. Draws through the very
+        same `_draw_text` a `text` element uses
         (`_text`), so a pattern's numerals and a standalone `text` element
         can never disagree about how a font/align/vertical_align combination
         looks.
@@ -753,7 +752,7 @@ class _Renderer:
                 icon_sheet = None
                 glyph_obj = None
 
-        # One shared geometry function for every position (plan 03 §6.3) --
+        # One shared geometry function for every position --
         # `wfb.layout.complication_slot_pair_geometry`, the same one
         # `Resolver._resolve_complication_slot` uses to size the estimated
         # box, called here with the *actual* measured extents this preview
@@ -763,12 +762,12 @@ class _Renderer:
             placed.icon_gap_px,
         )
         ax, ay = placed.anchor_point
-        # `align`/`vertical_align` (plan 07 phase C, §3.2(c)) move the pair
-        # off the anchor -- the same `wfb.layout.alignment_shift` rule every
-        # other kind's preview uses, mirroring the arithmetic
-        # `wfb.emit.monkeyc._emit_complication_slot` computes at runtime from
-        # its own (real, pulled) measurements.  center/center adds exactly
-        # `0.0`, so this is unchanged from before either key existed.
+        # `align`/`vertical_align` move the pair off the anchor -- the same
+        # `wfb.layout.alignment_shift` rule every other kind's preview
+        # uses, mirroring the arithmetic
+        # `wfb.emit.monkeyc._emit_complication_slot` computes at runtime
+        # from its own (real, pulled) measurements. center/center adds
+        # exactly `0.0`.
         dx, dy = alignment_shift(geometry.width, geometry.height, element.align, element.vertical_align)
         origin_x = ax + dx - geometry.width / 2
         origin_y = ay + dy - geometry.height / 2
@@ -839,8 +838,8 @@ class _Renderer:
                    align: str, vertical_align: str, font_px: int,
                    color: tuple[int, int, int], box=None) -> None:
         """Draw `text` upright at `anchor`, exactly as a `text` element and a
-        pattern `shape: text` part both want (plan 06 §3.4 B3): through the
-        baked sheet when `font` is a custom one, the Pillow stand-in
+        pattern `shape: text` part both want: through the baked sheet when
+        `font` is a custom one, the Pillow stand-in
         otherwise. The one place either kind of element actually puts ink
         down, so `_text` and `_pattern_text` cannot drift apart. `box`, an
         `IntBox` or `None`, is only ever used by the rare "no scalable
@@ -863,10 +862,9 @@ class _Renderer:
         width, _ = font.measure(text)
         x, y = anchor[0] * s, anchor[1] * s
         line_height = font.line_height * s
-        # The one shared placement rule (`wfb.layout.alignment_shift`), not a
-        # private dict literal (R8) -- `bottom` (renamed from `baseline`,
-        # R6) now puts the ink's bottom edge on `y`, fixing the §1.2 bug
-        # here instead of drawing it hanging down from `y` like `top` did.
+        # The one shared placement rule (`wfb.layout.alignment_shift`), not
+        # a private dict literal -- `bottom` puts the ink's bottom edge on
+        # `y`, rather than drawing it hanging down from `y` like `top` does.
         dx, dy = alignment_shift(width * s, line_height, align, vertical_align)
         left = x + dx - width * s / 2
         top = y + dy - line_height / 2
@@ -911,16 +909,14 @@ class _Renderer:
 
         `align`/`vertical_align` are handed straight to Pillow's own
         multi-character text anchor (`ImageDraw.text`'s `anchor=`) rather
-        than reimplemented as a left/center/right offset here (R8) -- Pillow
+        than reimplemented as a left/center/right offset here -- Pillow
         already knows how to place text by its left/middle/right edge and by
         its ascender/middle/descender line, so there is nothing of
         `wfb.layout.alignment_shift`'s own rule to duplicate; this is a
         one-to-one translation into Pillow's vocabulary, not a second copy
-        of the placement math. `bottom` (renamed from `baseline`, R6) maps
-        to Pillow's descender anchor `"d"`, fixing the §1.2 bug here too:
-        `top` and the old `baseline` used to collapse onto the same `"a"`
-        anchor, so a bottom-aligned line drew hanging down from the point
-        exactly like a top-aligned one.
+        of the placement math. `bottom` maps to Pillow's descender anchor
+        `"d"`, so a bottom-aligned line draws with its bottom edge -- not
+        hanging down -- at the anchor point.
         """
         s = self.scale
         face = fallback.font_for_height(font_px * s)

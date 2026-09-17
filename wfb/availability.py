@@ -22,8 +22,8 @@ of them can ever execute a symbol the device running it does not have.
   anywhere at all, and which bare field names need an `x has :field`
   guard" -- yes/no questions resolved once per project, over every target
   device, so a design whose targets all support everything it uses
-  generates the exact same code it always did (no guard is ever emitted
-  for a thing every target has).
+  generates plain, unguarded code (no guard is ever emitted for a thing
+  every target has).
 * A lint pass (`wfb.lint.check_api_gated`) needs the *per-element,
   per-device* detail: which of *this* element's expression source paths are
   unavailable on *this* device, and whether that is because a module, a
@@ -33,15 +33,14 @@ of them can ever execute a symbol the device running it does not have.
   `compute_guards` is built out of them, not the other way around, so the
   two views cannot drift apart.
 
-**Policy, not just mechanism** (decided by the user, see the plan this task
-was assigned from -- not re-litigated here): a binding a target device lacks
-*reads as absent* on that device -- the same `when_absent` path every
-nullable source already has (every catalogue field is nullable, CLAUDE.md
-constraint 8) -- not a build failure and not a silently wrong value. An
-`on_hold:` simply never fires there, and a `config: data:` slot keeps its
-compiled-in default. This module answers *what* is absent and *why*;
-`wfb.emit.monkeyc` is what turns that into "yields null" or "never fires",
-and the lint pass (elsewhere) is what turns it into a warning a human reads.
+**Policy, not just mechanism:** a binding a target device lacks *reads as
+absent* on that device -- the same `when_absent` path every nullable source
+already has (every catalogue field is nullable, CLAUDE.md constraint 8) --
+not a build failure and not a silently wrong value. An `on_hold:` simply
+never fires there, and a `config: data:` slot keeps its compiled-in
+default. This module answers *what* is absent and *why*; `wfb.emit.monkeyc`
+is what turns that into "yields null" or "never fires", and the lint pass
+(elsewhere) is what turns it into a warning a human reads.
 """
 
 from __future__ import annotations
@@ -201,12 +200,9 @@ def design_fields(face: Face) -> frozenset[str]:
 def uses_complications(face: Face) -> bool:
     """Does this design need `Toybox.Complications` for any reason?
 
-    Three independent reasons, any one sufficient -- the same three
-    `wfb/emit/project.py`'s now-removed `_features()` used to raise
-    `minApiLevel` for, kept here verbatim because the *design* question
-    ("does this need Complications at all") is unchanged; only the
-    *consequence* moved, from bumping a shared manifest floor to gating a
-    runtime guard (see `wfb/emit/manifest.py`'s module docstring):
+    Three independent reasons, any one sufficient (see
+    `wfb/emit/manifest.py`'s module docstring for why this drives a runtime
+    guard rather than the shared manifest's API floor):
 
     1. a bound `complication.*` source (any reader with `complication_type`
        set -- equivalently, any reader with `requires_module ==
@@ -237,14 +233,13 @@ class Guards:
     device in a build, must guard against -- aggregated over every target,
     so a guard is included only when at least one target actually lacks the
     thing. A design whose targets all support everything it uses gets an
-    empty `Guards` and so generates byte-identical code to before this
-    module existed; that is what `compute_guards` is for, not something a
-    caller has to check separately.
+    empty `Guards`, so `compute_guards` is the only place a caller needs to
+    check.
     """
 
     #: True iff `uses_complications(face)` and some target device lacks the
-    #: `Complications` module. The one module this project currently
-    #: guards, individually, at several call sites (`wfb/emit/monkeyc.py`:
+    #: `Complications` module. The one module this project guards,
+    #: individually, at several call sites (`wfb/emit/monkeyc.py`:
     #: `onLayout`'s subscribe/register loop, every complication-reader pull,
     #: `on_hold:`'s `Complications.exitTo`, a `config: data:` slot's
     #: `Complications.Id` field) -- one flag here rather than a per-site
@@ -259,7 +254,7 @@ class Guards:
     def any(self) -> bool:
         """Whether the shared code needs *any* guard at all -- a design
         with neither a missing module nor a missing field generates plain,
-        unguarded code, exactly as it did before this feature existed."""
+        unguarded code."""
         return self.complications or bool(self.fields)
 
 
