@@ -366,6 +366,8 @@ layouts:
         color: config.data_color
 
 
+
+
     elements:
       bottom_data:
         type: text
@@ -381,6 +383,39 @@ layouts:
         color: config.colors.fg
         when_absent: placeholder
         placeholder: "--"
+
+      top_data:
+        type: group
+        at: { anchor: center, dy: -20% }
+        size: { width: 25%, height: 25% }
+        # visible: device.notification_count > 0
+        children:
+          top_icon_bg:
+            type: icon
+            icon: notification
+            size: 27%r
+            at: { anchor: center }
+            color: palette.black
+          top_icon:
+            type: icon
+            icon: notification
+            size: 25%r
+            at: { anchor: center }
+            color: config.colors.track
+          top_text_bg:
+            type: text
+            value: device.notification_count
+            format: "{:d}"
+            font: FONT_TINY
+            at: { anchor: center, dx: -1%r, dy: -3%r }
+            color: palette.black
+          top_text:
+            type: text
+            value: device.notification_count
+            format: "{:d}"
+            font: FONT_TINY
+            at: { anchor: center, dy: -2%r }
+            color: config.colors.bg
 
       analog_hands:
         type: hands
@@ -561,8 +596,8 @@ layouts:
             format: "{:.1f}k"
             font: FONT_XTINY
             # at: { anchor: center, dx: 15%r }
-            at: { anchor: right }
-            align: right
+            at: { anchor: left, dx: 13%r }
+            align: left
             color: config.colors.fg
             when_absent: placeholder
             placeholder: "--"
