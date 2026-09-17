@@ -156,21 +156,20 @@ CONFIG_LAYOUT_METHOD = "configLayout"
 def _pattern_needs_math(placed: "PlacedPattern") -> bool:
     """Does this pattern's device loop compute a `sin`/`cos` pair at all?
 
-    Only a **radial** pattern turns; a linear one only ever translates
-    (plan 05 §5.3), so it never needs trigonometry.  And even a radial
-    pattern skips it when every part is an `arc`: an arc's start angle
-    turns by plain degree subtraction through `WfbArc.drawSpan`'s own
-    `startDegrees` parameter (§6.4), not by rotating a coordinate -- so an
-    all-arc radial pattern (`segments` in `examples/patterns/face.yaml`)
-    needs no `sin`/`cos` and therefore no `Toybox.Math` either.  A text part
-    (plan 06 §3.4) is on the same footing as a filled circle's centre here:
-    only its *anchor* is rotated (the glyphs themselves stay upright), but
-    `WfbGeom.drawTextRotated` still takes `sin`/`cos` as plain call
-    arguments, exactly like `fillCircleRotated` does for a circle at the
-    origin -- so a text part counts as "not an arc" with no special case
-    needed, the same one `any(part.shape != "arc" ...)` line already covers
-    it. Shared by the view's import gate and :func:`_emit_pattern` itself so
-    the two cannot drift into disagreeing about whether the loop declares
+    Only a **radial** pattern turns; a linear one only ever translates, so
+    it never needs trigonometry.  And even a radial pattern skips it when
+    every part is an `arc`: an arc's start angle turns by plain degree
+    subtraction through `WfbArc.drawSpan`'s own `startDegrees` parameter,
+    not by rotating a coordinate -- so an all-arc radial pattern
+    (`segments` in `examples/patterns/face.yaml`) needs no `sin`/`cos` and
+    therefore no `Toybox.Math` either.  A text part is on the same footing
+    as a filled circle's centre here: only its *anchor* is rotated (the
+    glyphs themselves stay upright), but `WfbGeom.drawTextRotated` still
+    takes `sin`/`cos` as plain call arguments, exactly like
+    `fillCircleRotated` does for a circle at the origin -- so a text part
+    counts as "not an arc" with no special case needed. Shared by the
+    view's import gate and :func:`_emit_pattern` itself so the two cannot
+    drift into disagreeing about whether the loop declares
     `angle`/`sin`/`cos`.
     """
     if placed.element.pattern != "radial":
@@ -180,16 +179,16 @@ def _pattern_needs_math(placed: "PlacedPattern") -> bool:
 
 def _glyph_y_expr(y_expr: str, vertical_align: str, font_expr: str) -> str:
     """The `y` a glyph draw hands `dc.drawText`/`WfbGeom.drawTextRotated`,
-    for a given `vertical_align:` (plan 07 §3.2(b)): `y_expr` unchanged for
-    `top`/`center` (`Resolver._justify` already adds `TEXT_JUSTIFY_VCENTER`
-    for `center`, and `top` is `Dc.drawText`'s own natural top-left
-    placement) -- there is no bottom-justify flag on the platform, so
-    `bottom` instead subtracts the font's *own*, on-device measured height,
-    exact even for a system font whose `size_px` `wfb.devices` only
-    scraped. Shared by a `text` element and a pattern's `shape: text` part
-    (and, from phase C, an icon) -- one subtraction, written once, not a
-    per-kind copy. `font_expr` is whatever Monkey C expression names the
-    font at the call site (a local `font` or `Graphics.FONT_...`).
+    for a given `vertical_align:`: `y_expr` unchanged for `top`/`center`
+    (`Resolver._justify` already adds `TEXT_JUSTIFY_VCENTER` for `center`,
+    and `top` is `Dc.drawText`'s own natural top-left placement) -- there is
+    no bottom-justify flag on the platform, so `bottom` instead subtracts
+    the font's *own*, on-device measured height, exact even for a system
+    font whose `size_px` `wfb.devices` only scraped. Shared by a `text`
+    element, a pattern's `shape: text` part, and an icon -- one subtraction,
+    written once, not a per-kind copy. `font_expr` is whatever Monkey C
+    expression names the font at the call site (a local `font` or
+    `Graphics.FONT_...`).
     """
     if vertical_align != "bottom":
         return y_expr
@@ -231,8 +230,7 @@ def _mc_float(value: float) -> str:
     constant (`_mc_number` handles those, with a trailing `f`).  A Python
     float's own `repr` always carries a decimal point, which is what makes
     a literal like `0.10471975511965977` unambiguously `Float` rather than
-    `Number` to the Monkey C parser with no suffix needed at all -- plan 05
-    §6.4's own radial-angle example spells it exactly this way.
+    `Number` to the Monkey C parser with no suffix needed at all.
     """
     text = repr(float(value))
     return text if "." in text or "e" in text else text + ".0"
@@ -244,9 +242,9 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
     Covers both an author's declared custom text fonts and the synthetic
     per-size icon fonts (`wfb.icons.font_key`) -- both are bitmap fonts loaded
     the same way, so one list and one loop serves both.  A pattern's `shape:
-    text` part (plan 06 §3.4) is one more source of a custom font: every
-    *drawn* copy shares the one font its part resolved to, so it is a single
-    entry here regardless of `count`, the same "one load, many uses" shape
+    text` part is one more source of a custom font: every *drawn* copy
+    shares the one font its part resolved to, so it is a single entry here
+    regardless of `count`, the same "one load, many uses" shape
     `_emit_pattern`'s own per-pattern ``text_fonts`` map follows.
     """
     out: list[str] = []

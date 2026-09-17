@@ -48,7 +48,7 @@ class ReadPlan:
         #: expression(s) specifically -- `Text.value`, or `Progress.value`
         #: and `Progress.maximum` together, since both feed one fraction.
         #: This is what a `when_absent: placeholder`/`fallback` policy
-        #: actually governs (Bug 5).
+        #: actually governs.
         self._value_bound: dict[str, list[str]] = {}
         #: The subset reached through every *other* expression (colour, track
         #: colour, max on its own) -- collected independently of
@@ -60,7 +60,7 @@ class ReadPlan:
         #: the same possibly-null local, which a placeholder for the *text*
         #: does nothing to protect.
         self._other_bound: dict[str, list[str]] = {}
-        #: The subset reached through `visible:` (SPEC.md T5).  Kept apart from
+        #: The subset reached through `visible:`.  Kept apart from
         #: both of the above because a visibility binding gets its *own* guard,
         #: emitted first and combined with the condition itself
         #: (`if (x == null || !(cond)) { return; }`) -- "absent means hidden".
@@ -109,11 +109,11 @@ class ReadPlan:
                     if "%h" in element.format:
                         format_paths.append("device.is_24_hour")
             # A hands element reads the clock too, with no author expression
-            # at all (plan 04 §5.5) -- the same `time.clock` reader a `Text`
-            # element's own time format uses, which is what gives every
-            # `draw<Id>(dc, ...)` a `clock as System.ClockTime` parameter for
-            # free, through `parameters`/`arguments` below, with no
-            # hands-specific code at either call site.
+            # at all -- the same `time.clock` reader a `Text` element's own
+            # time format uses, which is what gives every `draw<Id>(dc, ...)`
+            # a `clock as System.ClockTime` parameter for free, through
+            # `parameters`/`arguments` below, with no hands-specific code at
+            # either call site.
             if isinstance(element, HandsElement):
                 format_paths.append("time.clock")
             self._bound[placed.id] = list(paths)
@@ -222,8 +222,8 @@ class ReadPlan:
 
         Used as-is for an element with no placeholder/fallback policy (the
         whole thing hides together, as one guard always has); split into
-        :meth:`value_guards`/:meth:`other_guards` for one that has one
-        (Bug 5): the policy governs the value, not a colour.
+        :meth:`value_guards`/:meth:`other_guards` for one that has one: the
+        policy governs the value, not a colour.
         """
 
         names: list[str] = []
@@ -264,7 +264,7 @@ class ReadPlan:
     def other_guards(self, placed) -> list[str]:
         """Locals dereferenced by a *different* expression (colour, track
         colour, max) -- there is no placeholder for a colour, so every one of
-        these needs a real guard (Bug 5), even a source that is *also* the
+        these needs a real guard, even a source that is *also* the
         value: `color: "heart_rate.current > 100 ? ..."` dereferences
         `heartRateCurrent` at its own call site, which a placeholder guarding
         only the text's dereference does nothing to protect.

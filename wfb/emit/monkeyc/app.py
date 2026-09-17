@@ -91,31 +91,27 @@ def emit_icon_glyphs(face: Face, via_char: frozenset[str] = frozenset()) -> Sour
     """`source/IconGlyphs.mc`: catalogue name -> drawn glyph, for a dynamic
     (`icon_for:`) icon.
 
-    A static icon's glyph is already known at build time and gets baked
-    directly into its `drawText` call as a literal (see `_emit_icon` below) --
-    no lookup needed. A dynamic icon's name is only known on-device, so
-    *something* has to resolve it there. This is that something, generated
-    straight from `wfb.icon_catalog.CATALOG` rather than hand-maintained, so
-    it cannot drift from the font this project actually bakes: the
-    weather-selection logic in `WfbWeather.mc` only ever produces a name
-    (`chooseIcon`), and this is the one place, for every icon in the
-    catalogue and not just weather ones, where a name becomes a character.
+    A static icon's glyph is known at build time and gets baked directly
+    into its `drawText` call as a literal (see `_emit_icon`) -- no lookup
+    needed. A dynamic icon's name is only known on-device, so this table,
+    generated straight from `wfb.icon_catalog.CATALOG` rather than
+    hand-maintained, resolves it there: `WfbWeather.mc`'s
+    `chooseIcon` only ever produces a name, and this is the one place a
+    name becomes a character, for every icon in the catalogue, not just
+    weather ones.
 
-    Scoped to the keys a dynamic icon could actually produce in this design
-    -- every catalogue entry `icon_for:`'s underlying source table
-    (`wfb.icons.GARMIN_WEATHER_CONDITION_ICON`) can select, plus, for every
-    `complication_slot` with `icon_size:`, every key `slot.icons`
-    (`wfb.ir.ConfigDataSlot.icons`) can resolve to for that slot -- a
-    catalogue name for an ordinary mapping, or the canonical `"U+XXXX"`
-    spelling for a per-choice `glyph:` override -- not the whole catalogue,
-    so a design using only one of the two dynamic-icon features does not
-    bake a lookup table for the other's keys too.
+    Scoped to the keys a dynamic icon can actually produce in this design --
+    every entry `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` can select, plus,
+    for every `complication_slot` with `icon_size:`, every key
+    `wfb.ir.ConfigDataSlot.icons` can resolve to for that slot -- so a
+    design using only one of the two dynamic-icon features does not bake a
+    lookup table for the other's keys too.
 
     A key in `via_char` gets its glyph built at runtime,
-    `(0xF050F).toChar().toString()`, instead of written as a string literal.
+    `(0xF050F).toChar().toString()`, instead of written as a string literal:
     `wfb.emit.project.generate` passes the keys whose glyph literal would
     share a `str___<hash>` label with another string in the program, which
-    crashes monkeyc -- see `wfb.emit.strhash`.
+    crashes monkeyc (`wfb.emit.strhash`).
     """
     entries = icon_glyph_entries(face)
     w = Writer()

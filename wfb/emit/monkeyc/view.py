@@ -122,15 +122,14 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
     whose one anti-aliased element was a `type: hands` emitted no
     `applyAntiAlias` at all).
 
-    `None` is the R3 gate: a design that never turns this on for a
-    primitive-drawing element -- whether because the face default is `false` and
-    nothing overrides it, or because the face default is `true` and every
-    primitive-drawing element overrides it back to `false` -- must generate
-    exactly the code it did before this feature existed.  Returning `None`
-    rather than `False` here is what lets every call site below skip emitting
-    anything at all, instead of dutifully emitting `applyAntiAlias(dc, false)`
-    calls that would be legal but would move every existing golden file for no
-    behavioural change.
+    `None` marks a design that never turns this on for a primitive-drawing
+    element -- whether because the face default is `false` and nothing
+    overrides it, or because the face default is `true` and every
+    primitive-drawing element overrides it back to `false`. Returning `None`
+    rather than `False` here is what lets every call site below skip
+    emitting anything at all, instead of dutifully emitting
+    `applyAntiAlias(dc, false)` calls that would be legal but pointless: a
+    design that never uses the feature emits none of it.
     """
     used = any(
         isinstance(placed, ANTIALIASED_PRIMITIVES) and placed.element.resolved_antialias
@@ -151,9 +150,8 @@ def _emit_antialias_helper(w: Writer) -> None:
 
     Deliberately **not** named `setAntiAlias`: a same-named private method on
     the view shadows `Dc`'s own, so `:setAntiAlias` resolves to this class's
-    symbol instead and `monkeyc` warns about it on every target --
-    `docs/research/probes/antialias/README.md` 3 measured this directly
-    before this name was chosen.
+    symbol instead and `monkeyc` warns about it on every target
+    (`docs/research/probes/antialias/README.md`, finding 3).
     """
     w.doc(
         "Turn primitive anti-aliasing on or off, where the device supports it.\n"
@@ -216,17 +214,17 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     hands_items = [p for p in resolved.items if isinstance(p, PlacedHands)]
     trig_modules: set[str] = set()
     if hands_items:
-        # The view computes each hand's own sin/cos directly (the probe's
-        # shape), not just the barrel -- so Toybox.Math is imported here too,
-        # not only in WfbHands.mc (plan 04 §6).
+        # The view computes each hand's own sin/cos directly, not just the
+        # barrel -- so Toybox.Math is imported here too, not only in
+        # WfbHands.mc.
         trig_modules.add("Toybox.Math")
     pattern_items = [p for p in resolved.items if isinstance(p, PlacedPattern)]
     if any(_pattern_needs_math(p) for p in pattern_items):
-        # Same reasoning, plan 05 §6.4/§6.5: a radial pattern with at least
-        # one non-arc part computes its own sin/cos in the loop, so Math
-        # has to be in scope here too -- not only when hands are also on
-        # the design.  `_pattern_needs_math` is the one place this decision
-        # is made, shared with `_emit_pattern` itself.
+        # Same reasoning: a radial pattern with at least one non-arc part
+        # computes its own sin/cos in the loop, so Math has to be in scope
+        # here too -- not only when hands are also on the design.
+        # `_pattern_needs_math` is the one place this decision is made,
+        # shared with `_emit_pattern` itself.
         trig_modules.add("Toybox.Math")
     hands_awake_second = any(
         p.second is not None and p.element.seconds == "awake" for p in hands_items
@@ -250,9 +248,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     # `_sleeping` is shared by two independent reasons -- `always_on` (which
     # element set to draw) and an `awake`-only second hand (whether to draw
     # it at all) -- either one alone is enough to need the field and the two
-    # hooks (plan 04 §5.6).  A design using neither must generate exactly
-    # what it did before this feature existed: `needs_sleeping` reduces to
-    # `always_on` whenever `hands_awake_second` is False.
+    # hooks. A design using neither generates neither: `needs_sleeping`
+    # reduces to `always_on` whenever `hands_awake_second` is False.
     needs_sleeping = always_on or hands_awake_second
     static = static_plan(resolved)
     antialias_default = _antialias_default(resolved)
@@ -511,9 +508,9 @@ def _emit_config_fields(w: Writer, face: Face, guards: "Guards" = _NO_GUARDS) ->
     if face.layouts:
         # The default entry's layout, in declaration order -- always set,
         # since `layout:` is required on every entry once `layouts:` is
-        # declared (plan 02 §12.4).  Not a fallback path: fr955 has no
-        # native editor and never calls `applyConfig` at all, so this is the
-        # only layout it ever shows.
+        # declared.  Not a fallback path: fr955 has no native editor and
+        # never calls `applyConfig` at all, so this is the only layout it
+        # ever shows.
         default_layout = face.config_style.default_entry.layout
         default_index = face.layouts.index(default_layout)
         w.line(f"private var {CONFIG_LAYOUT_FIELD} as Number = {default_index};")
@@ -639,11 +636,11 @@ def _emit_resolve_style(w: Writer, face: Face) -> None:
     One `if (style == i)` block per entry, in `choices:` order (index 0
     first, matching `<style id="N">` in the generated resource) -- this is
     the only place a `styleId` (an opaque `Number` Garmin gives no meaning to
-    at all, docs/research/09 §3) is given one.  A colour-carrying entry's
-    block assigns that entry's scheme's roles; a layout-carrying entry's also
-    sets `_configLayout` to that layout's declaration-order index (the same
-    index plan 02 §12.2's desugar rewrite and every
-    guard below test).  A layout-only entry has no colour lines, and a
+    at all, `docs/research/09-data-library-and-config-axes.md` §3) is given
+    one.  A colour-carrying entry's block assigns that entry's scheme's
+    roles; a layout-carrying entry's also sets `_configLayout` to that
+    layout's declaration-order index (the same index every guard below
+    tests).  A layout-only entry has no colour lines, and a
     colour-only entry has no `_configLayout` line -- both read straight off
     which of `entry.colors`/`entry.layout` is set.  Plain sequential `if`s
     rather than an `if`/`else if` chain: `style` cannot equal two distinct
@@ -845,9 +842,8 @@ def _emit_layout_guarded_calls(w: Writer, face: Face, calls: list) -> None:
     *consecutive* calls whose ``element.layout`` agrees into one
     ``if (_configLayout == N) { ... }`` block; ``layout is None`` (shared
     content) emits with no guard at all -- **guards test the layout, never
-    the config entry** (plan 02 §6.4): however many
-    `config: style:` entries share one layout, this still emits only the one
-    guard for it.
+    the config entry**: however many `config: style:` entries share one
+    layout, this still emits only the one guard for it.
 
     The one place any draw sequence decides how a layout gates a call, so
     ``_emit_mode_body``, ``_emit_on_partial_update`` and
@@ -904,8 +900,8 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
         w.blank()
     # Reads everything unconditionally, layout guards included below -- a
     # read only a hidden layout's element uses is wasted work.  A real
-    # optimisation (moving reads inside the guards), left for later and only
-    # worth doing if it is measured (plan 02 §6.4).
+    # optimisation (moving reads inside the guards) is left for later and
+    # only worth doing if it is measured.
     plan.emit_reads(w, mode)
     w.blank()
     skip = static.ids if static is not None else set()
@@ -958,7 +954,7 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
         doc = "Asleep: the next onUpdate draws the 'always_on' layout."
     elif needs_sleeping:
         # `always_on` is unused: an awake-only second hand is the only other
-        # reason `needs_sleeping` is true (plan 04 §5.6).
+        # reason `needs_sleeping` is true.
         doc = "Asleep: the next onUpdate hides the awake-only second hand."
     else:
         doc = "Asleep: the next onUpdate draws the low-power layout."
@@ -983,14 +979,12 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
 def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
     """`onComplicationChanged`: one callback, one statement.
 
-    This used to carry a `switch` writing each changed value into a private
-    per-type field that `onUpdate` then read -- a cache, and an unnecessary
-    one.  `Complications.getComplication(id)` is a plain pull that needs no
-    prior subscription at all: the SDK's own `ConfigurableWatchFace` sample
-    calls it from `onLayout` before it subscribes, and again in edit mode
-    where it never subscribes.  So `onUpdate` reads complications the same
-    ordinary way it reads `ActivityMonitor.getInfo()`, and nothing has to be
-    stored between frames.
+    No cache: `Complications.getComplication(id)` is a plain pull that needs
+    no prior subscription at all -- the SDK's own `ConfigurableWatchFace`
+    sample calls it from `onLayout` before it subscribes, and again in edit
+    mode where it never subscribes. So `onUpdate` reads complications the
+    same ordinary way it reads `ActivityMonitor.getInfo()`, and nothing has
+    to be stored between frames.
 
     What is left is only the redraw: a complication can change between two
     scheduled updates, and this is how the face learns to draw sooner.  The
@@ -1021,7 +1015,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
     # text or fill fraction takes over instead of the element simply not
     # drawing.  They say nothing about a nullable colour, track colour or
     # max: there is no placeholder for a colour, so those always get a real
-    # guard regardless of which policy the value chose (Bug 5).
+    # guard regardless of which policy the value chose.
     substitutes_value = (
         isinstance(placed, (PlacedText, PlacedProgress))
         and getattr(element, "when_absent", None) in ("placeholder", "fallback")
@@ -1191,9 +1185,9 @@ def _emit_guard(w: Writer, placed, guards: list[str], note: str | None = None) -
     """Emit the null check, and say which `when_absent:` produced it.
 
     ``note`` overrides the default "when_absent: <policy>" comment for the
-    case (Bug 5) where the guard covers only bindings the value's own policy
-    does not govern -- a nullable colour still just hides the element even
-    when the value itself falls back to a placeholder.
+    case where the guard covers only bindings the value's own policy does
+    not govern -- a nullable colour still just hides the element even when
+    the value itself falls back to a placeholder.
     """
     element = placed.element
     condition = " || ".join(f"{name} == null" for name in guards)

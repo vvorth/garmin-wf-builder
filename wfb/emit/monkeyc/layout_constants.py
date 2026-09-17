@@ -93,11 +93,11 @@ def _pattern_needs_graphics(placed: "PlacedPattern") -> bool:
     part folded in) -- the same "needs `Array<Graphics.Point2D>`" test
     `_hands_needs_graphics` runs for a hand, generalised: a pattern has one
     flat template rather than up to three named hands.  A `shape: text` part
-    (plan 06 §3.4) needs no entry here: its `Layout` constants are plain
-    `Number`s (an anchor `_X`/`_Y`, no point array), so it never forces
-    `Toybox.Graphics` into the `Layout` module's own imports -- only the view
-    file, which already imports `Toybox.Graphics` unconditionally, ever
-    types anything against `Graphics.FontType`."""
+    needs no entry here: its `Layout` constants are plain `Number`s (an
+    anchor `_X`/`_Y`, no point array), so it never forces `Toybox.Graphics`
+    into the `Layout` module's own imports -- only the view file, which
+    already imports `Toybox.Graphics` unconditionally, ever types anything
+    against `Graphics.FontType`."""
     return any(part.shape == "polygon" for part in placed.parts)
 
 
@@ -143,8 +143,8 @@ def _arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
     """The `_RADIUS/_THICKNESS/_START/_SWEEP` quartet for one resolved arc --
     shared by a `shape: arc` and a `progress` arc, which both resolve
     `placed.radius`/`.thickness`/`.garmin_start`/`.start_angle`/`.sweep`
-    through `wfb.layout.garmin_arc` the same way, so the two could never
-    disagree about the angle convention even before this was one function.
+    through `wfb.layout.garmin_arc` the same way, so the two agree about
+    the angle convention by construction.
     """
     return [
         (f"{prefix}_RADIUS", placed.radius, ""),
@@ -206,8 +206,8 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             out.extend(_box_constants(prefix, placed.box))
     elif isinstance(placed, PlacedIcon):
         # A glyph kind's anchor never itself moves for `align`/`vertical_
-        # align` (plan 07 §3.2(b)) -- only the device-side justify flags and
-        # `_emit_icon`'s `bottom` subtraction do -- so the constant names and
+        # align` -- only the device-side justify flags and `_emit_icon`'s
+        # `bottom` subtraction do -- so the constant names and
         # values stay `_CX`/`_CY` (byte-identical for center/center) even
         # when aligned; the comment says so only then, so the default note
         # (`""`) is unchanged.
@@ -239,9 +239,9 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         if placed.element.icon_gap is not None:
             # Only emitted when the author actually wrote 'icon_gap:' --
             # otherwise the generated view keeps embedding the literal
-            # COMPLICATION_SLOT_ICON_GAP it always has, byte-identical to
-            # before this key existed (plan 03 §6.3).  Resolved per device
-            # ('%r' is a different pixel count per screen) the same reason
+            # COMPLICATION_SLOT_ICON_GAP it always has, so a design that
+            # never sets this emits none of it. Resolved per device ('%r'
+            # is a different pixel count per screen) the same reason
             # `wfb.icons.font_key` keys by the *declared* size, not the
             # resolved one.
             out.append((f"{prefix}_ICON_GAP", placed.icon_gap_px,
@@ -274,16 +274,16 @@ def _hand_part_constants(
     part_prefix: str, owner: str, index: int, part,
 ) -> list[tuple[str, float | McLiteral, str]]:
     """The `Layout` constants for one resolved hand part, or one resolved
-    pattern template part (plan 05 §6.4, reusing this precedent):
+    pattern template part, reusing the same shapes:
     `<P>_<i>_POINTS` for a polygon (a rectangle part already folded into
     one by `wfb.layout`), `_X1/_Y1/_X2/_Y2/_THICKNESS` for a line,
     `_X/_Y/_RADIUS[/_THICKNESS]` for a circle, `_RADIUS/_THICKNESS` for
-    an arc (pattern-only -- a hand never produces this shape, §5.2), or
-    `_X/_Y` alone for a text part (plan 06 §3.4, pattern-only too -- the
-    anchor a copy's transform moves; no radius or thickness, since the
-    glyphs are measured, not stroked) -- one comment naming the part's own
-    shape, the same "why" every other constant block gets.  ``owner`` is
-    the human-readable thing this part belongs to (``"hour hand"``, or
+    an arc (pattern-only -- a hand never produces this shape), or `_X/_Y`
+    alone for a text part (pattern-only too -- the anchor a copy's
+    transform moves; no radius or thickness, since the glyphs are
+    measured, not stroked) -- one comment naming the part's own shape, the
+    same "why" every other constant block gets.  ``owner`` is the
+    human-readable thing this part belongs to (``"hour hand"``, or
     ``"template"`` for a pattern, which has only the one), folded into
     that comment.
     """
@@ -308,7 +308,7 @@ def _hand_part_constants(
             (f"{part_prefix}_THICKNESS", part.thickness, "pen width"),
         ]
     if part.shape == "arc":
-        # Always centred on the origin (x=y=0, plan 05 D3) -- no _X/_Y.
+        # Always centred on the origin (x=y=0) -- no _X/_Y.
         return [
             (f"{part_prefix}_RADIUS", part.radius, f"{owner}, part {index}: an arc"),
             (f"{part_prefix}_THICKNESS", part.thickness,

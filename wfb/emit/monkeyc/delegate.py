@@ -75,8 +75,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
     on a face that is merely being looked at.  Touch and hold is the whole
     input surface a live watch face gets; there is no swipe, and the physical
     keys belong to the system.  See `docs/research/07-carousel-interaction.md`
-    §1, which corrects the earlier "tap where available, hold on fr955"
-    reading of ADR 0006 §6.
+    §1 and ADR 0006 §6.
 
     `Complications.exitTo` is the whole mechanism on the other side: a watch
     face cannot launch an arbitrary app, only the one that owns a
@@ -172,10 +171,10 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                 # test rather than a separate guard around it, through the
                 # view's own configLayout() (the delegate cannot read a
                 # private field on another class -- CLAUDE.md,
-                # docs/lore/monkeyc.md).  Plan 02 §5.4: unlike `visible:`,
-                # which keeps its hold region while hidden because the
-                # delegate cannot see that frame's readings, the layout *is*
-                # a view field the delegate already has a handle to.
+                # docs/lore/monkeyc.md).  Unlike `visible:`, which keeps its
+                # hold region while hidden because the delegate cannot see
+                # that frame's readings, the layout *is* a view field the
+                # delegate already has a handle to.
                 layout_test = (
                     f" && _view.{CONFIG_LAYOUT_METHOD}() == {face.layouts.index(element.layout)}"
                     if element.layout is not None else ""

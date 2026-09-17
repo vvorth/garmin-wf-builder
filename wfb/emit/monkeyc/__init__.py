@@ -62,9 +62,10 @@ from .graph import (
     _emit_array_rebuild
 )
 
-#: Every top-level name the old single-file module defined, private ones
-#: included -- tests and `wfb/emit/project.py`/`manifest.py` reach them through
-#: this package attribute (see the monkeypatch constraint in the split plan).
+#: Every name this package exposes, private ones included: tests and
+#: `wfb/emit/project.py`/`manifest.py` monkeypatch individual functions as
+#: `wfb.emit.monkeyc.<name>`, so each one must stay reachable as a plain
+#: package attribute regardless of which submodule defines it.
 __all__ = [
     '_BASE_IMPORTS', '_NO_GUARDS', 'SourceFile', 'source_label', 'header', 'McLiteral',
     'hold_targets', 'complication_slots', 'needs_delegate', '_editor_slot_pairs',
