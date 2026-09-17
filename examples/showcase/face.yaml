@@ -525,6 +525,7 @@ layouts:
             type: icon
             icon: body_battery
             size: 9%r
+            color: config.colors.fg
             # at: { anchor: center, dx: -30% }
             at: { anchor: left }
           hr_value:
@@ -548,6 +549,7 @@ layouts:
             type: icon
             icon: steps
             size: 9%r
+            color: config.colors.fg
             # at: { anchor: center, dx: -10%r }
             at: { anchor: left }
             align: left
@@ -574,6 +576,7 @@ layouts:
             type: icon
             icon: flame
             size: 9%r
+            color: config.colors.fg
             # at: { anchor: center, dx: -30% }
             at: { anchor: left }
             align: left

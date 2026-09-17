@@ -3731,3 +3731,20 @@ Left as found:
 - `docs/lore/roadmap.md`'s phone-settings paragraph, which describes the
   frozen branch's own layout.
 - One old path inside `tests/test_catalog.py` test code.
+
+## 2026-09-17 — README as a tour by example
+
+- `README.md` is now the user-facing tour: showcase snippets beside
+  `wfb preview` crops, then the features the showcase lacks from `align`,
+  `patterns`, `graph`, `shapes` and `analog`. The developer material moved,
+  unchanged, to `docs/development.md`. `tools/readme-shots.py` regenerates
+  `docs/screenshots/`; two runs are byte-identical. The on-device config
+  strip renders throwaway copies of the showcase with other defaults.
+- Preview mismatches found and left as found (listed under "Preview
+  caveats" in the README): a `complication.*` read from `text`/`progress`
+  has no sample value (the showcase's Body Battery shows `--`,
+  `examples/sun` previews blank); an `icon_for:` weather icon draws although
+  weather is absent, where the device hides it; the sample date, Wed 3 Sep
+  2026, is a Thursday.
+- The showcase now carries three `partial-update-budget` warnings;
+  `examples/CLAUDE.md` still calls it warning-free.
