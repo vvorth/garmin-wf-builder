@@ -46,7 +46,7 @@ means adding one `Icon(...)` entry to `wfb/icon_catalog.py`'s single
 `CATALOG` -- there is one catalogue for every icon, general-purpose and
 weather alike, not a separate table per kind, and not a separate table on the
 Monkey C side either: `source/IconGlyphs.mc` (generated fresh each build, see
-`wfb/emit/monkeyc.py`) is where a catalogue name becomes a drawn character
+`wfb/emit/monkeyc/app.py`) is where a catalogue name becomes a drawn character
 on-device, for every icon, so adding a name here is what a dynamic
 (`icon_for:`) lookup sees too. A new weather condition also needs an entry in
 `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` mapping the raw `Weather.CONDITION_*`
