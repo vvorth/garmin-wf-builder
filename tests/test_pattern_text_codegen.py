@@ -1,5 +1,5 @@
 """Codegen for pattern text parts (plan 06 §3.4, phase B2): the barrel
-helper, the `Layout` constants, and the draw calls `wfb/emit/monkeyc.py`
+helper, the `Layout` constants, and the draw calls `wfb/emit/monkeyc/rotated.py`
 emits for a `shape: text` pattern part.
 
 Phase B1 (`tests/test_pattern_text.py`) already covers schema, IR, layout

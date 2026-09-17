@@ -76,7 +76,7 @@ module WfbSeries {
     //!
     //! Every individual call still respects `fillPolygon`'s own 64-point
     //! limit: a run can hold at most as many points as the whole series
-    //! does, and `wfb/ir.py`'s `GRAPH_AREA_MAX_SAMPLES` already refuses a
+    //! does, and `wfb/ir/model.py`'s `GRAPH_AREA_MAX_SAMPLES` already refuses a
     //! `style: area` design whose series could exceed 62 (64 minus the two
     //! closing corners a *single* run would need).
     function drawArea(

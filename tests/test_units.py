@@ -39,7 +39,7 @@ def test_duration_parsing(raw, seconds):
 
 @pytest.mark.parametrize("raw", ["banana", "4", "4s", "-4h", "4.5h", True, None, 4])
 def test_duration_rejects_nonsense(raw):
-    """A bare number is a sample *count*, handled separately (`wfb/ir.py`'s
+    """A bare number is a sample *count*, handled separately (`wfb/ir/builder.py`'s
     `Builder._graph_range`) -- `Duration.parse` itself only ever sees a
     string, so a number reaching it directly is as much a mistake as a unit
     it does not recognise."""

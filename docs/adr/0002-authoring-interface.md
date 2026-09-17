@@ -94,7 +94,7 @@ The decision that matters is *where* it is implemented. It is a **desugaring
 pass**, `wfb/desugar.py`, run between the loader and the schema. The schema,
 the IR, layout, the linter, the preview and code generation see only the list
 form and are untouched. The alternative -- describing both shapes in the JSON
-Schema and teaching `wfb/ir.py` to walk either -- would have put the same idea
+Schema and teaching `wfb/ir/` to walk either -- would have put the same idea
 in two places in the normative artefact and in every consumer of it, which is
 the duplication that eventually produces two spellings quietly meaning
 different things. The gate on the equivalence is correspondingly strong: a

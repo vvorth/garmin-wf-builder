@@ -185,7 +185,7 @@ as a discipline — and it protects the budget whose overrun is permanent
 cache for `slow`-tier reads and a per-type cached field fed by a
 subscription callback for `event`-tier ones — is gone in its entirety:
 `catalog.Tier`, `Reader.tier`, `Reader.ttl_seconds`, `Source.tier`,
-`wfb/ir.py`'s `_check_tiers` and its `refresh-tier` diagnostic, and
+`wfb/ir/`'s `_check_tiers` and its `refresh-tier` diagnostic, and
 `runtime-lib/WfbCache.mc` are all deleted. Every source is now read the same
 way: a plain call, hoisted once per distinct reader per element method
 (unchanged from before — two elements sharing one reader still share one
@@ -387,7 +387,7 @@ runtime nulls; extending it to compile-time-known per-device gaps is not a
 new principle, only a wider set of reasons a value can be missing.
 
 **What is new at the mechanism level, not the policy level.**
-`wfb.availability` (new module) is what tells `wfb/emit/monkeyc.py`'s
+`wfb.availability` (new module) is what tells `wfb/emit/monkeyc/`'s
 codegen *which* device gaps exist for a given design, aggregated over every
 target in one build (`compute_guards`) so the one shared generated view
 still emits one guard per gap, not one per device. See

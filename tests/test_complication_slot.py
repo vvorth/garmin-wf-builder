@@ -951,7 +951,7 @@ def test_manifest_gets_complications_permission_from_data_alone(write_design, ba
     floor no longer moves for this at all (2026-09-15): the manifest is one
     file shared by every target device, so `minApiLevel` stays the base
     level regardless -- availability is gated at runtime instead
-    (`wfb.availability`, `wfb/emit/monkeyc.py`)."""
+    (`wfb.availability`, `wfb/emit/monkeyc/`)."""
     from wfb.emit import manifest
 
     face = _face(DESIGN, write_design, bag)

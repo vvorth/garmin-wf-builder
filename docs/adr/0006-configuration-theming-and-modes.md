@@ -147,7 +147,7 @@ fr955** — the compiler generates both paths from one declaration.
 > nowhere but inside one design.
 >
 > **`bool(face.config)` was, until this amendment, the single on/off switch
-> for the entire on-device-config feature** across `wfb/emit/monkeyc.py`,
+> for the entire on-device-config feature** across `wfb/emit/monkeyc/`,
 > `wfb/emit/resources.py` and `wfb/lint.py` -- a design declaring only
 > `color_scheme:`/`config: colors:` and no colour axis would have silently
 > gotten no `<watchface-config>`, no delegate and no `applyConfig` at all.
@@ -584,7 +584,7 @@ generates exactly what it did before this amendment: `_sleeping` reduces to
 The second hand's own `if (!_sleeping)` wraps only that hand's parts,
 inside its own element's draw method — the hour and minute hands, and any
 `always_on` element set elsewhere in the same design, are unaffected. See
-`docs/format.md` "Analog hands" and `wfb/emit/monkeyc.py`'s
+`docs/format.md` "Analog hands" and `wfb/emit/monkeyc/view.py`'s
 `_sleep_flag_doc`/`_emit_sleep_hooks`.
 
 ### 6. Interactivity

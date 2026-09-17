@@ -330,7 +330,7 @@ def test_renamed_to_helper():
 
 # -- symbol-collision guard (F2): fast, catalogue-wide, no toolchain --------
 #
-# docs/review/2026-09-architecture-review.md's F2: `wfb/ir.py`'s
+# docs/review/2026-09-architecture-review.md's F2: `wfb/ir/builder.py`'s
 # `Builder._check_symbol_collision` only ever compares two derived forms of
 # one *element id* against each other -- it says nothing about the families
 # below, which are the ones that actually collided in the session that
@@ -342,7 +342,7 @@ def test_renamed_to_helper():
 # that one family; nothing before this test asserted the families stay
 # distinct in general.
 
-#: Fixed identifiers `wfb/emit/monkeyc.py` writes directly into the same
+#: Fixed identifiers `wfb/emit/monkeyc/` writes directly into the same
 #: generated scope a reader parameter (`ReadPlan.parameters`) and a value /
 #: intermediate local (`ReadPlan.declarations`) share -- the private
 #: per-element method `_emit_element_method` builds
@@ -375,7 +375,7 @@ def test_reader_and_value_locals_never_collide():
     source's value local) the shipped fix happens to cover.
 
     Three families of generated identifier can land in one per-element
-    method's scope (`wfb/emit/monkeyc.py`'s `_emit_element_method`):
+    method's scope (`wfb/emit/monkeyc/view.py`'s `_emit_element_method`):
 
     1. Every `Reader.name` in `READERS` -- becomes a parameter of whichever
        element method uses that reader (`ReadPlan.parameters`).

@@ -81,7 +81,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   :Complications)`. A value that needs a runtime guard before it can be
   built therefore has to be declared nullable and left `null` at the field,
   with the guarded construction moved into the constructor body instead
-  (`wfb/emit/monkeyc.py`'s `_emit_config_fields`/`_emit_initialize`,
+  (`wfb/emit/monkeyc/view.py`'s `_emit_config_fields`/`_emit_initialize`,
   2026-09-15, for a `config: data:` slot's `Complications.Id` on a target
   lacking `Toybox.Complications`). Obvious in hindsight, easy to reach for
   the field-initialiser spelling out of habit and get a construction-time

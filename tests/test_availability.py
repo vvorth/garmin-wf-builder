@@ -1,5 +1,5 @@
 """`wfb.availability` -- device-vs-design gap detection, and the runtime
-guards it drives in `wfb/emit/monkeyc.py`.
+guards it drives in `wfb/emit/monkeyc/`.
 
 fenix6 (ConnectIQ 3.4.5) and fr245 (3.3.6) are this project's lowest-level
 *installed* devices and both lack `Toybox.Complications` outright (below its
@@ -300,7 +300,7 @@ def test_compute_guards_field_gap_is_independent_of_the_complications_gap(db, wr
 
 
 # --------------------------------------------------------------------------
-# codegen: the guards `wfb/emit/monkeyc.py` actually emits
+# codegen: the guards `wfb/emit/monkeyc/` actually emits
 
 
 def _generate(write_design, bag, db, tmp_path, targets: str):

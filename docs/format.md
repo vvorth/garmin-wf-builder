@@ -2659,7 +2659,7 @@ a per-feature bump would lock out any target that never touches the
 feature -- see "What each device does with it" above); a target device that
 lacks `Toybox.Complications` instead gets the read guarded at runtime and
 warned about (`api-gated`, below) rather than being excluded from the build.
-`wfb/emit/monkeyc.py` also emits one
+`wfb/emit/monkeyc/view.py` also emits one
 `WfbComplications.subscribe(...)` per bound type in `onLayout`, whose whole
 job is `WatchUi.requestUpdate()` on change — this is *not* a cache (see "How
 data is read", below), it exists only so a value that changes after the first
@@ -2730,7 +2730,7 @@ documents its own calls as already cached on *its* side —
 `Toybox/Weather.html` describes `getCurrentConditions()` as "get the **most
 recently cached** weather conditions", not "fetch weather conditions" — so a
 second cache inside the 128 KB watch-face budget bought nothing but code and
-memory. It is gone. `wfb/emit/monkeyc.py`'s `ReadPlan` hoists one read per
+memory. It is gone. `wfb/emit/monkeyc/readplan.py`'s `ReadPlan` hoists one read per
 distinct reader per element method the way it always did (two elements
 sharing `weather.getDailyForecast()` still share one call, not one each), and
 that is the entire optimisation — no staleness check, no field, no TTL.

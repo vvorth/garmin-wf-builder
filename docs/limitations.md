@@ -44,7 +44,7 @@ enforces as `maxItems` on `points:`.
 
 A `graph` element with `style: area` inherits the same limit: closing the
 outline costs two corners, so the usable sample count is 62, checked at
-build time (`wfb/ir.py`'s `GRAPH_AREA_MAX_SAMPLES`) against `style: line`
+build time (`wfb/ir/model.py`'s `GRAPH_AREA_MAX_SAMPLES`) against `style: line`
 as the named alternative.
 
 ### There is no rotated-primitive draw call, so analog hands rotate in Monkey C
@@ -595,7 +595,7 @@ generated code draws from.
 
 **The refresh-tier concept (ADR 0005 §5) shipped and was then deleted
 outright**, on the user's own explicit instruction: `catalog.Tier`,
-`Reader.tier`, `Reader.ttl_seconds`, `Source.tier`, `wfb/ir.py`'s
+`Reader.tier`, `Reader.ttl_seconds`, `Source.tier`, `wfb/ir/`'s
 `_check_tiers` and `runtime-lib/WfbCache.mc` are all gone. Rationale: every
 value already comes from a Garmin API that documents itself as caching on its
 own side (`Toybox/Weather.html`'s `getCurrentConditions()` is "get the most
@@ -763,7 +763,7 @@ device that never touches the feature, which is exactly how targeting
 `fenix6` alongside `examples/dashboard/face.yaml` broke before this (see
 `docs/research/probes/api-gating/`). A device missing something a design
 binds gets a runtime `has`-guard in the shared generated view instead
-(`wfb.availability.compute_guards`, `wfb/emit/monkeyc.py`), and the binding
+(`wfb.availability.compute_guards`, `wfb/emit/monkeyc/`), and the binding
 simply reads as absent there.
 
 **What this still does not cover: a missing *function* symbol.** The

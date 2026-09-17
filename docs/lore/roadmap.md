@@ -77,7 +77,7 @@ and the ADR each is specified in):
 1. **`image` elements** and **the `raw` escape hatch** (ADR 0007) — both give
    a friendly "not implemented yet" error rather than an unknown-key error.
 2. **Per-device `overrides`** — parsed and validated, but **writing one is
-   now a build error**, not a silent no-op (`wfb/ir.py`'s
+   now a build error**, not a silent no-op (`wfb/ir/`'s
    `_check_overrides`). This is a correction, not the original plan: a
    design naming a device that does not exist, or keys no element has, used
    to pass `wfb validate` with no diagnostic at all.

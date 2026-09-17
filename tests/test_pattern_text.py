@@ -6,7 +6,7 @@ not the barrel or codegen (B2) and not the preview (B3).
 
 Every diagnostic here was driven red first, `tests/CLAUDE.md`'s own
 discipline: run against the violating input below with the corresponding
-`wfb/ir.py` check reverted, each one raised a different, wrong error (or
+`wfb/ir/` check reverted, each one raised a different, wrong error (or
 built clean) before the fix landed.
 """
 

@@ -250,6 +250,14 @@ renderer can be trusted. It is a capability hand authors do not have.
 > tie-break (`wfb.preview` keeps an identical duplicate, `_round_away`, for
 > the same reason `WfbArc.mc`'s own `roundAway` already has one twin, not
 > a shared import across layers that must not depend on each other).
+>
+> **Correction (2026-09-17).** The "must not depend on each other" reasoning
+> above is superseded. The helper is now a single public
+> `wfb.layout.round_half_away`, imported by `wfb.preview` rather than
+> duplicated — the import direction `preview -> layout` was always allowed;
+> only the reverse, `layout -> preview`, is forbidden. The original
+> reasoning is left in place above because it explains why the duplicate
+> existed for as long as it did, not because it still holds.
 
 ### 7. Patterns — the second runtime transform, and the ninth element type
 

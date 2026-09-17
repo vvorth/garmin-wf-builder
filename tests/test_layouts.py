@@ -2,7 +2,7 @@
 §12.1, §12.2). An author never writes membership on an element; a
 `layouts: <name>:` body's `static:`/`elements:` are folded by
 `wfb/desugar.py`'s `_layouts_block` into two synthetic groups appended to the
-top-level `elements:`, and `wfb/ir.py`'s `Builder._assign_layouts` stamps
+top-level `elements:`, and `wfb/ir/builder.py`'s `Builder._assign_layouts` stamps
 `Element.layout` on them (and their descendants) afterwards.
 
 Every check below is driven red against the exact violating input before it
