@@ -99,7 +99,7 @@ class BakedFont:
 #: Not a taste decision.  Rendering straight to the target size asks FreeType
 #: to fit an outline to a pixel grid at single-digit sizes, and its hinting
 #: then breaks the shape's own symmetry: measured over 99 glyphs from the
-#: vendored icon font that are provably symmetric (rendered at 256px they
+#: icon font that are provably symmetric (rendered at 256px they
 #: mirror exactly), across 12 sizes from 8 to 28 px, **16.8% of ink pixels
 #: landed asymmetrically**.  A plain square came out 7x7 inside an 8x8 tile;
 #: `md-circle_outline` at 16px was lopsided in every row.

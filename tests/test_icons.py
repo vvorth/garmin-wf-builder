@@ -1,6 +1,6 @@
 """The icon catalogue.
 
-An icon is a single glyph from the vendored icon font
+An icon is a single glyph from the icon font
 (``wfb/assets/icons/SymbolsNerdFont-Regular.ttf``), baked into a BMFont sheet at
 build time by the same pipeline that bakes an author's own custom text font.
 Drawing an icon is therefore drawing text -- one ``drawText`` call against a
@@ -8,7 +8,7 @@ baked bitmap font -- so there is no per-icon Monkey C to keep in sync with the
 catalogue the way an earlier, hand-drawn-primitives version of this module had.
 
 What *does* still need to agree with itself: every catalogue codepoint must be
-a real glyph in the vendored font, :mod:`wfb.layout` and :mod:`wfb.preview` must
+a real glyph in the icon font, :mod:`wfb.layout` and :mod:`wfb.preview` must
 resolve the same font for the same element (the anti-drift property the rest of
 the pipeline has), and an icon actually has to draw a visible pixel somewhere,
 both on device and in preview.
@@ -25,7 +25,7 @@ from wfb.units import Length
 
 
 def test_every_catalogue_codepoint_is_a_real_glyph():
-    """A name whose codepoint the vendored font does not contain would bake an
+    """A name whose codepoint the icon font does not contain would bake an
     empty tile and draw nothing, silently."""
     for icon in icons.CATALOG.values():
         assert icon.codepoint in icons._available_glyphs(), (
@@ -57,7 +57,7 @@ def test_resolve_codepoint_no_longer_accepts_a_pasted_character():
     still parses as valid YAML, which is exactly the hazard
     `wfb.icon_catalog`'s docstring bans for this project's own source.
     """
-    # fa-question (U+F128) is in the vendored font and is not in CATALOG.
+    # fa-question (U+F128) is in the icon font and is not in CATALOG.
     raw = "\uf128"
     assert raw not in {i.codepoint for i in icons.CATALOG.values()}
     assert icons.font_has(raw), "still reachable, but only through glyph:"
@@ -378,3 +378,34 @@ def test_name_for_codepoint_finds_a_catalogue_duplicate():
 
     assert icons.name_for_codepoint(icons.CATALOG["steps"].codepoint) == "steps"
     assert icons.name_for_codepoint("A") is None
+
+
+@pytest.fixture
+def no_icon_font(monkeypatch, tmp_path):
+    """The icon font as it is before `tools/fetch-icon-font.py` has run."""
+    monkeypatch.setattr(icons, "FONT_PATH", tmp_path / "SymbolsNerdFont-Regular.ttf")
+    icons._available_glyphs.cache_clear()
+    icons.bake_size.cache_clear()
+    yield
+    icons._available_glyphs.cache_clear()
+    icons.bake_size.cache_clear()
+
+
+def test_a_missing_icon_font_names_the_fix(no_icon_font):
+    with pytest.raises(icons.IconFontMissing, match="fetch-icon-font.py"):
+        icons._available_glyphs()
+
+
+@pytest.mark.parametrize("command", ["validate", "doctor"])
+def test_the_cli_reports_a_missing_icon_font_instead_of_a_traceback(
+        no_icon_font, capsys, command):
+    from pathlib import Path
+
+    from wfb import cli
+
+    showcase = Path(__file__).resolve().parent.parent / "examples/showcase/face.yaml"
+    args = [command, str(showcase)] if command == "validate" else [command]
+    assert cli.main(["--color", "never", *args]) == 1
+    captured = capsys.readouterr()
+    assert "icon font" in captured.out + captured.err
+    assert "fetch-icon-font.py" in captured.out + captured.err

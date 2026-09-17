@@ -1,8 +1,18 @@
 # The icon font
 
 `SymbolsNerdFont-Regular.ttf` is the "Symbols Only" build from
-[Nerd Fonts](https://www.nerdfonts.com) v3.5.1, vendored so `icon:` elements
-build offline and the icon vocabulary is not limited to a hand-drawn set.
+[Nerd Fonts](https://www.nerdfonts.com) v3.5.1, so the icon vocabulary is not
+limited to a hand-drawn set.
+
+**It is not committed.** `tools/fetch-icon-font.py` downloads the pinned
+release from GitHub, checks the archive and each extracted file against
+SHA-256 hashes, and installs the font and its licence
+(`LICENSE-nerd-fonts.txt`) here. `tools/setup-env.sh` and the Dockerfile both
+run it; run it yourself after a fresh clone if you skipped setup. Once it is
+installed, builds work offline. `WFB_NERD_FONTS_BASE_URL` points it at a
+mirror. To move to a newer release, change `VERSION` and the three hashes in
+the script together, then rerun the golden tests: a glyph that changed shape
+changes the baked sheets.
 
 Icons are baked into a per-size BMFont sheet at build time by the same
 pipeline that bakes an author's custom text font (`wfb/fonts/bmfont.py`), so
@@ -13,7 +23,7 @@ the catalogue data itself (name, codepoint, description).
 ## Licensing
 
 The Nerd Fonts patching and aggregation is MIT-licensed
-(`LICENSE-nerd-fonts.txt`). Nerd Fonts aggregates several separately-licensed
+(`LICENSE-nerd-fonts.txt`, installed next to the font). Nerd Fonts aggregates several separately-licensed
 icon sets; the ones this project's catalogue draws from are:
 
 | Icon set | Used for | Upstream | License |

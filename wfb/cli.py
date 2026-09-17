@@ -34,10 +34,12 @@ from .diagnostics import Bag
 DEFAULT_OUTPUT = Path("build")
 
 
-def _error(message: str, *, file=sys.stderr) -> None:
+def _error(message: str, *, file=None) -> None:
     """Print ``error: <message>``, with the label bold red when ``file`` is
     coloured -- centralised so every failure path styles the same way
-    instead of re-deriving ``term.should_color(file)`` at each call site."""
+    instead of re-deriving ``term.should_color(file)`` at each call site.
+    ``file`` defaults to the *current* ``sys.stderr``, looked up per call."""
+    file = sys.stderr if file is None else file
     label = term.style("error:", "bold", "red", enabled=term.should_color(file))
     print(f"{label} {message}", file=file)
 
@@ -97,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         return args.handler(args)
-    except DeviceError as exc:
+    except (DeviceError, icons.IconFontMissing) as exc:
         _error(str(exc))
         return 1
     except KeyboardInterrupt:  # pragma: no cover
@@ -641,6 +643,15 @@ def _doctor(args) -> int:
             blocking += 1
 
     print(f"{ok if SCHEMA_PATH.exists() else missing} schema           {SCHEMA_PATH}")
+
+    # -- the icon font ----------------------------------------------------
+    if icons.FONT_PATH.is_file():
+        print(f"{ok} icon font        {icons.FONT_PATH}")
+    else:
+        print(f"{missing} icon font        {icons.FONT_PATH}")
+        print("                   run tools/setup-env.sh, or python3 tools/fetch-icon-font.py")
+        problems.append("install the icon font")
+        blocking += 1
 
     # -- device definitions -----------------------------------------------
     try:

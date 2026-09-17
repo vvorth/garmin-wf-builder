@@ -6,7 +6,8 @@
 # docs/container.md for the full story; three things are worth knowing up front:
 #
 #   * The Connect IQ SDK downloads freely and is baked in, pruned to the ~26 MB
-#     the compiler actually needs.
+#     the compiler actually needs.  The Nerd Fonts icon font is downloaded the
+#     same way (tools/fetch-icon-font.py); it is not part of the repository.
 #   * The **device definitions cannot be downloaded** -- api.gcs.garmin.com
 #     returns HTTP 401 behind Garmin SSO -- so they are mounted at run time.
 #     They are also the user's own licensed copy of Garmin's files, which is a
@@ -36,9 +37,11 @@ ARG EXTRA_CA_CERT_B64=""
 
 
 # ---------------------------------------------------------------------------
-# Stage 1 -- fetch the SDK and strip it to what `monkeyc` actually needs.
+# Stage 1 -- fetch the SDK and strip it to what `monkeyc` actually needs, and
+# fetch the icon font.
 #
-# docker/fetch-sdk.py does the work and explains the pruning.  It runs on the
+# docker/fetch-sdk.py does the SDK work and explains the pruning;
+# tools/fetch-icon-font.py downloads the pinned icon font and checks its hashes.  It runs on the
 # same Python base as the runtime stage, so this stage installs no packages at
 # all and proxy settings are picked up from the standard environment variables.
 # ---------------------------------------------------------------------------
@@ -47,9 +50,11 @@ FROM python:${PYTHON_VERSION}-slim-${DEBIAN_SUITE} AS sdk
 ARG SDK_VERSION=9.2.0
 ARG SDK_FILE=connectiq-sdk-lin-9.2.0-2026-06-09-92a1605b2.zip
 ARG SDK_BASE_URL=https://developer.garmin.com/downloads/connect-iq/sdks
+ARG WFB_NERD_FONTS_BASE_URL=https://github.com/ryanoasis/nerd-fonts/releases/download
 ARG EXTRA_CA_CERT_B64
 
 COPY docker/fetch-sdk.py /tmp/fetch-sdk.py
+COPY tools/fetch-icon-font.py /tmp/fetch-icon-font.py
 
 RUN set -eux; \
     if [ -n "${EXTRA_CA_CERT_B64}" ]; then \
@@ -58,7 +63,10 @@ RUN set -eux; \
     python /tmp/fetch-sdk.py "${SDK_BASE_URL}/${SDK_FILE}" /opt/ciq; \
     rm /tmp/fetch-sdk.py; \
     echo "${SDK_VERSION}" > /opt/ciq/SDK_VERSION; \
-    test -x /opt/ciq/bin/monkeyc
+    test -x /opt/ciq/bin/monkeyc; \
+    WFB_NERD_FONTS_BASE_URL="${WFB_NERD_FONTS_BASE_URL}" \
+        python /tmp/fetch-icon-font.py /opt/icons; \
+    rm /tmp/fetch-icon-font.py
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +114,7 @@ COPY requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
 COPY wfb/ ./wfb/
+COPY --from=sdk /opt/icons/ ./wfb/assets/icons/
 COPY runtime-lib/ ./runtime-lib/
 COPY schema/ ./schema/
 COPY examples/ ./examples/

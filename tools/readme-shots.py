@@ -54,14 +54,15 @@ VARIANTS = [
      "data_color": "palette.magenta",
      "data.left_register": "complication.heart_rate"},
     {"accent_color": "palette.magenta",
-     "data_color": "palette.amber",
+     "data_color": "palette.cyan",
      "data.right_register": "complication.calories"},
 ]
 
 
-# The README's top image: every style, with accent and data colours that
-# differ even when the design's own defaults coincide.
-STYLES_DEFAULTS = {"data_color": "palette.amber"}
+# The README's top image: every style, with the design's own defaults unless
+# set here (e.g. {"data_color": "palette.amber"} when the accent and data
+# defaults coincide and would render as one colour).
+STYLES_DEFAULTS = {}
 
 
 def variant_copy(tmp, name, defaults):

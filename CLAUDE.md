@@ -58,7 +58,10 @@ platform and linter limits, and `docs/container.md` covers the Docker image.
 
 It installs the SDK 9.2.0 at `~/ciq/sdks/9.2.0`, the developer key at
 `~/ciq/developer_key.der`, the device definitions at
-`~/.Garmin/ConnectIQ/Devices/`, `CIQ_SDK` and `PATH` in
+`~/.Garmin/ConnectIQ/Devices/`, the Nerd Fonts icon font at
+`wfb/assets/icons/` (downloaded and hash-checked by
+`tools/fetch-icon-font.py`; **not committed**, so a fresh clone needs it before
+anything with an icon validates), `CIQ_SDK` and `PATH` in
 `/etc/sandbox-persistent.sh`, and `.venv/`. On Debian/Ubuntu, `venv` needs
 `python3-venv`, or the script falls back to `uv`. Device install is
 **incremental**: re-running it after `vendor/devices/` gains a new device

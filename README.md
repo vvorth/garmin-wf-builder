@@ -9,8 +9,7 @@ personal sideload.
 ![All five styles of the showcase face](docs/screenshots/showcase-styles.png)
 
 *[`examples/showcase`](examples/showcase/face.yaml): one file, five on-device
-styles made from two layouts and three colour schemes. Shown with a red
-accent and an amber data colour (both default to red).*
+styles made from two layouts and three colour schemes.*
 
 This page is a tour by example. Sections 1–10 follow the showcase face, and
 section 11 covers features from the other examples. Each snippet sits next to
@@ -27,7 +26,7 @@ run `./.venv/bin/python tools/readme-shots.py`.
 ## 1. Setup and the loop
 
 ```sh
-./tools/setup-env.sh                # SDK, developer key, device files, .venv
+./tools/setup-env.sh                # SDK, developer key, device files, icon font, .venv
 ```
 
 Or use the Docker image: see [`docs/container.md`](docs/container.md). Garmin's
@@ -138,6 +137,62 @@ elements:
 
 `FONT_XTINY` … `FONT_NUMBER_THAI_HOT` name the watch's built-in fonts. A
 `font.<name>` reference uses one of your own from `fonts:`.
+
+### Icons from Nerd Fonts
+
+Icons are glyphs from the [Nerd Fonts](https://www.nerdfonts.com) "Symbols
+Only" font, about 10,000 of them. `tools/setup-env.sh` downloads the font; it
+isn't stored in this repository. The build bakes only the glyphs you use into
+the face, the same way it bakes a custom text font. Each icon costs one small
+bitmap, and no image files ship.
+
+```yaml
+steps_icon:                          # a named icon: `wfb sources` lists the names
+  type: icon
+  icon: steps
+  size: 9%r                          # px or %r
+  color: config.colors.fg
+
+hr_graph_icon:                       # any Nerd Fonts glyph, by codepoint
+  type: icon
+  glyph: "U+F21E"                    # nf-fa-heartbeat
+  size: 9%r
+
+weather_icon:                        # chosen on the watch from live data
+  type: icon
+  icon_for: weather.condition_today
+```
+
+![named, codepoint and weather icons](docs/screenshots/showcase-registers.png)
+
+- **Named icons** (`icon:`) cover the common metrics: steps, heart, flame,
+  battery, notification, alarm, and so on, plus a `weather_*` set.
+- **Any other glyph:** find it on the
+  [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet), then write
+  its code as `glyph: "U+XXXX"`. The build checks that the font has it.
+- **`icon_for:`** picks the weather glyph on the watch at runtime.
+
+**Your own icon font** also works, through a plain `text` element. Add any TTF,
+such as a full Nerd-patched font, to `fonts:`, and write the glyph as a YAML
+escape:
+
+```yaml
+fonts:
+  myicons: { source: assets/MyIcons.ttf, size: 20%r }
+elements:
+  github:
+    type: text
+    text: "\uF09B"                   # use "\U000F140B" above U+FFFF
+    font: font.myicons
+```
+
+A text element doesn't get the icon's size correction or the build's
+glyph-exists check. Also avoid spaces between glyphs: a symbols-only font has
+no space character, and the preview draws it as an empty box.
+
+More detail: [`docs/format.md` § icon](docs/format.md#icon), and
+[`wfb/assets/icons/README.md`](wfb/assets/icons/README.md) for licensing and
+for adding a name.
 
 ## 5. Data slots, cards and a graph
 
@@ -279,8 +334,8 @@ config:
     choices:
       analog_dark:  { label: "Analog · Dark",  layout: analog,  colors: dark }
       digital_dark: { label: "Digital · Dark", layout: digital, colors: dark }
-  accent_color: { default: palette.red, choices: [palette.red, palette.lime_green, ...] }
-  data_color:   { default: palette.red, choices: [palette.red, palette.magenta, ...] }
+  accent_color: { default: palette.red,   choices: [palette.red, palette.lime_green, ...] }
+  data_color:   { default: palette.amber, choices: [palette.amber, palette.magenta, ...] }
   data:
     left_register:
       default: complication.steps
@@ -291,9 +346,9 @@ config:
 
 ![three accent / data colour / slot selections](docs/screenshots/showcase-config.png)
 
-*Left: the defaults. Middle: lime accent, magenta data colour, and the left
-slot set to heart rate. Right: magenta accent, amber data colour, and the
-right slot set to calories.*
+*Left: the defaults (red accent, amber data colour). Middle: lime accent,
+magenta data colour, and the left slot set to heart rate. Right: magenta
+accent, cyan data colour, and the right slot set to calories.*
 
 The wearer picks these in the fēnix 8's native face editor, which saves up to
 four configurations. The fr955 has no on-device editor, so it always shows the

@@ -1718,8 +1718,9 @@ same as `shape: arc`.
   color: palette.accent
 ```
 
-An icon is a single glyph from a vendored icon font
-([Nerd Fonts](https://www.nerdfonts.com)' "Symbols Only" build), baked into a
+An icon is a single glyph from an icon font
+([Nerd Fonts](https://www.nerdfonts.com)' "Symbols Only" build, which
+`tools/setup-env.sh` downloads; it is not committed), baked into a
 bitmap font sheet at build time — the same pipeline that bakes a `fonts:`
 entry, subsetted to exactly the glyphs a design uses. Drawing an icon is
 drawing text: one `drawText` call against that baked font. No image ships in
@@ -1737,7 +1738,7 @@ be baked once, before layout runs, so its size cannot depend on a parent box
 has already happened. `%r` is recommended, for the same reason it is
 recommended everywhere else: it means the same thing regardless of screen size.
 
-**The catalogue prefers Material Design Icons** (`nf-md`, the vendored font's
+**The catalogue prefers Material Design Icons** (`nf-md`, the icon font's
 largest and most consistent set) whenever a glyph reads at least as well as an
 alternative — the one deliberate exception is `steps`, which keeps a Font
 Awesome glyph because MDI's walking/running figures read as "activity" rather
@@ -1751,7 +1752,7 @@ codepoints fit in the Basic Multilingual Plane (see the comment above
 `heart_rate.current`, and so on) to their conventional icon, for a design or
 tool that wants a sensible default rather than the compiler enforcing one.
 
-**Beyond the named icons**, the vendored font has on the order of ten thousand
+**Beyond the named icons**, the icon font has on the order of ten thousand
 glyphs, including codepoints above the Basic Multilingual Plane (all of MDI's
 own icons live there). Reach one with **`glyph:`**, which takes a codepoint in
 Unicode's own notation:

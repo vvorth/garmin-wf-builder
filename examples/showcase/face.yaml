@@ -139,7 +139,6 @@ config:
   data_color:
     default: palette.amber
     choices:
-      - palette.amber
       - palette.red
       - palette.cyan
       - palette.lime_green

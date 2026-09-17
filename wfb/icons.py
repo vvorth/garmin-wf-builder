@@ -61,8 +61,23 @@ class SlotIcon:
     key: str
     codepoint: str
 
-#: The vendored font every icon glyph comes from.
+#: The font every icon glyph comes from: Nerd Fonts' "Symbols Only" build,
+#: installed by `tools/fetch-icon-font.py` (not committed to the repository).
 FONT_PATH = Path(__file__).resolve().parent / "assets" / "icons" / "SymbolsNerdFont-Regular.ttf"
+
+
+class IconFontMissing(RuntimeError):
+    """The icon font is not installed; the message names the fix."""
+
+
+def font_path() -> Path:
+    """`FONT_PATH`, or `IconFontMissing` when it has not been installed."""
+    if not FONT_PATH.is_file():
+        raise IconFontMissing(
+            f"the icon font is not installed ({FONT_PATH}); "
+            "run tools/setup-env.sh, or python3 tools/fetch-icon-font.py"
+        )
+    return FONT_PATH
 
 #: Used only when an icon name failed to resolve, so baking has *something*
 #: valid to measure.  Never reaches a real build: an unresolved icon is a build
@@ -139,7 +154,7 @@ def name_for_codepoint(character: str) -> str | None:
 
 
 def font_has(character: str) -> bool:
-    """Is this character in the vendored icon font's own character map?"""
+    """Is this character in the icon font's own character map?"""
     return character in _available_glyphs()
 
 
@@ -160,7 +175,7 @@ def resolve_codepoint(name: str) -> str | None:
 
 @lru_cache(maxsize=1)
 def _available_glyphs() -> frozenset[str]:
-    """Every character the vendored font can draw -- what :func:`font_has`
+    """Every character the icon font can draw -- what :func:`font_has`
     checks a `glyph: "U+XXXX"` codepoint against.
 
     Includes codepoints above the Basic Multilingual Plane (Material Design
@@ -178,7 +193,7 @@ def _available_glyphs() -> frozenset[str]:
     """
     from fontTools.ttLib import TTFont
 
-    with TTFont(str(FONT_PATH), lazy=True) as font:
+    with TTFont(str(font_path()), lazy=True) as font:
         cmap = font.getBestCmap()
     return frozenset(chr(cp) for cp in cmap)
 
@@ -196,7 +211,7 @@ def _ink_height(codepoint: str, nominal_size: int) -> int:
     """
     from PIL import ImageFont
 
-    font = ImageFont.truetype(str(FONT_PATH), max(1, nominal_size))
+    font = ImageFont.truetype(str(font_path()), max(1, nominal_size))
     bbox = font.getbbox(codepoint)
     if bbox is None:
         return 0
@@ -209,7 +224,7 @@ def bake_size(codepoint: str, target_px: int) -> int:
     """The font nominal size to bake `codepoint` at so its own ink-bbox height
     ends up as close as possible to `target_px`.
 
-    Needed because the vendored font aggregates icon sets with very different
+    Needed because the icon font aggregates icon sets with very different
     internal padding conventions inside their em-square: at the same nominal
     font size, a Material Design Icons glyph's ink is noticeably shorter than
     a Font Awesome or Codicons one was (confirmed by measurement: MDI glyphs
@@ -252,7 +267,7 @@ def bake_size(codepoint: str, target_px: int) -> int:
       is exactly the property a declared size is relied on for when two text
       elements sit in a row.
     * The measurement that motivated this function does not apply either. It
-      was a *within-one-file* inconsistency -- the vendored icon font
+      was a *within-one-file* inconsistency -- the icon font
       aggregates ~10 third-party icon sets with different em-square padding
       conventions, so one file's own glyphs disagree about what a nominal size
       means. An author's text font is one typeface with one such convention;

@@ -258,7 +258,7 @@ are to use the list form in files you want an editor to check, or to drop the
 
 ### The resource compiler's font `filter` cannot represent a codepoint above U+FFFF
 
-`icon:` accepts any single character from the vendored Nerd Font directly, not
+`icon:` accepts any single character from the Nerd Fonts icon font directly, not
 only the named catalogue entries, including codepoints above the Basic
 Multilingual Plane — all of Material Design Icons' ~7,000 glyphs live up
 there, and the catalogue now uses several of them (`heart`, `flame`, `alarm`,

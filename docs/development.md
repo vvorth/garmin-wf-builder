@@ -42,7 +42,9 @@ docker run --rm -v "$PWD:/work" \
 See [`docs/container.md`](container.md). The local install:
 
 Installs the Connect IQ SDK 9.2.0, generates a developer key, installs the device
-definitions, and creates `.venv` with the host dependencies.
+definitions, downloads the Nerd Fonts icon font (`tools/fetch-icon-font.py`,
+pinned and hash-checked; the font is not committed), and creates `.venv` with the
+host dependencies.
 
 The SDK downloads freely. **Device definitions cannot be downloaded** —
 `api.gcs.garmin.com` returns HTTP 401 and needs a Garmin SSO login that cannot be
@@ -131,9 +133,9 @@ wfb/                  the compiler
   layout.py             relative units -> absolute pixels, per device
   lint.py               ADR 0008's checks, each with a stated confidence
   fonts/                TrueType -> BMFont sheet, subsetted to the used glyphs
-  icons.py              icon sizing and resolution over a vendored Nerd Font
+  icons.py              icon sizing and resolution over the Nerd Fonts icon font
   icon_catalog.py       the icon name -> codepoint table, data only
-  assets/icons/         the vendored "Symbols Only" font (MIT; see its README)
+  assets/icons/         the "Symbols Only" icon font, downloaded by tools/fetch-icon-font.py
   emit/                 Monkey C, resources, manifest, jungle
   preview.py            host-side renderer over the resolved IR
   build.py, cli.py      the pipeline and `wfb`

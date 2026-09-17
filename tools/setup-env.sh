@@ -5,6 +5,7 @@
 #   - Connect IQ SDK 9.2.0        -> ~/ciq/sdks/9.2.0   (downloaded)
 #   - a developer signing key     -> ~/ciq/developer_key.der (generated)
 #   - device definitions          -> ~/.Garmin/ConnectIQ/Devices (copied)
+#   - the Nerd Fonts icon font    -> wfb/assets/icons/ (downloaded, hash-checked)
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host
@@ -109,6 +110,10 @@ else
         echo "already installed: $(ls "${DEVICES_DEST}" | wc -l) devices"
     fi
 fi
+
+# -------------------------------------------------------- icon font ---------
+say "icon font"
+python3 "${REPO_ROOT}/tools/fetch-icon-font.py"
 
 # ------------------------------------------------------------- env ----------
 say "environment"

@@ -96,7 +96,7 @@ def _mirror_asymmetry(sheet, glyph) -> float:
     return sum(1 for x, y in zip(a, b) if x != y) / ink
 
 
-#: Glyph names in the vendored icon font that are mirror-symmetric by design --
+#: Glyph names in the icon font that are mirror-symmetric by design --
 #: verified by rendering each at 256px, where the pixel grid is far finer than
 #: the shape and the rasteriser cannot be what breaks it.
 SYMMETRIC_GLYPHS = ("md-square", "md-circle", "md-circle_outline", "md-record")
@@ -110,7 +110,7 @@ def _codepoint(name: str) -> str:
     for code, glyph_name in TTFont(icons.FONT_PATH).getBestCmap().items():
         if glyph_name == name:
             return chr(code)
-    raise AssertionError(f"{name} is not in the vendored font")
+    raise AssertionError(f"{name} is not in the icon font")
 
 
 @pytest.mark.parametrize("glyph_name", SYMMETRIC_GLYPHS)

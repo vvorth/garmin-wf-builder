@@ -2996,7 +2996,7 @@ class Builder:
                 f"the icon font has no glyph at {raw.upper()}",
                 span,
                 notes=[
-                    "checked against the vendored font's own character map, the same "
+                    "checked against the icon font's own character map, the same "
                     "way a custom text font's coverage is checked",
                     "https://www.nerdfonts.com/cheat-sheet lists the codepoints this "
                     "font actually carries",
@@ -3039,7 +3039,7 @@ class Builder:
                 f"{what}: 'icon:' and 'glyph:' are mutually exclusive",
                 fallback_span,
                 notes=["'icon:' names a catalogue entry; 'glyph:' is any codepoint "
-                       "in the vendored icon font -- pick one"],
+                       "in the icon font -- pick one"],
             )
             return _ICON_OVERRIDE_ERROR
         if has_icon:
@@ -3075,7 +3075,7 @@ class Builder:
                 self.doc.span(node),
                 notes=["'icon' names a glyph from the built-in catalogue (run "
                        "`wfb sources` for the list)",
-                       "'glyph' is any codepoint in the vendored icon font, written "
+                       "'glyph' is any codepoint in the icon font, written "
                        "'U+XXXX' -- for the ~10,000 glyphs the catalogue does not name",
                        "'icon_for' chooses one at runtime from a bound value -- see "
                        "wfb.catalog.WEATHER_CONDITION_SOURCES for what it accepts"],

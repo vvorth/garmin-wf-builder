@@ -3821,3 +3821,26 @@ Left as found:
 - The showcase now carries three `partial-update-budget` warnings;
   `examples/CLAUDE.md` still calls it warning-free.
 
+## 2026-09-17 — the icon font is downloaded, not committed
+
+- `wfb/assets/icons/SymbolsNerdFont-Regular.ttf` and its licence are no
+  longer tracked. `tools/fetch-icon-font.py` (stdlib only) downloads the
+  Nerd Fonts v3.5.1 `NerdFontsSymbolsOnly.tar.xz`, checks the archive and
+  both extracted files against pinned SHA-256 hashes, and installs them in
+  place; `tools/setup-env.sh` and the Dockerfile's first stage run it. The
+  downloaded font is byte-identical to the one that was committed, so the
+  golden files do not move. The file is still in git history.
+- A missing font is `icons.IconFontMissing`, reported by the CLI with the
+  fix, and a blocking line in `wfb doctor`. The test for it exposed that
+  `cli._error` bound `sys.stderr` at import time; it now looks it up per
+  call.
+- The README gained an icons section: named icons, `glyph:` for any Nerd
+  Fonts codepoint, `icon_for:`, and your own icon TTF through a `text`
+  element. That last route has no missing-glyph check: `validate` and
+  `build` accept a character the font lacks when the glyph set is derived
+  from the design, and the preview draws a box.
+- The showcase no longer builds: `b1c3fc7` lists `palette.amber` twice in
+  `data_color.choices`, so the generated `watchface.xml` marks two defaults
+  and `monkeyc` rejects it. `wfb validate` does not catch duplicate
+  choices. Left as found.
+

@@ -16,3 +16,7 @@ vendor/
 *.prg
 *.iq
 *.bundle
+
+# The icon font is fetched in the image build, never copied from the host.
+wfb/assets/icons/SymbolsNerdFont-Regular.ttf
+wfb/assets/icons/LICENSE-nerd-fonts.txt

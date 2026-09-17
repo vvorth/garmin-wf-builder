@@ -232,3 +232,8 @@ vendor/devices/
 # transfer artefact, not source
 *.bundle
 .DS_Store
+
+# The Nerd Fonts icon font: downloaded and hash-checked by
+# tools/fetch-icon-font.py (run by tools/setup-env.sh and the Dockerfile).
+wfb/assets/icons/SymbolsNerdFont-Regular.ttf
+wfb/assets/icons/LICENSE-nerd-fonts.txt

@@ -432,3 +432,9 @@ renderer can be trusted. It is a capability hand authors do not have.
 - Whether to support a constraint solver (element A right-of element B) rather
   than only parent-relative anchors. Deferred: anchors cover the reference design
   and a solver is a large addition. Revisit if real faces demand it.
+
+**Amendment 2026-09-17:** the icon font is no longer committed.
+`tools/fetch-icon-font.py` downloads the same Nerd Fonts v3.5.1 "Symbols Only"
+file (byte-identical, SHA-256 pinned) during setup and in the Docker build.
+"Vendored" above now means "pinned and installed by setup", not "in the
+repository"; the element model is unchanged.

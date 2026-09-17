@@ -203,7 +203,7 @@ class PlacedProgress(Placed):
 class PlacedIcon(Placed):
     #: The requested *visual* pixel size -- not the font's own nominal size it
     #: was baked at, which `wfb.icons.bake_size` may inflate to compensate for
-    #: how much the vendored font's icon sets pad a glyph inside its em-square.
+    #: how much the icon font's icon sets pad a glyph inside its em-square.
     size: int = 0
     #: The synthetic font resource this icon draws from (see `wfb.icons.font_key`).
     font_key: str = ""

@@ -41,7 +41,7 @@ character in a trailing comment, `# preview: <char> (<font glyph name>)` -- not
 for this module to use, but so a maintainer's editor (most can render it, even
 though the escape is what Python actually evaluates) shows what the code is
 supposed to produce right next to the codepoint that produces it. Every
-codepoint was looked up directly against the vendored font's own cmap
+codepoint was looked up directly against the icon font's own cmap
 (fontTools ``getBestCmap()``), not typed from memory -- the same "never invent
 an API" discipline CLAUDE.md asks for Monkey C symbols applies just as much to
 which glyph a name actually points at.
@@ -62,7 +62,7 @@ class Icon:
 # Preference, per user direction: prefer a Material Design Icons glyph
 # (nf-md, prefix "md-") over other icon sets when one exists and reads at
 # least as well at small size -- MDI is the largest, most consistently drawn
-# set in the vendored font (7,000+ glyphs, one design language), and
+# set in the icon font (7,000+ glyphs, one design language), and
 # `wfb.emit.resources` never emits a `filter=` attribute for a font that
 # needs a supplementary-plane glyph (see `wfb.icons._available_glyphs`), so
 # nothing rules an MDI glyph out on that account.
@@ -106,7 +106,7 @@ CATALOG: dict[str, Icon] = {
 
         # -- complication-type icons, all 42 types mapped (user direction: "map
         # all available complications to some icon") ---------------------------
-        # Every codepoint below was looked up against the vendored font's own
+        # Every codepoint below was looked up against the icon font's own
         # cmap before being written here, the same discipline every other
         # entry in this file follows.
         Icon("body_battery", "\U000f1211",

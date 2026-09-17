@@ -31,7 +31,7 @@ The generated Monkey C is byte-identical to a host build of the same design.
 | **Docker** | any recent version, or Podman with `podman` in place of `docker` |
 | **Disk** | ~600 MB for the image; the build downloads the 204 MB SDK once |
 | **Device definitions** | **required, and must come from you** — see below |
-| **Network** | only at image build time, for the SDK and the Python packages |
+| **Network** | only at image build time, for the SDK, the icon font and the Python packages |
 | **Architecture** | verified on `linux/amd64`. The pruned SDK contains **no native binaries** — only shell scripts and JVM bytecode — so `linux/arm64` should work, but has not been tested |
 
 ### The one thing you have to supply: device definitions
@@ -184,7 +184,10 @@ reproducible and working on networks where the distribution mirrors are not
 reachable.
 
 **Stage 1** downloads the SDK with `docker/fetch-sdk.py` and strips it to the
-compiler. The full SDK is 309 MB; `doc/`, `resources/` and `samples/` are
+compiler. It also downloads the Nerd Fonts icon font with
+`tools/fetch-icon-font.py`, which checks it against pinned SHA-256 hashes; stage 2
+copies it into `wfb/assets/icons/`. The font is not in the repository, and
+`.dockerignore` keeps a host copy out of the build context. The full SDK is 309 MB; `doc/`, `resources/` and `samples/` are
 documentation, and `share/` plus the simulator, ERA, MonkeyMotion, the language
 server and the FIT graph tool are GUI and analysis programs the container does
 not run. What is left is **26 MB** and builds every target correctly.
@@ -205,6 +208,7 @@ Roughly 600 MB total: 159 MB JRE, ~150 MB Python base, ~100 MB of wheels
 | `SDK_VERSION` | `9.2.0` | recorded in the image at `/opt/ciq/SDK_VERSION` |
 | `SDK_FILE` | the 9.2.0 Linux zip | the archive to download |
 | `SDK_BASE_URL` | Garmin's download host | override for an internal mirror |
+| `WFB_NERD_FONTS_BASE_URL` | the Nerd Fonts GitHub releases | override for a mirror of the icon font |
 | `PYTHON_VERSION` | `3.13` | base image tag |
 | `EXTRA_CA_CERT_B64` | empty | a base64 PEM certificate to trust |
 

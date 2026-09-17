@@ -32,7 +32,7 @@ disagree, `docs/limitations.md` is right and this needs updating.
   fonts, and the mapping form of `elements:`.
 - The full data-source catalogue, including all 42 `COMPLICATION_TYPE_*`
   values under `complication.*`, and the icon catalogue sourced from a
-  vendored Nerd Fonts build (~10,000 glyphs, plus a named subset).
+  Nerd Fonts build (~10,000 glyphs, plus a named subset), downloaded by setup.
 - Interactivity: `on_hold:` on every element (touch-and-hold only — see
   constraint 6c; there is no tap on a live face), `on_hold: auto` resolving a
   launch target from the element's own bound value, and

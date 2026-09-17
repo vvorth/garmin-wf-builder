@@ -144,7 +144,7 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     A bitmap font is rasterised at one size, so continuous `size:` scaling on
     an `icon` element is offered by baking whichever sizes a design actually
     uses -- exactly as if the author had declared several custom fonts at
-    different sizes, except automatic and drawn from the vendored icon font
+    different sizes, except automatic and drawn from the icon font
     rather than one the author supplies.  Independent of :func:`bake_fonts`'s
     caller order: this is a pure function of the design and the device, so it
     can run again in :func:`build_bundle` without needing to be threaded
@@ -212,7 +212,7 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     return {
         key: FontSpec(
             name=key,
-            source=icons.FONT_PATH,
+            source=icons.font_path(),
             size=float(icons.bake_size(
                 reference, units.pixel_size(length, device.minor_radius),
             )),
