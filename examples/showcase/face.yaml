@@ -107,6 +107,8 @@ palette:
   sky_blue: { value: "#00AAFF", label: "Sky Blue" }
   light_blue: { value: "#55FFFF", label: "Light Blue" }
   magenta: { value: "#FF00FF", label: "Magenta" }
+  dark_green: { value: "#005500", label: "Dark Green" }
+  dark_red: { value: "#550000", label: "Dark Red" }
 
 color_scheme:
   dark:
@@ -118,6 +120,9 @@ color_scheme:
   navy:
     label: "Navy"
     colors: { bg: palette.darkest_blue, fg: palette.white, dim: palette.light_gray, dark: palette.dark_gray, track: palette.light_gray, notify: palette.black }
+  crimson:
+    label: "Crimson"
+    colors: { bg: palette.dark_red, fg: palette.white, dim: palette.light_gray, dark: palette.dark_gray, track: palette.light_gray, notify: palette.black }
 
 config:
   accent_color:
@@ -132,9 +137,9 @@ config:
       - palette.magenta
       - palette.yellow
   data_color:
-    default: palette.green
+    default: palette.red
     choices:
-      - palette.orange
+      - palette.amber
       - palette.red
       - palette.cyan
       - palette.lime_green
@@ -147,7 +152,8 @@ config:
     choices:
       analog_dark:   { label: "Analog · Dark",  layout: analog,  colors: dark }
       analog_light:  { label: "Analog · Light", layout: analog,  colors: light }
-      analog_navy:   { label: "Analog · Navy",  layout: analog,  colors: navy }
+      # analog_navy:   { label: "Analog · Navy",  layout: analog,  colors: navy }
+      analog_crimson: { label: "Analog · Crimson",  layout: analog,  colors: crimson }
       digital_dark:  { label: "Digital · Dark", layout: digital, colors: dark }
       digital_light: { label: "Digital · Light", layout: digital, colors: light }
   data:
@@ -393,8 +399,8 @@ layouts:
           top_icon_bg:
             type: icon
             icon: notification
-            size: 27%r
-            at: { anchor: center }
+            size: 25%r
+            at: { anchor: center, dx: 1%r, dy: 1%r }
             color: palette.black
           top_icon:
             type: icon
