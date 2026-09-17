@@ -64,10 +64,10 @@ def _memory_share(share: float, *, color: bool) -> str:
 def _format_built(products: dict, memory: dict, *, color: bool) -> list[str]:
     """Format ``_build``'s ``built`` lines, one per compiled device.
 
-    Pulled out of ``_build`` so alignment can be unit-tested with plain
-    dicts and ``Path`` objects, without invoking `monkeyc` -- a real build's
-    ``.prg`` names differ in length per device, which is exactly what used
-    to make the byte figures ragged.
+    Pulled out of ``_build`` so the column alignment can be unit-tested with
+    plain dicts and ``Path`` objects, without invoking `monkeyc`: device
+    ``.prg`` names differ in length, which is what makes the byte figures
+    ragged without it.
     """
     name_width = max((len(path.name) for path in products.values()), default=0)
     lines = []
@@ -107,12 +107,10 @@ def main(argv: list[str] | None = None) -> int:
 def _subparsers(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
     """Every registered subcommand parser, by name.
 
-    argparse has no public accessor for this; walking ``_subparsers``'s
-    ``_group_actions`` for the ``_SubParsersAction`` and reading its
-    ``choices`` is the standard, stable way every argparse-introspecting tool
-    does it. Both `_rewrite_trailing_help` (which command names does
-    ``... help`` need to recognise) and `_help` (which subparser to print)
-    need this same dict, so it lives in one place rather than two.
+    argparse has no public accessor for this; walking the top-level parser's
+    ``_subparsers._group_actions`` for the ``_SubParsersAction`` and reading
+    its ``choices`` is the standard, stable way to get it. Shared by
+    `_rewrite_trailing_help` and `_help`, which both need the same dict.
     """
     for action in parser._subparsers._group_actions:
         if isinstance(action, argparse._SubParsersAction):
@@ -123,10 +121,9 @@ def _subparsers(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentP
 def _rewrite_trailing_help(argv: list[str], commands: dict[str, argparse.ArgumentParser]) -> list[str]:
     """``wfb <command> help`` -> ``wfb <command> --help``.
 
-    A trailing ``help`` is how most CLIs a person (or an LLM) has already
-    used behave, so it is worth supporting alongside the leading ``wfb help
-    <command>`` form and plain ``-h``/``--help`` -- three spellings of the
-    same request rather than one a caller has to remember exactly.
+    Supported alongside the leading ``wfb help <command>`` form and plain
+    ``-h``/``--help``, since a trailing ``help`` is how most CLIs a caller
+    has already used behave.
     """
     if len(argv) == 2 and argv[1] == "help" and argv[0] in commands:
         return [argv[0], "--help"]
@@ -137,9 +134,9 @@ def _color_parser(dest: str = "color") -> argparse.ArgumentParser:
     """A parent-parser fragment for ``--color``, mixed into the top-level
     parser (as ``color_before``) and every subcommand (as ``color``) so the
     flag works on either side of the command name.  They must be different
-    ``dest``s: a subparser's own ``parse_known_args`` call always merges its
+    ``dest``s: a subparser's ``parse_known_args`` call always merges its
     *whole* namespace -- including unset options at their default -- back
-    into the shared one, so a single shared ``color`` dest would let ``wfb
+    into the shared one, so one shared ``color`` dest would let ``wfb
     --color never build x`` be silently overwritten by ``build``'s own
     default the moment its subparser runs.  ``main`` combines the two,
     subcommand-level taking precedence.
@@ -155,8 +152,8 @@ def _command(sub: argparse._SubParsersAction, name: str, handler) -> argparse.Ar
     ``handler``'s docstring: the first line is the short summary ``wfb
     --help`` lists next to the command name, and the whole docstring is what
     ``wfb <command> --help`` / ``wfb help <command>`` / ``wfb <command>
-    help`` all print. One docstring, not a hand-written ``help=`` string and
-    a separately maintained description that can drift from it.
+    help`` all print -- one docstring, not a hand-written ``help=`` string
+    that can drift from it.
     """
     doc = inspect.getdoc(handler) or ""
     summary = doc.splitlines()[0] if doc else ""
@@ -593,8 +590,7 @@ def _new(args) -> int:
         _error(f"{destination} already exists")
         return 1
 
-    # A fresh UUID every time: two faces sharing one id are the same app to the
-    # watch, so installing the second replaces the first.
+    # A fresh UUID every call -- see the docstring for why.
     text = (
         source.read_text(encoding="utf-8")
         .replace("__UUID__", str(uuid.uuid4()))

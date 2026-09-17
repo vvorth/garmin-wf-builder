@@ -141,9 +141,6 @@ ELEMENT_ALIASES: dict[str, str] = {
     "digital_clock": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
     "clock": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
     "time": "type: text\n    value: time.clock\n    format: \"{:%H:%M}\"",
-    # Analog hands shipped in plan 04 -- these three used to either not exist
-    # (`hand`, `analog`) or point at `ELEMENT_NOT_YET`'s now-superseded
-    # `analog_clock` hint below ("build them from shape: line").
     "hand": "type: hands\n    hands: <name>      # a name declared under top-level 'hands:'",
     "analog": "type: hands\n    hands: <name>      # a name declared under top-level 'hands:'",
     "analog_clock": "type: hands\n    hands: <name>      # a name declared under top-level 'hands:'",
@@ -154,13 +151,7 @@ ELEMENT_ALIASES: dict[str, str] = {
 ELEMENT_NOT_YET = {
     "image": "images are not implemented yet",
     "bitmap": "images are not implemented yet",
-    # `complication_slot` shipped (docs/research/09-data-library-and-config-axes.md
-    # §4) -- it is a real element type now, listed in `ELEMENT_TYPES` below, not
-    # an alias here any more.
     "raw": "the `raw` escape hatch is not implemented yet (ADR 0007)",
-    # `analog_clock` used to point here ("build them from shape: line") before
-    # analog hands shipped (plan 04) -- it is now an `ELEMENT_ALIASES` entry
-    # above, alongside `hand` and `analog`.
 }
 
 
@@ -237,7 +228,7 @@ def _check_progress_style(doc: YamlDocument, bag: Bag, element: dict) -> bool:
 def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> bool:
     """Catch `seconds: always` before the schema does, so the message can
     explain *why* it is not implemented instead of just listing the two
-    values the enum does accept (plan 04 §5.6, §11).
+    values the enum does accept.
 
     Follows `_check_progress_style`'s precedent: the friendly explanation
     goes through this hand-written check, and the schema's own `seconds:`
@@ -262,17 +253,15 @@ def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> b
 
 
 def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
-    """Catch `vertical_align: baseline` before the schema does (plan 07 R6):
-    the schema's `verticalAlign` enum no longer has the value at all, so a
-    bare "'baseline' is not valid here" would not tell an author it was
-    renamed, or why. Checked on a `text` element and on a pattern's
-    `shape: text` part -- the two glyph-drawn kinds that ever accepted the
-    old `baseline` spelling before its rename (phase A). Every other kind
-    that accepts `vertical_align:` (`group`, `shape`, `progress`, `graph`,
-    `icon`, `complication_slot`, a hand or pattern `rectangle`/`circle`
-    part) gained the key only after the rename, so `baseline` was never a
-    legal value there and needs no check (`docs/format.md`'s "Placement"
-    section).
+    """Catch `vertical_align: baseline` before the schema does: the schema's
+    `verticalAlign` enum no longer has the value at all, so a bare
+    "'baseline' is not valid here" would not tell an author it was renamed,
+    or why. Checked on a `text` element and on a pattern's `shape: text`
+    part -- the two glyph-drawn kinds that ever accepted the old `baseline`
+    spelling. Every other kind that accepts `vertical_align:` (`group`,
+    `shape`, `progress`, `graph`, `icon`, `complication_slot`, a hand or
+    pattern `rectangle`/`circle` part) never accepted `baseline` as a value,
+    so needs no check here (`docs/format.md`'s "Placement" section).
 
     Follows `_check_hands_seconds_always`'s precedent: the friendly
     explanation goes through this hand-written check, the schema stays
@@ -356,8 +345,8 @@ def _dotted(path: list) -> str:
 def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list]:
     """Explain the two things a hand part's frame refuses that every other
     position accepts -- `%`/`pt` lengths and `anchor:` -- before the schema
-    reports them bluntly (plan 04 §5.1, §5.3).  Returns the value paths
-    already accounted for, so the schema's own error for each is dropped.
+    reports them bluntly.  Returns the value paths already accounted for,
+    so the schema's own error for each is dropped.
 
     Same precedent as `_check_hands_seconds_always`: the schema stays
     normative (it refuses both), and this only supplies the reason.
@@ -428,7 +417,7 @@ def _pattern_step_unit(value: object) -> str | None:
     """`pt` when ``value`` is a length string in that unit -- the only one a
     linear pattern's ``{dx, dy}`` step refuses.  Unlike a hand-frame length,
     `px`, `%` and `%r` are all fine here: a step is resolved against the
-    parent box, not a boxless frame (plan 05 §5.1)."""
+    parent box, not a boxless frame."""
     if not isinstance(value, str):
         return None
     text = value.strip()
@@ -439,11 +428,11 @@ def _pattern_step_unit(value: object) -> str | None:
 
 def _check_pattern_frame(doc: YamlDocument, bag: Bag) -> list[list]:
     """The same friendly explanation `_check_hand_frame` gives a hand part,
-    for a pattern's template (plan 05 §5.2: a pattern part is authored
-    exactly like a hand part -- px/%r only, no `anchor:`) plus one more of
-    its own: a linear pattern's `step:` refuses `pt` (no font in scope),
-    though `%`/`%r` are fine there since a step resolves against the parent
-    box, unlike a part's own position.
+    for a pattern's template (a pattern part is authored exactly like a
+    hand part -- px/%r only, no `anchor:`) plus one more of its own: a
+    linear pattern's `step:` refuses `pt` (no font in scope), though
+    `%`/`%r` are fine there since a step resolves against the parent box,
+    unlike a part's own position.
 
     Returns the value paths already accounted for, so the schema's own
     (blunter) error for each is dropped -- same contract as
@@ -535,10 +524,10 @@ def _check_pattern_frame(doc: YamlDocument, bag: Bag) -> list[list]:
     return bad
 
 
-#: The R3/§6 choice 2 reason `type: hands`/`type: pattern` refuse element-level
-#: `align:`/`vertical_align:`: both elements' `at:` is a pivot the geometry
-#: turns about or steps from, not a box -- moving it would break the very
-#: thing the element draws, unlike every accepting kind in §3.1.
+#: Why `type: hands`/`type: pattern` refuse element-level `align:`/
+#: `vertical_align:`: both elements' `at:` is a pivot the geometry turns
+#: about or steps from, not a box -- moving it would break the very thing
+#: the element draws, unlike every other kind that accepts alignment.
 _PIVOT_ALIGNMENT_REASON = {
     "hands": "'at:' is the axis the hands turn about, not a box to align",
     "pattern": "'at:' is the origin every copy turns about (radial) or steps "
@@ -548,9 +537,9 @@ _PIVOT_ALIGNMENT_REASON = {
 
 def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list]:
     """Friendly refusal of `align:`/`vertical_align:` on `type: hands`/
-    `type: pattern` (plan 07 R3, §6 choice 2) -- the schema stays closed to
-    both keys on `handsElement`/`patternElement`, so this supplies the
-    reason a bare "unknown key" would not give.
+    `type: pattern` -- the schema stays closed to both keys on
+    `handsElement`/`patternElement`, so this supplies the reason a bare
+    "unknown key" would not give.
 
     Unlike `_check_hand_frame`/`_check_pattern_frame`/`_check_baseline_renamed`,
     whose bad paths each point at one value the schema itself still has a
@@ -562,12 +551,12 @@ def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list]:
     (as `bad_types`' prefix-skip expects) would therefore also swallow any
     other, unrelated unexpected key on the same element -- and everything
     nested under it, `_check_hands_seconds_always`'s coarser precedent, which
-    plan 07 R3 explicitly asks not to repeat ("any other, unrelated mistake
-    on the same element is still reported"). So nothing is returned for
-    `bad_types` here; `validate()` instead rewrites that one bundled schema
-    error itself (`_drop_pivot_alignment_keys`), dropping only 'align'/
-    'vertical_align' from its "unexpected" list and leaving any other
-    offending key on the same element reported exactly as before.
+    this deliberately avoids: any other, unrelated mistake on the same
+    element must still be reported. So nothing is returned for `bad_types`
+    here; `validate()` instead rewrites that one bundled schema error itself
+    (`_drop_pivot_alignment_keys`), dropping only 'align'/'vertical_align'
+    from its "unexpected" list and leaving any other offending key on the
+    same element reported exactly as before.
     """
     def visit(elements, path: list) -> None:
         if not isinstance(elements, list):
@@ -595,7 +584,7 @@ def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list]:
     return []
 
 
-#: `align`/`vertical_align` (plan 07): the only two keys `_check_hands_pattern_
+#: `align`/`vertical_align`: the only two keys `_check_hands_pattern_
 #: alignment` ever reports on `type: hands`/`type: pattern` -- shared with
 #: `_drop_pivot_alignment_keys` below so the two stay in lockstep.
 _PIVOT_ALIGNMENT_KEYS = frozenset({"align", "vertical_align"})
@@ -606,8 +595,8 @@ def _drop_pivot_alignment_keys(error: ValidationError) -> ValidationError | None
     `type: pattern` element so it no longer mentions `align`/`vertical_align`
     -- `_check_hands_pattern_alignment` already gave the real reason for each
     of those, one error per key. Leaves every *other* unexpected key on the
-    same element exactly as `jsonschema` reported it (R3: "any other,
-    unrelated mistake on the same element is still reported").
+    same element exactly as `jsonschema` reported it -- any other,
+    unrelated mistake on the same element is still reported in full.
 
     Returns the error unchanged when it has nothing to do with this (not an
     `additionalProperties` failure, not on a hands/pattern element, or an

@@ -130,8 +130,8 @@ def _rasterise(source: Path, size: int, char: str,
         return None, 0, 0
 
     # Draw into a padded canvas so a hinted outline that spills past its own
-    # reported bbox is not clipped, then find the ink that actually landed --
-    # measured, rather than trusting the bbox, which is what went wrong before.
+    # reported bbox is not clipped, then measure the ink that actually
+    # landed rather than trusting the bbox.
     pad = SUPERSAMPLE * 2
     canvas = Image.new("L", (right - left + 2 * pad, bottom - top + 2 * pad), 0)
     ImageDraw.Draw(canvas).text((-left + pad, -top + pad), char, font=big, fill=255)

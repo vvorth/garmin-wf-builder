@@ -63,8 +63,8 @@ already uses it gets an error naming the collision rather than a confusing
 ``duplicate-id`` against a line that does not exist in the source.
 
 The third rewrite is a ``layouts:`` entry's own ``static:``/``elements:``
-(plan 02 §12.2 -- form A is the only one this format
-builds; there is no element-level membership key):
+-- form A is the only one this format builds; there is no element-level
+membership key:
 
 .. code-block:: yaml
 
@@ -141,10 +141,10 @@ def layout_ids(name: str) -> tuple[str, str]:
     ``static:``/``elements:`` halves are rewritten into --
     ``(static_id, elements_id)``.
 
-    The single place this naming convention is defined (plan 02
-    §12.2).  ``wfb/ir.py`` imports this rather than
-    re-deriving the strings, so the desugar rewrite and the IR's later
-    ``Element.layout`` assignment can never drift out of step.
+    The single place this naming convention is defined.  ``wfb/ir.py``
+    imports this rather than re-deriving the strings, so the desugar
+    rewrite and the IR's later ``Element.layout`` assignment can never
+    drift out of step.
     """
     return f"layout_{name}_static", f"layout_{name}"
 
@@ -236,7 +236,7 @@ def _static_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
 
 
 # --------------------------------------------------------------------------
-# `layouts:` -- form A only (plan 02 §12.1, §12.2)
+# `layouts:` -- form A only
 
 
 def _layouts_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
