@@ -14,6 +14,7 @@ is the point of stages 1-3 not touching ``monkeyc`` (ADR 0003).
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -21,6 +22,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+
+# Tests never touch the network: this stops any system-font measurement or
+# preview from reaching for wfb/fonts/fetch_system.py's runtime download, for
+# the whole session, before any test module (including test_system_fonts_fetch
+# itself, which monkeypatches its own downloader per test) can import it.
+os.environ["WFB_OFFLINE"] = "1"
 
 from wfb.devices import DeviceDatabase, DeviceError  # noqa: E402
 

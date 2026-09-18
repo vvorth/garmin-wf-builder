@@ -25,7 +25,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, catalog, complications, icons, series as series_catalog, term
+from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
 from .build import Toolchain, build as run_build, load, resolve_all, select_devices, slug
 from .simulate import SimulatorError, push, screenshot
 from .devices import DeviceDatabase, DeviceError
@@ -265,6 +265,9 @@ def _parser() -> argparse.ArgumentParser:
 
     doctor = _command(sub, "doctor", _doctor)
     doctor.add_argument("--devices-dir")
+    doctor.add_argument("--fonts", dest="fonts_dir",
+                         help="Garmin ConnectIQ Fonts directory (default: $WFB_FONTS, "
+                              "vendor/fonts/, or the SDK Manager's per-OS install location)")
 
     schema = _command(sub, "schema", _schema)
     schema.add_argument("--path", action="store_true",
@@ -625,6 +628,7 @@ def _doctor(args) -> int:
     # and misalign every line that follows.
     ok = term.style("  ok ", "green", enabled=color_out)
     missing = term.style("MISSING", "bold", "red", enabled=color_out)
+    absent = term.style(" none", "yellow", enabled=color_out)
     problems: list[str] = []
     blocking = 0
 
@@ -652,6 +656,41 @@ def _doctor(args) -> int:
         print("                   run tools/setup-env.sh, or python3 tools/fetch-icon-font.py")
         problems.append("install the icon font")
         blocking += 1
+
+    # -- Garmin's own font files (optional; outrank the registry when found) --
+    # Never triggers a download: doctor only reports what is already there.
+    fetch_system = fonts.fetch_system
+    fonts_root = fetch_system.garmin_font_root(getattr(args, "fonts_dir", None))
+    if fonts_root is not None:
+        print(f"{ok} Garmin fonts     {fonts_root}")
+    else:
+        print(f"{absent} Garmin fonts     not found (optional)")
+        print("                   copy the SDK Manager's Fonts directory into vendor/fonts/,")
+        print("                   or set WFB_FONTS / pass --fonts DIR -- see docs/container.md")
+
+    # -- the system fonts each target device needs (registry stand-ins) ---
+    for device_id in fetch_system.DEFAULT_TARGET_DEVICES:
+        needed = fetch_system.device_needed_names(device_id)
+        if not needed:
+            continue
+        # "unmapped" is a deliberate registry decision (a CJK/RTL-only face),
+        # not something an install could fix, so it never flips the marker.
+        tiers = {"garmin": 0, "installed": 0, "cached": 0, "missing": 0, "unmapped": 0}
+        for name, face in needed:
+            if fonts_root is not None and fetch_system.garmin_font_file(name, fonts_root) is not None:
+                tiers["garmin"] += 1
+                continue
+            key = fetch_system.resolve(name, face)
+            if key is None:
+                tiers["unmapped"] += 1
+                continue
+            tiers[fetch_system.tier_for(key) or "missing"] += 1
+        summary = ", ".join(f"{count} {label}" for label, count in tiers.items() if count)
+        marker = ok if tiers["missing"] == 0 else absent
+        print(f"{marker} fonts: {device_id:<16} {summary}")
+    print("                   never downloads -- run tools/setup-env.sh, or "
+          "python3 tools/fetch-system-fonts.py; not blocking, falls back to a "
+          "substitute face at build time")
 
     # -- device definitions -----------------------------------------------
     try:

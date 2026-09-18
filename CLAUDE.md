@@ -66,7 +66,10 @@ anything with an icon validates), `CIQ_SDK` and `PATH` in
 `python3-venv`, or the script falls back to `uv`. Device install is
 **incremental**: re-running it after `vendor/devices/` gains a new device
 copies in just that one, without touching what is already installed
-(`docs/lore/toolchain.md`).
+(`docs/lore/toolchain.md`). It also copies `vendor/fonts/` (Garmin's own,
+optional font files) into place the same incremental way, and prefetches
+`wfb/fonts/registry.json`'s free system-font stand-ins (`docs/lore/toolchain.md`,
+`docs/plans/09-system-font-metrics.md`).
 
 **Device definitions cannot be downloaded:** Garmin's API returns 401 without
 an SSO login. They are vendored at `vendor/devices/`, which is

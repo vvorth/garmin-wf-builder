@@ -42,9 +42,12 @@ docker run --rm -v "$PWD:/work" \
 See [`docs/container.md`](container.md). The local install:
 
 Installs the Connect IQ SDK 9.2.0, generates a developer key, installs the device
-definitions, downloads the Nerd Fonts icon font (`tools/fetch-icon-font.py`,
-pinned and hash-checked; the font is not committed), and creates `.venv` with the
-host dependencies.
+definitions, copies Garmin's own font files in from `vendor/fonts/` if present
+(optional — see below), downloads the Nerd Fonts icon font
+(`tools/fetch-icon-font.py`, pinned and hash-checked; the font is not committed)
+and prefetches the registry's system-font stand-ins the same way
+(`tools/fetch-system-fonts.py`; see `docs/lore/toolchain.md`), and creates
+`.venv` with the host dependencies.
 
 The SDK downloads freely. **Device definitions cannot be downloaded** —
 `api.gcs.garmin.com` returns HTTP 401 and needs a Garmin SSO login that cannot be
@@ -53,6 +56,15 @@ completed headlessly. Get them with Garmin's SDK Manager
 takes them from `vendor/devices/` (gitignored, because they are your own licensed
 copy), from `~/Library/Application Support/Garmin/ConnectIQ/Devices`, or from
 wherever they already are at `~/.Garmin/ConnectIQ/Devices`.
+
+**Garmin's own font files are the same shape, but optional**: free stand-ins
+(`wfb/fonts/registry.json`) work without them. If the SDK Manager install also
+has a `Fonts` directory, the script copies it from `vendor/fonts/` (gitignored,
+same reasoning as `vendor/devices/`) into `~/.Garmin/ConnectIQ/Fonts`
+incrementally. `wfb doctor` reports which root it found (`--fonts DIR` or
+`WFB_FONTS` override it); a device's real file there is meant to outrank the
+registry's stand-in once a build/preview actually consults it (plan 09's Step
+B). See `docs/plans/09-system-font-metrics.md` R1b and `docs/lore/toolchain.md`.
 
 **Platforms.** `setup-env.sh` is tested on Linux only. It downloads the Linux
 SDK, and it appends `CIQ_SDK`/`PATH` to `/etc/sandbox-persistent.sh` when that
@@ -161,9 +173,13 @@ wfb/                  the compiler
   layout.py             relative units -> absolute pixels, per device
   lint.py               ADR 0008's checks, each with a stated confidence
   fonts/                TrueType -> BMFont sheet, subsetted to the used glyphs
+  fonts/registry.json   device font name -> free-font-key mapping (docs/research/10-system-fonts.md)
+  fonts/fetch_system.py stdlib-only fetch/cache/Garmin-font-root logic driven by registry.json
   icons.py              icon sizing and resolution over the Nerd Fonts icon font
   icon_catalog.py       the icon name -> codepoint table, data only
   assets/icons/         the "Symbols Only" icon font, downloaded by tools/fetch-icon-font.py
+  assets/system-fonts/  registry.json's free stand-ins for Garmin's system fonts,
+                        downloaded by tools/fetch-system-fonts.py
   emit/                 Monkey C, resources, manifest, jungle
   preview.py            host-side renderer over the resolved IR
   build.py, cli.py      the pipeline and `wfb`

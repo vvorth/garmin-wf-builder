@@ -228,6 +228,9 @@ developer_key.*
 # Deliberately NOT committed: redistributing Garmin's device files is a
 # licensing question we have not cleared. tools/setup-env.sh reads them here.
 vendor/devices/
+# Garmin's device fonts (.ttf/.cft from the SDK Manager's ConnectIQ/Fonts),
+# the same licensing reason: the user's own copy, never committed.
+vendor/fonts/
 
 # transfer artefact, not source
 *.bundle
@@ -237,3 +240,12 @@ vendor/devices/
 # tools/fetch-icon-font.py (run by tools/setup-env.sh and the Dockerfile).
 wfb/assets/icons/SymbolsNerdFont-Regular.ttf
 wfb/assets/icons/LICENSE-nerd-fonts.txt
+
+# Registry-driven system fonts (wfb/fonts/registry.json): downloaded and
+# hash-checked by tools/fetch-system-fonts.py / wfb/fonts/fetch_system.py
+# (run by tools/setup-env.sh and the Dockerfile).
+# docs/plans/09-system-font-metrics.md. Ignore the directory's *contents*
+# generically -- which keys land here depends on which devices were
+# prefetched, not a fixed Roboto set.
+wfb/assets/system-fonts/*
+!wfb/assets/system-fonts/README.md

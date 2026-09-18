@@ -13,6 +13,9 @@ docker run --rm \
   garmin-wf-builder build examples/graph/face.yaml
 ```
 
+(a `-v "<Fonts dir>:/fonts:ro"` mount is also accepted, and optional — see
+"Garmin's own font files" below.)
+
 ```
 generated  /work/build/graph
 built      graph-fenix8solar47mm.prg  3,417 B / 131,072 B (2.6%)
@@ -31,7 +34,8 @@ The generated Monkey C is byte-identical to a host build of the same design.
 | **Docker** | any recent version, or Podman with `podman` in place of `docker`. On macOS it is tested with [OrbStack](https://orbstack.dev) |
 | **Disk** | ~600 MB for the image; the build downloads the 204 MB SDK once |
 | **Device definitions** | **required, and must come from you** — see below |
-| **Network** | only at image build time, for the SDK, the icon font and the Python packages |
+| **Garmin's own font files** | optional — see below |
+| **Network** | only at image build time, for the SDK, the icon and system fonts, and the Python packages |
 | **Architecture** | verified on `linux/amd64`. The pruned SDK contains **no native binaries** — only shell scripts and JVM bytecode — so `linux/arm64` should work, but has not been tested |
 
 ### The one thing you have to supply: device definitions
@@ -62,6 +66,32 @@ you target, and mount that directory read-only:
 
 If the mount is missing, the container says so and points here rather than
 failing deep inside a build.
+
+### Garmin's own font files (optional)
+
+Text measurement and previews use free stand-ins for Garmin's system fonts
+by default (`wfb/fonts/registry.json`,
+`docs/plans/09-system-font-metrics.md`). If the same SDK Manager install
+that provided the device definitions also has Garmin's own font files —
+under its `Fonts` directory, next to `Devices` — mounting it at `/fonts`
+makes the container prefer the device's real file over the registry's
+stand-in, the same `garmin` > registry precedence `wfb doctor` reports on
+the host:
+
+| Host | Path |
+|---|---|
+| macOS | `~/Library/Application Support/Garmin/ConnectIQ/Fonts` |
+| Linux | `~/.Garmin/ConnectIQ/Fonts` |
+| Windows | `%APPDATA%\Garmin\ConnectIQ\Fonts` |
+
+```sh
+-v "$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:/fonts:ro"
+```
+
+`WFB_FONTS=/fonts` is already set in the image; nothing to configure beyond
+the mount itself. Unlike the device definitions, this one is **optional** —
+without it, builds and previews fall back to the registry's fonts, which
+`tools/fetch-system-fonts.py` prefetched into the image at build time.
 
 ### The developer key
 
@@ -110,13 +140,14 @@ docker run --rm ... garmin-wf-builder pytest
 
 What each command needs mounted:
 
-| Command | `/work` | `/devices` | `/keys` |
-|---|:--:|:--:|:--:|
-| `build` | ✔ | ✔ | ✔ |
-| `build --no-compile` | ✔ | ✔ | |
-| `preview` | ✔ | ✔ | |
-| `validate` | ✔ | ✔ | |
-| `devices`, `sources` | | ✔ | |
+| Command | `/work` | `/devices` | `/fonts` | `/keys` |
+|---|:--:|:--:|:--:|:--:|
+| `build` | ✔ | ✔ | optional | ✔ |
+| `build --no-compile` | ✔ | ✔ | optional | |
+| `preview` | ✔ | ✔ | optional | |
+| `validate` | ✔ | ✔ | | |
+| `devices`, `sources` | | ✔ | | |
+| `doctor` | | | optional | |
 
 ---
 
@@ -185,9 +216,13 @@ reachable.
 
 **Stage 1** downloads the SDK with `docker/fetch-sdk.py` and strips it to the
 compiler. It also downloads the Nerd Fonts icon font with
-`tools/fetch-icon-font.py`, which checks it against pinned SHA-256 hashes; stage 2
-copies it into `wfb/assets/icons/`. The font is not in the repository, and
-`.dockerignore` keeps a host copy out of the build context. The full SDK is 309 MB; `doc/`, `resources/` and `samples/` are
+`tools/fetch-icon-font.py` and the registry's system-font stand-ins (free
+substitutes previews and width estimates use for Garmin's own system fonts,
+`docs/plans/09-system-font-metrics.md`) with `tools/fetch-system-fonts.py`
+for the three build targets, each checked against pinned SHA-256 hashes;
+stage 2 copies both into `wfb/assets/icons/` and `wfb/assets/system-fonts/`.
+Neither is in the repository, and `.dockerignore` keeps a host copy out of
+the build context. The full SDK is 309 MB; `doc/`, `resources/` and `samples/` are
 documentation, and `share/` plus the simulator, ERA, MonkeyMotion, the language
 server and the FIT graph tool are GUI and analysis programs the container does
 not run. What is left is **26 MB** and builds every target correctly.
@@ -209,6 +244,7 @@ Roughly 600 MB total: 159 MB JRE, ~150 MB Python base, ~100 MB of wheels
 | `SDK_FILE` | the 9.2.0 Linux zip | the archive to download |
 | `SDK_BASE_URL` | Garmin's download host | override for an internal mirror |
 | `WFB_NERD_FONTS_BASE_URL` | the Nerd Fonts GitHub releases | override for a mirror of the icon font |
+| `WFB_FONTS_MIRROR` | empty | override the host of every registry system-font URL, for a mirror that reproduces the same paths |
 | `PYTHON_VERSION` | `3.13` | base image tag |
 | `EXTRA_CA_CERT_B64` | empty | a base64 PEM certificate to trust |
 

@@ -179,6 +179,8 @@ device definitions. What it sets up, and why each part matters:
 | Connect IQ SDK 9.2.0 | `~/ciq/sdks/9.2.0` | Downloaded unauthenticated from `developer.garmin.com`. 204 MB. |
 | Developer key | `~/ciq/developer_key.der` | Plain OpenSSL RSA → PKCS#8 DER. No Garmin tooling needed. |
 | **Device definitions** | `~/.Garmin/ConnectIQ/Devices/` | **Cannot be downloaded.** See below. |
+| Garmin's own font files (optional) | `~/.Garmin/ConnectIQ/Fonts/` | Also cannot be downloaded; copied from `vendor/fonts/` the same incremental way, if present. See below. |
+| System-font registry stand-ins | `wfb/assets/system-fonts/` | Free fonts, downloaded and hash-checked by `tools/fetch-system-fonts.py`. |
 | Env vars | `/etc/sandbox-persistent.sh` | `CIQ_SDK`, and SDK `bin/` on `PATH`. |
 | Python venv | `.venv/` | `ruamel.yaml`, `jsonschema`, `pillow`, `fonttools`, `pytest`. |
 
@@ -229,6 +231,59 @@ If they are ever missing, ask the user to run on their **host**:
 cp -R ~/Library/Application\ Support/Garmin/ConnectIQ/Devices \
       ~/claude/garmin-watchface-protomolecule/.devices-import
 ```
+
+---
+
+### System fonts: registry fetch, cache, and Garmin's own font root
+
+`docs/plans/09-system-font-metrics.md` (Step A). `wfb/fonts/fetch_system.py`
+is deliberately **stdlib-only, no `wfb`/Pillow import** — it must load by
+file path (`importlib.util.spec_from_file_location`) before `.venv` exists,
+in the Docker SDK stage, and from `wfb doctor` without a rasteriser.
+
+**Name resolution** (`resolve(name, face=None)`) is pure and reads only
+`wfb/fonts/registry.json`: an exact `names` hit, then the first matching
+`patterns` regex, then, only with `face` given, the `faces` table — the
+same order `tests/test_font_registry.py`'s own resolver checks the
+committed registry against.
+
+**Fetch/cache.** `ensure(key)` downloads a font-key's pinned TTF into
+`${XDG_CACHE_HOME:-~/.cache}/wfb/fonts/<key>.ttf` on demand, checking the
+whole download and (for an archive source) every extracted member against
+`registry.json`'s pinned SHA-256 before writing anything — one bad hash
+refuses the *whole* archive group, not just the one member, so nothing
+partial is left behind. An archive shared by several font-keys (the Roboto
+release backs nine of them, including every `*-substitute` alias) is
+downloaded once per process and every key that needs a member of it is
+materialised in the same pass. `path_for(key)`/`tier_for(key)` are the
+no-network reads (`wfb doctor` uses these, never `ensure`); `install(keys,
+dest)` is the prefetch entry point `tools/fetch-system-fonts.py` and
+`setup-env.sh`/the Dockerfile call. `WFB_OFFLINE=1` stops any of this from
+reaching the network at all — `tests/conftest.py` sets it for the whole
+test session, so a test that needs the online path must `monkeypatch.delenv`
+it back off. `WFB_FONTS_MIRROR` overrides every source URL's host, for an
+internal mirror that reproduces the same paths.
+
+**Garmin's own font files rank above the registry** (plan 09 R1b): the SDK
+Manager's `Fonts` directory (next to `Devices`) is the user's own licensed
+copy, vendored at `vendor/fonts/` the same way `vendor/devices/` is —
+gitignored, incrementally copied into `~/.Garmin/ConnectIQ/Fonts` by
+`setup-env.sh`. `garmin_font_root(override=None)` finds it, first existing
+non-empty candidate winning: an explicit override (`--fonts DIR`), then
+`WFB_FONTS`, then `vendor/fonts/`, then the three per-OS SDK Manager
+locations (`%APPDATA%` only consulted when set, for Windows). This is
+**optional** — none of it exists in this sandbox (`vendor/fonts/` has never
+been populated), so `garmin_font_file`/`garmin_cft_file` are exercised only
+by fakes under `tmp_path`, never the real thing, and the exact
+`simulator.json` `filename` → on-disk-file mapping inside a real Fonts
+directory (case? subdirectories? is an `FNT_*` bitmap name a `.cft`?)
+is **unresearched** — deferred until a real Fonts directory can be
+inspected, per the plan. `garmin_font_file` today is a generic
+case-insensitive stem match over `.ttf`/`.otf` anywhere under the root; a
+`.cft` match is reported (`garmin_cft_file`) but never returned as usable —
+decoding Garmin's bitmap-font container format is also deferred. `locate(name,
+face=None, fonts_root=None)` is the one top-level lookup that puts Garmin's
+root ahead of the registry, for Step B to call.
 
 ---
 

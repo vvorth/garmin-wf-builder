@@ -74,12 +74,18 @@ hand:
      because the files are your licensed copy.
    - **Docker:** nothing to copy. Step 2 mounts the folder into the container.
 
+**Optional:** the same SDK Manager install also has Garmin's own font files
+(next to `Devices`, in a `Fonts` directory). Free stand-ins work without
+them, but if you have them, put them at `vendor/fonts/` the same way (or
+mount `Fonts` at `/fonts` for Docker) — `wfb doctor` says which one a build
+would use.
+
 ### Step 2: install
 
 **Linux:**
 
 ```sh
-./tools/setup-env.sh                # SDK, signing key, device files, icon font, .venv
+./tools/setup-env.sh                # SDK, signing key, device files, icon + system fonts, .venv
 alias wfb="$PWD/wfb.py"             # put this in your shell profile
 ```
 
@@ -728,6 +734,21 @@ The screenshots on this page were drawn on a fēnix 8 47 mm with sample data at
 The code is MIT-licensed ([`LICENSE`](LICENSE)). The example fonts keep their
 own licences: the SIL Open Font License, in an `OFL.txt` next to each set of
 fonts, and Apache-2.0 for the test fixture's Open Sans. The Nerd Fonts icon
-font isn't in the repository; setup downloads it with its licence. Garmin's SDK
-and device definitions are not part of this project, and Garmin's own terms
-cover them.
+font isn't in the repository; setup downloads it with its licence.
+
+Previews and width/height estimates for Garmin's own system fonts use free
+stand-ins — Roboto, DejaVu, Bebas Neue, Rajdhani, and others, each an
+`exact`/`family`/`substitute` match recorded in
+[`wfb/fonts/registry.json`](wfb/fonts/registry.json) with its own pinned
+source, licence (mostly Apache-2.0 or OFL-1.1) and rationale
+([`docs/research/10-system-fonts.md`](docs/research/10-system-fonts.md)).
+None of them is in the repository either; setup (or
+`tools/fetch-system-fonts.py`) downloads whichever ones your build targets
+need, each with a licence file alongside it. If you have Garmin's own font
+files — from the SDK Manager's `Fonts` directory — they take priority over
+these stand-ins; put them at `vendor/fonts/` (gitignored, like
+`vendor/devices/`: it's your own licensed copy, never committed) or point
+`WFB_FONTS` at them.
+
+Garmin's SDK and device definitions are not part of this project, and
+Garmin's own terms cover them.

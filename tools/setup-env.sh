@@ -5,7 +5,11 @@
 #   - Connect IQ SDK 9.2.0        -> ~/ciq/sdks/9.2.0   (downloaded)
 #   - a developer signing key     -> ~/ciq/developer_key.der (generated)
 #   - device definitions          -> ~/.Garmin/ConnectIQ/Devices (copied)
+#   - Garmin's own font files     -> ~/.Garmin/ConnectIQ/Fonts (copied from
+#                                    vendor/fonts/, if present -- optional)
 #   - the Nerd Fonts icon font    -> wfb/assets/icons/ (downloaded, hash-checked)
+#   - the system fonts registry   -> wfb/assets/system-fonts/ (downloaded,
+#                                    hash-checked; docs/plans/09-system-font-metrics.md)
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host
@@ -19,6 +23,7 @@ SDK_URL="https://developer.garmin.com/downloads/connect-iq/sdks/${SDK_FILE}"
 SDK_ROOT="${HOME}/ciq/sdks/${SDK_VERSION}"
 KEY_DER="${HOME}/ciq/developer_key.der"
 DEVICES_DEST="${HOME}/.Garmin/ConnectIQ/Devices"
+FONTS_DEST="${HOME}/.Garmin/ConnectIQ/Fonts"
 # Only the development sandbox has this file; everywhere else the exports are
 # printed for the user's shell profile instead.
 PERSIST="/etc/sandbox-persistent.sh"
@@ -146,9 +151,42 @@ else
     fi
 fi
 
+# ------------------------------------------------- Garmin's own fonts -------
+say "Garmin font files (optional)"
+VENDOR_FONTS="${REPO_ROOT}/vendor/fonts"
+if [ -d "${VENDOR_FONTS}" ] && [ -n "$(ls -A "${VENDOR_FONTS}" 2>/dev/null)" ]; then
+    mkdir -p "${FONTS_DEST}"
+    # Same incremental shape as the device-definitions copy above: never
+    # overwrite an existing entry, so a newly vendored font is added on top
+    # of whatever is already installed on every re-run.
+    added=()
+    for src_path in "${VENDOR_FONTS}"/*; do
+        [ -e "${src_path}" ] || continue
+        name="$(basename "${src_path}")"
+        if [ ! -e "${FONTS_DEST}/${name}" ]; then
+            cp -R "${src_path}" "${FONTS_DEST}/"
+            added+=("${name}")
+        fi
+    done
+    if [ "${#added[@]}" -gt 0 ]; then
+        echo "installed ${#added[@]} new font file(s)/dir(s) into ${FONTS_DEST}: ${added[*]}"
+    else
+        echo "already installed: $(ls "${FONTS_DEST}" | wc -l) entries in ${FONTS_DEST}"
+    fi
+else
+    # Quietly optional: most builds work fine on the registry's free
+    # stand-ins alone (wfb doctor says so). See docs/container.md for how to
+    # populate vendor/fonts/ from the SDK Manager's own Fonts directory.
+    echo "no vendor/fonts/ found; skipping (optional -- see docs/container.md)"
+fi
+
 # -------------------------------------------------------- icon font ---------
 say "icon font"
 python3 "${REPO_ROOT}/tools/fetch-icon-font.py"
+
+# ------------------------------------------------------ system fonts --------
+say "system fonts"
+python3 "${REPO_ROOT}/tools/fetch-system-fonts.py"
 
 # ------------------------------------------------------------- env ----------
 say "environment"
