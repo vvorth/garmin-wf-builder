@@ -1670,7 +1670,9 @@ down from the point instead of resting its bottom edge on it, even though
 the lint box was already computed correctly. `vertical_align: bottom` now
 draws by subtracting the font's own on-device `getFontHeight` from the
 anchor -- exact even for a system font, whose pixel height this compiler
-only scrapes an estimate of.
+only knows at build time from the SDK's published device reference (and,
+when the device is installed, its own `simulator.json`), not from asking
+the device itself.
 
 ### `progress`
 

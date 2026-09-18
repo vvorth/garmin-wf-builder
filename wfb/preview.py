@@ -23,6 +23,7 @@ from PIL import Image, ImageDraw
 
 from . import catalog, complications, expr, formatting
 from .catalog import Type
+from .devices import FontMetric
 from .fonts import BakedFont, fallback
 from .layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
@@ -510,7 +511,7 @@ class _Renderer:
         font: BakedFont | None = (
             self.resolved.fonts.get(part.font_reference) if part.font_is_custom else None
         )
-        self._draw_text(font, text, anchor, part.align, part.vertical_align, part.font_px, color)
+        self._draw_text(font, text, anchor, part.align, part.vertical_align, part.font_metric, color)
 
     def _text(self, placed: PlacedText) -> None:
         element = placed.element
@@ -522,7 +523,7 @@ class _Renderer:
             self.resolved.fonts.get(placed.font_reference) if placed.font_is_custom else None
         )
         self._draw_text(font, text, placed.anchor_point, element.align, element.vertical_align,
-                        placed.font_px, color, box=placed.box)
+                        placed.font_metric, color, box=placed.box)
 
     def _progress(self, placed: PlacedProgress) -> None:
         element = placed.element
@@ -731,13 +732,15 @@ class _Renderer:
                      if placed.font_is_custom else None)
         if text_font is not None:
             text_width, text_height = text_font.measure(text)
-        else:
+        elif placed.font_metric is not None:
             # `fallback.measure`'s second return is whether real metrics were
             # used, not a height -- `wfb.layout.Resolver._resolve_complication_
-            # slot` uses the declared font size itself as the line-height
-            # estimate for exactly this case, and this mirrors it.
-            text_width, _ = fallback.measure(text, placed.font_px)
-            text_height = placed.font_px
+            # slot` uses `fallback.line_height` for exactly this case, and
+            # this mirrors it.
+            text_width, _ = fallback.measure(text, placed.font_metric)
+            text_height = fallback.line_height(placed.font_metric)
+        else:
+            text_width, text_height = 0, placed.font_px
 
         icon_width = 0
         icon_height = 0
@@ -789,9 +792,17 @@ class _Renderer:
                     self._paste_glyph(sheet, glyph, pen_x * s, top * s, color)
                     pen_x += glyph.xadvance
                 return
-        face = fallback.font_for_height(placed.font_px * s)
-        if face is not None:
-            self.draw.text((pen_x * s, top * s), text, fill=color, font=face, anchor="la")
+        if placed.font_metric is not None:
+            face = fallback.system_face(placed.font_metric, scale=s)
+            if face is not None:
+                # `top` is the text box's own top edge (`geometry.text_y`,
+                # sized from `fallback.line_height` above); draw at its
+                # baseline, the same line-box model `_approximate_text` uses
+                # -- `wfb.fonts.fallback.SystemFace.baseline`, not Pillow's
+                # own ascender-based anchor, which would not agree with the
+                # box `wfb.layout` sized this pair from.
+                self.draw.text((pen_x * s, top * s + face.baseline), text,
+                              fill=color, font=face.font, anchor="ls")
 
     def _complication_slot_text(self, element, ctype) -> str:
         """An illustrative reading for `ctype`, formatted the same way
@@ -835,11 +846,12 @@ class _Renderer:
         return formatting.render(spec, value, value_type)
 
     def _draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
-                   align: str, vertical_align: str, font_px: int,
+                   align: str, vertical_align: str, metric: FontMetric | None,
                    color: tuple[int, int, int], box=None) -> None:
         """Draw `text` upright at `anchor`, exactly as a `text` element and a
         pattern `shape: text` part both want: through the baked sheet when
-        `font` is a custom one, the Pillow stand-in
+        `font` is a custom one, the device's own real typeface (or its
+        Pillow-default stand-in, `wfb.fonts.fallback.system_face`)
         otherwise. The one place either kind of element actually puts ink
         down, so `_text` and `_pattern_text` cannot drift apart. `box`, an
         `IntBox` or `None`, is only ever used by the rare "no scalable
@@ -849,12 +861,12 @@ class _Renderer:
         draws nothing in that (untested, essentially unreachable) case.
         """
         if font is not None:
-            self._blit_bitmap_text(font, text, anchor, align, vertical_align, font_px, color, box)
+            self._blit_bitmap_text(font, text, anchor, align, vertical_align, metric, color, box)
         else:
-            self._approximate_text(text, anchor, align, vertical_align, font_px, color, box)
+            self._approximate_text(text, anchor, align, vertical_align, metric, color, box)
 
     def _blit_bitmap_text(self, font: BakedFont, text: str, anchor: tuple[int, int],
-                          align: str, vertical_align: str, font_px: int,
+                          align: str, vertical_align: str, metric: FontMetric | None,
                           color: tuple[int, int, int], box=None) -> None:
         """Draw with the *baked sheet*, so the preview shows the real glyphs."""
         sheet = getattr(font, "sheet_image", None)
@@ -870,7 +882,7 @@ class _Renderer:
         top = y + dy - line_height / 2
 
         if sheet is None:
-            self._approximate_text(text, anchor, align, vertical_align, font_px, color, box)
+            self._approximate_text(text, anchor, align, vertical_align, metric, color, box)
             return
         pen = left
         for char in text:
@@ -898,49 +910,60 @@ class _Renderer:
         self.image.paste(tint, position, tile)
 
     def _approximate_text(self, text: str, anchor: tuple[int, int], align: str,
-                          vertical_align: str, font_px: int, color, box=None) -> None:
-        """Draw system-font text with the same stand-in `wfb.layout` measured.
+                          vertical_align: str, metric: FontMetric | None, color, box=None) -> None:
+        """Draw system-font text with the device's own real typeface when
+        `wfb.fonts.fetch_system` can locate one, from its own line box --
+        never through Pillow's own multi-character vertical anchors
+        (`"a"`/`"m"`/`"d"`), which measure the *stand-in* face's own
+        ascender/descender and so would not agree with the line height/
+        baseline `wfb.layout` (and `wfb.lint.check_text_fit`) computed from
+        the metric.  Plan 09 §4 R2.4's model instead: the line box's own top
+        is `anchor_y - {top: 0, center: line_height/2, bottom: line_height}`
+        (`wfb.layout.alignment_shift`'s own vertical rule, read off just the
+        `dy` a *top*-anchored box would need -- matching exactly what
+        `Resolver._resolve_text`'s lint box and `wfb.layout.PlacedText.box`
+        already agree the line box's top edge is), and the glyphs are drawn
+        at `top + baseline` with Pillow's own baseline vertical anchor
+        (`"s"`), never at the box's top or middle. `align`/vertical_align`'s
+        horizontal half is still handed straight to Pillow (`"l"`/`"m"`/
+        `"r"`) -- only the vertical half needed replacing.
 
-        The real device faces are not available anywhere (see
-        :mod:`wfb.fonts.fallback`), so the glyph shapes here are not the ones the
-        watch will draw.  The *position* is exact, and the extent is the same
-        estimate the compiler recorded -- because both come from this one face at
-        this one size, they cannot disagree.
-
-        `align`/`vertical_align` are handed straight to Pillow's own
-        multi-character text anchor (`ImageDraw.text`'s `anchor=`) rather
-        than reimplemented as a left/center/right offset here -- Pillow
-        already knows how to place text by its left/middle/right edge and by
-        its ascender/middle/descender line, so there is nothing of
-        `wfb.layout.alignment_shift`'s own rule to duplicate; this is a
-        one-to-one translation into Pillow's vocabulary, not a second copy
-        of the placement math. `bottom` maps to Pillow's descender anchor
-        `"d"`, so a bottom-aligned line draws with its bottom edge -- not
-        hanging down -- at the anchor point.
+        A `substitute`/`none` match still draws through this same path: the
+        glyph *shapes* are not the ones the watch will draw (a different
+        family entirely, for `"none"`), but the *position* is exact, and the
+        extent is the same estimate the compiler recorded, because both come
+        from this one face at this one size -- they cannot disagree.
         """
+        if metric is None:
+            # No pixel metrics for this symbol on this device at all
+            # (`_font_for_ref`'s own "no pixel metrics" warning already
+            # covers it) -- nothing to measure or draw with; mark the extent
+            # instead, the same "more honest than drawing at the wrong size"
+            # fallback the "no scalable face at all" case below uses.
+            if box is not None:
+                self.draw.rectangle(self._rect(box), outline=(64, 64, 64), width=1)
+            return
         s = self.scale
-        face = fallback.font_for_height(font_px * s)
+        face = fallback.system_face(metric, scale=s)
         if face is None:
-            # No scalable face at all: fall back to marking the extent, which is
-            # more honest than drawing text at the wrong size -- only possible
-            # for a `text` element, which has a `box` to outline; a pattern
-            # text part (`box is None`) simply draws nothing here.
+            # No scalable face at all (older Pillow with no scalable
+            # default, and no TTF located either): fall back to marking the
+            # extent, which is more honest than drawing text at the wrong
+            # size -- only possible for a `text` element, which has a `box`
+            # to outline; a pattern text part (`box is None`) simply draws
+            # nothing here.
             if box is not None:
                 self.draw.rectangle(self._rect(box), outline=(64, 64, 64), width=1)
             return
 
         x = anchor[0] * s
         y = anchor[1] * s
+        top = y - {"top": 0, "center": face.line_height / 2, "bottom": face.line_height}[vertical_align]
+        baseline_y = top + face.baseline
         # "left"/"right" share Pillow's own first letter; anything else
         # (only "center" is a valid value here) is the middle anchor.
         anchor_x = align[0] if align in ("left", "right") else "m"
-        if vertical_align == "top":
-            anchor_y = "a"
-        elif vertical_align == "bottom":
-            anchor_y = "d"
-        else:
-            anchor_y = "m"
-        self.draw.text((x, y), text, fill=color, font=face, anchor=anchor_x + anchor_y)
+        self.draw.text((x, baseline_y), text, fill=color, font=face.font, anchor=anchor_x + "s")
 
     # -- shared -----------------------------------------------------------
 

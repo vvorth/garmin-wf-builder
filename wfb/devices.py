@@ -41,11 +41,35 @@ class DeviceError(Exception):
 
 @dataclass(frozen=True)
 class FontMetric:
-    """A system font's real pixel height on one device, for one language."""
+    """A system font's real pixel metrics on one device, for one language.
+
+    ``face``/``font``/``size_px`` come from the scraped SDK device reference
+    (``docs/research/data/devices/<id>.json``, English/default table) and are
+    always present when this device has an entry for the symbol at all --
+    ``size_px`` is the published *line height*, and stays authoritative for
+    layout even when the fields below add more precision, so a face that
+    never gains better data does not shift (plan 09 R2.1).
+
+    ``em_px``/``ascent_px``/``height_px`` are enrichments from the installed
+    device's own ``simulator.json`` ``ww`` font set (plan 09 §2's metric
+    model, verified in ``docs/research/10-system-fonts.md`` §3): ``em_px`` is
+    the real em size in pixels (``size_pt * ppi / 72``, only known when the
+    device file gives both a point ``size`` and a top-level ``ppi``), and
+    ``ascent_px``/``height_px`` are the device's own published values where
+    it bothers to state them (about a third of `ww` `ttf` entries do). All
+    three are `None` when unavailable -- `wfb.fonts.fallback` derives
+    whatever is missing from the located TTF's own `hhea` table instead
+    (kept out of this module so ``wfb.devices`` never needs Pillow/fontTools:
+    see that module's docstring).
+    """
 
     symbol: str
     face: str
+    font: str
     size_px: int
+    em_px: float | None = None
+    ascent_px: int | None = None
+    height_px: int | None = None
 
 
 @dataclass
@@ -332,21 +356,116 @@ class Device:
 
     # -- fonts ------------------------------------------------------------
 
+    #: The ``simulator.json`` `fontSet` this project measures against --
+    #: worldwide/default, per plan 09 R2.1 (English-only scope, `docs/
+    #: research/10-system-fonts.md` §1).
+    _SIMULATOR_FONT_SET = "ww"
+
+    @staticmethod
+    def _symbol_for_simulator_name(name: str) -> str:
+        """``simulator.json`` ``name`` (``"xtiny"``, ``"numberHot"``,
+        ``"systemXtiny"``, ...) -> the ``FONT_*`` symbol it corresponds to
+        (plan 09 §4 R2.1's table: ``FONT_XTINY``, ``FONT_NUMBER_HOT``,
+        ``FONT_SYSTEM_XTINY``). A plain camelCase-to-`SCREAMING_SNAKE_CASE`
+        split, prefixed with ``FONT_`` -- every observed name already reads
+        as a `FONT_*` symbol's own lowerCamelCase spelling, with no separate
+        handling needed for the `system*` names (unlike `tools/research/
+        font_metric_check.py`'s own splitter, which deliberately collapses
+        `systemXtiny` onto plain `FONT_XTINY` for a from-scratch metrics
+        cross-check -- a different job from naming the real symbol here).
+        """
+        return "FONT_" + re.sub(r"(?<!^)(?=[A-Z])", "_", name).upper()
+
+    @cached_property
+    def _simulator_ww_fonts(self) -> dict[str, dict]:
+        """``FONT_*`` symbol -> this device's own ``simulator.json`` ``ww``
+        font entry, when installed. Empty for a device with no `simulator.
+        json` `fonts` list at all, or none of it in the `ww` set (never the
+        case for an installed device, per `docs/research/10-system-fonts.md`
+        §1, but the discovery is expressed defensively so a hand-built
+        `Device` in a test does not need one)."""
+        out: dict[str, dict] = {}
+        for block in self.simulator.get("fonts", []):
+            if block.get("fontSet") != self._SIMULATOR_FONT_SET:
+                continue
+            for entry in block.get("fonts", []):
+                name = entry.get("name")
+                if not name:
+                    continue
+                out.setdefault(self._symbol_for_simulator_name(name), entry)
+        return out
+
     @cached_property
     def system_fonts(self) -> dict[str, FontMetric]:
         """``FONT_*`` pixel metrics for the default language.
 
-        These come from the SDK's device reference pages (ADR 0004 5); the
-        device files carry point sizes only.  Empty when unavailable, in which
-        case text-overflow linting degrades to "not checked" rather than to a
-        confident wrong answer.
+        The base table (``face``/``font``/``size_px``) is the SDK's scraped
+        device reference pages (ADR 0004 5); the device files carry point
+        sizes only. Empty when unavailable, in which case text-overflow
+        linting degrades to "not checked" rather than to a confident wrong
+        answer.
+
+        Enriched, per plan 09 R2.1, from the installed device's own
+        ``simulator.json`` ``ww`` set when present: a `type: "ttf"` entry
+        with both a point ``size`` and a top-level ``ppi`` supplies
+        ``em_px`` (``size * ppi / 72``, ``docs/research/10-system-fonts.md``
+        §3's verified model) and, when the device file bothers to state
+        them, ``ascent_px``/``height_px`` -- and its own ``filename``
+        replaces the scraped ``font`` name, since it is the more precise of
+        the two (`docs/research/10-system-fonts.md` §1). A bitmap entry (no
+        `type` key) or one with no `ppi`/`size` leaves `em_px` (and
+        `ascent_px`/`height_px`) `None`; `wfb.fonts.fallback` then derives
+        the em itself from the located TTF's own `hhea` table, so this
+        device still measures, just without this shortcut.
+
+        A `simulator.json` `ttf` entry naming a symbol the scraped table has
+        nothing for at all (`FONT_SYSTEM_*`, mostly) is added too, but only
+        when its own `height` is stated outright -- there is no scraped
+        `size_px` to use as the line height for such a symbol, and deriving
+        one from the TTF here would need Pillow/fontTools, which this module
+        deliberately does not import (`wfb/fonts/fallback.py`'s docstring:
+        that derivation happens there instead, lazily, only for a symbol
+        actually referenced). An entry with no `height` is simply left out --
+        the same "not checked" degradation as a totally unknown symbol.
         """
         fixed = self._scraped.get("fonts", {}).get("default", {}).get("fixed", {})
-        return {
-            symbol: FontMetric(symbol, entry.get("face", ""), int(entry["size_px"]))
-            for symbol, entry in fixed.items()
-            if "size_px" in entry
-        }
+        ppi = self.simulator.get("ppi")
+        sim_fonts = self._simulator_ww_fonts
+        metrics: dict[str, FontMetric] = {}
+
+        for symbol, entry in fixed.items():
+            if "size_px" not in entry:
+                continue
+            face = entry.get("face", "")
+            font = entry.get("font", "")
+            size_px = int(entry["size_px"])
+            em_px: float | None = None
+            ascent_px: int | None = None
+            height_px: int | None = None
+            sim_entry = sim_fonts.get(symbol)
+            if sim_entry is not None and sim_entry.get("type") == "ttf":
+                font = sim_entry.get("filename", font)
+                if ppi and "size" in sim_entry:
+                    em_px = sim_entry["size"] * ppi / 72
+                if "ascent" in sim_entry:
+                    ascent_px = int(sim_entry["ascent"])
+                if "height" in sim_entry:
+                    height_px = int(sim_entry["height"])
+            metrics[symbol] = FontMetric(symbol, face, font, size_px, em_px, ascent_px, height_px)
+
+        for symbol, sim_entry in sim_fonts.items():
+            if symbol in metrics or sim_entry.get("type") != "ttf":
+                continue
+            height = sim_entry.get("height")
+            if height is None:
+                continue
+            em_px = sim_entry["size"] * ppi / 72 if ppi and "size" in sim_entry else None
+            ascent_px = int(sim_entry["ascent"]) if "ascent" in sim_entry else None
+            metrics[symbol] = FontMetric(
+                symbol, "", sim_entry.get("filename", ""), int(height),
+                em_px, ascent_px, int(height),
+            )
+        return metrics
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<Device {self.id} {self.width}x{self.height} {self.shape} {self.display_type}>"

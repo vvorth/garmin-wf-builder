@@ -142,3 +142,46 @@ These cost real time to discover; do not rediscover them.
   consumers: `compute_guards`'s aggregate for codegen, and per-element
   `source_unavailable`/`reader_unavailable` for a lint pass to point at the
   exact YAML line) and `docs/research/probes/api-gating/` for the evidence.
+- **System-font metrics (plan 09 §4 R2, 2026-09-18): one `FontMetric` per
+  `FONT_*` symbol per device, one place turning it into a real face.**
+  `wfb.devices.Device.system_fonts` merges the scraped SDK reference table
+  (`face`/`font`/`size_px` -- `size_px` is the published *line height*, and
+  stays the number layout trusts even after enrichment) with the installed
+  device's own `simulator.json` `ww` font set, when the two agree on a
+  symbol: a `type: "ttf"` entry with a top-level `ppi` and a point `size`
+  contributes `em_px = size * ppi / 72` (`docs/research/10-system-fonts.md`
+  §3's verified model), and `ascent_px`/`height_px` when the device file
+  states them outright (about a third do). A bitmap-only device (fenix6:
+  no `ppi`, no `type` key at all) or a `ww` entry naming a symbol the
+  scraped table has nothing for leaves those three `None` -- deliberately:
+  `wfb.devices` never imports Pillow/fontTools, so deriving an em from a
+  TTF's own `hhea` table happens lazily in `wfb.fonts.fallback` instead,
+  only for a symbol actually referenced, and only via a *local* `fontTools`
+  import (the same "no dependency beyond what the caller asked for" shape
+  `wfb/icons.py` and `wfb/fonts/bmfont.py` already use).
+  `wfb.fonts.fallback.system_face(metric, scale=1)` is the one place a
+  `FontMetric` becomes a Pillow `FreeTypeFont`: it locates the real file via
+  `wfb.fonts.fetch_system.locate` (the user's own Garmin font root first,
+  then the pinned free-stand-in registry, `wfb.fonts.fetch_system`'s own
+  module docstring), derives whatever the metric did not already carry from
+  that file's `hhea`/`head` tables, and returns a `SystemFace` whose
+  `line_height`/`baseline` are already in the same scaled pixel units as its
+  `font` -- `wfb.layout` (measuring, always at `scale=1`) and `wfb.preview`
+  (drawing, at the preview's own upscale) both go through this one function,
+  so a monkeypatched `em_px` moves both by construction, never one without
+  the other. The preview draws a system-font line from its own line box
+  (`top = anchor_y - {top: 0, center: line_height/2, bottom: line_height}`,
+  then Pillow's baseline vertical anchor `"s"` at `top + baseline`) instead
+  of Pillow's built-in ascender/descender anchors, which measure the
+  *stand-in* face's own metrics and would not agree with the line height/
+  baseline the metric (not the stand-in) defines. None of this reaches
+  `monkeyc`'s input: a `Placed*`'s `font_metric` only feeds `wfb.layout`'s
+  own lint boxes and `wfb.preview`'s ink, never a baked pixel position --
+  the runtime anchor a `text`/`complication_slot` draws at was already
+  unshifted before this (this file, finding 7's sibling reasoning: a glyph
+  kind's alignment is a device-side justify, not a build-time box move), so
+  the *only* generated-code effect observed is a `_WIDTH` layout constant's
+  own comment and value changing where the estimate got more accurate (a
+  system font's widest-rendering comment, never referenced elsewhere in the
+  generated code) -- confirmed by the golden `Layout.mc` diffs this step
+  produced, one line each, nothing else.

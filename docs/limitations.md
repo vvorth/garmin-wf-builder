@@ -201,13 +201,16 @@ splitting it into two overlaid glyphs, the same as two-colour text.
 `fonts.<name>.monospace` (`docs/format.md` §Fonts) gives every glyph in a
 **custom** font one shared advance, which is what stops a digital clock
 shifting as its digits change. A **system** font — `FONT_MEDIUM`,
-`FONT_NUMBER_HOT` and the rest — is already rasterised on the device and the
-real typeface is not available anywhere on the host, so there is nothing to
-rebake and no way to offer the same guarantee. A clock in a system font
-jitters exactly as much as that font's own figures do, and `wfb` cannot tell
-you by how much: its width for a system font is an estimate against a stand-in
-face (`wfb/fonts/fallback.py`), which is the same reason the text-overflow
-check is labelled estimated there.
+`FONT_NUMBER_HOT` and the rest — is already rasterised on the device, so there
+is nothing to rebake and no way to offer the same guarantee. A clock in a
+system font jitters exactly as much as that font's own figures do, and `wfb`
+cannot tell you by how much: its width for a system font is an estimate
+against a real device typeface when one can be located (`wfb/fonts/
+fetch_system.py` -- the user's own Garmin font files, or a pinned free
+stand-in per `docs/research/10-system-fonts.md`'s mapping; `wfb/fonts/
+fallback.py`), or Pillow's own bundled default face otherwise, which is the
+same reason the text-overflow check is labelled estimated there (plan 09,
+2026-09-18).
 
 Deliberately not offered, on either kind of font: a *vertical* equivalent of
 `align:`. Baseline and line height are the font's own metrics and are what make
@@ -816,7 +819,7 @@ fact on real hardware -- confirm in the host simulator (or on a real
 |---|---|
 | **Memory** | *Measured*, not estimated — but the figure is the **static foreground** total from `monkeyc --build-stats`. Resources loaded at runtime (fonts, bitmaps) add to it and are **not** measured. A face near the limit needs checking on device. |
 | **Partial-update power budget** | **A heuristic, and now the only guard.** Garmin does not publish the numeric budget; the docs say only "strict limits". The check flags relative cost — clip area and operation count — and is labelled a heuristic until measured empirically against `onPowerBudgetExceeded`. Until the refresh-tier deletion (§2 above) this was backed by a hard, unsuppressible compile error barring `weather.*`/`complication.*` from `low_power`; that error is gone, so this suppressible heuristic is now the *entire* build-time defence against overrunning a budget whose overrun is **permanent**. Treat a warning here on a `low_power` element more seriously than its "heuristic" label alone would suggest. |
-| **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is **always an estimate** — Garmin publishes each `FONT_*` symbol's pixel *height* per device and language, but not its per-glyph advances, and the real typefaces (Pridi, Roboto Condensed, Bionic, ...) are not available on the host or in the SDK. The estimate scales a real scalable stand-in face to the device's published height and measures per character (`wfb/fonts/fallback.py`), which is why it needs that per-device height to be correct in the first place — a flat 0.55 em/character coefficient is a last-resort fallback used only if even that stand-in face fails to load. Every system-font measurement is labelled `(estimated)` in the generated code regardless. |
+| **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is **always an estimate** — Garmin publishes each `FONT_*` symbol's pixel *height* per device and language, but not its per-glyph advances. Since plan 09 (2026-09-18) the estimate measures against the device's own real typeface when `wfb/fonts/fetch_system.py` can locate one — the user's own licensed Garmin font files (`vendor/fonts/`) rank first, then a pinned free stand-in (`exact`/`family`/`substitute` match, `docs/research/10-system-fonts.md`'s mapping) — scaled to the device's own published metrics (`em_px`/`ascent_px`/`height_px` from the installed device's `simulator.json` when present, else derived from the located TTF's own `hhea` table against the published line height; `wfb/fonts/fallback.py`). Only when nothing can be located at all does it fall back to Pillow's bundled default face, and only when even that is unavailable to a flat 0.55 em/character coefficient. Every system-font measurement is labelled `(estimated)` in the generated code regardless, and a `substitute`/`none` match is still a different family's shape, not the real device font's. |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
 | **`graphics-pool`** | The pool size is exact (`graphicsResourcePoolSize`, straight from the device file) and so is the pixel count. **Bytes per pixel is not.** The SDK publishes no figure for a `BufferedBitmap`, so this uses the display's own `bitsPerPixel` as a proxy and ignores per-surface overhead; the check labels itself an estimate. It also does not account for the fonts and bitmaps the face loads at runtime, which share the same pool -- so the *fraction* it reports is a floor, not a total. |
 

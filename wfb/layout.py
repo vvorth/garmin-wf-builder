@@ -15,7 +15,7 @@ import math
 from dataclasses import dataclass, field
 
 from . import catalog, complications, formatting, icons, units
-from .devices import Device
+from .devices import Device, FontMetric
 from .diagnostics import Span
 from .fonts import BakedFont, fallback
 from .catalog import Type
@@ -180,6 +180,11 @@ class PlacedText(Placed):
     font_reference: str = "FONT_MEDIUM"
     font_is_custom: bool = False
     font_px: int = 0
+    #: The device's `FontMetric` for a system font (`None` for a baked custom
+    #: font, or when the device has no pixel metrics for this symbol at all)
+    #: -- `wfb.preview` measures and draws through this, never re-deriving a
+    #: face from `font_px` alone, so the two cannot disagree (plan 09 R2.3).
+    font_metric: FontMetric | None = None
     widest: str = ""
     measured_width: int = 0
     #: True when the extent was estimated rather than measured from real metrics.
@@ -285,6 +290,9 @@ class ResolvedHandPart:
     font_reference: str = ""
     font_is_custom: bool = False
     font_px: int = 0
+    #: See `PlacedText.font_metric` -- the same field, for a `shape: text`
+    #: pattern part.
+    font_metric: FontMetric | None = None
     #: `Toybox.Graphics.TEXT_JUSTIFY_*` flags, `Resolver._justify`'s own
     #: precedent (a `Text` element's `PlacedText.justify`).
     justify: tuple[str, ...] = ()
@@ -532,6 +540,9 @@ class PlacedComplicationSlot(Placed):
     font_reference: str = "FONT_SMALL"
     font_is_custom: bool = False
     font_px: int = 0
+    #: See `PlacedText.font_metric` -- the same field, for the slot's own
+    #: reading text.
+    font_metric: FontMetric | None = None
     #: The widest plausible reading, across every declared choice -- see
     #: `Resolver._complication_slot_widest`.
     widest: str = ""
@@ -845,19 +856,22 @@ class Resolver:
                            corner_radius=corner, thickness=max(1, thickness), rect=rect)
 
     def _resolve_text(self, element: Text, parent: Box, depth: int) -> Placed:
-        font_px, reference, is_custom, baked = self._font_for(element)
+        font_px, reference, is_custom, baked, metric = self._font_for(element)
         widest = self._widest_text(element)
         if baked is not None:
             width, line_height = baked.measure(widest)
             estimated = False
         else:
             # A system font: the device publishes its pixel height but not its
-            # glyph advances, and the real typeface is not available anywhere.
-            # Measure a stand-in scaled to that height instead of assuming a flat
-            # width per character -- '88888' and 'WWWWW' are not the same width.
-            # Still an estimate, and still labelled as one.
-            width, _ = fallback.measure(widest, font_px)
-            line_height = font_px
+            # per-glyph advances. Measure the device's own real typeface when
+            # `wfb.fonts.fetch_system` can locate one (the user's own Garmin
+            # font root, or a pinned free stand-in), scaled to the device's
+            # own published metrics -- still an estimate (a `substitute`/
+            # `none` match draws a different family's shape, and even an
+            # `exact` match's free release can differ in hinting/kerning),
+            # and still labelled as one.
+            width, _ = fallback.measure(widest, metric) if metric else (0, False)
+            line_height = fallback.line_height(metric) if metric else font_px
             estimated = True
 
         x, y = self._point(element.at, parent)
@@ -875,6 +889,7 @@ class Resolver:
             font_reference=reference,
             font_is_custom=is_custom,
             font_px=font_px,
+            font_metric=metric,
             widest=widest,
             measured_width=round(width),
             width_is_estimated=estimated,
@@ -983,13 +998,13 @@ class Resolver:
         only ever used `left`.
         """
         cx, cy = self._point(element.at, parent)
-        font_px, reference, is_custom, baked = self._font_for(element)
+        font_px, reference, is_custom, baked, metric = self._font_for(element)
         widest = self._complication_slot_widest(element)
         if baked is not None:
             text_width, line_height = baked.measure(widest)
         else:
-            text_width, _ = fallback.measure(widest, font_px)
-            line_height = font_px
+            text_width, _ = fallback.measure(widest, metric) if metric else (0, False)
+            line_height = fallback.line_height(metric) if metric else font_px
 
         icon_font_key: str | None = None
         icon_px = 0
@@ -1032,6 +1047,7 @@ class Resolver:
             element, box.rounded(), (round(cx), round(cy)), depth,
             anchor_point=(round(cx), round(cy)),
             font_reference=reference, font_is_custom=is_custom, font_px=font_px,
+            font_metric=metric,
             widest=widest, icon_font_key=icon_font_key, icon_px=icon_px,
             icon_position=element.icon_position, icon_gap_px=gap_px,
         )
@@ -1234,18 +1250,22 @@ class Resolver:
             # corner instead.
             x0, y0 = self._hand_point(part.at)
             x, y = round_half_away(x0), round_half_away(y0)
-            font_px, reference, is_custom, baked = self._font_for_ref(
+            font_px, reference, is_custom, baked, metric = self._font_for_ref(
                 part.font, part.font_is_custom, owner_id)
             if baked is not None:
                 widths = tuple(baked.measure(t)[0] for t in part.texts)
                 line_height = baked.line_height
+            elif metric is not None:
+                widths = tuple(fallback.measure(t, metric)[0] for t in part.texts)
+                line_height = fallback.line_height(metric)
             else:
-                widths = tuple(fallback.measure(t, font_px)[0] for t in part.texts)
+                widths = tuple(0 for _ in part.texts)
                 line_height = font_px
             justify = self._justify(part)
             return ResolvedHandPart(
                 "text", part.color, x=x, y=y,
                 font_reference=reference, font_is_custom=is_custom, font_px=font_px,
+                font_metric=metric,
                 justify=justify, align=part.align, vertical_align=part.vertical_align,
                 line_height=line_height, texts=part.texts, widths=widths,
             ), 0.0
@@ -1469,24 +1489,31 @@ class Resolver:
         """
         return spec.pixel_size(self.minor_radius)
 
-    def _font_for(self, element: Text) -> tuple[int, str, bool, BakedFont | None]:
+    def _font_for(self, element: Text) -> tuple[int, str, bool, BakedFont | None, FontMetric | None]:
         return self._font_for_ref(element.font, element.font_is_custom, element.id)
 
     def _font_for_ref(
         self, font: str, font_is_custom: bool, warn_id: str,
-    ) -> tuple[int, str, bool, BakedFont | None]:
+    ) -> tuple[int, str, bool, BakedFont | None, FontMetric | None]:
         """The shared body of `_font_for`, taking a bare `font:`/`font_is_
         custom` pair instead of a `Text` element -- what lets a `shape:
         text` pattern part (`Resolver._resolve_hand_part`)
         resolve its font through the exact same lookup and the exact same
         "no pixel metrics" warning `_font_for` already gives a `Text`
         element, with no second copy of either.
+
+        The fifth element is the device's `FontMetric` for a system font
+        (`None` for a custom one, and `None` when the device has no pixel
+        metrics for this symbol at all) -- callers hand it straight to
+        `wfb.fonts.fallback.measure`/`line_height` and carry it onto the
+        `Placed`/`ResolvedHandPart` so `wfb.preview` measures and draws
+        through the exact same face (plan 09 §4 R2.3).
         """
         if font_is_custom:
             baked = self.fonts.get(font)
             spec = self.face.fonts[font]
             return (baked.size if baked else self._unbaked_font_size(spec)), \
-                font, True, baked
+                font, True, baked, None
         metric = self.device.system_fonts.get(font)
         size = metric.size_px if metric else 0
         if metric is None:
@@ -1494,7 +1521,7 @@ class Resolver:
                 f"{warn_id}: no pixel metrics for {font} on {self.device.id}; "
                 f"text extent is not checked"
             )
-        return size, font, False, None
+        return size, font, False, None, metric
 
     def _widest_text(self, element: Text) -> str:
         if element.literal is not None:
