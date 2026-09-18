@@ -26,9 +26,11 @@ Three groups of functionality:
   ``WFB_OFFLINE=1`` stops any of this from ever reaching the network --
   ``tests/conftest.py`` sets it for the whole test session.
 * **Garmin's own font files** (:func:`garmin_font_root`,
-  :func:`garmin_font_file`, :func:`garmin_cft_file`) -- the user's own
-  licensed copy of Garmin's real fonts, which rank above the registry when
-  present (plan 09 R1b). :func:`locate` puts all of the above together into
+  :func:`garmin_font_file`, :func:`garmin_cft_file`, :func:`garmin_any_file`)
+  -- the user's own licensed copy of Garmin's real fonts, which rank above
+  the registry when present (plan 09 R1b). A ``.cft`` bitmap container is a
+  usable font since `docs/plans/10-cft-bitmap-fonts.md` Step B, decoded by
+  :mod:`wfb.fonts.cft`; :func:`locate` puts all of the above together into
   the one lookup Step B calls.
 
     python3 tools/fetch-system-fonts.py [--device ID ...] [--all] [DEST]
@@ -493,9 +495,13 @@ def garmin_font_file(name: str, root: Path) -> Path | None:
     ``filename`` to the file actually on disk inside Garmin's own Fonts
     directory is unresearched (plan 09 R1b.4), deferred until
     ``vendor/fonts/`` is populated and can be inspected. Only these two
-    extensions are usable as a font today; a ``.cft`` match is reported
-    separately (:func:`garmin_cft_file`) but never returned here --
-    decoding that format is also deferred (R1b.5).
+    extensions are usable as a font here; a ``.cft`` match is reported
+    separately (:func:`garmin_cft_file`) and, since `docs/plans/
+    10-cft-bitmap-fonts.md` Step B, *is* returned as a usable font too --
+    just through :func:`garmin_any_file`/:func:`locate`, never through this
+    function, whose job stays "a scalable outline font only" (what
+    `wfb.fonts.fallback` still needs a real ``ImageFont`` for on the TTF/OTF
+    side of its own branch).
     """
     for path in _font_index(root).get(name.lower(), ()):
         if path.suffix.lower() in (".ttf", ".otf"):
@@ -504,29 +510,76 @@ def garmin_font_file(name: str, root: Path) -> Path | None:
 
 
 def garmin_cft_file(name: str, root: Path) -> Path | None:
-    """A ``.cft`` under ``root`` matching ``name`` -- reported for
-    diagnostics (``wfb doctor``) but never treated as a usable font: `.cft`
-    is a Garmin bitmap-font container format, and decoding it is deferred
-    (plan 09 R1b.5) until a device's Fonts directory can be inspected."""
+    """A ``.cft`` under ``root`` whose file stem matches ``name`` exactly
+    (case-insensitively) -- no ``FNT_`` prefix guessing here, that is
+    :func:`garmin_any_file`'s job. `.cft` is Garmin's bitmap-font container
+    format (decoded by :mod:`wfb.fonts.cft`, Step A of `docs/plans/
+    10-cft-bitmap-fonts.md`); since Step B it is a usable font, reported by
+    :func:`garmin_any_file`/:func:`locate` and drawn by :mod:`wfb.preview`,
+    not merely surfaced for ``wfb doctor`` diagnostics as it once was."""
     for path in _font_index(root).get(name.lower(), ()):
         if path.suffix.lower() == ".cft":
             return path
     return None
 
 
+def garmin_any_file(name: str, root: Path) -> Path | None:
+    """The one Garmin-font-root lookup :func:`locate` and ``wfb doctor``
+    both use: a ``.ttf``/``.otf`` matching ``name`` exactly
+    (:func:`garmin_font_file`), else a ``.cft`` matching ``name`` exactly
+    (:func:`garmin_cft_file`), else -- only when ``name`` does not already
+    start with ``FNT_`` -- a ``.cft`` matching ``"FNT_" + name``.
+
+    The third step exists because a bitmap ``FONT_*`` symbol's real file
+    stem always carries a ``FNT_`` prefix (``FNT_FENIX6_CDPG_ROBOTO_20B``),
+    but the *name* this function is called with is not always that stem
+    already: `wfb.devices.Device.system_fonts` carries the installed
+    device's own ``simulator.json`` ``filename`` when there is one for the
+    symbol -- already ``FNT_``-prefixed, an exact match on the first `.cft`
+    try -- but falls back to the SDK's scraped reference table's ``font``
+    column for a device that is not installed (or was, when scraped, on an
+    older ``simulator.json`` without this symbol), which drops the prefix
+    (``FENIX6_CDPG_ROBOTO_20B``). Trying the prefixed guess only as a last
+    resort, after both exact tries fail, means an installed device's own
+    real filename is always preferred and never second-guessed by a
+    coincidentally-matching guess (`docs/plans/10-cft-bitmap-fonts.md` §3
+    B.1's decision -- see also `wfb.devices.Device.system_fonts`'s
+    docstring for why this is a name transform here rather than a second
+    `FontMetric` field: a device's own filename already carries the prefix
+    when there is one, so this fallback exists only for the scraped-only
+    case, and one function trying two spellings is simpler than a field
+    that would be ``None`` on every installed device anyway).
+    """
+    found = garmin_font_file(name, root)
+    if found is not None:
+        return found
+    found = garmin_cft_file(name, root)
+    if found is not None:
+        return found
+    if not name.upper().startswith("FNT_"):
+        found = garmin_cft_file(f"FNT_{name}", root)
+        if found is not None:
+            return found
+    return None
+
+
 def locate(name: str, face: str | None = None,
            *, fonts_root: os.PathLike | str | None = None) -> tuple[Path | None, str]:
     """The one top-level lookup Step B calls for a real font file behind a
-    system-font name: the Garmin font root first (match ``"garmin"``, which
-    outranks even an ``exact`` registry match -- it is the device's own
-    file), then the registry (:func:`ensure`, downloading/caching on
-    demand), else ``(None, "none")`` -- Pillow's bundled face is the
-    caller's own fallback in that case. ``fonts_root`` is passed straight to
-    :func:`garmin_font_root` (a CLI ``--fonts`` override).
+    system-font name: the Garmin font root first (:func:`garmin_any_file` --
+    match ``"garmin"``, which outranks even an ``exact`` registry match, be
+    it a ``.ttf``/``.otf`` or, since `docs/plans/10-cft-bitmap-fonts.md`
+    Step B, a ``.cft`` bitmap container), then the registry (:func:`ensure`,
+    downloading/caching on demand), else ``(None, "none")`` -- Pillow's
+    bundled face is the caller's own fallback in that case, and
+    `wfb.fonts.fallback.system_face` is the one place that tells a located
+    ``.cft`` apart from a ``.ttf``/``.otf`` and builds the right kind of
+    face for it. ``fonts_root`` is passed straight to :func:`garmin_font_root`
+    (a CLI ``--fonts`` override).
     """
     root = garmin_font_root(fonts_root)
     if root is not None:
-        found = garmin_font_file(name, root)
+        found = garmin_any_file(name, root)
         if found is not None:
             return found, "garmin"
 

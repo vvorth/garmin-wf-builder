@@ -500,13 +500,68 @@ def test_garmin_font_file_is_case_insensitive_and_ttf_otf_only(_isolated, tmp_pa
     assert fetch_system.garmin_font_file("someotf", root) == sub / "SomeOtf.OTF"
 
 
-def test_cft_is_reported_but_never_returned_as_a_usable_font(_isolated, tmp_path):
+def test_cft_is_reported_and_now_returned_as_a_usable_font_via_garmin_any_file(_isolated, tmp_path):
+    """Inverts the pre-Step-B test of the same shape (`docs/plans/
+    10-cft-bitmap-fonts.md` §3 B.2): `garmin_font_file` still only ever
+    returns a `.ttf`/`.otf` (a `.cft` is not one), but `garmin_any_file` --
+    what `locate`/`wfb doctor` actually call -- now falls through to the
+    `.cft` at an exact stem match and reports it as usable."""
     root = tmp_path / "fonts"
     root.mkdir()
     (root / "BitmapFont.cft").write_bytes(b"x")
 
     assert fetch_system.garmin_font_file("BitmapFont", root) is None
     assert fetch_system.garmin_cft_file("BitmapFont", root) == root / "BitmapFont.cft"
+    assert fetch_system.garmin_any_file("BitmapFont", root) == root / "BitmapFont.cft"
+
+
+def test_garmin_any_file_prefers_ttf_over_cft_at_the_same_stem(_isolated, tmp_path):
+    root = tmp_path / "fonts"
+    root.mkdir()
+    (root / "Shared.cft").write_bytes(b"x")
+    (root / "Shared.ttf").write_bytes(b"x")
+
+    assert fetch_system.garmin_any_file("Shared", root) == root / "Shared.ttf"
+
+
+def test_garmin_any_file_falls_back_to_the_fnt_prefixed_cft_stem(_isolated, tmp_path):
+    """A scraped-only name (`FENIX6_CDPG_ROBOTO_20B`, no `FNT_` prefix) has
+    no exact-stem file of its own, but the real `.cft` -- an installed
+    device's own `simulator.json` `filename` always carries the prefix --
+    is still found by trying `"FNT_" + name` as a last resort (plan §3
+    B.1)."""
+    root = tmp_path / "fonts"
+    root.mkdir()
+    (root / "FNT_FENIX6_CDPG_ROBOTO_20B.cft").write_bytes(b"x")
+
+    assert fetch_system.garmin_any_file("FENIX6_CDPG_ROBOTO_20B", root) == \
+        root / "FNT_FENIX6_CDPG_ROBOTO_20B.cft"
+    # an installed device's own filename already carries the prefix, so the
+    # exact-stem try (not the fallback) is what finds it -- no double prefix.
+    assert fetch_system.garmin_any_file("FNT_FENIX6_CDPG_ROBOTO_20B", root) == \
+        root / "FNT_FENIX6_CDPG_ROBOTO_20B.cft"
+
+
+def test_garmin_any_file_is_none_when_nothing_matches(_isolated, tmp_path):
+    root = tmp_path / "fonts"
+    root.mkdir()
+    (root / "Unrelated.cft").write_bytes(b"x")
+
+    assert fetch_system.garmin_any_file("NoSuchFont", root) is None
+
+
+def test_locate_finds_a_cft_with_match_garmin(_isolated, tmp_path):
+    """`locate` -- what `wfb.fonts.fallback.system_face` calls -- reports a
+    `.cft` hit exactly like a `.ttf`/`.otf` one: match `"garmin"`, path
+    returned verbatim, registry never consulted."""
+    root = tmp_path / "fonts"
+    root.mkdir()
+    (root / "FNT_FENIX6_CDPG_ROBOTO_20B.cft").write_bytes(b"cft bytes")
+
+    path, match = fetch_system.locate("FENIX6_CDPG_ROBOTO_20B", fonts_root=root)
+
+    assert match == "garmin"
+    assert path == root / "FNT_FENIX6_CDPG_ROBOTO_20B.cft"
 
 
 def test_garmin_file_beats_the_registry_in_locate(_isolated, tmp_path):

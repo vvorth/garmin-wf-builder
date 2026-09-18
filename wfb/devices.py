@@ -48,19 +48,34 @@ class FontMetric:
     always present when this device has an entry for the symbol at all --
     ``size_px`` is the published *line height*, and stays authoritative for
     layout even when the fields below add more precision, so a face that
-    never gains better data does not shift (plan 09 R2.1).
+    never gains better data does not shift (plan 09 R2.1). ``font`` is
+    replaced by the installed device's own ``simulator.json`` ``filename``
+    when there is one, TTF or bitmap alike (plan 10 §3 B.1) -- for a bitmap
+    symbol this is the real, ``FNT_``-prefixed `.cft` file stem, which is
+    what lets `wfb.fonts.fetch_system.locate` find it by an exact match.
+
+    **`size_px` is itself overridden for a bitmap symbol** once a `.cft` is
+    actually located: its own `height`/`ascent` become the line box/
+    baseline instead (`docs/plans/10-cft-bitmap-fonts.md` §2.3) -- it is the
+    very file the simulator loads, so it outranks the scraped estimate. That
+    override happens in `wfb.fonts.fallback` (`system_face`/`line_height`),
+    never here: this dataclass only ever holds what the scraped table and
+    `simulator.json` state outright, not a location-dependent result.
 
     ``em_px``/``ascent_px``/``height_px`` are enrichments from the installed
-    device's own ``simulator.json`` ``ww`` font set (plan 09 §2's metric
-    model, verified in ``docs/research/10-system-fonts.md`` §3): ``em_px`` is
-    the real em size in pixels (``size_pt * ppi / 72``, only known when the
-    device file gives both a point ``size`` and a top-level ``ppi``), and
-    ``ascent_px``/``height_px`` are the device's own published values where
-    it bothers to state them (about a third of `ww` `ttf` entries do). All
-    three are `None` when unavailable -- `wfb.fonts.fallback` derives
-    whatever is missing from the located TTF's own `hhea` table instead
-    (kept out of this module so ``wfb.devices`` never needs Pillow/fontTools:
-    see that module's docstring).
+    device's own ``simulator.json`` ``ww`` font set, **`type: "ttf"` entries
+    only** (plan 09 §2's metric model, verified in ``docs/research/
+    10-system-fonts.md`` §3): ``em_px`` is the real em size in pixels
+    (``size_pt * ppi / 72``, only known when the device file gives both a
+    point ``size`` and a top-level ``ppi``), and ``ascent_px``/``height_px``
+    are the device's own published values where it bothers to state them
+    (about a third of `ww` `ttf` entries do). All three stay `None` for a
+    bitmap entry -- its `.cft` carries height/ascent directly, so there is
+    nothing here to estimate -- and also when a TTF entry's own data is
+    incomplete; `wfb.fonts.fallback` derives whatever is missing from a
+    *located* TTF's own `hhea` table instead in that case (kept out of this
+    module so ``wfb.devices`` never needs Pillow/fontTools: see that
+    module's docstring).
     """
 
     symbol: str
@@ -406,17 +421,26 @@ class Device:
         answer.
 
         Enriched, per plan 09 R2.1, from the installed device's own
-        ``simulator.json`` ``ww`` set when present: a `type: "ttf"` entry
-        with both a point ``size`` and a top-level ``ppi`` supplies
-        ``em_px`` (``size * ppi / 72``, ``docs/research/10-system-fonts.md``
-        §3's verified model) and, when the device file bothers to state
-        them, ``ascent_px``/``height_px`` -- and its own ``filename``
-        replaces the scraped ``font`` name, since it is the more precise of
-        the two (`docs/research/10-system-fonts.md` §1). A bitmap entry (no
-        `type` key) or one with no `ppi`/`size` leaves `em_px` (and
-        `ascent_px`/`height_px`) `None`; `wfb.fonts.fallback` then derives
-        the em itself from the located TTF's own `hhea` table, so this
-        device still measures, just without this shortcut.
+        ``simulator.json`` ``ww`` set when present: its own ``filename``
+        always replaces the scraped ``font`` name (TTF or bitmap alike,
+        since `docs/plans/10-cft-bitmap-fonts.md` §3 B.1) -- it is the more
+        precise of the two, and for a bitmap symbol it is also the real
+        ``.cft`` file's own stem, always ``FNT_``-prefixed, which the
+        scraped ``font`` column never carries the prefix for
+        (`docs/research/10-system-fonts.md` §1). A `type: "ttf"` entry
+        additionally supplies ``em_px`` (``size * ppi / 72``, when the
+        device file gives both a point ``size`` and a top-level ``ppi``,
+        ``docs/research/10-system-fonts.md`` §3's verified model) and, when
+        the device file bothers to state them, ``ascent_px``/``height_px``.
+        A bitmap entry (no `type` key) leaves `em_px`/`ascent_px`/
+        `height_px` `None` regardless -- its `.cft` file carries its own
+        `height`/`ascent` directly (plan 10 §2.3), consulted by
+        `wfb.fonts.fallback.system_face` once the file is actually located,
+        never estimated here (this module stays free of Pillow/fontTools
+        imports either way). A device with no `.cft` locatable for a bitmap
+        symbol (or with no `ppi`/`size` on a TTF one) still measures: `wfb.
+        fonts.fallback` derives whatever is missing from a *located* TTF's
+        own `hhea` table instead, for the TTF case.
 
         A `simulator.json` `ttf` entry naming a symbol the scraped table has
         nothing for at all (`FONT_SYSTEM_*`, mostly) is added too, but only
@@ -443,14 +467,24 @@ class Device:
             ascent_px: int | None = None
             height_px: int | None = None
             sim_entry = sim_fonts.get(symbol)
-            if sim_entry is not None and sim_entry.get("type") == "ttf":
+            if sim_entry is not None:
+                # The installed device's own filename always replaces the
+                # scraped `font`, TTF or bitmap alike (plan 10 §3 B.1): it is
+                # the more precise of the two, and for a bitmap symbol it is
+                # also the exact `.cft` file stem (`FNT_...`), which the
+                # scraped `font` column never carries the prefix for. Only a
+                # `type: "ttf"` entry supplies em/ascent/height this way --
+                # a bitmap entry's `.cft` carries its own height/ascent,
+                # consulted directly by `wfb.fonts.fallback.system_face`
+                # (plan 10 §2.3), never estimated here.
                 font = sim_entry.get("filename", font)
-                if ppi and "size" in sim_entry:
-                    em_px = sim_entry["size"] * ppi / 72
-                if "ascent" in sim_entry:
-                    ascent_px = int(sim_entry["ascent"])
-                if "height" in sim_entry:
-                    height_px = int(sim_entry["height"])
+                if sim_entry.get("type") == "ttf":
+                    if ppi and "size" in sim_entry:
+                        em_px = sim_entry["size"] * ppi / 72
+                    if "ascent" in sim_entry:
+                        ascent_px = int(sim_entry["ascent"])
+                    if "height" in sim_entry:
+                        height_px = int(sim_entry["height"])
             metrics[symbol] = FontMetric(symbol, face, font, size_px, em_px, ascent_px, height_px)
 
         for symbol, sim_entry in sim_fonts.items():

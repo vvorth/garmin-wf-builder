@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace as dataclass_replace
+from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -25,6 +26,7 @@ from . import catalog, complications, expr, formatting
 from .catalog import Type
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
+from .fonts import cft as cft_fonts
 from .layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
     PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
@@ -258,6 +260,36 @@ def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = N
                       fill=(220, 220, 220), font=face_font, anchor="mm")
         x += panel.width + gap
     return composed
+
+
+@lru_cache(maxsize=4096)
+def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
+    """`char`'s `.cft` glyph cell as an `"L"` ink mask, upscaled `scale`×
+    with `Image.NEAREST` (`docs/plans/10-cft-bitmap-fonts.md` §3 B.4) --
+    what `_Renderer._draw_bitmap_line` pastes a solid colour through, in
+    place of Pillow's own `ImageDraw.text` (a bitmap `SystemFace` has no
+    `FreeTypeFont` to hand that). Each pixel's mask value is
+    `level * 255 // max_level` (plan §2.4's linear blend, at full
+    saturation for a solid-colour paste). `lru_cache`d on `(path, char,
+    scale)` so a repeated glyph -- the common case for a clock face -- is
+    built once per size actually drawn at, matching `wfb.fonts.cft`'s own
+    per-(path, glyph index) glyph-decode cache one level up. Returns a
+    zero-size mask (a no-op paste) for a glyph with no pixels, or when the
+    file cannot be (re-)loaded -- `cft.load` is itself cached and never
+    raises, so this never does either.
+    """
+    font = cft_fonts.load(path)
+    if font is None:
+        return Image.new("L", (0, 0))
+    glyph = font.glyph(char)
+    if glyph.advance <= 0 or glyph.height <= 0:
+        return Image.new("L", (0, 0))
+    max_level = font.max_level or 1
+    data = bytes(level * 255 // max_level for level in glyph.levels)
+    mask = Image.frombytes("L", (glyph.advance, glyph.height), data)
+    if scale != 1:
+        mask = mask.resize((glyph.advance * scale, glyph.height * scale), Image.NEAREST)
+    return mask
 
 
 class _Renderer:
@@ -970,10 +1002,37 @@ class _Renderer:
         """Draw a system-font line glyph by glyph, each on the pen position
         `wfb.fonts.fallback.SystemFace.advances` gives -- the same advances
         `wfb.layout` measured with, rather than Pillow's own layout, which
-        disagrees with the device by up to a pixel per glyph."""
+        disagrees with the device by up to a pixel per glyph.
+
+        A bitmap face (`face.bitmap` set, `docs/plans/10-cft-bitmap-fonts.md`
+        §3 B.4) has no `FreeTypeFont` in `face.font` to hand `ImageDraw.text`
+        -- `_draw_bitmap_line` pastes each glyph's own decoded cell instead.
+        """
+        if face.bitmap is not None:
+            self._draw_bitmap_line(face, left, baseline_y, text, color)
+            return
         pen = left
         for char, advance in zip(text, face.advances(text)):
             self.draw.text((pen, baseline_y), char, fill=color, font=face.font, anchor="ls")
+            pen += advance
+
+    def _draw_bitmap_line(self, face, left: float, baseline_y: float, text: str, color) -> None:
+        """The bitmap half of `_draw_system_line`: paste each glyph's own
+        `.cft` cell (`_bitmap_glyph_mask`, cached per (font path, char,
+        `self.scale`)) at `(pen, baseline_y - face.baseline)` -- the cell's
+        own top, `ascent × scale` above the baseline every glyph shares
+        (plan 10 §3 B.4) -- tinted `color` through the mask's ink levels,
+        never through Pillow's `ImageDraw`, which has no bitmap-glyph
+        support at all. Pen advances come from `face.advances`, exactly the
+        same as the outline branch."""
+        s = self.scale
+        top = baseline_y - face.baseline
+        pen = left
+        for char, advance in zip(text, face.advances(text)):
+            mask = _bitmap_glyph_mask(face.path, char, s)
+            if mask.size[0] and mask.size[1]:
+                tint = Image.new("RGB", mask.size, color)
+                self.image.paste(tint, (int(round(pen)), int(round(top))), mask)
             pen += advance
 
     # -- shared -----------------------------------------------------------
