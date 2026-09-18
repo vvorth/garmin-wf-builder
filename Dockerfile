@@ -68,9 +68,13 @@ COPY docker/fetch-sdk.py /tmp/fetch-sdk.py
 COPY tools/fetch-icon-font.py /tmp/fetch-icon-font.py
 # fetch-system-fonts.py loads wfb/fonts/fetch_system.py by file path next to
 # it, and that module loads registry.json the same way, so all three are
-# copied preserving the same relative layout as the repo.
+# copied preserving the same relative layout as the repo.  The device
+# definitions are not here (they mount at run time), so the needed font names
+# come from the scraped tables under docs/research/data/devices/ -- without
+# them the script finds nothing to fetch, exits 0 and creates no directory.
 COPY tools/fetch-system-fonts.py /tmp/tools/fetch-system-fonts.py
 COPY wfb/fonts/fetch_system.py wfb/fonts/registry.json /tmp/wfb/fonts/
+COPY docs/research/data/devices/ /tmp/docs/research/data/devices/
 
 RUN set -eux; \
     if [ -n "${EXTRA_CA_CERT_B64}" ]; then \
@@ -85,7 +89,8 @@ RUN set -eux; \
     rm /tmp/fetch-icon-font.py; \
     WFB_FONTS_MIRROR="${WFB_FONTS_MIRROR}" \
         python /tmp/tools/fetch-system-fonts.py /opt/system-fonts; \
-    rm -rf /tmp/tools /tmp/wfb
+    test -n "$(ls -A /opt/system-fonts)"; \
+    rm -rf /tmp/tools /tmp/wfb /tmp/docs
 
 
 # ---------------------------------------------------------------------------
