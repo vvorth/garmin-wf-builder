@@ -1,0 +1,615 @@
+{
+  "version": 1,
+  "comment": "Free-font stand-ins for Garmin's system fonts (docs/plans/09-system-font-metrics.md R0, docs/research/10-system-fonts.md). Resolution order: names (exact) -> patterns (ordered, first match wins) -> faces (last resort, keyed by the scraped device-reference 'face' column). 'unmapped' lists faces/names deliberately left unresolved (CJK/Thai/Arabic/Hebrew/Armenian-only, or scalable-only supplementary faces never exposed via a FONT_* symbol) -- see docs/research/10-system-fonts.md.",
+  "sources": {
+    "roboto-condensed-bold": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "RobotoCondensed-Bold.ttf",
+      "sha256": "6a08cf0822ec2b1b584d42e7b27983d0af45e121770bb83ce76cf1be5e0a9d59",
+      "size": 348000,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "roboto-condensed-regular": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "RobotoCondensed-Regular.ttf",
+      "sha256": "c462dd3947f0ea2645d797515bb88a68ba3c64695aeed2316eadab285882fec8",
+      "size": 345100,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "roboto-condensed-medium": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "RobotoCondensed-Medium.ttf",
+      "sha256": "468aba16d1c69634ac7e0c5c2318efa895a4192f7d687760b6304e4b8d91ac70",
+      "size": 347528,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "roboto-regular": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "Roboto-Regular.ttf",
+      "sha256": "f3edb8058e523f5612bfd99d0745e661568ad85e1b6217bc62f786fabae624c6",
+      "size": 349400,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "roboto-medium": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "Roboto-Medium.ttf",
+      "sha256": "b398bb9c791ddb08f1063d9c874f98e8aadb99132043b2d272a9276cf90c465a",
+      "size": 350864,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "roboto-light": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "Roboto-Light.ttf",
+      "sha256": "a08729d794801eaa158c53b1558f4cc351c3b1791eb3d22faf7058b2b7df9c8c",
+      "size": 350028,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "roboto-bold": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "Roboto-Bold.ttf",
+      "sha256": "2ca2b3bfc2c2d43fa8f2b7227982d735fd537ecf113a4c56cc2d292bcc3106c8",
+      "size": 351108,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "roboto-black": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "Roboto-Black.ttf",
+      "sha256": "50f0aab10018fc1892ccf1a371f7bb94dd929210c23b651c96232d5b1779a5b2",
+      "size": 351568,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "roboto-italic": {
+      "url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip",
+      "member": "Roboto-Italic.ttf",
+      "sha256": "2b4076dd3f5a7fadfca760ef45557a0d437af983284652fc149535c5bd93d493",
+      "size": 375092,
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/googlefonts/roboto/releases/download/v2.138/roboto-unhinted.zip (member: LICENSE)"
+    },
+    "bebas-neue-regular": {
+      "url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/bebasneue/BebasNeue-Regular.ttf",
+      "sha256": "08e4623805102d819f58601e46e345648846075e363b2ceb23313c2d1c83ec73",
+      "size": 61400,
+      "license": "OFL-1.1",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/bebasneue/OFL.txt"
+    },
+    "rajdhani-medium": {
+      "url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/rajdhani/Rajdhani-Medium.ttf",
+      "sha256": "12ff7dcfe4c206e3875ac53b1762eab57de6a2fa7f5a86c26b97b88d6591eac2",
+      "size": 384348,
+      "license": "OFL-1.1",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/rajdhani/OFL.txt"
+    },
+    "yantramanav-bold": {
+      "url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/yantramanav/Yantramanav-Bold.ttf",
+      "sha256": "682ef4ebc9c8dde1f312c435ade5eca9cafea6ab0c3602e1638c02d3759b135d",
+      "size": 158048,
+      "license": "OFL-1.1",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/yantramanav/OFL.txt"
+    },
+    "yantramanav-regular": {
+      "url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/yantramanav/Yantramanav-Regular.ttf",
+      "sha256": "823dbb5d9c73a2c192371bf73341a30291b5a416578362eb4607b9c5a5be9821",
+      "size": 153872,
+      "license": "OFL-1.1",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/yantramanav/OFL.txt"
+    },
+    "oswald-variable": {
+      "url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/oswald/Oswald%5Bwght%5D.ttf",
+      "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
+      "size": 172088,
+      "license": "OFL-1.1",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/oswald/OFL.txt"
+    },
+    "noto-sans-variable": {
+      "url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf",
+      "sha256": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",
+      "size": 2049096,
+      "license": "OFL-1.1",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/a54f7446f84a1125ef6bf08baa46f3639e8905e0/ofl/notosans/OFL.txt"
+    },
+    "dejavu-sans-bold": {
+      "url": "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip",
+      "member": "dejavu-fonts-ttf-2.37/ttf/DejaVuSans-Bold.ttf",
+      "sha256": "e6476c1b80502924294eed40894c5b18e06c181444ca953e5334262df9c27724",
+      "size": 705684,
+      "license": "Bitstream Vera",
+      "license_url": "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip (member: dejavu-fonts-ttf-2.37/LICENSE)"
+    },
+    "dejavu-sans-condensed-bold": {
+      "url": "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip",
+      "member": "dejavu-fonts-ttf-2.37/ttf/DejaVuSansCondensed-Bold.ttf",
+      "sha256": "38098d0b8edd8430a0f53fb2831b5d36037563a998a620d3c87a4d7591766d20",
+      "size": 665028,
+      "license": "Bitstream Vera",
+      "license_url": "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip (member: dejavu-fonts-ttf-2.37/LICENSE)"
+    }
+  },
+  "fonts": {
+    "roboto-condensed-bold": {
+      "source": "roboto-condensed-bold",
+      "match": "exact",
+      "note": "Byte-identical to the device's own RobotoCondensed-Bold TTF (fr955 simulator.json ships this exact file). Also used as the free substitute for Bionic Cond, Chronos, Steelfish and Phelant number faces, and for Digi/Digi Narrow (weak substitute -- see doc)."
+    },
+    "roboto-condensed-regular": {
+      "source": "roboto-condensed-regular",
+      "match": "exact",
+      "note": "Byte-identical to the device's own RobotoCondensed-Regular TTF."
+    },
+    "roboto-condensed-medium": {
+      "source": "roboto-condensed-medium",
+      "match": "exact",
+      "note": "Same family/release as roboto-condensed-bold; used for the 'M'-suffixed CDPG_ROBOTO bitmap tokens."
+    },
+    "roboto-regular": {
+      "source": "roboto-regular",
+      "match": "exact",
+      "note": "Plain (non-condensed) Roboto Regular, face 'Roboto'."
+    },
+    "roboto-medium": {
+      "source": "roboto-medium",
+      "match": "exact",
+      "note": "Face 'Roboto Medium'."
+    },
+    "roboto-light": {
+      "source": "roboto-light",
+      "match": "exact",
+      "note": "Face 'Roboto Light'; also used for the VENU_BOLD_NUMBER_FONT_6/7 scrape anomaly (filename says BOLD, scraped face column says Roboto Light -- trusted the face column)."
+    },
+    "roboto-bold": {
+      "source": "roboto-bold",
+      "match": "family",
+      "note": "No device ships a file literally named Roboto-Bold; this is the same Apache-2.0 Roboto family's Bold static instance, used for 'Garmin Robo Units' (Garmin_Roboto_Bold and 006B416900_ROBOTO_BOLD_* bitmaps) and other bare *_ROBOTO_BOLD_* tokens."
+    },
+    "roboto-black": {
+      "source": "roboto-black",
+      "match": "exact",
+      "note": "Byte-identical to the device's own Roboto-Black TTF (fr955 FONT_NUMBER_HOT/THAI_HOT). Also the free substitute for the proprietary 'Bionic' (non-condensed) number face."
+    },
+    "roboto-italic": {
+      "source": "roboto-italic",
+      "match": "exact",
+      "note": "Face scraped as 'Roboto Wide', but the font file name is literally Roboto-Italic on every device that has it -- treated as a scrape/documentation labelling anomaly, not a distinct family."
+    },
+    "bebas-neue-regular": {
+      "source": "bebas-neue-regular",
+      "match": "exact",
+      "note": "Google Fonts ships Bebas Neue as a single 'Regular' style that is itself the heavy display weight Garmin's docs call 'Bebas Neue Bold' / '...DJV Glyph ttf' / '...ttf'."
+    },
+    "rajdhani-medium": {
+      "source": "rajdhani-medium",
+      "match": "family",
+      "note": "The scrape's own face column reads 'Rajdhani' for the font token Bionic_Medium (d2mach2, fenix8/8pro's Rajdhani sibling entries) -- taken at face value, but byte identity to Garmin's internal file cannot be confirmed, hence family not exact."
+    },
+    "yantramanav-bold": {
+      "source": "yantramanav-bold",
+      "match": "exact",
+      "note": "Face 'Yantramanav', bold number-font tokens."
+    },
+    "yantramanav-regular": {
+      "source": "yantramanav-regular",
+      "match": "exact",
+      "note": "The one scraped filename 'Yantramanav-Regular' under face 'Yantramanav'."
+    },
+    "oswald-variable": {
+      "source": "oswald-variable",
+      "match": "family",
+      "note": "Google Fonts ships Oswald only as a wght 200-700 variable font; Garmin's nominal 'Oswald Light' weight is approximated by whichever instance a plain (non-variation-aware) loader resolves, not pinned to the light end of the axis. hhea ascent/descent do not vary across the wght axis in this build (checked), so the *metric* model is unaffected -- only the rendered stroke weight is approximate."
+    },
+    "noto-sans-variable": {
+      "source": "noto-sans-variable",
+      "match": "family",
+      "note": "Google Fonts ships Noto Sans only as a wght/wdth variable font; same default-instance caveat as oswald-variable. Used for face 'Noto Sans' (Latin-script bold numerals on aviation devices, not the CJK 'Noto Sans SC' family, which stays unmapped)."
+    },
+    "dejavu-sans-bold": {
+      "source": "dejavu-sans-bold",
+      "match": "substitute",
+      "note": "Face 'Garmin': the generic label Garmin's own docs use for the DejaVu-derived bitmap numeral fonts on Edge/GPSMAP cycling and hiking computers (DEJAVU_FITNESS_*, GPSMAP66_DEJAVU_REC_*, 006B345900_FNT_0000_PRO_*, DejaVuGarmin_Rec_with_bionic_numbers). The scraped file name literally contains 'DEJAVU', so the real file is some DejaVu derivative; DejaVu Sans Bold is the closest still-free relative for these non-condensed number faces."
+    },
+    "dejavu-sans-condensed-bold": {
+      "source": "dejavu-sans-condensed-bold",
+      "match": "family",
+      "note": "Face 'DejaVu Sans Medium Condensed B' (006B416900_DEJA_VU_SANS_*, DEJAVU_SANS_*, GPSMAP66_DEJAVU_SANS_*, DejaVuSans_Cd_SemiBold_WGL4). DejaVu ships an official Condensed-Bold cut of the same family; 'Medium' in Garmin's label is read as normal (non-light) weight, not DejaVu's separate 'Medium' style (which does not exist)."
+    },
+    "bionic-cond-substitute": {
+      "source": "roboto-condensed-bold",
+      "match": "substitute",
+      "note": "Proprietary 'Bionic Cond' number face. Substitute picked because the very same devices (fenix8solar47mm, marq2, ...) use RobotoCondensed-Bold for their own FONT_XTINY..LARGE body text; condensed bold weight/width is the closest free match for a condensed numeral face."
+    },
+    "bionic-substitute": {
+      "source": "roboto-black",
+      "match": "substitute",
+      "note": "Proprietary 'Bionic' (non-condensed) number face. Substitute picked because fr955 uses Roboto-Black for the identical FONT_NUMBER_HOT/THAI_HOT role that Bionic fills on other devices -- same semantic slot, same free family elsewhere in Garmin's own lineup."
+    },
+    "chronos-substitute": {
+      "source": "roboto-condensed-bold",
+      "match": "substitute",
+      "note": "Proprietary 'Chronos' number face (fenix5 era). Substitute picked because fenix5's own FONT_XTINY..LARGE body text is Roboto Condensed (Bold/Regular)."
+    },
+    "steelfish-substitute": {
+      "source": "roboto-condensed-bold",
+      "match": "substitute",
+      "note": "Proprietary 'Steelfish' number face (d2bravo, fenix3). Substitute picked because the same devices' own body text is Roboto Condensed."
+    },
+    "phelant-substitute": {
+      "source": "roboto-condensed-bold",
+      "match": "substitute",
+      "note": "Proprietary 'Phelant' number face (epix, vivoactive). Substitute picked because the same devices' own body text is Roboto Condensed."
+    },
+    "digi-substitute": {
+      "source": "roboto-condensed-bold",
+      "match": "substitute",
+      "note": "Proprietary 7-segment-style 'Digi' face (fr920xt). Weakest substitute in this registry: fr920xt uses Digi for its *entire* font table, so there is no free same-device sibling family to borrow, unlike Bionic/Chronos/Steelfish/Phelant. A dedicated 7-segment OFL face (e.g. DSEG7) would fit better and is a documented follow-up, skipped here to keep the download scope sane for a single legacy device."
+    },
+    "digi-narrow-substitute": {
+      "source": "roboto-condensed-bold",
+      "match": "substitute",
+      "note": "Proprietary 'Digi Narrow' face (fr920xt FONT_NUMBER_MILD only). Same weak-substitute caveat as digi-substitute."
+    }
+  },
+  "names": {
+    "RobotoCondensed-Bold": "roboto-condensed-bold",
+    "RobotoCondensedBold": "roboto-condensed-bold",
+    "RobotoCondensed-Regular": "roboto-condensed-regular",
+    "RobotoCondensedRegular": "roboto-condensed-regular",
+    "RobotoCondensed-RegularItalic": "roboto-condensed-regular",
+    "RobotoCondensedRegularItalic": "roboto-condensed-regular",
+    "Roboto-Regular": "roboto-regular",
+    "RobotoRegular": "roboto-regular",
+    "Roboto-Medium": "roboto-medium",
+    "Roboto-Medium-Outdoor": "roboto-medium",
+    "RobotoMedium": "roboto-medium",
+    "Roboto-Black": "roboto-black",
+    "RobotoBlack": "roboto-black",
+    "Roboto-Italic": "roboto-italic",
+    "RobotoItalic": "roboto-italic",
+    "Garmin_Roboto_Bold": "roboto-bold",
+    "Bionic_semibold": "bionic-substitute",
+    "BionicSemiBold": "bionic-substitute",
+    "BionicSemibold": "bionic-substitute",
+    "Bionic_Bold": "bionic-substitute",
+    "BionicBold": "bionic-substitute",
+    "Bionic_Bold_Number_Only": "bionic-substitute",
+    "Bionic_Medium": "rajdhani-medium",
+    "BionicMedium": "rajdhani-medium",
+    "Yantramanav-Regular": "yantramanav-regular",
+    "VENU_BOLD_NUMBER_FONT_6": "roboto-light",
+    "VENU_BOLD_NUMBER_FONT_7": "roboto-light",
+    "DejaVuGarmin_Rec_with_bionic_numbers": "dejavu-sans-bold",
+    "DejaVuSans_Cd_SemiBold_WGL4": "dejavu-sans-condensed-bold"
+  },
+  "patterns": [
+    {
+      "regex": "CDPG_ROBOTO_\\d+M$",
+      "key": "roboto-condensed-medium",
+      "note": "CDPG_ROBOTO with an M (medium) size suffix"
+    },
+    {
+      "regex": "CDPG_ROBOTO_\\d+B$",
+      "key": "roboto-condensed-bold",
+      "note": "CDPG_ROBOTO with a B (bold) size suffix"
+    },
+    {
+      "regex": "CDPG_ROBOTO_\\d+$",
+      "key": "roboto-condensed-bold",
+      "note": "CDPG_ROBOTO with no weight suffix; bold assumed (dominant case)"
+    },
+    {
+      "regex": "ROBOTO_BLACK",
+      "key": "roboto-black",
+      "note": "explicit BLACK token"
+    },
+    {
+      "regex": "_BOLD_NUMBER_FONT_\\d+$",
+      "key": "roboto-black",
+      "note": "bare *_BOLD_NUMBER_FONT_N, sibling of the ROBOTO_BLACK tokens"
+    },
+    {
+      "regex": "ROBOTO_BC_NUMBER_FONT",
+      "key": "roboto-condensed-bold",
+      "note": "BC = bold condensed"
+    },
+    {
+      "regex": "NUMBER_FONT_BOLD_SMALL$",
+      "key": "roboto-black",
+      "note": "006B399100 part-number numeral bitmap, scraped face Roboto Black"
+    },
+    {
+      "regex": "NUMBER_FONT_(XXSMALL|XSMALL|SMALL|MEDIUM|XXLARGE|XLARGE|LARGE|GIGANTIC)$",
+      "key": "roboto-condensed-bold",
+      "note": "006B399100 part-number numeral bitmap ladder; sibling SMALL/MEDIUM entries are scraped as Roboto Condensed"
+    },
+    {
+      "regex": "ROBOTO_CONDENSED.*BOLD",
+      "key": "roboto-condensed-bold",
+      "note": "explicit ROBOTO_CONDENSED ... BOLD"
+    },
+    {
+      "regex": "ROBOTO_CONDENSED",
+      "key": "roboto-condensed-bold",
+      "note": "ROBOTO_CONDENSED with no explicit weight; bold assumed"
+    },
+    {
+      "regex": "FNT_1252_PRO_\\d+$",
+      "key": "roboto-condensed-bold",
+      "note": "1252 = Latin-1 codepage bitmap, Roboto Condensed face"
+    },
+    {
+      "regex": "ROBOTO_MEDIUM",
+      "key": "roboto-medium",
+      "note": "explicit MEDIUM token"
+    },
+    {
+      "regex": "ROBOTO_BOLD",
+      "key": "roboto-bold",
+      "note": "explicit BOLD token, non-condensed"
+    },
+    {
+      "regex": "_ROBOTO_\\d+B$",
+      "key": "roboto-condensed-bold",
+      "note": "bare *_ROBOTO_NNB, matches the Roboto Condensed Bold bitmap family"
+    },
+    {
+      "regex": "BIONIC_COND",
+      "key": "bionic-cond-substitute",
+      "note": "Bionic Cond substitute: condensed bold sans, same role as RobotoCondensed-Bold on sibling devices"
+    },
+    {
+      "regex": "BIONIC",
+      "key": "bionic-substitute",
+      "note": "Bionic substitute: same role as Roboto-Black on sibling devices (fr955 FONT_NUMBER_HOT)"
+    },
+    {
+      "regex": "BEBAS_NEUE",
+      "key": "bebas-neue-regular",
+      "note": "Bebas Neue, any suffix (BT/B/plain)"
+    },
+    {
+      "regex": "_0000_GARMIN_\\d+$",
+      "key": "bebas-neue-regular",
+      "note": "the '...DJV Glyph ttf' face's *_0000_GARMIN_NN bitmap token"
+    },
+    {
+      "regex": "DEJA_?VU_SANS",
+      "key": "dejavu-sans-condensed-bold",
+      "note": "DejaVu Sans (Medium) Condensed B face"
+    },
+    {
+      "regex": "DEJAVU_FITNESS|DEJAVU_REC",
+      "key": "dejavu-sans-bold",
+      "note": "Garmin generic cycling/hiking numeral bitmap, DejaVu-derived"
+    },
+    {
+      "regex": "FNT_0000_PRO_\\d+$",
+      "key": "dejavu-sans-bold",
+      "note": "Montana/hiking generic numeral bitmap, face 'Garmin'"
+    },
+    {
+      "regex": "STEELFISH",
+      "key": "steelfish-substitute",
+      "note": "Steelfish substitute: the same device's own body text is Roboto Condensed Bold (d2bravo)"
+    },
+    {
+      "regex": "PHELANT",
+      "key": "phelant-substitute",
+      "note": "Phelant substitute: the same device's own body text is Roboto Condensed (epix, vivoactive)"
+    },
+    {
+      "regex": "CHRONOSSEMIBOLDCONDENSED",
+      "key": "chronos-substitute",
+      "note": "Chronos substitute: the same device's own body text is Roboto Condensed (fenix5)"
+    },
+    {
+      "regex": "DIGI_\\d+N$",
+      "key": "digi-narrow-substitute",
+      "note": "Digi Narrow -- weak substitute, see doc (fr920xt has no free 7-segment sibling)"
+    },
+    {
+      "regex": "DIGI_\\d+$",
+      "key": "digi-substitute",
+      "note": "Digi -- weak substitute, see doc"
+    },
+    {
+      "regex": "OSWALD",
+      "key": "oswald-variable",
+      "note": "Oswald Light face"
+    },
+    {
+      "regex": "YANTRAMANAV",
+      "key": "yantramanav-bold",
+      "note": "explicit Yantramanav token"
+    },
+    {
+      "regex": "^\\d{10}_(BOLD_)?NUMBER_(LARGE|SMALL|XLARGE|XSMALL|XTINY)\\d*$",
+      "key": "yantramanav-bold",
+      "note": "Yantramanav's un-named NUMBER_* size tokens"
+    },
+    {
+      "regex": "NOTO_SANS_BOLD",
+      "key": "noto-sans-variable",
+      "note": "face 'Noto Sans' (Latin, not CJK)"
+    }
+  ],
+  "faces": {
+    "Roboto Condensed": "roboto-condensed-bold",
+    "Roboto": "roboto-regular",
+    "Roboto Black": "roboto-black",
+    "Roboto Medium": "roboto-medium",
+    "Roboto Light": "roboto-light",
+    "Roboto Wide": "roboto-italic",
+    "Bionic": "bionic-substitute",
+    "Chronos": "chronos-substitute",
+    "Steelfish Rg": "steelfish-substitute",
+    "Phelant": "phelant-substitute",
+    "Digi": "digi-substitute",
+    "Digi Narrow": "digi-narrow-substitute",
+    "Rajdhani": "rajdhani-medium",
+    "Yantramanav": "yantramanav-bold",
+    "Bebas Neue Bold": "bebas-neue-regular",
+    "Bebas Neue Bold DJV Glyph ttf": "bebas-neue-regular",
+    "Bebas Neue ttf": "bebas-neue-regular",
+    "Oswald Light": "oswald-variable",
+    "Noto Sans": "noto-sans-variable",
+    "DejaVu Sans Medium Condensed B": "dejavu-sans-condensed-bold",
+    "Garmin": "dejavu-sans-bold",
+    "Garmin Robo Units": "roboto-bold"
+  },
+  "unmapped": [
+    {
+      "face": "MotoyaLCedar",
+      "reason": "Japanese-script face (Kosugi), scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "NanumGothic",
+      "reason": "Korean-script face, scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "Noto Sans SC",
+      "reason": "Chinese-script face, scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "Noto Naskh Arabic",
+      "reason": "Arabic-script face, scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "Noto Sans Armenian",
+      "reason": "Armenian-script face, scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "Noto Sans Hebrew",
+      "reason": "Hebrew-script face, scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "Pridi",
+      "reason": "Thai-script face, scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "Sakkal Majalla Unicode",
+      "reason": "Arabic-script face, scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "Swis721Hebrew BT",
+      "reason": "Hebrew-script face, scalable-only, not in the default fixed FONT_* table."
+    },
+    {
+      "face": "Exo",
+      "reason": "Scalable-only supplementary face on 3 aviation devices (d2mach1, marq2, marq2aviator); never exposed via a FONT_* symbol."
+    },
+    {
+      "face": "Tomorrow",
+      "reason": "Scalable-only supplementary face on 1 aviation device (marq2aviator); never exposed via a FONT_* symbol."
+    },
+    {
+      "name": "Kosugi-Regular",
+      "reason": "Japanese-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "Kosugi-Regular-2",
+      "reason": "Japanese-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "Kosugi-Regular-3",
+      "reason": "Japanese-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "Kosugi-Regular-Outdoor",
+      "reason": "Japanese-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NanumGothic-Bold",
+      "reason": "Korean-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NanumGothic-ExtraBold",
+      "reason": "Korean-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NanumGothic-Regular",
+      "reason": "Korean-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoSansSC-Medium",
+      "reason": "Chinese-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoSansSC-Medium-2",
+      "reason": "Chinese-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoSansSC-Medium-3",
+      "reason": "Chinese-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoSansSC-Medium-Outdoor",
+      "reason": "Chinese-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoNaskhArabic-Bold",
+      "reason": "Arabic-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoNaskhArabic-Regular",
+      "reason": "Arabic-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoSansArmenian-Bold",
+      "reason": "Armenian-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoSansArmenian-Regular",
+      "reason": "Armenian-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoSansHebrew-Bold",
+      "reason": "Hebrew-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "NotoSansHebrew-Regular",
+      "reason": "Hebrew-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "Pridi-Regular",
+      "reason": "Thai-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "Pridi-Regular_Garmin",
+      "reason": "Thai-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "Pridi-SemiBold_Garmin",
+      "reason": "Thai-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "sakkal_majalla_bold",
+      "reason": "Arabic-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "sakkal_majalla_roman",
+      "reason": "Arabic-script simulator TTF, scalable-only."
+    },
+    {
+      "name": "swiss_721_bd",
+      "reason": "Hebrew-script simulator TTF (Swis721Hebrew BT face), scalable-only."
+    },
+    {
+      "name": "swiss_721_reg",
+      "reason": "Hebrew-script simulator TTF (Swis721Hebrew BT face), scalable-only."
+    },
+    {
+      "name": "Exo-SemiBold",
+      "reason": "Scalable-only supplementary face, never exposed via a FONT_* symbol."
+    },
+    {
+      "name": "Tomorrow-Bold",
+      "reason": "Scalable-only supplementary face, never exposed via a FONT_* symbol."
+    }
+  ]
+}
