@@ -22,7 +22,7 @@
       "$ref": "#/$defs/face"
     },
     "targets": {
-      "description": "Device ids to build for. Must be installed Connect IQ device definitions.",
+      "description": "Device ids to build for by default. Must be installed Connect IQ device definitions. The CLI's -d/--device replaces this set, and may name devices not listed here.",
       "type": "array",
       "minItems": 1,
       "items": {

@@ -1,7 +1,7 @@
 # garmin-wf-builder
 
 Describe a Garmin Connect IQ watch face in one YAML file, and `wfb` builds a
-signed `.prg` for each target watch, ready to sideload.
+signed `.prg` for each watch you list, ready to sideload.
 
 Connect IQ is Garmin's platform for third-party watch apps and faces. A `.prg`
 is a compiled Connect IQ app. Sideloading means copying it onto the watch over
@@ -9,8 +9,12 @@ USB yourself instead of installing it from the Connect IQ Store. `wfb` writes
 the Monkey C code (Garmin's programming language) for you and runs Garmin's
 compiler, so you don't need to know Monkey C.
 
-**Targets:** fēnix 8 Solar 47 mm / 51 mm, Forerunner 955. **Distribution:**
-personal sideload, not the Connect IQ Store. **Status:** early (`wfb` 0.1.0), a
+**Watches:** in principle any Connect IQ watch that can run a watch face at
+Connect IQ 3.2 or newer: the fēnix 6 / Forerunner 245 generation onwards, plus
+any older model whose firmware reached 3.2 ([which watches](#which-watches)). Day-to-day development
+happens on the fēnix 8 Solar 47 mm / 51 mm and Forerunner 955, which is why
+the examples target those. **Distribution:** personal sideload, not the
+Connect IQ Store. **Status:** early (`wfb` 0.1.0), a
 personal project that works end to end and is still changing. The format is
 versioned (`format: 1`). [`docs/limitations.md`](docs/limitations.md) lists
 what isn't built yet.
@@ -35,7 +39,7 @@ Positions match the watch; glyph shapes and some data values are approximate
 |---|---|
 | complication | a piece of data the watch publishes for faces to show, such as Body Battery or sunrise time. A *complication slot* lets the wearer choose which one appears. |
 | glance | Garmin's full-screen view of one metric, which a face can open |
-| MIP / AMOLED | the two kinds of watch screen. MIP (all three targets) is always on and has 64 colours. AMOLED needs a sparse always-on layout to avoid burn-in. |
+| MIP / AMOLED | the two kinds of watch screen. MIP (for example the fēnix Solar models and the Forerunner 245/255/955) is always on and has 64 colours. AMOLED needs a sparse always-on layout to avoid burn-in. |
 | active / low power | the watch is *awake* (right after you raise your wrist) or *asleep* (the rest of the time) |
 | `%r` | a length as a percentage of the screen's radius (§3) |
 
@@ -51,7 +55,7 @@ Positions match the watch; glyph shapes and some data values are approximate
 | **macOS** | Use the Docker image. It is tested with [OrbStack](https://orbstack.dev). `setup-env.sh` fetches the Linux SDK, so it doesn't work on a Mac itself. |
 | **Windows** | Not tested. |
 | **A Garmin account** | Needed once, to download the device definitions (step 1). |
-| **A watch** | fēnix 8 Solar 47 mm / 51 mm or Forerunner 955, and its USB cable. Other Connect IQ watches can work too: list your face's watches under `targets:`, and `wfb devices` shows which ones you have definitions for. Only these three are tested. |
+| **A watch** | any Connect IQ watch that can run a watch face ([which watches](#which-watches)), and its USB cable. |
 
 ### Step 1: get the device definitions
 
@@ -121,6 +125,12 @@ built      my-face-fenix8solar51mm.prg  2,775 B / 131,072 B (2.1%)
 built      my-face-fr955.prg            2,775 B / 131,072 B (2.1%)
 ```
 
+`-d <device>` (repeatable) limits `preview`, `validate` and `build` to the
+watches you name. It takes any watch you have definitions for, not only the
+ones under `targets:`, so you can try a face on another model without editing
+it: `wfb build my-face.yaml -d fenix7pro` builds just that one, with a note
+that it isn't a listed target. `wfb devices` lists the watches you can name.
+
 While you edit, `wfb preview my-face.yaml --watch` redraws the PNG every time
 you save; it keeps running until you press Ctrl-C. Three commands list what a
 face can use: `wfb sources` (data you can show), `wfb series` (data you can
@@ -176,8 +186,42 @@ the file.
 | `manifest.xml`, `monkey.jungle` | permissions and API floor, derived from what you bind |
 | `runtime-lib/` | only the helper modules the face needs |
 
-The memory figure comes from the compiler's own measurement, not an estimate.
-Every watch face gets 128 KB.
+The memory figure comes from the compiler's own measurement, not an estimate,
+against that watch's own limit: 128 KB on current models, less on older ones
+(for example 112 KB on the fēnix 6, 96 KB on the Forerunner 245).
+
+### Which watches
+
+`wfb` isn't tied to particular models. It reads each watch's screen, memory
+limit and API list from Garmin's device definitions, resolves the layout for
+that screen and checks the face against it. What bounds the range is the
+platform, not a list of supported devices:
+
+- **The watch must run watch faces at all.** 28 of the 164 devices in
+  Garmin's SDK can't; `wfb` refuses them.
+- **Connect IQ 3.2 or newer.** Every generated face declares 3.2.0 as its
+  minimum. That covers the fēnix 6 and Forerunner 245 generation and
+  everything since, and an older model qualifies if its firmware was updated
+  to 3.2 or later. Below that, it's out of range.
+- **Newer features switch off where the watch lacks them**, rather than
+  locking the face out. Complications need Connect IQ 4.2 and the on-device
+  face editor needs 5.1 plus Garmin's editor (fēnix 8 and later). On an older
+  watch a complication reads as absent, the face keeps its default
+  configuration, and the build warns (`api-gated`, `config-unsupported`). Touch-and-hold needs a touchscreen
+  (`hold-unsupported` otherwise).
+- **Round screens are the home ground.** Rectangular screens get the same
+  layout checks. On semi-round and semi-octagon screens the face builds, but
+  the visible-area check reports "not checked".
+- **MIP and AMOLED screens both work**, but AMOLED watches can't use
+  `low_power` updates and need a `modes: [always_on]` layout (§11); the lints
+  say so.
+- **Memory is the watch's own limit**, measured on every build: 128 KB on
+  current models, as little as 96 KB on some older ones.
+
+Known gap: a `pattern` with a `text` part (the numerals in §8) doesn't
+compile yet for Connect IQ 3.x watches such as the fēnix 6 and Forerunner 245.
+
+You need the device definitions for each watch you build for (step 1).
 
 ### If something goes wrong
 
@@ -681,8 +725,8 @@ from Garmin's own face ([Preview caveats](#preview-caveats)).
   min_1px: true            # face-wide; a group, element or part can override it
   ```
 - **`modes: [always_on]`.** A separate element set for AMOLED watches, which
-  can't use low-power updates. None of the three targets is AMOLED (they all
-  have MIP screens), so no example uses it.
+  can't use low-power updates. The examples all target MIP watches, so none
+  of them uses it.
 - **`seconds:` on the analog dial.** `seconds: awake` (the default) hides the
   second hand while the watch sleeps. `seconds: always` isn't built yet.
 - **`wfb new -t <template>`.** Starts from a known-good design (`--list` shows

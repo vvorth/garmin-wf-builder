@@ -80,12 +80,67 @@ def test_building_one_device_only(slice_design, tmp_path, db):
     assert [d.id for d in result.devices] == ["fr955"]
 
 
-def test_a_device_outside_the_designs_targets_is_rejected(slice_design, tmp_path, db):
+def _installed(db, device_id):
+    if device_id not in db.ids():
+        pytest.skip(f"{device_id} is not installed")
+
+
+def test_a_device_outside_the_designs_targets_builds_with_a_note(slice_design, tmp_path, db):
+    """`-d` may name any installed device, not only a listed target: trying a
+    face on another watch must not need an edit to the design.  The product
+    list comes from the devices asked for, so the manifest names that device
+    and none of the targets that were not asked for."""
+    _installed(db, "fenix7pro")
     bag = Bag()
     result = build(slice_design, output=tmp_path, bag=bag, db=db,
                    devices_only=["fenix7pro"], compile_prg=False)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    assert [d.id for d in result.devices] == ["fenix7pro"]
+    notes = [d for d in bag.items if d.code == "target"]
+    assert len(notes) == 1 and notes[0].severity.value == "note", bag.render()
+    assert "fenix7pro" in notes[0].message
+    manifest = (result.output_dir / "manifest.xml").read_text(encoding="utf-8")
+    assert 'id="fenix7pro"' in manifest
+    assert 'id="fr955"' not in manifest
+    assert (result.output_dir / "source-fenix7pro" / "Layout.mc").exists()
+
+
+def test_a_listed_target_asked_for_by_name_draws_no_note(slice_design, tmp_path, db):
+    bag = Bag()
+    build(slice_design, output=tmp_path, bag=bag, db=db,
+          devices_only=["fr955"], compile_prg=False)
+    assert not [d for d in bag.items if d.code == "target"], bag.render()
+
+
+def test_an_unknown_device_is_one_error_and_no_note(slice_design, tmp_path, db):
+    bag = Bag()
+    result = build(slice_design, output=tmp_path, bag=bag, db=db,
+                   devices_only=["nosuchwatch"], compile_prg=False)
     assert result is None
-    assert any(d.code == "target" for d in bag.errors)
+    hits = [d for d in bag.items if d.code == "target"]
+    assert len(hits) == 1 and hits[0].severity.value == "error", bag.render()
+
+
+def test_a_device_named_twice_is_built_once(slice_design, tmp_path, db):
+    bag = Bag()
+    result = build(slice_design, output=tmp_path, bag=bag, db=db,
+                   devices_only=["fr955", "fr955"], compile_prg=False)
+    assert [d.id for d in result.devices] == ["fr955"]
+
+
+@pytest.mark.slow
+def test_a_device_outside_the_targets_compiles(slice_design, tmp_path, db, toolchain):
+    """The end-to-end promise of `-d` on an unlisted device: an older, smaller
+    watch than any target (fenix6: 240x240, API 3.x, 114,688 B for a face)
+    gets a signed .prg from the unchanged design."""
+    _installed(db, "fenix6")
+    bag = Bag()
+    result = build(slice_design, output=tmp_path, bag=bag, db=db, toolchain=toolchain,
+                   devices_only=["fenix6"])
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    assert set(result.products) == {"fenix6"}
 
 
 @pytest.mark.slow

@@ -298,3 +298,14 @@ def test_preview_reports_a_clean_error_for_a_bad_time(db):
     assert result.returncode == 1
     assert "not-a-time" in result.stderr
     assert "HH:MM" in result.stderr
+
+
+def test_preview_renders_a_device_that_is_not_a_target(db, tmp_path):
+    """`wfb preview -d` takes any installed device, like `wfb build -d`."""
+    if "fenix7pro" not in db.ids():
+        pytest.skip("fenix7pro is not installed")
+    result = run("preview", "examples/sun/face.yaml", "-d", "fenix7pro",
+                 "-o", str(tmp_path), "--color", "never")
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "fenix7pro.png").exists()
+    assert "not one of this design's targets" in result.stdout + result.stderr

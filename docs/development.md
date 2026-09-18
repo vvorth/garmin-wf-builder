@@ -96,8 +96,8 @@ holds your face, because the container sees only the directory mounted at
 ```sh
 wfb new       "My Face" [-t minimal|dashboard]   # start from a known-good template
 wfb build     design.yaml [-d DEVICE] [-o DIR] [--no-compile]
-wfb validate  design.yaml          # everything except codegen; no toolchain needed
-wfb preview   design.yaml [--watch]  # render to PNG; no toolchain, no simulator
+wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
+wfb preview   design.yaml [-d DEVICE] [--watch]  # render to PNG; no toolchain, no simulator
 wfb simulate  design.yaml          # launch the simulator and push the built face
 wfb devices                        # installed device definitions and their limits
 wfb sources                        # the data-source catalogue, and the icon names
@@ -106,6 +106,11 @@ wfb schema    [--path]             # the JSON Schema, for editor setup
 wfb doctor                         # what is installed, what is missing, what to do
 wfb help      [command]            # every command's own help, from its own docstring
 ```
+
+`-d DEVICE` (repeatable) replaces the design's `targets:` with the devices
+named. It accepts any installed device (`wfb devices`), not only a listed
+target; an unlisted one draws a `target` note, and the generated manifest
+lists exactly the devices asked for.
 
 `wfb help <command>` and `wfb <command> help` print the same thing as
 `wfb <command> --help`, byte for byte, because all three are read from that

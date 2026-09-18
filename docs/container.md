@@ -136,8 +136,8 @@ The image's entrypoint is `wfb`, so the arguments are the CLI's:
 
 ```sh
 docker run ... garmin-wf-builder build     design.yaml [-d DEVICE] [--no-compile]
-docker run ... garmin-wf-builder validate  design.yaml
-docker run ... garmin-wf-builder preview   design.yaml [--scale N]
+docker run ... garmin-wf-builder validate  design.yaml [-d DEVICE]
+docker run ... garmin-wf-builder preview   design.yaml [-d DEVICE] [--scale N]
 docker run ... garmin-wf-builder devices
 docker run ... garmin-wf-builder sources
 ```

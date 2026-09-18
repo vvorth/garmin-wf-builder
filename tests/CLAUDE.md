@@ -28,6 +28,8 @@ Loaded automatically when working under `tests/`.
   `examples/system-fonts/face.yaml` (new targets; `safe-area` on fr245
   for `spine` and `large_text`):
   - `test_example_is_clean_on_every_target[system-fonts]`
+  - `test_example_is_clean_on_every_target[system-fonts-numbers]` (same
+    commit, same `safe-area` on fr245 for `spine`)
 
   (Until 2026-09-14 this list also named
   `test_ir_draw_order_matches_the_resolved_one[enduro]` and `[dashboard]`;

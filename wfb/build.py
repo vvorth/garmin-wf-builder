@@ -83,16 +83,16 @@ def load(path: Path, bag: Bag) -> Face | None:
 
 def select_devices(face: Face, db: DeviceDatabase, bag: Bag,
                    only: list[str] | None = None) -> list[Device]:
-    wanted = list(only) if only else list(face.targets)
+    """The devices to resolve and build for: ``only`` (``-d/--device``) when
+    given, the design's ``targets:`` otherwise.
+
+    ``only`` may name any installed device, not just a listed target -- the
+    generated project takes its product list from the devices passed to it,
+    so trying a face on another watch needs no edit to the design.  Such a
+    device draws one note, so it is clear the design never promised it."""
+    wanted = list(dict.fromkeys(only)) if only else list(face.targets)
     devices: list[Device] = []
     for device_id in wanted:
-        if only and device_id not in face.targets:
-            bag.error(
-                "target",
-                f"{device_id!r} is not one of this design's targets",
-                notes=["targets: " + ", ".join(face.targets)],
-            )
-            continue
         try:
             device = db.get(device_id)
         except DeviceError as exc:
@@ -101,6 +101,13 @@ def select_devices(face: Face, db: DeviceDatabase, bag: Bag,
         if not device.supports_watchface:
             bag.error("target", f"{device_id} cannot run a watch face at all")
             continue
+        if device_id not in face.targets:
+            bag.note(
+                "target",
+                f"{device_id} is not one of this design's targets; using it anyway "
+                "because -d asked for it",
+                notes=["targets: " + ", ".join(face.targets)],
+            )
         devices.append(device)
     return devices
 

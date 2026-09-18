@@ -60,7 +60,7 @@ face:
   name: Slice
   version: 1.0.0
   entry: Slice          # optional: the Monkey C entry class name, from `name` if omitted
-targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]   # the default device set; `-d` may name others
 palette: {...}
 fonts:   {...}
 static:   [...]        # optional: elements that never change -- see below

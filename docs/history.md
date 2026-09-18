@@ -3943,3 +3943,25 @@ Left as found:
   `WFB_NO_GARMIN_FONTS=1`), instead of falling back silently. Inside the
   image (`WFB_CONTAINER=1`), `wfb doctor` gives a mount hint in place of the
   host's "copy into vendor/fonts/", which cannot reach the image.
+
+## 2026-09-18 — `-d` takes any device; the README stops listing three watches
+
+- The user pointed out the README presented the project as fēnix 8 Solar +
+  fr955 only, while it builds for most round watches from fenix6/fr245 on.
+  The README now states the range as platform limits (can run a face,
+  Connect IQ ≥ 3.2.0 manifest floor, runtime-gated newer APIs, screen shape
+  and display type, per-device memory) under a new "Which watches"
+  subsection, and names the fēnix 8/fr955 as where development happens
+  rather than as the supported set. The user asked explicitly for
+  theoretical limits, not a list of verified builds.
+- `-d/--device` on `build`, `preview`, `simulate` and now `validate` accepts
+  any installed device, not just one under `targets:`. `select_devices`
+  used to error on a non-target; it now emits a `target` note after the
+  device lookup succeeds (so an unknown id is one error, not a note plus an
+  error), and de-duplicates repeats. Nothing downstream read
+  `face.targets`: the manifest's products, guards and layouts already came
+  from the selected devices.
+- A side finding while building examples for all 13 installed devices:
+  pattern `text` parts do not compile on Connect IQ 3.x (`drawTextRotated`
+  has 10 parameters; those devices allow 9). Recorded in
+  `docs/limitations.md`, not fixed.

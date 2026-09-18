@@ -116,7 +116,8 @@ These cost real time to discover; do not rediscover them.
   single place that decides, once per build, whether the shared code needs
   a `Toybox has :Complications` guard anywhere, and which bare field names
   (`Device.has_field`'s namespace, e.g. `stressScore`) need an `x has
-  :field` guard -- aggregated over *every* target device in `targets:`, not
+  :field` guard -- aggregated over *every* device in the build (`targets:`,
+  or whatever `-d` selected, which may name non-targets since 2026-09-18), not
   just the one `wfb.layout.resolve` happened to generate the view from,
   because the view is shared across all of them. A design whose targets all
   support everything it uses gets an empty `Guards` and generates the exact

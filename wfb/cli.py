@@ -202,7 +202,8 @@ def _parser() -> argparse.ArgumentParser:
     build = _command(sub, "build", _build)
     build.add_argument("design", type=Path, help="the .yaml design file")
     build.add_argument("-d", "--device", action="append", dest="devices",
-                       help="build only this target (repeatable); defaults to all targets")
+                       help="build only this device (repeatable); any installed device, "
+                            "not just a listed target; defaults to all targets")
     build.add_argument("-o", "--output", type=Path, default=DEFAULT_OUTPUT,
                        help=f"build directory (default: {DEFAULT_OUTPUT})")
     build.add_argument("--no-compile", action="store_true",
@@ -213,11 +214,16 @@ def _parser() -> argparse.ArgumentParser:
 
     check = _command(sub, "validate", _validate)
     check.add_argument("design", type=Path)
+    check.add_argument("-d", "--device", action="append", dest="devices",
+                       help="check only this device (repeatable); any installed device, "
+                            "not just a listed target; defaults to all targets")
     check.add_argument("--devices-dir")
 
     preview = _command(sub, "preview", _preview)
     preview.add_argument("design", type=Path)
-    preview.add_argument("-d", "--device", action="append", dest="devices")
+    preview.add_argument("-d", "--device", action="append", dest="devices",
+                         help="render only this device (repeatable); any installed "
+                              "device, not just a listed target; defaults to all targets")
     preview.add_argument("-o", "--output", type=Path, default=Path("build/preview"))
     preview.add_argument("--scale", type=int, default=2)
     preview.add_argument("--no-quantise", action="store_true",
@@ -243,7 +249,8 @@ def _parser() -> argparse.ArgumentParser:
     simulate = _command(sub, "simulate", _simulate)
     simulate.add_argument("design", type=Path)
     simulate.add_argument("-d", "--device", dest="device",
-                          help="which target to run (default: the first)")
+                          help="which device to run, target or not (default: the "
+                               "first target)")
     simulate.add_argument("-o", "--output", type=Path, default=DEFAULT_OUTPUT)
     simulate.add_argument("--screenshot", type=Path,
                           help="capture the simulator window to this PNG")
@@ -295,8 +302,10 @@ def _build(args) -> int:
 
     `--no-compile` stops after generating the project, before invoking
     `monkeyc` -- useful with no Garmin toolchain installed, or to inspect
-    the generated Monkey C directly. `-d/--device` restricts the build to
-    one or more targets instead of every target the design lists.
+    the generated Monkey C directly. `-d/--device` builds one or more
+    devices instead of every target the design lists; it may name any
+    installed device (`wfb devices`), not only a listed target, which
+    draws a note and needs no edit to the design.
     """
     bag = Bag()
     result = run_build(
@@ -344,7 +353,7 @@ def _validate(args) -> int:
             bag.note("devices", str(exc))
             db = None
         if db is not None:
-            devices = select_devices(face, db, bag)
+            devices = select_devices(face, db, bag, args.devices)
             if devices:
                 resolve_all(face, devices, bag)
     bag.print()

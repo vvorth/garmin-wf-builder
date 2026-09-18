@@ -115,6 +115,12 @@ steps: `WfbGeom.drawTextRotated` rounds the transformed point half up and
 draws upright glyphs. The value may read only `copy`, so every copy's
 string is known at build time. The per-copy `formatting.emit` call on the
 device is unmeasured, and it costs nothing inside `static:`.)*
+*(Found 2026-09-18: a `text` part does not compile for Connect IQ 3.x
+devices. `WfbGeom.drawTextRotated` takes 10 parameters and `monkeyc` rejects
+it for `fenix6`, `fenix6xpro` and `fr245` with "Too many arguments passed to
+method 'drawTextRotated'. Only 9 arguments are allowed." `fenix7pro`,
+`fr255` and newer build. Seen building `examples/showcase` and
+`examples/analog` with `-d`; not fixed yet.)*
 
 ### `SensorHistory` is closed to a watch face, and solar has no history API at all
 
