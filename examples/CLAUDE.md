@@ -32,6 +32,27 @@ overrides, one `choices: any`), three `color_scheme:` entries and five
 several-colour `accent_color`/`data_color` axes. Builds warning-free on
 all three targets at 14.4% of the 128 KB budget.
 
+`system-fonts/`, `system-fonts-numbers/` and `system-fonts-numbers-large/`
+(plan 09 step C, 2026-09-18) are calibration faces, not design showcases:
+every `FONT_*` system font this project measures (`wfb.devices.
+Device.system_fonts`, plan 09) drawn as a short literal digits/glyphs
+sample on a 1px guide line, `align: left` at a common `px` x so left edges
+compare across a real simulator screenshot and `wfb preview`'s own PNG
+pixel-for-pixel (plan 09 S7, open until the user sends screenshots).
+`system-fonts/` holds FONT_XTINY..FONT_LARGE plus a `vertical_align:
+center` and a `vertical_align: bottom` repeat of FONT_XTINY, all on one
+screen. The four `FONT_NUMBER_*` sizes do not fit one screen together --
+even the lighter pair's own line heights leave little room, and the
+heaviest pair (FONT_NUMBER_HOT + FONT_NUMBER_THAI_HOT, up to 129px tall)
+genuinely cannot share a round 260/280px screen with a common left x at
+any position (checked by brute-force search over the placement, not
+assumed) -- so they split into `system-fonts-numbers/` (MILD, MEDIUM, plus
+one `center` demo) and `system-fonts-numbers-large/` (HOT, THAI_HOT, no
+demo row -- there is no room for one). All three build warning-free on all
+three targets; every row's placement was checked against this project's
+own round-screen visible-area math before being written down, not
+eyeballed.
+
 The Phase 2 slice is no longer an
 example: it is the test fixture `tests/fixtures/slice/`.
 

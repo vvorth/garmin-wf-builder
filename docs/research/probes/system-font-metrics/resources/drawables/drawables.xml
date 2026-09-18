@@ -1,0 +1,6 @@
+<drawables xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+    <!-- 40x40 flat placeholder: all three targets ask for this size
+         (checked against each device's own simulator.json). The probe's
+         own on-screen output is the table, not this icon. -->
+    <bitmap id="LauncherIcon" filename="launcher_icon.png" />
+</drawables>

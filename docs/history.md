@@ -3903,3 +3903,27 @@ Left as found:
   normal machine sources. Java 21 is the tested floor: the Docker image
   uses Temurin 21 and the sandbox has 25. Both error paths were run with a
   faked `HOME`/`PATH`.
+
+## 2026-09-18 — real device typefaces for system fonts (plan 09, steps R/A/B/C)
+
+- The user first asked for Roboto Condensed to replace Pillow's default face
+  for system-font measurement and previews. Mid-build, they asked instead to
+  read the font each device needs from its definition files and download that
+  font on demand. The first Roboto-only fetch subagent was stopped and its
+  work reshaped.
+- `simulator.json` gives each `FONT_*`'s font file and size in points, plus
+  `ppi`. `em = size_pt * ppi / 72` reproduces the published line heights and
+  ascents with no screenshots needed. The published `size_px` is the line
+  height, not the em. Evidence: `docs/research/10-system-fonts.md`,
+  `tools/research/font_metric_check.py`.
+- `wfb/fonts/registry.json` maps every English-table font name across 164
+  devices to a pinned, hash-checked free font rated exact, family or
+  substitute. Bionic, Chronos and similar Garmin typefaces get substitutes;
+  CJK and RTL fonts are deliberately unmapped. The user then pointed at the
+  SDK Manager's `ConnectIQ/Fonts` (ttf + cft). Those files now come first,
+  from `WFB_FONTS`, then `vendor/fonts/` (gitignored), then the per-OS SDK
+  Manager directory. `.cft` decoding waits for a populated `vendor/fonts/`.
+- Comparison faces `examples/system-fonts*` (three, because the number sizes
+  do not fit one round screen) and a hand-written metrics probe
+  `docs/research/probes/system-font-metrics/` were handed to the user for
+  simulator screenshots (plan 09 §7, still open).

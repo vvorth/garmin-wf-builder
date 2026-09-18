@@ -1,0 +1,136 @@
+# A calibration face for the two *lighter* number system fonts (plan 09
+# docs/plans/09-system-font-metrics.md, step C): FONT_NUMBER_MILD and
+# FONT_NUMBER_MEDIUM. FONT_NUMBER_HOT and FONT_NUMBER_THAI_HOT are in the
+# sibling face `examples/system-fonts-numbers-large/face.yaml` instead --
+# see that face's header for why all four don't fit one screen. Every
+# string here is a literal (`text:`, no `value:`): no data bindings, no
+# clock.
+#
+# Number fonts carry a limited glyph set on-device, so every sample is
+# digits only. Same mechanic as `examples/system-fonts/`: a 1px grey
+# `shape: line` guide at each row's anchor y, the sample sitting on it with
+# `align: left` at a common x (70px) so left edges line up, and one extra
+# row repeating FONT_NUMBER_MILD with `vertical_align: center` to show that
+# anchor too (labelled with a `1058` sample rather than a "c" suffix --
+# number fonts have no lower-case glyphs to spell one with).
+#
+# **Only one extra alignment demo, not two.** These are the SDK's widest
+# system fonts by far -- even FONT_NUMBER_MILD's line height (58/62/47px on
+# fenix8solar47mm/51mm/fr955) dwarfs FONT_LARGE's (40/42/40px) -- so a
+# fourth row (a `vertical_align: bottom` repeat, the way
+# `examples/system-fonts/` has both) does not fit inside the round bezel
+# alongside the required FONT_NUMBER_MILD and FONT_NUMBER_MEDIUM rows on
+# any of the three targets: the three rows already used up to date use most
+# of the safe band. `examples/system-fonts/` already exercises `top`,
+# `center` and `bottom` together, so nothing about the vertical-anchor
+# mechanic goes unverified project-wide -- this face just cannot repeat the
+# demonstration a second time in the space these fonts leave.
+#
+# All positions are `px` (docs/format.md "Lengths": "device pixels,
+# verbatim"), so every row lands on the same pixel row on all three
+# targets. Row spacing uses the tallest of the three targets' own line
+# height per font, so nothing overlaps on any of them. Every row's four box
+# corners clear the round screen's visible disc on all three targets with
+# at least ~12px of slack (`wfb.layout.inside_visible_area`'s own check,
+# run ahead of time against `wfb.devices.Device.system_fonts` and
+# `wfb.fonts.fallback.measure`) -- worked numbers land in
+# `docs/research/10-system-fonts.md` once the user's calibration
+# screenshots come back (plan 09 S7).
+#
+# How to compare: build and sideload (or run in the simulator with a build
+# from this repo) on a real target, screenshot it, and compare pixel-for-
+# pixel against `wfb preview`'s PNG for the same target -- exactly what
+# plan 09 S7 (docs/plans/09-system-font-metrics.md) asks the user's
+# screenshots to calibrate.
+#
+# Build it with:     ./wfb.py build examples/system-fonts-numbers/face.yaml
+# Preview it with:   ./wfb.py preview examples/system-fonts-numbers/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 1b98c71d-29c8-4868-a74f-18437e217d2b
+  name: System Fonts Numbers
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour is one the 64-colour MIP panel shows without dithering: each
+# channel is 0x00, 0x55, 0xAA or 0xFF.
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#AAAAAA"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # The common-x spine: ties every row's left edge together at a glance.
+  - id: spine
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 70, dy: 38 }
+    to: { anchor: top_left, dx: 70, dy: 231 }
+    thickness: 1px
+    color: palette.dim
+
+  # -- FONT_NUMBER_MILD -------------------------------------------------
+  - id: mild_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 70, dy: 38 }
+    to: { anchor: top_left, dx: 165, dy: 38 }
+    thickness: 1px
+    color: palette.dim
+  - id: mild_text
+    type: text
+    text: "01589"
+    font: FONT_NUMBER_MILD
+    at: { anchor: top_left, dx: 70, dy: 38 }
+    align: left
+    vertical_align: top
+    color: palette.fg
+
+  # -- FONT_NUMBER_MEDIUM -------------------------------------------------
+  - id: medium_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 70, dy: 100 }
+    to: { anchor: top_left, dx: 155, dy: 100 }
+    thickness: 1px
+    color: palette.dim
+  - id: medium_text
+    type: text
+    text: "0158"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: top_left, dx: 70, dy: 100 }
+    align: left
+    vertical_align: top
+    color: palette.fg
+
+  # -- vertical_align: center demo (repeats FONT_NUMBER_MILD) -----------
+  - id: center_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 70, dy: 200 }
+    to: { anchor: top_left, dx: 140, dy: 200 }
+    thickness: 1px
+    color: palette.dim
+  - id: center_text
+    type: text
+    text: "1058"
+    font: FONT_NUMBER_MILD
+    at: { anchor: top_left, dx: 70, dy: 200 }
+    align: left
+    vertical_align: center
+    color: palette.fg

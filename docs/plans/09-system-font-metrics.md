@@ -1,7 +1,8 @@
 # Plan 09 — real device typefaces for system-font previews and measurement
 
-**Status (2026-09-18):** accepted, being built in four steps (§6), one
-subagent at a time. §7 (fine calibration) stays open until the user sends
+**Status (2026-09-18):** steps R, A, B and C are built and committed.
+Still open: R1b.4–5 (name→file mapping and `.cft`, waiting for
+`vendor/fonts/`) and §7. §7 (fine calibration) stays open until the user sends
 simulator screenshots. Do not delete this plan before then.
 
 **Revision 2 (same day), after the user's correction:** "don't bake in just
