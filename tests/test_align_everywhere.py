@@ -298,7 +298,15 @@ def test_radial_pattern_text_bottom_shifts_cy_not_cx(write_design, bag, db):
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, bake_fonts(face, device))
     view = emit_view(resolved).text
-    assert "cx, cy - dc.getFontHeight(Graphics.FONT_MEDIUM), sin, cos," in view
+    # `WfbGeom.drawTextRotated`'s single 10-argument call is split into
+    # `rotatedX`/`rotatedY` (docs/lore/monkeyc.md, CIQ 3.x's 9-parameter
+    # ceiling); the `cy` shift for `bottom` now shows up only in the `y`
+    # helper's own third argument, not `cx`'s.
+    assert "WfbGeom.rotatedX(Layout.HOURS_0_X, Layout.HOURS_0_Y, cx, sin, cos)" in view
+    assert (
+        "WfbGeom.rotatedY(Layout.HOURS_0_X, Layout.HOURS_0_Y, "
+        "cy - dc.getFontHeight(Graphics.FONT_MEDIUM), sin, cos)"
+    ) in view
 
 
 def test_linear_pattern_text_bottom_subtracts_after_oy(write_design, bag, db):

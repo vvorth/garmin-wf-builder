@@ -495,7 +495,7 @@ class _Renderer:
                       index: int, values: dict) -> None:
         """A `shape: text` template part: upright glyphs at this copy's own
         anchor, rounded the same half-up way `runtime-lib/WfbGeom.mc`'s
-        `drawTextRotated` rounds it on the device
+        `rotatedX`/`rotatedY` round it on the device
         (:func:`pattern_text_anchor`) -- the anchor *turns* (radial) or
         *steps* (linear) with the copy, but the glyphs themselves never
         rotate (upright text is not rotation-invariant), so `_hand_part`'s

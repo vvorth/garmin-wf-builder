@@ -3965,3 +3965,33 @@ Left as found:
   pattern `text` parts do not compile on Connect IQ 3.x (`drawTextRotated`
   has 10 parameters; those devices allow 9). Recorded in
   `docs/limitations.md`, not fixed.
+
+## 2026-09-18 — the CIQ 3.x 10-parameter bug, fixed
+
+- Fixed the gap the previous entry recorded. `WfbGeom.drawTextRotated`'s
+  single 10-argument call is split into two 5-argument helpers,
+  `rotatedX`/`rotatedY`, each returning one already-rounded axis
+  (`(v + 0.5).toNumber()`, unchanged) that `wfb.emit.monkeyc.rotated` feeds
+  straight into `dc.drawText` as its own `x`/`y` -- no wrapper call, and no
+  allocation added inside the pattern's per-copy draw loop. Folding
+  `cx`/`cy` or `sin`/`cos` into one argument instead was considered and
+  rejected for exactly that allocation cost. `wfb.layout.pattern_text_anchor`
+  (the preview's mirror of this arithmetic) was not touched, and a
+  before/after `wfb preview` of `examples/patterns/face.yaml` came back
+  byte-identical.
+- Audited every function in `runtime-lib/*.mc` and everything
+  `wfb/emit/` generates for the same ceiling; `drawTextRotated` was the only
+  offender. `tests/test_parameter_limits.py` (new) scans every
+  `runtime-lib/*.mc` signature, plus every function generated for the
+  `patterns`/`analog`/`showcase` examples, for a function past 9 parameters
+  -- proven red against the old signature, green after the fix.
+  `tests/test_pattern_text_codegen.py::test_a_radial_text_part_compiles_on_ciq_3x`
+  (new, `slow`) compiles a radial `shape: text` pattern for `fenix6` with
+  the real toolchain.
+- Verified with the real `monkeyc`: `examples/analog` and
+  `examples/showcase` build warning-free on `fenix6`, `fenix6xpro`, `fr245`,
+  `fenix8solar47mm` and `fr955` (the pre-existing `safe-area`/`api-gated`/
+  `hold-unsupported`/`partial-update-budget` lint warnings on some of these
+  targets are unrelated and unchanged). `docs/limitations.md` and
+  `docs/lore/monkeyc.md` record the fix beside the original finding;
+  README's "Known gap" paragraph for this is removed.

@@ -164,10 +164,12 @@ def _pattern_needs_math(placed: "PlacedPattern") -> bool:
     (`segments` in `examples/patterns/face.yaml`) needs no `sin`/`cos` and
     therefore no `Toybox.Math` either.  A text part is on the same footing
     as a filled circle's centre here: only its *anchor* is rotated (the
-    glyphs themselves stay upright), but `WfbGeom.drawTextRotated` still
-    takes `sin`/`cos` as plain call arguments, exactly like
-    `fillCircleRotated` does for a circle at the origin -- so a text part
-    counts as "not an arc" with no special case needed. Shared by the
+    glyphs themselves stay upright), but `WfbGeom.rotatedX`/`rotatedY` (split
+    out of a single `drawTextRotated`, once a 10th parameter over CIQ 3.x's
+    ceiling -- see that function's docstring) still take `sin`/`cos` as
+    plain call arguments, exactly like `fillCircleRotated` does for a circle
+    at the origin -- so a text part counts as "not an arc" with no special
+    case needed. Shared by the
     view's import gate and :func:`_emit_pattern` itself so the two cannot
     drift into disagreeing about whether the loop declares
     `angle`/`sin`/`cos`.
@@ -178,8 +180,9 @@ def _pattern_needs_math(placed: "PlacedPattern") -> bool:
 
 
 def _glyph_y_expr(y_expr: str, vertical_align: str, font_expr: str) -> str:
-    """The `y` a glyph draw hands `dc.drawText`/`WfbGeom.drawTextRotated`,
-    for a given `vertical_align:`: `y_expr` unchanged for `top`/`center`
+    """The `y` a glyph draw hands `dc.drawText` (directly, or through
+    `WfbGeom.rotatedY` for a radial pattern's `shape: text` part), for a
+    given `vertical_align:`: `y_expr` unchanged for `top`/`center`
     (`Resolver._justify` already adds `TEXT_JUSTIFY_VCENTER` for `center`,
     and `top` is `Dc.drawText`'s own natural top-left placement) -- there is
     no bottom-justify flag on the platform, so `bottom` instead subtracts

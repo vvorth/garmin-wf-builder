@@ -87,6 +87,25 @@ module WfbGeom {
 
     //! A text part (plan 06): rotate only the anchor -- the glyphs stay
     //! upright, a bitmap font cannot turn -- round it half up, then draw.
+    //!
+    //! **Found 2026-09-18:** a single combined `drawTextRotated(dc, x, y,
+    //! cx, cy, sin, cos, font, text, justify)` is 10 parameters wide, and
+    //! CIQ 3.x rejects a function past 9 outright ("Too many arguments
+    //! passed to method 'drawTextRotated'. Only 9 arguments are allowed.",
+    //! seen on fenix6/fenix6xpro/fr245 -- `docs/lore/monkeyc.md`). Folding
+    //! `cx`/`cy` or `sin`/`cos` into one argument was rejected instead of
+    //! fixing this: either shape needs a fresh two-element array (a
+    //! `Point2D` or similar) built *inside* this pattern's per-copy draw
+    //! loop, which every other helper in this file avoids by taking plain
+    //! `Number`/`Decimal` scalars. Splitting the rotate-the-point step from
+    //! the draw keeps every argument a scalar and adds no allocation: the
+    //! caller (`wfb.emit.monkeyc.rotated`) passes `rotatedX`/`rotatedY`'s
+    //! results straight into `dc.drawText` as its own `x`/`y`, exactly the
+    //! anchor this used to compute internally. Each axis still rounds half
+    //! up (`(v + 0.5).toNumber()`), matching
+    //! `wfb.layout.pattern_text_anchor`'s per-axis `math.floor(v + 0.5)`
+    //! pixel for pixel, so the preview and the device still agree.
+    //!
     //! `text` is typed `String` rather than `drawText`'s own wider `Object`
     //! because every caller here already has a `String`, from a literal or
     //! from `wfb.formatting.emit`'s own `.format(...)`/`.toString()` output
@@ -94,12 +113,13 @@ module WfbGeom {
     //! `Dc.drawText`'s own union type: a bitwise-OR'd pair of
     //! `Graphics.TEXT_JUSTIFY_*` flags typechecks as `Lang.Number`, not
     //! `Graphics.TextJustification`, under `-l 3`.
-    function drawTextRotated(dc as Dc, x as Number, y as Number,
-                             cx as Number, cy as Number,
-                             sin as Decimal, cos as Decimal,
-                             font as Graphics.FontType, text as String,
-                             justify as Graphics.TextJustification or Lang.Number) as Void {
-        dc.drawText((cx + x * cos - y * sin + 0.5).toNumber(),
-                    (cy + x * sin + y * cos + 0.5).toNumber(), font, text, justify);
+    function rotatedX(x as Number, y as Number, cx as Number,
+                      sin as Decimal, cos as Decimal) as Number {
+        return (cx + x * cos - y * sin + 0.5).toNumber();
+    }
+
+    function rotatedY(x as Number, y as Number, cy as Number,
+                      sin as Decimal, cos as Decimal) as Number {
+        return (cy + x * sin + y * cos + 0.5).toNumber();
     }
 }

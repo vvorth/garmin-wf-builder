@@ -158,9 +158,12 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
     convention covers on its own: it always goes through `WfbArc.drawSpan`,
     radial or linear alike, with the centre as its only per-copy input (an
     arc part is never `at:`-offset).  A `text` part is the other one-off:
-    only its *anchor* moves -- `WfbGeom.drawTextRotated` for radial, a plain
-    `dc.drawText(ox + ..., oy + ..., ...)` for linear, no helper needed there
-    since a linear pattern never rotates anything.  Its value is either the part's own
+    only its *anchor* moves -- `WfbGeom.rotatedX`/`rotatedY` feed straight into
+    `dc.drawText` for radial (split from a single `drawTextRotated` call,
+    which was a 10th-parameter over CIQ 3.x's ceiling -- see that function's
+    own docstring), a plain `dc.drawText(ox + ..., oy + ..., ...)` for
+    linear, no helper needed there since a linear pattern never rotates
+    anything.  Its value is either the part's own
     `text:` literal or its `value:` compiled through `formatting.emit` (the
     same call `_emit_text` makes for a `text` element), read off
     `element.parts[index]` -- the *IR* part, which is what carries
@@ -191,13 +194,25 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
             # still rotate about the unshifted origin) -- the subtraction
             # lands outside the rotation, so it moves the drawn point
             # straight up on screen regardless of `theta`.
+            #
+            # A single combined `WfbGeom.drawTextRotated(dc, x, y, cx, cy,
+            # sin, cos, font, text, justify)` call was 10 arguments, past
+            # CIQ 3.x's 9-parameter ceiling (docs/lore/monkeyc.md), so the
+            # rotate-the-point step is split into `rotatedX`/`rotatedY` and
+            # each result is passed straight into `dc.drawText` as its own
+            # `x`/`y` -- no wrapper call, no extra allocation.
             cy_expr = _glyph_y_expr("cy", part.vertical_align, font_expr)
-            pad = " " * len("WfbGeom.drawTextRotated(")
-            w.line(
-                f"WfbGeom.drawTextRotated(dc, Layout.{part_prefix}_X, "
-                f"Layout.{part_prefix}_Y,"
+            x_expr = (
+                f"WfbGeom.rotatedX(Layout.{part_prefix}_X, "
+                f"Layout.{part_prefix}_Y, cx, sin, cos)"
             )
-            w.line(f"{pad}cx, {cy_expr}, sin, cos, {font_expr}, {value_code},")
+            y_expr = (
+                f"WfbGeom.rotatedY(Layout.{part_prefix}_X, "
+                f"Layout.{part_prefix}_Y, {cy_expr}, sin, cos)"
+            )
+            pad = " " * len("dc.drawText(")
+            w.line(f"dc.drawText({x_expr},")
+            w.line(f"{pad}{y_expr}, {font_expr}, {value_code},")
             w.line(f"{pad}{justify});")
         else:
             y_expr = _glyph_y_expr(

@@ -120,7 +120,20 @@ devices. `WfbGeom.drawTextRotated` takes 10 parameters and `monkeyc` rejects
 it for `fenix6`, `fenix6xpro` and `fr245` with "Too many arguments passed to
 method 'drawTextRotated'. Only 9 arguments are allowed." `fenix7pro`,
 `fr255` and newer build. Seen building `examples/showcase` and
-`examples/analog` with `-d`; not fixed yet.)*
+`examples/analog` with `-d`; not fixed yet.)* *(Fixed same day: the single
+10-argument call is split into two 5-argument helpers,
+`WfbGeom.rotatedX`/`rotatedY`, each returning one already-rounded axis
+(`(v + 0.5).toNumber()`, unchanged) that the generated code passes straight
+into `dc.drawText` as its own `x`/`y` -- no wrapper call, no per-copy
+allocation, and `wfb.layout.pattern_text_anchor`'s preview arithmetic is
+untouched, so the two stay pixel for pixel identical. Verified: `monkeyc`
+builds `examples/analog` and `examples/showcase` warning-free on
+`fenix6`/`fenix6xpro`/`fr245`/`fenix8solar47mm`/`fr955`.
+`tests/test_parameter_limits.py` guards every `runtime-lib/*.mc` function
+and the emitter's own generated functions against a 10th parameter, and
+`tests/test_pattern_text_codegen.py::test_a_radial_text_part_compiles_on_ciq_3x`
+compiles a radial `shape: text` pattern on `fenix6` with the real toolchain.
+See `docs/lore/monkeyc.md`.)*
 
 ### `SensorHistory` is closed to a watch face, and solar has no history API at all
 

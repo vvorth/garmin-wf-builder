@@ -119,12 +119,15 @@ def test_a_text_part_gets_x_y_constants_and_nothing_else(hours_layout_text):
     assert "HOURS_0_POINTS" not in hours_layout_text
 
 
-# -- radial draw: WfbGeom.drawTextRotated ------------------------------------
+# -- radial draw: WfbGeom.rotatedX/rotatedY ----------------------------------
 
 
 def test_radial_text_part_calls_draw_text_rotated_with_the_anchor_and_trig(hours_view_text):
-    assert "WfbGeom.drawTextRotated(dc, Layout.HOURS_0_X, Layout.HOURS_0_Y," in hours_view_text
-    assert "cx, cy, sin, cos," in hours_view_text
+    # A single 10-argument `drawTextRotated` call doesn't compile on CIQ 3.x
+    # (docs/lore/monkeyc.md), so the rotate-the-point step is split into
+    # `rotatedX`/`rotatedY`, each fed straight into `dc.drawText`.
+    assert "dc.drawText(WfbGeom.rotatedX(Layout.HOURS_0_X, Layout.HOURS_0_Y, cx, sin, cos)," in hours_view_text
+    assert "WfbGeom.rotatedY(Layout.HOURS_0_X, Layout.HOURS_0_Y, cy, sin, cos)," in hours_view_text
 
 
 def test_radial_text_value_compiles_copy_to_the_loop_index(hours_view_text):
@@ -148,7 +151,8 @@ def test_radial_pattern_declares_sin_and_cos_for_a_text_part(hours_view_text):
 
 def test_linear_text_part_calls_plain_draw_text_off_ox_oy(row_view_text):
     assert "dc.drawText(ox + Layout.ROW_0_X, oy + Layout.ROW_0_Y," in row_view_text
-    assert "WfbGeom.drawTextRotated" not in row_view_text
+    assert "WfbGeom.rotatedX" not in row_view_text
+    assert "WfbGeom.rotatedY" not in row_view_text
 
 
 def test_literal_text_emits_the_quoted_literal(row_view_text):
@@ -189,7 +193,44 @@ def test_the_parts_visible_wraps_the_draw_call(row_view_text):
 # -- the barrel ---------------------------------------------------------------
 
 
-def test_wfb_geom_has_draw_text_rotated_rounding_half_up():
+def test_wfb_geom_has_rotated_x_and_y_rounding_half_up():
+    # `drawTextRotated` combined all ten arguments into one call, past CIQ
+    # 3.x's 9-parameter ceiling (docs/lore/monkeyc.md); it is split into
+    # `rotatedX`/`rotatedY`, each still rounding half up.
     barrel = (ROOT / "runtime-lib/WfbGeom.mc").read_text()
-    assert "function drawTextRotated" in barrel
-    assert "+ 0.5).toNumber()" in barrel
+    assert "function rotatedX" in barrel
+    assert "function rotatedY" in barrel
+    assert "function drawTextRotated" not in barrel
+    assert barrel.count("+ 0.5).toNumber()") >= 2
+
+
+# -- real toolchain: the CIQ 3.x regression itself ---------------------------
+
+
+@pytest.mark.slow
+def test_a_radial_text_part_compiles_on_ciq_3x(write_design, tmp_path, db):
+    """Found 2026-09-18: a combined `WfbGeom.drawTextRotated(dc, x, y, cx,
+    cy, sin, cos, font, text, justify)` call is 10 arguments, and CIQ 3.x
+    rejects a function past 9 outright -- `monkeyc` failed fenix6/
+    fenix6xpro/fr245 with "Too many arguments passed to method
+    'drawTextRotated'. Only 9 arguments are allowed." (docs/lore/monkeyc.md).
+    `tests/test_parameter_limits.py` proves the *shape* of every signature
+    with no toolchain; this is the one test that proves a radial `shape:
+    text` pattern part -- the HOURS fixture above -- actually compiles with
+    the real `monkeyc`, on the oldest and smallest of the three affected
+    devices.
+    """
+    from wfb.build import Toolchain, build
+
+    if "fenix6" not in db.ids():
+        pytest.skip("fenix6 is not installed")
+    toolchain = Toolchain.discover()
+    if toolchain is None or not toolchain.key.exists():
+        pytest.skip("no Connect IQ SDK or developer key")
+    design = write_design(_design("elements:\n" + HOURS))
+    bag = Bag()
+    result = build(design, output=tmp_path, bag=bag, db=db, toolchain=toolchain,
+                   devices_only=["fenix6"])
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    assert set(result.products) == {"fenix6"}

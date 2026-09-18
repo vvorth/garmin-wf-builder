@@ -86,6 +86,30 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   lacking `Toybox.Complications`). Obvious in hindsight, easy to reach for
   the field-initialiser spelling out of habit and get a construction-time
   crash on the very device the guard exists to protect.
+- **A function cannot declare more than 9 parameters, and CIQ 3.x enforces
+  it even though newer devices silently don't.** `runtime-lib/WfbGeom.mc`'s
+  `drawTextRotated(dc as Dc, x as Number, y as Number, cx as Number, cy as
+  Number, sin as Decimal, cos as Decimal, font as Graphics.FontType, text as
+  String, justify as Graphics.TextJustification or Lang.Number) as Void` --
+  10 parameters -- built warning-free on fenix7pro/fr255/fr955/fenix8+ (API
+  5.2.0+) and every other device this project had tested until 2026-09-18,
+  then failed outright on fenix6 (3.4.5), fenix6xpro (3.4.5) and fr245
+  (3.3.6) with:
+  ```
+  Too many arguments passed to method 'drawTextRotated'. Only 9 arguments are allowed.
+  ```
+  No lint or `has_symbol` check catches this ahead of a real `monkeyc` run
+  for the affected device, because it isn't a missing-symbol problem
+  (6d above) -- the *function itself* fails to typecheck on that API level,
+  before anything calls it. Fixed by splitting the function into two
+  5-parameter halves (`rotatedX`/`rotatedY`), each returning one already-
+  rounded scalar axis that the caller feeds straight into `dc.drawText`;
+  folding parameters together (e.g. `cx`/`cy` into a `Point2D`) was rejected
+  instead, since it would allocate a pair on every call inside a pattern's
+  per-copy draw loop. `tests/test_parameter_limits.py` scans every
+  `runtime-lib/*.mc` function and, for a few representative examples, every
+  function the emitter generates, so a future helper cannot grow a 10th
+  parameter unnoticed.
 - **`Toybox has :ModuleName` works on a bare module name, the same operator
   used for a function or field** (`$CIQ_SDK/doc/docs/Monkey_C/
   Functions.html`'s own example, `Toybox has :Magnetometer`) — no special

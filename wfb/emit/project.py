@@ -224,7 +224,7 @@ def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
             # A pattern needs WfbGeom only when it actually rotates or
             # translates something *through* it: a radial pattern with at
             # least one non-arc part (WfbGeom.*Rotated -- a `shape: text`
-            # part's `drawTextRotated` still rotates its anchor), or a
+            # part's `rotatedX`/`rotatedY` still rotate its anchor), or a
             # linear pattern with a polygon part (WfbGeom.fillTranslated --
             # a linear line/circle/text draws straight off `ox`/`oy` with no
             # helper at all).  An all-arc pattern, radial or linear, only

@@ -218,9 +218,6 @@ platform, not a list of supported devices:
 - **Memory is the watch's own limit**, measured on every build: 128 KB on
   current models, as little as 96 KB on some older ones.
 
-Known gap: a `pattern` with a `text` part (the numerals in §8) doesn't
-compile yet for Connect IQ 3.x watches such as the fēnix 6 and Forerunner 245.
-
 You need the device definitions for each watch you build for (step 1).
 
 ### If something goes wrong
