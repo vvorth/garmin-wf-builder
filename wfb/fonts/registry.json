@@ -225,9 +225,9 @@
       "note": "Proprietary 'Bionic Cond' number face. Substitute picked because the very same devices (fenix8solar47mm, marq2, ...) use RobotoCondensed-Bold for their own FONT_XTINY..LARGE body text; condensed bold weight/width is the closest free match for a condensed numeral face."
     },
     "bionic-substitute": {
-      "source": "roboto-black",
+      "source": "roboto-condensed-bold",
       "match": "substitute",
-      "note": "Proprietary 'Bionic' (non-condensed) number face. Substitute picked because fr955 uses Roboto-Black for the identical FONT_NUMBER_HOT/THAI_HOT role that Bionic fills on other devices -- same semantic slot, same free family elsewhere in Garmin's own lineup."
+      "note": "Proprietary 'Bionic' number face. Measured against the real Bionic files (2026-09-18, docs/research/10-system-fonts.md §9): Bionic's digits are 0.516 em wide, RobotoCondensed-Bold's 0.506 (-2%), Roboto-Black's 0.580 (+12%) -- so condensed bold, not the Roboto-Black that fr955 uses in the same FONT_NUMBER_* role (the first choice, superseded by that measurement)."
     },
     "chronos-substitute": {
       "source": "roboto-condensed-bold",

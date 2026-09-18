@@ -80,6 +80,17 @@ until those numbers come back). The `w1`/`w2` sample strings
 draw, so a width printed here can be checked directly against those faces'
 own measured widths.
 
+## Results (2026-09-18)
+
+The user ran the probe in the macOS simulator for all three targets. The
+console output is transcribed in `results-2026-09-18.txt` and checked by
+`tests/test_system_font_metrics.py::test_metrics_match_what_the_simulator_reported`.
+The findings are in `docs/research/10-system-fonts.md` §9:
+
+- Height, ascent and descent are exact everywhere.
+- The device lays text out per glyph, at the whole-pixel em.
+- Bionic is within 4 px over ten digits.
+
 ## SDK doc paths for the APIs used
 
 - `Graphics.getFontHeight`, `Graphics.getFontAscent`, `Graphics.getFontDescent`

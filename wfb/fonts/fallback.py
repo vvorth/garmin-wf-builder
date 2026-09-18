@@ -92,6 +92,43 @@ class SystemFace:
     #: `wfb.fonts.fetch_system.locate`'s own match level, carried through so
     #: a lint or a probe can report it.
     match: str
+    #: The located TTF, when there is one -- what `advances` reads the
+    #: font's own `hmtx` from. `None` for the Pillow-default stand-in.
+    path: str | None = None
+    #: The whole-pixel em the device lays glyphs out at (`round(em_px)`),
+    #: and the preview's upscaling factor -- see `advances`.
+    layout_em: int | None = None
+    scale: float = 1.0
+
+    def advances(self, text: str) -> list[float]:
+        """Each character's advance, in this face's (scaled) pixels.
+
+        The device model, VERIFIED against the metrics probe
+        (`docs/research/probes/system-font-metrics/`, 2026-09-18): every
+        glyph advances by its `hmtx` width at the *whole-pixel* em,
+        rounded to a whole device pixel on its own, no kerning --
+        `round(adv * round(em_px) / upm)`. That reproduces all 36 Roboto
+        width readings on the three targets exactly; Pillow's own
+        `getlength` (fractional em, hinted) missed 21 of 54, TINY digits
+        by a whole pixel each. Bionic is still off by up to 4 px over ten
+        digits (Garmin's own rasteriser, not reproducible here).
+        """
+        if self.path is None or self.layout_em is None:
+            return [self.font.getlength(ch) for ch in text]
+        table = _hmtx(self.path)
+        if table is None:
+            return [self.font.getlength(ch) for ch in text]
+        cmap, widths, upm = table
+        out = []
+        for ch in text:
+            glyph = cmap.get(ord(ch), ".notdef")
+            width = widths.get(glyph, widths.get(".notdef", 0))
+            out.append(round(width * self.layout_em / upm) * self.scale)
+        return out
+
+    def width(self, text: str) -> float:
+        """`sum(advances(text))` -- the line's advance width."""
+        return sum(self.advances(text))
 
 
 @lru_cache(maxsize=64)
@@ -111,6 +148,21 @@ def _hhea(path: str) -> tuple[int, int, int] | None:
         upm = font["head"].unitsPerEm
         hhea = font["hhea"]
         return int(upm), int(hhea.ascent), int(hhea.descent)
+    except Exception:
+        return None
+
+
+@lru_cache(maxsize=64)
+def _hmtx(path: str) -> tuple[dict[int, str], dict[str, int], int] | None:
+    """``(cmap, advance widths by glyph name, unitsPerEm)`` of the TTF at
+    ``path`` -- what `SystemFace.advances` lays a line out with. Never
+    raises; `None` when the file cannot be read."""
+    try:
+        from fontTools.ttLib import TTFont  # local import: only needed here
+
+        font = TTFont(path, lazy=True, fontNumber=0)
+        widths = {name: adv for name, (adv, _lsb) in font["hmtx"].metrics.items()}
+        return dict(font.getBestCmap() or {}), widths, int(font["head"].unitsPerEm)
     except Exception:
         return None
 
@@ -233,6 +285,9 @@ def system_face(metric: FontMetric, scale: float = 1.0, *,
         line_height=round(line_height_px * scale),
         baseline=round(baseline_px * scale),
         match=match,
+        path=str(path),
+        layout_em=max(1, round(em)),
+        scale=scale,
     )
 
 
@@ -250,7 +305,7 @@ def measure(text: str, metric: FontMetric) -> tuple[int, bool]:
     face = system_face(metric)
     if face is None:
         return round(len(text) * metric.size_px * CRUDE_WIDTH_RATIO), False
-    return round(face.font.getlength(text)), True
+    return round(face.width(text)), True
 
 
 def line_height(metric: FontMetric) -> int:

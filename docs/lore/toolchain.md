@@ -281,7 +281,15 @@ is **unresearched** — deferred until a real Fonts directory can be
 inspected, per the plan. `garmin_font_file` today is a generic
 case-insensitive stem match over `.ttf`/`.otf` anywhere under the root; a
 `.cft` match is reported (`garmin_cft_file`) but never returned as usable —
-decoding Garmin's bitmap-font container format is also deferred. `locate(name,
+decoding Garmin's bitmap-font container format is also deferred. **Update 2026-09-18:** `vendor/fonts/` is now populated from
+the user's macOS SDK Manager. It is flat, with no subdirectories: 36
+`.ttf`, 189 `.cft` and 225 `.md5` files, each named exactly after the
+`simulator.json` `filename` (e.g. `RobotoCondensed-Bold.ttf`,
+`FNT_FENIX6_CDPG_ROBOTO_20B.cft`). So the generic stem match is the right
+mapping, and every font the three targets need resolves to a Garmin file.
+The prefetch still downloads the free stand-ins, because a machine without
+the root measures with those. `WFB_NO_GARMIN_FONTS=1` makes discovery
+ignore everything but an explicit override. The test suite sets it. `locate(name,
 face=None, fonts_root=None)` is the one top-level lookup that puts Garmin's
 root ahead of the registry, for Step B to call.
 

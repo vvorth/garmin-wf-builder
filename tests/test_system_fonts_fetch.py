@@ -122,6 +122,16 @@ def _isolated(tmp_path, monkeypatch):
     # override it back off explicitly (test_offline_never_calls_the_downloader
     # sets it again on purpose).
     monkeypatch.delenv("WFB_OFFLINE", raising=False)
+    # Discovery is under test here, but never the real candidates: no
+    # WFB_FONTS, a repo root and home with nothing in them, no APPDATA.
+    monkeypatch.delenv("WFB_NO_GARMIN_FONTS", raising=False)
+    monkeypatch.delenv("WFB_FONTS", raising=False)
+    monkeypatch.delenv("APPDATA", raising=False)
+    monkeypatch.setattr(fetch_system, "_REPO_ROOT", tmp_path / "repo")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    # Several tests assign `fetch_system._download` directly; this puts the
+    # real one back afterwards instead of leaking a fake into later tests.
+    monkeypatch.setattr(fetch_system, "_download", fetch_system._download)
     return registry_path
 
 
@@ -372,17 +382,37 @@ def test_path_for_prefers_install_location_over_cache(_isolated):
 
     assert fetch_system.path_for("roboto-condensed-bold") is None
 
+    pinned = _archive_members()["RobotoCondensed-Bold.ttf"]
     cache_path = fetch_system.cache_dir() / "roboto-condensed-bold.ttf"
     cache_path.parent.mkdir(parents=True)
-    cache_path.write_bytes(b"cached bytes")
+    cache_path.write_bytes(pinned)
     assert fetch_system.path_for("roboto-condensed-bold") == cache_path
     assert fetch_system.tier_for("roboto-condensed-bold") == "cached"
 
     install_path = fetch_system.DEFAULT_DEST / "roboto-condensed-bold.ttf"
     install_path.parent.mkdir(parents=True)
-    install_path.write_bytes(b"installed bytes")
+    install_path.write_bytes(pinned)
     assert fetch_system.path_for("roboto-condensed-bold") == install_path
     assert fetch_system.tier_for("roboto-condensed-bold") == "installed"
+
+
+def test_a_stale_copy_is_ignored_and_replaced(_isolated):
+    """A file left behind when the registry points a key at a different
+    source (the 2026-09-18 Bionic change: roboto-black -> roboto-condensed-
+    bold) must not be measured with: `path_for` checks the pin, and the
+    next `ensure` writes the right bytes over it."""
+    members = _archive_members()
+    _write_registry(_isolated, _registry(members))
+    stale = fetch_system.DEFAULT_DEST / "roboto-condensed-bold.ttf"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"what an older registry pinned")
+
+    assert fetch_system.path_for("roboto-condensed-bold") is None
+    assert fetch_system.tier_for("roboto-condensed-bold") is None
+
+    fetch_system._download = _CountingDownloader({ARCHIVE_URL: _zip_bytes(members)})  # type: ignore[assignment]
+    path = fetch_system.ensure("roboto-condensed-bold")
+    assert path is not None and path.read_bytes() == members["RobotoCondensed-Bold.ttf"]
 
 
 # ---------------------------------------------------------------------------

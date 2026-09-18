@@ -1,9 +1,8 @@
 # Plan 09 — real device typefaces for system-font previews and measurement
 
-**Status (2026-09-18):** steps R, A, B and C are built and committed.
-Still open: R1b.4–5 (name→file mapping and `.cft`, waiting for
-`vendor/fonts/`) and §7. §7 (fine calibration) stays open until the user sends
-simulator screenshots. Do not delete this plan before then.
+**Status (2026-09-18):** steps R, A, B and C are built and committed, §7 is
+done, and R1b.4 is answered: the files are named `<device font name>.ttf`
+or `.cft`. Only R1b.5, `.cft` decoding, is still open.
 
 **Revision 2 (same day), after the user's correction:** "don't bake in just
 the roboto condensed ... take font name needed and download the one that is
@@ -265,7 +264,20 @@ R (research + registry) → A (fetch, plus R1b discovery; the `.cft` research
 waits until `vendor/fonts/` is populated) → B (use) → C (faces + probe). The
 orchestrator reviews and commits after each step.
 
-## 7. Calibration (open — needs the user)
+## 7. Calibration (done 2026-09-18, see `docs/research/10-system-fonts.md` §9)
+
+**Outcome:**
+- The vertical model was exact as built.
+- Widths now use per-glyph advances rounded at the whole-pixel em. That
+  matches the device exactly for every Roboto reading and to within 4 px for
+  Bionic.
+- The Bionic stand-in moved to Roboto Condensed Bold.
+- `vendor/fonts/` works as the Garmin font root: every `.ttf` is named after
+  its device font.
+- `.cft` decoding (R1b.5) is still open.
+
+The original text of this section follows.
+
 
 Widths and the vertical model are compared against the user's simulator
 screenshots of the two faces and the probe's console lines. Any residual

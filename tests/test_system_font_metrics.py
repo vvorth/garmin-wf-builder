@@ -24,6 +24,8 @@ specifically needs is actually missing.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.test_diagnostics import load
@@ -306,3 +308,60 @@ def test_fenix6_has_no_ppi_and_falls_back_to_the_scraped_metrics(db):
     assert face.line_height == 37
     assert 0 < face.baseline < face.line_height
     assert face.match in ("exact", "family", "substitute")
+
+
+# -- the device's own numbers (plan 09 §7) ------------------------------------
+
+#: `docs/research/probes/system-font-metrics/results-2026-09-18.txt`: what the
+#: simulator itself reported, per device and symbol.
+PROBE_RESULTS = (Path(__file__).resolve().parent.parent / "docs" / "research" / "probes"
+                 / "system-font-metrics" / "results-2026-09-18.txt")
+
+#: Symbols a design may name that the probe measured (`FONT_GLANCE*`/
+#: `FONT_AUX*` are not in `wfb.ir.SYSTEM_FONTS`).
+_AUTHORABLE = ("FONT_XTINY", "FONT_TINY", "FONT_SMALL", "FONT_MEDIUM", "FONT_LARGE",
+               "FONT_NUMBER_MILD", "FONT_NUMBER_MEDIUM", "FONT_NUMBER_HOT",
+               "FONT_NUMBER_THAI_HOT")
+
+
+def _probe_rows():
+    for line in PROBE_RESULTS.read_text().splitlines():
+        if line.strip() and not line.startswith("#"):
+            device, symbol, *numbers = line.split()
+            if symbol in _AUTHORABLE:
+                yield (device, symbol, *map(int, numbers))
+
+
+@pytest.mark.parametrize("device_id,symbol,height,ascent,descent,w_mixed,w_digits",
+                         list(_probe_rows()), ids=lambda v: str(v))
+def test_metrics_match_what_the_simulator_reported(
+        db, device_id, symbol, height, ascent, descent, w_mixed, w_digits):
+    """Line height, baseline and widths against the device's own
+    `getFontHeight`/`getFontAscent`/`getTextWidthInPixels`.
+
+    Roboto faces must be exact: every glyph advances by its `hmtx` width
+    at the whole-pixel em, rounded on its own. Before that model, Pillow's
+    fractional, hinted `getlength` had `FONT_TINY` digits a pixel narrow
+    each (120 against 130). Bionic is a substitute here (the tests never
+    see the user's Garmin files) and gets 5 % -- measured error with the
+    real Bionic is <= 4 px over ten digits, with Roboto Condensed Bold
+    standing in <= 3.5 %.
+    """
+    metric = db.get(device_id).system_fonts[symbol]
+    face = fallback.system_face(metric)
+    if face is None or face.match == "none":
+        pytest.skip(f"no font installed for {metric.font}")
+    assert face.line_height == height
+    if metric.font.startswith("Bionic") and metric.ascent_px is None:
+        # The device's baseline comes from Bionic's own `hhea` (930/1000);
+        # the stand-in's (1900/2048) lands within a pixel of it.
+        assert abs(face.baseline - ascent) <= 1
+    else:
+        assert (face.baseline, face.line_height - face.baseline) == (ascent, descent)
+    widths = (fallback.measure("Hxg0123", metric)[0], fallback.measure("0123456789", metric)[0])
+    if metric.font.startswith("Bionic"):
+        assert face.match == "substitute"
+        for got, want in zip(widths, (w_mixed, w_digits)):
+            assert abs(got - want) <= 0.05 * want
+    else:
+        assert widths == (w_mixed, w_digits)

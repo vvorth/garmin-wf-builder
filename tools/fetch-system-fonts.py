@@ -76,14 +76,16 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("Garmin font root: not found (registry-only; see `wfb doctor`)")
 
-    # name -> (font-key, one example device that needs it), for reporting.
+    # font-key -> (name, face) of one device font that needs it, for
+    # reporting. A name the Garmin font root already covers is still
+    # prefetched: the free stand-in is what a machine without that root (a
+    # container, CI, a fresh clone) measures with, and it is small.
     needed: dict[str, tuple[str, str | None]] = {}
     garmin_covered = 0
     for device_id in device_ids:
         for name, face in fetch_system.device_needed_names(device_id):
             if fonts_root is not None and fetch_system.garmin_font_file(name, fonts_root) is not None:
                 garmin_covered += 1
-                continue
             key = fetch_system.resolve(name, face)
             if key is not None and key not in needed:
                 needed[key] = (name, face)
@@ -94,7 +96,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"prefetching {len(needed)} font(s) for {', '.join(device_ids)} into {dest}")
     if garmin_covered:
-        print(f"  ({garmin_covered} needed name(s) already covered by the Garmin font root, skipped)")
+        print(f"  ({garmin_covered} needed name(s) are also covered by the Garmin font root, "
+              "which wins at build time)")
 
     results = fetch_system.install(sorted(needed), dest)
     for key in sorted(needed):

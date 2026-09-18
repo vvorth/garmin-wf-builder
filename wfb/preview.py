@@ -801,8 +801,8 @@ class _Renderer:
                 # -- `wfb.fonts.fallback.SystemFace.baseline`, not Pillow's
                 # own ascender-based anchor, which would not agree with the
                 # box `wfb.layout` sized this pair from.
-                self.draw.text((pen_x * s, top * s + face.baseline), text,
-                              fill=color, font=face.font, anchor="ls")
+                self._draw_system_line(face, pen_x * s, top * s + face.baseline,
+                                       text, color)
 
     def _complication_slot_text(self, element, ctype) -> str:
         """An illustrative reading for `ctype`, formatted the same way
@@ -962,8 +962,19 @@ class _Renderer:
         baseline_y = top + face.baseline
         # "left"/"right" share Pillow's own first letter; anything else
         # (only "center" is a valid value here) is the middle anchor.
-        anchor_x = align[0] if align in ("left", "right") else "m"
-        self.draw.text((x, baseline_y), text, fill=color, font=face.font, anchor=anchor_x + "s")
+        width = face.width(text)
+        left = x - {"left": 0, "right": width}.get(align, width / 2)
+        self._draw_system_line(face, left, baseline_y, text, color)
+
+    def _draw_system_line(self, face, left: float, baseline_y: float, text: str, color) -> None:
+        """Draw a system-font line glyph by glyph, each on the pen position
+        `wfb.fonts.fallback.SystemFace.advances` gives -- the same advances
+        `wfb.layout` measured with, rather than Pillow's own layout, which
+        disagrees with the device by up to a pixel per glyph."""
+        pen = left
+        for char, advance in zip(text, face.advances(text)):
+            self.draw.text((pen, baseline_y), char, fill=color, font=face.font, anchor="ls")
+            pen += advance
 
     # -- shared -----------------------------------------------------------
 

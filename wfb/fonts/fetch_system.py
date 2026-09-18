@@ -154,27 +154,59 @@ def cache_dir() -> Path:
     return root / "wfb" / "fonts"
 
 
-def path_for(key: str) -> Path | None:
-    """Where ``key``'s TTF already is, installed or cached. Never touches
-    the network -- that is :func:`ensure`'s job. Checks the install
-    location (:data:`DEFAULT_DEST`, what a prefetch fills) before the
-    runtime cache."""
-    for base in (DEFAULT_DEST, cache_dir()):
+def _expected_sha(key: str) -> str | None:
+    """The pinned SHA-256 of ``key``'s TTF: its source's own hash (for an
+    archive source, the member's)."""
+    try:
+        registry = _registry()
+        return registry["sources"][registry["fonts"][key]["source"]]["sha256"]
+    except KeyError:
+        return None
+
+
+#: ``(path, size, mtime_ns) -> sha256``: hashing a TTF on every lookup would
+#: be wasteful, and a file rewritten in place changes its mtime.
+_hash_cache: dict[tuple[str, int, int], str] = {}
+
+
+def _matches_pin(candidate: Path, key: str) -> bool:
+    """Is ``candidate`` byte-for-byte the file the registry pins for
+    ``key``? A stale copy -- left behind when a registry change points
+    ``key`` at a different source -- is not, and is ignored (the next
+    :func:`ensure` replaces it) rather than silently measured with."""
+    expected = _expected_sha(key)
+    if expected is None:
+        return False
+    stat = candidate.stat()
+    memo = (str(candidate), stat.st_size, stat.st_mtime_ns)
+    if memo not in _hash_cache:
+        _hash_cache[memo] = sha256(candidate.read_bytes())
+    return _hash_cache[memo] == expected
+
+
+def _located(key: str) -> tuple[Path, str] | None:
+    for tier, base in (("installed", DEFAULT_DEST), ("cached", cache_dir())):
         candidate = base / f"{key}.ttf"
-        if candidate.is_file():
-            return candidate
+        if candidate.is_file() and _matches_pin(candidate, key):
+            return candidate, tier
     return None
+
+
+def path_for(key: str) -> Path | None:
+    """Where ``key``'s TTF already is, installed or cached, and matching its
+    pinned hash. Never touches the network -- that is :func:`ensure`'s job.
+    Checks the install location (:data:`DEFAULT_DEST`, what a prefetch
+    fills) before the runtime cache."""
+    found = _located(key)
+    return found[0] if found else None
 
 
 def tier_for(key: str) -> str | None:
     """``"installed"``, ``"cached"``, or ``None`` -- like :func:`path_for`
     but names *which* of the two locations held ``key``, for ``wfb
     doctor``."""
-    if (DEFAULT_DEST / f"{key}.ttf").is_file():
-        return "installed"
-    if (cache_dir() / f"{key}.ttf").is_file():
-        return "cached"
-    return None
+    found = _located(key)
+    return found[1] if found else None
 
 
 # ---------------------------------------------------------------------------
@@ -408,10 +440,17 @@ def garmin_font_root(override: os.PathLike | str | None = None) -> Path | None:
     ``None`` if none of them exist or all are empty -- this whole lookup is
     optional; the registry (:func:`ensure`) and Pillow's own fallback both
     still work without it.
+
+    ``WFB_NO_GARMIN_FONTS=1`` skips 2--6, so only an explicit ``override``
+    counts: the test suite sets it (``tests/conftest.py``) so its results
+    never depend on whether this machine holds the user's licensed fonts,
+    and a user can set it to preview what a machine without them measures.
     """
     candidates: list[Path] = []
     if override:
         candidates.append(Path(override))
+    if os.environ.get("WFB_NO_GARMIN_FONTS") == "1":
+        return _first_non_empty(candidates)
     env = os.environ.get("WFB_FONTS")
     if env:
         candidates.append(Path(env))
@@ -421,6 +460,10 @@ def garmin_font_root(override: os.PathLike | str | None = None) -> Path | None:
     appdata = os.environ.get("APPDATA")
     if appdata:
         candidates.append(Path(appdata) / "Garmin" / "ConnectIQ" / "Fonts")
+    return _first_non_empty(candidates)
+
+
+def _first_non_empty(candidates: list[Path]) -> Path | None:
     for path in candidates:
         if path.is_dir() and any(path.iterdir()):
             return path

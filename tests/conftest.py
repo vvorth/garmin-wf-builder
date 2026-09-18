@@ -28,6 +28,11 @@ sys.path.insert(0, str(ROOT))
 # the whole session, before any test module (including test_system_fonts_fetch
 # itself, which monkeypatches its own downloader per test) can import it.
 os.environ["WFB_OFFLINE"] = "1"
+# Likewise never measure with the user's licensed Garmin fonts (vendor/fonts/,
+# ~/.Garmin/ConnectIQ/Fonts, ...): a golden or a width assertion must not
+# depend on whether this machine holds them. Tests of the discovery itself
+# unset it (tests/test_system_fonts_fetch.py's `_isolated`).
+os.environ["WFB_NO_GARMIN_FONTS"] = "1"
 
 from wfb.devices import DeviceDatabase, DeviceError  # noqa: E402
 

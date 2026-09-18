@@ -344,3 +344,72 @@ existing `FILES` dict; no re-derivation needed).
   Medium` gives no size/weight information a substitute choice could use).
   This is a judgement call, not a verified fact about Garmin's internal
   files.
+
+---
+
+## 9. Calibration against the simulator (2026-09-18)
+
+The user ran the metrics probe (`docs/research/probes/system-font-metrics/`)
+and the three comparison faces (`examples/system-fonts*`) in the Connect IQ
+simulator on macOS for all three targets. They also copied their SDK
+Manager's `ConnectIQ/Fonts` into `vendor/fonts/`: 36 `.ttf`, 189 `.cft` and
+225 `.md5` files. Every file is named after the device font name, e.g.
+`RobotoCondensed-Bold.ttf`, `Bionic_semibold.ttf`,
+`FNT_FENIX6_CDPG_ROBOTO_20B.cft`. The probe's console output is transcribed
+in `docs/research/probes/system-font-metrics/results-2026-09-18.txt`.
+
+**Vertical metrics — VERIFIED exact.** For every authorable `FONT_*` on all
+three targets (27 symbol/device pairs), `getFontHeight`, `getFontAscent` and
+`getFontDescent` equal what `wfb.fonts.fallback.system_face` computes:
+line height = published `size_px`, baseline = `round(em × hhea_asc/upm)`
+with `em = size_pt × ppi / 72` from §3. There is one exception.
+`fenix8solar51mm`'s `FONT_GLANCE` baseline is 1 px off, but that symbol is
+not authorable. §3's model therefore stands, with no calibration constant.
+An overlay of the `fenix8solar47mm` text-face screenshot with `wfb preview`
+lines up on every row, including the `center` and `bottom` rows. So the
+line-box drawing model (plan 09 R2.4) is right too, and
+`TEXT_JUSTIFY_VCENTER` centres on `getFontHeight`.
+
+**Widths — the device lays text out per glyph.** VERIFIED against 54
+readings (9 symbols × 3 devices × 2 strings):
+
+| model | exact | total error |
+|---|---|---|
+| Pillow `getlength` at the fractional em (plan 09 step B) | 33/54 | 56 px |
+| Pillow `getlength` at `round(em)` | 38/54 | 26 px |
+| sum of linear advances, rounded once | 8/54 | 90 px |
+| **each glyph's `hmtx` advance at `round(em)`, rounded on its own** | **44/54** | **20 px** |
+
+The winning model is exact on all 36 Roboto readings. Under Pillow's fractional em, `FONT_TINY` digits
+(em 24.64) came out 12 px wide where the device used 13. The 10 misses are
+all Bionic (fēnix 8 `FONT_NUMBER_*`), 1–4 px over ten digits. Bionic's digits
+are all 516/1000 em wide, yet the device's ten-digit strings are not
+multiples of a single rounded width (264 px at em 51.32, for example), so
+Garmin's rasteriser adjusts Bionic advances in a way FreeType does not
+reproduce. No model tried fits Bionic. `fallback.SystemFace.advances`
+implements the winning model, and the preview draws glyph by glyph on those
+pen positions. Kerning is not applied. That is UNVERIFIED for pairs these
+strings do not contain.
+
+**Bionic stand-in — corrected.** §4 first mapped non-condensed Bionic to
+Roboto Black, because fr955 uses Roboto Black in the same `FONT_NUMBER_*`
+role. With the real files in hand, the advances say otherwise:
+
+| font | `0` | `H` | `x` | `g` |
+|---|---|---|---|---|
+| Bionic_semibold | 0.516 | 0.574 | 0.443 | 0.514 |
+| RobotoCondensed-Bold | 0.506 | 0.614 | 0.453 | 0.503 |
+| Roboto-Black | 0.580 | 0.703 | 0.515 | 0.576 |
+
+`bionic-substitute` now points at RobotoCondensed-Bold. Without the Garmin
+files, the probe's widths come out 40/54 exact with 87 px total error; the
+earlier stand-in, Roboto Black, gave 645 px. The Roboto Condensed file
+shipped with the SDK Manager is v2.000980 (2014), older than the v2.138 the
+registry pins. Both give identical advances on the probe strings.
+
+**`.cft`** is a big-endian bitmap-font container. The header of
+`FNT_FENIX6_CDPG_ROBOTO_20B.cft` includes the value `0x19` (probably the
+height), followed by a table of `(first, last, offset)` code-point ranges
+(`0x20–0x7e`, `0xa0–0x107`, …). It is UNVERIFIED and not decoded yet. The
+target devices use only TTFs; `.cft` matters for older devices (fēnix 6/7,
+fr245/255).
