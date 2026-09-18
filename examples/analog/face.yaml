@@ -402,8 +402,9 @@ layouts:
             # shape: rectangle
             color: palette.black
             font: FONT_TINY
-            at: { anchor: right, dx: -3%r }
-            align: right
+            # at: { anchor: right, dx: -3%r }
+            # align: right
+            at: { anchor: center }
 
       data_border_right:
         type: shape
@@ -442,8 +443,9 @@ layouts:
             # shape: rectangle
             color: palette.black
             font: FONT_TINY
-            at: { anchor: right, dx: -3%r }
-            align: right
+            # at: { anchor: right, dx: -3%r }
+            # align: right
+            at: { anchor: center }
 
       classic_hands:
         type: hands

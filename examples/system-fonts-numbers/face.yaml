@@ -59,6 +59,8 @@ targets:
   - fenix8solar47mm
   - fenix8solar51mm
   - fr955
+  - fr245
+  - fenix6
 
 # Every colour is one the 64-colour MIP panel shows without dithering: each
 # channel is 0x00, 0x55, 0xAA or 0xFF.
