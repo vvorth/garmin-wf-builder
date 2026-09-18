@@ -789,7 +789,11 @@ need, each with a licence file alongside it. If you have Garmin's own font
 files — from the SDK Manager's `Fonts` directory — they take priority over
 these stand-ins; put them at `vendor/fonts/` (gitignored, like
 `vendor/devices/`: it's your own licensed copy, never committed) or point
-`WFB_FONTS` at them.
+`WFB_FONTS` at them. Decoding those files' own `.cft` bitmap format
+([`wfb/fonts/cft.py`](wfb/fonts/cft.py)) is a port of the decode logic in
+[`markw65/monkeyc-optimizer`](https://github.com/markw65/monkeyc-optimizer)
+(`src/cftinfo.ts`, MIT licence), pinned at commit
+`cea919a92da74de1f5d277064caa6f7920554af7`.
 
 Garmin's SDK and device definitions are not part of this project, and
 Garmin's own terms cover them.

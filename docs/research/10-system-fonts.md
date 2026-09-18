@@ -413,3 +413,133 @@ height), followed by a table of `(first, last, offset)` code-point ranges
 (`0x20–0x7e`, `0xa0–0x107`, …). It is UNVERIFIED and not decoded yet. The
 target devices use only TTFs; `.cft` matters for older devices (fēnix 6/7,
 fr245/255).
+
+> **Superseded by §10 (2026-09-18).** `.cft` is now fully decoded
+> (`wfb/fonts/cft.py`, plan 10 Step A) against prior art rather than
+> reverse-engineered from scratch. The `0x19` guessed above to be the height
+> is in fact the **ascent** (25 px, offset 24); the height is the `0x20` at
+> offset 22 (32 px), and the
+> `(first, last, offset)` table read above is this section's own read of
+> the cmap groups this document didn't yet have a name for. See §10 for the
+> verified field table, the RLE/zlib codecs and the variant census. The
+> paragraph above is left as-is: it was the first read of the raw
+> bytes, before the format had a name for any of its parts.
+
+---
+
+## 10. The `.cft` format
+
+Written for plan `10-cft-bitmap-fonts.md` §2.2–2.4, Step A
+(`wfb/fonts/cft.py`). Supersedes §9's `.cft` paragraph above (kept in
+place, dated) with a full field-level account.
+
+### 10.1 Provenance (VERIFIED)
+
+The container format is not documented by Garmin anywhere found. It is
+documented, and was reverse-engineered, by
+**`markw65/monkeyc-optimizer`**, file `src/cftinfo.ts`, MIT licence, pinned
+at commit `cea919a92da74de1f5d277064caa6f7920554af7`
+(<https://raw.githubusercontent.com/markw65/monkeyc-optimizer/cea919a92da74de1f5d277064caa6f7920554af7/src/cftinfo.ts>),
+shipped as the `cft-font-info` CLI (`npx cft-font-info`). `wfb/fonts/cft.py`
+is a direct, credited port of its decode logic (README.md's licence
+section). Every claim below was checked either by reading that file's own
+logic or by decoding a real `vendor/fonts/*.cft` and inspecting the result
+(both `wfb/fonts/cft.py`'s own module docstring and `tests/test_cft.py`).
+
+### 10.2 The field table (VERIFIED)
+
+Everything is big-endian:
+
+| Off | Size | Field |
+|---|---|---|
+| 0 | 2 | header size: 36, or 40 (maybe-zlib variant) |
+| 3 | 1 | flags: bit 1 (`2`) = RLE glyph data, bit 2 (`4`) = 2 bpp (else 1 bpp) |
+| 4 | 4 | file size |
+| 8 | 4 | cmap offset |
+| 12 | 4 | glyph-info offset |
+| 16 | 4 | glyph-data offset |
+| 22 | 2 | **height** (px, the line box) |
+| 24 | 2 | **ascent** (baseline, px from the top) |
+| 26 | 2 | internal leading (unused by this decoder) |
+| 32 | 4 | `0x12345678` when RLE (36-byte header) -- documented by the reference tool but not actually consulted by its own decode path (the flags byte at offset 3 already carries this) |
+| 36 | 1 | row alignment in bytes (40-byte header only; else 1) |
+
+- **cmap:** at `cmap_offset + 12`, a u32 group count, then that many
+  `(start, end, start_glyph)` u32 triples starting at `cmap_offset + 16`. A
+  codepoint in `[start, end]` maps to glyph `start_glyph + (codepoint -
+  start)`. A codepoint matched by no group maps to glyph 0, the "missing"
+  box. **What the device itself draws for an unmapped character is
+  UNVERIFIED** -- glyph 0 is the working assumption, matching how every
+  other consumer of this format (including the reference tool) treats it.
+- **Glyph info:** one u32 per glyph, at `glyph_info_offset + 4 * index`.
+  `glyph_offset = ((word >> 16) & 0xffff) + ((word & 0xff00) << 8)`, masked
+  `& 0x7fffff` when RLE. `advance = word & 0xff`. **Every glyph is a full
+  `advance x height` cell** -- no bearings, no bbox offsets, and there is
+  no kerning.
+- **Pixel layout:** row-major. Each row is `ceil(ceil(advance / ppb) /
+  align) * align` bytes (`ppb` = 4 at 2 bpp, 8 at 1 bpp; `align` is 1 for a
+  36-byte header). Pixels are packed **LSB-first** within a byte. A level
+  runs `0..3` (2 bpp) or `0..1` (1 bpp), 0 background, max full ink.
+
+### 10.3 RLE (VERIFIED by decoding, and by round-tripping synthetic files)
+
+The bitstream is read **LSB-first**. Its header is a unary `run_bits`
+(count of 0 bits up to the first 1, plus 1), then 5 bits of `chunk_size -
+1`, then `chunk_size` bits of `escape`. Each chunk that follows is a
+literal `chunk_size`-bit value. When the value equals `escape`, a
+`run_bits`-wide run length `r` follows: `r = 0` means the escape value is
+itself a literal (not a run at all); otherwise the *previous* literal
+repeats `r + 1` times. Output is packed as `chunk_size`-bit values,
+LSB-first, until `row_bytes * height` bytes exist. Each glyph's RLE stream
+is fully self-contained -- it starts a fresh bit alignment at its own byte
+offset into the shared glyph-data blob, so glyphs never share bit state.
+
+`chunk_size` is a property of the *compressed byte stream*, not of the
+pixel bpp -- the codec compresses whatever bytes it is given (already
+bpp-packed pixel rows) generically; `tests/test_cft.py`'s
+`test_rle_chunk_straddles_a_byte_boundary` deliberately picks a `chunk_size`
+unrelated to the font's own bpp to prove this.
+
+`wfb/fonts/cft.py` ports this faithfully but with a byte-array output
+writer and a small bounded bit accumulator (at most ~39 bits), rather than
+the reference's own approach of shifting one arbitrary-precision integer
+for the whole glyph -- the naive port is quadratic in the glyph's pixel
+count on a Python-scale bignum; this implementation is linear.
+
+### 10.4 The 40-byte zlib variant (VERIFIED by decoding)
+
+A 40-byte header's glyph data may be zlib-compressed. At the glyph-data
+offset, a first u32 of `0xCD00000D` (3439329293) means "skip 4, then a u32
+length, then zlib". `0xD000000D` (3489660941) means "skip 4, raw, not
+compressed". Any other value means "u32 length, then zlib" (the value
+itself *is* that length). `tests/test_cft.py` round-trips all three.
+
+### 10.5 Variant census across `vendor/fonts/` (VERIFIED, 2026-09-18)
+
+Of the 189 `.cft` files copied into `vendor/fonts/` (§9): **178** have a
+36-byte header with flags `0x06` (RLE, 2 bpp). **11** have a 40-byte header
+with flags `0x00` (no RLE, zlib, 1 bpp, row alignment 8) -- all
+`FNT_006B402400_*`, used by fr255's `large` font and fr955's `simExt*`
+fonts. Two real files decoded by `tests/test_cft.py` (skipped when
+`vendor/fonts/` is absent): `FNT_FENIX6_CDPG_ROBOTO_20B.cft` (36-byte, RLE,
+2 bpp, height 32, ascent 25) and `FNT_006B402400_CDPG_ROBOTO_15B.cft`
+(40-byte, zlib, 1 bpp, height 24, ascent 19).
+
+### 10.6 Height vs. the scraped `size_px` (VERIFIED difference, UNVERIFIED which the simulator reports)
+
+Across the scraped default tables, `.cft` `height - size_px` is 0 in 260
+entries, +1 in 92 (including all of fenix6: 32 vs 31, 100 vs 99) and +2 in
+8. Since the `.cft` is the very file the simulator loads, its own
+`height`/`ascent` are treated as the line box and baseline in preference to
+the scraped `size_px` wherever a `.cft` is found (plan 10 §2.3's decision;
+carried out in Step B). Whether `Graphics.getFontHeight` on a bitmap-font
+device returns `height` or `height - 1` is **UNVERIFIED** -- the existing
+metrics probe (`docs/research/probes/system-font-metrics/`) answers it once
+the user runs it on a bitmap device (fenix6, fr245) in the simulator.
+
+### 10.7 Antialias blending (UNVERIFIED)
+
+A 2 bpp level `v` is meant to be drawn as a linear blend `bg + (fg - bg) x
+v/3`. Whether the simulator quantises that to the 64-colour MIP palette
+(root `CLAUDE.md` §4.13) is unknown. Step B blends linearly; this stays an
+open question.
