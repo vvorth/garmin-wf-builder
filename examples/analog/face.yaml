@@ -201,15 +201,15 @@ hands:
       color: config.colors.fg
       parts:
         # background
-        - { shape: line, at: { dy: 21%r }, to: { dy: -97%r }, thickness: 4%r, color: palette.black }
-        - { shape: circle, at: { dy: 21%r }, radius: 5%r, color: palette.black } # counterweight
-        - { shape: circle, radius: 4%r, color: palette.black } # centre cap
+        - { shape: line, at: { dy: 21%r }, to: { dy: -97%r }, thickness: 4%r, color: palette.black } #arrow bg
+        - { shape: circle, at: { dy: 20%r }, radius: 5%r, color: palette.black } # counterweight bg
+        - { shape: circle, radius: 4%r, color: palette.black } # centre cap bg
         # arrow
-        - { shape: line, at: { dy: 20%r }, to: { dy: -70%r }, thickness: 2%r }
+        - { shape: line, at: { dy: 20%r }, to: { dy: -70%r }, thickness: 2%r } #arrow
         - { shape: circle, at: { dy: 20%r }, radius: 4%r } # counterweight
         - { shape: circle, radius: 3%r } # centre cap
-        - { shape: circle, radius: 1%r, color: palette.black } # centre cap
-        - { shape: line, at: { dy: -96%r }, to: { dy: -70%r }, thickness: 2%r, color: config.accent_color }
+        - { shape: circle, radius: 1%r, color: palette.black } # centre cap axle
+        - { shape: line, at: { dy: -96%r }, to: { dy: -70%r }, thickness: 2%r, color: config.accent_color } #accented point
 
 
   classic_generated:
