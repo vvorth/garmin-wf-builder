@@ -695,10 +695,9 @@ def _doctor(args) -> int:
         tiers = {"garmin": 0, "installed": 0, "cached": 0, "missing": 0, "unmapped": 0}
         for name, face in needed:
             # `garmin_any_file` counts a `.cft` bitmap hit as usable too
-            # (`docs/plans/10-cft-bitmap-fonts.md` §3 B.2) -- the same
-            # lookup `fetch_system.locate` uses, so this summary and the
-            # actual measure/preview path can never disagree about what
-            # counts as "found".
+            # (plan 10 §3 B.2) -- the same lookup `fetch_system.locate`
+            # uses, so this summary and the actual measure/preview path
+            # can never disagree about what counts as "found".
             if fonts_root is not None and fetch_system.garmin_any_file(name, fonts_root) is not None:
                 tiers["garmin"] += 1
                 continue

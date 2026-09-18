@@ -2,7 +2,7 @@
 
 Free stand-ins for Garmin's proprietary system fonts, used to measure and
 draw text set in a device's `FONT_*` faces on previews (`wfb/fonts/fallback.py`,
-Step B of `docs/plans/09-system-font-metrics.md`).
+Step B of plan 09).
 
 **Nothing here is committed.** `wfb/fonts/registry.json` maps every system-font
 name this project knows about to a pinned, hash-checked, freely-licensed TTF

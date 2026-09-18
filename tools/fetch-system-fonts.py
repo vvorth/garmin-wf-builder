@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Prefetch the free stand-ins for Garmin's system fonts that the given
-devices need (`docs/plans/09-system-font-metrics.md`, R1).
+devices need (plan 09, R1).
 
 Each device's needed font *names* come from its installed
 `simulator.json`'s `ww` font set when the device definitions are installed,

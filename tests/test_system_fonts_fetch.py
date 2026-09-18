@@ -501,8 +501,8 @@ def test_garmin_font_file_is_case_insensitive_and_ttf_otf_only(_isolated, tmp_pa
 
 
 def test_cft_is_reported_and_now_returned_as_a_usable_font_via_garmin_any_file(_isolated, tmp_path):
-    """Inverts the pre-Step-B test of the same shape (`docs/plans/
-    10-cft-bitmap-fonts.md` §3 B.2): `garmin_font_file` still only ever
+    """Inverts the pre-Step-B test of the same shape (plan 10 §3 B.2):
+    `garmin_font_file` still only ever
     returns a `.ttf`/`.otf` (a `.cft` is not one), but `garmin_any_file` --
     what `locate`/`wfb doctor` actually call -- now falls through to the
     `.cft` at an exact stem match and reports it as usable."""

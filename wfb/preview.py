@@ -265,7 +265,7 @@ def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = N
 @lru_cache(maxsize=4096)
 def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
     """`char`'s `.cft` glyph cell as an `"L"` ink mask, upscaled `scale`×
-    with `Image.NEAREST` (`docs/plans/10-cft-bitmap-fonts.md` §3 B.4) --
+    with `Image.NEAREST` (plan 10 §3 B.4) --
     what `_Renderer._draw_bitmap_line` pastes a solid colour through, in
     place of Pillow's own `ImageDraw.text` (a bitmap `SystemFace` has no
     `FreeTypeFont` to hand that). Each pixel's mask value is
@@ -1004,8 +1004,8 @@ class _Renderer:
         `wfb.layout` measured with, rather than Pillow's own layout, which
         disagrees with the device by up to a pixel per glyph.
 
-        A bitmap face (`face.bitmap` set, `docs/plans/10-cft-bitmap-fonts.md`
-        §3 B.4) has no `FreeTypeFont` in `face.font` to hand `ImageDraw.text`
+        A bitmap face (`face.bitmap` set, plan 10 §3 B.4) has no
+        `FreeTypeFont` in `face.font` to hand `ImageDraw.text`
         -- `_draw_bitmap_line` pastes each glyph's own decoded cell instead.
         """
         if face.bitmap is not None:

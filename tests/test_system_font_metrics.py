@@ -96,7 +96,7 @@ def _ink_y_bounds(image, bg, x_lo: int, x_hi: int,
 
 
 def test_fenix8_font_medium_matches_the_worked_example(db):
-    """docs/plans/09-system-font-metrics.md §4 R2.6's own numbers: Roboto
+    """plan 09 §4 R2.6's own numbers: Roboto
     Condensed Bold at `FONT_MEDIUM`, em ~32.86 (`11.7109 * 202 / 72`), a
     line height of 39 and a baseline of 30 (`round(32.8556 * 1900/2048)`,
     RobotoCondensed-Bold's own `hhea`)."""

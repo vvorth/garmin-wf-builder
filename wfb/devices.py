@@ -56,8 +56,8 @@ class FontMetric:
 
     **`size_px` is itself overridden for a bitmap symbol** once a `.cft` is
     actually located: its own `height`/`ascent` become the line box/
-    baseline instead (`docs/plans/10-cft-bitmap-fonts.md` §2.3) -- it is the
-    very file the simulator loads, so it outranks the scraped estimate. That
+    baseline instead (plan 10 §2.3) -- it is the very file the simulator
+    loads, so it outranks the scraped estimate. That
     override happens in `wfb.fonts.fallback` (`system_face`/`line_height`),
     never here: this dataclass only ever holds what the scraped table and
     `simulator.json` state outright, not a location-dependent result.
@@ -423,8 +423,8 @@ class Device:
         Enriched, per plan 09 R2.1, from the installed device's own
         ``simulator.json`` ``ww`` set when present: its own ``filename``
         always replaces the scraped ``font`` name (TTF or bitmap alike,
-        since `docs/plans/10-cft-bitmap-fonts.md` §3 B.1) -- it is the more
-        precise of the two, and for a bitmap symbol it is also the real
+        since plan 10 §3 B.1) -- it is the more precise of the two, and
+        for a bitmap symbol it is also the real
         ``.cft`` file's own stem, always ``FNT_``-prefixed, which the
         scraped ``font`` column never carries the prefix for
         (`docs/research/10-system-fonts.md` §1). A `type: "ttf"` entry

@@ -19,8 +19,8 @@ family's shape entirely. Every diagnostic derived from it stays labelled as
 such (`wfb.lint.check_text_fit`).
 
 **A located Garmin file may be a `.cft` bitmap container instead of a
-scalable `.ttf`/`.otf`** (`docs/plans/10-cft-bitmap-fonts.md` Step B, on top
-of Step A's decoder, :mod:`wfb.fonts.cft`) -- true for 8 of the 13 installed
+scalable `.ttf`/`.otf`** (plan 10 Step B, on top of Step A's decoder,
+:mod:`wfb.fonts.cft`) -- true for 8 of the 13 installed
 devices, every one of which resolves *every* `FONT_*` symbol to a bitmap
 file. :func:`system_face` tells the two apart by the located path's own
 suffix and returns a :class:`SystemFace` either way, but a bitmap face's
@@ -99,8 +99,8 @@ class SystemFace:
     :func:`system_face` was asked for, in the same pixel units as `font`
     itself -- a caller never has to re-derive either from the metric.
 
-    **Two kinds, told apart by `bitmap`** (`docs/plans/10-cft-bitmap-fonts.md`
-    Step B): an outline face has `bitmap is None` and a real Pillow
+    **Two kinds, told apart by `bitmap`** (plan 10 Step B): an outline
+    face has `bitmap is None` and a real Pillow
     `FreeTypeFont` in `font`; a bitmap face (a located `.cft`) has
     `bitmap` set to its decoded `wfb.fonts.cft.CftFont` and **`font is
     None`** -- there is no scalable face to hand Pillow's text-drawing
@@ -286,8 +286,8 @@ def system_face(metric: FontMetric, scale: float = 1.0, *,
     case, which `wfb.lint`/a probe can report but is otherwise drawn
     exactly like any other match level (today's behaviour, kept).
 
-    **A `.cft` bitmap hit is a separate branch** (`docs/plans/
-    10-cft-bitmap-fonts.md` §3 B.3): `line_height_px`/`baseline_px` below
+    **A `.cft` bitmap hit is a separate branch** (plan 10 §3 B.3):
+    `line_height_px`/`baseline_px` below
     are the *scraped/simulator* numbers, used for every outline face and
     the Pillow fallback, but a located `.cft`'s own `height`/`ascent`
     override them once the file is actually decoded (plan 10 §2.3 -- it is
@@ -380,8 +380,8 @@ def line_height(metric: FontMetric) -> int:
     Consults `system_face` (cached, so this costs nothing beyond the first
     call for a given metric) so that a located `.cft`'s own `height`
     overrides the scraped/simulator estimate exactly the way
-    `system_face`'s own `SystemFace.line_height` does (`docs/plans/
-    10-cft-bitmap-fonts.md` §2.3/§3 B.3) -- `wfb.layout` and `wfb.preview`
+    `system_face`'s own `SystemFace.line_height` does (plan 10
+    §2.3/§3 B.3) -- `wfb.layout` and `wfb.preview`
     would otherwise disagree about a bitmap face's line box by the 0-2 px
     plan §2.3 found between `size_px` and the real file's `height`. Falls
     back to `metric.height_px` when the device states one, else

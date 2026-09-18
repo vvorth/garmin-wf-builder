@@ -64,7 +64,7 @@ same reasoning as `vendor/devices/`) into `~/.Garmin/ConnectIQ/Fonts`
 incrementally. `wfb doctor` reports which root it found (`--fonts DIR` or
 `WFB_FONTS` override it); a device's real file there is meant to outrank the
 registry's stand-in once a build/preview actually consults it (plan 09's Step
-B). See `docs/plans/09-system-font-metrics.md` R1b and `docs/lore/toolchain.md`.
+B). See plan 09 R1b and `docs/lore/toolchain.md`.
 
 **Platforms.** `setup-env.sh` is tested on Linux only. It downloads the Linux
 SDK, and it appends `CIQ_SDK`/`PATH` to `/etc/sandbox-persistent.sh` when that

@@ -236,8 +236,8 @@ cp -R ~/Library/Application\ Support/Garmin/ConnectIQ/Devices \
 
 ### System fonts: registry fetch, cache, and Garmin's own font root
 
-`docs/plans/09-system-font-metrics.md` (Step A). `wfb/fonts/fetch_system.py`
-is deliberately **stdlib-only, no `wfb`/Pillow import** — it must load by
+plan 09 (Step A). `wfb/fonts/fetch_system.py` is deliberately
+**stdlib-only, no `wfb`/Pillow import** — it must load by
 file path (`importlib.util.spec_from_file_location`) before `.venv` exists,
 in the Docker SDK stage, and from `wfb doctor` without a rasteriser.
 
@@ -281,7 +281,22 @@ is **unresearched** — deferred until a real Fonts directory can be
 inspected, per the plan. `garmin_font_file` today is a generic
 case-insensitive stem match over `.ttf`/`.otf` anywhere under the root; a
 `.cft` match is reported (`garmin_cft_file`) but never returned as usable —
-decoding Garmin's bitmap-font container format is also deferred. **Update 2026-09-18:** `vendor/fonts/` is now populated from
+decoding Garmin's bitmap-font container format is also deferred.
+
+> **Superseded (2026-09-18, plan 10).** Both "deferred" statements above are
+> now false. The name → file mapping question is answered by the very next
+> paragraph's update: a flat directory, file named exactly after
+> `simulator.json`'s own `filename`. And `.cft` decoding did happen
+> (`wfb/fonts/cft.py`, plan 10 Step A, ported from `markw65/monkeyc-optimizer`
+> rather than reverse-engineered) — a `.cft` hit is now returned as a usable
+> font too, through `garmin_any_file`/`locate` (plan 10 Step B), for 8 of the
+> 13 installed devices whose every `FONT_*` symbol resolves only to a bitmap
+> file. `garmin_font_file` itself is unchanged (still `.ttf`/`.otf` only,
+> `.cft` reported separately by `garmin_cft_file`) — it is `garmin_any_file`,
+> not `garmin_font_file`, that now treats a `.cft` as usable. See
+> `docs/research/10-system-fonts.md` §10.
+
+**Update 2026-09-18:** `vendor/fonts/` is now populated from
 the user's macOS SDK Manager. It is flat, with no subdirectories: 36
 `.ttf`, 189 `.cft` and 225 `.md5` files, each named exactly after the
 `simulator.json` `filename` (e.g. `RobotoCondensed-Bold.ttf`,

@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/` (09 system fonts: only R1b.5 left, which plan 10 `.cft` decoding builds; built plans are deleted — see `docs/CLAUDE.md`) |
+| proposals written but not built | `docs/plans/` (none open; built plans are deleted — see `docs/CLAUDE.md`) |
 | the session-by-session narrative | `docs/history.md` — only for a specific past decision, never as background reading |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
@@ -69,7 +69,7 @@ copies in just that one, without touching what is already installed
 (`docs/lore/toolchain.md`). It also copies `vendor/fonts/` (Garmin's own,
 optional font files) into place the same incremental way, and prefetches
 `wfb/fonts/registry.json`'s free system-font stand-ins (`docs/lore/toolchain.md`,
-`docs/plans/09-system-font-metrics.md`).
+`docs/research/10-system-fonts.md`).
 
 **Device definitions cannot be downloaded:** Garmin's API returns 401 without
 an SSO login. They are vendored at `vendor/devices/`, which is
@@ -239,6 +239,14 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
 - **Recently built:**
+  - **Built 2026-09-18** (plans 09–10): real device typefaces for
+    system-font previews and measurement — Garmin's own font root
+    (`vendor/fonts/`/`WFB_FONTS`) first, then a pinned free stand-in
+    registry (`wfb/fonts/registry.json`), then Pillow's default face —
+    and, on top of that, `.cft` bitmap fonts decoded (`wfb/fonts/cft.py`)
+    so the fenix 6/7-family, fr245 and fr255 devices measure and preview
+    with their own real glyphs pixel-for-pixel, not a TTF stand-in. See
+    `docs/research/10-system-fonts.md`.
   - **Built 2026-09-16** (plan 08): `min_1px:` makes the relative-length
     floor (a nonzero `%`/`%r` `size:`/`thickness:`/`bar_width:`/`radius:`
     never resolving below 1 px, sign preserved) **opt-in**, per the user's

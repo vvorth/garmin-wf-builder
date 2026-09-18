@@ -1,7 +1,7 @@
 """Decode Garmin's ``.cft`` bitmap-font container -- the format 8 of the 13
 installed devices (`fenix6`, `fenix6xpro`, `fenix7pro`, `fenix7x`,
 `fenix7xpro`, `fenix7xpronowifi`, `fr245`, `fr255`) resolve *every* `FONT_*`
-symbol to (`docs/plans/10-cft-bitmap-fonts.md` §2.1), used today by
+symbol to (plan 10 §2.1), used today by
 `wfb/fonts/fetch_system.py`'s :func:`garmin_cft_file` only for diagnostics.
 This module is Step A of that plan: pure decoding, no policy about when a
 `.cft` should be preferred over a TTF (Step B).
@@ -60,8 +60,8 @@ Everything in the container is big-endian::
   exist. Ported faithfully from the reference, but with a byte-array output
   writer and a small bounded bit accumulator rather than the reference's
   approach of shifting one Python-scale big integer -- the naive port grows
-  quadratically on a large glyph (`docs/plans/10-cft-bitmap-fonts.md` §3
-  A.1's warning); this implementation is linear in the glyph's pixel count.
+  quadratically on a large glyph (plan 10 §3 A.1's warning); this
+  implementation is linear in the glyph's pixel count.
 * **40-byte header**: glyph data may be zlib-compressed. At the glyph-data
   offset, a first u32 of ``0xCD00000D`` (3439329293) means "skip 4, then a
   u32 length, then zlib". ``0xD000000D`` (3489660941) means "skip 4, raw,
@@ -113,8 +113,8 @@ class CftFont:
     """A decoded `.cft` font. Build with :func:`load`, never directly.
 
     All fields but the leading-underscore ones are the public API
-    (`docs/plans/10-cft-bitmap-fonts.md` §3 A.1). Decoded glyphs are cached
-    by the module-level :func:`_decode_glyph_cached`, keyed on
+    (plan 10 §3 A.1). Decoded glyphs are cached by the module-level
+    :func:`_decode_glyph_cached`, keyed on
     ``(path, glyph_index)`` -- this dataclass stays frozen and holds no
     mutable cache of its own.
     """

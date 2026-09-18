@@ -1,7 +1,7 @@
 # Probe: system-font-metrics
 
 A minimal, hand-written Monkey C watch face that reads back the SDK's own
-system-font measurements at runtime, for `docs/plans/09-system-font-metrics.md`
+system-font measurements at runtime, for plan 09
 S4 R3 (step C). Unlike most probes in this directory, this one's
 `manifest.xml` and `monkey.jungle` are committed alongside the source,
 because the task that built it asked for a self-contained project rather
@@ -60,13 +60,40 @@ targets. `BUILD SUCCESSFUL`, warning-free, under `-l 3`, confirmed for all
 three from inside this sandbox (build only -- there is no simulator here to
 push to, `docs/lore/toolchain.md` S3).
 
+**Added 2026-09-18 (plan 10 step C.2):** `fenix6` and `fr245`, both `.cft`
+bitmap-font devices (`docs/research/10-system-fonts.md` §10.6), so the same
+probe also settles §10.6's open `getFontHeight` vs. `height - 1` question
+and §10.7's antialias-blend question for a bitmap device, not just the TTF
+targets above. Swap the device id the same way:
+
+```sh
+export CIQ_SDK=~/ciq/sdks/9.2.0
+cd docs/research/probes/system-font-metrics
+$CIQ_SDK/bin/monkeyc -f monkey.jungle -d fenix6 \
+    -o /tmp/probe-fenix6.prg -y ~/ciq/developer_key.der -w -l 3
+$CIQ_SDK/bin/monkeyc -f monkey.jungle -d fr245 \
+    -o /tmp/probe-fr245.prg -y ~/ciq/developer_key.der -w -l 3
+$CIQ_SDK/bin/connectiq
+$CIQ_SDK/bin/monkeydo /tmp/probe-fenix6.prg fenix6
+$CIQ_SDK/bin/monkeydo /tmp/probe-fr245.prg fr245
+```
+
+Both build `BUILD SUCCESSFUL`, warning-free, under `-l 3`, confirmed from
+inside this sandbox on 2026-09-18 (build only, same simulator caveat as
+above). The console `h=`/`a=` lines for `FONT_SMALL`/`FONT_MEDIUM`/etc. on
+these two devices are exactly what settles whether the simulator reports a
+`.cft`'s own `height` or `height - 1` (§10.6) -- run
+`examples/system-fonts/face.yaml` on the same two devices in the same
+simulator session and compare its screenshot against `wfb preview`'s PNG
+for the antialias-blend question (§10.7).
+
 The console lines appear in the simulator's own log/console pane. The
 on-screen table needs no console at all -- it is what a screenshot of the
 running probe shows directly.
 
 ## What the numbers are used for
 
-`docs/plans/09-system-font-metrics.md` S4 R2 built `wfb.devices.
+plan 09 S4 R2 built `wfb.devices.
 Device.system_fonts` and `wfb/fonts/fallback.py` from the *published*
 device-file/scraped-table metrics, not from a live device reading -- there
 is no simulator or watch inside this project's sandbox to read one from

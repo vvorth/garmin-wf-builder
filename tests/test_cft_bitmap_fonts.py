@@ -1,4 +1,4 @@
-"""Step B of `docs/plans/10-cft-bitmap-fonts.md` (§3 B.1-B.5): a located
+"""Step B of plan 10 (§3 B.1-B.5): a located
 `.cft` becomes a usable `wfb.fonts.fallback.SystemFace`, measured and drawn
 through it, never through the free-stand-in registry -- for 8 of the 13
 installed devices, every `FONT_*` symbol resolves to one.

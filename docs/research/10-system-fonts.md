@@ -543,3 +543,81 @@ A 2 bpp level `v` is meant to be drawn as a linear blend `bg + (fg - bg) x
 v/3`. Whether the simulator quantises that to the 64-colour MIP palette
 (root `CLAUDE.md` §4.13) is unknown. Step B blends linearly; this stays an
 open question.
+
+### 10.8 Used by layout and preview (VERIFIED, Step B, 2026-09-18)
+
+Step B (`7e8e11d`) wires the decoder into both places a `FontMetric` gets
+turned into pixels, so layout and preview cannot disagree:
+
+- **Name → file.** `wfb.devices.Device.system_fonts` now carries the
+  installed device's own `simulator.json` `filename` in `FontMetric.font`
+  for a bitmap entry too (not just `type: "ttf"` ones), and
+  `wfb.fonts.fetch_system.garmin_any_file` tries an exact-stem `.ttf`/`.otf`
+  match first, then an exact-stem `.cft`, then (only for a name with no
+  `FNT_` prefix of its own, e.g. the scraped-only `FENIX6_CDPG_ROBOTO_20B`)
+  a `"FNT_" + name` guess as a last resort. `locate` reports a `.cft` hit
+  with match `"garmin"`, ranking above even an `exact` registry match.
+- **Measurement.** `wfb.fonts.fallback.system_face` returns a `SystemFace`
+  with `bitmap` set to the decoded `CftFont` and `font is None` (no Pillow
+  `FreeTypeFont` to hand) when the located file is a `.cft`. Its
+  `line_height`/`baseline` come from the file's own `height`/`ascent`
+  (§10.6's decision), and `advances()` from the file's own per-glyph
+  advance table, both scaled by the caller's `scale`. `fallback.line_height`
+  (what `wfb.layout` calls, with no file to locate before this) now also
+  consults a located `.cft` first, so a face never lays out one line height
+  and previews another.
+- **Preview.** `wfb.preview._draw_bitmap_line` pastes each glyph's decoded
+  cell at `(pen, baseline_y - ascent * scale)`, upscaled by an integer
+  factor with `Image.NEAREST` through an `"L"` ink mask built once per
+  `(font path, char, scale)` and cached (`_bitmap_glyph_mask`) -- the linear
+  blend of §10.7, not yet checked against the simulator's own palette
+  quantisation.
+- **Effect on `examples/system-fonts`.** On fenix6 (a bitmap-only device),
+  three of its `*_TEXT_WIDTH` generated constants tighten by 2-8 px
+  (111->109, 163->155, 165->163) now that the width comes from the
+  device's own `.cft` glyph advances instead of the Roboto-family
+  stand-in scaled to `size_px`. The three build targets
+  (`fenix8solar47mm`/`fenix8solar51mm`/`fr955`, all TTF-only) and
+  `tests/golden/` are unaffected -- no golden target is a bitmap device.
+  `examples/dashboard`'s generated code for fenix6 is byte-for-byte
+  unchanged (it uses no system font).
+
+### 10.9 Calibration follow-up (open, exact commands)
+
+§10.6 (`height` vs. `height - 1`) and §10.7 (the antialias blend) are still
+open. Settling them needs the same two things §9's calibration used, run on
+a bitmap-font device this time (`fenix6`, `fr245` -- both now added to the
+`system-font-metrics` probe's `manifest.xml` products list, plan 10 step
+C.2, and confirmed to build warning-free from inside this sandbox):
+
+```sh
+export CIQ_SDK=~/ciq/sdks/9.2.0
+cd docs/research/probes/system-font-metrics
+$CIQ_SDK/bin/monkeyc -f monkey.jungle -d fenix6 \
+    -o /tmp/probe-fenix6.prg -y ~/ciq/developer_key.der -w -l 3
+$CIQ_SDK/bin/monkeyc -f monkey.jungle -d fr245 \
+    -o /tmp/probe-fr245.prg -y ~/ciq/developer_key.der -w -l 3
+$CIQ_SDK/bin/connectiq
+$CIQ_SDK/bin/monkeydo /tmp/probe-fenix6.prg fenix6
+$CIQ_SDK/bin/monkeydo /tmp/probe-fr245.prg fr245
+```
+
+and, for the `examples/system-fonts` face itself (its own generated
+`*_TEXT_WIDTH` constants and a screenshot to compare against
+`wfb preview`'s PNG):
+
+```sh
+./.venv/bin/python wfb.py build examples/system-fonts/face.yaml -d fenix6 \
+    -o /tmp/system-fonts-build
+$CIQ_SDK/bin/monkeydo /tmp/system-fonts-build/system-fonts/system-fonts-fenix6.prg fenix6
+```
+
+The probe's `h=`/`a=` console lines for `FONT_SMALL`/`FONT_MEDIUM`/etc. on
+these two devices answer §10.6 directly (compare against
+`wfb.fonts.cft.load(...).height`/`.ascent` for the same `.cft` file). A
+screenshot of either device running `examples/system-fonts` next to
+`wfb preview`'s own PNG for the same device (this plan's step C.1 evidence,
+`docs/research/probes/system-font-metrics/previews-cft/`) is what answers
+§10.7 -- whether an antialiased glyph edge matches the linear blend or has
+been quantised to the 64-colour MIP palette. Both marks in §10.6/§10.7 stay
+UNVERIFIED until those results come back.

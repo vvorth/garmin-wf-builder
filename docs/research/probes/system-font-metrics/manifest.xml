@@ -15,6 +15,12 @@
             <iq:product id="fenix8solar47mm"/>
             <iq:product id="fenix8solar51mm"/>
             <iq:product id="fr955"/>
+            <!-- fenix6/fr245 added 2026-09-18 (plan 10 step C.2): both are
+                 bitmap-font (.cft) devices per docs/research/10-system-fonts.md
+                 §10.6, and this probe is how the user's simulator settles the
+                 open getFontHeight vs height-1 question for them. -->
+            <iq:product id="fenix6"/>
+            <iq:product id="fr245"/>
         </iq:products>
         <iq:permissions/>
         <iq:languages>
