@@ -2,7 +2,8 @@
 # Container entrypoint for garmin-wf-builder.
 #
 # Three things have to be arranged before `wfb` can run, and each of them is a
-# trap that produces a confusing failure if it is left to chance:
+# trap that produces a confusing failure if it is left to chance (a fourth,
+# Garmin's own fonts, is optional and only earns a notice -- see below):
 #
 #   1. The device definitions cannot be baked into the image, so a missing mount
 #      must be explained rather than surfacing as "Invalid device id".
@@ -60,15 +61,21 @@ fi
 # ------------------------------------------------------ what this needs -----
 needs_devices=0
 needs_key=0
+wants_fonts=0
 case "${1:-}" in
     build)
         needs_devices=1
         needs_key=1
+        wants_fonts=1
         for arg in "$@"; do
             [ "$arg" = "--no-compile" ] && needs_key=0
         done
         ;;
-    preview|validate|devices)
+    preview|validate)
+        needs_devices=1
+        wants_fonts=1
+        ;;
+    devices)
         needs_devices=1
         ;;
     simulate)
@@ -114,6 +121,26 @@ See docs/container.md.
 EOF
         exit 2
     fi
+fi
+
+# --------------------------------------------------------------- fonts ------
+# Optional, so a notice rather than an exit: without Garmin's own font files,
+# text is measured and previewed with the registry's free stand-ins, and a
+# preview quietly stops matching the device.  WFB_NO_GARMIN_FONTS=1 is the
+# existing switch for choosing the stand-ins on purpose, and silences this.
+if [ "${wants_fonts}" = "1" ] && [ "${WFB_NO_GARMIN_FONTS:-}" != "1" ] \
+        && [ -z "$(ls -A "${WFB_FONTS}" 2>/dev/null)" ]; then
+    cat >&2 <<EOF
+wfb: no Garmin font files at ${WFB_FONTS}, so text is measured and previewed
+     with free stand-ins that will not match the device exactly.  Mount the
+     SDK Manager's Fonts directory to use the real ones:
+
+  macOS   -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:${WFB_FONTS}:ro"
+  Linux   -v "\$HOME/.Garmin/ConnectIQ/Fonts:${WFB_FONTS}:ro"
+
+     or set WFB_NO_GARMIN_FONTS=1 to use the stand-ins without this notice.
+     See docs/container.md.
+EOF
 fi
 
 # ---------------------------------------------------------------- key -------

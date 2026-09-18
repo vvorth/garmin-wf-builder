@@ -123,7 +123,8 @@ ENV JAVA_HOME=/opt/java/openjdk \
     PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
     WFB_DEVICES=/devices \
     WFB_FONTS=/fonts \
-    WFB_KEY=/keys/developer_key.der
+    WFB_KEY=/keys/developer_key.der \
+    WFB_CONTAINER=1
 
 RUN set -eux; \
     if [ -n "${EXTRA_CA_CERT_B64}" ]; then \

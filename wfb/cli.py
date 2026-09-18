@@ -665,8 +665,16 @@ def _doctor(args) -> int:
         print(f"{ok} Garmin fonts     {fonts_root}")
     else:
         print(f"{absent} Garmin fonts     not found (optional)")
-        print("                   copy the SDK Manager's Fonts directory into vendor/fonts/,")
-        print("                   or set WFB_FONTS / pass --fonts DIR -- see docs/container.md")
+        if os.environ.get("WFB_CONTAINER") == "1":
+            # vendor/ never reaches the image (.dockerignore): a mount is the
+            # only way in, at the WFB_FONTS the Dockerfile sets.
+            mount = os.environ.get("WFB_FONTS") or "/fonts"
+            print("                   mount the SDK Manager's Fonts directory:")
+            print(f"                     -v <SDK Manager's Fonts dir>:{mount}:ro")
+            print("                   -- see docs/container.md")
+        else:
+            print("                   copy the SDK Manager's Fonts directory into vendor/fonts/,")
+            print("                   or set WFB_FONTS / pass --fonts DIR -- see docs/container.md")
 
     # -- the system fonts each target device needs (registry stand-ins) ---
     for device_id in fetch_system.DEFAULT_TARGET_DEVICES:

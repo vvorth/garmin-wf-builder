@@ -44,6 +44,31 @@ def test_doctor_names_what_is_missing_rather_than_failing_obscurely(tmp_path):
     assert "Connect IQ SDK" in result.stdout
 
 
+def test_doctor_tells_a_container_user_to_mount_the_fonts(tmp_path):
+    """`vendor/` never reaches the image (.dockerignore), so inside the
+    container the host advice -- copy into vendor/fonts/ -- cannot work; the
+    only way in is a mount at $WFB_FONTS.  On the host the advice is unchanged.
+    (conftest sets WFB_NO_GARMIN_FONTS=1, so no Garmin fonts are found here.)"""
+    import os
+
+    def doctor(**extra):
+        env = dict(os.environ, WFB_FONTS=str(tmp_path / "fonts"))
+        env.pop("WFB_CONTAINER", None)
+        env.update(extra)
+        return subprocess.run(
+            [sys.executable, str(ENTRY), "doctor"],
+            capture_output=True, text=True, env=env, cwd=str(ROOT), check=False,
+        ).stdout
+
+    in_container = doctor(WFB_CONTAINER="1")
+    assert f"-v <SDK Manager's Fonts dir>:{tmp_path / 'fonts'}:ro" in in_container
+    assert "vendor/fonts/" not in in_container
+
+    on_host = doctor()
+    assert "vendor/fonts/" in on_host
+    assert ":ro" not in on_host
+
+
 def test_the_entry_point_works_from_an_unrelated_directory(tmp_path, db):
     """The commonest way to reach this tool is an absolute path from elsewhere."""
     result = run("devices", cwd=tmp_path)

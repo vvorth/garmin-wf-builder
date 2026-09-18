@@ -24,6 +24,11 @@ Loaded automatically when working under `tests/`.
   `examples/showcase/face.yaml` (a `partial-update-budget` lint):
   - `test_example_is_clean_on_every_target[showcase]`
 
+  **Also red since 2026-09-18**, from the user's `add3545` edit to
+  `examples/system-fonts/face.yaml` (new targets; `safe-area` on fr245
+  for `spine` and `large_text`):
+  - `test_example_is_clean_on_every_target[system-fonts]`
+
   (Until 2026-09-14 this list also named
   `test_ir_draw_order_matches_the_resolved_one[enduro]` and `[dashboard]`;
   both pass as of `aa9137a`.)

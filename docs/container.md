@@ -93,6 +93,18 @@ the mount itself. Unlike the device definitions, this one is **optional** —
 without it, builds and previews fall back to the registry's fonts, which
 `tools/fetch-system-fonts.py` prefetched into the image at build time.
 
+**Not baked in, by design:** `.dockerignore` keeps all of `vendor/` out of
+the build context, `vendor/fonts/` included, because like the device
+definitions they are your licensed copy and the image is meant to be
+distributable; a macOS SDK Manager install is outside the build context
+anyway. So a populated `vendor/fonts/` on the host does nothing for the
+container until it is mounted (`-v "$PWD/vendor/fonts:/fonts:ro"` works as
+well as the SDK Manager's directory). Since a preview without them quietly
+stops matching the device, `build`, `preview` and `validate` print a notice
+to stderr when `/fonts` is empty; set `WFB_NO_GARMIN_FONTS=1` to use the
+stand-ins on purpose without it. `wfb doctor` in the container gives the same
+mount hint (the image sets `WFB_CONTAINER=1` so it knows to).
+
 ### The developer key
 
 The key signs the `.prg`. The container generates a 4096-bit RSA key the first

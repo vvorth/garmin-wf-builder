@@ -3927,3 +3927,19 @@ Left as found:
   do not fit one round screen) and a hand-written metrics probe
   `docs/research/probes/system-font-metrics/` were handed to the user for
   simulator screenshots (plan 09 §7, still open).
+
+## 2026-09-18 — the container and Garmin's own fonts
+
+- The user reported that `docker build` produced an image without Garmin's
+  fonts, on Linux with `vendor/fonts/` populated and on macOS with the SDK
+  Manager's `Fonts` directory, so previews did not match the device. That is
+  by design: `.dockerignore` excludes `vendor/` (the user's licensed copy,
+  kept out of a distributable image like the device definitions), and the
+  image reads the fonts from a `/fonts` mount (`WFB_FONTS`). Checked against
+  a freshly built image: `doctor` went from 4 stand-ins + 10 unmapped to
+  14 garmin on the fēnix 8 targets once `vendor/fonts` was mounted.
+- Two usability gaps were fixed. The entrypoint now prints a notice for
+  `build`/`preview`/`validate` when `/fonts` is empty (silenced by
+  `WFB_NO_GARMIN_FONTS=1`), instead of falling back silently. Inside the
+  image (`WFB_CONTAINER=1`), `wfb doctor` gives a mount hint in place of the
+  host's "copy into vendor/fonts/", which cannot reach the image.
