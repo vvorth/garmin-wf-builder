@@ -443,7 +443,7 @@ color: heart_rate.current > 120 ? config.accent_color : palette.dim
 
 Garmin's editor has four axes total -- Styles, Data, Data Colour, Accent
 Colour (`docs/adr/0006-configuration-theming-and-modes.md` §1) -- and all four
-are now wired up: the two colour axes, **Styles**, which carries no colour of
+are wired up: the two colour axes, **Styles**, which carries no colour of
 its own and is the only axis Garmin gives no meaning to at all
 (`docs/research/09-data-library-and-config-axes.md` §3, which is exactly why
 this compiler gives each `config: style:` entry a meaning -- today a declared
@@ -456,7 +456,7 @@ because Garmin's Data axis itself holds several independent slots); `style`
 is the odd one out, an author-named, ordered set of entries, because Styles
 is the one axis with no meaning of its own for this compiler to key on.
 
-**The editor's own animated highlight is now built too**, and it is
+**The editor's own animated highlight is built too**, and it is
 automatic: any design with at least one `complication_slot` element gets
 `AppBase.onStart`'s edit-mode detection, `WatchFaceDelegate.onTap` +
 `setSelectedComplication` (hit-testing each slot's own resolved box), and
@@ -545,7 +545,7 @@ no ordinary `value:` expression at all. Instead:
   three significant figures without dropping integer digits, then loses its
   trailing zeros (12.879 -> `12.9`, 101325.0 -> `101325`). Floats need this
   because Monkey C's `Float.toString()` always prints six decimals. Observed
-  in the simulator (2026-09-13): steps at or above 10,000 arrive as a Float in
+  in the simulator: steps at or above 10,000 arrive as a Float in
   thousands with the unit string `"K"`, so they draw as `12.9K`.
 * **`label:`** (`none` default, `short`, `long`) draws `Complication.
   shortLabel`/`.longLabel` before the value, when the device supplies one.
@@ -566,19 +566,14 @@ no ordinary `value:` expression at all. Instead:
   per-choice override), then `IconGlyphs.glyph()` turns the name (or a
   `glyph:` override's canonical `U+XXXX` spelling) into a character, exactly
   the same "which name, then which glyph" split a dynamic weather icon uses.
-  **All 42 native complication types have a catalogue icon** as of
-  2026-09-13 (plan 03 §6.4) -- an author can still suppress one explicitly
+  **All 42 native complication types have a catalogue icon** -- an author can still suppress one explicitly
   with a per-choice `icon: none`, and a Connect IQ-app complication (outside
   `wfb.complications.TYPES` entirely) simply draws no icon, since this
   compiler cannot know what it is. Run `wfb complications` for the current
   mapping (it lists each type's catalogue icon alongside its Monkey C
   constant).
-  **`choices: any` + `icon_size:` is now accepted** (superseded 2026-09-13,
-  plan 03 §6.6 -- it used to be an error, because the set of icons an
-  unbounded picker could need was unbounded and nothing could be baked ahead
-  of time; lifted once every native type had a catalogue icon, since `any`
-  now simply resolves against the whole of `wfb.icons.COMPLICATION_ICON`).
-  It builds warning-free on all three targets. A Connect IQ-app
+  **`choices: any` + `icon_size:` is accepted**: `any` resolves against the
+  whole of `wfb.icons.COMPLICATION_ICON`. It builds warning-free on all three targets. A Connect IQ-app
   complication picked in such a slot draws its reading with no icon.
   (monkeyc 9.2.0 crashes when two different string literals share a Java
   hash code, and some icon glyphs do, such as `distance` and
@@ -714,9 +709,6 @@ independently rather than folded into this one.
   rejected) `config.data.<name>` -- error, naming the declared slots.
 * `format:` on a `complication_slot` -- error, naming why (see "The Data
   axis").
-* `icon_size:` together with a slot whose `choices:` is `any` -- **superseded
-  2026-09-13** (plan 03 §6.6): this used to be an error; lifted once every
-  native type had a catalogue icon. It is accepted and builds.
 * `string-label` -- two different string literals in the generated program
   share a Java hash code, which monkeyc 9.2.0 crashes on (see "The Data
   axis" and `docs/lore/toolchain.md`). A colliding slot or weather icon
@@ -738,9 +730,8 @@ independently rather than folded into this one.
 * `on_hold:` on a `complication_slot` naming anything other than `auto` --
   error, naming why (see "The Data axis" above) and pointing at the
   alternative (a plain element bound to the matching `complication.<name>`).
-* `api-gated` (suppressible) -- generalises the old `complication-gated`
-  code (renamed 2026-09-15, no shim) to *any* catalogue binding a target
-  device cannot actually provide, resolved against that device's own
+* `api-gated` (suppressible) -- *any* catalogue binding a target device
+  cannot actually provide, resolved against that device's own
   `api.debug.xml` rather than an API level (`wfb/availability.py`; CLAUDE.md
   constraint 6/6e). Four shapes, all WARNING, all reading as absent rather
   than failing the build:
@@ -749,10 +740,10 @@ independently rather than folded into this one.
     lacks -- covers every `complication.*` read this way, for free, via its
     reader's module gate;
   - a complication *type* newer than the device's own ConnectIQ ceiling,
-    checked against `wfb.complications.ComplicationType.since` (unchanged
-    from the old check -- `COMPLICATION_TYPE_*` values are constants with no
-    entry in `api.debug.xml` at all, so a level compare is the only thing
-    that can catch this one), skipped when the device lacks
+    checked against `wfb.complications.ComplicationType.since`
+    (`COMPLICATION_TYPE_*` values are constants with no entry in
+    `api.debug.xml` at all, so a level compare is the only thing that can
+    catch this one), skipped when the device lacks
     `Toybox.Complications` outright (the module-gap case above already said
     so, more fundamentally);
   - `on_hold:` on a device with no `Toybox.Complications` -- the hold
@@ -948,18 +939,13 @@ device joining or leaving the target list never changes what an existing
 device renders. `px` is for the rarer case where you deliberately want the
 same pixel count everywhere.
 
-There used to be a third way to write this — a bare number (`size: 68`),
-meaning pixels on the *smallest* target and scaled from there by the ratio of
-minor radii, plus a `scale:` key to turn that scaling off. Both are gone: `%r`
-*is* that scaling, spelled per device instead of through an unnamed reference
-screen, and `px` is what `scale: false` used to give you. `scale:` is no
-longer a recognised key at all (an ordinary unknown-key error). `size: 68` is
-a build error naming the conversion rule — `size / (smallest target's minor
+A bare number (`size: 68`) is not a length. It is a build error naming the
+conversion rule — `size / (smallest target's minor
 radius) * 100`, expressed as a `%r` length — since this stage of the compiler
 has no device knowledge to compute an actual number from; e.g. 68 on a 130 px
 minor radius (the fēnix 8 Solar 47 mm / fr955) is `52.3076923077%r`, carried to
 enough decimal places to bake to the identical pixel size on every device.
-Converting an old design by hand is mechanical and lossless, not a redesign.
+There is no `scale:` key.
 
 * **Only `px` and `%r` are allowed.** `%` is of a parent box and `pt` is of a
   font, and a sheet is rasterised before any element is placed — there is no box
@@ -1344,8 +1330,6 @@ group, and ultimately to the face-wide default.
 **Accepted on every element type except `text`**: `group`, `shape`,
 `progress`, `graph`, `hands` and `pattern` (the runtime half), and `icon` and
 `complication_slot` (the baked-font half, for the icon each draws).
-*Corrected 2026-09-14: this sentence previously read "`group`, `shape`,
-`progress` and `icon` only", which was already narrower than the schema.*
 Not on `text`: a `text` element draws through a font named in `fonts:`, and that
 font is one bitmap resource shared by every element that references it, so
 anti-aliasing cannot vary per element the way it can on a shape's own outline
@@ -1658,21 +1642,14 @@ vertical_align: bottom    # the box's bottom edge sits at dy: 7%, not its centre
 
 `top` puts the box's top edge at the point instead.
 
-`vertical_align: bottom` was spelled `vertical_align: baseline` before
-2026-09-15 (plan 07) -- the old spelling is now a build error naming the
-rename, with no shim. It never meant the typographic baseline glyphs
-actually sit on (which excludes a descender like the tail of a "g" or "y"):
-it always meant the bottom of the full line box (ascent + descent), the same
-thing `bottom` means now. Renaming it fixed a real bug alongside the rename:
-`Dc.drawText` has no bottom-justify flag, so on the device (and in the
-preview) the old spelling used to draw exactly like `top`, hanging the text
-down from the point instead of resting its bottom edge on it, even though
-the lint box was already computed correctly. `vertical_align: bottom` now
-draws by subtracting the font's own on-device `getFontHeight` from the
-anchor -- exact even for a system font, whose pixel height this compiler
-only knows at build time from the SDK's published device reference (and,
-when the device is installed, its own `simulator.json`), not from asking
-the device itself.
+`bottom` is the bottom of the full line box (ascent + descent), not the
+typographic baseline glyphs sit on (which excludes a descender like the tail
+of a "g" or "y"). `Dc.drawText` has no bottom-justify flag, so it draws by
+subtracting the font's own on-device `getFontHeight` from the anchor -- exact
+even for a system font, whose pixel height this compiler only knows at build
+time from the SDK's published device reference, the installed device's
+`simulator.json`, or its `.cft` font. `vertical_align: baseline` is a build
+error naming `bottom`.
 
 ### `progress`
 
@@ -2113,7 +2090,7 @@ half away from zero** — a mirrored `dx: -1.5px`/`dx: 1.5px` pair resolves to
 `-2`/`2`, so a symmetric hand stays symmetric on the panel. The one thing
 that is *not* a build-time constant is the rotation itself: the watch turns
 the resolved geometry by the time every frame — the one piece of layout
-arithmetic this compiler lets the device do (ADR 0004, amended) — through
+arithmetic this compiler lets the device do (ADR 0004) — through
 one `sin`/`cos` pair per hand and the `runtime-lib/WfbHands.mc` barrel.
 
 | `shape:` | keys | on the watch | why it is allowed |
@@ -2357,11 +2334,9 @@ those, and, unlike a hand's, it may also read two more things:
   numbering `skip:` uses). It is bound in a pattern's colours, its parts'
   `visible:` (below) and a text part's `value:`, and nowhere else. `copy % 2 == 0 ? palette.a :
   palette.b` alternates two colours.
-* **Any data source**, including one that can be absent. **2026-09-15:** this
-  used to be an error for a source that could be absent (`activity.steps`,
-  `complication.*`) -- a pattern had no `when_absent:` to fall back to.
-  It now has one: see **`when_absent:`** below. `wfb sources` shows which
-  sources can be absent.
+* **Any data source**, including one that can be absent (`activity.steps`,
+  `complication.*`), which needs the pattern's **`when_absent:`** (below).
+  `wfb sources` shows which sources can be absent.
 
 Together `copy` and a data source let one copy stand out. `date.weekday` is
 1 (Sunday) to 7 (Saturday), so `(date.weekday + 5) % 7` is 0 on Monday, and
@@ -2374,7 +2349,7 @@ the loop.
 
 #### Text parts
 
-**2026-09-15.** A `shape: text` part draws a string at a point that turns
+A `shape: text` part draws a string at a point that turns
 (radial) or steps (linear) with the copy. Twelve hour numerals are one
 pattern instead of twelve polar `text` elements:
 
@@ -2407,10 +2382,8 @@ which `copy` is bound. **`text:`** is a fixed string, the same on every copy.
 Give exactly one of the two. `format:` (a numeric format, as on `text`)
 applies to `value:` only. `font:` names a `fonts:` entry or a system font,
 and defaults to `FONT_MEDIUM`. `align:` is `left`/`center`/`right` and
-`vertical_align:` is `top`/`center`/`bottom`, both defaulting to `center`.
-`vertical_align: bottom` was spelled `baseline` before 2026-09-15 (plan 07)
--- see [`text`](#text) for the rename and the bug it fixed; the same fix and
-the same rename apply here. `color:` and `visible:` work as on any part.
+`vertical_align:` is `top`/`center`/`bottom`, both defaulting to `center`
+(`bottom` as on [`text`](#text)). `color:` and `visible:` work as on any part.
 
 **`value:` may read only `copy`** and literals. A data source, a palette
 entry or `config.*` in it is a build error. The compiler renders every
@@ -2528,7 +2501,7 @@ other arc. Baking the copies at build time was measured and rejected:
 sixty minute ticks as separate elements add about 5 KB to the 128 KB
 budget, and the loop adds about 170 B whatever the count
 (`docs/research/probes/pattern-cost/`). This is the second exception to
-"the watch does no layout arithmetic" (ADR 0004, amended). Hands were the
+"the watch does no layout arithmetic" (ADR 0004). Hands were the
 first.
 
 **Checks.** These are build errors, each reported on your own line:
@@ -2682,11 +2655,9 @@ permission **watch faces are not allowed to declare at all** —
 column for it), plus `complication.solar_input`, `complication.sunrise`/
 `sunset`, `complication.training_status`, `complication.
 weekly_run_distance`/`weekly_bike_distance`, `complication.sleep_score` and
-`complication.calendar_events`. These nine used to be bound through a
-direct-looking path (`body_battery.current`, `weather.sunrise`, and so on);
-binding the old path now raises **`source-renamed`**, naming the
-`complication.*` replacement, because the value moved without the platform
-actually changing what it means.
+`complication.calendar_events`. Binding one of these through a
+direct-looking path (`body_battery.current`, `weather.sunrise`, and so on)
+raises **`source-renamed`**, naming the `complication.*` replacement.
 
 A device can decline to support a given complication type outright — most
 relevantly here, `complication.sleep_score` needs ConnectIQ 6.0.2, above
@@ -2723,31 +2694,25 @@ See `docs/limitations.md` §2 for what is still missing from the catalogue.
 ### How data is read
 
 **Every binding is a plain read, every frame, unconditionally. Nothing is
-cached inside the generated face.** An earlier version of this compiler
-graded sources `frame`/`slow`/`event` and cached the two slower grades — a
-TTL for one, a subscribed field for the other — on the theory some Garmin API
-calls were too expensive to make every frame. That theory was wrong: the SDK
-documents its own calls as already cached on *its* side —
-`Toybox/Weather.html` describes `getCurrentConditions()` as "get the **most
-recently cached** weather conditions", not "fetch weather conditions" — so a
-second cache inside the 128 KB watch-face budget bought nothing but code and
-memory. It is gone. `wfb/emit/monkeyc/readplan.py`'s `ReadPlan` hoists one read per
-distinct reader per element method the way it always did (two elements
-sharing `weather.getDailyForecast()` still share one call, not one each), and
-that is the entire optimisation — no staleness check, no field, no TTL.
+cached inside the generated face.** The SDK documents its own calls as
+already cached on *its* side -- `Toybox/Weather.html` describes
+`getCurrentConditions()` as "get the **most recently cached** weather
+conditions", not "fetch weather conditions" -- so a second cache inside the
+128 KB watch-face budget would buy nothing but code and memory.
+`wfb/emit/monkeyc/readplan.py`'s `ReadPlan` hoists one read per distinct
+reader per element method (two elements sharing
+`weather.getDailyForecast()` share one call, not one each), and that is the
+entire optimisation -- no staleness check, no field, no TTL.
 
 **Consequence: any source, including `weather.*` and `complication.*`, may
-now be bound from a `low_power` or `always_on` element.** The compiler used
-to reject that outright for anything but a `frame`-tier source; it no longer
-does. This does **not** make reading them free in `onPartialUpdate` — exceeding
-that handler's power budget still calls `onPowerBudgetExceeded` and disables
-partial updates **permanently, for the rest of the app's lifecycle**, and that
-has not changed. What changed is *who* is responsible for staying under it:
-previously the compiler refused the design outright; now the suppressible
+be bound from a `low_power` or `always_on` element.** This does **not** make
+reading them free in `onPartialUpdate` -- exceeding that handler's power
+budget calls `onPowerBudgetExceeded` and disables partial updates
+**permanently, for the rest of the app's lifecycle**. The suppressible
 `partial-update-budget` lint is the only thing standing between an author and
-an expensive `low_power` read — a `weather.*` or `complication.*` binding
-there is exactly the case its own warning names as the one to check first. If
-your design draws in `low_power`, read the "Modes" section below and treat
+an expensive `low_power` read, and a `weather.*` or `complication.*` binding
+there is exactly the case its own warning names as the one to check first.
+If your design draws in `low_power`, read the "Modes" section below and treat
 that warning as load-bearing, not optional.
 
 If a value you want is missing, check the underlying Garmin API page:
@@ -2819,7 +2784,7 @@ Literals; references to sources and palette entries; `+ - * / %`; comparisons;
 
 One name is bound in one place: **`copy`**, the index of the copy being
 drawn, in a `type: pattern`'s colours *and* its parts' `visible:`
-(2026-09-15; see [`pattern`](#pattern)) -- both compile to the same
+(see [`pattern`](#pattern)) -- both compile to the same
 generated loop index, so it is one binding, not two. Anywhere else it is an
 error saying so, including the *element-level* `visible:` on a pattern
 itself: that gates the whole element, compiled before the pattern's `copy`
@@ -2901,16 +2866,14 @@ The compiler computes the **tightest `setClip` rectangle** around all `low_power
 elements, because clip cost is charged by region *area* — every pixel inside the
 clip counts as modified whenever any does.
 
-**Any source may now be read from a `low_power` element — there is no
-compile-time restriction on which.** See "How data is read" above: nothing is
-cached in the generated face, so there is no longer a cheap/expensive class of
-source for the compiler to gate on. That does **not** mean every source is
-equally safe to read there. Exceeding the `onPartialUpdate` power budget calls
-`onPowerBudgetExceeded` and disables partial updates **permanently, for the
-rest of the app's lifecycle** — the platform limit is exactly as real as it
-ever was, only the enforcement moved: it is now the suppressible
-`partial-update-budget` warning, not a hard build error, so read it and act on
-it rather than assuming a green build means a safe one. A `weather.*` or
+**Any source may be read from a `low_power` element — there is no
+compile-time restriction on which** ("How data is read" above). That does
+**not** mean every source is equally safe to read there. Exceeding the
+`onPartialUpdate` power budget calls `onPowerBudgetExceeded` and disables
+partial updates **permanently, for the rest of the app's lifecycle**. The
+guard is the suppressible `partial-update-budget` warning, not a build error,
+so read it and act on it rather than assuming a green build means a safe
+one. A `weather.*` or
 `complication.*` read in `low_power` is the case its own message names as the
 one to look at first.
 
@@ -2936,8 +2899,7 @@ heart_rate` opens the heart-rate glance whether or not the design displays a
 heart rate.
 
 `wfb complications` lists every name, the Monkey C constant it compiles to,
-the API level that type was introduced at, and (since 2026-09-13) the
-catalogue icon a `complication_slot`'s `icon_size:` draws for it by default.
+the API level that type was introduced at, and the catalogue icon a `complication_slot`'s `icon_size:` draws for it by default.
 The list is generated from the SDK's own `COMPLICATION_TYPE_*` table, so it
 cannot drift from what the platform actually offers.
 
@@ -2956,10 +2918,6 @@ SDK's own sample.
 resolved against that device's own symbol table rather than its API level,
 because an API level does not settle it. All three of this project's targets
 have it, `fr955` included.
-
-> `on_tap:` was this key's name until that was researched properly. The rename
-> shim that reported it has since been removed, so the old spelling is simply
-> not a key: you get the ordinary unknown-key error, which lists `on_hold`.
 
 **The hit region is the element's own drawn box** — what the finger must hit is
 what the eye sees, which is checkable in `wfb preview`. Nothing is inflated to
@@ -3053,12 +3011,10 @@ Sixteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
 `duplicate-style`, `unreachable-layout` and `sub-pixel-length`.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
-the normative list -- this prose has drifted from it before, so check there
-rather than here if the two ever disagree. **A code that is not one of them is a
+the normative list; check there if the two ever disagree. **A code that is not one of them is a
 build error**, and the message distinguishes the two ways that happens — a code the compiler does not emit at all (with a "did you mean"
 suggestion) versus a real code that is deliberately unsuppressible (with the
-reason). Both used to be ignored in silence, which left an author unable to tell
-a typo from a check that refuses to be silenced.
+reason), so a typo is never mistaken for a check that refuses to be silenced.
 
 Five of them are not element-scoped diagnostics, so the allow goes on the
 element that causes them: `palette-dither` on an element whose `color:` or
@@ -3091,32 +3047,17 @@ See `docs/limitations.md` 3.
 ## Not yet implemented
 
 Present in the ADRs, absent from format 1: `image` elements, the `raw` escape
-hatch (ADR 0007), per-device `overrides` (ADR 0004 §4 -- writing one is now an
-error rather than a silently-ignored key), and `segments`/`scale` progress
-styles. See [`docs/limitations.md`](limitations.md).
+hatch (ADR 0007), per-device `overrides` (ADR 0004 §4 -- writing one is an
+error), `segments`/`scale` progress styles, and phone-side settings.
 
-(**Analog hands are implemented** -- see [Analog hands](#analog-hands)
-above -- with these pieces still open: `seconds: always` (a second hand
-while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
+Still open for [analog hands](#analog-hands): `seconds: always` (a second
+hand while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
 (an authored-expression angle rather than the clock), 24-hour hands, and a
-`wfb new -t analog` template. See `docs/limitations.md` §2.)
+`wfb new -t analog` template.
 
-(**Patterns are implemented** -- see [`pattern`](#pattern) above -- with
-these pieces still open: a text part whose `value:` reads data (text parts
-reading only `copy` were built 2026-09-15), `pattern: grid`, `on_hold:` and `low_power` on a pattern,
-per-copy variation other than skipping, colour (`copy` in a colour, built
-2026-09-15) and visibility (`when_absent: hide` and per-copy part
-`visible:`, built 2026-09-15), `rounded_rectangle`/`ellipse` parts in a
-linear pattern, and an arc part off the pattern's centre. *(Corrected
-2026-09-15: "pattern colours that read a source which can be absent" used
-to be listed here -- see the `when_absent:` subsection above.)* See
-`docs/limitations.md` §2.)
+Still open for [patterns](#pattern): a text part whose `value:` reads data,
+`pattern: grid`, `on_hold:` and `low_power` on a pattern, per-copy variation
+other than skipping, colour and visibility, `rounded_rectangle`/`ellipse`
+parts in a linear pattern, and an arc part off the pattern's centre.
 
-(The editor's animated highlight on the Data axis -- `getComplicationDrawable`,
-`onTap`, `setSelectedComplication` -- **is** implemented; this paragraph used to
-say otherwise, contradicting [Configuration](#configuration) above.)
-
-(All four on-device configuration axes are now implemented -- see
-[Configuration](#configuration) and [Color scheme](#color-scheme) above:
-a slot whose *type* the wearer picks in the on-device editor is
-`type: complication_slot` plus `config: data:`.)
+See [`docs/limitations.md`](limitations.md) §2 for all of it.

@@ -56,8 +56,8 @@ analog-hands/`). An analog hand's shape and axis are still resolved to
 whole pixels at build time (ADR 0004), but the hand's *angle* is the time,
 so the device rotates the resolved vertices itself every frame — one
 `sin`/`cos` pair per hand, via `runtime-lib/WfbHands.mc`. This is the one
-piece of layout arithmetic this compiler lets the watch do (ADR 0004,
-amended 2026-09-14), and its CPU/battery cost is unmeasured (no simulator,
+piece of layout arithmetic this compiler lets the watch do (ADR 0004),
+along with patterns below, and its CPU/battery cost is unmeasured (no simulator,
 no watch in this container).
 
 **No second hand while asleep.** Showing one would need `onPartialUpdate`
@@ -83,7 +83,7 @@ has no `when_absent:`. **12-hour dial only**: the hour hand turns twice a
 day; there is no 24-hour (GMT) hand. **Hands cannot be held** (`on_hold:`
 is not a key on `type: hands`), although a `group` around them can be.
 
-**Patterns turn in Monkey C too** (`type: pattern`, 2026-09-14, plan 05).
+**Patterns turn in Monkey C too** (`type: pattern`, plan 05).
 A radial pattern's copies are the build-time-resolved template rotated on
 the watch, one `sin`/`cos` pair per copy, and a linear pattern's are
 translated by a whole-pixel step. Both go through the same
@@ -91,49 +91,32 @@ translated by a whole-pixel step. Both go through the same
 measured and costs roughly 30x more of the 128 KB budget
 (`docs/research/probes/pattern-cost/`). The time is paid once for a
 pattern in `static:`, and once a frame for one outside it. That per-frame
-cost is unmeasured. The part vocabulary is the hands' four primitives plus
-an `arc` centred on the pattern's centre. How the firmware rasterises the
-Float coordinates of a turned copy without anti-aliasing is unobserved,
-the same open question hands have. **Pattern colours cannot read data**,
-for the same reason hand colours cannot. *(Corrected 2026-09-15: that is now
-true only of a source that can be absent. A pattern colour may read `copy`,
-the index of the copy being drawn, and any source that is never absent,
-such as `date.weekday`, so `examples/patterns/`'s row of dots lights
-today's. The per-copy colour is evaluated inside the device loop, once per
-copy, and that cost is unmeasured too.)* *(Second correction, same day: a
-colour -- or a part `visible:` -- may now read a source that **can** be
-absent too, given `when_absent: hide` on the pattern; absence then hides
-the whole pattern, checked once per frame before the loop, not per copy.
-`examples/patterns/`'s `test_visibility` (a move-bar row) is the worked
-example. Per-copy part `visible:` is new alongside it: a boolean expression
-evaluated per copy, `copy` bound the same as in a colour, that hides just
-that one part for that one copy. Neither the per-frame absence check nor
-the per-copy `visible:` evaluation's device cost is measured.)*
-*(Third correction, 2026-09-15, plan 06: the part vocabulary now includes
-`text`. A bitmap font still cannot turn, so only the anchor turns or
-steps: `WfbGeom.drawTextRotated` rounds the transformed point half up and
-draws upright glyphs. The value may read only `copy`, so every copy's
-string is known at build time. The per-copy `formatting.emit` call on the
-device is unmeasured, and it costs nothing inside `static:`.)*
-*(Found 2026-09-18: a `text` part does not compile for Connect IQ 3.x
-devices. `WfbGeom.drawTextRotated` takes 10 parameters and `monkeyc` rejects
-it for `fenix6`, `fenix6xpro` and `fr245` with "Too many arguments passed to
-method 'drawTextRotated'. Only 9 arguments are allowed." `fenix7pro`,
-`fr255` and newer build. Seen building `examples/showcase` and
-`examples/analog` with `-d`; not fixed yet.)* *(Fixed same day: the single
-10-argument call is split into two 5-argument helpers,
-`WfbGeom.rotatedX`/`rotatedY`, each returning one already-rounded axis
-(`(v + 0.5).toNumber()`, unchanged) that the generated code passes straight
-into `dc.drawText` as its own `x`/`y` -- no wrapper call, no per-copy
-allocation, and `wfb.layout.pattern_text_anchor`'s preview arithmetic is
-untouched, so the two stay pixel for pixel identical. Verified: `monkeyc`
-builds `examples/analog` and `examples/showcase` warning-free on
-`fenix6`/`fenix6xpro`/`fr245`/`fenix8solar47mm`/`fr955`.
-`tests/test_parameter_limits.py` guards every `runtime-lib/*.mc` function
-and the emitter's own generated functions against a 10th parameter, and
-`tests/test_pattern_text_codegen.py::test_a_radial_text_part_compiles_on_ciq_3x`
-compiles a radial `shape: text` pattern on `fenix6` with the real toolchain.
-See `docs/lore/monkeyc.md`.)*
+cost is unmeasured. How the firmware rasterises the Float coordinates of a
+turned copy without anti-aliasing is unobserved, the same open question
+hands have.
+
+- **Parts:** the hands' four primitives, an `arc` centred on the pattern's
+  centre, and `text`.
+- **Text parts:** a bitmap font cannot turn, so only the anchor turns or
+  steps. `WfbGeom.rotatedX`/`rotatedY` round the transformed point half up
+  and the glyphs are drawn upright. They are two 5-argument helpers because
+  Connect IQ 3.x devices (`fenix6`, `fenix6xpro`, `fr245`) reject a method
+  with more than 9 parameters (`docs/lore/monkeyc.md`;
+  `tests/test_parameter_limits.py` guards it). The value may read only
+  `copy`, so every copy's string is known at build time. The per-copy
+  `formatting.emit` call on the device is unmeasured, and costs nothing
+  inside `static:`.
+- **Colours** may read `copy` (the index of the copy being drawn) and any
+  source that is never absent, such as `date.weekday`. `examples/patterns/`'s
+  row of dots lights today's this way. They may read a source that **can**
+  be absent only when the pattern has `when_absent: hide`: absence then
+  hides the whole pattern, checked once per frame before the loop.
+- **Part `visible:`** is a boolean expression evaluated per copy, with `copy`
+  bound as in a colour, and hides just that part for that copy
+  (`examples/patterns/`'s `test_visibility`).
+
+The device cost of the per-copy colour, the per-frame absence check and the
+per-copy `visible:` is unmeasured.
 
 ### `SensorHistory` is closed to a watch face, and solar has no history API at all
 
@@ -222,14 +205,11 @@ splitting it into two overlaid glyphs, the same as two-colour text.
 shifting as its digits change. A **system** font — `FONT_MEDIUM`,
 `FONT_NUMBER_HOT` and the rest — is already rasterised on the device, so there
 is nothing to rebake and no way to offer the same guarantee. A clock in a
-system font jitters exactly as much as that font's own figures do, and `wfb`
-cannot tell you by how much: its width for a system font is an estimate
-against a real device typeface when one can be located (`wfb/fonts/
-fetch_system.py` -- the user's own Garmin font files, or a pinned free
-stand-in per `docs/research/10-system-fonts.md`'s mapping; `wfb/fonts/
-fallback.py`), or Pillow's own bundled default face otherwise, which is the
-same reason the text-overflow check is labelled estimated there (plan 09,
-2026-09-18).
+system font jitters exactly as much as that font's own figures do. `wfb`
+measures that width with the device's own font file when Garmin's fonts are
+installed (exact for a `.cft` bitmap font), and otherwise against a free
+stand-in or Pillow's default face, so how much it jitters is only as good as
+the text-overflow check (§3, "Text overflow").
 
 Deliberately not offered, on either kind of font: a *vertical* equivalent of
 `align:`. Baseline and line height are the font's own metrics and are what make
@@ -388,7 +368,7 @@ accent colour. At most **four saved configurations** per face. There is no
 per-element colour editing and no arbitrary data rebinding.
 
 **All four axes are implemented, as `config:`** (`docs/format.md`
-"Configuration"; ADR 0006 §1, twice amended): the two colour axes,
+"Configuration"; ADR 0006 §1): the two colour axes,
 **Styles**, which carries no colour of its own but is the only axis Garmin
 gives no meaning to at all — a declared `color_scheme:` (a named role ->
 colour set) rides it as `config.colors` — and **Data**: `config: data:`
@@ -461,14 +441,13 @@ still true of the shipped feature:
   `current_weather`, `forecast_weather_*day`) draws one fixed, type-keyed
   icon (`wfb.icon_catalog.CATALOG["weather"]`) rather than the value-keyed
   condition icon `icon_for: weather.condition` resolves on-device -- that
-  remains future work. Every other native type has a catalogue icon as of
-  2026-09-13 (plan 03 §6.4: `wfb.icons.COMPLICATION_ICON` covers all 42), an
+  remains future work. Every other native type has a catalogue icon
+  (`wfb.icons.COMPLICATION_ICON` covers all 42), an
   author can override any choice's icon per-design (`choices:`'s
   mapping-form `icon:`/`glyph:`/`icon: none`, plan 03 §6.1/§6.2), and
   `icon_position:`/`icon_gap:`/`icon_color:` place, space and colour it (plan
   03 §6.1/§6.3) -- `docs/format.md`'s "The Data axis" has the full account.
-* **`choices: any` + `icon_size:` is accepted** (lifted 2026-09-13, plan
-  03 §6.6, once every native type had a catalogue icon). A Connect IQ-app
+* **`choices: any` + `icon_size:` is accepted.** A Connect IQ-app
   complication picked there draws no icon.
 * **monkeyc 9.2.0 crashes on two different string literals with the same
   Java hash code** (`docs/lore/toolchain.md`). The compiler rewrites a
@@ -499,9 +478,6 @@ So `onPress` is the whole input surface, `ClickEvent.getCoordinates()` is the
 only way to give one hold more than one meaning, and anything modelled on a
 stock Garmin face's tap behaviour is modelled on native firmware this API does
 not expose. `docs/research/07-carousel-interaction.md` §1 has the evidence.
-
-This project's `on_hold:` was called `on_tap:` until that was established.
-The shim that reported the rename has since been removed.
 
 ### Animation exists, but only while the watch is awake
 
@@ -544,12 +520,10 @@ Phase 2 shipped a vertical slice. Present in the ADRs, absent from the code:
 `examples/dashboard/` is a deliberate attempt to reproduce the reference face in
 `garmin-watchface-protomolecule` — the "can the schema express Dashboard?"
 question ADR 0004 poses. It gets the row structure, the separators, the two-tone
-clock, the conditional colours, the badge and the arcs, and now the weather
-row's icon and every one of its readings, Body Battery, and the data a
-daylight arc would need. **The `type: graph` element (`docs/format.md`) has
-since shipped**, closing the "no element type plots a series at all" half
-of what used to block the history graph. What remains blocked is narrower,
-and is a data-source gap rather than a layout one:
+clock, the conditional colours, the badge and the arcs, the weather row's
+icon and every one of its readings, Body Battery, and the data a daylight arc
+would need. `type: graph` plots a series, so what remains blocked is a
+data-source gap rather than a layout one:
 
 | Dashboard has | Blocked on |
 |---|---|
@@ -575,7 +549,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
-| Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1, five times amended. All four config axes (`config:`, `docs/format.md` "Configuration") shipped, `complication_slot` included, and so is the editor's animated highlight on the Data axis (`AppBase.onStart`/`WatchFaceDelegate.onTap`+`getComplicationDrawable`, docs/format.md "Configuration"), and so is Styles carrying `layouts:` (widget-set switching, not just colour). Phone-side settings is the one piece of ADR 0006 §1 still unbuilt, and the only route that would give `fr955` any configuration at all |
+| Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1 -- the one piece of it still unbuilt, and the only route that would give `fr955` any configuration at all. Frozen, incomplete, on `wip/phone-settings` |
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
 | A `complication_slot` inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions low-power elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
@@ -594,12 +568,12 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | A gauge needle (an author-expression angle, not the clock) | plan 04 §11 -- the rotation machinery is the same as an analog hand's; the format question (one authored angle vs. three fixed clock formulas) is not |
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | plan 04 §11 |
 | `wfb new -t analog` template | plan 04 §11 |
-| A pattern `text` part whose `value:` reads data (a data source, `palette.*` or `config.*`) | plan 06 §6 D3 -- every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `when_absent:`. *Text parts reading only `copy` were built 2026-09-15, with upright glyphs at a turned or stepped anchor; this row used to list `text` parts in a pattern outright (plan 05 §9 D5).* |
+| A pattern `text` part whose `value:` reads data (a data source, `palette.*` or `config.*`) | plan 06 §6 D3 -- every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `when_absent:`. Text parts reading only `copy` are built |
 | `pattern: grid` (rows × columns) | plan 05 §9 D5 -- two nested linear steps; nothing has asked for it yet |
-| Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | plan 05 §9 D5 -- a longer or differently-shaped copy is a second pattern element today. *Per-copy colours (`copy`) and never-absent sources in a pattern colour were built 2026-09-15; pattern colours/part `visible:` that read a source which can be absent, given `when_absent: hide`, and per-copy part `visible:` itself, were built 2026-09-15 -- this row used to list "pattern colours that read a source which can be absent" too.* |
+| Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | plan 05 §9 D5 -- a longer or differently-shaped copy is a second pattern element today |
 | `on_hold:` and `low_power` on a `pattern` | plan 05 §5.1, §5.4 -- hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
 | `rounded_rectangle`/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |
-| A true typographic-baseline value for `vertical_align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | plan 07 §6 choice 1 -- `bottom` (the renamed `baseline`) is the line box's bottom (ascent + descent), the only vertical value a `text`/`icon`/pattern text part has ever drawn; a real typographic baseline was never built and would need a new value, not a fix to this one |
+| A true typographic-baseline value for `vertical_align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | plan 07 §6 choice 1 -- `bottom` is the line box's bottom (ascent + descent); a real typographic baseline would need a new value |
 | Element-level alignment of a *linear* `pattern`'s drawn-ink box (as opposed to its `at:`, which is a pivot every copy steps from, and already refuses `align:`/`vertical_align:` outright) | plan 07 §6 choice 2's alternative -- useful for aligning a whole row, but left unbuilt because it would make a pattern's `at:` mean two different things (the step origin, and the row's own box) |
 
 **None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
@@ -615,42 +589,29 @@ all three targets, the measured `--build-stats` figure, and `wfb preview
 --style`/`--all-styles` rendering from the same resolved geometry the
 generated code draws from.
 
-**The refresh-tier concept (ADR 0005 §5) shipped and was then deleted
-outright**, on the user's own explicit instruction: `catalog.Tier`,
-`Reader.tier`, `Reader.ttl_seconds`, `Source.tier`, `wfb/ir/`'s
-`_check_tiers` and `runtime-lib/WfbCache.mc` are all gone. Rationale: every
-value already comes from a Garmin API that documents itself as caching on its
-own side (`Toybox/Weather.html`'s `getCurrentConditions()` is "get the most
-**recently cached** weather conditions"), so a second TTL cache inside the
-128 KB budget bought nothing. Every source, `weather.*` and `complication.*`
-included, is now a plain per-frame read -- see `docs/format.md`'s "How data
-is read" section. One real consequence: a `weather.*` or `complication.*`
-binding may now be used from a `low_power`/`always_on` element, where it used
-to be a hard, unsuppressible build error. It is no longer rejected outright;
-it is now the author's own responsibility, backed only by the suppressible
-`partial-update-budget` warning -- see §3 below and `docs/format.md`'s
-"Modes" section. **Complications are read by pull, not by subscription
-callback**: `WfbComplications.valueOf` is called from `onUpdate` exactly like
-any other reader, cast to the source's declared type because
-`Complication.value` is a union type. A subscription is still registered once
-per bound type in `onLayout`, but only to call `WatchUi.requestUpdate()` on
-change -- it is not a cache, and dropping it entirely was deliberately not
-tried: whether a pulled complication value would *stay* fresh with no
-subscription at all is **unverified**, because this container has no working
-simulator (§2 below, "The simulator does not run in a headless Linux
-container") to test it against. All 42 `COMPLICATION_TYPE_*` values are now
-data sources under `complication.*`, not the nine that used to be exposed
-under other names -- `complication.body_battery`, `complication.
-solar_input`, `complication.sunrise`/`sunset`, `complication.
-training_status`, `complication.weekly_run_distance`/`weekly_bike_distance`,
-`complication.sleep_score` and `complication.calendar_events` are the nine
-renamed ones (old path names now raise a `source-renamed` build error naming
-the replacement); see `docs/format.md`'s "The `complication.*` namespace"
-section and `WfbComplications.mc`. `complication.sleep_score` is a partial
-exception worth tracking separately: it needs ConnectIQ 6.0.2, above
-`fr955`'s own 5.2.0 ceiling, so it never updates there (below, "device
-gating for a source is not enforced") -- unchanged by the rename, just
-restated under its new path.
+**Every source is a plain per-frame read; there are no refresh tiers or TTL
+caches.** Every value comes from a Garmin API that caches on its own side
+(`Toybox/Weather.html`'s `getCurrentConditions()` is "get the most
+**recently cached** weather conditions"), so a cache inside the 128 KB budget
+would buy nothing (`docs/format.md`'s "How data is read"). So a `weather.*` or
+`complication.*` binding may be used from a `low_power`/`always_on` element;
+that is the author's responsibility, backed only by the suppressible
+`partial-update-budget` warning (§3 below, `docs/format.md`'s "Modes").
+
+**Complications are read by pull, not by subscription callback**:
+`WfbComplications.valueOf` is called from `onUpdate` exactly like any other
+reader, cast to the source's declared type because `Complication.value` is a
+union type. A subscription is still registered once per bound type in
+`onLayout`, but only to call `WatchUi.requestUpdate()` on change -- it is not
+a cache. Whether a pulled value would *stay* fresh with no subscription at all
+is **unverified** (no working simulator, "The simulator crashes when an app is
+pushed" below). All 42 `COMPLICATION_TYPE_*` values are data sources under
+`complication.*`; nine older path names (`body_battery.current` and others)
+raise a `source-renamed` build error naming the replacement (`docs/format.md`'s
+"The `complication.*` namespace", `WfbComplications.mc`).
+`complication.sleep_score` needs ConnectIQ 6.0.2, above `fr955`'s 5.2.0
+ceiling, so it never updates there (below, "device gating for a source is not
+enforced").
 
 ### Screen shapes
 
@@ -658,14 +619,15 @@ Only `round` and `rectangle` have safe-area geometry. `semi-round` and
 `semi-octagon` are **unsupported targets rather than silently wrong ones**: the
 geometry check reports "not checked" instead of guessing.
 
-### The simulator does not run in a headless Linux container
+### The simulator crashes when an app is pushed
 
-`wfb simulate` works where the Connect IQ simulator does. It is a GUI
-application, and on Linux it links against `libwebkit2gtk-4.0`, `libsoup-2.4`
-and `libjavascriptcoregtk-4.0`, which current distributions no longer ship.
+`wfb simulate` works where the Connect IQ simulator does, and so far that is
+nowhere: the simulator's app-load path is broken in this SDK build, in every
+environment tried, container or real desktop. It is a GUI application, and on
+Linux it links against `libwebkit2gtk-4.0`, `libsoup-2.4` and
+`libjavascriptcoregtk-4.0`, which current distributions no longer ship.
 
-Supplying them is not enough, and the failure is worth stating precisely because
-the obvious reading of it is wrong. On an `ubuntu:22.04` base — which still
+Supplying them is not enough. On an `ubuntu:22.04` base — which still
 packages all three natively, so every one of the simulator's 27 otherwise-missing
 shared libraries resolves — the simulator **starts**: it opens its window under
 Xvfb and sits there. It then **segfaults the moment a `.prg` is pushed to it**
@@ -676,38 +638,27 @@ generated faces.
 The faulting frame is on a worker thread the simulator spawns during app load,
 **entirely inside its own stripped executable**; GTK, WebKit and JavaScriptCore
 appear nowhere on the stack. `libGL` is not among the loaded objects at all, so
-this is not a software-OpenGL problem — an earlier version of this document said
-it was, and the backtrace disproves it. Ruled out by direct test, each varied on
+this is not a software-OpenGL problem. Ruled out by direct test, each varied on
 its own: `/dev/shm` at 64 MB and at 2 GB; Docker's default seccomp profile and
 `--security-opt seccomp=unconfined`; running as uid 1000 and as root; the device
 definitions mounted read-only and copied in writable; and WebKit's
 `DISABLE_COMPOSITING_MODE` / `DISABLE_SANDBOX` escape hatches.
 
-**2026-09-16: this is not a container artifact.** Retested on a real Ubuntu
-22.04 desktop (Xwayland, no Docker, no Xvfb) where the simulator's window
-genuinely renders — a first. `monkeydo` still segfaults it on push, at the
-byte-identical crash (`0x8` faulting address, same instruction, same
-offset), across two devices and two example faces, and with `GDK_BACKEND`
-forced to `x11` and WebKit's JIT env vars set. Full account in
-`docs/research/probes/simulator/README.md`'s 2026-09-16 addendum. This
-headline should be read as "the simulator's app-load path is broken in
-this SDK build," not "…in a headless container."
-
-**Also on 2026-09-16: it is not a glibc/distro version either.** The
-leading hypothesis after the above was Ubuntu 22.04's glibc ≥2.34 folding
-`libpthread` into `libc` — a known crash source for old prebuilt binaries.
-Tested directly: the same host SDK's `bin/simulator`, run inside an Ubuntu
-20.04 container (glibc 2.31, pre-merge) with its window shared onto the
-host display, crashes identically byte-for-byte. There is no Ubuntu
-version to bump (or drop back to) that changes this. Full account in
+**It is not a container or distro artifact.** On a real Ubuntu 22.04 desktop
+(Xwayland, no Docker, no Xvfb) the window genuinely renders, and `monkeydo`
+still segfaults it at the byte-identical crash, across two devices and two
+example faces, with `GDK_BACKEND=x11` and WebKit's JIT env vars set. Under an
+Ubuntu 20.04 container (glibc 2.31, before `libpthread` was folded into
+`libc`) it crashes identically too. Full account in
 `docs/research/probes/simulator/README.md`.
 
-`wfb preview` is the answer in every environment tried so far: it renders from the same
-resolved geometry the generated code uses, so the two cannot disagree about
-position. What it does *not* claim to reproduce is glyph rasterisation for system
-fonts, arc cap shape, the transflective panel's real appearance, or — a
-deliberate scope decision, not an oversight found late — **a `shape`/
-`progress`/`graph`/`hands` element's own anti-aliasing** (`antialias:`, `docs/format.md`):
+`wfb preview` is the answer: it renders from the same resolved geometry the
+generated code uses, so the two cannot disagree about position. What it does
+*not* claim to reproduce is glyph rasterisation for system fonts (except
+`.cft` bitmap fonts, drawn from the device's own glyphs), arc cap shape, the
+transflective panel's real appearance, or — a deliberate scope decision —
+**a `shape`/`progress`/`graph`/`hands` element's own anti-aliasing**
+(`antialias:`, `docs/format.md`):
 that side of the feature is a runtime `Dc.setAntiAlias` call, and
 `wfb/preview.py` draws every primitive with plain `PIL.ImageDraw` calls
 (`rectangle`, `ellipse`, `arc`, `polygon`, `line`), which are aliased by
@@ -740,12 +691,11 @@ checks, reached from the other direction); geometry against the framebuffer and
 the visible area (round and rectangle only); glyph coverage of a subsetted
 font; contrast arithmetic; a relative length resolving below 1 px with
 `min_1px:` off (`sub-pixel-length` -- resolved device geometry, not an
-estimate, same as the safe-area/overlap checks). (There is no longer a
-refresh-tier check to list here -- the tier concept itself was deleted; see
-§2 above.)
+estimate, same as the safe-area/overlap checks).
 
-**Per-device API availability is checked three ways, by two different
-mechanisms, because the data supports only one of them in each case.**
+**Per-device API availability is checked by symbol table, by version
+comparison, and by module/field lookup, because the data supports only one
+of them in each case.**
 
 *By symbol table, for `on_hold:` and for `config:`.* `check_hold_targets` resolves
 `WatchFaceDelegate.onPress` against each target's own `<id>.api.debug.xml` —
@@ -770,20 +720,14 @@ but note that it answers "is this type old enough for this firmware", which is
 a *different* question from "does this symbol exist here", and the `onTap` case
 above is the standing reminder that the two can disagree.
 
-What remains unchecked is ordinary data sources: `Device.has_symbol` is correct
-and proven (`tests/test_devices.py` runs it against the real device files), and
-no non-complication source consults it. See "Device gating for a source is only
-partly enforced" below, the same gap from the catalogue's side.
-
-**Updated 2026-09-15: a fourth mechanism now covers ordinary sources too, and
-the manifest floor no longer moves for any of this.** `wfb/availability.py`
+*By module and field, for every catalogue path.* `wfb/availability.py`
 resolves *any* catalogue path (`value:`/`color:`/etc, not just
 `complication.*`) against a target device's own `api.debug.xml` for a missing
 `Toybox` **module** (`Device.has_module`) or a missing **field**
 (`Device.has_field`, bare-name matched -- exact when the name is absent,
 approximate when present, since the symbol table records no owning class;
 see that method's own docstring). The generalised lint, `check_api_gated`
-(code `api-gated`, replacing the old `complication-gated`), reports these
+(code `api-gated`), reports these
 per element per device, folded together with the existing complication-type-
 since check so each gap is reported once, at its most fundamental cause (a
 missing module subsumes a too-new type; `hold-unsupported` subsumes a
@@ -800,9 +744,7 @@ so rather than repeating the (here false) "keeps its default" line.
 `manifest.xml`'s `minApiLevel` stays at the
 generator's own base floor (`3.2.0`) regardless -- it is one number shared by
 every target device in a build, so a per-feature bump would lock out any
-device that never touches the feature, which is exactly how targeting
-`fenix6` alongside `examples/dashboard/face.yaml` broke before this (see
-`docs/research/probes/api-gating/`). A device missing something a design
+device that never touches the feature (`docs/research/probes/api-gating/`). A device missing something a design
 binds gets a runtime `has`-guard in the shared generated view instead
 (`wfb.availability.compute_guards`, `wfb/emit/monkeyc/`), and the binding
 simply reads as absent there.
@@ -953,49 +895,22 @@ glance, and back returns — so this is documented rather than gated.
 * **Whether a device's firmware actually behaves as its files describe.** The
   device files are the best available ground truth, not a guarantee.
 * **Device gating for a source is only partly enforced** — ADR 0008's check
-  2, the other half of "per-device API availability" above. Two of the three pieces
-  are now built, and it is worth being precise about which:
+  2. Modules, fields and complication types are checked and runtime-guarded
+  ("Per-device API availability" above). Two gaps remain:
 
-  * **`on_hold:` is checked** -- `check_hold_targets` resolves
-    `WatchFaceDelegate.onPress` against each target's own `api.debug.xml`.
-  * **A `complication.*` binding, and an `on_hold:`/`launch:` naming a
-    complication type, are checked** -- `check_complication_availability`
-    (code `complication-gated`) compares that type's `since`
-    (`wfb/complications.py`, from the SDK's own table) against the device's
-    own `Device.api_level` (from its `compiler.json`), and warns, suppressibly,
-    naming the device and both version numbers. `complication.sleep_score` on
-    `fr955` -- ConnectIQ 6.0.2 required against a 5.2.0 ceiling -- is the case
-    that motivated it and the one it currently catches.
-  * **Ordinary data sources are still unchecked.** `catalog.Source.requires`
-    (`Parent.name` symbols a binding needs on the target device) exists, is
-    set on exactly one source (`device.do_not_disturb`), and is still read by
-    nothing.
+  * a missing reader *function* symbol (as opposed to a module or a field)
+    has no runtime guard, so it is a build error rather than a warning;
+  * `catalog.Source.requires` (`Parent.name` symbols a binding needs) is set
+    on exactly one source (`device.do_not_disturb`) and read by nothing.
 
-  Note that the complication check deliberately does **not** go through
-  `requires`/`Device.has_symbol`, and could not: `has_symbol` indexes only the
-  `<functionEntry>` symbols scraped out of `api.debug.xml`, and
-  `COMPLICATION_TYPE_*` are constants that do not appear in that file at all
-  (checked directly, including for `COMPLICATION_TYPE_BATTERY`, which every
-  target supports). A version comparison is the only thing the available data
-  supports. Whoever writes the `requires` check for ordinary sources should
-  expect it to be a genuinely separate mechanism rather than an extension of
-  this one.
+  The complication check does **not** go through `Device.has_symbol`, and
+  could not: `COMPLICATION_TYPE_*` are constants, absent from
+  `api.debug.xml`'s `<functionEntry>` symbols (checked directly, including
+  for `COMPLICATION_TYPE_BATTERY`), so a version comparison is the only thing
+  the data supports.
 
-  The runtime behaviour underneath all of this is unchanged and still correct:
-  a device that lacks a type returns `null` from `valueOf`, `subscribe()`
-  swallows both ways a device can decline, and the design renders as though
-  the value were simply absent -- the same "absence is normal" contract every
-  nullable source has. The check exists so that is a decision the author makes
-  knowingly, rather than something discovered as a blank field on the wrist.
-
-  **Superseded 2026-09-15: this bullet no longer belongs under "Not checked
-  at all".** "Ordinary data sources are still unchecked" was true when this
-  was written and is not any more -- `wfb/availability.py` plus the
-  generalised `api-gated` lint (code renamed from `complication-gated`) now
-  resolve *every* catalogue path against a device's own module and field
-  tables, not only `complication.*`. The remaining gap is narrower than "all
-  ordinary sources": a missing reader *function* symbol (as opposed to a
-  module or a field) still has no runtime guard and is promoted to a build
-  error instead of a warning. See "Per-device API availability is checked
-  three ways" above for the current account, kept current rather than
-  duplicated here.
+  Underneath, a device that lacks a type returns `null` from `valueOf`,
+  `subscribe()` swallows both ways a device can decline, and the design
+  renders as though the value were simply absent -- the same "absence is
+  normal" contract every nullable source has. The check exists so that is a
+  decision the author makes knowingly.
