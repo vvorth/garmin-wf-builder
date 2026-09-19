@@ -75,7 +75,7 @@ def test_when_absent_on_a_non_null_source_is_a_note_not_an_error(write_design, b
 
 
 def test_low_power_may_bind_a_slow_reader_source(write_design, bag, monkeypatch):
-    """The refresh-tier concept is gone (SPEC.md D2): every read is a plain
+    """There are no refresh tiers: every read is a plain
     per-frame read, and the SDK itself caches whatever backs it -- e.g.
     `Weather.getCurrentConditions()` is documented as "the most recently
     cached weather conditions". So a `low_power` element may bind a source
@@ -119,10 +119,8 @@ def test_low_power_may_bind_the_real_weather_condition_source(write_design, bag)
 
 
 def test_low_power_may_bind_a_real_complication_source(write_design, bag):
-    """Same check again, against a `complication.*` source -- SPEC.md D1
-    renamed `body_battery.current` to `complication.body_battery`, and D2
-    means a complication read is no more restricted in low_power than any
-    other read now."""
+    """Same check again, against a `complication.*` source: a complication
+    read is no more restricted in low_power than any other read."""
     load(write_design(design("""
   - id: bb
     type: text
@@ -152,7 +150,7 @@ def test_low_power_may_bind_a_dynamic_weather_icon(write_design, bag):
 
 
 # --------------------------------------------------------------------------
-# renamed sources (SPEC.md D1) -- nine paths moved to `complication.*`
+# renamed sources -- nine paths moved to `complication.*`
 
 
 def test_body_battery_current_names_its_replacement(write_design, bag):
@@ -1089,7 +1087,7 @@ def test_auto_is_not_a_complication_type():
     """`on_hold: auto`'s sentinel (`wfb.ir.HOLD_AUTO`) is checked before the
     real-name lookup into `complications.TYPES` -- nothing pins that "auto"
     itself could never collide with a real complication name and be resolved
-    the wrong way (2026-09-architecture-review.md F8)."""
+    the wrong way."""
     from wfb import complications
 
     assert "auto" not in complications.TYPES
@@ -1165,7 +1163,7 @@ def test_on_hold_auto_with_no_value_binding_is_unresolved(write_design, bag):
 def test_on_hold_auto_with_no_conventional_target_is_unresolved(write_design, bag):
     """`weather.condition_today` deliberately has no `launch_complication`:
     `COMPLICATION_TYPE_FORECAST_WEATHER_1DAY` means tomorrow, not today, so
-    mapping it would open the wrong glance (SPEC.md)."""
+    mapping it would open the wrong glance."""
     load(write_design(design("""
   - id: cond
     type: text

@@ -1,52 +1,13 @@
-> **The `type: carousel` element this document's research led to was later
-> removed outright**, on the user's decision — see `docs/adr/
-> 0006-configuration-theming-and-modes.md`'s fifth amendment for why, and
-> CLAUDE.md's Phase 3 notes for the deletion session. The research below is
-> still true and still load-bearing elsewhere in this project — in
-> particular §1's finding that `WatchFaceDelegate.onTap` never fires on a
-> live watch face drives the `on_hold:` design used by every interactive
-> element. Only the specific element built from it is gone.
+# 07 — Interaction on a live watch face
 
-# 0.7 — A data carousel, and what the platform will actually give you
+What input and animation a Connect IQ watch face actually gets, verified
+against the SDK docs and each target's own `api.debug.xml`. This drives
+`on_hold:` (constraint 6c). Claims that need hardware are marked **[open]**.
 
-The request: reproduce the horizontal data carousel from the **stock fr955
-watch face** — several data sources laid out as a row of icons, the active one
-centred with its value shown next to it, left/right presses rotating the row
-with a short slide animation, and pressing the centred item opening that
-item's glance.
-
-The stock face is **native firmware, not Connect IQ**, so nothing about it is
-evidence that a CIQ face can do the same. This document establishes what a CIQ
-watch face can actually do, one requirement at a time, against the SDK's own
-docs and a **working prototype built through the real toolchain** (§5).
-
-Everything here is verified. Where a claim could not be verified without
-hardware, it is marked **[open]** rather than assumed.
-
----
-
-## 0. The headline, before the detail
-
-Four of the five requirements are achievable on **all three targets**,
-including `fr955`. The fifth is not achievable on **any** device, and it is
-not the one the project's existing notes would predict:
-
-| Requirement | Verdict |
-|---|---|
-| Row of icons, active one centred, its value beside it | **yes** — pure layout, no new platform capability |
-| Rotate to previous / next | **yes**, by **touch and hold** with coordinates |
-| Rotate by **tap** | **no — on any device, including the fēnix 8 Solars** |
-| Short slide animation | **yes**, but only while the face is awake (§3) |
-| Press the centred item to open its glance | **yes**, `Complications.exitTo` |
-| Remember the selection across restarts | **yes**, `Application.Storage` |
-
-**The correction that matters: `WatchFaceDelegate.onTap` never fires on a
-watch face that is merely being looked at.** It fires only inside the
-on-device watch-face config editor. That contradicted what this project shipped
-as `on_tap:`, which has been corrected in the same change as this document;
-see §6.
-
----
+In short: a face that is being looked at receives **one gesture, touch and
+hold** (`onPress`), with coordinates. There is no tap, swipe or key, on any
+device. `Complications.exitTo` opens a glance, `Application.Storage`
+persists state, and `WatchUi.animate` works only while the face is awake.
 
 ## 1. Input: a live watch face receives exactly one gesture
 
@@ -139,44 +100,7 @@ print(d.has_symbol('Toybox.WatchUi.WatchFaceDelegate.onTap'))"
 
 ---
 
-## 2. The one real design decision: partitioning the hold
-
-One gesture must carry three meanings — previous, next, and launch. The only
-discriminator is the touch coordinate, so the choice is how to cut up the
-carousel's own box.
-
-**Option A — three zones (recommended).** Hold the left third → previous, the
-right third → next, the middle third → `exitTo` the centred item's
-complication. Closest to the reference behaviour, all three meanings reachable,
-one gesture.
-
-**Option B — advance only.** Hold anywhere on the carousel → next. Simplest
-and the most forgiving hit region, but the carousel then has no exit, which
-throws away the most useful thing a complication binding offers.
-
-**Option C — launch only.** What the project shipped before this: hold an
-element, open its glance. No carousel. Still available, as `on_hold:` on any
-element; the carousel is an addition to it, not a replacement.
-
-Option A also **dissolves a problem ADR 0006 §6 raised and could not solve**.
-The ADR says `on_activate: cycle` together with `on_hold: launch` "conflict on
-fr955, where hold is the activation gesture", and that "the compiler must
-reject that combination". With `onTap` gone from the picture the conflict is
-no longer an fr955 quirk — it is universal — but it is also no longer a
-conflict, because the two meanings are separated by **geometry** rather than by
-gesture. The compiler does not have to reject anything; it has to lay out
-zones and warn when they are too small to hit. That is a strictly better
-outcome, arrived at from a worse premise.
-
-**What the zones cost.** Three zones across a carousel roughly 90 % of screen
-width is ~78 px per zone on the 260 px targets — comfortably larger than a
-fingertip. Zones are already computable: `wfb/layout.py` resolves every
-element's box, and `_hold_constants` in `wfb/emit/monkeyc.py` already emits hit
-rectangles from it.
-
----
-
-## 3. Animation: real, but only while the watch is awake
+## 2. Animation: real, but only while the watch is awake
 
 `doc/Toybox/WatchUi/WatchFace.html` is explicit about the two power states:
 
@@ -194,16 +118,15 @@ And `WatchUi.animate()` carries the matching hazard:
 > Will cause an app crash if called from background or data field app, **or from
 > watch face while in low power mode**.
 
-So animation is available exactly when it is wanted and nowhere else — the user
-must be touching the screen to rotate the carousel, and touching the screen is
-one of the actions that puts the face in high power mode
+So animation is available exactly when it is wanted and nowhere else — a hold
+is a touch, and touching the screen is one of the actions that puts the face
+in high power mode
 ([forum][f4]). During that window `onUpdate` already runs every second, and
 `animate()` raises it further for the duration of the animation.
 
-**This makes one thing mandatory in generated code, not optional:** the slide
-must be guarded on the sleep state, and must degrade to an instant jump rather
-than crash. The generated view already tracks `_sleeping` (added when
-`modes: [always_on]` was fixed), so the guard has a home:
+**This makes one thing mandatory in generated code, not optional:** any
+animation must be guarded on the sleep state, and must degrade to an instant
+jump rather than crash. The generated view tracks `_sleeping`:
 
 ```monkey-c
 if (_sleeping) {
@@ -221,7 +144,7 @@ WatchUi.animate(self, :slide, WatchUi.ANIM_TYPE_EASE_OUT,
 whether `_sleeping` can still read `true` at the moment the hold arrives. It
 does not matter for correctness here (the guard takes the safe branch either
 way, at worst skipping an animation the user asked for), but it decides whether
-the first rotation after a wrist-raise animates. Untestable without hardware:
+the first animation after a wrist-raise plays. Untestable without hardware:
 the simulator does not run in this container (`docs/limitations.md` §2).
 
 `Timer.Timer` + `requestUpdate()` is an equivalent mechanism with the same
@@ -229,234 +152,16 @@ restriction and more code; `animate()` is the right choice.
 
 ---
 
-## 4. Data: read only the item you are showing
+## 3. Two lessons from building on it
 
-A carousel of *n* items displays one value. Reading all *n* every frame is
-waste that grows with the item count, and some of the interesting sources
-(`complication.body_battery`, `weather.*`) were, at the time this was
-written, `event`- or `slow`-tier and carried a subscription or a cache each.
-**That tier system no longer exists — see ADR 0005's amendment.** Every
-source is now a plain read; `complication.*` sources still carry a
-subscription (registered in `onLayout`, for freshness, not caching — see
-`docs/format.md`'s "How data is read"), but there is no TTL cache anywhere
-any more. The reasoning below about per-reader hoisting is unaffected by this;
-only the tier vocabulary it uses is dated.
-
-The right shape is a `switch` on the selected index around the value read and
-its formatting, so an unselected item costs only its icon glyph — which is
-static, needs no read at all, and is already just a `drawText` against a baked
-font (`wfb/icons.py`).
-
-**What was built, and why it is less than this section expected.** The
-`switch` on the selected index is there, around the *formatting*. The reads
-themselves are not gated, and gating them would have been a mistake: `ReadPlan`
-hoists per **reader**, not per source, and a carousel's items typically share
-one — `ActivityMonitor.getInfo()` is a single call whether the row shows one of
-its fields or six. Gating that behind a `switch` would save nothing and would
-duplicate the reader hoisting into every `case`. What is genuinely per-item —
-`.format()` on the value, and the item's own null policy — *is* inside the
-switch, so an unselected item costs only its icon glyph.
-
-Where the cost would be real is a row mixing complication-backed sources,
-which carry a subscription each (no longer a *cached read* for anything — the
-TTL cache this paragraph originally described is gone, ADR 0005's amendment).
-That cost is not avoidable by gating: a complication subscription must be
-registered in `onLayout` for **all** items regardless of selection, because a
-subscription is not a read. So the honest summary is that the saving this
-section anticipated mostly does not exist, and the code is simpler for not
-chasing it.
-
-Icons for the items come for free: `METRIC_ICON` / `icon_for_source()` in
-`wfb/icons.py` already map a catalogue data-source path to its conventional
-glyph, so `items:` need not name an icon unless the author wants a different
-one.
-
----
-
-## 5. The prototype: it compiles, and it is small
-
-A hand-written probe exercising every claim above was built through the real
-toolchain — `WatchUi.animate` on a `WatchFace` subclass,
-`cancelAllAnimations`, `Application.Storage` round-tripping the index,
-`onPress` with three coordinate zones, and `Complications.exitTo` on an
-array-indexed complication type — under **strict typechecking**:
-
-```sh
-monkeyc -f monkey.jungle -d <target> -o carousel.prg \
-        -y ~/ciq/developer_key.der -w -l 3 --build-stats 0
-```
-
-| Target | Result | Foreground data | Foreground code |
-|---|---|---|---|
-| `fenix8solar47mm` | `BUILD SUCCESSFUL` | 597 B | 785 B |
-| `fenix8solar51mm` | `BUILD SUCCESSFUL` | 597 B | 785 B |
-| `fr955` | `BUILD SUCCESSFUL` | 597 B | 785 B |
-
-1,382 B for an entire face whose only content is the carousel — about **1 % of
-the 131,072 B budget**. Nothing here is expensive.
-
-Two findings came out of the build that a doc page would not have given:
-
-1. **The animated property must be public or protected.** `animate()` takes a
-   `Symbol` and looks the property up indirectly, so a `private var` fails —
-   loudly, which is the good case:
-
-   ```
-   WARNING: The private symbol 'slide' will not be found when using the
-   indirect lookup syntax ':slide'. Consider making 'slide' public /
-   protected or use a direct reference 'self.slide'.
-   ```
-
-   Generated code must therefore expose the slide offset as a public member of
-   the view. Reviewable, but worth knowing before writing the emitter.
-
-2. **`fr955` builds a delegate that defines only `onPress`** with no complaint,
-   which is the shape a carousel wants everywhere now that `onTap` is known to
-   be useless outside config mode.
-
----
-
-## 6. A shipped feature was misdocumented and partly dead — now fixed
-
-`on_tap:` (commit `f037bd6`) emitted **both** `onTap` and `onPress` and treated
-them as equivalent. `docs/format.md` sold that as a feature:
-
-> **One declaration, two behaviours.** […] the same `on_tap:` is a tap where
-> tap exists and a touch-and-hold where it does not
-
-That is not what happened. On every device, `on_tap:` was reached by **touch
-and hold only**. The `onTap` handler compiled, linked, and was never called
-outside the config editor — harmless, but dead.
-
-**What is instructive is *how* the mistake was made.** Every individual fact in
-that session was checked against the device symbol tables, which is exactly the
-discipline CLAUDE.md demands. The error was one step further on: treating *the
-symbol is present* as *the callback fires*. `Device.has_symbol` answers the
-first question and cannot answer the second; the method's own prose has to be
-read too. CLAUDE.md constraint 6b now says so.
-
-**Corrected in this change**, since none of it is a judgement call:
-
-* The key is renamed **`on_tap:` → `on_hold:`**. The old spelling stays in the
-  schema solely so `wfb validate` can report the rename (`on-tap-renamed`)
-  against the author's own line rather than as a generic "additional property"
-  error that names no replacement.
-* The emitter no longer produces an `onTap` handler at all.
-* `check_tap_targets` is `check_hold_targets` and resolves only
-  `WatchFaceDelegate.onPress`. The `tap-unsupported` note — "fr955 has no
-  `WatchFaceDelegate.onTap`, so its N tap target(s) are reached by touch and
-  hold instead", true and actively misleading, because it implied the other two
-  targets got taps — is gone. `hold-unsupported` fires only when a device has
-  no `onPress` at all, which none of the nine vendored devices does but a great
-  many products do.
-* `docs/format.md`, `docs/limitations.md`, CLAUDE.md §4 and §6, and ADR 0006 §6
-  are corrected. ADR 0006 carries an **amendment** above its original text
-  rather than a rewrite: the decision that was made is a matter of record, and
-  the premise it rested on is worth seeing.
-
-Nothing generated was ever *broken*: the intended behaviour — hold an element,
-open its glance — worked on all three targets, because the `onPress` path
-carried it. Only the story was wrong.
-
-## 7. The format it led to — built
-
-Proposed here, then built in the same session. `examples/carousel/` is the
-worked example and `docs/format.md`'s `carousel` section is the reference; what
-follows is the shape and the decisions behind it.
-
-```yaml
-- id: data
-  type: carousel
-  at: { anchor: center, dy: 20% }
-  size: { width: 62%, height: 22% }   # the TOUCH target, not the drawn extent
-  pitch: 22%r
-  slots: 3                            # defaults to min(3, items)
-  icon_size: 9%r
-  color: palette.accent
-  inactive_color: palette.dim
-  value_font: FONT_SMALL
-  value_color: palette.fg
-  value_offset: { anchor: center, dy: 34% }
-  animate: 0.3
-  persist: true
-  items:
-    - value: heart_rate.current       # icon inferred from the source
-      format: "{:d}"
-      when_absent: placeholder
-      placeholder: "--"
-      launch: heart_rate
-    - value: activity.steps
-      format: "{:d}"
-      when_absent: fallback
-      fallback: "0"
-      launch: steps
-    - icon: battery
-      value: system.battery
-      format: "{:.0f}%"               # no launch: centre-hold opens nothing
-```
-
-**The open questions in the draft of this section, and how they were answered.**
-
-* *Where does the value text live — a child element, or a sub-layout the
-  carousel owns?* **The carousel owns it** (`value_font:`, `value_color:`,
-  `value_offset:`). A child element would have been more composable and more in
-  keeping with ADR 0004, but it needs a new kind of cross-element reference
-  (`value: carousel.data`) for a pairing that is never anything but one-to-one.
-  Owning it also makes the icon/reading pair impossible to desynchronise.
-* *Does a carousel participate in `modes:`?* Yes, unchanged. (At the time this
-  was written, a refresh-tier check governed what it could bind in
-  `low_power`; that check no longer exists, ADR 0005's amendment — any source
-  may be bound in `low_power` now, guarded only by the `partial-update-budget`
-  heuristic.) The partial-update clip already charges by area. Nothing
-  carousel-specific was needed.
-* *Should `persist:` default on?* Yes. It is what the stock face does, and a
-  carousel whose selection resets on every restart is worse than useless.
-  `persist: false` opts out.
-* *How does this interact with `<watchface-config>` slots?* It does not, yet,
-  and that is the honest split: the carousel is the wearer choosing between
-  readings the *design* fixed; a config slot is the wearer choosing what a slot
-  reads at all. The second still needs the `config:` block. The carousel's real
-  value remains highest on `fr955`, which has no on-device config at all.
-
-**Two things the build settled that the proposal could not.**
-
-1. **A carousel's box is its touch target, and that had to become a distinct
-   concept.** Sizing the hit region generously is correct — it is split into
-   thirds — but the generic safe-area check reads an element's box, so every
-   reasonably-sized carousel warned about a region it was never going to paint.
-   `PlacedCarousel.content_box` is now what the element actually draws, and
-   `inside_visible_area_for` reads that; reachability of the *zones* became its
-   own check, `check_carousel_zones`, which is where it belonged anyway.
-2. **A carousel is the only element that skips the element-level null guard.**
-   Every other element hides as a whole when a binding is absent. Doing that
-   here would collapse the row and move the zones out from under the wearer's
-   finger, so each item's `when_absent:` is applied inside its own `case`
-   instead. The consequence is an error rather than a silent asymmetry: a
-   carousel's own colours may not be nullable, because there is no
-   `when_absent:` for the row's appearance.
-
-## 8. Outcome
-
-All three steps done in the session that produced this document.
-
-1. ~~**Correct the `onTap` story first.**~~ **Done** — see §6.
-2. ~~**Amend ADR 0006 §6.**~~ **Done.** Its `on_activate: cycle` /
-   `on_hold: launch` conflict rule was obsolete: the conflict is universal, and
-   geometry resolves it. The zone model is recorded there now.
-3. ~~**Then the element.**~~ **Done** — `type: carousel`, §7. Most of it was
-   work this project already knew how to do (layout resolution, hit rectangles,
-   icon glyphs, per-item null policies); the genuinely new pieces were the
-   touch-target/drawn-extent split, the per-item guard scoping, and one small
-   runtime-lib addition (`WfbCarousel.mc`).
-
-Measured on `examples/carousel/`: **2,887 B on all three targets, 2.2 % of the
-131,072 B budget**, for a whole face. The carousel itself is about 1.4 KB of
-that, matching §5's probe.
-
-`raw` (ADR 0007) was not the right escape hatch here, and building it confirmed
-why: a carousel resolves geometry per device, resolves symbols per device, and
-lints its own reachability. Hand-written Monkey C would have forfeited all
-three.
+1. **A symbol being present does not mean it gets called.** `onTap` resolves
+   on both fēnix 8 targets and still never fires outside the config editor.
+   `Device.has_symbol` answers "can I call it", and only the method's prose
+   answers "will it be called" (constraint 6b).
+2. **A property passed to `WatchUi.animate` must be public or protected.**
+   `animate()` looks it up indirectly by `Symbol`, so a `private var` fails
+   with `WARNING: The private symbol 'x' will not be found when using the
+   indirect lookup syntax`.
 
 ---
 
@@ -482,10 +187,6 @@ Forum corroboration:
 * [f2] https://forums.garmin.com/developer/connect-iq/f/discussion/315203/thoughts-on-system-6-onpress-for-watch-faces
 * [f3] https://forums.garmin.com/developer/connect-iq/f/discussion/284170/press-and-hold-on-watch-face-complications-to-open-detailed-view
 * [f4] https://forums.garmin.com/developer/connect-iq/b/news-announcements/posts/changes-to-watch-face-low--and-high-power-modes
-
-The reference screenshot (`preview.redd.it`) is blocked by this sandbox's
-network policy and was not retrieved; the behaviour described in §0 is the
-requester's own description of it.
 
 [f1]: https://forums.garmin.com/developer/connect-iq/f/discussion/5386/any-way-to-listen-for-input-for-a-watch-face
 [f2]: https://forums.garmin.com/developer/connect-iq/f/discussion/315203/thoughts-on-system-6-onpress-for-watch-faces

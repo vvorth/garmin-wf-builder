@@ -189,19 +189,6 @@ must not treat a null Body Battery as a regression. Flagged as an open question.
 
 ---
 
-## 6. Updated open questions
+## 6. Open questions
 
-| # | Status |
-|---|---|
-| 1 — partial-update power budget | **still open**; candidate found (`watchdogCount: 240000`), units unknown |
-| 2 — memory accounting | **superseded** by §3; now "what counts against `memoryLimit`" |
-| 3 — device definitions | **RESOLVED** — copied from host, 9 devices, all 3 targets |
-| 4 — headless simulator / CLI screenshots | still open; now testable |
-| 5 — `onTap` reliable in simulator | still open; now testable |
-| 6 — fr955 Complications | **RESOLVED** — present in `fr955.api.debug.xml` |
-| 7 — `BufferedBitmap` cost | **partially resolved** — separate 1 MB graphics pool |
-| 8 — `setBlendMode` semantics | narrowed — `alphaBlendingSupport: false` on all targets |
-| 9 — capability matrix name join | **RESOLVED by replacement** — use per-device `api.debug.xml` |
-| 10 — font licensing | unchanged (product decision) |
-| **new** | what counts against `memoryLimit` (§3) |
-| **new** | does `SensorHistory` Body Battery read null in the simulator? (§5) |
+Tracked with their current status in `00-summary.md`'s "Open questions".

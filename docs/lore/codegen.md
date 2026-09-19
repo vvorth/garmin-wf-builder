@@ -1,10 +1,7 @@
 # Codegen, IR and generated-project lore
 
-Moved verbatim out of `CLAUDE.md` on 2026-09-13 (§6 "Findings from Phase 2" and "Hard-won facts") so the file every
-session loads stays small. `CLAUDE.md` keeps a short summary and the **same
-numbering**, so an older citation such as "CLAUDE.md §6" or "CLAUDE.md
-constraint 6" for this material resolves here. Keep adding to this file,
-not back into `CLAUDE.md`.
+The full text behind root `CLAUDE.md` §6, with the same numbering. Add new
+lore here, not to `CLAUDE.md`.
 
 ---
 
@@ -56,15 +53,12 @@ These cost real time to discover; do not rediscover them.
    see `docs/limitations.md` §2.
 12. **`manifest.xml`'s `minApiLevel` is one number for the whole build, so a
    per-feature level bump is the wrong lever whenever a design might target
-   a device below that level.** (2026-09-15, `docs/research/probes/
-   api-gating/`.) Raising it for one feature (complications used to bump it
-   to 4.2.0) raises it for *every* target device in the same
-   `<iq:products>` block, including one that never touches the feature —
-   which is exactly how `examples/dashboard/face.yaml` targeting `fenix6`
-   (3.4.5) broke. `wfb/emit/manifest.py::BASE_API_LEVEL` (`3.2.0`) is now
-   the *only* level this compiler ever emits; a feature that needs more is
-   gated at runtime per device instead (below), never by moving this
-   number. If a future feature genuinely cannot be runtime-guarded, `api_level()`
+   a device below that level** (`docs/research/probes/api-gating/`). Raising
+   it for one feature raises it for *every* target device in the same
+   `<iq:products>` block, including one that never touches the feature.
+   `wfb/emit/manifest.py::BASE_API_LEVEL` (`3.2.0`) is the *only* level
+   this compiler ever emits; a feature that needs more is gated at runtime
+   per device instead (below), never by moving this number. If a future feature genuinely cannot be runtime-guarded, `api_level()`
    is the one place to raise it again — deliberately kept as a function, not
    a bare constant reference, for exactly that day.
 

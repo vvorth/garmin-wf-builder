@@ -14,7 +14,6 @@ future session needs it on turn one.
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
 | proposals written but not built | `docs/plans/` (none open; built plans are deleted — see `docs/CLAUDE.md`) |
-| the session-by-session narrative | `docs/history.md` — only for a specific past decision, never as background reading |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -212,7 +211,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 | `monkeyc` + measured memory | `wfb/build.py` | **yes** |
 | Host-side preview | `wfb/preview.py` | no |
 
-**Tests:** `pytest -m "not slow"`. There are 3 known, pre-existing failures,
+**Tests:** `pytest -m "not slow"`. The known, pre-existing failures are
 listed in `tests/CLAUDE.md`. If that set changes, notice it before blaming
 your change.
 
@@ -238,95 +237,14 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - the GUI, which if built must be a thin client over `wfb/preview.py`;
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.
-- **Recently built:**
-  - **Built 2026-09-18** (plans 09–10): real device typefaces for
-    system-font previews and measurement — Garmin's own font root
-    (`vendor/fonts/`/`WFB_FONTS`) first, then a pinned free stand-in
-    registry (`wfb/fonts/registry.json`), then Pillow's default face —
-    and, on top of that, `.cft` bitmap fonts decoded (`wfb/fonts/cft.py`)
-    so the fenix 6/7-family, fr245 and fr255 devices measure and preview
-    with their own real glyphs pixel-for-pixel, not a TTF stand-in. See
-    `docs/research/10-system-fonts.md`.
-  - **Built 2026-09-16** (plan 08): `min_1px:` makes the relative-length
-    floor (a nonzero `%`/`%r` `size:`/`thickness:`/`bar_width:`/`radius:`
-    never resolving below 1 px, sign preserved) **opt-in**, per the user's
-    ask to gate it "globally... or per group, per item, etc." and to
-    "consider overrides both ways on any level" — the previous session's
-    unconditional version stays as the mechanism, not the trigger. Four
-    override levels, nearest declaration wins, both directions override,
-    exactly like `antialias:` but one level deeper: face → group →
-    element → a hand/pattern part's own value. Defaults to `false`
-    everywhere, so a face that never mentions it is byte-identical to
-    before. Not accepted on `text`/`icon`/`complication_slot`: a font
-    size already floors at 1 px on its own path
-    (`wfb.units.pixel_size`), so there is nothing to switch. New
-    suppressible warning `sub-pixel-length` fires per offending length
-    when the switch is off and a nonzero relative extent would have
-    rounded to 0 px on a device; suppressed on the owning element (a
-    part has none of its own).
-  - **Built 2026-09-15** (plan 07): `align:`/`vertical_align:` as one
-    placement rule on every element that has a placement box — `group`,
-    `text`, `shape` (not polygon/line), `progress`, `graph`, `icon`,
-    `complication_slot`, and a hand/pattern `rectangle`/`circle`/text part
-    — resolved either at build time (`wfb.layout.alignment_shift` moves the
-    box's centre) or, for a glyph kind, by a runtime justify plus a
-    `getFontHeight` subtraction for `bottom` (no platform bottom-justify
-    flag); a `complication_slot` mirrors the same arithmetic in its own
-    runtime measurement (ADR 0004's exception). `type: hands`/`type:
-    pattern` and `shape`/part `polygon`/`line`/`arc` refuse both keys with
-    the reason. `vertical_align: baseline` is renamed `bottom` (friendly
-    error, no shim) — it always drew like `top` on the device, a real bug
-    fixed alongside the rename. Example: `examples/align/face.yaml`.
-  - **Built 2026-09-15** (plan 06): `shape: text` pattern parts. `value:`
-    may read only `copy` (or give a fixed `text:`), so every copy's string
-    is rendered at build time. The anchor turns or steps with the copy and
-    the glyphs stay upright (`WfbGeom.drawTextRotated`,
-    `wfb.layout.pattern_text_anchor`, both rounding half up). Also
-    `align:`/`vertical_align:` on a `group`. Example:
-    `examples/patterns/face.yaml`'s `hour_numerals` and `weekday_labels`.
-  - **Built 2026-09-15:** per-device API gating. A shared `manifest.xml`
-    `minApiLevel` no longer bumps to 4.2.0 for complications; it always
-    stays at the base floor (3.2.0), and every complication touch in the
-    one shared generated view/delegate is guarded at runtime instead
-    (`wfb/availability.py`, `Toybox has :Complications` / `x has :field`).
-    An unavailable binding reads as absent (`when_absent`) and the build
-    warns (lint `api-gated`, replacing `complication-gated`) rather than
-    failing. `examples/dashboard/face.yaml` targets `fenix6` again — see
-    `docs/research/probes/api-gating/`, ADR 0005's and ADR 0006's
-    2026-09-15 amendments, and `docs/lore/codegen.md`.
-  - **Built 2026-09-14** (plan 05): patterns. `type: pattern` repeats a
-    template of 1–16 parts (the hand vocabulary plus an `arc` centred on
-    the origin), `pattern: radial` (`count`, `step` angle defaulting to
-    360/count, `start`) or `pattern: linear` (`count`, `step: {dx, dy}`
-    in whole pixels), with `skip:`/`skip_every:`. The device loops and
-    transforms the resolved template (ADR 0004 amended again, measured in
-    `docs/research/probes/pattern-cost/`); the rotate helpers now live in
-    the shared `runtime-lib/WfbGeom.mc`. Example:
-    `examples/patterns/face.yaml`. **2026-09-15:** a pattern colour may
-    read `copy` (the copy index, bound nowhere else) and never-absent
-    sources, e.g. the new numeric `date.weekday` (ADR 0005 amended).
-    **2026-09-15 (same day):** a colour or part `visible:` may also read a
-    source that *can* be absent, given `when_absent: hide` on the pattern
-    (absence then hides the whole pattern, checked once per frame); a part
-    also gains its own per-copy `visible:`, `copy` bound the same as in a
-    colour (ADR 0005 amended again; `examples/patterns/face.yaml`'s
-    `test_visibility`).
-  - **Built 2026-09-14** (plan 04): analog hands. `hands:` declares
-    named hour/minute/second sets, each hand 1–16 parts of four kinds
-    (`polygon`/`rectangle`/`line`/`circle`) drawn at 12 o'clock with the
-    axis as origin; `type: hands` places one at its `at:` (off centre
-    allowed). Styles pick a set via `layouts:`. The device rotates the
-    geometry by the time (ADR 0004 amended; `runtime-lib/WfbHands.mc`).
-    `seconds: awake` (default) hides the second hand asleep; `seconds:
-    always` is not built. Example: `examples/analog/face.yaml`.
-  - **Built 2026-09-13** (plan 02): Styles that switch widget
-    layouts. `layouts:` (form A only: a container, with no element-level
-    membership key) and `config: style:` (`config: colors:` removed, no
-    shim). A `complication_slot` may only be in shared content. The example
-    is `examples/styles/face.yaml`.
-  - **Built 2026-09-13** (plan 03): complication-slot icons cover
-    all 42 native types, plus per-choice overrides and `icon_position:`/
-    `icon_gap:`/`icon_color:`, and `choices: any` + `icon_size:`.
+- **Shipped** (details in `docs/lore/roadmap.md` and `docs/format.md`):
+  - all nine element types, `hands` and `pattern` included;
+  - `align:`/`vertical_align:` everywhere, plus `static:`, `antialias:` and
+    `min_1px:` (opt-in);
+  - all four `config:` axes, with Styles `layouts:`, and `on_hold:`;
+  - per-device API gating (`wfb/availability.py`);
+  - system fonts measured and previewed with the device's own files,
+    including `.cft` bitmap fonts.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.
@@ -366,10 +284,9 @@ The full text, with the incident behind each rule, is in
 When a change makes any of these stale, update them **in the same commit**:
 `docs/research/*`, `docs/adr/*`, `docs/lore/*`, this file,
 `docs/limitations.md` and `docs/format.md` together with the JSON Schema
-(the schema is normative). Append a session account worth keeping to
-`docs/history.md`, in chronological order, not here. House style: leave a
-superseded account in place and add the correction beside it. More detail is
-in `docs/CLAUDE.md`.
+(the schema is normative). House style: state the current truth and
+rewrite superseded text in place; history lives in git. More detail is in
+`docs/CLAUDE.md`.
 
 ---
 

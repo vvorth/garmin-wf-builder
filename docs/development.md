@@ -13,7 +13,6 @@ face, start with the [README](../README.md).
 |---|---|
 | a guided tour by example, with screenshots | [`README.md`](../README.md) |
 | to take over this project | **`CLAUDE.md`** — full handoff context |
-| the full session-by-session history behind it | [`docs/history.md`](history.md) |
 | to write a design | [`docs/format.md`](format.md), and the schema in [`schema/`](../schema/) |
 | what the platform will not do | [`docs/limitations.md`](limitations.md) |
 | to run it without installing anything | [`docs/container.md`](container.md) |

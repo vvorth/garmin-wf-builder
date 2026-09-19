@@ -1,10 +1,7 @@
 # Platform constraints — full text
 
-Moved verbatim out of `CLAUDE.md` on 2026-09-13 (§4) so the file every
-session loads stays small. `CLAUDE.md` keeps a short summary and the **same
-numbering**, so an older citation such as "CLAUDE.md §6" or "CLAUDE.md
-constraint 6" for this material resolves here. Keep adding to this file,
-not back into `CLAUDE.md`.
+The full text behind root `CLAUDE.md` §4, with the same numbering. Add new
+lore here, not to `CLAUDE.md`.
 
 ---
 
@@ -59,8 +56,8 @@ These are the findings that shaped every decision. Full detail and citations in
    fires on a face the user is looking at: the SDK entry says "Only available
    in WatchFace config mode". A whole shipped feature (`on_tap:`, and the
    original "tap where available, hold on fr955" design) was designed around
-   the symbol table alone and got this wrong — see `docs/history.md`'s
-   carousel-interaction session for the correction in full.
+   the symbol table alone and got this wrong — see
+   `docs/research/07-carousel-interaction.md` §1.
    `has_symbol` answers "can I call it", never "will it be called".
 
 6c. **A live watch face receives one gesture: touch and hold (`onPress`).**
@@ -101,10 +98,9 @@ These are the findings that shaped every decision. Full detail and citations in
    name; `wfb.devices.Device.has_field`'s own docstring). Separately,
    `manifest.xml`'s `minApiLevel` is **one number for the whole build**,
    shared by every target device in `<iq:products>` — it cannot say "4.2.0
-   for this device, 3.2.0 for that one," so a feature that raised it (as
-   complications used to, to 4.2.0) locked out *every* target below that
-   level in the same build, including one that never touches the feature.
-   The fix keeps the floor fixed at the generator's base level always
+   for this device, 3.2.0 for that one," so a feature that raised it would
+   lock out *every* target below that level in the same build, including one
+   that never touches the feature. So the floor stays fixed at the generator's base level always
    (`wfb/emit/manifest.py::BASE_API_LEVEL`, `3.2.0`) and gates the module and
    the fields at runtime instead (`Toybox has :Complications`, `x has
    :stressScore`), aggregated over every target by `wfb.availability.
@@ -142,13 +138,10 @@ These are the findings that shaped every decision. Full detail and citations in
    **9c. All four axes are already spoken for -- there is no free one for
    layouts.** Styles carries colour schemes, Data carries `config: data:`
    complication slots, plus the two colour axes. Renaming a YAML key does not
-   add an axis (the editor's group label is Garmin's). **Decided 2026-09-13:**
-   colours *and* widget layouts share Styles as **explicitly listed entries**
-   (each names a layout, a colour scheme, or both); background colour does not
-   move to Data Color. **Built 2026-09-13** -- see plan 01 (the decision
-   and the rejected options) and plan 02 (the design and the build plan:
-   `layouts:` form A, `config: style:` replacing `config: colors:` outright,
-   no shim); both were deleted once built, see `docs/CLAUDE.md`.
+   add an axis (the editor's group label is Garmin's). So colours *and* widget
+   layouts share Styles as **explicitly listed entries** (each names a
+   layout, a colour scheme, or both); background colour does not move to
+   Data Color. Plans 01–02 hold the rejected options (`docs/CLAUDE.md`);
    `examples/styles/face.yaml` is the worked example.
 
 10. **`alphaBlendingSupport: false`** on all three targets. No transparency.

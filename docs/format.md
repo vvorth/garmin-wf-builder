@@ -2229,9 +2229,7 @@ refilled), and `align`/`vertical_align` (rejected with a friendly reason:
 instead, or move `at:`). `antialias:`
 is accepted and inherited exactly like a shape's own, and counts toward the
 `antialias-dither` check the same way: the whole hand set draws soft, since
-the toggle brackets the element's one draw method. (*Until 2026-09-14 it
-linted but emitted nothing when a hands element was the face's only
-anti-aliased one. See `docs/history.md`.*) `min_1px:` is accepted the same
+the toggle brackets the element's one draw method. `min_1px:` is accepted the same
 way, inherited from the element's group or the face — but, unlike
 `antialias:`, a hand's individual part may also declare its own
 `min_1px:`, overriding the element's, since a part's `radius:`/

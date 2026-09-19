@@ -47,8 +47,7 @@
 # to include as the `onPartialUpdate` guard's only worked example so far.
 #
 # What is verified: this design compiles warning-free, through the real
-# `monkeyc`, on all three targets (`--build-stats` recorded in
-# `docs/history.md`, 2026-09-13 "Plan 02 built") -- the `_configLayout` field, both
+# `monkeyc`, on all three targets -- the `_configLayout` field, both
 # guarded draw sequences (`onUpdate`/`onPartialUpdate`/`renderStatic`), and
 # the delegate's guarded `on_hold` all build clean. What is NOT verified
 # anywhere in this project: any *behaviour* of the on-device editor itself

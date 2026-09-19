@@ -257,7 +257,7 @@ def test_every_complication_source_launches_itself():
 
 
 def test_direct_read_sources_with_a_conventional_launch_target():
-    """The hand-set half of `launch_complication`, per SPEC.md's table --
+    """The hand-set half of `launch_complication` --
     pinned down so a future edit can't silently drop or scramble one."""
     expected = {
         "activity.steps": "steps",
@@ -328,11 +328,10 @@ def test_renamed_to_helper():
 
 
 
-# -- symbol-collision guard (F2): fast, catalogue-wide, no toolchain --------
+# -- symbol-collision guard: fast, catalogue-wide, no toolchain ------------
 #
-# docs/review/2026-09-architecture-review.md's F2: `wfb/ir/builder.py`'s
-# `Builder._check_symbol_collision` only ever compares two derived forms of
-# one *element id* against each other -- it says nothing about the families
+# `wfb/ir/builder.py`'s `Builder._check_symbol_collision` only ever compares
+# two derived forms of one *element id* against each other -- it says nothing about the families
 # below, which are the ones that actually collided in the session that
 # produced `Redefinition of variable 'complicationBodyBattery'` on all three
 # targets: a `complication.*` reader's own local name (its element method's

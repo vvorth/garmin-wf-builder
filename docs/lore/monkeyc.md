@@ -1,10 +1,7 @@
 # Monkey C and `monkeyc` behaviour
 
-Moved verbatim out of `CLAUDE.md` on 2026-09-13 (§6 "Hard-won facts") so the file every
-session loads stays small. `CLAUDE.md` keeps a short summary and the **same
-numbering**, so an older citation such as "CLAUDE.md §6" or "CLAUDE.md
-constraint 6" for this material resolves here. Keep adding to this file,
-not back into `CLAUDE.md`.
+The full text behind root `CLAUDE.md` §6, with the same numbering. Add new
+lore here, not to `CLAUDE.md`.
 
 ---
 

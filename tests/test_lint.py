@@ -992,9 +992,8 @@ def test_a_device_without_onpress_is_reported_from_its_own_symbol_table(
 #
 # `complication.sleep_score` -> `COMPLICATION_TYPE_SLEEP_SCORE` needs
 # ConnectIQ 6.0.2 (wfb/complications.py). fenix8solar47mm/51mm sit at 6.0.2,
-# fr955 tops out at 5.2.0 (CLAUDE.md's own hand-derived numbers, and
-# docs/review/2026-09-architecture-review.md's F3 confirms `Device.api_level`
-# reproduces them). `Device.has_symbol` cannot answer this at all --
+# fr955 tops out at 5.2.0 (`Device.api_level` reproduces CLAUDE.md's own
+# hand-derived numbers). `Device.has_symbol` cannot answer this at all --
 # COMPLICATION_TYPE_* are constants, not <functionEntry> symbols, and are
 # simply absent from every device's api.debug.xml (the review confirmed this
 # by grep, including for COMPLICATION_TYPE_BATTERY, the one type every target

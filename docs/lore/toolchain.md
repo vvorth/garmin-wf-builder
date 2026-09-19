@@ -1,10 +1,7 @@
 # Toolchain, environment and measurement lore
 
-Moved verbatim out of `CLAUDE.md` on 2026-09-13 (§2 filesystem quirk, §3, §6 measurement lore, §8) so the file every
-session loads stays small. `CLAUDE.md` keeps a short summary and the **same
-numbering**, so an older citation such as "CLAUDE.md §6" or "CLAUDE.md
-constraint 6" for this material resolves here. Keep adding to this file,
-not back into `CLAUDE.md`.
+The full text behind root `CLAUDE.md` §2, §3, §6 and §8, with the same
+numbering. Add new lore here, not to `CLAUDE.md`.
 
 ---
 
@@ -19,8 +16,8 @@ not back into `CLAUDE.md`.
 
 **The sibling project `~/claude/garmin-watchface-protomolecule/CLAUDE.md` claims
 the opposite** — that `developer.garmin.com` is egress-blocked and the face
-cannot be compiled in a sandbox. **Both claims are false** and were disproved in
-this session (`docs/research/05-device-files.md` §1). That file has not been
+cannot be compiled in a sandbox. **Both claims are false**
+(`docs/research/05-device-files.md` §1). That file has not been
 corrected because the user asked to leave that repo untouched. Do not import its
 build claims into this project.
 
@@ -206,18 +203,13 @@ ERROR: Invalid device id specified: 'fenix8solar47mm'
 host, `~/Library/Application Support/Garmin/ConnectIQ/Devices/`), including all
 three primary targets. `setup-env.sh` installs them.
 
-**2026-09-15: the vendored set grew from 9 to 13 devices** — `fenix6`,
-`fenix6xpro`, `fr245` and `fr255` were added (`docs/research/probes/
-api-gating/`, added to research what a design can and cannot do on an
-older-API-level device). `setup-env.sh`'s device install is now
-**incremental**: it used to skip installing entirely whenever
-`~/.Garmin/ConnectIQ/Devices/` was already non-empty, which is why `fr255`
-built as `unknown device` the first time it was added — the newly-vendored
-directory was never copied in. It now copies in whichever device
-directories under `vendor/devices/` are not already present at the
-destination, on every run, without touching or removing what's already
-there; re-run `./tools/setup-env.sh` after `vendor/devices/` gains a new
-device to pick it up.
+13 devices are vendored: the three targets plus older-API devices such as
+`fenix6`, `fenix6xpro`, `fr245` and `fr255` (`docs/research/probes/
+api-gating/`). `setup-env.sh`'s device install is **incremental**: on every
+run it copies in whichever device directories under `vendor/devices/` are
+not yet at the destination, without touching what is already there. Re-run
+it after `vendor/devices/` gains a device, or the device builds as
+`unknown device`.
 
 `vendor/devices/` is **gitignored on purpose** — it is the user's own licensed
 copy of Garmin's device files, fine to move around their machine but not

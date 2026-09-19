@@ -1,10 +1,7 @@
 # Working agreement — full text, with the incidents behind each rule
 
-Moved verbatim out of `CLAUDE.md` on 2026-09-13 (§7) so the file every
-session loads stays small. `CLAUDE.md` keeps a short summary and the **same
-numbering**, so an older citation such as "CLAUDE.md §6" or "CLAUDE.md
-constraint 6" for this material resolves here. Keep adding to this file,
-not back into `CLAUDE.md`.
+The full text behind root `CLAUDE.md` §7, with the same numbering. Add new
+lore here, not to `CLAUDE.md`.
 
 ---
 
@@ -61,8 +58,7 @@ not back into `CLAUDE.md`.
 
 Prose is part of the deliverable. When a change makes any of these stale, update
 it **in the same commit**: `docs/research/*`, `docs/adr/*`, this file,
-`docs/history.md` (append new session accounts there, not here), and
-(once they exist) `README.md`, `docs/limitations.md`, and the format reference.
+`README.md`, `docs/limitations.md`, and the format reference.
 
 `docs/limitations.md` exists and is current. It records: no filled arc; the
 four-axis / four-configuration on-device config cap; the fr955 exclusions;

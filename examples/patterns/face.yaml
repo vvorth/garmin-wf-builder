@@ -48,11 +48,7 @@
 # those read data (the date, or the move-bar level) every frame.
 #
 # What is verified: the design builds warning-free through the real
-# `monkeyc` on all three targets (`--build-stats` recorded in
-# `docs/history.md`, 2026-09-14 "Patterns built", 2026-09-15 "week_dots
-# shows the day", 2026-09-15 "pattern when_absent: hide and per-copy part
-# visible:", and again after `hour_numerals`/`weekday_labels` were added,
-# plan 06 phase B2). What is NOT verified anywhere in this project: what it
+# `monkeyc` on all three targets. What is NOT verified anywhere in this project: what it
 # looks like on a panel, or that today's dot moves at midnight -- there is
 # no simulator and no watch in this container. `wfb preview` draws the same
 # resolved geometry through the same transform, without anti-aliasing.

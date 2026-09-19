@@ -45,8 +45,7 @@
 # `config-unsupported`, accepted below on the two elements that bind one.
 #
 # What is verified: this design builds warning-free through the real
-# `monkeyc` on all three targets (`--build-stats` recorded in
-# `docs/history.md`, 2026-09-14 "Analog hands built"). What is NOT verified
+# `monkeyc` on all three targets. What is NOT verified
 # anywhere in this project: what any of it looks like, whether the second
 # hand actually vanishes on the first sleeping frame, and whether the axes
 # point where the preview says at a real clock time -- there is no simulator
