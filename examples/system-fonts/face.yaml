@@ -81,6 +81,10 @@ elements:
     to: { anchor: top_left, dx: 71, dy: 238 }
     thickness: 1px
     color: palette.dim
+    lint:
+      allow: [safe-area]
+      reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
+        here only to measure its .cft fonts, and crops this row"
 
   # -- FONT_XTINY -----------------------------------------------------
   - id: xtiny_guide
@@ -166,6 +170,10 @@ elements:
     align: left
     vertical_align: top
     color: palette.fg
+    lint:
+      allow: [safe-area, text-overflow]
+      reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
+        here only to measure its .cft fonts, and crops this row"
 
   # -- vertical_align: center demo (repeats FONT_XTINY) -----------------
   - id: center_guide
@@ -192,6 +200,10 @@ elements:
     to: { anchor: top_left, dx: 101, dy: 238 }
     thickness: 1px
     color: palette.dim
+    lint:
+      allow: [safe-area]
+      reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
+        here only to measure its .cft fonts, and crops this row"
   - id: bottom_text
     type: text
     text: "XT b"
@@ -200,3 +212,7 @@ elements:
     align: left
     vertical_align: bottom
     color: palette.fg
+    lint:
+      allow: [safe-area, text-overflow]
+      reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
+        here only to measure its .cft fonts, and crops this row"

@@ -56,4 +56,4 @@ screenshot. They have no clock and no data.
 
 [`big-clock-3/`](big-clock-3/face.yaml) and [`enduro/`](enduro/face.yaml)
 are early hand-written drafts: a big clock, a goal ring, two data clusters
-and battery. Both currently carry lint findings.
+and battery.

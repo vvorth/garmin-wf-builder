@@ -291,8 +291,8 @@ layouts:
         color: config.colors.track
         antialias: true
         lint:
-          allow: [antialias-dither]
-          reason: "to look good"
+          allow: [antialias-dither, safe-area]
+          reason: "to look good; the hour dots sit on the rim on purpose"
         parts:
           - { shape: circle, at: { dy: 96%r }, radius: 3%r }
           - shape: text
@@ -404,8 +404,8 @@ layouts:
         seconds: awake
         antialias: true # soft rotated edges; `sport` stays crisp
         lint:
-          allow: [antialias-dither]
-          reason: "good"
+          allow: [antialias-dither, safe-area]
+          reason: "good; the second hand's tip reaches the rim on purpose"
 
 
 

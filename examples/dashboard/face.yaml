@@ -210,6 +210,10 @@ elements:
     font: FONT_XTINY
     at: { anchor: top, dy: 7% }
     color: palette.green
+    lint:
+      allow: [safe-area, text-overflow]
+      reason: "only the text box's empty corner crosses the 2% bezel margin;
+        the glyphs stay on screen"
     # color: config.data_color
 
   # -- SEP_1 --
@@ -304,6 +308,10 @@ elements:
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--°"
+    lint:
+      allow: [safe-area, text-overflow]
+      reason: "only the text box's empty corner crosses the 2% bezel margin;
+        the glyphs stay on screen"
 
   precipitation:
     type: text
@@ -341,6 +349,10 @@ elements:
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--°"
+    lint:
+      allow: [safe-area, text-overflow]
+      reason: "only the text box's empty corner crosses the 2% bezel margin;
+        the glyphs stay on screen"
 
   # -- SEP_3
 
@@ -411,6 +423,10 @@ elements:
     color: config.colors.dim
     when_absent: placeholder
     placeholder: "--"
+    lint:
+      allow: [api-gated]
+      reason: "fenix6 has no Complications; the value shows its placeholder
+        there"
 
   # dnd_icon:
   #   type: icon
@@ -513,6 +529,11 @@ elements:
     color: config.data_color
     track_color: config.colors.dark
     when_absent: hide
+    lint:
+      allow: [safe-area, api-gated]
+      reason: "hugs the bezel on purpose; stays inside the physical disc, only
+        past the 2% margin; fenix6 has no Complications, so the arc
+        hides there"
 
   arc_battery_right:
     type: progress
@@ -526,6 +547,11 @@ elements:
     sweep: -28deg
     color: config.data_color
     track_color: config.colors.dark
+    lint:
+      allow: [safe-area, config-unsupported]
+      reason: "hugs the bezel on purpose; stays inside the physical disc, only
+        past the 2% margin; fr955/fr255/fenix6 have no on-device editor
+        and keep the default colours"
 
   arc_battery_left:
     type: progress
@@ -539,6 +565,10 @@ elements:
     sweep: 28deg
     color: config.data_color
     track_color: config.colors.dark
+    lint:
+      allow: [safe-area]
+      reason: "hugs the bezel on purpose; stays inside the physical disc, only
+        past the 2% margin"
 
   arc_steps:
     type: progress
@@ -553,4 +583,8 @@ elements:
     color: config.data_color
     track_color: config.colors.dark
     when_absent: hide
+    lint:
+      allow: [safe-area]
+      reason: "hugs the bezel on purpose; stays inside the physical disc, only
+        past the 2% margin"
 

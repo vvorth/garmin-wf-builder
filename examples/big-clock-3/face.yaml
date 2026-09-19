@@ -73,6 +73,10 @@ static:
     at: {anchor: center}
     size: {width: 100%, height: 100%}
     color: palette.bg
+    lint:
+      allow: [antialias-dither]
+      reason: "face-wide antialias: true is a deliberate choice; soft edges
+        dither on MIP"
 
   # A separator is a chord of a circle just inside the bezel. Both ends are
   # polar, so the line reaches the rim on any screen size.
@@ -398,6 +402,10 @@ elements:
     at: {anchor: top, dy: 88%}
     visible: device.notification_count > 0
     color: palette.notify_text
+    lint:
+      allow: [contrast]
+      reason: "the black count is drawn on the orange notification badge, not
+        on the background"
     # color: "device.notification_count > 0 ? palette.notify_text : palette.off"
 
   battery_percent:

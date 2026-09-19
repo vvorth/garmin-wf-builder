@@ -490,7 +490,6 @@ layouts:
         at: { anchor: center, dx: -1%, dy: 7% }
         align: right
         color: config.colors.fg
-        modes: [active, low_power]
 
       minutes:
         type: text
@@ -500,7 +499,6 @@ layouts:
         at: { anchor: center, dx: 1%, dy: 7% }
         align: left
         color: config.accent_color
-        modes: [active, low_power]
 
       bb_cluster:
         type: group

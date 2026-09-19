@@ -58,8 +58,9 @@ eyeballed.
 The Phase 2 slice is no longer an
 example: it is the test fixture `tests/fixtures/slice/`.
 
-`big-clock-3` and `enduro` carry genuine, user-authored lint
-warnings/errors (see `tests/CLAUDE.md`) -- not bugs to fix unasked.
+Every example lints clean on every target. Where a design deliberately
+touches the bezel or accepts a platform gap (no on-device editor, no
+Complications), the element says so with `lint: {allow: [...], reason:}`.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 

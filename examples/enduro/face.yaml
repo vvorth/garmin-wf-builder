@@ -126,9 +126,10 @@ static:
     thickness: 1px
     color: config.colors.dark
     lint:
-      allow: [contrast]
+      allow: [contrast, antialias-dither]
       reason: "a hairline rule is meant to be barely there; full contrast
-        would make the separators compete with the data"
+        would make the separators compete with the data. Soft edges are a
+        deliberate choice; they dither on MIP"
     antialias: true
     
   top_line_l:
@@ -139,9 +140,10 @@ static:
     thickness: 1px
     color: config.colors.dark
     lint:
-      allow: [contrast]
+      allow: [contrast, safe-area]
       reason: "a hairline rule is meant to be barely there; full contrast
-        would make the separators compete with the data"
+        would make the separators compete with the data. It runs into the
+        bezel on purpose"
     antialias: true
 
   top_line_r:
@@ -152,9 +154,10 @@ static:
     thickness: 1px
     color: config.colors.dark
     lint:
-      allow: [contrast]
+      allow: [contrast, safe-area]
       reason: "a hairline rule is meant to be barely there; full contrast
-        would make the separators compete with the data"
+        would make the separators compete with the data. It runs into the
+        bezel on purpose"
     antialias: true
 
   top_sep:
@@ -234,6 +237,10 @@ elements:
     track_color: config.colors.dark
     when_absent: hide
     antialias: true
+    lint:
+      allow: [safe-area]
+      reason: "hugs the bezel on purpose; stays inside the physical disc, only
+        past the 2% margin"
 
   arc_r:
     type: progress
@@ -249,6 +256,11 @@ elements:
     track_color: config.colors.dark
     when_absent: hide
     antialias: true
+    lint:
+      allow: [safe-area, config-unsupported]
+      reason: "hugs the bezel on purpose; stays inside the physical disc, only
+        past the 2% margin; fr955 has no on-device editor and keeps the
+        default colours"
 
 
   hours:
@@ -259,6 +271,10 @@ elements:
     at: {anchor: left, dx: 0%, dy: 0.8%}
     align: left
     color: config.colors.fg
+    lint:
+      allow: [safe-area, text-overflow]
+      reason: "the digits start ~8px in from the left rim; only the text box's
+        empty top-left corner is cropped"
 
   minutes:
     type: text
