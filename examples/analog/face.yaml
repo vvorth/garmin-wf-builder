@@ -1,61 +1,12 @@
-# Analog hands (docs/format.md "Analog hands"): `hands:` sets and `type:
-# hands` elements, switched by Styles the same way `examples/styles/face.yaml`
-# switches widget layouts.
+# Analog -- a hands-only dial. Each `layouts:` entry carries its own hand
+# set (full three-hand `classic` variants, one with a small-seconds subdial;
+# hour-and-minute `sport`), switched by Styles together with a colour
+# scheme. The shared dial sits in the top-level `static:`.
 #
-# What this design exercises, none of it shown together anywhere else in
-# `examples/`:
+# fr955 has no native editor, so it keeps the default style.
 #
-# * **Two hand sets in two `layouts:` entries**, `classic` (hour, minute and
-#   second) and `sport` (hour and minute only -- `sport` therefore has **no
-#   second hand drawn at all** -- any subset of the three may be present) --
-#   switched by **three `config: style:` entries** over **two colour
-#   schemes**, the pattern docs/format.md "Analog hands" describes.
-# * **All four rotatable part shapes** on one hand set: `classic`'s hour is a
-#   tapered `polygon`, its minute is a `rectangle` (folded into a polygon at
-#   build time) plus a `circle` hub, and its second is a `line` with a
-#   `circle` counterweight and a small `circle` centre cap.
-# * **An off-centre axis**: `small_secs` places the `small_seconds` set's
-#   axis at `{anchor: center, dy: 45%r}`, inside its own decorative static
-#   ring: the axis is wherever the element's own `at:` puts it.
-# * **`seconds: awake`** (the default) on both `main_hands` and `small_secs`
-#   -- the second hand and the subdial alike vanish while the watch sleeps.
-# * **A `config.*` colour on a hand**: `classic`'s second hand is
-#   `config.accent_color`, the one native accent-colour axis, read exactly
-#   like a shape's own `color:` would be.
-# * **Anti-aliased hands in one layout only**: `classic`'s two hands
-#   elements set `antialias: true` (a per-element runtime `Dc.setAntiAlias`,
-#   set and restored around their own drawing), while `sport` keeps the face
-#   default and draws crisp. `wfb preview` cannot show the difference: it
-#   draws primitives aliased (docs/limitations.md).
-# * **A pin above the hands**: `center_pin`, an ordinary `shape: circle`
-#   element placed *after* `main_hands`/`small_secs` in `classic`'s own
-#   `elements:` -- hands draw hour, minute, second, and anything placed
-#   after the element draws above all three.
-#
-# The shared dial -- a background, an outer ring and four cardinal ticks,
-# none of it bound to anything -- sits in the design's own top-level
-# `static:`, drawn in every style beneath whichever layout is active
-# (docs/format.md "Styles and layouts": layout content always draws above
-# shared content).
-#
-# `fr955` has no native editor at all (CLAUDE.md constraint 6): it simply
-# keeps the compiled-in default entry (`classic_dark`) and the compiled-in
-# `accent_color` default forever, the same "keeps every declared default"
-# behaviour every other `config:` axis already has there --
-# `config-unsupported`, accepted below on the two elements that bind one.
-#
-# What is verified: this design builds warning-free through the real
-# `monkeyc` on all three targets. What is NOT verified
-# anywhere in this project: what any of it looks like, whether the second
-# hand actually vanishes on the first sleeping frame, and whether the axes
-# point where the preview says at a real clock time -- there is no simulator
-# and no watch in this container. `wfb preview --time
-# 10:09:42`/`--asleep` is the same resolved geometry the generated code
-# draws from, rendered with no simulator.
-#
-# Build it with:     ./wfb.py build examples/analog/face.yaml
-# Preview it with:   ./wfb.py preview examples/analog/face.yaml --time 10:09:42
-# Preview asleep:    ./wfb.py preview examples/analog/face.yaml --time 10:09:42 --asleep
+# Build it:    ./wfb.py build examples/analog/face.yaml
+# Preview it:  ./wfb.py preview examples/analog/face.yaml --time 10:09:42 [--asleep]
 #
 # yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
 

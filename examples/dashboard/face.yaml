@@ -1,34 +1,13 @@
-# Dashboard -- a dense, multi-row face.
+# Dashboard -- a dense, multi-row face modelled on the reference face in
+# `garmin-watchface-protomolecule`: stacked rows separated by hairlines, a
+# two-tone clock, values coloured by their own state, icon+number clusters
+# and progress arcs hugging the bezel.
 #
-# A worked example of the techniques a complex design needs, modelled on the
-# reference face in `garmin-watchface-protomolecule`: stacked rows separated by
-# hairlines, a two-tone clock, values whose colour depends on their own state,
-# icon-and-number clusters, and progress arcs hugging the bezel.
+# Rows are placed from the top (`anchor: top` + a `%` offset), and the
+# hairlines are chords placed in polar coordinates so they touch the rim on
+# 260 px and 280 px screens alike.
 #
-# Build it:  wfb build examples/dashboard/face.yaml
-#
-# ---------------------------------------------------------------------------
-# Two things to notice about how this is written.
-#
-# **Rows are positioned from the top, not the centre.** `anchor: top` with a `%`
-# offset reads as "this far down the screen", which is how a row-based design is
-# actually designed, and it matches the fractions the reference measured off its
-# own rendering. Percentages resolve against the parent box, so a row at
-# `dy: 6.6%` sits 6.6% of the screen height below the top edge on every device.
-#
-# **The separators are drawn in polar coordinates.** Each hairline is a chord of
-# a circle just inside the bezel, so both ends are placed by angle and radius
-# rather than by x and y -- which is what keeps them touching the rim on a
-# 260 px and a 280 px screen alike.
-#
-# What the reference has and this does not: a weather row with real readings,
-# a Body Battery history graph, and a daylight arc. Weather's *condition*
-# icon is real now (`icon_for: weather.condition`, row 2 below); its
-# temperature, precipitation chance and high/low still need data sources the
-# format does not expose yet, and Body Battery and the daylight arc are the
-# same story -- see docs/limitations.md. The rows below use real sources so
-# the example builds and runs; swap the remaining placeholders out as the
-# catalogue grows.
+# Build it:  ./wfb.py build examples/dashboard/face.yaml
 #
 # yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
 

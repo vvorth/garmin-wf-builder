@@ -189,8 +189,8 @@ wfb/                  the compiler
   build.py, cli.py      the pipeline and `wfb`
 runtime-lib/          the hand-written support barrel the generated code calls
 schema/               the published JSON Schema (a shipped artefact)
-examples/             example faces; each one's header comment says what it
-                      exercises (`examples/CLAUDE.md` has the index)
+examples/             example faces; `examples/README.md` says which are real
+                      designs and which demonstrate one feature
 examples/dashboard/   a dense multi-row face: separators, a two-tone clock,
                       conditional colours, a badge and three arcs
 examples/complications/  complication.* bindings and on_hold: auto

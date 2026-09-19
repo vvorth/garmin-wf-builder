@@ -1,69 +1,15 @@
-# Showcase -- one face, two very different faces of it, meant to exercise as
-# much of this builder's format as a single design can reasonably carry.
+# Showcase -- one face, two layouts switched by Styles: `analog` (a quiet
+# three-hand dial with tick and numeral patterns) and `digital` (a dense
+# dashboard: two-tone clock, weather row, heart-rate graph, data clusters,
+# progress bar and ring, status row). Two shared `complication_slot`
+# registers draw beneath both.
 #
-# **Two `layouts:` entries** switched by Styles, in the sense
-# `examples/styles/face.yaml` and `examples/analog/face.yaml` already
-# establish:
+# Config: several colour schemes paired with the layouts as `config: style:`
+# entries, both colour axes, and the Data axis (the two registers). fr955
+# has no native editor, so it keeps every default.
 #
-# * `analog` -- a classic three-hand dial (`hands:`), a radial minute/hour
-#   tick `pattern`, twelve numerals as a single radial `shape: text`
-#   `pattern` part (not twelve elements), and a thin accent-coloured second
-#   hand. Deliberately quiet: no data rows, no icons on the dial face itself
-#   -- the two shared side "registers" (below) are its only readings, the
-#   way a chronograph's sub-dials are.
-# * `digital` -- dense and data-rich: a two-tone monospaced clock, a date
-#   line, a weather row (a dynamic `icon_for:` condition glyph plus
-#   high/low/feels-like readings), a heart-rate `graph` (`style: area`),
-#   three icon+value clusters in `group`s (heart rate, steps, calories),
-#   a linear `progress` bar (steps vs. goal) and an arc `progress` ring
-#   (battery), a charging indicator gated by `visible:`, and a
-#   notification/DND/alarm status row with conditional colours -- the
-#   `examples/dashboard/` vocabulary, reassembled as one of two styles
-#   instead of the whole face.
-#
-# **Shared content, drawn beneath both layouts** (docs/format.md "Styles and
-# layouts": layout content always draws above shared content): a
-# background, and two side "data registers" -- `type: complication_slot`
-# behind a `rounded_rectangle` card, one with an explicit `choices:` list
-# (steps / heart rate / calories, the last with `icon: none`) and one with
-# `choices: any` (the editor's own unrestricted picker) -- plus a small date
-# window at 6 o'clock. A `complication_slot` may only ever live in shared
-# content (never inside a `layouts:` body), so this is also the only legal
-# place for it -- and it happens to be exactly where a real chronograph
-# keeps its registers, which is why both layouts read well with them there.
-#
-# **Configuration: all three axes this compiler wires up.** Three named
-# `color_scheme:` entries (`dark`, `light`, `navy`) and **five** `config:
-# style:` entries pairing them with the two layouts (`analog` gets all
-# three schemes, `digital` gets two) -- "however many entries the author
-# wants," not a generated layout x scheme product (plan 02 §4.1). Both
-# colour axes (`accent_color`, `data_color`) each offer a several-colour
-# `choices:` list. The Data axis (`config: data:`) is the two registers
-# above.
-#
-# Every colour -- palette, `color_scheme:` and `config:` alike -- is one the
-# 64-colour MIP panel shows without dithering: each channel is 0x00, 0x55,
-# 0xAA or 0xFF.
-#
-# `fr955` has no native editor at all (CLAUDE.md constraint 6) -- it simply
-# keeps every compiled-in default forever (the `analog_dark` style, both
-# registers' default complication, the default accent/data colours), the
-# same "keeps every declared default" behaviour every other `config:`-using
-# example in this repository already has there. The suppressible
-# `config-unsupported` warning is accepted explicitly, once per axis, on
-# whichever element the compiler reports it against.
-#
-# What is verified: this design builds warning-free through the real
-# `monkeyc` on all three targets. What is NOT verified anywhere in this
-# project: what any of it looks like on a panel, or any behaviour of the
-# on-device editor itself -- there is no simulator and no watch in this
-# container. `wfb preview --style <entry>` / `--all-styles` renders the same
-# resolved geometry the generated code draws from.
-#
-# Build it with:            ./wfb.py build examples/showcase/face.yaml
-# Preview the dial:         ./wfb.py preview examples/showcase/face.yaml --style analog_navy
-# Preview the dashboard:    ./wfb.py preview examples/showcase/face.yaml --style digital_dark
-# Preview every style:      ./wfb.py preview examples/showcase/face.yaml --all-styles
+# Build it:    ./wfb.py build examples/showcase/face.yaml
+# Preview it:  ./wfb.py preview examples/showcase/face.yaml --all-styles
 #
 # yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
 

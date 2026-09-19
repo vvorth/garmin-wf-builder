@@ -1,7 +1,9 @@
 # examples/
 
-Loaded automatically when working in `examples/`. Each example's header
-comment explains what it exercises; `slots/` is the only one using the Data
+Loaded automatically when working in `examples/`. `README.md` here is the
+user-facing index: `dashboard/`, `analog/` and `showcase/` are the designs
+meant to be worn, the rest demonstrate features. Each feature example's
+header comment explains what it exercises; `slots/` is the only one using the Data
 axis (`config: data:`), `config/` the colour axes and `color_scheme:`,
 `styles/` `layouts:` and `config: style:` (widget-set switching, not just
 colour), and `analog/` analog hands (plan 04, 2026-09-14) -- two hand sets
