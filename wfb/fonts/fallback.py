@@ -19,8 +19,8 @@ family's shape entirely. Every diagnostic derived from it stays labelled as
 such (`wfb.lint.check_text_fit`).
 
 **A located Garmin file may be a `.cft` bitmap container instead of a
-scalable `.ttf`/`.otf`** (plan 10 Step B, on top of Step A's decoder,
-:mod:`wfb.fonts.cft`) -- true for 8 of the 13 installed
+scalable `.ttf`/`.otf`** (decoded by :mod:`wfb.fonts.cft`) -- true for 8
+of the 13 installed
 devices, every one of which resolves *every* `FONT_*` symbol to a bitmap
 file. :func:`system_face` tells the two apart by the located path's own
 suffix and returns a :class:`SystemFace` either way, but a bitmap face's
@@ -99,7 +99,7 @@ class SystemFace:
     :func:`system_face` was asked for, in the same pixel units as `font`
     itself -- a caller never has to re-derive either from the metric.
 
-    **Two kinds, told apart by `bitmap`** (plan 10 Step B): an outline
+    **Two kinds, told apart by `bitmap`**: an outline
     face has `bitmap is None` and a real Pillow
     `FreeTypeFont` in `font`; a bitmap face (a located `.cft`) has
     `bitmap` set to its decoded `wfb.fonts.cft.CftFont` and **`font is
@@ -286,7 +286,7 @@ def system_face(metric: FontMetric, scale: float = 1.0, *,
     case, which `wfb.lint`/a probe can report but is otherwise drawn
     exactly like any other match level (today's behaviour, kept).
 
-    **A `.cft` bitmap hit is a separate branch** (plan 10 §3 B.3):
+    **A `.cft` bitmap hit is a separate branch**:
     `line_height_px`/`baseline_px` below
     are the *scraped/simulator* numbers, used for every outline face and
     the Pillow fallback, but a located `.cft`'s own `height`/`ascent`

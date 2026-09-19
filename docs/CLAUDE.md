@@ -31,14 +31,10 @@ pattern, and `align:` on a group) was built and deleted on 2026-09-15; read
 it with `git show f5155d7:docs/plans/06-pattern-text-and-group-align.md`.
 Plan 07 (`align:`/`vertical_align:` as one placement rule on every element)
 was built and deleted on 2026-09-15; read it with `git show
-b534b8a:docs/plans/07-align-everywhere.md`. Plan 09 (real device typefaces
-for system-font previews/measurement) and plan 10 (decoding Garmin `.cft`
-bitmap fonts on top of that) were both built and deleted on 2026-09-18;
-read them as built with `git show 7e8e11d:docs/plans/09-system-font-metrics.md`
-and `git show 7e8e11d:docs/plans/10-cft-bitmap-fonts.md` (HEAD at the time
-both were deleted contains both files, even though plan 10 was last edited
-at `f38f41a` and plan 09 at `c7b2658`). What they decided now lives in
-`docs/research/10-system-fonts.md`, `wfb/fonts/` and the code.
+b534b8a:docs/plans/07-align-everywhere.md`. Plans 09 (device typefaces for
+system fonts) and 10 (`.cft` bitmap fonts) were built and deleted on
+2026-09-18; read them with `git show 7e8e11d:docs/plans/09-system-font-metrics.md`
+and `git show 7e8e11d:docs/plans/10-cft-bitmap-fonts.md`.
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or

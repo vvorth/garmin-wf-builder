@@ -1,11 +1,10 @@
-"""Step B of plan 10 (§3 B.1-B.5): a located
-`.cft` becomes a usable `wfb.fonts.fallback.SystemFace`, measured and drawn
+"""A located `.cft` becomes a usable `wfb.fonts.fallback.SystemFace`, measured and drawn
 through it, never through the free-stand-in registry -- for 8 of the 13
 installed devices, every `FONT_*` symbol resolves to one.
 
 **Never relies on the real `vendor/fonts/`** (the user's licensed Garmin
 files): every test here builds its own tiny synthetic `.cft` with
-`tests.test_cft.write_cft` (Step A's test-side encoder) in a fake font root,
+`tests.test_cft.write_cft` (the test-side encoder) in a fake font root,
 and monkeypatches `wfb.fonts.fetch_system.garmin_font_root` to point at it --
 the same isolation `tests/test_system_font_metrics.py`'s `_no_garmin_fonts`
 fixture uses in the other direction (forcing the registry path). The device
@@ -143,8 +142,8 @@ def test_a_ttf_with_the_same_stem_still_wins_over_the_cft(bitmap_root, monkeypat
     assert face.font is not None
 
 
-def test_with_the_root_absent_the_old_registry_path_is_unchanged(monkeypatch):
-    """No Garmin root at all (the pre-Step-B, registry-only shape): a
+def test_with_the_root_absent_the_registry_path_is_used(monkeypatch):
+    """No Garmin root at all (registry only): a
     bitmap-shaped metric still measures through the free stand-in, never
     through a `.cft` branch that has nothing to locate."""
     monkeypatch.setattr(fetch_system, "garmin_font_root", lambda *a, **k: None)

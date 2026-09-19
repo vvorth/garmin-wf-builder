@@ -3998,77 +3998,10 @@ Left as found:
 
 ## 2026-09-18 — plan 10: decoding Garmin's `.cft` bitmap fonts
 
-- The user asked to research, plan and orchestrate implementing real `.cft`
-  font usage for previews, to get as close to the official simulator as
-  possible. Research (orchestrator): 8 of the 13 installed devices
-  (`fenix6`, `fenix6xpro`, `fenix7pro`, `fenix7x`, `fenix7xpro`,
-  `fenix7xpronowifi`, `fr245`, `fr255`) resolve *every* `FONT_*` symbol to a
-  bitmap `FNT_*` file, none of which plan 09's TTF-only pipeline could use
-  -- they all fell to the free stand-in registry instead. The `.cft`
-  container format is undocumented by Garmin but was already
-  reverse-engineered by a third party: `markw65/monkeyc-optimizer`,
-  `src/cftinfo.ts`, MIT licence, pinned at commit
-  `cea919a92da74de1f5d277064caa6f7920554af7`. A throwaway decoder built
-  from reading that file rendered real glyphs from three different
-  `vendor/fonts/*.cft` variants correctly, closing feasibility before any
-  plan was written. Plan 10 (`docs/plans/10-cft-bitmap-fonts.md`) closed
-  plan 09's one open item, R1b.5.
-- **Step A** (`f4744f4`): `wfb/fonts/cft.py`, a stdlib-only, credited port
-  of the reference decoder -- 36-byte RLE 2bpp/raw 1bpp and 40-byte zlib
-  1bpp headers, cmap groups, full-cell glyphs, no bearings or kerning.
-  `tests/test_cft.py` round-trips a test-side encoder rather than depending
-  on Garmin's licensed files for its core coverage; one extra test decodes
-  a real vendored file and skips when it is absent.
-  `docs/research/10-system-fonts.md` gained §10 with the field table, the
-  RLE/zlib codecs and a variant census of all 189 vendored `.cft` files
-  (178 36-byte RLE 2bpp, 11 40-byte zlib 1bpp).
-  - **Orchestrator correction:** the earlier §9 paragraph (written before
-    the format had a name for any of its parts) had guessed the header's
-    `0x19` value was the *height*. It is in fact the **ascent** (25 px, at
-    offset 24); the height is the `0x20` at offset 22 (32 px). §9's text
-    was left in place per house style, with a dated "superseded by §10"
-    note correcting the swap rather than rewriting it silently.
-- **Step B** (`7e8e11d`): wired the decoder into measurement and preview.
-  `wfb.devices.Device.system_fonts` now carries the installed device's own
-  `simulator.json` filename for a bitmap entry too (previously TTF-only);
-  `wfb.fonts.fetch_system.garmin_any_file`/`locate` return a located `.cft`
-  as a usable font (match `"garmin"`), inverting the old
-  "reported but never returned as usable" test rather than deleting it;
-  `wfb.fonts.fallback.system_face` returns a `SystemFace` backed by the
-  decoded `CftFont` (`font is None`, `bitmap` set) with its own
-  `height`/`ascent` overriding the scraped `size_px` line box/baseline; and
-  `wfb.preview._draw_bitmap_line` pastes each glyph's decoded cell through
-  a cached, `Image.NEAREST`-upscaled ink mask. Targets and `tests/golden/`
-  are unaffected (no golden device is bitmap-only); three of
-  `examples/system-fonts`' generated `*_TEXT_WIDTH` constants on fenix6
-  tighten by 2-8 px (111->109, 163->155, 165->163) now that the width comes
-  from the device's own glyph advances instead of a scaled TTF stand-in.
-  `examples/dashboard`'s fenix6 output is byte-for-byte unchanged.
-- **Step C** (this session): evidence PNGs for `fenix6`/`fr245`/`fr255`/
-  `fenix7x` across all three `examples/system-fonts*` faces, plus a
-  fenix6 before(TTF stand-in)/after(`.cft`) pair for `system-fonts`, under
-  `docs/research/probes/system-font-metrics/previews-cft/` -- the after
-  render shows visibly stair-stepped bitmap glyph edges where the before
-  render is smooth vector antialiasing, confirming real device glyphs are
-  actually being drawn. `fenix6` and `fr245` were added to the
-  `system-font-metrics` probe's `manifest.xml` products and confirmed to
-  build `BUILD SUCCESSFUL`, warning-free, from inside the sandbox.
-  `docs/research/10-system-fonts.md` gained §10.8 (what Step B built) and
-  §10.9 (the calibration follow-up, with the exact probe and
-  `examples/system-fonts` build commands for `fenix6`/`fr245`).
-  `docs/lore/toolchain.md`, `docs/limitations.md`, the `wfb/fonts/*.py`
-  docstrings, and every `docs/plans/09`/`docs/plans/10` path citation
-  across the repo were updated or repointed (to `plan 09`/`plan 10` by
-  number, or to `docs/research/10-system-fonts.md`) to stop calling
-  `.cft` decoding "deferred"/"unresearched"/"never usable". Plans 09 and
-  10 are deleted; `docs/CLAUDE.md` carries their `git show` read-back
-  lines.
-- **Open calibration follow-up** (unchanged from plan 09/10's own asks):
-  whether `Graphics.getFontHeight` on a bitmap device reports the `.cft`'s
-  own `height` or `height - 1`, whether the simulator quantises the
-  antialias blend to the 64-colour MIP palette, and what glyph the device
-  draws for a character absent from a font's cmap (this project assumes
-  glyph 0, the "missing" box) all stay UNVERIFIED until the user runs the
-  `system-font-metrics` probe and `examples/system-fonts` on `fenix6`/
-  `fr245` in their host simulator and sends back the console lines and a
-  screenshot.
+- 8 of the 13 installed devices (fenix 6/7 family, fr245, fr255) draw every
+  `FONT_*` from a `.cft`, so they fell back to TTF stand-ins. The format
+  was already documented by `markw65/monkeyc-optimizer`'s `cftinfo.ts`
+  (MIT); `wfb/fonts/cft.py` ports it (`f4744f4`), and layout and preview
+  use it (`7e8e11d`). Details: `docs/research/10-system-fonts.md` §10.
+- Open: `getFontHeight` = `height` or `height − 1`, and the antialias
+  blend, pending a simulator run on fenix6 (§10.9).

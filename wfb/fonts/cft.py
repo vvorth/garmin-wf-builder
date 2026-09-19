@@ -1,10 +1,8 @@
 """Decode Garmin's ``.cft`` bitmap-font container -- the format 8 of the 13
 installed devices (`fenix6`, `fenix6xpro`, `fenix7pro`, `fenix7x`,
 `fenix7xpro`, `fenix7xpronowifi`, `fr245`, `fr255`) resolve *every* `FONT_*`
-symbol to (plan 10 §2.1), used today by
-`wfb/fonts/fetch_system.py`'s :func:`garmin_cft_file` only for diagnostics.
-This module is Step A of that plan: pure decoding, no policy about when a
-`.cft` should be preferred over a TTF (Step B).
+symbol to. Pure decoding: when a `.cft` is used is decided by
+`wfb.fonts.fetch_system.garmin_any_file` and `wfb.fonts.fallback`.
 
 **Format, ported from prior art.** The container format was reverse
 engineered by, and this module is a direct port of the decode logic in,

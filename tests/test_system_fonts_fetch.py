@@ -500,12 +500,10 @@ def test_garmin_font_file_is_case_insensitive_and_ttf_otf_only(_isolated, tmp_pa
     assert fetch_system.garmin_font_file("someotf", root) == sub / "SomeOtf.OTF"
 
 
-def test_cft_is_reported_and_now_returned_as_a_usable_font_via_garmin_any_file(_isolated, tmp_path):
-    """Inverts the pre-Step-B test of the same shape (plan 10 §3 B.2):
-    `garmin_font_file` still only ever
-    returns a `.ttf`/`.otf` (a `.cft` is not one), but `garmin_any_file` --
-    what `locate`/`wfb doctor` actually call -- now falls through to the
-    `.cft` at an exact stem match and reports it as usable."""
+def test_cft_is_usable_via_garmin_any_file_but_not_garmin_font_file(_isolated, tmp_path):
+    """`garmin_font_file` only returns a `.ttf`/`.otf`; `garmin_any_file` --
+    what `locate`/`wfb doctor` call -- falls through to the `.cft` at an
+    exact stem match."""
     root = tmp_path / "fonts"
     root.mkdir()
     (root / "BitmapFont.cft").write_bytes(b"x")

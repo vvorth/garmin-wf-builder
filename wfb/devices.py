@@ -422,8 +422,7 @@ class Device:
 
         Enriched, per plan 09 R2.1, from the installed device's own
         ``simulator.json`` ``ww`` set when present: its own ``filename``
-        always replaces the scraped ``font`` name (TTF or bitmap alike,
-        since plan 10 §3 B.1) -- it is the more precise of the two, and
+        always replaces the scraped ``font`` name (TTF or bitmap alike) -- it is the more precise of the two, and
         for a bitmap symbol it is also the real
         ``.cft`` file's own stem, always ``FNT_``-prefixed, which the
         scraped ``font`` column never carries the prefix for

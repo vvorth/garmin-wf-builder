@@ -271,42 +271,18 @@ gitignored, incrementally copied into `~/.Garmin/ConnectIQ/Fonts` by
 `setup-env.sh`. `garmin_font_root(override=None)` finds it, first existing
 non-empty candidate winning: an explicit override (`--fonts DIR`), then
 `WFB_FONTS`, then `vendor/fonts/`, then the three per-OS SDK Manager
-locations (`%APPDATA%` only consulted when set, for Windows). This is
-**optional** — none of it exists in this sandbox (`vendor/fonts/` has never
-been populated), so `garmin_font_file`/`garmin_cft_file` are exercised only
-by fakes under `tmp_path`, never the real thing, and the exact
-`simulator.json` `filename` → on-disk-file mapping inside a real Fonts
-directory (case? subdirectories? is an `FNT_*` bitmap name a `.cft`?)
-is **unresearched** — deferred until a real Fonts directory can be
-inspected, per the plan. `garmin_font_file` today is a generic
-case-insensitive stem match over `.ttf`/`.otf` anywhere under the root; a
-`.cft` match is reported (`garmin_cft_file`) but never returned as usable —
-decoding Garmin's bitmap-font container format is also deferred.
+locations (`%APPDATA%` only consulted when set, for Windows). It is
+optional; without it the registry's free stand-ins are used.
 
-> **Superseded (2026-09-18, plan 10).** Both "deferred" statements above are
-> now false. The name → file mapping question is answered by the very next
-> paragraph's update: a flat directory, file named exactly after
-> `simulator.json`'s own `filename`. And `.cft` decoding did happen
-> (`wfb/fonts/cft.py`, plan 10 Step A, ported from `markw65/monkeyc-optimizer`
-> rather than reverse-engineered) — a `.cft` hit is now returned as a usable
-> font too, through `garmin_any_file`/`locate` (plan 10 Step B), for 8 of the
-> 13 installed devices whose every `FONT_*` symbol resolves only to a bitmap
-> file. `garmin_font_file` itself is unchanged (still `.ttf`/`.otf` only,
-> `.cft` reported separately by `garmin_cft_file`) — it is `garmin_any_file`,
-> not `garmin_font_file`, that now treats a `.cft` as usable. See
-> `docs/research/10-system-fonts.md` §10.
-
-**Update 2026-09-18:** `vendor/fonts/` is now populated from
-the user's macOS SDK Manager. It is flat, with no subdirectories: 36
-`.ttf`, 189 `.cft` and 225 `.md5` files, each named exactly after the
-`simulator.json` `filename` (e.g. `RobotoCondensed-Bold.ttf`,
-`FNT_FENIX6_CDPG_ROBOTO_20B.cft`). So the generic stem match is the right
-mapping, and every font the three targets need resolves to a Garmin file.
-The prefetch still downloads the free stand-ins, because a machine without
-the root measures with those. `WFB_NO_GARMIN_FONTS=1` makes discovery
-ignore everything but an explicit override. The test suite sets it. `locate(name,
-face=None, fonts_root=None)` is the one top-level lookup that puts Garmin's
-root ahead of the registry, for Step B to call.
+The directory is flat: `.ttf`, `.cft` and `.md5` files, each named exactly
+after the `simulator.json` `filename` (e.g. `RobotoCondensed-Bold.ttf`,
+`FNT_FENIX6_CDPG_ROBOTO_20B.cft`). `garmin_any_file` matches the stem
+case-insensitively: `.ttf`/`.otf` first, then `.cft` (decoded by
+`wfb/fonts/cft.py`, `docs/research/10-system-fonts.md` §10), then
+`"FNT_" + name` for scraped-only names. `locate(name, face=None,
+fonts_root=None)` is the one lookup that puts Garmin's root ahead of the
+registry. `WFB_NO_GARMIN_FONTS=1` makes discovery ignore everything but an
+explicit override; the test suite sets it.
 
 ---
 

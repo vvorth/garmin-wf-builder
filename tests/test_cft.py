@@ -1,4 +1,4 @@
-"""Tests for `wfb/fonts/cft.py` (plan 10 Step A).
+"""Tests for `wfb/fonts/cft.py`.
 
 Core coverage does not depend on Garmin's licensed files: a small test-side
 **encoder** below (`write_cft` and friends) writes synthetic `.cft` files --

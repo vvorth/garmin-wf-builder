@@ -41,10 +41,8 @@ the on-screen table is a coarse visual cross-check, height only, because a
 
 ## How to run it
 
-Build for a target and push it to a *running* simulator instance
-(`docs/lore/toolchain.md` S3 -- the simulator does not survive
-`monkeydo` pushing an app inside this sandbox, so this step is for the
-user's host, not this container):
+Build for a device and push it to a running simulator on the host (the
+simulator does not survive `monkeydo` in the sandbox, `docs/lore/toolchain.md`):
 
 ```sh
 export CIQ_SDK=~/ciq/sdks/9.2.0
@@ -55,57 +53,17 @@ $CIQ_SDK/bin/connectiq                      # launch the simulator (GUI)
 $CIQ_SDK/bin/monkeydo /tmp/probe.prg fenix8solar47mm
 ```
 
-Swap `fenix8solar47mm` for `fenix8solar51mm` or `fr955` for the other two
-targets. `BUILD SUCCESSFUL`, warning-free, under `-l 3`, confirmed for all
-three from inside this sandbox (build only -- there is no simulator here to
-push to, `docs/lore/toolchain.md` S3).
-
-**Added 2026-09-18 (plan 10 step C.2):** `fenix6` and `fr245`, both `.cft`
-bitmap-font devices (`docs/research/10-system-fonts.md` §10.6), so the same
-probe also settles §10.6's open `getFontHeight` vs. `height - 1` question
-and §10.7's antialias-blend question for a bitmap device, not just the TTF
-targets above. Swap the device id the same way:
-
-```sh
-export CIQ_SDK=~/ciq/sdks/9.2.0
-cd docs/research/probes/system-font-metrics
-$CIQ_SDK/bin/monkeyc -f monkey.jungle -d fenix6 \
-    -o /tmp/probe-fenix6.prg -y ~/ciq/developer_key.der -w -l 3
-$CIQ_SDK/bin/monkeyc -f monkey.jungle -d fr245 \
-    -o /tmp/probe-fr245.prg -y ~/ciq/developer_key.der -w -l 3
-$CIQ_SDK/bin/connectiq
-$CIQ_SDK/bin/monkeydo /tmp/probe-fenix6.prg fenix6
-$CIQ_SDK/bin/monkeydo /tmp/probe-fr245.prg fr245
-```
-
-Both build `BUILD SUCCESSFUL`, warning-free, under `-l 3`, confirmed from
-inside this sandbox on 2026-09-18 (build only, same simulator caveat as
-above). The console `h=`/`a=` lines for `FONT_SMALL`/`FONT_MEDIUM`/etc. on
-these two devices are exactly what settles whether the simulator reports a
-`.cft`'s own `height` or `height - 1` (§10.6) -- run
-`examples/system-fonts/face.yaml` on the same two devices in the same
-simulator session and compare its screenshot against `wfb preview`'s PNG
-for the antialias-blend question (§10.7).
-
-The console lines appear in the simulator's own log/console pane. The
-on-screen table needs no console at all -- it is what a screenshot of the
-running probe shows directly.
+The manifest lists `fenix8solar47mm`, `fenix8solar51mm`, `fr955` (TTF
+fonts) and `fenix6`, `fr245` (`.cft` bitmap fonts); all build warning-free.
+The console lines appear in the simulator's log pane; the on-screen table
+is what a screenshot shows.
 
 ## What the numbers are used for
 
-plan 09 S4 R2 built `wfb.devices.
-Device.system_fonts` and `wfb/fonts/fallback.py` from the *published*
-device-file/scraped-table metrics, not from a live device reading -- there
-is no simulator or watch inside this project's sandbox to read one from
-(`CLAUDE.md` S3). This probe is how the user closes that gap: run it on
-their host simulator (or a real watch), and the `h=`/`a=`/`d=`/`w1=`/`w2=`
-figures it prints are the ground truth `docs/research/10-system-fonts.md`
-S3 and `wfb/fonts/fallback.py` get calibrated against (plan 09 S7, open
-until those numbers come back). The `w1`/`w2` sample strings
-(`"Hxg0123"`, `"0123456789"`) are deliberately the same two samples
-`examples/system-fonts/` and the `examples/system-fonts-numbers*/` faces
-draw, so a width printed here can be checked directly against those faces'
-own measured widths.
+They are the ground truth that `wfb/fonts/fallback.py` is calibrated
+against (`docs/research/10-system-fonts.md` §9; §10.9 for the bitmap-font
+devices, still open). The `w1`/`w2` sample strings are the same ones
+`examples/system-fonts*/` draw, so the widths compare directly.
 
 ## Results (2026-09-18)
 
