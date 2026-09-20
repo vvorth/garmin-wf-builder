@@ -29,6 +29,7 @@ they record when and why a decision changed.
 | 06 pattern text, group align | `git show f5155d7:docs/plans/06-pattern-text-and-group-align.md` |
 | 07 align everywhere | `git show b534b8a:docs/plans/07-align-everywhere.md` |
 | 09 system fonts, 10 `.cft` | `git show 7e8e11d:docs/plans/09-system-font-metrics.md`, `…/10-cft-bitmap-fonts.md` |
+| 11 vector fonts, `curve:` | `git show 35217d1:docs/plans/11-vector-text.md` (§5 "Slices" is what shipped; slice 1 is `e744913`, slice 2 `35217d1`, slice 3 the example/screenshots) |
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or

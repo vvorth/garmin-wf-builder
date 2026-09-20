@@ -3275,9 +3275,6 @@ hand while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
 Still open for [patterns](#pattern): a text part whose `value:` reads data,
 `pattern: grid`, `on_hold:` and `low_power` on a pattern, per-copy variation
 other than skipping, colour and visibility, `rounded_rectangle`/`ellipse`
-parts in a linear pattern, and an arc part off the pattern's centre. A text
-part's own `curve:` now reaches rotated hour numerals around a dial, each
-tangent to its own radius (plan 11 slice 2, [Text parts](#text-parts)) —
-what remains open is plan 11 slice 3, an example and screenshots.
+parts in a linear pattern, and an arc part off the pattern's centre.
 
 See [`docs/limitations.md`](limitations.md) §2 for all of it.

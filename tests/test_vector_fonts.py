@@ -2,8 +2,8 @@
 (`Device.scalable_faces`, gate 1's symbol constants), the IR
 (`FontSpec.is_vector`/`is_baked`, `Curve`, `Text.curve`/`if_unavailable`),
 and every builder diagnostic plan 11 §2 asks for.  Layout, lint, codegen and
-preview are later slices (`docs/plans/11-vector-text.md` §5) and are not
-exercised here.
+preview are later slices (plan 11 §5; deleted once built, `docs/CLAUDE.md` --
+`git show e744913:docs/plans/11-vector-text.md`) and are not exercised here.
 """
 
 import pytest
@@ -414,8 +414,9 @@ elements:
 
 
 def test_vector_font_is_accepted_on_a_pattern_text_part(write_design, bag, repo_root):
-    """Slice 2 of plan 11 (docs/plans/11-vector-text.md §5): a pattern's own
-    `shape: text` part may name a `face:` (vector) font, with or without
+    """Slice 2 of plan 11 (`git show 35217d1:docs/plans/11-vector-text.md`
+    §5): a pattern's own `shape: text` part may name a `face:` (vector)
+    font, with or without
     `curve:` -- this used to be a build error naming "the next slice", and
     now that slice has landed. See `tests/test_pattern_text_curve.py` for
     the curve-specific behaviour (angle composition, if_unavailable, lint,

@@ -106,9 +106,9 @@ hands have.
   `copy`, so every copy's string is known at build time. The per-copy
   `formatting.emit` call on the device is unmeasured, and costs nothing
   inside `static:`. **A `shape: text` part can now turn too** (plan 11
-  slice 2, `docs/plans/11-vector-text.md` §5), the same way a `text`
-  **element** already could (below, "A face cannot ship its own TTF, and
-  vector fonts are Garmin's only"): give the part a device-resident `face:`
+  slice 2), the same way a `text` **element** already could (below, "A face
+  cannot ship its own TTF, and vector fonts are Garmin's only"): give the
+  part a device-resident `face:`
   font and its own `curve:`. The one thing genuinely different from a
   standalone element is the angle's frame — a pattern part's `curve.angle`
   is authored once, in the **template's own local frame** (for copy 0), and

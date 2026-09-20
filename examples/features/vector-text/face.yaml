@@ -1,0 +1,186 @@
+# Vector fonts and `curve:` (docs/format.md "Vector (`face:`) fonts", and
+# "`curve:` -- rotated and radial text"; built as plan 11, both slices --
+# git show 35217d1:docs/plans/11-vector-text.md is the design record).
+#
+# A rugged field-watch dial: twelve numerals turn to sit tangent to their
+# own radius around a compass-style bezel, a wordmark curves along the
+# bottom rim, and a diagonal "SOLAR" ribbon marks the two solar-charging
+# targets. What this exercises:
+#
+# * **Two kinds of `fonts:` entry, coexisting** (`docs/format.md` "Fonts"):
+#   `clock` bakes a bitmap sheet from `assets/ChivoMono-Bold.ttf`, the way
+#   every other example's fonts do; `dial` instead names a **device-resident
+#   scalable face** with `face:` -- nothing is rasterised for it at build
+#   time, so it can be drawn upright, angled or radial at any size.
+# * **A `face:` candidate list, so the per-device resolution is actually
+#   visible**: `face: [BionicSemiBold, RobotoCondensedBold]`. Only
+#   `fenix8solar47mm`/`fenix8solar51mm` publish `BionicSemiBold`; `fr955`
+#   does not (it has `RobotoBlack`/`BionicBold` instead -- a different name,
+#   not a fallback match), so `dial` resolves to `BionicSemiBold` on the two
+#   fenix targets and to `RobotoCondensedBold` on fr955. The numeral ring
+#   and the bottom wordmark genuinely render in a different face on fr955 --
+#   check the three renders side by side to see it.
+# * **`curve: {style: radial}` on a `text` element** (`wordmark`): "FIELD
+#   TRACK" bent along the bottom rim, `direction: counter_clockwise` so it
+#   faces inward and reads right-side up along the bottom of the dial
+#   (`docs/format.md`'s open question on radial glyph facing).
+# * **`curve: {style: angled}` on a `text` element** (`solar_badge`): a
+#   tilted ribbon, the plain rotated-baseline case.
+# * **A pattern `shape: text` part with `curve:`** (`hour_numerals`): the
+#   twelve-hour-numerals case `docs/limitations.md` used to carry as
+#   impossible ("a bitmap font cannot turn, so only the anchor turns") --
+#   one authored `angle: 90deg`, in the template's own local frame, composed
+#   per copy with the radial pattern's own rotation, so the whole ring is
+#   one authored angle, not twelve. Each numeral sits tangent to its own
+#   position on the circle, which (this composition being a full turn per
+#   lap, not a mirror-symmetric one) makes it read as a bead threaded on the
+#   ring: upright at "12", on its side at "3" and "9", upside down at "6" --
+#   verified by rendering, not assumed. `angle: 90deg` here, not `0deg`, is
+#   only a choice of *where* "upright" falls: `curve.angle` follows this
+#   format's usual 12-o'clock-is-0 convention, so `0deg` points the baseline
+#   itself at 12 (a numeral rotated 90 from level) and `90deg` -- baseline
+#   pointing at 3, i.e. plain horizontal -- is what looks level at copy 0.
+#   The docs' own canonical snippet uses `0deg` (level at copy 3 instead);
+#   either is correct, this design just picked the phase where "12" reads
+#   level rather than "3".
+# * **`if_unavailable: hide` doing real work, not a decorative key**:
+#   `solar_badge`'s own font, `accent`, names `BionicSemiBold` alone -- no
+#   fallback list -- and that face does not exist on fr955. Without
+#   `if_unavailable: hide` on it, the build would fail on fr955 naming the
+#   missing face. With it, the badge simply is not drawn there, which is
+#   also the thematically correct outcome: fr955 is not a solar watch, and
+#   fenix8solar47mm/51mm are. Nothing about *that* correctness is checked by
+#   the compiler -- it is a coincidence of Garmin's own on-device font
+#   catalogue -- but it is why this design chose `BionicSemiBold` for the
+#   badge rather than a face every target happens to share.
+#
+# Build it with:    ./wfb.py build examples/features/vector-text/face.yaml
+# Preview it with:  ./wfb.py preview examples/features/vector-text/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: a3c8a862-4713-431e-a51f-27e99a4edcd2
+  name: Feature Vector Text
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour is one the 64-colour MIP panel shows without dithering: each
+# channel is 0x00, 0x55, 0xAA or 0xFF (CLAUDE.md constraint 13).
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  gray: "#AAAAAA"
+  amber: "#FF5500"
+
+fonts:
+  clock:
+    source: assets/ChivoMono-Bold.ttf   # baked: the ordinary case
+    size: 24%r
+    monospace: true
+    antialias: true
+
+  dial:
+    # device-resident, scalable -- resolved per device from this list, not
+    # rasterised at build time. BionicSemiBold is on the two fenix8 solar
+    # targets; fr955 falls through to RobotoCondensedBold.
+    face: [BionicSemiBold, RobotoCondensedBold]
+    size: 8%r
+
+  accent:
+    # a single name, deliberately with no fallback: fr955 does not publish
+    # it, so if_unavailable: hide (below) is load-bearing, not decorative.
+    face: BionicSemiBold
+    size: 7%r
+    if_unavailable: hide
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.black
+
+  - id: bezel_ring
+    type: shape
+    shape: circle
+    at: { anchor: center }
+    radius: 95%r
+    filled: false
+    thickness: 1px
+    color: palette.gray
+
+  # Twelve hour numerals, each rotated to sit tangent to its own radius --
+  # docs/format.md "Text parts". One authored angle, not twelve.
+  - id: hour_numerals
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    color: palette.white
+    parts:
+      - shape: text
+        value: "(copy + 11) % 12 + 1"
+        font: font.dial
+        at: { dy: -82%r }
+        curve:
+          style: angled
+          angle: 90deg
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: font.clock
+    at: { anchor: center, dy: -6% }
+    color: palette.white
+
+  - id: today
+    type: text
+    value: date.today
+    format: "{:%a %e}"
+    font: FONT_TINY
+    at: { anchor: center, dy: 14% }
+    color: palette.gray
+
+  # A wordmark bent along the bottom rim. curve: radial's `at:` is the
+  # CENTRE of the circle, not a point the text sits on -- docs/format.md.
+  # counter_clockwise faces the glyphs inward, so text along the bottom of
+  # the dial still reads right-side up.
+  - id: wordmark
+    type: text
+    text: "FIELD TRACK"
+    font: font.dial
+    color: palette.gray
+    at: { anchor: center }
+    curve:
+      style: radial
+      angle: 165deg
+      radius: 60%r
+      direction: counter_clockwise
+
+  # A tilted "SOLAR" ribbon, upper right -- only on the two solar-charging
+  # targets, because font.accent's face is only published there. This is
+  # the if_unavailable: hide that matters: without it this element's own
+  # font would fail gate 3 on fr955 and the whole build would error.
+  - id: solar_badge
+    type: text
+    text: "SOLAR"
+    font: font.accent
+    color: palette.amber
+    at: { anchor: center, dx: 34%r, dy: -50%r }
+    curve:
+      style: angled
+      angle: 55deg
+    lint:
+      allow: [font-unavailable]
+      reason: "font.accent (BionicSemiBold) is deliberately single-name, no
+        fallback: fr955 does not publish it, if_unavailable: hide is the
+        point of this element, and fr955 is not a solar watch anyway."

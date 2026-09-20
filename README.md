@@ -709,6 +709,46 @@ third panel never shows seconds.
 pieces further into a face you would wear: a custom numeral font, hour
 numerals and date windows.
 
+### Text that turns: [`examples/features/vector-text`](examples/features/vector-text/face.yaml)
+
+```yaml
+fonts:
+  clock: { source: assets/ChivoMono-Bold.ttf, size: 24%r }   # baked, as usual
+  dial:  { face: [BionicSemiBold, RobotoCondensedBold], size: 8%r }  # device-resident
+
+hour_numerals:                     # a pattern's shape: text part can turn too
+  type: pattern
+  pattern: radial
+  count: 12
+  parts:
+    - shape: text
+      value: "(copy + 11) % 12 + 1"
+      font: font.dial
+      curve: { style: angled, angle: 90deg }
+
+wordmark:                          # a standalone text element, bent round a circle
+  type: text
+  text: "FIELD TRACK"
+  font: font.dial
+  curve: { style: radial, angle: 165deg, radius: 60%r, direction: counter_clockwise }
+```
+
+<img src="docs/screenshots/vector-text.png" width="260" alt="vector text example">
+
+`Dc.drawAngledText`/`Dc.drawRadialText` are the only way to draw text that
+rotates, and they refuse a resource font -- so a `fonts:` entry can name a
+**device-resident scalable face** with `face:` instead of `source:`, alongside
+an ordinary baked font in the same design. `face:` takes a list tried in
+author order and resolved per device: `BionicSemiBold` is only on the two
+solar fenix targets, so the ring and wordmark render in a different face on
+fr955, where the list falls through to `RobotoCondensedBold`. `curve:` bends
+a `text` element (`angled`, a straight tilt; `radial`, around a circle) or a
+pattern's own `shape: text` part -- twelve hour numerals, each rotated tangent
+to its own radius, as one pattern instead of twelve elements. The tilted
+"SOLAR" badge uses a face with no fallback at all and `if_unavailable: hide`:
+on fr955, which doesn't publish it, the badge is simply absent rather than
+failing the build -- fitting, since fr955 isn't a solar watch either.
+
 ### Features with no example face yet
 
 - **`antialias:` at every level.** Set it on the face, a group, an element, or

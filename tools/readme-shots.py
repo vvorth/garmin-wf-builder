@@ -42,6 +42,7 @@ EXAMPLES = {
     "graph": ("features/graph", []),
     "shapes": ("features/shapes", []),
     "analog-styles": ("features/analog", ["--all-styles"]),
+    "vector-text": ("features/vector-text", []),
 }
 
 # On-device editor variants: each sets `config:` defaults, by key, in a

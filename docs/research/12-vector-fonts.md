@@ -323,8 +323,9 @@ What it costs: the author gives up the typeface. Fourteen Latin faces exist,
 
 ### 5.3 The shape that was built (plan 11)
 
-**Built, not merely sketched: `docs/plans/11-vector-text.md` is the design
-record, and `docs/format.md`'s `fonts:`/`curve:` sections are the shipped
+**Built, not merely sketched: `git show e744913:docs/plans/11-vector-text.md`
+is the design record (deleted once slice 3 landed, `docs/CLAUDE.md`), and
+`docs/format.md`'s `fonts:`/`curve:` sections are the shipped
 reference.** A `fonts:` entry can now name a **second kind of font**,
 resolved per device: `face:` instead of `source:`, reached through
 `Graphics.getVectorFont` at draw time with nothing rasterised for it at
@@ -406,6 +407,13 @@ exactly what was decided: worth building for `drawAngledText`/
 as a memory measure, which §4 shows it mostly is not; adopting it purely to
 swap one straight-line text mechanism for another would have bought a
 worse typeface on two-thirds of the fleet for nothing.
+
+**Slice 3 landed too:** `examples/features/vector-text/face.yaml` is the
+worked example (`docs/screenshots/vector-text.png`, `README.md` §11) — a
+`face:` candidate list resolved differently per device, `curve: {style:
+angled}` and `curve: {style: radial}` on standalone `text` elements, the
+twelve-hour-numerals pattern case, and `if_unavailable: hide` load-bearing
+rather than decorative (a face published on only two of the three targets).
 
 ---
 
