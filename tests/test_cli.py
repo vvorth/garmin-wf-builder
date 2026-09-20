@@ -309,3 +309,67 @@ def test_preview_renders_a_device_that_is_not_a_target(db, tmp_path):
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "fenix7pro.png").exists()
     assert "not one of this design's targets" in result.stdout + result.stderr
+
+
+def run_binary(*args: str, cwd: Path | None = None):
+    """`run`, but without text decoding: `-o -` puts PNG bytes on stdout."""
+    return subprocess.run(
+        [sys.executable, str(ENTRY), *args],
+        capture_output=True, cwd=str(cwd or ROOT), check=False,
+    )
+
+
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+@pytest.mark.parametrize("marker", ["-", "--"])
+def test_preview_writes_one_png_to_stdout(db, marker):
+    """`wfb preview -o -` (or `-o --`, which argparse would otherwise eat as
+    the end-of-options separator) puts the image itself on stdout and nothing
+    else, so it can be piped: `wfb preview face.yaml -o -- | chafa`."""
+    from PIL import Image
+    import io
+
+    result = run_binary("preview", "examples/features/sun/face.yaml", "-o", marker)
+    assert result.returncode == 0, result.stderr.decode()
+    assert result.stdout.startswith(PNG_MAGIC)
+    # Exactly one image, although the design lists three targets -- a second
+    # PNG concatenated onto the stream would make the pipe's decoder guess.
+    assert result.stdout.count(PNG_MAGIC) == 1
+    image = Image.open(io.BytesIO(result.stdout))
+    image.load()
+    assert image.format == "PNG"
+
+
+def test_preview_to_stdout_picks_the_device_from_d(db):
+    """The one image is the device `-d` named, not the first target."""
+    from PIL import Image
+    import io
+
+    def size(*extra: str) -> tuple[int, int]:
+        result = run_binary("preview", "examples/features/sun/face.yaml", "-o", "-",
+                            "--scale", "1", *extra)
+        assert result.returncode == 0, result.stderr.decode()
+        return Image.open(io.BytesIO(result.stdout)).size
+
+    # fenix8solar51mm is 280x280 and is *not* this design's first target, so a
+    # run that ignored -d would come back at the 47mm's 260x260.
+    assert size() == (260, 260)
+    assert size("-d", "fenix8solar51mm") == (280, 280)
+
+
+def test_preview_quiet_silences_stdout_but_still_writes(db, tmp_path):
+    """`-q` is for scripts: the PNGs still land, stdout stays empty, and
+    diagnostics are untouched because they were always on stderr."""
+    result = run("preview", "examples/features/sun/face.yaml", "-q",
+                 "-o", str(tmp_path), "--color", "never")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert (tmp_path / "fenix8solar47mm.png").exists()
+
+
+def test_preview_to_stdout_refuses_to_watch(db):
+    """`--watch` would write a PNG per re-render into one stream."""
+    result = run("preview", "examples/features/sun/face.yaml", "-o", "--", "--watch")
+    assert result.returncode == 1
+    assert "--watch" in result.stderr

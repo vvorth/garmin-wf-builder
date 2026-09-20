@@ -90,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     raw = sys.argv[1:] if argv is None else list(argv)
     parser = _parser()
     raw = _rewrite_trailing_help(raw, _subparsers(parser))
+    raw = _rewrite_stdout_output(raw)
     args = parser.parse_args(raw)
     # `color` only exists once a subcommand parser has run; `color_before` is
     # always present from the top-level parser (see `_color_parser`).
@@ -130,6 +131,34 @@ def _rewrite_trailing_help(argv: list[str], commands: dict[str, argparse.Argumen
     if len(argv) == 2 and argv[1] == "help" and argv[0] in commands:
         return [argv[0], "--help"]
     return argv
+
+
+#: What ``-o`` is given to write the image itself to stdout.  Both spellings
+#: are accepted; `_rewrite_stdout_output` normalises the one argparse cannot
+#: see, and `_is_stdout` still recognises the ``--output=--`` form it never
+#: touches.
+STDOUT_OUTPUT = ("-", "--")
+
+
+def _rewrite_stdout_output(argv: list[str]) -> list[str]:
+    """``-o --`` -> ``-o -``.
+
+    argparse removes the first bare ``--`` from the argument list as the
+    end-of-options separator *before* any option can consume it as a value,
+    so ``wfb preview face.yaml -o --`` would otherwise die with "expected one
+    argument".  Both spellings mean the same thing, and this is the only
+    place that can still see the ``--``.
+    """
+    out = list(argv)
+    for index, token in enumerate(out[:-1]):
+        if token in ("-o", "--output") and out[index + 1] == "--":
+            out[index + 1] = "-"
+    return out
+
+
+def _is_stdout(output: Path | None) -> bool:
+    """Is this ``-o``/``--output`` value the write-to-stdout marker?"""
+    return output is not None and str(output) in STDOUT_OUTPUT
 
 
 def _color_parser(dest: str = "color") -> argparse.ArgumentParser:
@@ -224,7 +253,13 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("-d", "--device", action="append", dest="devices",
                          help="render only this device (repeatable); any installed "
                               "device, not just a listed target; defaults to all targets")
-    preview.add_argument("-o", "--output", type=Path, default=Path("build/preview"))
+    preview.add_argument("-o", "--output", type=Path, default=Path("build/preview"),
+                         help="directory to write the PNGs to (default: build/preview); "
+                              "`-o -` (or `-o --`) writes ONE PNG to stdout instead, for "
+                              "piping -- e.g. `wfb preview face.yaml -o -- | chafa`")
+    preview.add_argument("-q", "--quiet", action="store_true",
+                         help="print nothing to stdout; errors and warnings still go to "
+                              "stderr (implied by `-o -`)")
     preview.add_argument("--scale", type=int, default=2)
     preview.add_argument("--no-quantise", action="store_true",
                          help="skip snapping colours to the device palette")
@@ -382,11 +417,19 @@ def _parse_preview_time(text: str) -> tuple[int, int, int] | None:
     return (hour, minute, second)
 
 
-def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
-    """Render once.  Returns the exit code and the design's dependencies."""
-    from .preview import PreviewOptions, UnknownStyleError
+def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
+    """Render once.  Returns the exit code and the design's dependencies.
+
+    ``blurb`` is watch mode's suppression of the closing note alone -- it
+    still wants to see each re-render's line.  ``--quiet``, and the stdout
+    marker that implies it, silence stdout completely; diagnostics are
+    unaffected either way, because `Bag.print` writes to stderr.
+    """
+    from .preview import PreviewOptions, UnknownStyleError, render, render_all_styles
     from .preview import write as write_preview, write_all_styles
 
+    to_stdout = _is_stdout(getattr(args, "output", None))
+    quiet = to_stdout or getattr(args, "quiet", False)
     style = getattr(args, "style", None)
     all_styles = getattr(args, "all_styles", False)
     if style is not None and all_styles:
@@ -414,6 +457,10 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     if not devices:
         bag.print()
         return 1, watched
+    if to_stdout:
+        # One stream, one image: the first device asked for with -d, or the
+        # design's first target.  `select_devices` keeps that order.
+        devices = devices[:1]
     resolved, _ = resolve_all(face, devices, bag)
     bag.print()
     if not bag.ok():
@@ -425,18 +472,25 @@ def _render_preview(args, db, *, quiet: bool = False) -> tuple[int, list[Path]]:
     label = _status("preview", color=color_out)
     try:
         for device_id, result in resolved.items():
+            if to_stdout:
+                image = (render_all_styles(result, options) if all_styles
+                         else render(result, options))
+                image.save(sys.stdout.buffer, format="PNG")
+                sys.stdout.buffer.flush()
+                continue
             if all_styles:
                 path = write_all_styles(
                     result, args.output / f"{device_id}--all-styles.png", options)
             else:
                 suffix = f"--{style}" if style is not None else ""
                 path = write_preview(result, args.output / f"{device_id}{suffix}.png", options)
-            print(f"{label}    {path}  ({result.device.width}x{result.device.height} "
-                  f"at {args.scale}x)", flush=True)
+            if not quiet:
+                print(f"{label}    {path}  ({result.device.width}x{result.device.height} "
+                      f"at {args.scale}x)", flush=True)
     except UnknownStyleError as exc:
         _error(str(exc))
         return 1, watched
-    if not quiet:
+    if blurb and not quiet:
         print()
         for line in (
             "Rendered from the same resolved geometry the generated code uses, so the",
@@ -472,10 +526,26 @@ def _preview(args) -> int:
 
     `-w/--watch` re-renders whenever the design file or any font it
     references changes, polling every `--interval` seconds (default 0.4).
+
+    `-o -` -- or `-o --`, which reads better next to a pipe -- writes the
+    PNG bytes to stdout instead of to files, and renders exactly one image:
+    the device `-d` names, or the design's first target. It implies
+    `-q/--quiet`, so stdout carries the image and nothing else; warnings and
+    errors still go to stderr. That makes a terminal preview a one-liner:
+
+        wfb preview face.yaml -o -- | chafa
+        wfb preview face.yaml -d fr955 -o - > face.png
+
+    `-q/--quiet` on its own silences stdout while still writing the PNG
+    files, for a script that only cares about the exit code.
     """
+    if _is_stdout(args.output) and args.watch:
+        _error("-o - writes one image and exits; it cannot be combined with --watch")
+        return 1
     db = DeviceDatabase.discover(args.devices_dir)
     if not args.watch:
-        print()
+        if not (args.quiet or _is_stdout(args.output)):
+            print()
         return _render_preview(args, db)[0]
 
     import time
@@ -490,8 +560,9 @@ def _preview(args) -> int:
         return out
 
     color_out = term.should_color(sys.stdout)
-    print(f"watching {args.design} -- press Ctrl-C to stop\n", flush=True)
-    code, watched = _render_preview(args, db, quiet=True)
+    if not args.quiet:
+        print(f"watching {args.design} -- press Ctrl-C to stop\n", flush=True)
+    code, watched = _render_preview(args, db, blurb=False)
     seen = stamps(watched)
     try:
         while True:
@@ -500,12 +571,15 @@ def _preview(args) -> int:
             if current == seen:
                 continue
             seen = current
-            separator = term.style(f"--- {time.strftime('%H:%M:%S')} ---", "dim", enabled=color_out)
-            print(f"\n{separator}", flush=True)
-            code, watched = _render_preview(args, db, quiet=True)
+            if not args.quiet:
+                separator = term.style(f"--- {time.strftime('%H:%M:%S')} ---",
+                                       "dim", enabled=color_out)
+                print(f"\n{separator}", flush=True)
+            code, watched = _render_preview(args, db, blurb=False)
             seen.update(stamps(watched))
     except KeyboardInterrupt:
-        print("\nstopped watching")
+        if not args.quiet:
+            print("\nstopped watching")
     return code
 
 

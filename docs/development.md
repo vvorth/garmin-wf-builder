@@ -96,7 +96,7 @@ holds your face, because the container sees only the directory mounted at
 wfb new       "My Face" [-t minimal|dashboard]   # start from a known-good template
 wfb build     design.yaml [-d DEVICE] [-o DIR] [--no-compile]
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
-wfb preview   design.yaml [-d DEVICE] [--watch]  # render to PNG; no toolchain, no simulator
+wfb preview   design.yaml [-d DEVICE] [--watch] [-q] [-o -]  # render to PNG; no simulator
 wfb simulate  design.yaml          # launch the simulator and push the built face
 wfb devices                        # installed device definitions and their limits
 wfb sources                        # the data-source catalogue, and the icon names
@@ -110,6 +110,17 @@ wfb help      [command]            # every command's own help, from its own docs
 named. It accepts any installed device (`wfb devices`), not only a listed
 target; an unlisted one draws a `target` note, and the generated manifest
 lists exactly the devices asked for.
+
+`wfb preview -o -` (or `-o --`) writes **one** PNG — the device `-d` names, or
+the design's first target — to stdout instead of to files, and prints nothing
+else, so a face can go straight into a terminal image viewer:
+
+```sh
+wfb preview my-face.yaml -o -- | chafa
+```
+
+`-q/--quiet` alone keeps the files and silences stdout; either way warnings
+and errors still go to stderr.
 
 `wfb help <command>` and `wfb <command> help` print the same thing as
 `wfb <command> --help`, byte for byte, because all three are read from that
