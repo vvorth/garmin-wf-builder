@@ -1,0 +1,78 @@
+# Golden/test coverage for plan 11 slice 2 (curve: on a pattern's own
+# shape: text part) -- the twelve-hour-numerals case docs/limitations.md
+# used to describe as "a bitmap font cannot turn, so only the anchor
+# turns": each numeral now rotates to sit tangent to its own radius,
+# through a device-resident face: font and Dc.drawAngledText.
+#
+# A test fixture, not an example: tests/test_pattern_text_curve.py resolves
+# and generates from it directly, and it is what a real build/render is
+# checked against while implementing this slice.
+#
+# Build it with:  ./wfb.py build tests/fixtures/pattern_curve_text/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 9d3f7a2c-6e1b-4a5d-8c2f-1b6e4a2d8c9f
+  name: PatternCurveText
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+  accent: "#FF5500"
+
+fonts:
+  bezel:
+    face: [RobotoCondensedBold, RobotoCondensedRegular]
+    size: 9%r
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # Twelve hour numerals, each rotated to sit tangent to its own radius --
+  # one 'angle: 0deg' on the part, composed per copy with the pattern's own
+  # rotation (docs/plans/11-vector-text.md, slice 2's own design note).
+  - id: hour_numerals
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    color: palette.text
+    parts:
+      - shape: text
+        value: "(copy + 11) % 12 + 1"
+        font: font.bezel
+        at: { dy: -74%r }
+        curve:
+          style: angled
+          angle: 0deg
+
+  # A linear pattern's own curve text -- the "no copy angle to compose
+  # with" case: every copy keeps the part's own authored angle unchanged.
+  - id: tilted_row
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dy: 55%r, dx: -14%r }
+    count: 3
+    step: { dx: 14%r }
+    color: palette.accent
+    parts:
+      - shape: text
+        text: "V"
+        font: font.bezel
+        curve:
+          style: angled
+          angle: 20deg

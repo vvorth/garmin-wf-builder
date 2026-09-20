@@ -375,6 +375,36 @@ class ResolvedHandPart:
     #: ``texts`` -- a baked font's `measure` or `fonts.fallback.measure` for
     #: a system font, exactly as `Resolver._resolve_text` measures one.
     widths: tuple[int, ...] = ()
+    #: See `PlacedText.font_face`/`.font_is_vector`/`.font_available` --
+    #: the same three fields, for a `shape: text` pattern part (plan 11
+    #: slice 2).  `font_face` is this device's own resolved `:face` string
+    #: (empty when unresolved); `font_is_vector` is true only when `font:`
+    #: names a `face:` `FontSpec`; `font_available` is gates 1-3's answer
+    #: for *this* device, always `True` for a baked/system font.
+    font_face: str = ""
+    font_is_vector: bool = False
+    font_available: bool = True
+    #: See `PlacedText.curve_style`/`.curve_angle_degrees`/`.curve_angle_
+    #: garmin`/`.curve_radius_px`/`.curve_direction` -- the same five
+    #: fields, for a `shape: text` pattern part's own `curve:` (plan 11
+    #: slice 2).  **`curve_angle_garmin` is this part's own *local*,
+    #: template-frame angle (`HandPart.curve.angle`, Garmin-converted) --
+    #: for copy 0 alone, NOT yet composed with a radial pattern's own
+    #: per-copy rotation.** That composition (`part.curve_angle_garmin -
+    #: (element.start_angle + i * element.step_angle)`, the same "local
+    #: angle plus the copy's own rotation" arithmetic a pattern's own `arc`
+    #: part's `start_angle` already gets at codegen time) happens in
+    #: `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr` and, for the
+    #: lint box, in `_pattern_part_ink` -- never here, since it genuinely
+    #: depends on which copy `i` is, a per-copy runtime loop variable this
+    #: module never sees. `None`/`0`/`0.0` defaults exactly mirror
+    #: `PlacedText`'s own, for an upright (uncurved) text part or any other
+    #: shape.
+    curve_style: str | None = None
+    curve_angle_degrees: float = 0.0
+    curve_angle_garmin: float = 0.0
+    curve_radius_px: int = 0
+    curve_direction: str | None = None
 
 
 @dataclass(frozen=True)
@@ -465,6 +495,7 @@ def pattern_text_anchor(
 
 def _pattern_part_ink(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
+    copy_angle_degrees: float = 0.0,
 ) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` of one resolved pattern part's ink
     for one copy, given that copy's :meth:`PlacedPattern.transform`:
@@ -476,6 +507,22 @@ def _pattern_part_ink(
     (:func:`pattern_text_anchor`) and this copy's own measured width
     (``part.widths[index]``) -- the one shape here that needs
     to know *which* copy it is, since upright text is not rotation-invariant.
+
+    `copy_angle_degrees` is this copy's own rotation, in the design's
+    clockwise-from-12 convention (`element.start_angle + index *
+    element.step_angle` for a radial pattern, `0.0` for a linear one --
+    computed once per copy by `Resolver._resolve_pattern`'s own loop, the
+    same value `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`
+    composes with at codegen time). Unused except by a curved text part's
+    own conservative box (plan 11 slice 2): `angled` is the measured
+    `width`x`height` rectangle rotated about the anchor by the *effective*
+    Garmin angle (`part.curve_angle_garmin - copy_angle_degrees`, the same
+    composition codegen performs), reusing `Resolver._rotated_text_box`
+    rather than a second copy of that rotation math; `radial` is centre +/-
+    (radius + line_height), the same "acceptable and honest" box a
+    standalone `curve: {style: radial}` text element's own lint box uses
+    (`Resolver._resolve_text`) -- the centre here is this copy's own
+    rotated/translated anchor, not a fixed point.
     """
     def tf(x: float, y: float) -> tuple[float, float]:
         return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
@@ -498,6 +545,14 @@ def _pattern_part_ink(
         ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
         width = part.widths[index] if part.widths else 0
         height = part.line_height
+        if part.curve_style == "angled":
+            effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
+            box = Resolver._rotated_text_box(
+                ax, ay, width, height, part.align, part.vertical_align, effective_garmin)
+            return box.x, box.y, box.x + box.width, box.y + box.height
+        if part.curve_style == "radial":
+            reach = part.curve_radius_px + height
+            return ax - reach, ay - reach, ax + reach, ay + reach
         dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
         left = ax + dx - width / 2.0
         top = ay + dy - height / 2.0
@@ -1476,7 +1531,8 @@ class Resolver:
             # A pattern's template only (`wfb.ir.HAND_PART_REJECTED_SHAPES`
             # keeps this off a hand) -- upright glyphs, so the anchor is the
             # only thing that goes through `_hand_point`; the glyphs
-            # themselves are measured, not rotated. `reach` is always `0.0`
+            # themselves are measured, not rotated (unless `curve:` turns
+            # them too -- plan 11 slice 2, below). `reach` is always `0.0`
             # here: text is not rotation-invariant, so `Resolver.
             # _resolve_pattern`'s per-copy loop computes the real farthest
             # corner instead.
@@ -1484,6 +1540,21 @@ class Resolver:
             x, y = round_half_away(x0), round_half_away(y0)
             font_px, reference, is_custom, baked, metric = self._font_for_ref(
                 part.font, part.font_is_custom, owner_id)
+            font_is_vector = False
+            font_face = ""
+            font_available = True
+            if is_custom:
+                spec = self.face.fonts[part.font]
+                if spec.is_vector:
+                    # The exact same override `_resolve_text` applies once
+                    # `_font_for` says the reference is custom (plan 11 §4:
+                    # `baked`/`metric` from `_font_for_ref` are both
+                    # meaningless for a vector font) -- one face-resolution
+                    # path, reused here rather than duplicated.
+                    font_is_vector = True
+                    baked = None
+                    font_face, font_available = self._resolve_vector_face(spec, part.curve)
+                    metric = self._vector_font_metric(font_face, font_px)
             if baked is not None:
                 widths = tuple(baked.measure(t)[0] for t in part.texts)
                 line_height = baked.line_height
@@ -1494,12 +1565,32 @@ class Resolver:
                 widths = tuple(0 for _ in part.texts)
                 line_height = font_px
             justify = self._justify(part)
+            curve = part.curve
+            curve_style = curve.style if curve is not None else None
+            curve_angle_degrees = curve.angle.degrees if curve is not None else 0.0
+            curve_angle_garmin = curve.angle.to_garmin() if curve is not None else 0.0
+            curve_radius_px = 0
+            curve_direction = curve.direction if curve is not None else None
+            if curve_style == "radial" and curve.radius is not None:
+                # `curve.radius` is a `handLength` (px/%r only -- schema
+                # `patternCurve`), resolved the same way every other
+                # pattern-part radius/thickness is: `_hand_extent`, so a
+                # relative one also gets the `min_1px`/sub-pixel-length
+                # treatment a circle or arc part's own `radius:` already
+                # gets, not a silent, unrecorded rounding.
+                curve_radius_px = round_half_away(self._hand_extent(
+                    curve.radius, min_1px=effective_min_1px, what="curve.radius"))
             return ResolvedHandPart(
                 "text", part.color, x=x, y=y,
                 font_reference=reference, font_is_custom=is_custom, font_px=font_px,
                 font_metric=metric,
+                font_face=font_face, font_is_vector=font_is_vector,
+                font_available=font_available,
                 justify=justify, align=part.align, vertical_align=part.vertical_align,
                 line_height=line_height, texts=part.texts, widths=widths,
+                curve_style=curve_style, curve_angle_degrees=curve_angle_degrees,
+                curve_angle_garmin=curve_angle_garmin, curve_radius_px=curve_radius_px,
+                curve_direction=curve_direction,
             ), 0.0
 
         # circle
@@ -1580,8 +1671,16 @@ class Resolver:
         cx_f, cy_f = float(center[0]), float(center[1])
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
+            # Copy `index`'s own rotation, design degrees clockwise from 12
+            # -- `0.0` for a linear pattern, which never turns (`start`/
+            # `step` are both `0.0` there, set just above). A curved text
+            # part's box composes its own local `curve_angle_garmin` with
+            # this (plan 11 slice 2, `_pattern_part_ink`'s own docstring);
+            # every other shape ignores the argument.
+            copy_angle_degrees = start + index * step
             for part in parts:
-                lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(part, ox, oy, sin_t, cos_t, index)
+                lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(
+                    part, ox, oy, sin_t, cos_t, index, copy_angle_degrees)
                 min_x, min_y = min(min_x, lo_x), min(min_y, lo_y)
                 max_x, max_y = max(max_x, hi_x), max(max_y, hi_y)
                 if part.shape == "text" and element.pattern == "radial":

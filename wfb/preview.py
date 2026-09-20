@@ -461,6 +461,13 @@ class _Renderer:
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
             cx, cy = ox * s, oy * s
+            # This copy's own rotation, design degrees clockwise from 12 --
+            # `0.0` for a linear pattern (`placed.start`/`.step` are both
+            # `0.0` there). A curved text part's effective angle composes
+            # its own local `curve_angle_garmin` with this, the same
+            # composition `wfb.layout._pattern_part_ink` and codegen's
+            # `_emit_pattern_text_angle_expr` both perform (plan 11 slice 2).
+            copy_angle_degrees = placed.start + index * placed.step
             # `copy` is the generated loop's `i`: a colour reading it is
             # evaluated afresh for every copy, exactly as the device does.
             values = {**self.values, expr.COPY: index}
@@ -471,7 +478,8 @@ class _Renderer:
                 if part.shape == "arc":
                     self._pattern_arc(part, ox, oy, index, placed, s, values)
                 elif part.shape == "text":
-                    self._pattern_text(part, ox, oy, sin_t, cos_t, index, values)
+                    self._pattern_text(part, ox, oy, sin_t, cos_t, index, values,
+                                       copy_angle_degrees)
                 else:
                     self._hand_part(part, cx, cy, s, sin_t, cos_t, values)
 
@@ -524,22 +532,42 @@ class _Renderer:
                           fill=fill, width=max(1, part.thickness * s))
 
     def _pattern_text(self, part, ox: float, oy: float, sin_t: float, cos_t: float,
-                      index: int, values: dict) -> None:
+                      index: int, values: dict, copy_angle_degrees: float = 0.0) -> None:
         """A `shape: text` template part: upright glyphs at this copy's own
         anchor, rounded the same half-up way `runtime-lib/WfbGeom.mc`'s
         `rotatedX`/`rotatedY` round it on the device
         (:func:`pattern_text_anchor`) -- the anchor *turns* (radial) or
-        *steps* (linear) with the copy, but the glyphs themselves never
+        *steps* (linear) with the copy.  A baked/system font's glyphs never
         rotate (upright text is not rotation-invariant), so `_hand_part`'s
-        vertex rotation does not apply to them. Draws through the very
-        same `_draw_text` a `text` element uses
-        (`_text`), so a pattern's numerals and a standalone `text` element
-        can never disagree about how a font/align/vertical_align combination
-        looks.
+        vertex rotation does not apply to them, and this draws through the
+        very same `_draw_text` a `text` element uses (`_text`), so a
+        pattern's numerals and a standalone `text` element can never
+        disagree about how a font/align/vertical_align combination looks.
+
+        **A `face:` (vector) font's own `curve:` turns the glyphs too**
+        (plan 11 slice 2), through `_draw_vector_text` -- the same method a
+        curved `text` element uses -- with this copy's own rotated/
+        translated anchor and its *effective* angle: `part.curve_angle_
+        garmin - copy_angle_degrees`, the same "local angle composed with
+        the copy's own rotation" arithmetic codegen performs
+        (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`) and the
+        lint box already used (`wfb.layout._pattern_part_ink`). `font_
+        available is False` is `if_unavailable: hide` acting on this one
+        device (gates 1-3 failed) -- the honest preview is to draw nothing,
+        the same as `_text` does for a standalone element.
         """
         text = part.texts[index]
         color = self._color(part.color, values)
         anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
+        if part.font_is_vector:
+            if not part.font_available:
+                return
+            angle = ((part.curve_angle_garmin - copy_angle_degrees) % 360.0
+                     if part.curve_style is not None else 0.0)
+            self._draw_vector_text(
+                text, anchor, part.align, part.vertical_align, part.font_metric, color,
+                part.curve_style, angle, part.curve_radius_px, part.curve_direction)
+            return
         font: BakedFont | None = (
             self.resolved.fonts.get(part.font_reference) if part.font_is_custom else None
         )
@@ -560,7 +588,10 @@ class _Renderer:
             # same as the real watch.
             if not placed.font_available:
                 return
-            self._draw_vector_text(placed, text, color)
+            self._draw_vector_text(
+                text, placed.anchor_point, element.align, element.vertical_align,
+                placed.font_metric, color, placed.curve_style, placed.curve_angle_garmin,
+                placed.curve_radius_px, placed.curve_direction, box=placed.box)
             return
         font: BakedFont | None = (
             self.resolved.fonts.get(placed.font_reference) if placed.font_is_custom else None
@@ -1059,52 +1090,68 @@ class _Renderer:
 
     # -- vector fonts / curve: (plan 11) -----------------------------------
 
-    def _draw_vector_text(self, placed: PlacedText, text: str, color) -> None:
-        """A `face:` (vector) `text` element -- upright (`curve_style is
-        None`, drawn exactly like a system font through `_approximate_text`:
+    def _draw_vector_text(
+        self, text: str, anchor_point: tuple[int, int], align: str, vertical_align: str,
+        font_metric, color, curve_style: str | None, curve_angle_garmin: float,
+        curve_radius_px: int, curve_direction: str | None, *, box=None,
+    ) -> None:
+        """A `face:` (vector) font's draw -- upright (`curve_style is None`,
+        drawn exactly like a system font through `_approximate_text`:
         `Dc.drawText` with a `VectorFont` behaves the same as with a
         resource one), `angled` (`Dc.drawAngledText`: the whole string
         rotated about the anchor) or `radial` (`Dc.drawRadialText`:
-        per-glyph placement around a circle).
+        per-glyph placement around a circle).  Shared by a standalone
+        `text` element (`_text`, passing its own `PlacedText` fields
+        straight through) and a pattern's own `shape: text` part (`_pattern_
+        text`, plan 11 slice 2 -- passing that copy's own rotated/translated
+        anchor and its *effective*, copy-composed angle) -- one place either
+        kind of curved vector text is actually drawn, so the two cannot
+        drift apart.  `box` is the "no scalable face at all" fallback
+        outline (only a standalone element has one to give; a pattern part
+        passes none, the same `_draw_text`/`_approximate_text` precedent).
 
-        **Angle convention consumed here: `placed.curve_angle_garmin`
-        throughout -- Garmin's own convention (degrees counter-clockwise
-        from the 3 o'clock position, screen y down), never
-        `curve_angle_degrees` (the design's 12-o'clock-zero/clockwise one,
-        author-facing only).** This is the same convention
-        `wfb.layout.Resolver._rotated_text_box` rotates its own lint box
-        by, verified there against the SDK's own `TrueTypeFontsAngledText`
-        sample -- reused here rather than re-derived, so the lint box and
-        the preview cannot silently disagree about which way is positive.
-        Getting this backwards is the likely bug: it would silently mirror
-        or misdirect the rotation direction of every curved element this
-        preview draws, so every angle read past this point is a Garmin one.
+        **Angle convention consumed here: `curve_angle_garmin` throughout --
+        Garmin's own convention (degrees counter-clockwise from the 3
+        o'clock position, screen y down), never the design's 12-o'clock-
+        zero/clockwise one, author-facing only.** This is the same
+        convention `wfb.layout.Resolver._rotated_text_box` rotates its own
+        lint box by, verified there against the SDK's own
+        `TrueTypeFontsAngledText` sample -- reused here rather than
+        re-derived, so the lint box and the preview cannot silently
+        disagree about which way is positive. Getting this backwards is the
+        likely bug: it would silently mirror or misdirect the rotation
+        direction of every curved element this preview draws, so every
+        angle read past this point is a Garmin one.
         """
-        element = placed.element
-        if placed.curve_style is None:
+        if curve_style is None:
             # Delegates to `_approximate_text` wholesale, including its own
-            # "no scalable face at all" fallback (an outline box, `box=
-            # placed.box`) -- that edge case is exactly as reachable, and
-            # exactly as handled, for a vector font as for a system one.
-            self._approximate_text(text, placed.anchor_point, element.align,
-                                   element.vertical_align, placed.font_metric,
-                                   color, box=placed.box)
+            # "no scalable face at all" fallback (an outline box, `box=box`)
+            # -- that edge case is exactly as reachable, and exactly as
+            # handled, for a vector font as for a system one.
+            self._approximate_text(text, anchor_point, align, vertical_align,
+                                   font_metric, color, box=box)
             return
-        face = fallback.system_face(placed.font_metric, scale=self.scale)
+        face = fallback.system_face(font_metric, scale=self.scale)
         if face is None:
             return  # same rare fallback; angled/radial have no box to outline
         s = self.scale
-        if placed.curve_style == "angled":
-            x, y = placed.anchor_point[0] * s, placed.anchor_point[1] * s
-            self._paste_rotated_run(face, text, placed.curve_angle_garmin,
-                                    element.align, element.vertical_align, (x, y), color)
+        if curve_style == "angled":
+            x, y = anchor_point[0] * s, anchor_point[1] * s
+            self._paste_rotated_run(face, text, curve_angle_garmin,
+                                    align, vertical_align, (x, y), color)
         else:
-            self._draw_radial_vector_text(placed, face, text, color)
+            self._draw_radial_vector_text(
+                anchor_point, curve_radius_px, curve_angle_garmin, curve_direction,
+                face, text, align, vertical_align, color)
 
-    def _draw_radial_vector_text(self, placed: PlacedText, face, text: str, color) -> None:
+    def _draw_radial_vector_text(
+        self, anchor_point: tuple[int, int], curve_radius_px: int,
+        curve_angle_garmin: float, curve_direction: str | None,
+        face, text: str, align: str, vertical_align: str, color,
+    ) -> None:
         """`curve: {style: radial}` -- each glyph is its own tiny "angled"
         run (`_paste_rotated_run`), placed at its own position around the
-        circle of `placed.curve_radius_px` centred on `placed.anchor_point`
+        circle of `curve_radius_px` centred on `anchor_point`
         (the *centre*, per `Curve`'s own `at:` reinterpretation, plan 11
         §2.2).
 
@@ -1157,7 +1204,7 @@ class _Renderer:
         only the per-glyph facing (`glyph_angle_garmin` below) depends on
         `direction`.
 
-        `element.align` places the *whole string* along the arc exactly as
+        `align` places the *whole string* along the arc exactly as
         `TEXT_JUSTIFY_LEFT/CENTER/RIGHT` would (`left`: the string starts
         at `curve_angle_garmin`; `right`: it ends there; `center`: it is
         centred on it) -- each individual glyph is then drawn `align:
@@ -1170,21 +1217,20 @@ class _Renderer:
         starting at the 3 o'clock point and sweeping toward 6 o'clock, i.e.
         decreasing Garmin angle).
         """
-        element = placed.element
         s = self.scale
-        radius = placed.curve_radius_px * s
+        radius = curve_radius_px * s
         if radius <= 0:
             return
-        cx, cy = placed.anchor_point[0] * s, placed.anchor_point[1] * s
+        cx, cy = anchor_point[0] * s, anchor_point[1] * s
         advances = face.advances(text)
         total = sum(advances)
-        align_offset = {"left": 0.0, "center": total / 2.0, "right": total}[element.align]
-        counter_clockwise = placed.curve_direction == "counter_clockwise"
+        align_offset = {"left": 0.0, "center": total / 2.0, "right": total}[align]
+        counter_clockwise = curve_direction == "counter_clockwise"
         direction_sign = 1.0 if counter_clockwise else -1.0
         # Facing: outward (`pos - 90`) for clockwise, inward (`pos + 90`)
         # for counter_clockwise -- see the derivation above.
         facing_offset = 90.0 if counter_clockwise else -90.0
-        base_theta = math.radians(placed.curve_angle_garmin)
+        base_theta = math.radians(curve_angle_garmin)
         pen = 0.0
         for char, advance in zip(text, advances):
             pixel_offset = pen - align_offset
@@ -1193,7 +1239,7 @@ class _Renderer:
             py = cy - radius * math.sin(theta_pos)
             glyph_angle_garmin = math.degrees(theta_pos) + facing_offset
             self._paste_rotated_run(face, char, glyph_angle_garmin, "left",
-                                    element.vertical_align, (px, py), color)
+                                    vertical_align, (px, py), color)
             pen += advance
 
     def _paste_rotated_run(self, face, run: str, angle_garmin_degrees: float,

@@ -17,7 +17,7 @@ import re
 
 from . import availability, catalog, complications
 from .devices import Device, version_key
-from .diagnostics import Bag, Diagnostic, Severity
+from .diagnostics import Bag, Diagnostic, Severity, Span
 from .fonts import BakedFont
 from .ir import (
     CONFIG_SYMBOL, ComplicationSlot, Element, Face, FontSpec, HandsElement,
@@ -294,61 +294,128 @@ def check_vector_font_availability(
     **`hide` draws nothing there and is not a build error** -- a
     suppressible warning instead, naming every device the element will not
     draw on.
+
+    **Covers a `Text` element's own `font:` and a pattern's `shape: text`
+    part's own `font:` alike** (plan 11 slice 2) -- the same gates, the
+    same `if_unavailable:` precedence (the part's own value wins over the
+    font's), reported through the shared `_report_vector_font_unavailable`
+    so the two cannot drift into different wording for the same failure. A
+    pattern part is named `<pattern id>.parts[<i>]`, and suppression
+    (`hide` mode's warning only) reads the *pattern's* own `lint: {allow:
+    [...]}` -- a `HandPart` carries no `lint:` of its own to hang it on.
     """
     placed_by_device: dict[str, dict[str, PlacedText]] = {
         device_id: {p.id: p for p in rf.items if isinstance(p, PlacedText)}
         for device_id, rf in resolved.items()
     }
+    #: The pattern counterpart, keyed the same way (plan 11 slice 2): a
+    #: `PlacedPattern`'s own `parts` line up 1:1 with `PatternElement.parts`
+    #: (`Resolver._resolve_pattern` builds one `ResolvedHandPart` per
+    #: `HandPart`), so a part's availability is `pp.parts[part_index].
+    #: font_available`, the same shape `placed_by_device` gives a `Text`
+    #: element's own `PlacedText.font_available`.
+    pattern_by_device: dict[str, dict[str, PlacedPattern]] = {
+        device_id: {p.id: p for p in rf.items if isinstance(p, PlacedPattern)}
+        for device_id, rf in resolved.items()
+    }
     for element in face.walk():
-        if not isinstance(element, Text) or not element.font_is_custom:
-            continue
-        spec = face.fonts.get(element.font)
-        if spec is None or not spec.is_vector:
-            continue
-        failing = sorted(
-            device_id
-            for device_id, placed in placed_by_device.items()
-            if (item := placed.get(element.id)) is not None and not item.font_available
-        )
-        if not failing:
-            continue
-        requested = ", ".join(spec.face)
-        effective = element.if_unavailable or spec.if_unavailable or "error"
-        if effective == "error":
-            reasons = [
-                _vector_font_failure_reason(resolved[device_id].device, spec, element.curve)
-                for device_id in failing
-            ]
-            bag.error(
-                "font-unavailable",
-                f"{element.id}: 'font: font.{element.font}' has no usable face on "
-                + ", ".join(failing),
-                element.span,
-                notes=[
-                    f"requested face(s), in author order: {requested}",
-                    *reasons,
+        if isinstance(element, Text) and element.font_is_custom:
+            spec = face.fonts.get(element.font)
+            if spec is None or not spec.is_vector:
+                continue
+            failing = sorted(
+                device_id
+                for device_id, placed in placed_by_device.items()
+                if (item := placed.get(element.id)) is not None and not item.font_available
+            )
+            if not failing:
+                continue
+            effective = element.if_unavailable or spec.if_unavailable or "error"
+            _report_vector_font_unavailable(
+                bag, resolved, what=element.id, font_name=element.font, spec=spec,
+                curve=element.curve, span=element.span, effective=effective,
+                lint_allow=element.lint_allow, failing=failing,
+                fix_note=(
                     f"set 'if_unavailable: hide' on 'font.{element.font}' or on "
                     f"'{element.id}' to let it disappear on a target that cannot "
                     "draw it, drop the device from 'targets:', or add a face it "
-                    "actually publishes",
-                ],
-                confidence="exact -- resolved per-device gates 1-3",
+                    "actually publishes"
+                ),
             )
-            continue
-        if "font-unavailable" in element.lint_allow:
-            continue
-        bag.warning(
+        elif isinstance(element, PatternElement):
+            for part_index, part in enumerate(element.parts):
+                if part.shape != "text" or not part.font_is_custom:
+                    continue
+                spec = face.fonts.get(part.font)
+                if spec is None or not spec.is_vector:
+                    continue
+                failing = sorted(
+                    device_id
+                    for device_id, placed in pattern_by_device.items()
+                    if (pp := placed.get(element.id)) is not None
+                    and part_index < len(pp.parts)
+                    and not pp.parts[part_index].font_available
+                )
+                if not failing:
+                    continue
+                part_where = f"{element.id}.parts[{part_index}]"
+                effective = part.if_unavailable or spec.if_unavailable or "error"
+                _report_vector_font_unavailable(
+                    bag, resolved, what=part_where, font_name=part.font, spec=spec,
+                    curve=part.curve, span=part.span, effective=effective,
+                    lint_allow=element.lint_allow, failing=failing,
+                    fix_note=(
+                        f"set 'if_unavailable: hide' on 'font.{part.font}' or on "
+                        f"'{part_where}' to let it disappear on a target that cannot "
+                        "draw it, drop the device from 'targets:', or add a face it "
+                        "actually publishes"
+                    ),
+                )
+
+
+def _report_vector_font_unavailable(
+    bag: Bag, resolved: dict[str, ResolvedFace], *, what: str, font_name: str,
+    spec: FontSpec, curve, span: Span | None, effective: str, lint_allow: frozenset[str],
+    failing: list[str], fix_note: str,
+) -> None:
+    """The shared error/warning body :func:`check_vector_font_availability`
+    reports for either a `Text` element or a pattern's own `shape: text`
+    part -- identical wording either way (`what` is the element id or
+    `<pattern id>.parts[<i>]`), so the two cannot silently drift into
+    different messages for the same underlying gate failure.
+    """
+    requested = ", ".join(spec.face)
+    if effective == "error":
+        reasons = [
+            _vector_font_failure_reason(resolved[device_id].device, spec, curve)
+            for device_id in failing
+        ]
+        bag.error(
             "font-unavailable",
-            f"{element.id}: will not draw on " + ", ".join(failing)
-            + f" -- 'font: font.{element.font}' has no usable face there",
-            element.span,
+            f"{what}: 'font: font.{font_name}' has no usable face on " + ", ".join(failing),
+            span,
             notes=[
                 f"requested face(s), in author order: {requested}",
-                "set 'lint: {allow: [font-unavailable], reason: ...}' on "
-                f"'{element.id}' to accept it",
+                *reasons,
+                fix_note,
             ],
             confidence="exact -- resolved per-device gates 1-3",
         )
+        return
+    if "font-unavailable" in lint_allow:
+        return
+    bag.warning(
+        "font-unavailable",
+        f"{what}: will not draw on " + ", ".join(failing)
+        + f" -- 'font: font.{font_name}' has no usable face there",
+        span,
+        notes=[
+            f"requested face(s), in author order: {requested}",
+            "set 'lint: {allow: [font-unavailable], reason: ...}' on "
+            f"'{what}' to accept it",
+        ],
+        confidence="exact -- resolved per-device gates 1-3",
+    )
 
 
 def _vector_font_failure_reason(device: Device, spec: FontSpec, curve) -> str:

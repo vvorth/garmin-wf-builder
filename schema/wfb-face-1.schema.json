@@ -1792,6 +1792,59 @@
         }
       ]
     },
+    "patternCurve": {
+      "description": "curve: on a pattern's own 'shape: text' part (plan 11 slice 2) -- the same bend a 'text' element's own 'curve:' gives it, through the same Dc.drawAngledText/Dc.drawRadialText, with one difference: 'angle:' is in the TEMPLATE'S OWN LOCAL FRAME, for copy 0. A radial pattern turns every later copy's angle right along with its anchor -- the same way a pattern 'shape: arc' part's own 'start_angle:' already turns with the copy -- so an author writes one angle per part (e.g. 0deg, tangent to the copy's own radius), not one per copy; a linear pattern never turns, so every copy simply keeps this angle unchanged. Otherwise identical to the 'curve' definition: 'style:' is the required discriminator ('angled'/'radial'), 'radius:'/'direction:' are rejected on 'angled'. The one real difference from '#/$defs/curve' is 'radius:', which is a handLength here (px or %r only) rather than a length -- a pattern part has no parent box for '%' and no font in scope for 'pt' in this position, the same restriction every other pattern-part length already carries.",
+      "type": "object",
+      "required": [
+        "style",
+        "angle"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "'angled' draws this copy's own text along one straight line through its own anchor, tilted by 'angle:'. 'radial' sweeps it around a circle centred on that same anchor -- 'radius:' is the circle's own radius. 'radius:'/'direction:' are rejected on 'angled': there is no circle for either to describe.",
+          "enum": [
+            "angled",
+            "radial"
+          ]
+        },
+        "angle": {
+          "$ref": "#/$defs/angle",
+          "description": "12 o'clock = 0, clockwise positive, in this part's own local (copy-0) frame -- a radial pattern composes it with the copy's own rotation, the same way an 'arc' part's 'start_angle:' composes with 'start:'/'step:'. For 'angled', the tilt of the text's own baseline. For 'radial', where around the circle the text starts."
+        },
+        "radius": {
+          "$ref": "#/$defs/handLength",
+          "description": "'radial' only: the circle's own radius, px or %r only (a pattern part's frame has no parent box for '%' and no font in scope for 'pt'). Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled', the same 'text-antialias' precedent 'wfb.ir.builder' already follows elsewhere."
+        },
+        "direction": {
+          "description": "'radial' only: which way the text runs around the circle starting at 'angle:'. Schema-legal but rejected as a build error under 'style: angled', for the same reason 'radius:' is.",
+          "enum": [
+            "clockwise",
+            "counter_clockwise"
+          ],
+          "default": "clockwise"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "radial"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "radius"
+            ]
+          }
+        }
+      ]
+    },
     "patternElement": {
       "description": "One template of 1-16 primitives (plan 05: 'pattern'), drawn repeatedly -- turned about 'at:' ('pattern: radial') or stepped along {dx, dy} ('pattern: linear'). No 'size:' (the extent is computed from the drawn ink, not authored), no 'on_hold:' (a repeated template has no single fixed hit region -- hold a 'group' around it instead) -- accepted here, like every other element, only so the compiler can say so against your own line instead of a generic 'unknown key'. 'static: true' is accepted unless a colour reads a data source, which a buffer filled once would freeze (the ordinary static-binding error); a colour that reads only 'copy' is fixed per copy and fine there -- unlike 'hands', whose angle is the clock. A colour (the element's own or any part's) or a part 'visible:' may read a source that can be absent, but only with 'when_absent: hide' declared -- see 'when_absent' below.",
       "type": "object",
@@ -1901,7 +1954,7 @@
       }
     },
     "patternPart": {
-      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin), 'size', 'align' and 'vertical_align'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'; arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:' or alignment, because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align' and 'vertical_align' (plan 06 §3) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy, unlike a rectangle/circle part's box, which turns with the part (plan 07 phase D). 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' are not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends) -- see docs/format.md, \"Placement: at: and align:\".",
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin), 'size', 'align' and 'vertical_align'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'; arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:' or alignment, because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align', 'vertical_align', 'curve' and 'if_unavailable' (plan 06 §3, plan 11 slice 2) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy, unlike a rectangle/circle part's box, which turns with the part (plan 07 phase D); with 'curve:' and a 'face:' (vector) 'font:', the glyphs themselves turn too, tangent to (or around) the copy's own position, not just the anchor. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' are not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends) -- see docs/format.md, \"Placement: at: and align:\".",
       "type": "object",
       "required": [
         "shape"
@@ -1909,7 +1962,7 @@
       "additionalProperties": false,
       "properties": {
         "shape": {
-          "description": "polygon/rectangle/line/circle/arc/text are the six primitives a pattern can repeat -- text is upright glyphs at an anchor point that turns (radial) or steps (linear) with the copy (plan 06 §3), unlike a hand part, which still rejects it (a bitmap font cannot rotate). rounded_rectangle, ellipse and icon are recognised here only so the compiler can reject each with its own platform reason (docs/format.md, 'pattern') instead of a bare 'not one of ...'.",
+          "description": "polygon/rectangle/line/circle/arc/text are the six primitives a pattern can repeat -- text is upright glyphs at an anchor point that turns (radial) or steps (linear) with the copy (plan 06 §3), unlike a hand part, which still rejects it (a bitmap font cannot rotate); with 'curve:' and a 'face:' font, a pattern's own text part can turn its glyphs too (plan 11 slice 2). rounded_rectangle, ellipse and icon are recognised here only so the compiler can reject each with its own platform reason (docs/format.md, 'pattern') instead of a bare 'not one of ...'.",
           "enum": [
             "polygon",
             "rectangle",
@@ -1982,12 +2035,23 @@
           "description": "'shape: text' only. A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...). Default FONT_MEDIUM.",
           "type": "string"
         },
+        "curve": {
+          "description": "'shape: text' only, and only with a 'face:' (vector) 'font:' (plan 11 slice 2). Bends this copy's own text along a line or around a circle, exactly as a 'text' element's own 'curve:' does -- 'angle:' is in the part's own local (copy-0) frame; a radial pattern composes it with each copy's own rotation, so one angle serves every copy. A baked or system font here is a build error, the same 'text-curve' reasoning a 'text' element's own 'curve:' gives.",
+          "$ref": "#/$defs/patternCurve"
+        },
+        "if_unavailable": {
+          "description": "'shape: text' only, and only with a 'face:' (vector) 'font:'. Overrides that font's own 'if_unavailable:' outright for this part -- 'error' (the default) fails the build naming the device and the face(s) it lacks; 'hide' makes this one part not draw on a device that fails the font's availability gates, leaving every other part of the same pattern (and every other element sharing the font) unaffected. A build error on a baked or system font, since nothing there can ever be unavailable.",
+          "enum": [
+            "error",
+            "hide"
+          ]
+        },
         "align": {
-          "description": "'shape: rectangle', 'circle' or 'text' only. On rectangle/circle, the box is placed in the part's own frame, before it turns or steps with the copy (plan 07 phase D); on text, only the anchor point moves this way -- the glyphs stay upright (plan 06 §3).",
+          "description": "'shape: rectangle', 'circle' or 'text' only. On rectangle/circle, the box is placed in the part's own frame, before it turns or steps with the copy (plan 07 phase D); on text, only the anchor point moves this way -- the glyphs stay upright (plan 06 §3), unless 'curve:' turns the glyphs themselves too (plan 11 slice 2).",
           "$ref": "#/$defs/align"
         },
         "vertical_align": {
-          "description": "'shape: rectangle', 'circle' or 'text' only. Same frame-vs-anchor distinction as 'align' above.",
+          "description": "'shape: rectangle', 'circle' or 'text' only. Same frame-vs-anchor distinction as 'align' above. 'bottom' is rejected under 'curve:', the same reason a 'text' element's own 'curve:' rejects it.",
           "$ref": "#/$defs/verticalAlign"
         },
         "min_1px": {

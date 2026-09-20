@@ -394,14 +394,18 @@ sample, not verified on a device or simulator (neither runs in this
 environment), and is recorded as an open question in `docs/format.md` and
 `docs/limitations.md` rather than asserted as fact.
 
-**What was not built in this slice:** a pattern's own `shape: text` part
-cannot take `curve:` yet — only a `text` element can (plan 11 §5 slice 2,
-not yet landed). The original recommendation below is otherwise exactly
-what was decided: worth building for `drawAngledText`/`drawRadialText` — the
-capability that is otherwise unreachable — and not as a memory measure,
-which §4 shows it mostly is not; adopting it purely to swap one
-straight-line text mechanism for another would have bought a worse
-typeface on two-thirds of the fleet for nothing.
+**Slice 2 landed too:** a pattern's own `shape: text` part now takes
+`curve:` the same way a standalone `text` element does (plan 11 §5 slice
+2), reaching the capability §5.2 called out as otherwise unreachable —
+rotated hour numerals around a dial, each tangent to its own radius. The
+authored angle is in the template's own local frame; a radial pattern
+composes it with each copy's own rotation at codegen/preview time
+(`docs/lore/codegen.md`). The original recommendation below is otherwise
+exactly what was decided: worth building for `drawAngledText`/
+`drawRadialText` — the capability that is otherwise unreachable — and not
+as a memory measure, which §4 shows it mostly is not; adopting it purely to
+swap one straight-line text mechanism for another would have bought a
+worse typeface on two-thirds of the fleet for nothing.
 
 ---
 

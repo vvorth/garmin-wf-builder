@@ -1804,6 +1804,10 @@ Everything else on `text` keeps working untouched under `curve:` —
 `value:`/`text:`, `format:`, `color:`, `visible:`, `when_absent:`,
 `fallback:`, `modes:`, `on_hold:`, `static:`.
 
+A `pattern`'s own `shape: text` part accepts `curve:` too (plan 11 slice 2) —
+see [Text parts](#text-parts) below for how the authored angle composes with
+the copy's own rotation.
+
 ### `progress`
 
 One element with a `style` discriminator, because the *binding* and *range*
@@ -2453,7 +2457,7 @@ second rule.
 | `line` | `at` (start, default the origin), `to`, `thickness` (default 1px) | both ends transformed, `drawLine` |
 | `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align`, `vertical_align` | the centre transformed, `fillCircle`/`drawCircle` |
 | `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`, no `align`/`vertical_align`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
-| `text` | `at` (the anchor, default the origin), `value` **or** `text`, `format`, `font`, `align`, `vertical_align` | the anchor transformed and rounded half up; the glyphs stay **upright** (see [Text parts](#text-parts) below) |
+| `text` | `at` (the anchor, default the origin), `value` **or** `text`, `format`, `font`, `align`, `vertical_align`, `curve`, `if_unavailable` | the anchor transformed and rounded half up; the glyphs stay **upright**, unless `curve:` and a `face:` font turn them too (see [Text parts](#text-parts) below) |
 
 `rounded_rectangle` and `ellipse` are rejected, because no `Dc` call draws
 either one turned. `icon` is rejected too (see [Not yet
@@ -2521,14 +2525,68 @@ static:
         at: {dy: -55%r}                # copy 0's anchor, above the centre: +dy is down
 ```
 
-**The glyphs stay upright.** A bitmap font cannot turn, and a dial's
-numerals should not. Only the anchor point goes through the copy's
-transform. It is then rounded half up to a whole pixel, on the watch and in
-the preview alike, and the text is placed on it with `align:`/
+**The glyphs stay upright by default.** A bitmap font cannot turn, and a
+dial's numerals need not either. Only the anchor point goes through the
+copy's transform. It is then rounded half up to a whole pixel, on the watch
+and in the preview alike, and the text is placed on it with `align:`/
 `vertical_align:` following the one placement rule every accepting kind
 shares: [Placement: `at:` and `align:`](#placement-at-and-align). This
 part's placement box is that copy's own string width × line height, in the
 pattern's frame.
+
+**Unless `font:` names a `face:` (vector) font and the part carries its own
+`curve:`** (plan 11 slice 2) — then the glyphs turn too, tangent to (or
+around) the copy's own position, not just the anchor. This is what finally
+answers "a bitmap font cannot turn": twelve hour numerals, each rotated to
+sit tangent to its own radius, as one pattern:
+
+```yaml
+fonts:
+  bezel:
+    face: [RobotoCondensedBold, RobotoCondensedRegular]
+    size: 9%r
+elements:
+  - id: hour_numerals
+    type: pattern
+    pattern: radial
+    at: {anchor: center}
+    count: 12
+    color: palette.white
+    parts:
+      - shape: text
+        value: "(copy + 11) % 12 + 1"
+        font: font.bezel
+        at: {dy: -74%r}
+        curve:
+          style: angled
+          angle: 0deg          # this part's own LOCAL angle, for copy 0
+```
+
+`curve:` here takes exactly the same `style:`/`angle:`/`radius:`/
+`direction:` a standalone `text` element's own `curve:` does (see
+["`curve:` — rotated and radial text"](#curve--rotated-and-radial-text)
+above for the full rules: a `face:` font is required, `radius:`/
+`direction:` are rejected on `angled`, and `vertical_align: bottom` is a
+build error). **The one real difference:** `angle:` is in the *template's
+own local frame*, for copy 0 alone — a radial pattern turns every later
+copy's angle right along with its anchor, the same way a pattern `shape:
+arc` part's own `start_angle:` already turns with the copy (its own row
+above). So `angle: 0deg` above draws every numeral tangent to its own
+radius (pointing outward from the dial's centre), with one authored angle,
+not twelve. A linear pattern never turns at all, so its copies simply keep
+the part's own angle unchanged — there is no copy angle to compose with.
+`style: radial`'s `radius:` is a `handLength` here (px or `%r` only — a
+pattern part's frame has no parent box for `%` and no font in scope for
+`pt`, the same restriction every other pattern-part length already
+carries), and its circle is centred on that copy's own anchor, not a fixed
+point.
+
+`if_unavailable:` (`error`/`hide`) works the same way here as on a
+standalone `text` element, set on the part to override the font's own
+value outright — `error` fails the whole build naming the device and the
+missing face(s); `hide` makes just that one part not draw on a target that
+fails the font's availability gates, leaving every other part of the same
+pattern (and every other element sharing the font) unaffected.
 
 The keys are those of a `text` element. **`value:`** is an expression in
 which `copy` is bound. **`text:`** is a fixed string, the same on every copy.
@@ -3218,8 +3276,8 @@ Still open for [patterns](#pattern): a text part whose `value:` reads data,
 `pattern: grid`, `on_hold:` and `low_power` on a pattern, per-copy variation
 other than skipping, colour and visibility, `rounded_rectangle`/`ellipse`
 parts in a linear pattern, and an arc part off the pattern's centre. A text
-part also cannot take "`curve:` — rotated and radial text" yet — a `text`
-**element**'s own can (above); rotated hour numerals around a dial, each
-tangent to its own radius, is the next slice of that feature.
+part's own `curve:` now reaches rotated hour numerals around a dial, each
+tangent to its own radius (plan 11 slice 2, [Text parts](#text-parts)) —
+what remains open is plan 11 slice 3, an example and screenshots.
 
 See [`docs/limitations.md`](limitations.md) §2 for all of it.

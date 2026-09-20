@@ -413,10 +413,13 @@ elements:
     assert any("'text' element" in note for note in errors[0].notes)
 
 
-def test_vector_font_is_rejected_on_a_pattern_text_part(write_design, bag, repo_root):
-    """The message must say this is the *next slice* of the feature (plan 11
-    §5, slice 2), not that vector fonts are categorically unsupported here --
-    that would be dishonest, since slice 2 is exactly this."""
+def test_vector_font_is_accepted_on_a_pattern_text_part(write_design, bag, repo_root):
+    """Slice 2 of plan 11 (docs/plans/11-vector-text.md §5): a pattern's own
+    `shape: text` part may name a `face:` (vector) font, with or without
+    `curve:` -- this used to be a build error naming "the next slice", and
+    now that slice has landed. See `tests/test_pattern_text_curve.py` for
+    the curve-specific behaviour (angle composition, if_unavailable, lint,
+    codegen, preview)."""
     design = f"""
 format: 1
 face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f59, name: Test}}
@@ -437,10 +440,8 @@ fonts:
         at: {{dy: -64%r}}
 """
     face = load(write_design(design), bag)
-    assert face is None
-    errors = [d for d in bag.errors if d.code == "pattern"]
-    assert errors, bag.render()
-    assert "font.bezel" in errors[0].message
-    assert "vector" in errors[0].message
-    assert any("next slice" in note for note in errors[0].notes)
-    assert any("source:" in note for note in errors[0].notes)
+    assert face is not None, bag.render()
+    assert bag.ok(), bag.render()
+    part = face.elements[0].parts[0]
+    assert part.font_is_custom is True
+    assert part.curve is None

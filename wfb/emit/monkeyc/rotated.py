@@ -8,6 +8,7 @@ from ... import expr, formatting
 from ...ir import PatternElement
 from ...layout import PlacedHands, PlacedPattern
 from .common import _color, _const_prefix, _field, _glyph_y_expr, _mc_float, _pattern_needs_math
+from .shapes import _RADIAL_DIRECTION
 from ..writer import Writer
 
 
@@ -147,6 +148,131 @@ def _pattern_angle_expr(element: "PatternElement") -> tuple[str, str]:
     return f"{start_rad} + i * {step_rad}", comment
 
 
+def _emit_pattern_text_angle_expr(element: "PatternElement", part) -> str:
+    """The per-copy Garmin-degrees angle a `shape: text` part's own
+    `curve:` draws at (plan 11 slice 2) -- "the part's own local angle,
+    composed with the copy's own rotation", the exact same composition a
+    radial pattern's `arc` part's `start_angle` already gets one branch
+    down (`_emit_pattern_part`'s arc case: `g0 = 90.0 - (part.start_angle +
+    element.start_angle)`, then `g0 - i * step_deg` per copy).
+
+    `part.curve_angle_garmin` is this part's own *local*, template-frame
+    angle, for copy 0 alone (`wfb.layout.Resolver._resolve_hand_part` --
+    the un-composed `HandPart.curve.angle`, Garmin-converted). A radial
+    pattern turns copy `i` by `element.start_angle + i * element.step_angle`
+    design degrees, clockwise from 12; converting a *sum* of design degrees
+    to Garmin's convention subtracts each term (`Angle.to_garmin`'s own
+    `90 - degrees`), so copy `i`'s effective Garmin angle is `part.curve_
+    angle_garmin - element.start_angle - i * element.step_angle` -- computed
+    here as `g0 - i * step_deg` with `element.start_angle` folded into `g0`
+    up front, the same shape the arc branch already uses. A linear pattern
+    never rotates (`element.start_angle`/`.step_angle` are always `0.0`
+    there, `wfb.layout.Resolver._resolve_pattern`), so `g0` reduces to
+    `part.curve_angle_garmin` unchanged and every copy keeps this part's
+    own local angle -- the "no copy angle to compose with" case plan 11
+    slice 2 asks for, with no special-casing needed here.
+    """
+    g0 = _mc_float(part.curve_angle_garmin - element.start_angle)
+    if element.pattern == "radial":
+        step_deg = _mc_float(element.step_angle)
+        return f"{g0} - i * {step_deg}"
+    return g0
+
+
+def _emit_pattern_text_draw(
+    w: Writer, element: "PatternElement", part, part_prefix: str, radial: bool,
+    font_expr: str, value_code: str, justify: str,
+) -> None:
+    """One copy's `shape: text` part draw call: plain `dc.drawText` for an
+    upright part -- byte-identical to the code this project generated
+    before plan 11 slice 2 -- or `dc.drawAngledText`/`dc.drawRadialText`
+    under the part's own `curve:`.
+
+    **Gate 4 is never omitted, on any device, in either `if_unavailable:`
+    mode** (`docs/research/12-vector-fonts.md` §1, `wfb.emit.monkeyc.
+    shapes._emit_vector_text_draw`'s own precedent): a vector font's draw
+    call is wrapped `if (<font local> != null)` regardless of `curve_style`
+    -- an upright vector-font pattern text part needs the same null guard a
+    curved one does, since `Graphics.getVectorFont` can return null even
+    when every build-time gate passed. `font_expr` is already a *local*,
+    loaded once before the copy loop by `_emit_pattern` (never a repeated
+    field access), so this is a plain local `if`, not the field-narrowing
+    trap `docs/lore/monkeyc.md` warns about. A baked custom font never
+    reaches this guard: `_emit_pattern`'s own pre-loop loading early-returns
+    on a null baked font instead (a structural resource-load failure, not
+    the ordinary case a vector font's null is), so `part.font_is_vector`
+    alone decides which of the two this part gets.
+    """
+    curve_style = part.curve_style
+    if radial:
+        # `bottom` shifts the shared `cy` translation term only for this
+        # call, not the variable itself (other parts of the same copy
+        # still rotate about the unshifted origin) -- the subtraction
+        # lands outside the rotation, so it moves the drawn point
+        # straight up on screen regardless of `theta`. Skipped entirely
+        # under `curve:`: `vertical_align: bottom` is rejected there
+        # (`Builder._build_pattern_curve`), and `center`/`top` need no
+        # y-shift -- `curve:`'s own vertical alignment is a `justify` flag,
+        # never a coordinate shift (plan 11 §2.3).
+        cy_expr = "cy" if curve_style is not None else _glyph_y_expr(
+            "cy", part.vertical_align, font_expr)
+        x_expr = (
+            f"WfbGeom.rotatedX(Layout.{part_prefix}_X, "
+            f"Layout.{part_prefix}_Y, cx, sin, cos)"
+        )
+        y_expr = (
+            f"WfbGeom.rotatedY(Layout.{part_prefix}_X, "
+            f"Layout.{part_prefix}_Y, {cy_expr}, sin, cos)"
+        )
+    else:
+        x_expr = f"ox + Layout.{part_prefix}_X"
+        oy_expr = f"oy + Layout.{part_prefix}_Y"
+        y_expr = oy_expr if curve_style is not None else _glyph_y_expr(
+            oy_expr, part.vertical_align, font_expr)
+
+    if curve_style is None and not radial:
+        # Byte-identical to the pre-slice-2 shape: x, y and font share one
+        # line, the value its own, justify its own.
+        lines = [
+            f"dc.drawText({x_expr}, {y_expr}, {font_expr},",
+            f"            {value_code},",
+            f"            {justify});",
+        ]
+    elif curve_style is None:
+        pad = " " * len("dc.drawText(")
+        lines = [
+            f"dc.drawText({x_expr},",
+            f"{pad}{y_expr}, {font_expr}, {value_code},",
+            f"{pad}{justify});",
+        ]
+    elif curve_style == "angled":
+        angle_expr = _emit_pattern_text_angle_expr(element, part)
+        pad = " " * len("dc.drawAngledText(")
+        lines = [
+            f"dc.drawAngledText({x_expr},",
+            f"{pad}{y_expr}, {font_expr}, {value_code},",
+            f"{pad}{justify}, {angle_expr});",
+        ]
+    else:  # "radial"
+        angle_expr = _emit_pattern_text_angle_expr(element, part)
+        direction = _RADIAL_DIRECTION[part.curve_direction or "clockwise"]
+        pad = " " * len("dc.drawRadialText(")
+        lines = [
+            f"dc.drawRadialText({x_expr},",
+            f"{pad}{y_expr}, {font_expr}, {value_code},",
+            f"{pad}{justify}, {angle_expr}, Layout.{part_prefix}_RADIUS,",
+            f"{pad}Graphics.{direction});",
+        ]
+
+    if part.font_is_vector:
+        with w.block(f"if ({font_expr} != null)"):
+            for line in lines:
+                w.line(line)
+    else:
+        for line in lines:
+            w.line(line)
+
+
 def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index: int,
                        part, radial: bool, hoist_pen: bool,
                        text_fonts: dict[str, str] | None = None) -> None:
@@ -163,13 +289,19 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
     which was a 10th-parameter over CIQ 3.x's ceiling -- see that function's
     own docstring), a plain `dc.drawText(ox + ..., oy + ..., ...)` for
     linear, no helper needed there since a linear pattern never rotates
-    anything.  Its value is either the part's own
+    anything -- **unless the part's own `curve:` turns the glyphs too**
+    (plan 11 slice 2), in which case `_emit_pattern_text_draw` draws
+    `dc.drawAngledText`/`dc.drawRadialText` at that same rotated/translated
+    anchor instead, with the per-copy angle `_emit_pattern_text_angle_expr`
+    computes.  Its value is either the part's own
     `text:` literal or its `value:` compiled through `formatting.emit` (the
     same call `_emit_text` makes for a `text` element), read off
     `element.parts[index]` -- the *IR* part, which is what carries
     `text_value`/`text_literal` (geometry resolution in `wfb.layout` never
     touches them).  ``text_fonts`` maps a custom font's resource name to the
-    local variable `_emit_pattern` already loaded it into, before the loop.
+    local variable `_emit_pattern` already loaded it into, before the loop --
+    for a `face:` (vector) font, that local is never early-return-guarded
+    the way a baked one is (see `_emit_pattern_text_draw`'s own docstring).
     """
     part_prefix = f"{prefix}_{index}"
     if part.shape == "text":
@@ -188,38 +320,7 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
             font_expr = (text_fonts or {})[part.font_reference]
         else:
             font_expr = f"Graphics.{part.font_reference}"
-        if radial:
-            # `bottom` shifts the shared `cy` translation term only for this
-            # call, not the variable itself (other parts of the same copy
-            # still rotate about the unshifted origin) -- the subtraction
-            # lands outside the rotation, so it moves the drawn point
-            # straight up on screen regardless of `theta`.
-            #
-            # A single combined `WfbGeom.drawTextRotated(dc, x, y, cx, cy,
-            # sin, cos, font, text, justify)` call was 10 arguments, past
-            # CIQ 3.x's 9-parameter ceiling (docs/lore/monkeyc.md), so the
-            # rotate-the-point step is split into `rotatedX`/`rotatedY` and
-            # each result is passed straight into `dc.drawText` as its own
-            # `x`/`y` -- no wrapper call, no extra allocation.
-            cy_expr = _glyph_y_expr("cy", part.vertical_align, font_expr)
-            x_expr = (
-                f"WfbGeom.rotatedX(Layout.{part_prefix}_X, "
-                f"Layout.{part_prefix}_Y, cx, sin, cos)"
-            )
-            y_expr = (
-                f"WfbGeom.rotatedY(Layout.{part_prefix}_X, "
-                f"Layout.{part_prefix}_Y, {cy_expr}, sin, cos)"
-            )
-            pad = " " * len("dc.drawText(")
-            w.line(f"dc.drawText({x_expr},")
-            w.line(f"{pad}{y_expr}, {font_expr}, {value_code},")
-            w.line(f"{pad}{justify});")
-        else:
-            y_expr = _glyph_y_expr(
-                f"oy + Layout.{part_prefix}_Y", part.vertical_align, font_expr)
-            w.line(f"dc.drawText(ox + Layout.{part_prefix}_X, {y_expr}, {font_expr},")
-            w.line(f"            {value_code},")
-            w.line(f"            {justify});")
+        _emit_pattern_text_draw(w, element, part, part_prefix, radial, font_expr, value_code, justify)
         return
     if part.shape == "polygon":
         if radial:
@@ -306,7 +407,17 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     for a standalone `text` element, just hoisted out of the per-copy body
     since every copy shares one font.  Two text parts naming different fonts
     get two distinct locals (``font0``, ``font1``, ...), so nothing collides;
-    two parts naming the *same* font share one load and one guard.
+    two parts naming the *same* font share one load and one guard.  **A
+    `face:` (vector) font is the one exception to "guard once, before the
+    loop"** (plan 11 slice 2): it is still loaded into a local once, but
+    never early-return-guarded here -- gate 4 means it can be null on the
+    ordinary "this device just doesn't have it" path, not only on a
+    structural failure, and an early `return;` here would also cancel every
+    *other* part of this same pattern sharing this one draw method, baked
+    fonts and unrelated shapes included.  `_emit_pattern_text_draw` wraps
+    its own draw call in the matching `if (<local> != null)` instead, once
+    per copy, exactly as a standalone vector-font `text` element's own
+    `_emit_vector_text_draw` already does.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -327,13 +438,17 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
         w.line(f"var cy = Layout.{prefix}_Y;")
 
     text_fonts: dict[str, str] = {}
+    vector_text_fonts: set[str] = set()
     for _, part in live:
         if part.shape == "text" and part.font_is_custom and part.font_reference not in text_fonts:
             text_fonts[part.font_reference] = f"font{len(text_fonts)}"
+            if part.font_is_vector:
+                vector_text_fonts.add(part.font_reference)
     for reference, local in text_fonts.items():
         w.line(f"var {local} = _{_field(reference)};")
-        with w.block(f"if ({local} == null)"):
-            w.line("return;  // the font resource failed to load")
+        if reference not in vector_text_fonts:
+            with w.block(f"if ({local} == null)"):
+                w.line("return;  // the font resource failed to load")
         w.blank()
 
     # Colour: one distinct part colour is set once, before the loop; several

@@ -97,21 +97,28 @@ hands have.
 
 - **Parts:** the hands' four primitives, an `arc` centred on the pattern's
   centre, and `text`.
-- **Text parts:** a bitmap font cannot turn, so only the anchor turns or
-  steps. `WfbGeom.rotatedX`/`rotatedY` round the transformed point half up
-  and the glyphs are drawn upright. They are two 5-argument helpers because
-  Connect IQ 3.x devices (`fenix6`, `fenix6xpro`, `fr245`) reject a method
-  with more than 9 parameters (`docs/lore/monkeyc.md`;
+- **Text parts:** a bitmap font cannot turn, so by default only the anchor
+  turns or steps. `WfbGeom.rotatedX`/`rotatedY` round the transformed point
+  half up and the glyphs are drawn upright. They are two 5-argument helpers
+  because Connect IQ 3.x devices (`fenix6`, `fenix6xpro`, `fr245`) reject a
+  method with more than 9 parameters (`docs/lore/monkeyc.md`;
   `tests/test_parameter_limits.py` guards it). The value may read only
   `copy`, so every copy's string is known at build time. The per-copy
   `formatting.emit` call on the device is unmeasured, and costs nothing
-  inside `static:`. A `text` **element** (not a pattern part) can now turn,
-  through `curve:` on a device-resident vector font (below, "A face cannot
-  ship its own TTF, and vector fonts are Garmin's only") — a pattern's own
-  `shape: text` part cannot use it yet; turning per-copy numerals around a
-  dial, each tangent to its own radius, is the next slice of that feature
-  (`docs/plans/11-vector-text.md` §5 slice 2), so this bullet's "only the
-  anchor turns" still describes every pattern text part today.
+  inside `static:`. **A `shape: text` part can now turn too** (plan 11
+  slice 2, `docs/plans/11-vector-text.md` §5), the same way a `text`
+  **element** already could (below, "A face cannot ship its own TTF, and
+  vector fonts are Garmin's only"): give the part a device-resident `face:`
+  font and its own `curve:`. The one thing genuinely different from a
+  standalone element is the angle's frame — a pattern part's `curve.angle`
+  is authored once, in the **template's own local frame** (for copy 0), and
+  a radial pattern composes it with each copy's own rotation at codegen/
+  preview time, the same way a pattern `arc` part's `start_angle:` already
+  composes with `start:`/`step:` — so twelve hour numerals, each tangent to
+  its own radius, are one authored angle (`curve: {style: angled, angle:
+  0deg}`), not twelve. A linear pattern never rotates, so its copies simply
+  keep the part's own angle unchanged. `docs/format.md`'s ["Text
+  parts"](format.md#text-parts) has the full rules and the worked example.
 - **Colours** may read `copy` (the index of the copy being drawn) and any
   source that is never absent, such as `date.weekday`. `examples/features/patterns/`'s
   row of dots lights today's this way. They may read a source that **can**
@@ -223,9 +230,9 @@ font still cannot be rotated or curved, and never will be** — that part of
 the practical consequence is permanent. What *is* built (plan 11,
 `docs/format.md`'s `curve:` section): a `fonts:` entry can name a
 device-resident face instead of baking one (`face:` instead of `source:`),
-and a `text` **element** can bend it along a line (`style: angled`) or
-around a circle (`style: radial`). Two honest limits on that, not to be
-glossed over:
+and a `text` **element**, or a pattern's own `shape: text` part (slice 2),
+can bend it along a line (`style: angled`) or around a circle (`style:
+radial`). Two honest limits on that, not to be glossed over:
 
 * **`if_unavailable: error` is a build-time guarantee only.**
   `Graphics.getVectorFont` returns `null` rather than throwing, and the
@@ -247,8 +254,8 @@ glossed over:
 It is *not* a memory limitation either way — a baked sheet loads into the
 separate graphics pool, not the watch-face budget (measured in
 `docs/research/probes/vector-fonts/`). Full analysis:
-`docs/research/12-vector-fonts.md`. A pattern's own `shape: text` part
-cannot use `curve:` yet — see §2.
+`docs/research/12-vector-fonts.md`. §2's "Text parts" bullet above has the
+pattern-part-specific rules (the local-angle-composed-with-the-copy design).
 
 ### Single-colour bitmap fonts
 
@@ -607,7 +614,6 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | Missing | Where it is specified |
 |---|---|
 | `image` elements | ADR 0004 |
-| A pattern's `shape: text` part turning with `curve:` | plan 11 §5 slice 2 -- a `text` **element**'s own `curve:` (vector fonts, `Graphics.getVectorFont`, rotated/radial text through `drawAngledText`/`drawRadialText`) shipped (`docs/research/12-vector-fonts.md` §5, `docs/format.md`'s `curve:` section); the same for a pattern part -- rotated hour numerals around a dial, each tangent to its own radius -- has not, so "a bitmap font cannot turn" (above, patterns) still applies there |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
 | Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1 -- the one piece of it still unbuilt, and the only route that would give `fr955` any configuration at all. Frozen, incomplete, on `wip/phone-settings` |

@@ -741,6 +741,26 @@ class HandPart:
     #: (a part alone does not know it).  Empty until then; empty forever on
     #: a non-text part.
     texts: tuple[str, ...] = ()
+    #: `shape: text` template parts only, and only when `font:` names a
+    #: `face:` (vector) font -- `curve:` bends this part's glyphs the same
+    #: way a `text` element's own `curve:` does (plan 11 slice 2), except
+    #: the angle it authors is in the **template's own local frame**: a
+    #: radial pattern's per-copy rotation composes with it at layout/codegen
+    #: time (`wfb.layout.Resolver._resolve_hand_part`, `wfb.emit.monkeyc.
+    #: rotated._emit_pattern_text_angle_expr`), the same way a radial
+    #: pattern's own `arc` part composes its authored `start_angle` with
+    #: `element.start_angle` -- so an author writes one angle per part, not
+    #: one per copy. `None` for an upright (uncurved) text part, or any
+    #: other shape.
+    curve: "Curve | None" = None
+    #: `shape: text` template parts only, and only when `font:` names a
+    #: `face:` (vector) font -- overrides that font's own `if_unavailable:`
+    #: outright, the same "the element's own value wins" rule `Text.if_
+    #: unavailable` follows; `None` inherits the font's own setting.  A
+    #: pattern has no single element-wide font to hang this on (one
+    #: template can have more than one `shape: text` part, each naming a
+    #: different font), so it lives on the part, not on `PatternElement`.
+    if_unavailable: str | None = None
     #: `min_1px:` as authored, or `None` to inherit the owning `type: hands`/
     #: `type: pattern` element's own resolved value -- **authored only**,
     #: deliberately with no `resolved_` twin the way `Element.min_1px` gets

@@ -168,10 +168,13 @@ PATTERN_PART_GEOMETRY_KEYS = {
     #: Upright glyphs whose anchor turns (radial) or steps (linear) with the
     #: copy -- unlike every other row here, a bitmap font cannot itself
     #: rotate or translate, so only the anchor point goes through
-    #: `PlacedPattern.transform`.  `value` xor `text` is enforced by
-    #: `Builder._build_hand_part`, not this table (a better message than a
-    #: schema `oneOf` would give).
-    "text": frozenset({"at", "value", "text", "format", "font", "align", "vertical_align"}),
+    #: `PlacedPattern.transform`, **unless** `font:` names a `face:`
+    #: (vector) font and `curve:` is authored too (plan 11 slice 2), in
+    #: which case the glyphs themselves turn as well -- see `HandPart.curve`.
+    #: `value` xor `text` is enforced by `Builder._build_hand_part`, not this
+    #: table (a better message than a schema `oneOf` would give).
+    "text": frozenset({"at", "value", "text", "format", "font", "align", "vertical_align",
+                       "curve", "if_unavailable"}),
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
 
@@ -1523,6 +1526,12 @@ class Builder:
             )
             ok = False
 
+        # Computed early (moved ahead of the `shape: text` block below) so
+        # `vertical_align` is already known when `curve:` needs to reject
+        # `bottom` under it -- the same value is reused, unchanged, at the
+        # `HandPart(...)` construction at the end of this method.
+        align, vertical_align = self._alignment(node)
+
         # `shape: text`: upright glyphs whose anchor turns (radial) or
         # steps (linear) with the copy -- reachable only in a
         # pattern's template, since `HAND_PART_REJECTED_SHAPES` still refuses
@@ -1534,6 +1543,8 @@ class Builder:
         text_format: str | None = None
         text_font = "FONT_MEDIUM"
         text_font_is_custom = False
+        text_curve: Curve | None = None
+        text_if_unavailable: str | None = None
         if shape == "text":
             has_value = "value" in node
             has_text = "text" in node
@@ -1592,43 +1603,34 @@ class Builder:
                 else:
                     text_literal = str(node.get("text"))
 
+            font_ok = True
             if "font" in node:
                 resolved = self._font_reference(str(node["font"]), self.doc.span(node, "font"))
                 if resolved is None:
                     ok = False  # _font_reference already reported the real mistake
+                    font_ok = False
                 else:
                     text_font, text_font_is_custom = resolved
-                    if text_font_is_custom and self.fonts[text_font].is_vector:
-                        # Unlike a `text` element, a pattern's `shape: text`
-                        # part cannot turn a `face:` font yet -- that is
-                        # slice 2 of plan 11 ("rotated hour numerals around
-                        # a dial, each tangent to its own radius"), not
-                        # built here.  Say so honestly rather than letting
-                        # this validate clean and crash `monkeyc` on an
-                        # `Undefined symbol` for the generated `:face`
-                        # constant, which is what happens without this
-                        # check.
-                        self.bag.error(
-                            "pattern",
-                            f"{part_where}: 'font: font.{text_font}' is a "
-                            "'face:' (vector) font -- not implemented yet "
-                            "on a pattern text part",
-                            self.doc.span(node, "font"),
-                            notes=[
-                                "rotated/curved text (plan 11) only reaches "
-                                "a 'text' element so far -- turning a "
-                                "pattern's own 'shape: text' part the same "
-                                "way is the next slice of this feature, not "
-                                "built yet (docs/limitations.md)",
-                                "for now, declare this font with 'source:' "
-                                "(a baked bitmap font) instead",
-                            ],
-                        )
-                        ok = False
+            font_is_vector = text_font_is_custom and self.fonts[text_font].is_vector
+
+            # `curve:` (plan 11 slice 2): the same bend a `text` element's
+            # own `curve:` gives it -- see `_build_pattern_curve` for how
+            # the authored angle composes with a radial pattern's own
+            # per-copy rotation.  `font_ok` mirrors `_build_curve`'s own
+            # parameter: skip the "needs a face: font" check when the font
+            # reference itself already failed, so a design with one mistake
+            # here gets one error, not two.
+            if "curve" in node:
+                text_curve = self._build_pattern_curve(
+                    node, part_where, font_is_vector, vertical_align, font_ok)
+                if text_curve is None:
+                    ok = False
+            if font_ok and "if_unavailable" in node:
+                self._check_pattern_text_if_unavailable(node, part_where, font_is_vector)
+            text_if_unavailable = node.get("if_unavailable")
 
         if not ok:
             return None
-        align, vertical_align = self._alignment(node)
         return HandPart(
             shape=shape, points=points, at=at, size=size, to=to,
             thickness=thickness, radius=radius, filled=filled,
@@ -1637,6 +1639,7 @@ class Builder:
             visible=part_visible,
             text_value=text_value, text_literal=text_literal, format=text_format,
             font=text_font, font_is_custom=text_font_is_custom,
+            curve=text_curve, if_unavailable=text_if_unavailable,
             align=align, vertical_align=vertical_align,
             min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
         )
@@ -3125,6 +3128,100 @@ class Builder:
                 "failing to publish a face on some target device -- nothing "
                 "about a baked or system font can ever be unavailable",
                 self._font_kind_note(element),
+                "drop 'if_unavailable:', or point 'font:' at a 'face:' font",
+            ],
+        )
+
+    def _build_pattern_curve(
+        self, node: dict, part_where: str, font_is_vector: bool, vertical_align: str,
+        font_ok: bool,
+    ) -> Curve | None:
+        """`curve:` on a pattern's `shape: text` part (plan 11 slice 2) --
+        the same bend `Builder._build_curve` gives a standalone `text`
+        element, reusing its `angle:`/`radius:`/`direction:` parsing and
+        `_check_curve_keys`.  `font_is_vector`/`font_ok` mirror `_build_
+        curve`'s own `element.font_is_custom and self.fonts[...].is_vector`
+        check and its `font_ok` parameter respectively.
+
+        **What is different from a `text` element, and the real design
+        decision of this slice:** the angle authored here is in the
+        template's own *local* frame, exactly as a radial pattern's own
+        `arc` part authors `start_angle` for copy 0 alone and lets the
+        device add `i * step` at runtime (`wfb.emit.monkeyc.rotated.
+        _emit_pattern_part`'s arc branch). `wfb.layout.Resolver.
+        _resolve_hand_part` stores this angle un-composed (`part.curve_
+        angle_garmin`, this part's own local Garmin-converted angle); the
+        composition with the copy's own rotation -- `part.curve_angle_
+        garmin - (element.start_angle + i * element.step_angle)` -- happens
+        at codegen time (`_emit_pattern_text_angle_expr`) and, for the lint
+        boxes, at layout time (`wfb.layout._pattern_part_ink`). This is what
+        lets twelve hour numerals share one `angle: 0deg` (tangent to each
+        copy's own radius) instead of the author writing twelve different
+        angles -- the whole point of putting `curve:` on the *part* rather
+        than asking for one `text` element per numeral. A `pattern: linear`
+        template never rotates at all (`element.start_angle`/`.step_angle`
+        are always `0.0` there, `wfb.layout.Resolver._resolve_pattern`), so
+        every copy simply keeps this part's own local angle unchanged --
+        the "no copy angle to compose with" case falls out of the same
+        formula for free, with no special-casing needed here.
+        """
+        raw = node["curve"]
+        span = self.doc.span(node, "curve")
+        style = raw["style"]
+        self._check_curve_keys(raw, style)
+        angle = self._angle(raw, "angle")
+        if angle is None:
+            return None
+        radius = self._length(raw, "radius") if style == "radial" else None
+        direction = str(raw.get("direction", "clockwise")) if style == "radial" else None
+        if font_ok and not font_is_vector:
+            self.bag.error(
+                "text-curve",
+                f"{part_where}: 'curve:' needs a 'face:' (vector) font",
+                span,
+                notes=[
+                    "\"These APIs only support scalable fonts and do not support "
+                    "custom fonts loaded as resources\" ($CIQ_SDK/doc/docs/"
+                    "Core_Topics/Graphics.html §Scalable Fonts)",
+                    "declare this font with 'face:' instead of 'source:', or point "
+                    "'font:' at one that already does",
+                ],
+            )
+        if vertical_align == "bottom":
+            self.bag.error(
+                "text-curve",
+                f"{part_where}: 'vertical_align: bottom' is not accepted under 'curve:'",
+                self.doc.span(node, "vertical_align") or span,
+                notes=[
+                    "an upright text's 'bottom' is implemented by subtracting the "
+                    "font's own height from the anchor in screen space -- once the "
+                    "baseline is rotated that subtraction no longer points along "
+                    "the text's own vertical axis, so the ink would land somewhere "
+                    "this compiler cannot predict",
+                    "use 'top' or 'center' instead",
+                ],
+            )
+        return Curve(style=style, angle=angle, radius=radius, direction=direction)
+
+    def _check_pattern_text_if_unavailable(
+        self, node: dict, part_where: str, font_is_vector: bool,
+    ) -> None:
+        """`if_unavailable:` on a pattern's `shape: text` part -- the same
+        "only meaningful on a face: font" rule `_check_text_if_unavailable`
+        gives a standalone `text` element's own key.  Only called once
+        `font_ok` says the font reference itself resolved (mirrors `_check_
+        text_if_unavailable`'s own precondition).
+        """
+        if font_is_vector:
+            return
+        self.bag.error(
+            "text-curve",
+            f"{part_where}: 'if_unavailable:' is not accepted here",
+            self.doc.span(node, "if_unavailable"),
+            notes=[
+                "'if_unavailable:' governs a device-resident 'face:' font "
+                "failing to publish a face on some target device -- nothing "
+                "about a baked or system font can ever be unavailable",
                 "drop 'if_unavailable:', or point 'font:' at a 'face:' font",
             ],
         )

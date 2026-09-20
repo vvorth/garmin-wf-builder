@@ -273,17 +273,19 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
                 out.append(placed.icon_font_key)
         elif isinstance(placed, PlacedPattern):
             for part in placed.parts:
-                if part.shape == "text" and part.font_is_custom and part.font_reference not in out:
+                if (part.shape == "text" and part.font_is_custom
+                        and not part.font_is_vector and part.font_reference not in out):
                     out.append(part.font_reference)
     return out
 
 
 def _vector_fonts_used(resolved: ResolvedFace) -> list[str]:
-    """Every `face:` (vector) font name a `text` element in this design
-    actually draws with, in first-appearance draw order -- the vector
-    counterpart of :func:`_loaded_fonts`, kept as its own list rather than
-    folded in because the two kinds are never loaded the same way
-    (`Graphics.getVectorFont` vs. `WatchUi.loadResource`, plan 11 §3).
+    """Every `face:` (vector) font name a `text` element, or a pattern's own
+    `shape: text` part (plan 11 slice 2), draws with in this design, in
+    first-appearance draw order -- the vector counterpart of
+    :func:`_loaded_fonts`, kept as its own list rather than folded in
+    because the two kinds are never loaded the same way (`Graphics.
+    getVectorFont` vs. `WatchUi.loadResource`, plan 11 §3).
 
     Draw order (`resolved.items`), not `face.fonts`' declaration order, so
     a font declared but never referenced by any element contributes
@@ -300,6 +302,11 @@ def _vector_fonts_used(resolved: ResolvedFace) -> list[str]:
         if isinstance(placed, PlacedText) and placed.font_is_vector:
             if placed.font_reference not in out:
                 out.append(placed.font_reference)
+        elif isinstance(placed, PlacedPattern):
+            for part in placed.parts:
+                if (part.shape == "text" and part.font_is_vector
+                        and part.font_reference not in out):
+                    out.append(part.font_reference)
     return out
 
 

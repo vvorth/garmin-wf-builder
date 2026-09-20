@@ -50,7 +50,7 @@ from typing import Iterable
 
 from .catalog import CATALOG, READERS, Source
 from .devices import Device
-from .ir import Face, FontSpec, Text
+from .ir import Face, FontSpec, PatternElement, Text
 
 
 @dataclass(frozen=True)
@@ -227,30 +227,30 @@ def vector_font_face(spec: FontSpec, device: Device) -> str:
 
 
 def vector_fonts_used(face: Face) -> dict[str, FontSpec]:
-    """Every declared `face:` (vector) `FontSpec` a `text` element actually
-    uses -- i.e. some `Text.font` names it -- keyed by name, in `face.
-    fonts`' own declaration order.
+    """Every declared `face:` (vector) `FontSpec` a `text` element, or a
+    pattern's own `shape: text` part (plan 11 slice 2), actually uses --
+    i.e. some `Text.font`/`HandPart.font` names it -- keyed by name, in
+    `face.fonts`' own declaration order.
 
     A font declared but never referenced draws nothing and needs no guard
     (the same "only what is actually used" scoping `wfb.emit.monkeyc.
     common._loaded_fonts` already applies to a baked font), so this is not
     simply `{name: spec for name, spec in face.fonts.items() if spec.is_
     vector}`.
-
-    **`text` elements only.** A `pattern`'s `shape: text` part is not
-    rejected from naming a `face:` font either (plan 11 §5 slice 2, "pattern
-    text parts", has not landed), but nothing in `wfb.emit.monkeyc.rotated`
-    resolves one -- that is untouched by this slice, so a part referencing
-    one is a pre-existing gap this function does not paper over by
-    pretending to support it.
     """
     used: set[str] = set()
     for element in face.walk():
-        if not isinstance(element, Text) or not element.font_is_custom:
-            continue
-        spec = face.fonts.get(element.font)
-        if spec is not None and spec.is_vector:
-            used.add(element.font)
+        if isinstance(element, Text) and element.font_is_custom:
+            spec = face.fonts.get(element.font)
+            if spec is not None and spec.is_vector:
+                used.add(element.font)
+        elif isinstance(element, PatternElement):
+            for part in element.parts:
+                if part.shape != "text" or not part.font_is_custom:
+                    continue
+                spec = face.fonts.get(part.font)
+                if spec is not None and spec.is_vector:
+                    used.add(part.font)
     return {name: spec for name, spec in face.fonts.items() if name in used}
 
 

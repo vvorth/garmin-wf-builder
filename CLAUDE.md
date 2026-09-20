@@ -190,9 +190,14 @@ re-litigate these without new evidence.**
     can be added to the list. It is **not** a memory win: a baked sheet
     already lives in the graphics pool (11), not the watch-face budget. It
     is the only way to get rotated or curved text, and a `fonts:` `face:`
-    entry plus `curve:` on a `text` element now reaches it (plan 11,
-    `drawAngledText`/`drawRadialText` — refuse a resource font, hence the
-    second font kind); a pattern's own `shape: text` part cannot turn yet.
+    entry plus `curve:` on a `text` element, or on a pattern's own
+    `shape: text` part, now reaches it (plan 11, `drawAngledText`/
+    `drawRadialText` — refuse a resource font, hence the second font kind).
+    A pattern part's `curve.angle` is authored once, in the template's own
+    local frame; a radial pattern composes it with each copy's own
+    rotation, the same way its `arc` part's `start_angle:` already composes
+    with `start:`/`step:` — rotated hour numerals around a dial, each
+    tangent to its own radius, is one authored angle, not twelve.
     `if_unavailable: error` is a build-time guarantee only — the platform
     has no way to fail at runtime, so the generated code always null-checks
     and a null font simply draws nothing either way. Full analysis and
@@ -259,8 +264,6 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `vertical_align: baseline` (renamed `bottom`).
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
-  - `curve:` on a pattern's `shape: text` part (a `text` element's own
-    ships — see Shipped below);
   - per-device `overrides` (writing one is a build error);
   - `segments`/`scale` progress styles;
   - unit conversion;
@@ -279,9 +282,12 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - per-device API gating (`wfb/availability.py`);
   - system fonts measured and previewed with the device's own files,
     including `.cft` bitmap fonts;
-  - vector fonts (`fonts:` `face:`) and `curve:` on `text` elements —
-    rotated/radial text, 44 of 136 devices, `if_unavailable: error|hide`
-    (plan 11).
+  - vector fonts (`fonts:` `face:`) and `curve:` on `text` elements and on
+    a pattern's own `shape: text` part — rotated/radial text, 44 of 136
+    devices, `if_unavailable: error|hide` (plan 11, both slices); a
+    pattern part's own `curve.angle` composes with a radial pattern's
+    per-copy rotation, so hour numerals tangent to their own radius are
+    one authored angle, not one per copy.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.

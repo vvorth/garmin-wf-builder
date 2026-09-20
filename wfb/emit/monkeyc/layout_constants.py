@@ -376,12 +376,27 @@ def _hand_part_constants(
     human-readable thing this part belongs to (``"hour hand"``, or
     ``"template"`` for a pattern, which has only the one), folded into
     that comment.
+
+    A text part's own `curve: {style: radial}` (plan 11 slice 2) adds one
+    more constant, `_RADIUS`, the device-dependent circle radius -- the
+    same reason a standalone `curve: {style: radial}` `text` element's own
+    `PlacedText` gets one (`_layout_constants`'s own `PlacedText` branch).
+    The angle itself is deliberately **not** a `Layout` constant: it is
+    device-independent (plain degrees) and needs a *per-copy* runtime term
+    for a radial pattern, so it is inlined straight into the shared view
+    instead (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`) --
+    exactly the precedent an arc part's own `start_angle`/`sweep` already
+    set one row down: those get no `_START`/`_SWEEP` constants here either.
     """
     if part.shape == "text":
-        return [
+        out = [
             (f"{part_prefix}_X", part.x, f"{owner}, part {index}: text (the anchor)"),
             (f"{part_prefix}_Y", part.y, ""),
         ]
+        if part.curve_style == "radial":
+            out.append((f"{part_prefix}_RADIUS", part.curve_radius_px,
+                        "curve: radial's own circle radius"))
+        return out
     if part.shape == "polygon":
         points = ", ".join(f"[{x}, {y}]" for x, y in part.points)
         return [(

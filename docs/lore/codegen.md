@@ -228,3 +228,72 @@ These cost real time to discover; do not rediscover them.
   two different questions -- "should this device even try to build the
   font" vs. "did building it actually work" -- and neither is relied on to
   stand in for the other.
+
+- **Vector fonts and `curve:` on a pattern's own `shape: text` part (plan
+  11 slice 2): the local-angle-composed-with-the-copy design, and why gate
+  4's guard has to move from "once, before the loop" to "once per copy,
+  inside it."** Slice 1's own `Curve` dataclass and every build-time gate
+  (1-3) are reused unchanged (`wfb.layout.Resolver._resolve_vector_face`/
+  `._vector_font_metric`, called from `._resolve_hand_part`'s own `text`
+  branch the same way `._resolve_text` already calls them) -- the only new
+  work is the angle's *composition* and one codegen-side behaviour change.
+
+  **Composition.** `ResolvedHandPart.curve_angle_garmin` is this part's own
+  *local* angle (`HandPart.curve.angle`, Garmin-converted), for copy 0
+  alone -- never combined with a radial pattern's own rotation in `wfb.
+  layout`. That combination happens twice, independently, at the two
+  places that already know which copy is being drawn: codegen (`wfb.emit.
+  monkeyc.rotated._emit_pattern_text_angle_expr`) and the lint ink box
+  (`wfb.layout._pattern_part_ink`, given a `copy_angle_degrees` computed
+  once per copy by `Resolver._resolve_pattern`'s own loop) -- both apply
+  `g0 = part.curve_angle_garmin - element.start_angle`, then `g0 - i *
+  step_deg` per copy, the *exact* shape a radial pattern's own `arc` part
+  already used for its `start_angle:` (`_emit_pattern_part`'s arc branch,
+  unchanged, one row up from the new text branch). Deriving the sign: a
+  radial pattern turns copy `i` by `element.start_angle + i *
+  element.step_angle` **design** degrees (clockwise from 12); converting a
+  *sum* of design degrees to Garmin's convention subtracts each term
+  (`Angle.to_garmin`'s own `90 - degrees`), so copy `i`'s effective Garmin
+  angle is `part.curve_angle_garmin - element.start_angle - i *
+  element.step_angle` -- `g0` folds the constant `element.start_angle` term
+  in at build time, leaving only the per-copy `i * step_deg` term for the
+  generated code to add, mirroring arc's own `g0` exactly. A linear
+  pattern's `element.start_angle`/`.step_angle` are always `0.0`
+  (`Resolver._resolve_pattern`), so `g0` reduces to the part's own local
+  angle unchanged and no `i *` term is emitted at all -- the "no copy angle
+  to compose with" case falls out of the shared formula for free, not a
+  separate branch. `wfb.preview._Renderer._pattern_text` performs the same
+  arithmetic a third time, in Python floats rather than generated code,
+  reading `PlacedPattern.start`/`.step` (already `element.start_angle`/
+  `.step_angle` in degrees) instead of re-deriving them.
+
+  **Why gate 4's guard cannot stay "load once, early-return before the
+  loop."** That is exactly what a *baked* custom font on a pattern text
+  part still does (`_emit_pattern`'s own `text_fonts` pre-loop loading,
+  unchanged) -- reasonable there, because a baked resource failing to load
+  is a structural failure, essentially never observed. A vector font's
+  null is the *ordinary* case under `if_unavailable: hide`, or even under
+  `error` (gate 4 has no build-time guarantee at all), and an early
+  `return;` before the loop would silently cancel every *other* part of
+  the *same* pattern too -- unrelated shapes, unrelated fonts, all sharing
+  this one generated draw method. So a vector font's local is still loaded
+  once before the loop (`_emit_pattern`'s new `vector_text_fonts` split),
+  but never early-return-guarded; instead `wfb.emit.monkeyc.rotated.
+  _emit_pattern_text_draw` wraps only its own draw call in `if (<local> !=
+  null)`, every copy, the same shape `wfb.emit.monkeyc.shapes._emit_
+  vector_text_draw` already uses for a standalone element -- and this
+  applies even to an *upright* (uncurved) vector-font pattern part, not
+  only a curved one: gate 4 does not care whether `curve:` was authored.
+
+  **`style: radial`'s circle is centred on that copy's own anchor**, not a
+  fixed point -- the same `at:` reinterpretation a standalone `curve:
+  {style: radial}` text element already gives, applied per copy: the
+  circle's radius (`curve_radius_px`, a `handLength` -- px/%r only, plan
+  11 slice 2's `patternCurve` schema def -- resolved once, the same for
+  every copy) gets a `Layout` constant (`<part>_RADIUS`, `wfb.emit.monkeyc.
+  layout_constants._hand_part_constants`'s `text` branch), the same as an
+  `arc` part's own `_RADIUS`; the angle does not, for the same reason an
+  `arc` part's `start_angle`/`sweep` never did -- it is device-independent
+  and needs a per-copy runtime term, so it is inlined straight into the
+  shared view instead of a per-device `Layout` constant nothing would
+  differ across devices for anyway.

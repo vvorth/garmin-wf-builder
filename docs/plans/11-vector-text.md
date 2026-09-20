@@ -1,9 +1,9 @@
 # Plan 11 — Vector fonts, and angled/radial text
 
-**Status: slice 1 built (§5). Slices 2 and 3 open.** Delete this file when
-slice 3 lands (`docs/CLAUDE.md`). What slice 1 shipped is documented in
-`docs/format.md`, `docs/limitations.md` §2 and `docs/lore/codegen.md`; this
-file remains only as the design record for the two slices still to come.
+**Status: slices 1 and 2 built (§5). Slice 3 open.** Delete this file when
+slice 3 lands (`docs/CLAUDE.md`). What slices 1 and 2 shipped is documented
+in `docs/format.md`, `docs/limitations.md` §2 and `docs/lore/codegen.md`;
+this file remains only as the design record for the slice still to come.
 
 Builds the capability `docs/research/12-vector-fonts.md` §5.2 identifies as
 otherwise unreachable: **text that turns**. `Dc.drawAngledText` and
@@ -265,11 +265,25 @@ builder diagnostics, per-device resolution, layout boxes, lint, codegen,
 preview, tests, and the doc set of §6. Warning-free `monkeyc -w -l 3` on
 `fenix8solar47mm`, `fenix8solar51mm` and `fr955`.
 
-**Slice 2 — pattern text parts.**
+**Slice 2 — pattern text parts. Built.**
 `pattern`'s `shape: text` parts gain the same `curve:`, which is what finally
 answers `docs/limitations.md`'s "a bitmap font cannot turn, so only the anchor
 turns": rotated hour numerals around a dial, each tangent to its own radius.
-Depends on slice 1's font work being settled.
+The one real design decision beyond reusing slice 1's font machinery
+wholesale: the authored `angle:` is in the **template's own local frame**
+(for copy 0), and a radial pattern composes it with each copy's own
+rotation at codegen/preview time -- the same "local angle plus the copy's
+own rotation" arithmetic a pattern's own `arc` part's `start_angle:`
+already performs against `start:`/`step:` -- so twelve numerals share one
+authored angle, not twelve. A linear pattern's copies never rotate, so they
+simply keep the part's own angle unchanged; no special-casing needed, the
+formula reduces on its own. The other real difference from a standalone
+element: gate 4's null check cannot stay "load once, early-return before
+the loop" the way a baked custom font's does -- that would cancel every
+*other* part of the same pattern too -- so a vector font's local is loaded
+once but the null check wraps each copy's own draw call instead
+(`docs/lore/codegen.md` has the full account). Warning-free `monkeyc -w -l
+3` on `fenix8solar47mm`, `fenix8solar51mm` and `fr955`.
 
 **Slice 3 — an example and its screenshots.**
 `examples/features/vector-text/face.yaml`, named "Feature vector text" to
