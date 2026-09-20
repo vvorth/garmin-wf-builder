@@ -321,36 +321,87 @@ Ranked by what it is worth, not by how it sounds:
 What it costs: the author gives up the typeface. Fourteen Latin faces exist,
 `RobotoCondensed` is the only dependable one, and nothing can be added.
 
-### 5.3 The shape it would have to take
+### 5.3 The shape that was built (plan 11)
 
-Not a replacement for `fonts:` — a **second kind of font**, resolved per
-device, with the baked sheet as the fallback on the 92 devices and for any
-face the device lacks. Sketch, deliberately not a proposal:
+**Built, not merely sketched: `docs/plans/11-vector-text.md` is the design
+record, and `docs/format.md`'s `fonts:`/`curve:` sections are the shipped
+reference.** A `fonts:` entry can now name a **second kind of font**,
+resolved per device: `face:` instead of `source:`, reached through
+`Graphics.getVectorFont` at draw time with nothing rasterised for it at
+build time. A `text` element gains `curve: {style: angled | radial, ...}`
+to bend it along a line or around a circle through
+`Dc.drawAngledText`/`Dc.drawRadialText`, the only way to get rotated or
+curved text at all.
 
 ```yaml
 fonts:
   clock:
-    source: assets/ChivoMono-Bold.ttf    # today: always baked
+    source: assets/ChivoMono-Bold.ttf    # unchanged: always baked
     size: 22%r
   bezel:
     face: [RobotoCondensedBold, RobotoCondensedRegular]   # device-resident
     size: 18%r
-    fallback: clock                       # what the other 92 devices draw
+    if_unavailable: hide                  # default: error
 ```
 
-The compiler would need to: resolve `face:` against each device's
-`system_ttf` names at layout time (gate 3, offline, already in the device
-files); emit a `Graphics has :getVectorFont` guard plus a null check (gates 1
-and 4, the idiom the probe proved); and refuse `monospace:`, `glyphs:` and
-`antialias:` on a vector font, since all three are properties of baking.
-Preview parity is achievable — `vendor/fonts/` already holds Garmin's real
-`RobotoCondensed-Bold.ttf` and `Bionic_semibold.ttf`, and
-`wfb/fonts/registry.json` already maps free stand-ins for hosts without them.
+**This section's own earlier sketch proposed a `fallback:` to a baked font
+on the 92 devices with no scalable face at all. That was explicitly
+rejected by the user, and it is not what shipped.** A design that asks for
+a face a target does not have is a build error (`if_unavailable: error`,
+the default), naming the device, the requested face(s), and what that
+device actually publishes; an author who wants the element optional says so
+in one word, per element or per font (`if_unavailable: hide`). The reasons,
+weighed and decided before any code was written:
 
-**Recommendation:** worth building, but for `drawAngledText`/`drawRadialText`
-— the capability that is otherwise unreachable — and not as a memory measure,
-which §4 shows it mostly is not. Adding it purely to swap one straight-line
-text mechanism for another buys a worse typeface on a third of the fleet.
+* **A silent fallback hides a real gap.** Swapping a baked sheet in for a
+  missing vector face keeps the *element* on screen but changes its
+  typeface, size behaviour and (for a curved element) its very shape
+  without the build ever saying so — the opposite of this project's
+  "warning-free means actually correct" bar.
+* **It only ever half-works anyway.** A `fallback:` could keep a plain
+  upright reading legible, but `curve:`'s whole point — rotation — has no
+  baked equivalent at all (§1); the fallback would silently turn a curved
+  element into an upright one, a layout change bigger than a typeface swap.
+* **One word already says what a fallback would have tried to say.**
+  `if_unavailable: hide` gets the same outcome — the design still builds,
+  the element just is not there on the devices that lack it — without a
+  second font, a second measured extent, and a second rendering path to
+  keep in sync with the first.
+
+What the compiler actually does, matching §3's four gates: resolves `face:`
+(a name, or a list tried in author order) against each target device's
+`system_ttf` names at build time (gates 2/3), independent of any element's
+`curve:` — `Graphics.getVectorFont` is constructed once per font name in
+the shared view, not once per element; emits a `Graphics has
+:getVectorFont` guard around that construction only when some target in the
+build fails to resolve it (gate 1, the "no guard for a thing every target
+has" philosophy — a design whose targets all support it generates the plain
+form); and refuses `monospace:`, `glyphs:`, `align:` and `antialias:` on a
+`face:` entry, since all four are properties of baking a sheet a vector
+font never has. Gate 4 — `Graphics.getVectorFont` returning `null` even
+when every build-time gate passed — has no build-time guard at all, because
+the platform offers none: the generated code always null-checks before
+drawing, identically whether `if_unavailable:` is `error` or `hide`, so
+`error` is a build-time guarantee that a face was published, never a
+runtime guarantee the element is on the wrist. Preview parity was
+achievable exactly as predicted — `vendor/fonts/` already held Garmin's
+real `RobotoCondensed-Bold.ttf`, and `wfb/fonts/registry.json` already
+mapped free stand-ins for hosts without it — plus one thing this section did
+not anticipate needing: `wfb preview`'s radial glyph-facing model
+(`clockwise` outward, `counter_clockwise` inward) is inferred from
+text-on-a-path convention and Garmin's own `TrueTypeFontsRadialText.mc`
+sample, not verified on a device or simulator (neither runs in this
+environment), and is recorded as an open question in `docs/format.md` and
+`docs/limitations.md` rather than asserted as fact.
+
+**What was not built in this slice:** a pattern's own `shape: text` part
+cannot take `curve:` yet — only a `text` element can (plan 11 §5 slice 2,
+not yet landed). The original recommendation below is otherwise exactly
+what was decided: worth building for `drawAngledText`/`drawRadialText` — the
+capability that is otherwise unreachable — and not as a memory measure,
+which §4 shows it mostly is not; adopting it purely to swap one
+straight-line text mechanism for another would have bought a worse
+typeface on two-thirds of the fleet for nothing.
 
 ---
 

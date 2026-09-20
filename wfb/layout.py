@@ -20,7 +20,7 @@ from .diagnostics import Span
 from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
-    ComplicationSlot, Element, Expression, Face, FontSpec, Graph, Group,
+    ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
     HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape, Size,
     Text, draw_sort_key,
 )
@@ -175,20 +175,88 @@ class PlacedShape(Placed):
 @dataclass
 class PlacedText(Placed):
     #: The point passed to ``drawText``; ``justify`` says how text sits on it.
+    #: For `curve: {style: radial}`, this is the **centre of the circle**
+    #: (plan 11 §2.2's `at:` reinterpretation), not a `drawText`-style
+    #: anchor -- codegen's radial branch reads it that way.
     anchor_point: tuple[int, int] = (0, 0)
     justify: tuple[str, ...] = ()
     font_reference: str = "FONT_MEDIUM"
     font_is_custom: bool = False
     font_px: int = 0
-    #: The device's `FontMetric` for a system font (`None` for a baked custom
-    #: font, or when the device has no pixel metrics for this symbol at all)
-    #: -- `wfb.preview` measures and draws through this, never re-deriving a
-    #: face from `font_px` alone, so the two cannot disagree (plan 09 R2.3).
+    #: The device's `FontMetric` for a system font, **or for a resolved
+    #: vector font** (plan 11 §4: `Resolver._vector_font_metric` -- a
+    #: synthetic metric naming the resolved face's real filename, so
+    #: `wfb.fonts.fallback.measure`/`line_height`/`system_face` locate and
+    #: measure the exact same TTF a later preview step would draw with, the
+    #: same "one measurement path" discipline plan 09 R2.3 already applies
+    #: to a system font). `None` only for a **baked** custom font (`font_is_
+    #: custom and not font_is_vector`), or when the device has no pixel
+    #: metrics for a plain system-font symbol at all.
     font_metric: FontMetric | None = None
     widest: str = ""
     measured_width: int = 0
     #: True when the extent was estimated rather than measured from real metrics.
     width_is_estimated: bool = False
+    #: **Vector fonts only** (plan 11 §2.1/§3). The single face name this
+    #: device actually publishes, resolved from `FontSpec.face`'s
+    #: author-ordered candidates by :meth:`Resolver._resolve_vector_face` --
+    #: what codegen emits as `:face`, never the array (see that method's
+    #: docstring for why). Empty when `font_is_vector` is false, or when
+    #: gates 1-3 (`docs/research/12-vector-fonts.md` §3) all failed on this
+    #: device (:attr:`font_available` is then also false).
+    font_face: str = ""
+    #: True when `element.font` names a `face:` (vector) `FontSpec` --
+    #: `False` for a baked custom font and for a system font alike, so a
+    #: caller can tell "device-resident, resolved per device" apart from
+    #: "the same font resource on every target" with one flag instead of
+    #: re-deriving it from `font_is_custom` plus a `Face.fonts` lookup.
+    font_is_vector: bool = False
+    #: **Vector fonts only.** Whether gates 1-3 all passed for this element
+    #: on *this* device -- always `True` for a baked or system font, which
+    #: cannot fail to be available (nothing to gate). `False` here is what
+    #: `if_unavailable: hide` acts on (`wfb.lint.check_vector_font_
+    #: availability`): the element still resolves -- draw order, a box for
+    #: the geometry lints, everything else -- but `font_face` is empty and
+    #: nothing about it is ever emitted as a real device-resident face on
+    #: this device. `if_unavailable: error` never lets an unavailable
+    #: element reach a real build (`wfb.build.resolve_all` fails the whole
+    #: build first), so a `False` here only ever survives into a
+    #: `ResolvedFace` under `hide`, or in a layout-only test that calls
+    #: `wfb.layout.resolve` directly without that build-level check.
+    font_available: bool = True
+    #: `text.curve.style` as authored (plan 11 §2.2) -- `"angled"` |
+    #: `"radial"` | `None` for ordinary upright text. Kept on the placed
+    #: element (not just reachable through `element.curve`) so a lint or
+    #: the emitter never has to re-derive "is this element curved" from the
+    #: IR once layout has already answered it.
+    curve_style: str | None = None
+    #: `text.curve.angle`, **in the design's own convention** (12 o'clock =
+    #: 0, clockwise positive) -- kept alongside :attr:`curve_angle_garmin`
+    #: exactly as `PlacedShape.start_angle`/`.garmin_start` keep both for
+    #: `shape: arc`: the generated `Layout` comment carries both values
+    #: (plan 11 §2.2), and the preview (a later slice) reasons in the
+    #: design's own convention throughout, the same way it already does for
+    #: `arc`/`progress`. `0.0` when `curve_style` is `None`.
+    curve_angle_degrees: float = 0.0
+    #: `Angle.to_garmin()` of the same angle -- Garmin's own 3-o'clock/
+    #: counter-clockwise convention, what `Dc.drawAngledText`/
+    #: `Dc.drawRadialText`'s own `angle` parameter actually expects, and
+    #: what this module's own box math (`Resolver._rotated_text_box`) rotates
+    #: by, since that is the rotation the device really draws. `0.0` when
+    #: `curve_style` is `None`.
+    curve_angle_garmin: float = 0.0
+    #: `curve: {style: radial}` only -- the circle's radius, resolved to
+    #: whole device pixels the same way any other polar `at:` radius is
+    #: (`Resolver._len`, `Axis.MINOR`). `0` for `angled`, which has no
+    #: circle.
+    curve_radius_px: int = 0
+    #: `curve: {style: radial}` only -- `"clockwise"` | `"counter_clockwise"`
+    #: | `None`, `text.curve.direction` carried straight through for
+    #: codegen to map onto `Graphics.RadialTextDirection`
+    #: (`RADIAL_TEXT_DIRECTION_CLOCKWISE`/`_COUNTER_CLOCKWISE`, a later
+    #: slice) -- this module never needs the Garmin constant name itself,
+    #: only the author's own word.
+    curve_direction: str | None = None
 
 
 @dataclass
@@ -857,31 +925,80 @@ class Resolver:
 
     def _resolve_text(self, element: Text, parent: Box, depth: int) -> Placed:
         font_px, reference, is_custom, baked, metric = self._font_for(element)
+        font_is_vector = False
+        font_face = ""
+        font_available = True
+        if is_custom:
+            spec = self.face.fonts[element.font]
+            if spec.is_vector:
+                # `baked`/`metric` from `_font_for` are both meaningless for a
+                # vector font: `self.fonts` (baked sheets) never holds one --
+                # `wfb.emit.resources.bake_fonts` only rasterises `is_baked`
+                # entries -- and `_font_for_ref`'s `metric` is always `None`
+                # for *any* custom font. Both are replaced below with the
+                # real per-device answer.
+                font_is_vector = True
+                baked = None
+                font_face, font_available = self._resolve_vector_face(spec, element.curve)
+                metric = self._vector_font_metric(font_face, font_px)
         widest = self._widest_text(element)
         if baked is not None:
             width, line_height = baked.measure(widest)
             estimated = False
         else:
-            # A system font: the device publishes its pixel height but not its
+            # A system font, or a vector font (`metric` synthesised just
+            # above): the device publishes its pixel height but not its
             # per-glyph advances. Measure the device's own real typeface when
             # `wfb.fonts.fetch_system` can locate one (the user's own Garmin
             # font root, or a pinned free stand-in), scaled to the device's
             # own published metrics -- still an estimate (a `substitute`/
             # `none` match draws a different family's shape, and even an
             # `exact` match's free release can differ in hinting/kerning),
-            # and still labelled as one.
+            # and still labelled as one. An *unavailable* vector font's
+            # `metric` names no real face at all, so this falls all the way
+            # to Pillow's own bundled default, scaled to `font_px` -- still a
+            # conservative, non-zero estimate (plan 11 §4), never an
+            # optimistic empty box, even though nothing draws here at runtime.
             width, _ = fallback.measure(widest, metric) if metric else (0, False)
             line_height = fallback.line_height(metric) if metric else font_px
             estimated = True
 
         x, y = self._point(element.at, parent)
         justify = self._justify(element)
-        # The lint box only -- the runtime `drawText` anchor stays `(x, y)`
-        # unshifted: a glyph kind's alignment is a device-side justify, not
-        # a build-time box move. `bottom` puts this box's top at
-        # `y - line_height`, matching the actual draw call and the preview.
-        dx, dy = alignment_shift(width, line_height, element.align, element.vertical_align)
-        box = Box(x + dx - width / 2, y + dy - line_height / 2, width, line_height)
+
+        curve = element.curve
+        curve_style = curve.style if curve is not None else None
+        curve_angle_degrees = curve.angle.degrees if curve is not None else 0.0
+        curve_angle_garmin = curve.angle.to_garmin() if curve is not None else 0.0
+        curve_radius_px = 0
+        curve_direction = curve.direction if curve is not None else None
+        if curve_style == "radial" and curve.radius is not None:
+            curve_radius_px = round(self._len(curve.radius, parent, Axis.MINOR, 0))
+
+        if curve_style == "angled":
+            # The rotated bounding box of the measured extent about the
+            # anchor (plan 11 §4) -- conservative, never optimistic: it is
+            # the box of the whole `width`x`line_height` rectangle turned by
+            # the angle the device actually draws at, not the tighter box
+            # the real glyph ink would occupy.
+            box = self._rotated_text_box(x, y, width, line_height,
+                                         element.align, element.vertical_align,
+                                         curve_angle_garmin)
+        elif curve_style == "radial":
+            # centre +/- (radius + line_height): "acceptable and honest"
+            # (plan 11 §4) rather than the tighter per-glyph sweep a real arc
+            # of text occupies -- `(x, y)` is already the circle's own
+            # centre here (`Text.curve`'s `at:` reinterpretation, §2.2).
+            reach = curve_radius_px + line_height
+            box = Box(x - reach, y - reach, 2 * reach, 2 * reach)
+        else:
+            # The lint box only -- the runtime `drawText` anchor stays `(x, y)`
+            # unshifted: a glyph kind's alignment is a device-side justify, not
+            # a build-time box move. `bottom` puts this box's top at
+            # `y - line_height`, matching the actual draw call and the preview.
+            dx, dy = alignment_shift(width, line_height, element.align, element.vertical_align)
+            box = Box(x + dx - width / 2, y + dy - line_height / 2, width, line_height)
+
         return PlacedText(
             element, box.rounded(), (round(x), round(y)), depth,
             anchor_point=(round(x), round(y)),
@@ -893,7 +1010,122 @@ class Resolver:
             widest=widest,
             measured_width=round(width),
             width_is_estimated=estimated,
+            font_face=font_face,
+            font_is_vector=font_is_vector,
+            font_available=font_available,
+            curve_style=curve_style,
+            curve_angle_degrees=curve_angle_degrees,
+            curve_angle_garmin=curve_angle_garmin,
+            curve_radius_px=curve_radius_px,
+            curve_direction=curve_direction,
         )
+
+    def _vector_gate1_ok(self, curve_style: str | None) -> bool:
+        """Gate 1 (`docs/research/12-vector-fonts.md` §3): does this device
+        even have `Graphics.getVectorFont` -- and, under `curve:`, the
+        matching `Dc.drawAngledText`/`Dc.drawRadialText` -- at all?
+
+        Checked independently per plan 11 §1's own caution: the three move
+        together on every device installed for this project (verified
+        2026-09-20), but nothing in the SDK promises that holds for the
+        full 164-device fleet, so an upright `face:` text only ever needs
+        `getVectorFont` itself, never the draw call it happens not to use.
+        """
+        device = self.device
+        if not device.has_symbol(Device.VECTOR_FONT_SYMBOL):
+            return False
+        if curve_style == "angled" and not device.has_symbol(Device.DRAW_ANGLED_TEXT_SYMBOL):
+            return False
+        if curve_style == "radial" and not device.has_symbol(Device.DRAW_RADIAL_TEXT_SYMBOL):
+            return False
+        return True
+
+    def _resolve_vector_face(self, spec: FontSpec, curve: "Curve | None") -> tuple[str, bool]:
+        """Gates 1-3 (plan 11 §1) for one `face:` `FontSpec`, on this
+        device: `("", False)` when gate 1 fails (`_vector_gate1_ok`) or
+        none of `spec.face`'s author-ordered candidates is one of this
+        device's own :attr:`~wfb.devices.Device.scalable_faces` (gates 2/3);
+        otherwise the *first* candidate this device actually publishes and
+        `True` -- the one resolved face codegen emits as `:face` (plan 11
+        §2.1: never the array, since a runtime array pick could not be
+        measured against or named in an error).
+
+        `wfb.lint.check_vector_font_availability` is what turns a `("",
+        False)` here into a build error or a suppressible warning, once
+        every target device has been resolved -- this method only ever
+        answers for the one device `self` was built for (`Resolver.__init__`),
+        never the whole build.
+        """
+        if not self._vector_gate1_ok(curve.style if curve is not None else None):
+            return "", False
+        for name in spec.face:
+            if name in self.device.scalable_faces:
+                return name, True
+        return "", False
+
+    def _vector_font_metric(self, face_name: str, font_px: int) -> FontMetric:
+        """A synthetic `FontMetric` for a resolved (or unavailable) vector
+        face, so `wfb.fonts.fallback.measure`/`line_height` -- the one
+        measurement path this compiler has, plan 11 §4 -- can estimate a
+        vector font's extent exactly the way they already estimate a system
+        font's: `metric.font` is the real on-disk stem
+        (`Device.scalable_face_files`), which is what both
+        `wfb.fonts.fetch_system.garmin_font_root`'s exact-stem match and
+        `wfb/fonts/registry.json`'s own `names` table key on -- not
+        `face_name` (the `:face` string, `"RobotoCondensedBold"`), which
+        neither matches directly (confirmed against an installed device:
+        the `filename` is `"RobotoCondensed-Bold"`).
+
+        `face_name` empty (gates 1-3 failed) synthesises a metric that
+        locates nothing at all (`font=""`) -- `fallback.system_face` falls
+        back to Pillow's own bundled default scaled to `font_px`, a
+        conservative non-zero estimate rather than a crash or a silent
+        zero (see `_resolve_text`'s own note on this).  `size_px=font_px`
+        is always this font's own resolved `:size` in pixels
+        (`FontSpec.pixel_size`, already computed as `font_px` by
+        `Resolver._font_for_ref`'s `_unbaked_font_size` path) -- a vector
+        font has no separate "published line height" the way a `FONT_*`
+        symbol does, so the one pixel size doubles as both.
+        """
+        filename = self.device.scalable_face_files.get(face_name, face_name)
+        return FontMetric(symbol=face_name or "vector", face=face_name, font=filename,
+                          size_px=font_px)
+
+    @staticmethod
+    def _rotated_text_box(
+        x: float, y: float, width: float, height: float, align: str, vertical_align: str,
+        garmin_angle_degrees: float,
+    ) -> Box:
+        """`curve: {style: angled}`'s lint box (plan 11 §4): the axis-aligned
+        bounding box of the `width`x`height` text box, rotated about the
+        anchor `(x, y)` by `garmin_angle_degrees` -- Garmin's own convention
+        (`Curve.angle.to_garmin()`), because that is the rotation the device
+        actually draws (verified against `$CIQ_SDK/samples/TrueTypeFonts/
+        source/MenuItems/TrueTypeFontsAngledText.mc`: at Garmin angle 0 the
+        text is unrotated, reading left to right exactly like plain
+        `drawText`, and the on-screen rotation direction it demonstrates --
+        `tx = radius*cos(rad), ty = radius*-sin(rad)` -- is standard
+        math-convention rotation applied directly to screen coordinates).
+
+        `align`/`vertical_align` still shift the box the same way
+        `alignment_shift` shifts an ordinary upright text's lint box (plan
+        11 §2.3: the *runtime* anchor never moves, device-side justify
+        only) -- computed in the text's own unrotated baseline frame first,
+        then rotated along with the rest of the box, so the shift turns
+        with the text instead of staying screen-aligned.
+        """
+        theta = math.radians(garmin_angle_degrees)
+        cos_t, sin_t = math.cos(theta), math.sin(theta)
+        dx, dy = alignment_shift(width, height, align, vertical_align)
+        cx = x + dx * cos_t + dy * sin_t
+        cy = y - dx * sin_t + dy * cos_t
+        hw, hh = width / 2.0, height / 2.0
+        xs: list[float] = []
+        ys: list[float] = []
+        for lx, ly in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+            xs.append(cx + lx * cos_t + ly * sin_t)
+            ys.append(cy - lx * sin_t + ly * cos_t)
+        return Box(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
 
     def _resolve_progress(self, element: Progress, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)

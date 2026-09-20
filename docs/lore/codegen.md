@@ -188,3 +188,43 @@ These cost real time to discover; do not rediscover them.
   system font's widest-rendering comment, never referenced elsewhere in the
   generated code) -- confirmed by the golden `Layout.mc` diffs this step
   produced, one line each, nothing else.
+- **Vector fonts and `curve:` (plan 11): per-device `Layout` constants, one
+  guard for the whole build, one null check that is never omitted.** A used
+  `face:` font gets `FONT_<NAME>_FACE`/`_SIZE` in every target device's own
+  `Layout.mc` (`wfb.emit.monkeyc.layout_constants._vector_font_constants`):
+  `_FACE` is that one device's own resolved face name (`wfb.availability.
+  vector_font_face`, empty string when none of the requested candidates is
+  published), `_SIZE` its pixel height, both independent of any element's
+  `curve:` -- `Graphics.getVectorFont` is constructed once per font name in
+  the *shared* view (`onLayout`), not once per drawing element. A third
+  constant, `_AVAILABLE`, is emitted **only** for a font at least one target
+  in the build fails to resolve (`wfb.availability.Guards.vector_fonts`,
+  aggregated across the whole build the same way `Guards.fields` already
+  is) -- the same "no guard for a thing every target has" rule the
+  `Guards` bullet above states for complications/fields: a design whose
+  targets all support the requested face(s) gets the plain, unguarded
+  `Graphics.getVectorFont(...)` call, and every device's `Layout.mc` that
+  never needs `_AVAILABLE` never defines it. When it is needed, the
+  construction is wrapped `if (Layout.FONT_<NAME>_AVAILABLE && (Graphics
+  has :getVectorFont))` -- the runtime `has` check and the build-time
+  constant are *not* redundant: `has :getVectorFont` is the only one of the
+  two a device can answer about itself (constraint 6d -- `monkeyc` checks
+  the SDK-wide API, not the device's), while "does this device's own
+  catalogue include any of the requested faces" has no runtime query at
+  all and can only be decided at build time, per device.
+
+  **Gate 4 -- `Graphics.getVectorFont` returning `null` even when every
+  build-time gate passed -- has no guard of any kind, ever, in either
+  `if_unavailable:` mode**, because the platform gives none: every draw
+  call using a vector font (`wfb.emit.monkeyc.shapes._emit_vector_text_
+  draw`) captures the field into a local first (`var font = _fontBezel;`)
+  and wraps the actual `dc.drawText`/`drawAngledText`/`drawRadialText` in
+  `if (font != null)` -- the field-vs-local capture is not optional
+  ceremony, it is `docs/lore/monkeyc.md`'s own "type narrowing must go
+  through a local, never a repeated field access" rule, and this is one
+  more confirmed instance of it (the field, unlike a local, cannot be
+  narrowed by an `if` one statement earlier). The constant that guards
+  *construction* and the null check that guards every *draw* are answering
+  two different questions -- "should this device even try to build the
+  font" vs. "did building it actually work" -- and neither is relied on to
+  stand in for the other.

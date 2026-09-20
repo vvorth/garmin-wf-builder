@@ -122,10 +122,22 @@ def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: li
     _emit_text_draw(w, placed, value_code)
 
 
+#: `text.curve.direction` -> `Graphics.RadialTextDirection` (verified in
+#: `$CIQ_SDK/bin/api.debug.xml`: `RADIAL_TEXT_DIRECTION_CLOCKWISE`/
+#: `_COUNTER_CLOCKWISE`, both `Dc.drawRadialText`'s own documented values).
+_RADIAL_DIRECTION = {
+    "clockwise": "RADIAL_TEXT_DIRECTION_CLOCKWISE",
+    "counter_clockwise": "RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE",
+}
+
+
 def _emit_text_draw(w: Writer, placed: PlacedText, value_code: str) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
+    if placed.font_is_vector:
+        _emit_vector_text_draw(w, placed, prefix, justify, value_code)
+        return
     if placed.font_is_custom:
         w.line(f"var font = _{_field(placed.font_reference)};")
         with w.block("if (font == null)"):
@@ -139,6 +151,48 @@ def _emit_text_draw(w: Writer, placed: PlacedText, value_code: str) -> None:
     w.line(f"dc.drawText(Layout.{prefix}_X, {y_expr}, {font_expr},")
     w.line(f"            {value_code},")
     w.line(f"            {justify});")
+
+
+def _emit_vector_text_draw(
+    w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str,
+) -> None:
+    """A `face:` (vector) font's draw call (plan 11 §3-4): plain
+    `dc.drawText` with no `curve:`, or `dc.drawAngledText`/`dc.
+    drawRadialText` under one.
+
+    **Gate 4 is never omitted, on any device, in either `if_unavailable:`
+    mode** (`docs/research/12-vector-fonts.md` §1: `Graphics.getVectorFont`
+    can return `null` instead of throwing, so a null font has to simply
+    draw nothing, always) -- captured into the local `font` first, exactly
+    the way `_emit_text_draw`'s own baked-font branch above already reads a
+    nullable field, because narrowing a repeated *field* access does not
+    survive across statements in Monkey C (`docs/lore/monkeyc.md`:
+    `_staticBuffer.getDc()` fails even right after `if (_staticBuffer !=
+    null)`) -- only a local's narrowing does.  The `if` *wraps* the draw
+    call here, rather than the baked branch's early `return`, so a curved
+    element reads as "an ordinarily-missing thing, drawn as nothing" rather
+    than "a load failure", matching how plan 11 §3's own generated-code
+    example presents it.
+    """
+    element = placed.element
+    field = f"_{_field(placed.font_reference)}"
+    w.line(f"var font = {field};")
+    with w.block("if (font != null)"):
+        w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
+        if placed.curve_style == "angled":
+            w.line(f"dc.drawAngledText(Layout.{prefix}_X, Layout.{prefix}_Y, font, {value_code},")
+            w.line(f"                  {justify}, Layout.{prefix}_ANGLE);")
+        elif placed.curve_style == "radial":
+            direction = _RADIAL_DIRECTION[placed.curve_direction or "clockwise"]
+            w.line(f"dc.drawRadialText(Layout.{prefix}_X, Layout.{prefix}_Y, font, {value_code},")
+            w.line(f"                  {justify}, Layout.{prefix}_ANGLE, "
+                   f"Layout.{prefix}_RADIUS,")
+            w.line(f"                  Graphics.{direction});")
+        else:
+            y_expr = _glyph_y_expr(f"Layout.{prefix}_Y", element.vertical_align, "font")
+            w.line(f"dc.drawText(Layout.{prefix}_X, {y_expr}, font,")
+            w.line(f"            {value_code},")
+            w.line(f"            {justify});")
 
 
 def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str]) -> None:

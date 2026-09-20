@@ -498,6 +498,18 @@
       "minLength": 1
     },
     "font": {
+      "description": "One 'fonts:' entry -- either a custom bitmap font baked from a TrueType/OpenType source at build time (only the glyphs the design actually uses are rendered into the sheet), or a device-resident scalable face reached through Graphics.getVectorFont at draw time (plan 11) -- the only way to get rotated or curved text ('curve:' on a 'text' element), since Dc.drawAngledText/drawRadialText refuse a resource font outright. 'source:' and 'face:' are mutually exclusive and jointly required, so an entry naming neither, or both, is rejected here rather than read as an unknown-key mismatch.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/bakedFont"
+        },
+        {
+          "$ref": "#/$defs/vectorFont"
+        }
+      ]
+    },
+    "bakedFont": {
+      "description": "A custom bitmap font, baked from a TrueType/OpenType source at build time.",
       "type": "object",
       "required": [
         "source",
@@ -535,8 +547,128 @@
             "right"
           ],
           "default": "center"
+        },
+        "if_unavailable": {
+          "description": "Vector-font key. A build error here: a baked font is rasterised from your own 'source:' at build time, so it is never unavailable on any device -- there is nothing for 'if_unavailable:' to govern. Parsed here (rather than rejected as an unknown key) purely so the compiler can name that reason instead of jsonschema's generic message.",
+          "enum": [
+            "error",
+            "hide"
+          ]
         }
       }
+    },
+    "vectorFont": {
+      "description": "A device-resident scalable face, drawn through Graphics.getVectorFont instead of a baked sheet. Only Garmin's own fixed catalogue of on-device faces is reachable this way -- about 14 Latin ones, published on 44 of the 136 watch-face-capable devices in the reference (docs/research/12-vector-fonts.md §3.2) -- and nothing can add a face to that list, so an author's own typeface can never be one. 'glyphs:', 'monospace:', 'align:' and 'antialias:' are all properties of baking a sheet, and this schema still parses them here (rather than rejecting them as unknown keys) purely so the compiler can name the actual mistake -- 'a vector font has no sheet' -- instead of jsonschema's generic 'unknown key' message; every one of the four is a build error on a 'face:' entry.",
+      "type": "object",
+      "required": [
+        "face",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "glyphs": {
+          "description": "Baked-font key. A build error here: a vector font is never rasterised to a sheet, so there is no glyph set to restrict.",
+          "type": "string"
+        },
+        "antialias": {
+          "description": "Baked-font key. A build error here: there is no bitmap sheet for anti-aliasing to apply to.",
+          "type": "boolean"
+        },
+        "monospace": {
+          "description": "Baked-font key. A build error here: there is no baked cell for a glyph's advance to be fixed to.",
+          "type": "boolean"
+        },
+        "align": {
+          "description": "Baked-font key. A build error here: with no baked cell (see 'monospace:'), there is nowhere for a glyph's ink to sit inside it.",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        "face": {
+          "description": "The device-resident face name(s) to ask Graphics.getVectorFont for, tried in the order given -- a string for one, or an array for several acceptable alternatives. Resolved per target device at build time to the single face that device actually publishes; ':face' is then emitted as that one resolved string, never the array. Garmin's own runtime array fallback is deliberately not used here: it would pick a face at draw time, so the build could not say which one renders, or measure the layout box against it. A device that publishes none of the listed faces fails this font's availability gates -- governed by 'if_unavailable:'.",
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ]
+        },
+        "size": {
+          "$ref": "#/$defs/length",
+          "description": "The pixel height to draw this face at, per device. px or %r only, the same rule a baked font's 'size:' follows -- but unlike a baked font, nothing is rasterised at this size at build time: Graphics.getVectorFont takes it directly, in pixels, at draw time, so one face serves any number of sizes with no extra sheets."
+        },
+        "if_unavailable": {
+          "description": "What to do on a target device that fails to publish any of the listed 'face:' names, or lacks Graphics.getVectorFont entirely. 'error' (the default) fails the build, naming the device, the face(s) asked for, and the faces that device does publish -- a missing clock is not a cosmetic problem. 'hide' lets every element using this font simply not draw on that one device; every other device is unaffected. This is a build-time guarantee only: Graphics.getVectorFont can still return null at runtime even when every build-time gate passed (the platform offers no other way to fail), and the generated code always null-checks regardless of this setting -- there is no way to promise a live face never goes missing, only that it was published at build time. An element using this font may override this outright with its own 'if_unavailable:'.",
+          "enum": [
+            "error",
+            "hide"
+          ],
+          "default": "error"
+        }
+      }
+    },
+    "curve": {
+      "description": "Bends a 'text' element's content along a straight line or around a circle, through Dc.drawAngledText/Dc.drawRadialText. Both calls refuse a resource font outright ('These APIs only support scalable fonts and do not support custom fonts loaded as resources', SDK Core Topics: Graphics, Scalable Fonts) -- so the element's 'font:' must name a 'face:' (vector) 'fonts:' entry; a baked or system font under 'curve:' is a build error quoting that same sentence.",
+      "type": "object",
+      "required": [
+        "style",
+        "angle"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "'angled' draws the text along one straight line through 'at:', tilted by 'angle:'. 'radial' sweeps it around a circle -- 'at:' is then the CENTRE OF THE CIRCLE, not a point the text passes through, and 'radius:' is the circle's own radius. 'radius:'/'direction:' are rejected on 'angled': there is no circle for either to describe.",
+          "enum": [
+            "angled",
+            "radial"
+          ]
+        },
+        "angle": {
+          "$ref": "#/$defs/angle",
+          "description": "12 o'clock = 0, clockwise positive -- this format's own convention everywhere, not Garmin's 3-o'clock/counter-clockwise one; the compiler converts. For 'angled', the tilt of the text's own baseline. For 'radial', where around the circle the text starts."
+        },
+        "radius": {
+          "$ref": "#/$defs/length",
+          "description": "'radial' only: the circle's own radius, the same unit rules 'at:'/'radius:' already use elsewhere. Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled' -- parsed here rather than turned away as an unknown key, so the compiler can name the actual mistake (an angled line has no circle for it to describe) instead of jsonschema's generic message, the same 'text-antialias' precedent 'wfb.ir.builder' already follows."
+        },
+        "direction": {
+          "description": "'radial' only: which way the text runs around the circle starting at 'angle:'. Schema-legal but rejected as a build error under 'style: angled', for the same reason 'radius:' is.",
+          "enum": [
+            "clockwise",
+            "counter_clockwise"
+          ],
+          "default": "clockwise"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "radial"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "radius"
+            ]
+          }
+        }
+      ]
     },
     "position": {
       "description": "A position relative to an anchor on the parent box. Either cartesian (dx/dy) or polar (angle/radius) -- polar is first-class because 115 of 164 devices are round.",
@@ -928,6 +1060,17 @@
         },
         "fallback": {
           "$ref": "#/$defs/expression"
+        },
+        "curve": {
+          "description": "Bends this text along a line or around an arc, instead of drawing it upright with plain Dc.drawText. Requires 'font:' to name a 'face:' (vector) 'fonts:' entry -- a baked or system font here is a build error, since Dc.drawAngledText/drawRadialText refuse a resource font outright.",
+          "$ref": "#/$defs/curve"
+        },
+        "if_unavailable": {
+          "description": "Overrides this element's font's own 'if_unavailable:' outright -- only meaningful when 'font:' names a 'face:' (vector) font; a build error on a baked or system font, since nothing there can ever be unavailable. 'error' fails the build naming the device and the face(s) it lacks; 'hide' makes this one element not draw on a device that fails the font's availability gates, leaving every other element that shares the font unaffected. Omit to inherit the font's own 'if_unavailable:' (itself 'error' by default).",
+          "enum": [
+            "error",
+            "hide"
+          ]
         },
         "at": {
           "$ref": "#/$defs/position"

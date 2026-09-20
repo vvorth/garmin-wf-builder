@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from ...availability import Guards, vector_font_face
 from ...layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon, PlacedPattern,
     PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
-from .common import McLiteral, SourceFile, _const_prefix, _describe, _mc_number, _mc_type, header
+from .common import (
+    McLiteral, SourceFile, _NO_GUARDS, _const_prefix, _describe, _mc_number, _mc_type,
+    _vector_fonts_used, header,
+)
 from ..writer import Writer
 
 
@@ -14,7 +18,62 @@ from ..writer import Writer
 # per-device layout constants
 
 
-def emit_layout(resolved: ResolvedFace) -> SourceFile:
+def _emit_constants(
+    w: Writer, constants: list[tuple[str, float | str | bool | McLiteral, str]],
+) -> None:
+    """Render one `const NAME as TYPE = VALUE;  // note` block -- the one
+    place a `Layout` constant is rendered, shared by the font-name-level
+    block (`_emit_vector_font_constants`) and the per-placed-element loop
+    below, so the two cannot silently drift into two different renderings
+    of the same `(name, value, note)` shape.
+    """
+    for name, value, note in constants:
+        suffix = f"  // {note}" if note else ""
+        w.line(f"const {name} as {_mc_type(value)} = {_mc_number(value)};{suffix}")
+
+
+def _vector_font_constants(
+    resolved: ResolvedFace, name: str, guards: "Guards",
+) -> list[tuple[str, float | str | bool | McLiteral, str]]:
+    """The `Layout` constants for one used `face:` (vector) font, by name
+    (plan 11 §3) -- `FONT_<NAME>_FACE`/`_SIZE` always, `_AVAILABLE` only
+    when `guards.vector_fonts` says at least one *target* device in this
+    build fails to resolve it (`wfb.emit.monkeyc.view._emit_on_layout`'s
+    guarded construction reads it; the plain form does not, and the
+    "no guard for a thing every target has" philosophy means it is not
+    emitted for anything else -- `wfb/availability.py`'s `compute_guards`
+    docstring).
+
+    `_FACE`/`_SIZE` are resolved **for this one device**
+    (`resolved.device`), independent of any element's own `curve:`
+    (`wfb.availability.vector_font_face`'s own docstring says why) --
+    empty-string `_FACE` on a device that fails to resolve it, which the
+    generated `if (font != null)` at the draw call site (never omitted,
+    gate 4) already keeps from ever reaching a real draw call.
+    """
+    face, device = resolved.face, resolved.device
+    spec = face.fonts[name]
+    prefix = f"FONT_{_const_prefix(name)}"
+    resolved_face = vector_font_face(spec, device)
+    size_px = spec.pixel_size(device.minor_radius)
+    requested = ", ".join(spec.face)
+    out: list[tuple[str, float | str | bool | McLiteral, str]] = [
+        (f"{prefix}_FACE", resolved_face,
+         f"requested, in author order: {requested}" if resolved_face
+         else f"none of [{requested}] is published on {device.id}"),
+        (f"{prefix}_SIZE", size_px, ""),
+    ]
+    if name in guards.vector_fonts:
+        out.append((
+            f"{prefix}_AVAILABLE", resolved_face != "",
+            f"{device.id} {'publishes' if resolved_face else 'does not publish'} "
+            "a usable face -- some other target in this build does not, so the "
+            "shared view guards construction on this constant",
+        ))
+    return out
+
+
+def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> SourceFile:
     face, device = resolved.face, resolved.device
     w = Writer()
     w.doc(
@@ -49,15 +108,31 @@ def emit_layout(resolved: ResolvedFace) -> SourceFile:
         w.doc("The screen, for reference.")
         w.line(f"const SCREEN_WIDTH as Number = {device.width};")
         w.line(f"const SCREEN_HEIGHT as Number = {device.height};")
+        vector_fonts = _vector_fonts_used(resolved)
+        if vector_fonts:
+            w.blank()
+            w.doc(
+                "Device-resident scalable ('face:') fonts this design draws with "
+                "(plan 11).\n"
+                "\n"
+                "'_FACE'/'_SIZE' feed Graphics.getVectorFont directly, in onLayout.\n"
+                "'_AVAILABLE' is emitted only for a font at least one target device in\n"
+                "this build fails to publish -- the shared view (identical on every\n"
+                "device) reads it to decide whether to even attempt construction here,\n"
+                "so every device's own Layout.mc has to define it once any device\n"
+                "needs it (wfb.availability.Guards.vector_fonts)."
+            )
+            for name in vector_fonts:
+                w.blank()
+                w.doc(f"`font.{name}`")
+                _emit_constants(w, _vector_font_constants(resolved, name, guards))
         for placed in resolved.items:
             constants = _layout_constants(placed) + _hold_constants(placed)
             if not constants:
                 continue
             w.blank()
             w.doc(f"`{placed.id}` -- {_describe(placed)}")
-            for name, value, note in constants:
-                suffix = f"  // {note}" if note else ""
-                w.line(f"const {name} as {_mc_type(value)} = {_mc_number(value)};{suffix}")
+            _emit_constants(w, constants)
         clip = resolved.clip_for("low_power")
         if clip is not None:
             w.blank()
@@ -191,12 +266,27 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             if not element.filled:
                 out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
     elif isinstance(placed, PlacedText):
+        # For `curve: {style: radial}` this is the *centre of the circle*
+        # (plan 11 §2.2's `at:` reinterpretation, `PlacedText.anchor_point`'s
+        # own docstring), not a `drawText`-style anchor -- still `_X`/`_Y`,
+        # since the codegen call site reads it that way regardless.
         out.append((f"{prefix}_X", placed.anchor_point[0], ""))
         out.append((f"{prefix}_Y", placed.anchor_point[1], ""))
         note = f'widest rendering "{placed.widest}" is {placed.measured_width} px'
         if placed.width_is_estimated:
             note += " (estimated)"
         out.append((f"{prefix}_WIDTH", placed.measured_width, note))
+        if placed.curve_style is not None:
+            # Both angle conventions in the comment, the same `arc`
+            # precedent `_arc_constants`'s own `_START` follows -- keeps the
+            # conversion auditable without having to re-derive it.
+            out.append((
+                f"{prefix}_ANGLE", float(placed.curve_angle_garmin),
+                f"{placed.curve_angle_degrees:g}deg clockwise from 12 o'clock, "
+                "in Garmin's convention",
+            ))
+            if placed.curve_style == "radial":
+                out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))
     elif isinstance(placed, PlacedProgress):
         out.append((f"{prefix}_CX", placed.center[0], ""))
         out.append((f"{prefix}_CY", placed.center[1], ""))

@@ -50,7 +50,7 @@ from typing import Iterable
 
 from .catalog import CATALOG, READERS, Source
 from .devices import Device
-from .ir import Face
+from .ir import Face, FontSpec, Text
 
 
 @dataclass(frozen=True)
@@ -197,6 +197,63 @@ def design_fields(face: Face) -> frozenset[str]:
     return frozenset(fields)
 
 
+def vector_font_face(spec: FontSpec, device: Device) -> str:
+    """The `:face` string `spec` (a `face:` font, plan 11) resolves to on
+    `device`, or `""` when it does not.
+
+    This is the font's own **construction** viability -- gate 1
+    (`Graphics.getVectorFont` existing at all) plus gates 2/3 (one of
+    `spec.face`'s author-ordered candidates being in `device.
+    scalable_faces`) -- independent of any one element's `curve:`, because
+    `Graphics.getVectorFont({:face => ..., :size => ...})` is called exactly
+    once per font name in the shared view (`wfb.emit.monkeyc.view._emit_on_
+    layout`), not once per element that happens to draw with it. A curved
+    element's own *additional* requirement -- `Dc.drawAngledText`/
+    `Dc.drawRadialText` existing too -- is a different, per-element
+    question that `wfb.layout.Resolver._resolve_vector_face` (gate 1
+    folded together with the curve-specific symbol) already answers for
+    the lint pass (`wfb.lint.check_vector_font_availability`); this
+    function deliberately answers the narrower "can the font object itself
+    be built" question codegen needs, which is why a curve-only symbol
+    gap (unobserved on any installed device -- plan 11 §1) is not checked
+    here.
+    """
+    if not device.has_symbol(Device.VECTOR_FONT_SYMBOL):
+        return ""
+    for name in spec.face:
+        if name in device.scalable_faces:
+            return name
+    return ""
+
+
+def vector_fonts_used(face: Face) -> dict[str, FontSpec]:
+    """Every declared `face:` (vector) `FontSpec` a `text` element actually
+    uses -- i.e. some `Text.font` names it -- keyed by name, in `face.
+    fonts`' own declaration order.
+
+    A font declared but never referenced draws nothing and needs no guard
+    (the same "only what is actually used" scoping `wfb.emit.monkeyc.
+    common._loaded_fonts` already applies to a baked font), so this is not
+    simply `{name: spec for name, spec in face.fonts.items() if spec.is_
+    vector}`.
+
+    **`text` elements only.** A `pattern`'s `shape: text` part is not
+    rejected from naming a `face:` font either (plan 11 §5 slice 2, "pattern
+    text parts", has not landed), but nothing in `wfb.emit.monkeyc.rotated`
+    resolves one -- that is untouched by this slice, so a part referencing
+    one is a pre-existing gap this function does not paper over by
+    pretending to support it.
+    """
+    used: set[str] = set()
+    for element in face.walk():
+        if not isinstance(element, Text) or not element.font_is_custom:
+            continue
+        spec = face.fonts.get(element.font)
+        if spec is not None and spec.is_vector:
+            used.add(element.font)
+    return {name: spec for name, spec in face.fonts.items() if name in used}
+
+
 def uses_complications(face: Face) -> bool:
     """Does this design need `Toybox.Complications` for any reason?
 
@@ -249,13 +306,29 @@ class Guards:
     #: that some target device lacks -- e.g. ``{"stressScore"}``. Empty when
     #: every field this design touches is present on every target.
     fields: frozenset[str]
+    #: Names of every used `face:` (vector) font (`vector_fonts_used`) for
+    #: which at least one target device fails to resolve it
+    #: (`vector_font_face` returns `""`) -- plan 11 §3's "some target
+    #: fails" case. `wfb.emit.monkeyc.view._emit_on_layout` wraps that
+    #: font's `Graphics.getVectorFont(...)` construction in `if
+    #: (Layout.FONT_<NAME>_AVAILABLE && (Graphics has :getVectorFont))`
+    #: only for a name in this set; every other used vector font gets the
+    #: plain, unguarded construction, because every target already
+    #: resolves it. Empty when every used vector font resolves on every
+    #: target (including "this design uses no vector font at all").
+    #: Defaulted (unlike `complications`/`fields`) so every pre-existing
+    #: `Guards(complications=..., fields=...)` call site -- `_NO_GUARDS`,
+    #: and any test written before plan 11 -- keeps constructing a valid
+    #: value without being touched.
+    vector_fonts: frozenset[str] = frozenset()
 
     @property
     def any(self) -> bool:
         """Whether the shared code needs *any* guard at all -- a design
-        with neither a missing module nor a missing field generates plain,
-        unguarded code."""
-        return self.complications or bool(self.fields)
+        with neither a missing module nor a missing field nor an
+        unavailable-somewhere vector font generates plain, unguarded
+        code."""
+        return self.complications or bool(self.fields) or bool(self.vector_fonts)
 
 
 def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
@@ -273,4 +346,10 @@ def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
         field for field in used_fields
         if any(not device.has_field(field) for device in devices)
     )
-    return Guards(complications=complications, fields=missing_fields)
+    used_vector_fonts = vector_fonts_used(face)
+    unavailable_vector_fonts = frozenset(
+        name for name, spec in used_vector_fonts.items()
+        if any(vector_font_face(spec, device) == "" for device in devices)
+    )
+    return Guards(complications=complications, fields=missing_fields,
+                  vector_fonts=unavailable_vector_fonts)

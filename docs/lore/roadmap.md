@@ -57,6 +57,16 @@ listed as shipped.
     Pillow's default;
   - `.cft` bitmap fonts decoded for the fenix 6/7 family, fr245 and fr255
     (`docs/research/10-system-fonts.md`).
+- **Vector fonts and `curve:` on `text`** (plan 11): a `fonts:` entry can
+  name a device-resident scalable face (`face:`) instead of baking one, and
+  a `text` element can bend it along a line or around a circle
+  (`Dc.drawAngledText`/`drawRadialText`) — the only way to rotate or curve
+  text, since a baked font cannot. Reaches 44 of the 136 watch-face-capable
+  devices; `if_unavailable: error` (default) fails the build per device,
+  `hide` lets the element disappear there instead — both are build-time-only
+  guarantees, since the platform can still return a null font at runtime.
+  **Not** built: the same on a pattern's `shape: text` part (plan 11 §5
+  slice 2).
 
 Nothing config-, hands- or pattern-related is verified on a watch or in the
 simulator. What is verified is a warning-free real `monkeyc` build and
@@ -82,19 +92,11 @@ specifies each item.
 
 1. `image` elements and the `raw` escape hatch (ADR 0007). Both give a
    friendly error.
-1b. **Vector fonts** (`Graphics.getVectorFont`), and with them
-   `Dc.drawAngledText`/`drawRadialText` — the only way to rotate or curve
-   text, which a baked bitmap font cannot do at all. Researched and measured
-   in `docs/research/12-vector-fonts.md` (probe:
-   `docs/research/probes/vector-fonts/`); not built. Two findings shape any
-   future plan: the faces are **Garmin's own, device-resident, and
-   unextendable** (about 14 Latin ones, present on only **44 of the 136**
-   watch-face-capable devices), so it must be a second font kind with the
-   baked sheet as the per-device fallback, never a replacement; and it is
-   **not** a memory win, because a baked sheet already loads into the
-   graphics pool rather than the watch-face budget. Shipping an author's own
-   `.ttf` for the watch to rasterise is impossible on every device — that is
-   a platform constraint (§4.15), not a gap.
+1b. A pattern's `shape: text` part cannot take `curve:` (rotated/radial
+   text) yet — a `text` **element**'s own can (Shipped, above; plan 11 §5
+   slice 2). Shipping an author's own `.ttf` for the watch to rasterise
+   remains impossible on every device regardless — that is a platform
+   constraint (§4.15), not a gap.
 2. Per-device `overrides`: writing one is a build error.
 3. `segments`/`scale` progress styles.
 4. Automatic unit conversion (ADR 0005 §4). Authors convert by hand.

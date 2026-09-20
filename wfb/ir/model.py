@@ -126,40 +126,132 @@ class Expression:
 
 @dataclass
 class FontSpec:
+    """One `fonts:` entry -- a **baked** bitmap sheet (`source:`) or a
+    **vector** device-resident face (`face:`, plan 11).  The two are
+    mutually exclusive and jointly required (`schema/wfb-face-1.schema.json`
+    `$defs/font`'s own `oneOf`), so exactly one of `source`/`face` is set on
+    any `FontSpec` that reaches the IR -- see :attr:`is_baked`/:attr:`is_vector`,
+    which every downstream reader should test instead of `source is None`
+    directly, so a third font kind (should one ever exist) only needs a
+    third predicate, not an audit of every `is None` check in the compiler.
+    """
+
     name: str
-    source: Path
     #: The declared size, always a :class:`~wfb.units.Length`: `12px` is twelve
     #: pixels on every device, `18%r` is a fraction of each device's own minor
     #: radius.  Restricted to :data:`wfb.units.SIZE_UNITS` -- the same `px`/`%r`
-    #: an `icon`'s `size:` allows, and for the same reason (the sheet is
+    #: an `icon`'s `size:` allows, and for the same reason (a baked sheet is
     #: rasterised before any element is placed, so there is no parent box to
-    #: take a `%` of and no font in scope to take a `pt` of).
+    #: take a `%` of and no font in scope to take a `pt` of -- a vector font
+    #: shares the restriction even though nothing is rasterised at build
+    #: time for it, so `:size` stays a single per-device pixel height either
+    #: way, resolved the same way by :meth:`pixel_size`).
     #:
     #: A bare number is not accepted: `%r` gives the same transparent
     #: per-device scaling directly, without an unnamed reference screen.
     #: `Builder._font_size` rejects a bare number with the exact `%r`
     #: conversion to use instead.
     size: Length
-    glyphs: str | None
-    antialias: bool
     span: Span | None
-    #: Bake every glyph at one shared advance, so a clock does not shift as its
-    #: digits change (`wfb.fonts.bmfont.bake`).
+    #: A baked font's own TrueType/OpenType source path, or `None` for a
+    #: vector font (:attr:`face` below).  Mutually exclusive with `face`.
+    source: Path | None = None
+    #: **Baked only.** `None` lets the compiler derive the glyph set from
+    #: every string the design can render.
+    glyphs: str | None = None
+    #: **Baked only.** Bitmap fonts default to 1-bit to save runtime RAM.
+    antialias: bool = False
+    #: **Baked only.** Bake every glyph at one shared advance, so a clock
+    #: does not shift as its digits change (`wfb.fonts.bmfont.bake`).
     monospace: bool = False
-    #: Where a glyph's ink sits inside that shared cell.  Meaningless, and
-    #: therefore an error, without :attr:`monospace`.
+    #: **Baked only.** Where a glyph's ink sits inside that shared cell.
+    #: Meaningless, and therefore an error, without :attr:`monospace`.
     align: str = "center"
+    #: **Vector only** (plan 11 §2.1): candidate device-resident face names,
+    #: in author order -- `None` for a baked font.  A per-device build step
+    #: outside this module (`wfb.layout`, a later slice) resolves this to
+    #: the single face that device actually publishes; `:face` is emitted
+    #: as that one resolved string, never the array -- Garmin's own runtime
+    #: array fallback is deliberately not used, because it picks at
+    #: runtime, so the build could not say which face renders or measure
+    #: the layout box against it.
+    face: tuple[str, ...] | None = None
+    #: **Vector only.** `"error"` (the default a builder fills in) or
+    #: `"hide"` -- what to do on a device that fails to publish any listed
+    #: face.  Always `None` on a baked font: nothing there can ever be
+    #: unavailable, so `Builder._build_fonts` rejects `if_unavailable:` on
+    #: one rather than silently accepting a check that would never run.
+    #: An element using this font may override it outright
+    #: (`Text.if_unavailable`) -- the same "nearest/most specific
+    #: declaration wins" shape `_resolve_inherited_flag` already gives
+    #: `antialias:`/`min_1px:`, string-valued here instead of boolean.
+    if_unavailable: str | None = None
+
+    @property
+    def is_baked(self) -> bool:
+        """A bitmap sheet rasterised from `source` at build time."""
+        return self.source is not None
+
+    @property
+    def is_vector(self) -> bool:
+        """A device-resident face reached through `Graphics.getVectorFont`,
+        never rasterised by this compiler at all."""
+        return self.face is not None
 
     @property
     def resource_id(self) -> str:
+        """The baked font resource id -- meaningless on a vector font,
+        which has no `<font>` resource; callers that care use
+        :attr:`is_baked` to tell the two apart first."""
         return font_resource_id(self.name)
 
     def pixel_size(self, minor_radius: float) -> int:
-        """The nominal em size this font's sheet is rasterised at, on a device
-        whose screen has this minor radius.  The size is a `Length`, so its
-        own unit already says whether it is per-device.
+        """The pixel height this font draws at, on a device whose screen has
+        this minor radius -- for a baked font, the nominal em size its sheet
+        is rasterised at; for a vector font, the `:size` handed to
+        `Graphics.getVectorFont` directly, with nothing rasterised at build
+        time at all.  Either way the size is a `Length`, so its own unit
+        already says whether it is per-device, and this is the one place
+        both font kinds resolve it.
         """
         return units.pixel_size(self.size, minor_radius)
+
+
+@dataclass(frozen=True)
+class Curve:
+    """`curve:` on a `text` element (plan 11 §2.2) -- bends the text along a
+    straight line (`style: angled`, `Dc.drawAngledText`) or around a circle
+    (`style: radial`, `Dc.drawRadialText`).  Both calls refuse a resource
+    font outright ("These APIs only support scalable fonts and do not
+    support custom fonts loaded as resources", `$CIQ_SDK/doc/docs/
+    Core_Topics/Graphics.html` §Scalable Fonts), so `Builder._build_text`
+    requires the element's `font:` to name a `face:` (vector) `FontSpec`
+    before this is ever built.
+    """
+
+    #: `"angled"` | `"radial"` -- the discriminator, following `progress`'s
+    #: own precedent of one element with a `style:` key because the
+    #: *binding* stays identical and only the rendering differs
+    #: (`docs/format.md` §`progress`).
+    style: str
+    #: The design's own convention -- 12 o'clock = 0, clockwise positive
+    #: (:class:`~wfb.units.Angle`), **not** Garmin's 3-o'clock/counter-
+    #: clockwise one; `Angle.to_garmin()` converts at codegen time, exactly
+    #: as every other angle in this format does.  For `angled`, the tilt of
+    #: the text's own baseline.  For `radial`, where around the circle the
+    #: text starts.
+    angle: Angle
+    #: `radial` only -- the circle's own radius, resolved through the same
+    #: unit rules `at:`/`radius:` already use elsewhere (not restricted to
+    #: :data:`wfb.units.SIZE_UNITS`: this is an ordinary per-device layout
+    #: quantity, not something baked before layout runs).  `None` on
+    #: `angled`, which has no circle for it to describe -- rejected there
+    #: by `Builder._build_text` rather than silently ignored.
+    radius: Length | None = None
+    #: `radial` only -- `"clockwise"` (default) | `"counter_clockwise"`,
+    #: which way the text runs around the circle starting at `angle:`.
+    #: `None` on `angled`, rejected there the same way `radius` is.
+    direction: str | None = None
 
 
 # --------------------------------------------------------------------------
@@ -791,6 +883,17 @@ class Text(Element):
     when_absent: str | None = None
     placeholder: str | None = None
     fallback: Expression | None = None
+    #: `curve:` as authored, or `None` for ordinary upright text (plain
+    #: `Dc.drawText`).  Requires `font:` to name a `face:` (vector) font --
+    #: `Builder._build_text` rejects a baked or system font here, quoting
+    #: the SDK (`Curve`'s own docstring).
+    curve: "Curve | None" = None
+    #: Overrides this element's font's own `FontSpec.if_unavailable`
+    #: outright, when that font is a `face:` (vector) font -- `None` to
+    #: inherit the font's own value.  A build error on a baked or system
+    #: font (`Builder._build_text`): nothing there can ever be unavailable,
+    #: so accepting it would promise a check that never runs.
+    if_unavailable: str | None = None
 
     def _own_expressions(self) -> list[Expression]:
         return [e for e in (self.value, self.color, self.fallback) if e]

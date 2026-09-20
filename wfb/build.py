@@ -135,6 +135,12 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
         result = resolve(face, device, fonts)
         resolved[device.id] = result
         lint.run(result, bag)
+    # Cross-device (plan 11 §2.4): `if_unavailable:` asks "did gates 1-3
+    # fail on ANY target?", which no single device's own `ResolvedFace` can
+    # answer -- unlike everything `lint.run` checks above, this needs every
+    # device in this build resolved first, so it runs once here rather than
+    # once per device.
+    lint.check_vector_font_availability(face, resolved, bag)
     return resolved, baked
 
 

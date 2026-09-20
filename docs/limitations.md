@@ -105,7 +105,13 @@ hands have.
   `tests/test_parameter_limits.py` guards it). The value may read only
   `copy`, so every copy's string is known at build time. The per-copy
   `formatting.emit` call on the device is unmeasured, and costs nothing
-  inside `static:`.
+  inside `static:`. A `text` **element** (not a pattern part) can now turn,
+  through `curve:` on a device-resident vector font (below, "A face cannot
+  ship its own TTF, and vector fonts are Garmin's only") — a pattern's own
+  `shape: text` part cannot use it yet; turning per-copy numerals around a
+  dial, each tangent to its own radius, is the next slice of that feature
+  (`docs/plans/11-vector-text.md` §5 slice 2), so this bullet's "only the
+  anchor turns" still describes every pattern text part today.
 - **Colours** may read `copy` (the index of the copy being drawn) and any
   source that is never absent, such as `date.weekday`. `examples/features/patterns/`'s
   row of dots lights today's this way. They may read a source that **can**
@@ -204,17 +210,45 @@ resource accepts only a BMFont `.fnt`, and no API anywhere loads font bytes.
 `Graphics.getVectorFont` (API 4.2.1) draws scalable text at any pixel size,
 but only from faces **already on the watch** — about 14 Latin faces, of which
 only `RobotoCondensedBold`/`Regular` is widely present, on **44 of the 136**
-watch-face-capable devices. The catalogue cannot be extended, so the
-typefaces this project's own examples use (Chivo Mono, Dynalight, Questrial)
-can never be vector fonts.
+watch-face-capable devices. That reach is a limitation in its own right, not
+just a stepping stone to something wider: the catalogue cannot be extended,
+so the typefaces this project's own examples use (Chivo Mono, Dynalight,
+Questrial) can never be vector fonts, and a design that leans on one has
+opted out of most of the fleet by construction, whatever `if_unavailable:`
+it chooses.
 
-The practical consequence today is that **text drawn with an author's font
-cannot be rotated or curved**: `Dc.drawAngledText` and `Dc.drawRadialText`
-accept scalable fonts only and explicitly refuse resource fonts. It is *not*,
-however, a memory limitation — a baked sheet loads into the separate graphics
-pool, not the watch-face budget (measured in
+`Dc.drawAngledText`/`Dc.drawRadialText` accept scalable fonts only and
+explicitly refuse resource fonts, so **text drawn with an author's baked
+font still cannot be rotated or curved, and never will be** — that part of
+the practical consequence is permanent. What *is* built (plan 11,
+`docs/format.md`'s `curve:` section): a `fonts:` entry can name a
+device-resident face instead of baking one (`face:` instead of `source:`),
+and a `text` **element** can bend it along a line (`style: angled`) or
+around a circle (`style: radial`). Two honest limits on that, not to be
+glossed over:
+
+* **`if_unavailable: error` is a build-time guarantee only.**
+  `Graphics.getVectorFont` returns `null` rather than throwing, and the
+  platform offers no way to fail at runtime, so the generated code *always*
+  null-checks before drawing and a null font simply draws nothing —
+  identically in `error` and `hide` mode. `error` guarantees a usable face
+  was published at build time on every target; it does not, and cannot,
+  guarantee the element is never missing from the wrist.
+* **The radial glyph-facing model is unverified.** `wfb preview` draws
+  `curve: {style: radial, direction: clockwise}` facing glyphs outward and
+  `counter_clockwise` facing inward, inferred from standard text-on-a-path
+  convention and from Garmin's own `TrueTypeFontsRadialText.mc` sample
+  demonstrating both direction constants at one fixed angle — a
+  well-reasoned model, not a confirmed one: the SDK prose does not document
+  glyph facing, and the simulator does not run in this environment (below,
+  "The simulator crashes when an app is pushed"), so nothing here has been
+  checked against a real device or simulator.
+
+It is *not* a memory limitation either way — a baked sheet loads into the
+separate graphics pool, not the watch-face budget (measured in
 `docs/research/probes/vector-fonts/`). Full analysis:
-`docs/research/12-vector-fonts.md`. Not implemented; see §2.
+`docs/research/12-vector-fonts.md`. A pattern's own `shape: text` part
+cannot use `curve:` yet — see §2.
 
 ### Single-colour bitmap fonts
 
@@ -573,7 +607,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | Missing | Where it is specified |
 |---|---|
 | `image` elements | ADR 0004 |
-| Vector fonts (`Graphics.getVectorFont`), and with them `drawAngledText`/`drawRadialText` | `docs/research/12-vector-fonts.md` §5 — researched, not built. Worth building for rotated/curved text, which a baked font cannot do at all; **not** worth building as a memory measure. Needs a `face:`-style second font kind with the baked sheet as the per-device fallback, since 92 of the 136 watch-face-capable devices have no scalable face |
+| A pattern's `shape: text` part turning with `curve:` | plan 11 §5 slice 2 -- a `text` **element**'s own `curve:` (vector fonts, `Graphics.getVectorFont`, rotated/radial text through `drawAngledText`/`drawRadialText`) shipped (`docs/research/12-vector-fonts.md` §5, `docs/format.md`'s `curve:` section); the same for a pattern part -- rotated hour numerals around a dial, each tangent to its own radius -- has not, so "a bitmap font cannot turn" (above, patterns) still applies there |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
 | Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1 -- the one piece of it still unbuilt, and the only route that would give `fr955` any configuration at all. Frozen, incomplete, on `wip/phone-settings` |

@@ -1488,15 +1488,20 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     """Cross-check against `wfb.availability.compute_guards`: every kind of
     gap `check_api_gated` treats as a WARNING (reads-as-absent) must be a
     kind the codegen can actually turn into a runtime guard, and the ERROR
-    kind must be exactly the one it cannot. `Guards` only ever has two
-    fields -- `complications` (a module) and `fields` (bare field names) --
-    never one for a function, which is precisely why `kind == "function"` is
-    promoted to the different, unsuppressible code."""
+    kind must be exactly the one it cannot. Of `Guards`' fields, only two --
+    `complications` (a module) and `fields` (bare field names) -- are
+    `check_api_gated`'s own namespace; never one for a function, which is
+    precisely why `kind == "function"` is promoted to the different,
+    unsuppressible code. `vector_fonts` (plan 11) is a third, unrelated
+    guard -- a `face:` font's own gates 1-3, governed by `if_unavailable:`
+    and `wfb.lint.check_vector_font_availability`'s `font-unavailable`, not
+    a `check_api_gated` "kind" at all -- so it is excluded from the
+    comparison below rather than added to it."""
     from dataclasses import fields as dc_fields
 
     from wfb.availability import Guards, compute_guards
 
-    guards_field_names = {f.name for f in dc_fields(Guards)}
+    guards_field_names = {f.name for f in dc_fields(Guards)} - {"vector_fonts"}
     assert guards_field_names == {"complications", "fields"}
 
     _skip_unless_installed(db, "fenix6")

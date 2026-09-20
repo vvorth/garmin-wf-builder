@@ -15,6 +15,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Callable
+from pathlib import Path
 
 from .. import catalog, complications, expr, formatting, icons, series, units
 from ..catalog import Type
@@ -27,7 +28,7 @@ from ..yamlsrc import YamlDocument
 
 from .model import (
     ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle,
-    Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group, HOLD_AUTO,
+    Curve, Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group, HOLD_AUTO,
     Hand, HandPart, HandSet, HandsElement, IconElement, LayoutDecl, PATTERN_LOOP_INDEX,
     PatternElement, Position, Progress, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
     _drawn_copies, authored_draw_order, walk_elements,
@@ -214,6 +215,18 @@ GRAPH_STYLE_KEYS = {
     "bars": frozenset({"bar_width"}),
 }
 _ALL_GRAPH_STYLE_KEYS = frozenset().union(*GRAPH_STYLE_KEYS.values())
+
+#: The same precedent, for `curve:`'s own `style:` discriminator (plan 11
+#: §2.2): `radial` is the only style with a circle for `radius:`/
+#: `direction:` to describe, so `angled` reads neither. The schema still
+#: parses both keys under `style: angled` (rather than rejecting them as
+#: unknown) purely so `_check_curve_keys` can name the actual mistake --
+#: the same "text-antialias" precedent `_reject_text_antialias` follows.
+CURVE_STYLE_KEYS = {
+    "angled": frozenset(),
+    "radial": frozenset({"radius", "direction"}),
+}
+_ALL_CURVE_STYLE_KEYS = frozenset().union(*CURVE_STYLE_KEYS.values())
 
 #: Matches `expr.check`'s own "unknown data source" message for exactly
 #: `config.colors` or `config.colors.<role>` -- the only two shapes anything
@@ -1109,54 +1122,127 @@ class Builder:
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
             self.fonts_block.declare(name, span)
-            source = base / str(spec["source"])
-            if not source.exists():
-                self.bag.error(
-                    "font",
-                    f"font {name!r}: source file not found: {spec['source']}",
-                    self.doc.span(spec, "source"),
-                    notes=[f"resolved against the design file, to {source}"],
-                )
+            # The schema's own `oneOf` (`$defs/font`) already tells "neither"
+            # and "both" apart from a single valid kind, naming the missing
+            # half rather than reading as an unknown key -- so by the time
+            # this runs, exactly one of `source`/`face` is present.
+            if "face" in spec:
+                font = self._build_vector_font(name, spec, span)
+            else:
+                font = self._build_baked_font(name, spec, base, span)
+            if font is None:
                 self.fonts_block.reject(name)
                 continue
-            size = self._font_size(name, spec)
-            if size is None:
-                self.fonts_block.reject(name)
-                continue
-            # `scale:` is not a key the schema recognises -- `%r`/`px`
-            # already say whether a length is per-device, so a design
-            # writing it gets the ordinary unknown-key schema error before
-            # this stage ever runs.
-            monospace = bool(spec.get("monospace", False))
-            if "align" in spec and not monospace:
-                self.bag.error(
-                    "font",
-                    f"font {name!r}: 'align' needs 'monospace: true'",
-                    self.doc.span(spec, "align"),
-                    notes=[
-                        "align says where a glyph's ink sits inside its cell, and a "
-                        "proportional font has no cell -- every glyph is exactly as "
-                        "wide as it needs to be",
-                        "add 'monospace: true', or drop 'align'",
-                    ],
-                )
-                self.fonts_block.reject(name)
-                continue
-            self.fonts[name] = FontSpec(
-                name=name,
-                source=source,
-                size=size,
-                glyphs=spec.get("glyphs"),
-                # A font with no `antialias:` of its own follows the
-                # face-wide default rather than a hardcoded False -- there is
-                # nothing further beneath a `fonts:` entry to inherit from, so
-                # this is resolved here, not deferred to a tree walk the way an
-                # element's is.
-                antialias=bool(spec.get("antialias", self.face_antialias)),
-                span=span,
-                monospace=monospace,
-                align=str(spec.get("align", "center")),
+            self.fonts[name] = font
+
+    def _build_baked_font(
+        self, name: str, spec: dict, base: Path, span: Span | None,
+    ) -> FontSpec | None:
+        source = base / str(spec["source"])
+        if not source.exists():
+            self.bag.error(
+                "font",
+                f"font {name!r}: source file not found: {spec['source']}",
+                self.doc.span(spec, "source"),
+                notes=[f"resolved against the design file, to {source}"],
             )
+            return None
+        size = self._font_size(name, spec)
+        if size is None:
+            return None
+        # `scale:` is not a key the schema recognises -- `%r`/`px`
+        # already say whether a length is per-device, so a design
+        # writing it gets the ordinary unknown-key schema error before
+        # this stage ever runs.
+        monospace = bool(spec.get("monospace", False))
+        if "align" in spec and not monospace:
+            self.bag.error(
+                "font",
+                f"font {name!r}: 'align' needs 'monospace: true'",
+                self.doc.span(spec, "align"),
+                notes=[
+                    "align says where a glyph's ink sits inside its cell, and a "
+                    "proportional font has no cell -- every glyph is exactly as "
+                    "wide as it needs to be",
+                    "add 'monospace: true', or drop 'align'",
+                ],
+            )
+            return None
+        if "if_unavailable" in spec:
+            self.bag.error(
+                "font",
+                f"font {name!r}: 'if_unavailable:' is not accepted on a baked font",
+                self.doc.span(spec, "if_unavailable"),
+                notes=[
+                    "'if_unavailable:' governs a device-resident 'face:' font "
+                    "failing to publish a face -- a baked font is rasterised from "
+                    "your own 'source:' at build time, so it is never unavailable "
+                    "on any device",
+                    "drop 'if_unavailable:', or switch this entry to 'face:' if "
+                    "you meant a device-resident font",
+                ],
+            )
+            return None
+        return FontSpec(
+            name=name,
+            source=source,
+            size=size,
+            glyphs=spec.get("glyphs"),
+            # A font with no `antialias:` of its own follows the
+            # face-wide default rather than a hardcoded False -- there is
+            # nothing further beneath a `fonts:` entry to inherit from, so
+            # this is resolved here, not deferred to a tree walk the way an
+            # element's is.
+            antialias=bool(spec.get("antialias", self.face_antialias)),
+            span=span,
+            monospace=monospace,
+            align=str(spec.get("align", "center")),
+        )
+
+    #: `fonts.<name>` keys that only mean something while baking a sheet --
+    #: rejected on a `face:` (vector) entry by `_build_vector_font`, each
+    #: with its own "why" rather than a bare "unknown key" (the schema
+    #: still parses all four there for exactly this reason, the same
+    #: "text-antialias" precedent `_reject_text_antialias` follows).
+    _VECTOR_FONT_BAKING_KEYS = ("glyphs", "monospace", "align", "antialias")
+
+    def _build_vector_font(self, name: str, spec: dict, span: Span | None) -> FontSpec | None:
+        """`fonts.<name>.face:` -- a device-resident scalable face (plan 11
+        §2.1), resolved per device later (`wfb.layout`, a later slice); here
+        only the author-facing shape is checked.
+        """
+        ok = True
+        for key in self._VECTOR_FONT_BAKING_KEYS:
+            if key not in spec:
+                continue
+            self.bag.error(
+                "font",
+                f"font {name!r}: {key!r} is not accepted on a 'face:' font",
+                self.doc.span(spec, key),
+                notes=[
+                    f"{key!r} is a property of baking a bitmap sheet, and a "
+                    "vector font has no sheet -- it is drawn straight from the "
+                    "device's own resident face, at any size, with nothing "
+                    "rasterised at build time",
+                    "drop it, or switch this entry to 'source:' if you meant a "
+                    "baked font",
+                ],
+            )
+            ok = False
+        size = self._font_size(name, spec)
+        if size is None:
+            ok = False
+        if not ok:
+            return None
+        raw_face = spec["face"]
+        face = (raw_face,) if isinstance(raw_face, str) else tuple(raw_face)
+        return FontSpec(
+            name=name,
+            size=size,
+            span=span,
+            face=face,
+            if_unavailable=str(spec.get("if_unavailable", "error")),
+        )
 
     def _font_size(self, name: str, spec: dict) -> Length | None:
         """`fonts.<name>.size`, as a `Length`.
@@ -1512,6 +1598,33 @@ class Builder:
                     ok = False  # _font_reference already reported the real mistake
                 else:
                     text_font, text_font_is_custom = resolved
+                    if text_font_is_custom and self.fonts[text_font].is_vector:
+                        # Unlike a `text` element, a pattern's `shape: text`
+                        # part cannot turn a `face:` font yet -- that is
+                        # slice 2 of plan 11 ("rotated hour numerals around
+                        # a dial, each tangent to its own radius"), not
+                        # built here.  Say so honestly rather than letting
+                        # this validate clean and crash `monkeyc` on an
+                        # `Undefined symbol` for the generated `:face`
+                        # constant, which is what happens without this
+                        # check.
+                        self.bag.error(
+                            "pattern",
+                            f"{part_where}: 'font: font.{text_font}' is a "
+                            "'face:' (vector) font -- not implemented yet "
+                            "on a pattern text part",
+                            self.doc.span(node, "font"),
+                            notes=[
+                                "rotated/curved text (plan 11) only reaches "
+                                "a 'text' element so far -- turning a "
+                                "pattern's own 'shape: text' part the same "
+                                "way is the next slice of this feature, not "
+                                "built yet (docs/limitations.md)",
+                                "for now, declare this font with 'source:' "
+                                "(a baked bitmap font) instead",
+                            ],
+                        )
+                        ok = False
 
         if not ok:
             return None
@@ -2860,10 +2973,15 @@ class Builder:
             when_absent=node.get("when_absent"),
             placeholder=node.get("placeholder"),
             fallback=self._expression(node, "fallback") if "fallback" in node else None,
+            if_unavailable=node.get("if_unavailable"),
         )
-        self._resolve_font(node, element)
+        font_ok = self._resolve_font(node, element)
         if "antialias" in node:
             self._reject_text_antialias(node, element)
+        if "curve" in node:
+            element.curve = self._build_curve(node, element, font_ok)
+        if font_ok and "if_unavailable" in node:
+            self._check_text_if_unavailable(node, element)
         if value is not None:
             self._check_absence(node, element, value, element.when_absent, element.placeholder,
                                 element.fallback)
@@ -2899,6 +3017,116 @@ class Builder:
             f"{element.id}: 'antialias:' is not accepted on a 'text' element",
             span,
             notes=notes,
+        )
+
+    def _check_curve_keys(self, node: dict, style: str) -> None:
+        """Reject a `curve:` key the chosen `style:` does not read -- the same
+        `_check_shape_keys`/`_check_graph_style_keys` precedent (`radius:`/
+        `direction:` only mean something with a circle to describe, and
+        `style: angled` has none).
+        """
+        if style not in CURVE_STYLE_KEYS:
+            return  # the schema has already rejected an unknown style
+        self._check_foreign_keys(
+            node, style, CURVE_STYLE_KEYS, _ALL_CURVE_STYLE_KEYS,
+            code="text-curve", disc="style", empty_label="(nothing)",
+            extra_notes=lambda key: (
+                ["an angled line has no circle for it to describe -- "
+                 "'radius:'/'direction:' only mean something with 'style: radial'"]
+                if style == "angled" else []
+            ),
+        )
+
+    def _build_curve(self, node: dict, element: Text, font_ok: bool) -> Curve | None:
+        """`curve:` on a `text` element (plan 11 §2.2): bends it along a line
+        (`style: angled`) or around a circle (`style: radial`).  `font_ok` is
+        `_resolve_font`'s own answer for this element -- when it is `False`
+        the font reference itself already failed and has its own error, so
+        the font-kind check below is skipped rather than piling a second,
+        misleading error onto the same mistake (the `_NamedBlock` cascade
+        discipline, `docs/lore/codegen.md`).
+        """
+        raw = node["curve"]
+        span = self.doc.span(node, "curve")
+        style = raw["style"]
+        self._check_curve_keys(raw, style)
+        angle = self._angle(raw, "angle")
+        if angle is None:
+            return None
+        radius = self._length(raw, "radius") if style == "radial" else None
+        direction = str(raw.get("direction", "clockwise")) if style == "radial" else None
+        if font_ok:
+            self._check_curve_font(element, span)
+        if element.vertical_align == "bottom":
+            self.bag.error(
+                "text-curve",
+                f"{element.id}: 'vertical_align: bottom' is not accepted under 'curve:'",
+                self.doc.span(node, "vertical_align") or span,
+                notes=[
+                    "an upright text's 'bottom' is implemented by subtracting the "
+                    "font's own height from the anchor in screen space -- once the "
+                    "baseline is rotated that subtraction no longer points along "
+                    "the text's own vertical axis, so the ink would land somewhere "
+                    "this compiler cannot predict",
+                    "use 'top' or 'center' instead",
+                ],
+            )
+        return Curve(style=style, angle=angle, radius=radius, direction=direction)
+
+    def _font_kind_note(self, element: Text) -> str:
+        """The one-line description of `element`'s resolved font used by both
+        `_check_curve_font` and `_check_text_if_unavailable` -- both need to
+        say what kind of font a font: reference actually is, once resolved."""
+        if element.font_is_custom:
+            return (f"'font: font.{element.font}' is a baked bitmap font, "
+                    "declared with 'source:'")
+        return f"'font: {element.font}' is one of the platform's fixed system fonts"
+
+    def _check_curve_font(self, element: Text, span: Span | None) -> None:
+        """`curve:` requires `font:` to name a `face:` (vector) font --
+        `Dc.drawAngledText`/`Dc.drawRadialText` refuse a resource font
+        outright.  Only called once `font_ok` says the reference itself
+        resolved, so `self.fonts[element.font]` is safe to index when
+        `font_is_custom` is true (`_font_reference` only ever returns a
+        custom reference for a name already present in `self.fonts`).
+        """
+        if element.font_is_custom and self.fonts[element.font].is_vector:
+            return
+        self.bag.error(
+            "text-curve",
+            f"{element.id}: 'curve:' needs a 'face:' (vector) font",
+            span,
+            notes=[
+                "\"These APIs only support scalable fonts and do not support "
+                "custom fonts loaded as resources\" ($CIQ_SDK/doc/docs/"
+                "Core_Topics/Graphics.html §Scalable Fonts)",
+                self._font_kind_note(element),
+                "declare this font with 'face:' instead of 'source:', or point "
+                "'font:' at one that already does",
+            ],
+        )
+
+    def _check_text_if_unavailable(self, node: dict, element: Text) -> None:
+        """`if_unavailable:` on a `text` element -- only meaningful when the
+        referenced font is a `face:` (vector) font: nothing about a baked or
+        system font can ever be unavailable, so accepting this would promise
+        a check that never runs (the same reasoning `_build_baked_font`
+        applies to the key on the `fonts:` entry itself).  Only called once
+        `font_ok` says the reference resolved -- see `_check_curve_font`.
+        """
+        if element.font_is_custom and self.fonts[element.font].is_vector:
+            return
+        self.bag.error(
+            "text-curve",
+            f"{element.id}: 'if_unavailable:' is not accepted here",
+            self.doc.span(node, "if_unavailable"),
+            notes=[
+                "'if_unavailable:' governs a device-resident 'face:' font "
+                "failing to publish a face on some target device -- nothing "
+                "about a baked or system font can ever be unavailable",
+                self._font_kind_note(element),
+                "drop 'if_unavailable:', or point 'font:' at a 'face:' font",
+            ],
         )
 
     def _build_progress(self, node: dict, common: dict, path: tuple) -> Element:
@@ -3277,7 +3505,33 @@ class Builder:
             align=align,
             vertical_align=vertical_align,
         )
-        self._resolve_font(node, element)
+        font_ok = self._resolve_font(node, element)
+        if font_ok and element.font_is_custom and self.fonts[element.font].is_vector:
+            # A `face:` (vector) font is only drawable through
+            # `Dc.drawText`/`drawAngledText`/`drawRadialText` on a `text`
+            # element (`Builder._check_curve_font`, `Text.curve`) --
+            # `_emit_complication_slot` has no equivalent path for one, and
+            # nothing about "the next slice" applies here the way it does
+            # to a pattern's `shape: text` part (`_build_hand_part`): a
+            # complication_slot's reading is never known at build time, so
+            # there is no string to bake a sheet or measure a vector face
+            # against either way.
+            self.bag.error(
+                "complication-slot",
+                f"{element.id}: 'font: font.{element.font}' is a 'face:' "
+                "(vector) font -- not accepted on a complication_slot",
+                self.doc.span(node, "font"),
+                notes=[
+                    "a vector font is drawn straight from the device's own "
+                    "resident face through Dc.drawText/drawAngledText/"
+                    "drawRadialText -- a complication_slot draws its reading "
+                    "through a different path that only accepts a baked "
+                    "bitmap font or one of the platform's fixed system fonts",
+                    "a vector font is only usable on a 'text' element",
+                    "declare this font with 'source:' instead, or point "
+                    "'font:' at a baked or system font",
+                ],
+            )
 
         if element.on_hold is not None and element.on_hold != HOLD_AUTO:
             # A slot always shows whatever the wearer picked, so a *fixed*
@@ -3908,18 +4162,30 @@ class Builder:
         )
         return None
 
-    def _resolve_font(self, node: dict, element: Text | HandPart) -> None:
+    def _resolve_font(self, node: dict, element: Text | HandPart) -> bool:
         """Set `.font`/`.font_is_custom` from `node["font"]`, shared by a
         `Text` element and a `shape: text` pattern part -- both carry the
         same two fields, so this is the one place either can go through
         `_font_reference` without a second copy of its diagnostic.
+
+        Returns whether the reference is trustworthy: `True` when no
+        `font:` was written at all (the element keeps its class-default
+        system font) or the name resolved; `False` only when an explicit
+        `font:` failed to resolve, which already has its own error against
+        the real mistake. A `Text`-only caller (`_build_curve`,
+        `_check_text_if_unavailable`) uses this to skip a further
+        font-kind check that would otherwise blame `element.font`'s
+        untouched default for a mistake reported one line up -- the same
+        "declared and rejected stays quiet" cascade `_NamedBlock` follows.
         """
         raw = node.get("font")
         if raw is None:
-            return
+            return True
         resolved = self._font_reference(str(raw), self.doc.span(node, "font"))
         if resolved is not None:
             element.font, element.font_is_custom = resolved
+            return True
+        return False
 
     def _position(self, raw: dict | None, node: dict, key: str) -> Position:
         if raw is None:

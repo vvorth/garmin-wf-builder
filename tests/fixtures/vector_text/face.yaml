@@ -1,0 +1,82 @@
+# Golden coverage for plan 11 (vector fonts and curve:) -- a background, a
+# baked-font clock (proving a baked font and a vector font coexist in one
+# face), an upright vector-font text, and one of each curve style.
+#
+# A test fixture, not an example: tests/test_vector_text_golden.py's goldens
+# in tests/golden/ (vector_text__*) read it, and it is what
+# tests/test_vector_text_codegen.py resolves and generates from directly.
+#
+# Build it with:  ./wfb.py build tests/fixtures/vector_text/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 3c9b7a1e-5f2d-4c6b-8a1e-9d4f2b6c8a1e
+  name: VectorText
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+palette:
+  bg: "#000000"
+  text: "#FFFFFF"
+  accent: "#FF5500"
+
+fonts:
+  clock:
+    source: ../slice/assets/OpenSans-Regular.ttf
+    size: 30%r
+
+  bezel:
+    face: [RobotoCondensedBold, RobotoCondensedRegular]
+    size: 6%r
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: font.clock
+    at: { anchor: center, dy: -4% }
+    color: palette.text
+
+  - id: upright_vector
+    type: text
+    text: "UPRIGHT"
+    font: font.bezel
+    at: { anchor: center, dy: 30%r }
+    color: palette.text
+
+  - id: brand
+    type: text
+    text: "GARMIN"
+    font: font.bezel
+    color: palette.accent
+    at: { anchor: center, dy: -30%r }
+    curve:
+      style: angled
+      angle: 45deg
+
+  - id: bezel_text
+    type: text
+    text: "BEZEL"
+    font: font.bezel
+    color: palette.accent
+    at: { anchor: center }
+    curve:
+      style: radial
+      angle: 90deg
+      radius: 44%r
+      direction: clockwise

@@ -376,6 +376,22 @@ class Device:
     #: research/10-system-fonts.md` §1).
     _SIMULATOR_FONT_SET = "ww"
 
+    #: Gate 1 of plan 11's four vector-font gates (`docs/research/
+    #: 12-vector-fonts.md` §3): the three ``Toybox`` symbols a device needs
+    #: before ``Graphics.getVectorFont`` -- and rotated/curved text through
+    #: it -- can be used at all. Named here so a caller asks
+    #: ``device.has_symbol(Device.VECTOR_FONT_SYMBOL)`` rather than
+    #: retyping the string, and checks each independently: **verified**
+    #: (2026-09-20) that all three move together on every installed device
+    #: -- present on `fenix8solar47mm`, `fenix8solar51mm`, `fenix7pro` and
+    #: `fr955`, absent on `fenix6`, `fenix6xpro`, `fr245` and `fr255` -- but
+    #: nothing in the SDK promises that across the full 164-device fleet,
+    #: so gates 2/3 (:attr:`scalable_faces`) are never inferred from these
+    #: alone.
+    VECTOR_FONT_SYMBOL = "Graphics.getVectorFont"
+    DRAW_ANGLED_TEXT_SYMBOL = "Dc.drawAngledText"
+    DRAW_RADIAL_TEXT_SYMBOL = "Dc.drawRadialText"
+
     @staticmethod
     def _symbol_for_simulator_name(name: str) -> str:
         """``simulator.json`` ``name`` (``"xtiny"``, ``"numberHot"``,
@@ -408,6 +424,76 @@ class Device:
                 if not name:
                     continue
                 out.setdefault(self._symbol_for_simulator_name(name), entry)
+        return out
+
+    @cached_property
+    def scalable_faces(self) -> tuple[str, ...]:
+        """Gates 2 and 3 of plan 11's four vector-font gates (`docs/
+        research/12-vector-fonts.md` §3.1): the device-resident face names
+        this device publishes to ``Graphics.getVectorFont``.
+
+        Reads the same ``simulator.json`` ``ww`` font-set block
+        :attr:`_simulator_ww_fonts` reads, but the entries that block
+        deliberately excludes: ``type: "system_ttf"`` (the scalable
+        catalogue) rather than ``type: "ttf"`` (fixed, ``FONT_*``-only
+        system fonts, no ``:face`` string of their own). An entry's own
+        ``name`` field *is* the ``:face`` string an author's ``face:``
+        names -- there is no separate id to translate through, unlike
+        :meth:`_symbol_for_simulator_name`'s ``FONT_*`` derivation for the
+        bitmap set. Ordered and de-duplicated in the device file's own
+        declaration order, so a ``face: [A, B]`` list's "first one this
+        device actually publishes" resolution is deterministic. Empty for
+        a device with no scalable faces at all -- 92 of the 136
+        watch-face-capable devices, per the research doc's own count --
+        which is the ordinary, expected case, not a degraded one.
+        """
+        out: list[str] = []
+        seen: set[str] = set()
+        for block in self.simulator.get("fonts", []):
+            if block.get("fontSet") != self._SIMULATOR_FONT_SET:
+                continue
+            for entry in block.get("fonts", []):
+                if entry.get("type") != "system_ttf":
+                    continue
+                name = entry.get("name")
+                if name and name not in seen:
+                    seen.add(name)
+                    out.append(name)
+        return tuple(out)
+
+    @cached_property
+    def scalable_face_files(self) -> dict[str, str]:
+        """:attr:`scalable_faces`' own ``name`` -> the same ``system_ttf``
+        entry's ``filename`` (plan 11 §4: measuring a resolved vector face
+        the same way a system font's real file is already located).
+        ``name`` is the ``:face`` string an author writes and this device
+        publishes (``"RobotoCondensedBold"``); ``filename`` is the on-disk
+        stem the real TTF is named after everywhere it can be found --
+        ``vendor/fonts/<filename>.ttf`` (`wfb.fonts.fetch_system.
+        garmin_font_root`) and `wfb/fonts/registry.json`'s own ``names``
+        table both key on it, never on ``name`` (confirmed against an
+        installed device's own ``simulator.json``: a ``RobotoCondensedBold``
+        entry's ``filename`` is ``RobotoCondensed-Bold``). Kept as its own
+        mapping rather than folded into :attr:`scalable_faces`'s tuple, so a
+        caller that only needs the ordered face names is not forced to
+        thread a second value through everywhere that already works with a
+        bare `str`. Missing an entry only when a ``system_ttf`` block
+        somehow states a ``name`` with no ``filename`` at all -- not
+        observed on any installed device, but a caller
+        (:meth:`wfb.layout.Resolver._vector_font_metric`) falls back to the
+        face name itself in that case rather than raising.
+        """
+        out: dict[str, str] = {}
+        for block in self.simulator.get("fonts", []):
+            if block.get("fontSet") != self._SIMULATOR_FONT_SET:
+                continue
+            for entry in block.get("fonts", []):
+                if entry.get("type") != "system_ttf":
+                    continue
+                name = entry.get("name")
+                filename = entry.get("filename")
+                if name and filename:
+                    out.setdefault(name, filename)
         return out
 
     @cached_property

@@ -15,7 +15,10 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   constant fine and then fails at the `fillPolygon` **call site**.
 - Type narrowing must go through a **local**, never a repeated field access —
   `_staticBuffer.getDc()` fails even after a null check on the field itself;
-  `pulled.value` must be captured into a local first, every time.
+  `pulled.value` must be captured into a local first, every time. A vector
+  font's own null check is the same rule again (plan 11): `var font =
+  _fontBezel;` before `if (font != null)`, never `if (_fontBezel != null) {
+  ... _fontBezel ... }` (`wfb.emit.monkeyc.shapes._emit_vector_text_draw`).
 - Monkey C has **no explicitly-typed local**: `var x as String? = null` is
   rejected outright.
 - An unused **parameter** does not warn; an unused **member variable** does.

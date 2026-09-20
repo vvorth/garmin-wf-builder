@@ -551,6 +551,17 @@ class _Renderer:
         if text is None:
             return
         color = self._color(element.color)
+        if placed.font_is_vector:
+            # `curve:` (plan 11): a `face:` font draws upright, angled or
+            # radial, never through a baked sheet -- `_draw_vector_text`
+            # handles all three; `font_available is False` is `if_unavailable:
+            # hide` acting on this one device (gates 1-3 failed, plan 11 §1),
+            # and the honest preview of that is to draw nothing at all, the
+            # same as the real watch.
+            if not placed.font_available:
+                return
+            self._draw_vector_text(placed, text, color)
+            return
         font: BakedFont | None = (
             self.resolved.fonts.get(placed.font_reference) if placed.font_is_custom else None
         )
@@ -998,7 +1009,8 @@ class _Renderer:
         left = x - {"left": 0, "right": width}.get(align, width / 2)
         self._draw_system_line(face, left, baseline_y, text, color)
 
-    def _draw_system_line(self, face, left: float, baseline_y: float, text: str, color) -> None:
+    def _draw_system_line(self, face, left: float, baseline_y: float, text: str, color,
+                          *, draw=None, image=None) -> None:
         """Draw a system-font line glyph by glyph, each on the pen position
         `wfb.fonts.fallback.SystemFace.advances` gives -- the same advances
         `wfb.layout` measured with, rather than Pillow's own layout, which
@@ -1007,16 +1019,24 @@ class _Renderer:
         A bitmap face (`face.bitmap` set, plan 10 §3 B.4) has no
         `FreeTypeFont` in `face.font` to hand `ImageDraw.text`
         -- `_draw_bitmap_line` pastes each glyph's own decoded cell instead.
+
+        `draw`/`image` default to `self.draw`/`self.image` -- overridden by
+        `_paste_rotated_run` (plan 11 §4) so the exact same glyph-drawing
+        code can render onto a throwaway transparent layer instead of the
+        canvas directly, for the caller to rotate before compositing.
         """
+        draw = self.draw if draw is None else draw
+        image = self.image if image is None else image
         if face.bitmap is not None:
-            self._draw_bitmap_line(face, left, baseline_y, text, color)
+            self._draw_bitmap_line(face, left, baseline_y, text, color, image=image)
             return
         pen = left
         for char, advance in zip(text, face.advances(text)):
-            self.draw.text((pen, baseline_y), char, fill=color, font=face.font, anchor="ls")
+            draw.text((pen, baseline_y), char, fill=color, font=face.font, anchor="ls")
             pen += advance
 
-    def _draw_bitmap_line(self, face, left: float, baseline_y: float, text: str, color) -> None:
+    def _draw_bitmap_line(self, face, left: float, baseline_y: float, text: str, color,
+                          *, image=None) -> None:
         """The bitmap half of `_draw_system_line`: paste each glyph's own
         `.cft` cell (`_bitmap_glyph_mask`, cached per (font path, char,
         `self.scale`)) at `(pen, baseline_y - face.baseline)` -- the cell's
@@ -1024,7 +1044,9 @@ class _Renderer:
         (plan 10 §3 B.4) -- tinted `color` through the mask's ink levels,
         never through Pillow's `ImageDraw`, which has no bitmap-glyph
         support at all. Pen advances come from `face.advances`, exactly the
-        same as the outline branch."""
+        same as the outline branch. `image` defaults to `self.image` -- see
+        `_draw_system_line`'s own note on why a caller might override it."""
+        image = self.image if image is None else image
         s = self.scale
         top = baseline_y - face.baseline
         pen = left
@@ -1032,8 +1054,201 @@ class _Renderer:
             mask = _bitmap_glyph_mask(face.path, char, s)
             if mask.size[0] and mask.size[1]:
                 tint = Image.new("RGB", mask.size, color)
-                self.image.paste(tint, (int(round(pen)), int(round(top))), mask)
+                image.paste(tint, (int(round(pen)), int(round(top))), mask)
             pen += advance
+
+    # -- vector fonts / curve: (plan 11) -----------------------------------
+
+    def _draw_vector_text(self, placed: PlacedText, text: str, color) -> None:
+        """A `face:` (vector) `text` element -- upright (`curve_style is
+        None`, drawn exactly like a system font through `_approximate_text`:
+        `Dc.drawText` with a `VectorFont` behaves the same as with a
+        resource one), `angled` (`Dc.drawAngledText`: the whole string
+        rotated about the anchor) or `radial` (`Dc.drawRadialText`:
+        per-glyph placement around a circle).
+
+        **Angle convention consumed here: `placed.curve_angle_garmin`
+        throughout -- Garmin's own convention (degrees counter-clockwise
+        from the 3 o'clock position, screen y down), never
+        `curve_angle_degrees` (the design's 12-o'clock-zero/clockwise one,
+        author-facing only).** This is the same convention
+        `wfb.layout.Resolver._rotated_text_box` rotates its own lint box
+        by, verified there against the SDK's own `TrueTypeFontsAngledText`
+        sample -- reused here rather than re-derived, so the lint box and
+        the preview cannot silently disagree about which way is positive.
+        Getting this backwards is the likely bug: it would silently mirror
+        or misdirect the rotation direction of every curved element this
+        preview draws, so every angle read past this point is a Garmin one.
+        """
+        element = placed.element
+        if placed.curve_style is None:
+            # Delegates to `_approximate_text` wholesale, including its own
+            # "no scalable face at all" fallback (an outline box, `box=
+            # placed.box`) -- that edge case is exactly as reachable, and
+            # exactly as handled, for a vector font as for a system one.
+            self._approximate_text(text, placed.anchor_point, element.align,
+                                   element.vertical_align, placed.font_metric,
+                                   color, box=placed.box)
+            return
+        face = fallback.system_face(placed.font_metric, scale=self.scale)
+        if face is None:
+            return  # same rare fallback; angled/radial have no box to outline
+        s = self.scale
+        if placed.curve_style == "angled":
+            x, y = placed.anchor_point[0] * s, placed.anchor_point[1] * s
+            self._paste_rotated_run(face, text, placed.curve_angle_garmin,
+                                    element.align, element.vertical_align, (x, y), color)
+        else:
+            self._draw_radial_vector_text(placed, face, text, color)
+
+    def _draw_radial_vector_text(self, placed: PlacedText, face, text: str, color) -> None:
+        """`curve: {style: radial}` -- each glyph is its own tiny "angled"
+        run (`_paste_rotated_run`), placed at its own position around the
+        circle of `placed.curve_radius_px` centred on `placed.anchor_point`
+        (the *centre*, per `Curve`'s own `at:` reinterpretation, plan 11
+        §2.2).
+
+        **Facing: `clockwise` faces outward, `counter_clockwise` faces
+        inward.** This is standard text-on-a-path behaviour (a circular
+        badge: the top arc reads clockwise with glyphs facing out, the
+        bottom arc reads counter-clockwise with glyphs facing in, and BOTH
+        read normally) -- not verified against a real device or the
+        simulator (neither is available in this environment, `CLAUDE.md`
+        §3, and `drawRadialText`'s glyph facing is not documented in SDK
+        prose), but it is the only model consistent with Garmin's own
+        `$CIQ_SDK/samples/TrueTypeFonts/source/MenuItems/
+        TrueTypeFontsRadialText.mc`: `RADIAL_TEXT_SCENARIO` draws at
+        `:angle => 270` (the 6 o'clock point) with BOTH
+        `RADIAL_TEXT_DIRECTION_CLOCKWISE` and
+        `RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE` in the same demo -- a
+        comparison that is only meaningful if the two differ in glyph
+        facing, not merely in the order letters advance (reversing only the
+        letter order at a single fixed point produces gibberish, not a
+        demonstration of a "direction" parameter). Treat this derivation as
+        a well-reasoned inference, not a confirmed fact.
+
+        Per-glyph angle derivation: a glyph whose local "up" (the
+        unrotated `(0, -1)` direction `_paste_rotated_run`'s own rotation
+        formula turns) must map onto the *outward* radial unit vector
+        `(cos(pos), -sin(pos))` at that glyph's own circle position `pos`
+        (Garmin degrees) for `clockwise`, or onto the *inward* unit vector
+        `(-cos(pos), sin(pos))` for `counter_clockwise`. Solving
+        `(-sin t, -cos t) = (cos pos, -sin pos)` gives `t = pos - 90`\N{DEGREE SIGN}
+        (outward); solving `(-sin t, -cos t) = (-cos pos, sin pos)` gives
+        `t = pos + 90`\N{DEGREE SIGN} (inward) -- each a two-line trig-identity
+        solve, not reproduced in the loop below.
+
+        **`direction_sign` (which way the pen advances through the string
+        as Garmin angle changes) is unaffected by the facing flip.** Reading
+        direction only comes out right if a glyph's local "right" (reading
+        axis) lines up with the actual direction of travel along the arc as
+        the pen advances; working that dot product through both cases shows
+        it already does, for the *existing* `direction_sign` assignment, in
+        both facings:
+        - `clockwise` (outward, `t = pos - 90`, `direction_sign = -1`, so
+          Garmin angle *decreases* as the pen advances): the glyph's mapped
+          local-right is `(sin pos, cos pos)`, which equals the arc's own
+          walking direction at that sign of `direction_sign`.
+        - `counter_clockwise` (inward, `t = pos + 90`, `direction_sign =
+          +1`, Garmin angle *increases* as the pen advances): the glyph's
+          mapped local-right is `(-sin pos, -cos pos)`, which equals the
+          arc's own walking direction at *that* sign.
+        Both check out, so `direction_sign` keeps its existing meaning --
+        only the per-glyph facing (`glyph_angle_garmin` below) depends on
+        `direction`.
+
+        `element.align` places the *whole string* along the arc exactly as
+        `TEXT_JUSTIFY_LEFT/CENTER/RIGHT` would (`left`: the string starts
+        at `curve_angle_garmin`; `right`: it ends there; `center`: it is
+        centred on it) -- each individual glyph is then drawn `align:
+        "left"` at its own resolved slot, the same "whole-string
+        justification, per-glyph left-anchored placement" any text-on-a-
+        path layout uses. `direction: clockwise` advances through the
+        string with *decreasing* Garmin angle and `counter_clockwise` with
+        increasing -- verified against the SDK's own `RADIAL_TEXT_SCENARIO`
+        sample (`angle=0, orientation=CLOCKWISE, justification=LEFT` reads
+        starting at the 3 o'clock point and sweeping toward 6 o'clock, i.e.
+        decreasing Garmin angle).
+        """
+        element = placed.element
+        s = self.scale
+        radius = placed.curve_radius_px * s
+        if radius <= 0:
+            return
+        cx, cy = placed.anchor_point[0] * s, placed.anchor_point[1] * s
+        advances = face.advances(text)
+        total = sum(advances)
+        align_offset = {"left": 0.0, "center": total / 2.0, "right": total}[element.align]
+        counter_clockwise = placed.curve_direction == "counter_clockwise"
+        direction_sign = 1.0 if counter_clockwise else -1.0
+        # Facing: outward (`pos - 90`) for clockwise, inward (`pos + 90`)
+        # for counter_clockwise -- see the derivation above.
+        facing_offset = 90.0 if counter_clockwise else -90.0
+        base_theta = math.radians(placed.curve_angle_garmin)
+        pen = 0.0
+        for char, advance in zip(text, advances):
+            pixel_offset = pen - align_offset
+            theta_pos = base_theta + direction_sign * (pixel_offset / radius)
+            px = cx + radius * math.cos(theta_pos)
+            py = cy - radius * math.sin(theta_pos)
+            glyph_angle_garmin = math.degrees(theta_pos) + facing_offset
+            self._paste_rotated_run(face, char, glyph_angle_garmin, "left",
+                                    element.vertical_align, (px, py), color)
+            pen += advance
+
+    def _paste_rotated_run(self, face, run: str, angle_garmin_degrees: float,
+                           align: str, vertical_align: str,
+                           anchor_xy: tuple[float, float], color) -> None:
+        """Render `run` upright through `face` onto a throwaway transparent
+        layer, rotate the layer by `angle_garmin_degrees` (Garmin's own
+        convention -- see `_draw_vector_text`'s docstring) about the point
+        `align`/`vertical_align` would place it at, and composite the
+        result so that point lands exactly at `anchor_xy` (already scaled
+        preview pixels). Shared by `angled` (one call, the whole string)
+        and `radial` (one call per glyph, `align="left"`).
+
+        The paste position reuses `wfb.layout.Resolver._rotated_text_box`'s
+        own rotation matrix (`cx = dx*cos + dy*sin`, `cy = -dx*sin +
+        dy*cos`) run forward on the alignment shift, so the *anchor* this
+        preview draws from is the same point that box's own maths already
+        rotates around -- not a second, independently-derived formula that
+        could silently disagree about which way positive is.
+
+        `Image.rotate(angle, expand=True)` turns **counter-clockwise for a
+        positive `angle`, as normally displayed** (verified empirically:
+        a single marked pixel at a square image's centre stays exactly at
+        the expanded image's own centre for every angle, and a point
+        placed up-and-right of centre moves toward "up-and-left" as the
+        angle increases) -- exactly the visual sense Garmin's own
+        3-o'clock/counter-clockwise-positive convention calls positive
+        too, so `angle_garmin_degrees` is passed straight through with no
+        sign flip.
+        """
+        if not run:
+            return
+        width = face.width(run)
+        line_height = face.line_height
+        if width <= 0 or line_height <= 0:
+            return
+        pad = max(2, int(math.ceil(line_height * 0.2)))
+        layer_w = int(math.ceil(width)) + 2 * pad
+        layer_h = int(math.ceil(line_height)) + 2 * pad
+        layer = Image.new("RGBA", (layer_w, layer_h), (0, 0, 0, 0))
+        layer_draw = ImageDraw.Draw(layer)
+        local_left = float(pad)
+        local_baseline_y = pad + face.baseline
+        self._draw_system_line(face, local_left, local_baseline_y, run, color,
+                               draw=layer_draw, image=layer)
+        rotated = layer.rotate(angle_garmin_degrees, resample=Image.BICUBIC, expand=True)
+        theta = math.radians(angle_garmin_degrees)
+        cos_t, sin_t = math.cos(theta), math.sin(theta)
+        dx, dy = alignment_shift(width, line_height, align, vertical_align)
+        offset_x = dx * cos_t + dy * sin_t
+        offset_y = -dx * sin_t + dy * cos_t
+        ax, ay = anchor_xy
+        top_left = (int(round(ax + offset_x - rotated.width / 2.0)),
+                   int(round(ay + offset_y - rotated.height / 2.0)))
+        self.image.paste(rotated, top_left, rotated)
 
     # -- shared -----------------------------------------------------------
 

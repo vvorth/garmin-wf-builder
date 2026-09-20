@@ -1028,6 +1028,75 @@ checked against the baked sheet's own character map.
 Alternatively name a system font directly: `font: FONT_MEDIUM`,
 `font: FONT_NUMBER_HOT`, and so on.
 
+### Vector (`face:`) fonts: device-resident, scalable, and turnable
+
+A `fonts:` entry can name a **device-resident scalable face** instead of
+baking one from your own file — `face:` instead of `source:`:
+
+```yaml
+fonts:
+  clock:
+    source: assets/ChivoMono-Bold.ttf     # unchanged: baked from your own file
+    size: 30%r
+  bezel:
+    face: [RobotoCondensedBold, RobotoCondensedRegular]   # device-resident
+    size: 6%r
+    if_unavailable: hide                  # default: error -- see below
+```
+
+`source:` and `face:` are **mutually exclusive and jointly required** — an
+entry naming neither, or both, is rejected naming the missing half rather
+than reading as an unknown key.
+
+* **`face:` is a name, or a list of names tried in author order.** It reaches
+  `Toybox.Graphics.getVectorFont` at draw time instead of a baked `<font>`
+  resource — nothing is rasterised for it at build time. The list is
+  resolved **per target device, at build time**, to the one face that
+  device actually publishes; `:face` is emitted as that single resolved
+  string, never the array. Garmin's own runtime array fallback (trying each
+  name in turn on the watch itself) is deliberately not used: it picks a
+  face at draw time, so the build could not say which one renders, or
+  measure a layout box against it.
+* **`size:` works exactly like a baked font's** — `px` or `%r`, resolved per
+  device. Unlike a baked font, nothing is rasterised at this size at build
+  time: `Graphics.getVectorFont` takes it directly, in pixels, so one face
+  serves any number of sizes with no extra sheets.
+* **`glyphs:`, `monospace:`, `align:` and `antialias:` are all build errors
+  on a `face:` entry**, each naming why: every one of the four is a property
+  of baking a bitmap sheet, and a vector font has no sheet.
+* **Reach is narrow and cannot be extended.** Only Garmin's own fixed
+  catalogue of on-device faces is reachable this way — about 14 Latin ones —
+  and only **44 of the 136** watch-face-capable devices in the reference
+  publish any scalable face at all. `RobotoCondensedBold`/
+  `RobotoCondensedRegular` are on 41 of those 44 and are the closest thing to
+  a dependable choice; nothing can add a face to the list, so an author's own
+  typeface can never be one. Full measurement: `docs/research/12-vector-fonts.md`.
+
+#### `if_unavailable:` — and what `error` actually promises
+
+`error` (the default) or `hide`, set on a `face:` font entry and,
+independently, on any `text` element that uses one — **the element's own
+value wins outright** over the font's, the same "a descendant's own value
+wins over its group's" rule `antialias:` already follows.
+
+* **`error`**: if *any* target device does not publish one of the requested
+  faces, the build fails, naming the device, the face(s) asked for, and the
+  faces that device does publish. This is the default because a missing
+  clock is not a cosmetic problem.
+* **`hide`**: the element simply does not draw on the devices that fail.
+  Every other device is unaffected.
+* `if_unavailable:` on a **baked** font entry, or on an element whose font is
+  baked or a system font, is a build error: there is nothing that can be
+  unavailable, so accepting it would promise a check that never runs.
+
+**The honest limit of `error`: it is a build-time guarantee only.**
+`Graphics.getVectorFont` can return `null` at runtime even when every
+build-time gate passed — the platform offers no way to fail loudly at draw
+time — so the generated code *always* null-checks before drawing, in both
+modes, and a null font simply draws nothing. `error` guarantees the face was
+published at build time; it does not, and cannot, guarantee the element is
+never missing from the wrist.
+
 ---
 
 ## Elements
@@ -1650,6 +1719,90 @@ even for a system font, whose pixel height this compiler only knows at build
 time from the SDK's published device reference, the installed device's
 `simulator.json`, or its `.cft` font. `vertical_align: baseline` is a build
 error naming `bottom`.
+
+#### `curve:` — rotated and radial text
+
+```yaml
+- id: brand
+  type: text
+  text: "GARMIN"
+  font: font.bezel              # must be a face: (vector) font -- see "Fonts" above
+  at: { anchor: center, dy: -30%r }
+  curve:
+    style: angled
+    angle: 45deg                # this format's own convention: 12 o'clock = 0, clockwise
+```
+
+```yaml
+- id: bezel_text
+  type: text
+  text: "BEZEL"
+  font: font.bezel
+  at: { anchor: center }        # radial: at: is the CENTRE OF THE CIRCLE, not a point the text passes through
+  curve:
+    style: radial
+    angle: 90deg
+    radius: 44%r
+    direction: clockwise        # or counter_clockwise; default clockwise
+```
+
+Bends a `text` element's content along a straight line (`style: angled`,
+`Dc.drawAngledText`) or around a circle (`style: radial`,
+`Dc.drawRadialText`), instead of the plain upright `Dc.drawText` every other
+`text` element draws through.
+
+* **`curve:` requires a `face:` (vector) font.** A baked or system font
+  under `curve:` is a build error quoting the SDK directly: "These APIs
+  only support scalable fonts and do not support custom fonts loaded as
+  resources" (`$CIQ_SDK/doc/docs/Core_Topics/Graphics.html` §Scalable
+  Fonts). See ["Vector (`face:`) fonts"](#fonts) above.
+* **`style:` is a required discriminator**, the same `progress`-style
+  precedent below: the *binding* stays identical and only the rendering
+  differs. `radius:`/`direction:` are rejected on `angled` — an angled line
+  has no circle for either to describe.
+* **`angle:` is this format's own convention** — [12 o'clock = 0, clockwise
+  positive](#angles), never Garmin's 3-o'clock/counter-clockwise one; the
+  compiler converts, and the generated `Layout` constant carries both values
+  in a comment, exactly as `arc` already does. For `angled`, it is the tilt
+  of the text's own baseline. For `radial`, it is where around the circle
+  the text starts.
+* **`style: radial`'s `at:` is the centre of the circle**, not a point the
+  text passes through or is anchored to — the one genuinely surprising
+  thing in this format, so it bears repeating. This is the same
+  reinterpretation `progress`'s own `style: arc` already gives its `at:`
+  below.
+* **`direction:`** (`radial` only, default `clockwise`) says which way the
+  text runs around the circle starting at `angle:`.
+
+`align:` maps straight onto `TEXT_JUSTIFY_LEFT`/`CENTER`/`RIGHT`, the same
+device-side justify an upright `text` already uses. `vertical_align: center`
+OR's in `TEXT_JUSTIFY_VCENTER` (confirmed against the SDK's own
+`TrueTypeFonts` sample, which does the same under both calls) and `top`
+omits it — but **`vertical_align: bottom` is a build error under `curve:`**:
+an upright text's `bottom` is implemented by subtracting the font's own
+on-device height from the anchor *in screen space*, and once the baseline is
+rotated that subtraction no longer points along the text's own vertical
+axis, so the ink would land somewhere this compiler cannot predict. Use
+`top` or `center` instead.
+
+`if_unavailable:` (`error`/`hide`, see "Fonts" above) works exactly the same
+way on a curved element as on any other `face:`-font `text` element, and can
+still be set on the element to override the font's own value outright.
+
+> **Open question, not yet confirmed on a device: which way a radial glyph
+> faces.** `wfb preview` draws `clockwise` facing glyphs outward and
+> `counter_clockwise` facing inward (so text running along the bottom of the
+> dial still reads right-side up) — the standard "text on a path" convention,
+> and the only reading consistent with Garmin's own
+> `TrueTypeFontsRadialText.mc` sample demonstrating both direction constants
+> at the same fixed angle. The SDK prose does not document glyph facing, and
+> the simulator does not run in this environment (`CLAUDE.md` §3), so this
+> is an informed model, not confirmed device behaviour. If you build this on
+> your own hardware or simulator, that is the one thing worth checking.
+
+Everything else on `text` keeps working untouched under `curve:` —
+`value:`/`text:`, `format:`, `color:`, `visible:`, `when_absent:`,
+`fallback:`, `modes:`, `on_hold:`, `static:`.
 
 ### `progress`
 
@@ -3005,11 +3158,17 @@ off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
 `api-gated-unguardable`) are **not** suppressible: silencing one produces a
 face that does not work.
 
-Sixteen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
+Seventeen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
 `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
-`duplicate-style`, `unreachable-layout` and `sub-pixel-length`.
+`duplicate-style`, `unreachable-layout`, `sub-pixel-length` and
+`font-unavailable` — a `face:` font, or an element using one, that has
+`if_unavailable: hide` and fails to resolve a usable face on some target
+device (["Vector (`face:`) fonts"](#fonts) above). Under the default
+`error` instead, the same failure is a **hard build error and never
+suppressible**: an author who wants leniency switches to `hide` outright
+rather than silencing a face that will never draw.
 `wfb/lint.py`'s `SUPPRESSIBLE` is
 the normative list; check there if the two ever disagree. **A code that is not one of them is a
 build error**, and the message distinguishes the two ways that happens — a code the compiler does not emit at all (with a "did you mean"
@@ -3058,6 +3217,9 @@ hand while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
 Still open for [patterns](#pattern): a text part whose `value:` reads data,
 `pattern: grid`, `on_hold:` and `low_power` on a pattern, per-copy variation
 other than skipping, colour and visibility, `rounded_rectangle`/`ellipse`
-parts in a linear pattern, and an arc part off the pattern's centre.
+parts in a linear pattern, and an arc part off the pattern's centre. A text
+part also cannot take "`curve:` — rotated and radial text" yet — a `text`
+**element**'s own can (above); rotated hour numerals around a dial, each
+tangent to its own radius, is the next slice of that feature.
 
 See [`docs/limitations.md`](limitations.md) §2 for all of it.

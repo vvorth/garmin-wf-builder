@@ -83,7 +83,7 @@ def generate(face: Face, devices: list[Device], root: Path,
             fonts = resources.bake_fonts(face, device)
         resolved = resolve(face, device, fonts)
         project.resolved[device.id] = resolved
-        project.sources.append(monkeyc.emit_layout(resolved))
+        project.sources.append(monkeyc.emit_layout(resolved, guards))
         project.bundles.append(resources.build_bundle(face, device, fonts))
 
     # The view is shared across devices; generate it from the first resolved

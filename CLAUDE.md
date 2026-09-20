@@ -187,11 +187,16 @@ re-litigate these without new evidence.**
     (`wfb/fonts/bmfont.py`). `Graphics.getVectorFont` (API 4.2.1) is
     scalable text from **Garmin's own device-resident faces only** — about 14
     Latin ones, on **44 of the 136** watch-face-capable devices, and nothing
-    can be added to the list. It is the only way to get rotated or curved
-    text (`drawAngledText`/`drawRadialText` refuse resource fonts), but it is
-    **not** a memory win: a baked sheet already lives in the graphics pool
-    (11), not the watch-face budget. Full analysis and measurements:
-    `docs/research/12-vector-fonts.md`.
+    can be added to the list. It is **not** a memory win: a baked sheet
+    already lives in the graphics pool (11), not the watch-face budget. It
+    is the only way to get rotated or curved text, and a `fonts:` `face:`
+    entry plus `curve:` on a `text` element now reaches it (plan 11,
+    `drawAngledText`/`drawRadialText` — refuse a resource font, hence the
+    second font kind); a pattern's own `shape: text` part cannot turn yet.
+    `if_unavailable: error` is a build-time guarantee only — the platform
+    has no way to fail at runtime, so the generated code always null-checks
+    and a null font simply draws nothing either way. Full analysis and
+    measurements: `docs/research/12-vector-fonts.md`.
 
 ---
 
@@ -254,8 +259,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `vertical_align: baseline` (renamed `bottom`).
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
-  - vector fonts, and so rotated/curved text (researched, not built:
-    `docs/research/12-vector-fonts.md` §5);
+  - `curve:` on a pattern's `shape: text` part (a `text` element's own
+    ships — see Shipped below);
   - per-device `overrides` (writing one is a build error);
   - `segments`/`scale` progress styles;
   - unit conversion;
@@ -273,7 +278,10 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - all four `config:` axes, with Styles `layouts:`, and `on_hold:`;
   - per-device API gating (`wfb/availability.py`);
   - system fonts measured and previewed with the device's own files,
-    including `.cft` bitmap fonts.
+    including `.cft` bitmap fonts;
+  - vector fonts (`fonts:` `face:`) and `curve:` on `text` elements —
+    rotated/radial text, 44 of 136 devices, `if_unavailable: error|hide`
+    (plan 11).
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.

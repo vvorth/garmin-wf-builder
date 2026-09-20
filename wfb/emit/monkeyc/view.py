@@ -18,9 +18,9 @@ from ...layout import (
 )
 from ...series import Acquisition
 from .common import (
-    CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _and_list, _describe,
-    _editor_slot_pairs, _field, _loaded_fonts, _mc_bool, _method, _pattern_needs_math,
-    header, hold_targets,
+    CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _and_list, _const_prefix,
+    _describe, _editor_slot_pairs, _field, _loaded_fonts, _mc_bool, _method,
+    _pattern_needs_math, _vector_fonts_used, header, hold_targets,
 )
 from .complication_slot import (
     _emit_complication_slot, _emit_complication_slot_editor_methods,
@@ -272,7 +272,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_apply_config(w, face, static)
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
-        _emit_on_layout(w, resolved, plan, static)
+        _emit_on_layout(w, resolved, plan, static, guards)
         _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
         if _has_partial_update(resolved):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
@@ -455,13 +455,30 @@ def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
 
 def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
     loaded = _loaded_fonts(resolved)
-    if not loaded:
+    vector_fonts = _vector_fonts_used(resolved)
+    if not loaded and not vector_fonts:
         return
-    w.doc("Bitmap fonts -- custom text and icon glyphs alike -- loaded once in\n"
-          "onLayout rather than per frame.")
-    for name in loaded:
-        w.line(f"private var _{_field(name)} as FontResource?;")
-    w.blank()
+    if loaded:
+        w.doc("Bitmap fonts -- custom text and icon glyphs alike -- loaded once in\n"
+              "onLayout rather than per frame.")
+        for name in loaded:
+            w.line(f"private var _{_field(name)} as FontResource?;")
+        w.blank()
+    if vector_fonts:
+        # Not a `WatchUi.loadResource` resource at all (plan 11) -- a
+        # `Graphics.VectorFont` handed back by `Graphics.getVectorFont`, or
+        # `null` when this device cannot build it (a target that fails
+        # gates 1-3 under `if_unavailable: hide`, or `Graphics.
+        # getVectorFont`'s own documented "or NULL" even when it can --
+        # gate 4, never assumed away). Every draw call using one checks for
+        # `null` before drawing (`shapes._emit_text_draw`).
+        w.doc("Device-resident scalable ('face:') fonts (plan 11) -- a Graphics.\n"
+              "VectorFont handed back by Graphics.getVectorFont, not a loaded\n"
+              "resource; null wherever this device cannot build it, which every\n"
+              "draw call below checks before using it.")
+        for name in vector_fonts:
+            w.line(f"private var _{_field(name)} as Graphics.VectorFont?;")
+        w.blank()
 
 
 def _emit_config_fields(w: Writer, face: Face, guards: "Guards" = _NO_GUARDS) -> None:
@@ -741,10 +758,46 @@ def _emit_complication_subscribe_lines(w: Writer, event: list[str]) -> None:
         w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
 
 
+def _emit_vector_font_construction(w: Writer, name: str, guards: "Guards") -> None:
+    """One font's `Graphics.getVectorFont(...)` construction in `onLayout`
+    (plan 11 §3): the plain form when every target device in this build
+    resolves `name` (the "no guard for a thing every target has"
+    philosophy, `wfb/availability.py`'s `Guards` docstring), or wrapped in
+    `if (Layout.FONT_<NAME>_AVAILABLE && (Graphics has :getVectorFont))`
+    when `guards.vector_fonts` says at least one target does not.
+
+    The `(Graphics has :getVectorFont)` runtime check and the build-time-
+    baked `Layout.*_AVAILABLE` constant are not redundant with each other:
+    `Graphics has :getVectorFont` is the only one of the two a device can
+    answer about *itself* (constraint 6d -- `monkeyc` checks the SDK-wide
+    API, not the device's, so an unguarded reference to a symbol this
+    device lacks compiles fine everywhere and only fails at runtime), while
+    "does the device's own catalogue include any of the requested faces"
+    (gates 2/3) has no runtime query at all and has to be resolved at build
+    time per device instead -- see `wfb.availability.vector_font_face`.
+    Neither on its own is enough, and `-O 3z` is not relied on to fold
+    either away (CLAUDE.md constraint on this exact point, plan 11 §3).
+    """
+    field = f"_{_field(name)}"
+    prefix = f"FONT_{_const_prefix(name)}"
+    assignment = (
+        f"{field} = Graphics.getVectorFont("
+        f"{{:face => Layout.{prefix}_FACE, :size => Layout.{prefix}_SIZE}});"
+    )
+    if name in guards.vector_fonts:
+        w.comment(f"font.{name}: some target device in this build does not publish "
+                 "any requested face")
+        with w.block(f"if (Layout.{prefix}_AVAILABLE && (Graphics has :getVectorFont))"):
+            w.line(assignment)
+    else:
+        w.line(assignment)
+
+
 def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
-                    static: "StaticPlan | None" = None) -> None:
+                    static: "StaticPlan | None" = None, guards: "Guards" = _NO_GUARDS) -> None:
     face = resolved.face
     loaded = _loaded_fonts(resolved)
+    vector_fonts = _vector_fonts_used(resolved)
     event = plan.complication_readers()
     has_config = face.has_config
     w.doc("Load resources once.  Loading is expensive and must not happen per frame."
@@ -755,15 +808,20 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
              "default -- guarded, since a device with no native editor (fr955) has\n"
              "no WatchFaceConfig module to call at all." if has_config else ""))
     with w.block("function onLayout(dc as Dc) as Void"):
-        if not loaded and not event and static is None and not has_config:
+        if not loaded and not vector_fonts and not event and static is None and not has_config:
             w.line("// No resources to load: this face draws entirely from system fonts.")
         for name in loaded:
             resource = font_resource_id(name)
             w.line(
                 f"_{_field(name)} = WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
             )
-        if event:
+        if vector_fonts:
             if loaded:
+                w.blank()
+            for name in vector_fonts:
+                _emit_vector_font_construction(w, name, guards)
+        if event:
+            if loaded or vector_fonts:
                 w.blank()
             w.comment(
                 "complications: one subscription per type, which keeps the "

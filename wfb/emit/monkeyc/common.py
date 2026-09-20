@@ -240,19 +240,27 @@ def _mc_float(value: float) -> str:
 
 
 def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
-    """Every font resource this view loads once in `onLayout`.
+    """Every **bitmap** font resource this view loads once in `onLayout`
+    through `WatchUi.loadResource`.
 
-    Covers both an author's declared custom text fonts and the synthetic
+    Covers both an author's declared baked text fonts and the synthetic
     per-size icon fonts (`wfb.icons.font_key`) -- both are bitmap fonts loaded
     the same way, so one list and one loop serves both.  A pattern's `shape:
     text` part is one more source of a custom font: every *drawn* copy
     shares the one font its part resolved to, so it is a single entry here
     regardless of `count`, the same "one load, many uses" shape
     `_emit_pattern`'s own per-pattern ``text_fonts`` map follows.
+
+    **A `face:` (vector) font is never in this list** (plan 11): it is not a
+    resource at all -- there is no `<font>` entry for `WatchUi.loadResource`
+    to find, since `wfb.emit.resources.bake_fonts` never rasterises one --
+    so a `PlacedText` whose `font_is_vector` is true is excluded here and
+    handled by :func:`_vector_fonts_used` / `wfb.emit.monkeyc.view._emit_
+    fields`/`_emit_on_layout` instead, through `Graphics.getVectorFont`.
     """
     out: list[str] = []
     for placed in resolved.items:
-        if isinstance(placed, PlacedText) and placed.font_is_custom:
+        if isinstance(placed, PlacedText) and placed.font_is_custom and not placed.font_is_vector:
             if placed.font_reference not in out:
                 out.append(placed.font_reference)
         elif isinstance(placed, PlacedIcon):
@@ -267,6 +275,31 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
             for part in placed.parts:
                 if part.shape == "text" and part.font_is_custom and part.font_reference not in out:
                     out.append(part.font_reference)
+    return out
+
+
+def _vector_fonts_used(resolved: ResolvedFace) -> list[str]:
+    """Every `face:` (vector) font name a `text` element in this design
+    actually draws with, in first-appearance draw order -- the vector
+    counterpart of :func:`_loaded_fonts`, kept as its own list rather than
+    folded in because the two kinds are never loaded the same way
+    (`Graphics.getVectorFont` vs. `WatchUi.loadResource`, plan 11 §3).
+
+    Draw order (`resolved.items`), not `face.fonts`' declaration order, so
+    a font declared but never referenced by any element contributes
+    nothing -- the same "only what is actually drawn generates code" rule
+    `_loaded_fonts` already follows -- and so the field/constant order in
+    the generated view/Layout.mc reads top-to-bottom the way the design
+    does. `wfb.availability.vector_fonts_used(face)` answers the same
+    "which fonts are used" question for `compute_guards`, off the IR
+    rather than a resolved draw order, since a *build-wide* guard decision
+    has to be reachable before any one device has been resolved.
+    """
+    out: list[str] = []
+    for placed in resolved.items:
+        if isinstance(placed, PlacedText) and placed.font_is_vector:
+            if placed.font_reference not in out:
+                out.append(placed.font_reference)
     return out
 
 
@@ -321,13 +354,48 @@ def _article(noun: str) -> str:
     return f"{'an' if noun[:1].lower() in 'aeiou' else 'a'} {noun}"
 
 
-def _mc_type(value: float | McLiteral) -> str:
+def _mc_type(value: float | str | bool | McLiteral) -> str:
+    """A `Layout` constant's declared Monkey C type.
+
+    Extended for plan 11 (`FONT_<NAME>_FACE`/`_AVAILABLE`) rather than
+    bypassed with a second, ad hoc constant-emission path: every existing
+    `Layout` constant already goes through `_mc_type`/`_mc_number`
+    (`layout_constants._layout_constants`'s own `list[tuple[str, float |
+    McLiteral, str]]` return type), so a font's resolved face name
+    (`String`) and its availability flag (`Boolean`) belong in the same
+    two functions, not a one-off `w.line(...)` that could drift from how
+    every other constant is typed and rendered.  `bool` is checked before
+    `float`/`int`: Python's `bool` is a subtype of `int`, so the order
+    matters or `True`/`False` would fall through to `Number`.
+    """
     if isinstance(value, McLiteral):
         return value.type
+    if isinstance(value, bool):
+        return "Boolean"
+    if isinstance(value, str):
+        return "String"
     return "Float" if isinstance(value, float) else "Number"
 
 
-def _mc_number(value: float | McLiteral) -> str:
+def _mc_string(value: str) -> str:
+    """A double-quoted Monkey C string literal for `value`.
+
+    Every string this project ever emits into a `Layout` constant is a
+    device-published face *name* (`Device.scalable_faces`, straight out of
+    a device's own `simulator.json`) or the empty string (an unavailable
+    font, plan 11 -- never drawn, since the null check at the call site
+    always gates it) -- neither can contain a `"` or a control character in
+    practice, but the two characters that would break the literal if they
+    somehow did are still escaped rather than assumed absent.
+    """
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _mc_number(value: float | str | bool | McLiteral) -> str:
     if isinstance(value, McLiteral):
         return value.code
+    if isinstance(value, bool):
+        return _mc_bool(value)
+    if isinstance(value, str):
+        return _mc_string(value)
     return f"{value}f" if isinstance(value, float) else str(int(value))

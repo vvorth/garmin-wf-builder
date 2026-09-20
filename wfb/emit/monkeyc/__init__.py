@@ -21,7 +21,8 @@ from .common import (
     _BASE_IMPORTS, _NO_GUARDS, SourceFile, source_label, header, McLiteral, hold_targets,
     complication_slots, needs_delegate, _editor_slot_pairs, CONFIG_LAYOUT_METHOD,
     _pattern_needs_math, _glyph_y_expr, _const_prefix, _method, _field, _color, _mc_bool,
-    _mc_float, _loaded_fonts, _describe, _and_list, _article, _mc_type, _mc_number
+    _mc_float, _loaded_fonts, _vector_fonts_used, _describe, _and_list, _article, _mc_type,
+    _mc_number, _mc_string
 )
 from .app import emit_app, emit_palette, emit_icon_glyphs, icon_glyph_entries
 from .delegate import (
@@ -30,7 +31,8 @@ from .delegate import (
 )
 from .layout_constants import (
     emit_layout, _hands_needs_graphics, _pattern_needs_graphics, _hold_constants,
-    _box_constants, _arc_constants, _layout_constants, _hand_part_constants
+    _box_constants, _arc_constants, _layout_constants, _hand_part_constants,
+    _emit_constants, _vector_font_constants
 )
 from .readplan import ReadPlan
 from .view import (
@@ -40,6 +42,7 @@ from .view import (
     _emit_static_methods, _emit_fields, _emit_config_fields, _emit_apply_config,
     _emit_config_layout_accessor, RESOLVE_STYLE_METHOD, CONFIG_LAYOUT_FIELD,
     _emit_resolve_style, _emit_initialize, _emit_complication_subscribe_lines, _emit_on_layout,
+    _emit_vector_font_construction,
     _emit_on_update, _emit_layout_guarded_calls, _draw_calls, _emit_mode_body,
     _emit_on_partial_update, _emit_sleep_hooks, _emit_complication_callback,
     _emit_element_method, _method_doc, _negated, _negatable, _emit_visible_guard, _emit_guard
@@ -70,19 +73,22 @@ __all__ = [
     '_BASE_IMPORTS', '_NO_GUARDS', 'SourceFile', 'source_label', 'header', 'McLiteral',
     'hold_targets', 'complication_slots', 'needs_delegate', '_editor_slot_pairs',
     'CONFIG_LAYOUT_METHOD', '_pattern_needs_math', '_glyph_y_expr', '_const_prefix', '_method',
-    '_field', '_color', '_mc_bool', '_mc_float', '_loaded_fonts', '_describe', '_and_list',
-    '_article', '_mc_type', '_mc_number', 'emit_app', 'emit_palette', 'emit_icon_glyphs',
+    '_field', '_color', '_mc_bool', '_mc_float', '_loaded_fonts', '_vector_fonts_used',
+    '_describe', '_and_list', '_article', '_mc_type', '_mc_number', '_mc_string', 'emit_app',
+    'emit_palette', 'emit_icon_glyphs',
     'icon_glyph_entries', '_emit_on_watchface_config_edited', '_emit_exit_to', 'emit_delegate',
     '_emit_on_tap', '_emit_get_complication_drawable', 'emit_layout', '_hands_needs_graphics',
     '_pattern_needs_graphics', '_hold_constants', '_box_constants', '_arc_constants',
-    '_layout_constants', '_hand_part_constants', 'ReadPlan', 'STATIC_FIELD', 'STATIC_RENDER',
+    '_layout_constants', '_hand_part_constants', '_emit_constants', '_vector_font_constants',
+    'ReadPlan', 'STATIC_FIELD', 'STATIC_RENDER',
     'REPAINT_STATIC_METHOD', 'StaticPlan', 'static_plan', '_antialias_default',
     '_emit_antialias_helper', '_has_partial_update', 'emit_view', '_sleep_flag_doc',
     '_emit_static_field', '_emit_static_allocation', '_emit_static_blit',
     '_emit_static_methods', '_emit_fields', '_emit_config_fields', '_emit_apply_config',
     '_emit_config_layout_accessor', 'RESOLVE_STYLE_METHOD', 'CONFIG_LAYOUT_FIELD',
     '_emit_resolve_style', '_emit_initialize', '_emit_complication_subscribe_lines',
-    '_emit_on_layout', '_emit_on_update', '_emit_layout_guarded_calls', '_draw_calls',
+    '_emit_on_layout', '_emit_vector_font_construction',
+    '_emit_on_update', '_emit_layout_guarded_calls', '_draw_calls',
     '_emit_mode_body', '_emit_on_partial_update', '_emit_sleep_hooks',
     '_emit_complication_callback', '_emit_element_method', '_method_doc', '_negated',
     '_negatable', '_emit_visible_guard', '_emit_guard', '_emit_arc_span', '_emit_shape',

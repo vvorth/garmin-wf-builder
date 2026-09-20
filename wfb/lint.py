@@ -20,8 +20,8 @@ from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Element, Face, HandsElement,
-    PatternElement, StyleEntry, authored_draw_order, never_together,
+    CONFIG_SYMBOL, ComplicationSlot, Element, Face, FontSpec, HandsElement,
+    PatternElement, StyleEntry, Text, authored_draw_order, never_together,
 )
 from .layout import (
     ANTIALIASED_PRIMITIVES, PlacedPattern, PlacedText, ResolvedFace,
@@ -38,7 +38,7 @@ SUPPRESSIBLE = frozenset({
     "hold-unsupported", "hold-overlap", "api-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
-    "sub-pixel-length",
+    "sub-pixel-length", "font-unavailable",
 })
 #: `api-gated-unguardable` is deliberately absent here -- see
 #: `check_api_gated`'s case 5: it means the generator would emit an unguarded
@@ -62,7 +62,7 @@ ALL_CODES = frozenset({
     "contrast", "dead-element",
     "element-mapping",
     "devices", "duplicate-id", "duplicate-style", "element", "expression",
-    "font", "format", "format-version", "graph", "graphics-pool", "hands",
+    "font", "font-unavailable", "format", "format-version", "graph", "graphics-pool", "hands",
     "icon", "io",
     "layouts", "lint-allow", "memory",
     "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
@@ -73,7 +73,7 @@ ALL_CODES = frozenset({
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
     "sub-pixel-length", "target",
     "static", "static-overlap", "string-label",
-    "text-antialias", "unreachable-layout",
+    "text-antialias", "text-curve", "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
 
@@ -259,6 +259,119 @@ def check_unreachable_layout(face: Face, bag: Bag) -> None:
                 f"'layouts.{name}' to accept it",
             ],
         )
+
+
+def check_vector_font_availability(
+    face: Face, resolved: dict[str, ResolvedFace], bag: Bag,
+) -> None:
+    """`if_unavailable:` (plan 11 §2.4) -- `error`/`hide` are inherently
+    cross-device questions ("did gates 1-3 fail on ANY target?"), unlike
+    every check in this module that reads a single device's own
+    `ResolvedFace` (`run`'s per-device loop): so this is not part of `run`,
+    and does not take one `ResolvedFace` -- `wfb.build.resolve_all` calls
+    it once, after every target device in this build has been resolved.
+    `wfb.layout.Resolver._resolve_vector_face` has already decided, per
+    device, whether gates 1-3 passed (`PlacedText.font_available`); this
+    only turns "failed on device X" into a diagnostic, and is therefore
+    also the one place that can see "failed on *every* device this build
+    actually targets", which is what `error` means.
+
+    **`error` (the default) is a hard build failure, never suppressible**
+    -- the same "silencing this ships a broken face" reasoning
+    `_check_one_lint_allow` gives the hard-platform-limit checks, even
+    though `font-unavailable` is in `SUPPRESSIBLE` for the `hide` case
+    below: an author in `error` mode who wants leniency switches the font
+    or the element to `hide` outright, rather than suppressing the failure
+    while leaving the design still asking for a face that will never draw.
+    Names the element, every failing device, and *why* each one fails:
+    gate 1 (`Graphics.getVectorFont`, or under `curve:` the matching
+    `drawAngledText`/`drawRadialText`, missing entirely) is a categorically
+    different failure from gates 2/3 (the symbol exists, but none of the
+    requested faces is in this device's own catalogue) -- plan 11 §1's own
+    instruction is that the author needs to know which, so the message
+    never collapses them into one "unavailable".
+
+    **`hide` draws nothing there and is not a build error** -- a
+    suppressible warning instead, naming every device the element will not
+    draw on.
+    """
+    placed_by_device: dict[str, dict[str, PlacedText]] = {
+        device_id: {p.id: p for p in rf.items if isinstance(p, PlacedText)}
+        for device_id, rf in resolved.items()
+    }
+    for element in face.walk():
+        if not isinstance(element, Text) or not element.font_is_custom:
+            continue
+        spec = face.fonts.get(element.font)
+        if spec is None or not spec.is_vector:
+            continue
+        failing = sorted(
+            device_id
+            for device_id, placed in placed_by_device.items()
+            if (item := placed.get(element.id)) is not None and not item.font_available
+        )
+        if not failing:
+            continue
+        requested = ", ".join(spec.face)
+        effective = element.if_unavailable or spec.if_unavailable or "error"
+        if effective == "error":
+            reasons = [
+                _vector_font_failure_reason(resolved[device_id].device, spec, element.curve)
+                for device_id in failing
+            ]
+            bag.error(
+                "font-unavailable",
+                f"{element.id}: 'font: font.{element.font}' has no usable face on "
+                + ", ".join(failing),
+                element.span,
+                notes=[
+                    f"requested face(s), in author order: {requested}",
+                    *reasons,
+                    f"set 'if_unavailable: hide' on 'font.{element.font}' or on "
+                    f"'{element.id}' to let it disappear on a target that cannot "
+                    "draw it, drop the device from 'targets:', or add a face it "
+                    "actually publishes",
+                ],
+                confidence="exact -- resolved per-device gates 1-3",
+            )
+            continue
+        if "font-unavailable" in element.lint_allow:
+            continue
+        bag.warning(
+            "font-unavailable",
+            f"{element.id}: will not draw on " + ", ".join(failing)
+            + f" -- 'font: font.{element.font}' has no usable face there",
+            element.span,
+            notes=[
+                f"requested face(s), in author order: {requested}",
+                "set 'lint: {allow: [font-unavailable], reason: ...}' on "
+                f"'{element.id}' to accept it",
+            ],
+            confidence="exact -- resolved per-device gates 1-3",
+        )
+
+
+def _vector_font_failure_reason(device: Device, spec: FontSpec, curve) -> str:
+    """One line naming *why* `spec.face` failed to resolve on `device` --
+    gate 1 (the symbol itself is absent) and gates 2/3 (the symbol exists,
+    but the device's own catalogue has none of the requested faces) are
+    different failures with different fixes, so
+    :func:`check_vector_font_availability` never collapses them into one
+    "unavailable" (plan 11 §1's own instruction).
+    """
+    if not device.has_symbol(Device.VECTOR_FONT_SYMBOL):
+        return (f"{device.id}: has no {Device.VECTOR_FONT_SYMBOL!r} at all (gate 1) "
+                "-- no device-resident face, of any name, can ever be drawn here")
+    if curve is not None:
+        symbol = (Device.DRAW_ANGLED_TEXT_SYMBOL if curve.style == "angled"
+                 else Device.DRAW_RADIAL_TEXT_SYMBOL)
+        if not device.has_symbol(symbol):
+            return (f"{device.id}: has {Device.VECTOR_FONT_SYMBOL!r} but not "
+                    f"{symbol!r} (gate 1) -- 'curve: {{style: {curve.style}}}' "
+                    "cannot draw here even though a plain, upright 'face:' text could")
+    published = ", ".join(device.scalable_faces) if device.scalable_faces else "none"
+    return (f"{device.id}: publishes {published} (gates 2/3) -- none of the "
+            "requested face(s) is in that list")
 
 
 def _check_one_lint_allow(bag: Bag, what: str, span, code: str) -> None:
@@ -978,6 +1091,17 @@ def check_text_fit(resolved: ResolvedFace, bag: Bag) -> None:
         if not isinstance(placed, PlacedText):
             continue
         if placed.font_px == 0:
+            continue
+        if placed.curve_style is not None:
+            # `placed.box` is already the *rotated*/radial bounding box
+            # (plan 11 §4, `Resolver._resolve_text`), and `check_geometry`'s
+            # off-screen/safe-area checks already run against it -- exactly
+            # the thing worth catching here. This check's own message
+            # ("does not fit its position", `x=..box.right..`) is plain
+            # horizontal framing that reads as nonsense once the box is
+            # rotated or a full circle, so a curved element skips it rather
+            # than repeat the same finding under a message that does not
+            # describe what actually happened.
             continue
         confidence = (
             "approximate -- the device's own typeface is not available, so the extent "

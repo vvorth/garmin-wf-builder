@@ -56,10 +56,27 @@ _COMPLICATION_TEXT_ALPHABET = (
 
 
 def glyph_set(face: Face) -> dict[str, str]:
-    """The characters each declared font must contain, derived from the design."""
-    needed: dict[str, set[str]] = {name: set() for name in face.fonts}
+    """The characters each declared **baked** font must contain, derived
+    from the design.
+
+    A `face:` (vector) `FontSpec` (plan 11) is never rasterised by this
+    compiler at all -- it is drawn straight from the device's own resident
+    face at runtime -- so it has no sheet to subset and is excluded from
+    `needed` outright, the same way :func:`bake_fonts` below never bakes
+    one. Every per-element branch below checks :attr:`FontSpec.is_vector`
+    before touching `needed` for exactly that reason: `needed.setdefault`
+    would otherwise silently manufacture an entry for it, which
+    :func:`bake_fonts`/`build_bundle` would then never read (nothing bakes
+    a vector font) but which would misleadingly suggest one is being
+    subsetted.
+    """
+    needed: dict[str, set[str]] = {
+        name: set() for name, spec in face.fonts.items() if spec.is_baked
+    }
     for element in face.walk():
         if isinstance(element, ComplicationSlot) and element.font_is_custom:
+            if face.fonts[element.font].is_vector:
+                continue
             # The wearer can point this slot at any of its declared choices,
             # and `Complication.value`'s concrete type genuinely varies by
             # choice (there is no per-choice `format:` to size against --
@@ -101,11 +118,22 @@ def glyph_set(face: Face) -> dict[str, str]:
             for part in element.parts:
                 if part.shape != "text" or not part.font_is_custom:
                     continue
+                if face.fonts[part.font].is_vector:
+                    # Not built by this slice (plan 11 §5, slice 2: a
+                    # pattern part gains `curve:` later) -- but a plain,
+                    # upright `face:` font on a part is not rejected by the
+                    # builder either, so this still has to be excluded from
+                    # subsetting for the same "no sheet" reason as every
+                    # other branch here, rather than assuming it cannot
+                    # happen.
+                    continue
                 bucket = needed.setdefault(part.font, set())
                 for index in element.drawn_indices():
                     bucket |= set(part.texts[index])
             continue
         if not isinstance(element, Text) or not element.font_is_custom:
+            continue
+        if face.fonts[element.font].is_vector:
             continue
         bucket = needed.setdefault(element.font, set())
         if element.literal is not None:
@@ -230,6 +258,16 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
     sets = glyph_set(face)
     baked: dict[str, BakedFont] = {}
     for name, spec in face.fonts.items():
+        if spec.is_vector:
+            # A `face:` font (plan 11) is never rasterised at all -- it is
+            # drawn straight from the device's own resident face at
+            # runtime, so it has no `source:` to bake (`spec.source is
+            # None`) and contributes no `<font>` resource or glyph set.
+            # Skipping it here is what keeps a real build of a vector-font
+            # design from dying with a confusing "cannot open resource"
+            # error before anything else runs -- `spec.source` would
+            # otherwise be handed to `bake()` as `None`.
+            continue
         # `size:` is a `Length`, resolved through `wfb.units.pixel_size` --
         # the same resolver the synthetic icon fonts below go through, so
         # `12px` means the same thing on a font and on an icon.
