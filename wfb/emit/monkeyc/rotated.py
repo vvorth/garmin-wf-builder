@@ -158,19 +158,29 @@ def _emit_pattern_text_angle_expr(element: "PatternElement", part) -> str:
 
     `part.curve_angle_garmin` is this part's own *local*, template-frame
     angle, for copy 0 alone (`wfb.layout.Resolver._resolve_hand_part` --
-    the un-composed `HandPart.curve.angle`, Garmin-converted). A radial
-    pattern turns copy `i` by `element.start_angle + i * element.step_angle`
-    design degrees, clockwise from 12; converting a *sum* of design degrees
-    to Garmin's convention subtracts each term (`Angle.to_garmin`'s own
-    `90 - degrees`), so copy `i`'s effective Garmin angle is `part.curve_
-    angle_garmin - element.start_angle - i * element.step_angle` -- computed
-    here as `g0 - i * step_deg` with `element.start_angle` folded into `g0`
-    up front, the same shape the arc branch already uses. A linear pattern
-    never rotates (`element.start_angle`/`.step_angle` are always `0.0`
-    there, `wfb.layout.Resolver._resolve_pattern`), so `g0` reduces to
-    `part.curve_angle_garmin` unchanged and every copy keeps this part's
-    own local angle -- the "no copy angle to compose with" case plan 11
-    slice 2 asks for, with no special-casing needed here.
+    the un-composed `HandPart.curve.angle`, run through `wfb.layout.
+    garmin_curve_angle`). A radial pattern turns copy `i` by `element.
+    start_angle + i * element.step_angle` design degrees, clockwise from
+    12 -- the pattern's own rotation, always a *position*-style quantity
+    regardless of the part's own `curve.style`, so composing it in still
+    means subtracting it in Garmin's sign (the same "clockwise design
+    degrees becomes a negative Garmin delta" fact `Angle.to_garmin`'s `90 -
+    degrees` and `garmin_curve_angle`'s `angled` branch both rest on, an
+    offset canceling out of any *difference* of two design-degree angles
+    regardless of which one, if either, carried it). So copy `i`'s
+    effective Garmin angle is `part.curve_angle_garmin - element.start_angle
+    - i * element.step_angle` -- computed here as `g0 - i * step_deg` with
+    `element.start_angle` folded into `g0` up front, the same shape the arc
+    branch already uses, **whether the part's own `curve.style` is `angled`
+    (a rotation, no offset in `part.curve_angle_garmin` to begin with) or
+    `radial` (a position, `to_garmin`'s offset already folded into it)** --
+    this function never needs to know which, since both compose with the
+    copy's own rotation the same way. A linear pattern never rotates
+    (`element.start_angle`/`.step_angle` are always `0.0` there, `wfb.
+    layout.Resolver._resolve_pattern`), so `g0` reduces to `part.curve_
+    angle_garmin` unchanged and every copy keeps this part's own local
+    angle -- the "no copy angle to compose with" case plan 11 slice 2 asks
+    for, with no special-casing needed here.
     """
     g0 = _mc_float(part.curve_angle_garmin - element.start_angle)
     if element.pattern == "radial":

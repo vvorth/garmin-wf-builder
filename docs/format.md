@@ -127,6 +127,19 @@ Garmin's `drawArc` uses 3 o'clock = 0 and counter-clockwise positive; the
 compiler converts, and the generated `Layout` module shows both values in a
 comment so the conversion is auditable.
 
+**One deliberate exception: `curve: {style: angled}`'s own `angle:` is a
+rotation, not a direction.** Every other angle in the format — this one
+included, for `curve: {style: radial}` — answers "which way from the
+centre," a position around a circle. `angled`'s `angle:` answers a different
+question, "how much is this tilted," where `0deg` means level/unrotated, not
+"pointing at 12 o'clock." The two share units (`deg`/`rad`/`turn`) but are
+not the same kind of quantity, so `angled` alone uses a rotation's natural
+zero instead of the format's shared direction zero — conflating them made
+the common cases (a level bezel numeral, a gently tilted ribbon) need
+`90deg`, while `0deg`, which reads like "no rotation" for every other key in
+the format, stood the text on end. See ["`curve:` — rotated and radial
+text"](#curve--rotated-and-radial-text) below.
+
 Everything relative is resolved to whole pixels at build time. Nothing relative
 reaches the device: the watch performs no layout arithmetic.
 
@@ -1730,7 +1743,7 @@ error naming `bottom`.
   at: { anchor: center, dy: -30%r }
   curve:
     style: angled
-    angle: 45deg                # this format's own convention: 12 o'clock = 0, clockwise
+    angle: 45deg                # a rotation from upright: 0 = level, clockwise positive
 ```
 
 ```yaml
@@ -1741,7 +1754,7 @@ error naming `bottom`.
   at: { anchor: center }        # radial: at: is the CENTRE OF THE CIRCLE, not a point the text passes through
   curve:
     style: radial
-    angle: 90deg
+    angle: 90deg                 # a position: this format's own convention, 12 o'clock = 0, clockwise
     radius: 44%r
     direction: clockwise        # or counter_clockwise; default clockwise
 ```
@@ -1760,12 +1773,19 @@ Bends a `text` element's content along a straight line (`style: angled`,
   precedent below: the *binding* stays identical and only the rendering
   differs. `radius:`/`direction:` are rejected on `angled` — an angled line
   has no circle for either to describe.
-* **`angle:` is this format's own convention** — [12 o'clock = 0, clockwise
-  positive](#angles), never Garmin's 3-o'clock/counter-clockwise one; the
+* **`angle:` means something different per `style:`** (see ["Angles"](#angles)
+  above) — never Garmin's 3-o'clock/counter-clockwise one either way; the
   compiler converts, and the generated `Layout` constant carries both values
-  in a comment, exactly as `arc` already does. For `angled`, it is the tilt
-  of the text's own baseline. For `radial`, it is where around the circle
-  the text starts.
+  in a comment, exactly as `arc` already does.
+  * **`radial`: a position**, [this format's own universal direction
+    convention](#angles) (12 o'clock = 0, clockwise positive) — where around
+    the circle the text starts, the same convention an arc's `start_angle:`
+    or a pattern's `start_angle:` uses.
+  * **`angled`: a rotation** — how far the text's own baseline is tilted
+    away from level, clockwise positive, where `0deg` means unrotated
+    (level text). This is *not* the same zero as every other angle in the
+    format: `angle: 0deg` under `curve: {style: angled}` draws level text,
+    not text standing on end pointing at 12 o'clock.
 * **`style: radial`'s `at:` is the centre of the circle**, not a point the
   text passes through or is anchored to — the one genuinely surprising
   thing in this format, so it bears repeating. This is the same

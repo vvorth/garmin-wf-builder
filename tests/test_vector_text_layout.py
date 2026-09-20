@@ -319,14 +319,17 @@ def test_element_if_unavailable_hide_overrides_the_fonts_own_error(
 
 
 def test_angled_box_is_the_rotated_bounding_box(write_design, bag, db):
-    """Design angle 0deg -> Garmin angle 90deg (`Angle.to_garmin`): a full
-    quarter turn, so the rotated box's width/height are the *upright* box's
-    height/width, swapped -- proving the box is actually rotated, not a
-    no-op copy of the unrotated one (CLAUDE.md §7: a test must exercise the
-    contrast it claims)."""
+    """`angled`'s `angle:` is a rotation from upright (0 = level), not a
+    position, so `0deg` alone would draw the *unrotated* box and could not
+    prove anything got rotated at all. `angle: 90deg` is a full quarter
+    turn instead (`wfb.layout.garmin_curve_angle`: `(-90) % 360 == 270`),
+    so the rotated box's width/height are the *upright* box's height/width,
+    swapped -- proving the box is actually rotated, not a no-op copy of the
+    unrotated one (CLAUDE.md §7: a test must exercise the contrast it
+    claims)."""
     elements = (
         _text("upright") + "\n"
-        + _text("angled", "    curve: {style: angled, angle: 0deg}\n")
+        + _text("angled", "    curve: {style: angled, angle: 90deg}\n")
     )
     face = _load(write_design, bag, _design(_SINGLE_FONT, elements))
     device = db.get("fenix8solar47mm")
@@ -335,8 +338,8 @@ def test_angled_box_is_the_rotated_bounding_box(write_design, bag, db):
     angled = _placed(resolved, "angled")
 
     assert angled.curve_style == "angled"
-    assert angled.curve_angle_degrees == pytest.approx(0.0)
-    assert angled.curve_angle_garmin == pytest.approx(90.0)
+    assert angled.curve_angle_degrees == pytest.approx(90.0)
+    assert angled.curve_angle_garmin == pytest.approx(270.0)
     assert upright.box.width > upright.box.height, (
         "the fixture assumes 'GARMIN' measures wider than one line is tall"
     )

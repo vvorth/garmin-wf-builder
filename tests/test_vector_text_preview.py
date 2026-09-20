@@ -196,8 +196,11 @@ def test_upright_vector_text_is_wider_than_it_is_tall_for_a_multi_char_string(wr
 
 
 def test_angled_quarter_turn_swaps_width_and_height(write_design, db, bag):
-    """Design `angle: 0deg` is Garmin angle 90deg (`Angle.to_garmin`) -- a
-    full quarter turn (`tests/test_vector_text_layout.py::
+    """`angled`'s `angle:` is a rotation from upright (0 = level), so
+    `angle: 0deg` alone would draw the plain, unrotated shape and could not
+    prove anything got rotated at all -- `angle: 90deg` is the quarter turn
+    instead (`wfb.layout.garmin_curve_angle`: Garmin angle `270deg`,
+    `tests/test_vector_text_layout.py::
     test_angled_box_is_the_rotated_bounding_box`) -- so the drawn ink must
     come out *taller* than it is wide, the opposite of the upright string
     above. A renderer that ignored `curve:` entirely, or rotated by the
@@ -212,7 +215,7 @@ def test_angled_quarter_turn_swaps_width_and_height(write_design, db, bag):
     at: {anchor: center}
     align: center
     vertical_align: center
-    curve: {style: angled, angle: 0deg}
+    curve: {style: angled, angle: 90deg}
 """
     image = _render(write_design, db, bag, body)
     bbox = _ink_bbox(image, (0, 0, 260, 260))
@@ -221,17 +224,19 @@ def test_angled_quarter_turn_swaps_width_and_height(write_design, db, bag):
     assert (maxy - miny) > (maxx - minx)
 
 
-def test_angled_45deg_tilts_up_and_to_the_right_not_the_mirror_image(write_design, db, bag):
-    """Design `angle: 45deg` is Garmin `45deg` (`to_garmin(45) == 45`), a
-    positive (counter-clockwise-as-displayed) tilt from the *quarter-turn*
-    baseline `angle: 0deg` already establishes. `align: left` (rather than
-    `center`) makes the contrast unambiguous: the whole string extends to
-    *one* side of the anchor, not symmetrically through it, so every lit
-    pixel must land up-and-right of the anchor and none down-or-left of
-    it -- a backwards-signed rotation (the likely bug) would tilt the
-    string down-and-right instead (mirrored about the horizontal), and an
-    unrotated string would sit flat to the right with no vertical spread
-    at all."""
+def test_angled_45deg_tilts_down_and_to_the_right_not_the_mirror_image(write_design, db, bag):
+    """`angle: 45deg` is a *rotation*, positive = clockwise from level
+    (`docs/format.md` "Angles"): Garmin `315deg` (`wfb.layout.
+    garmin_curve_angle`: `(-45) % 360 == 315`). Visually, rotating a
+    level, rightward-reading baseline clockwise tips its far end *down* --
+    the same sense a clock hand sweeps from 3 toward 4-5 o'clock. `align:
+    left` (rather than `center`) makes the contrast unambiguous: the whole
+    string extends to *one* side of the anchor, not symmetrically through
+    it, so every lit pixel must land down-and-right of the anchor and none
+    up-or-left of it -- a backwards-signed rotation (the likely bug) would
+    tilt the string up-and-right instead (mirrored about the horizontal),
+    and an unrotated string would sit flat to the right with no vertical
+    spread at all."""
     body = """\
   - id: brand
     type: text
@@ -247,11 +252,11 @@ def test_angled_45deg_tilts_up_and_to_the_right_not_the_mirror_image(write_desig
     bbox = _ink_bbox(image, (0, 0, 260, 260))
     assert bbox is not None
     minx, miny, maxx, maxy = bbox
-    # Every pixel is up and to the right of the anchor: the box's own
-    # lower-left corner sits at (or past) the anchor, never inside the
+    # Every pixel is down and to the right of the anchor: the box's own
+    # upper-left corner sits at (or past) the anchor, never inside the
     # opposite quadrant.
     assert minx >= CX - 1
-    assert maxy <= CY + 1
+    assert miny >= CY - 1
     # And it is genuinely tilted, not flat: real vertical spread, not a
     # one-pixel-tall sliver sitting exactly on the horizontal through the
     # anchor (which an un-rotated `align: left` upright string would draw).
@@ -261,17 +266,18 @@ def test_angled_45deg_tilts_up_and_to_the_right_not_the_mirror_image(write_desig
 def test_angled_180deg_is_a_true_rotation_not_a_mirror(write_design, db, bag):
     """Isolates *mirroring* (drawing a flipped glyph instead of a truly
     rotated one) from the direction-sign bugs the other angled tests above
-    already cover. Design `angle: 270deg` is Garmin `180deg`
-    (`to_garmin(270) == 180`); a 180deg rotation is its own inverse
-    regardless of which way is clockwise, so it cannot be satisfied by
-    accident the way a smaller angle's direction might be -- an asymmetric
-    glyph's `curve:`-drawn ink must match that same glyph's own upright ink
-    run through a plain, independently-computed `PIL.Image.rotate(180)`,
-    pixel region for pixel region. A mirror-instead-of-rotate bug (verified
-    by hand while writing this test: flipping only the glyph layer's own
-    rotation call, and not the paste-offset math that places it, produces
-    exactly this -- same bounding box, backwards letterforms) fails this
-    while still passing every bounding-box-direction test above."""
+    already cover. Design `angle: 180deg` is Garmin `180deg`
+    (`wfb.layout.garmin_curve_angle`: `(-180) % 360 == 180`); a 180deg
+    rotation is its own inverse regardless of which way is clockwise, so it
+    cannot be satisfied by accident the way a smaller angle's direction
+    might be -- an asymmetric glyph's `curve:`-drawn ink must match that
+    same glyph's own upright ink run through a plain, independently-
+    computed `PIL.Image.rotate(180)`, pixel region for pixel region. A
+    mirror-instead-of-rotate bug (verified by hand while writing this test:
+    flipping only the glyph layer's own rotation call, and not the
+    paste-offset math that places it, produces exactly this -- same
+    bounding box, backwards letterforms) fails this while still passing
+    every bounding-box-direction test above."""
     upright_body = """\
   - id: glyph
     type: text
@@ -291,7 +297,7 @@ def test_angled_180deg_is_a_true_rotation_not_a_mirror(write_design, db, bag):
     at: {anchor: center}
     align: left
     vertical_align: top
-    curve: {style: angled, angle: 270deg}
+    curve: {style: angled, angle: 180deg}
 """
     upright = _render(write_design, db, bag, upright_body, font_size="30%r")
     angled = _render(write_design, db, bag, angled_body, font_size="30%r")

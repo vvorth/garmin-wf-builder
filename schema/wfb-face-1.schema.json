@@ -635,7 +635,7 @@
         },
         "angle": {
           "$ref": "#/$defs/angle",
-          "description": "12 o'clock = 0, clockwise positive -- this format's own convention everywhere, not Garmin's 3-o'clock/counter-clockwise one; the compiler converts. For 'angled', the tilt of the text's own baseline. For 'radial', where around the circle the text starts."
+          "description": "Not one convention -- 'angled' and 'radial' use 'angle:' for genuinely different kinds of quantity, despite sharing units ('deg'/'rad'/'turn'). For 'style: radial', a POSITION: where around the circle the text starts, in this format's universal 12 o'clock = 0, clockwise-positive direction convention -- the same one every other angle in the format uses (arc/hand/pattern start angles); the compiler converts to Garmin's 3-o'clock/counter-clockwise one. For 'style: angled', a ROTATION: how far the text's own baseline is tilted away from level, clockwise positive, where '0deg' means unrotated (level text) rather than 'pointing at 12 o'clock' -- deliberately a different zero from every direction angle in the format, because conflating the two made the common cases (a level bezel numeral, a gently tilted ribbon) need '90deg' while '0deg', which reads like 'no rotation', stood the text on end."
         },
         "radius": {
           "$ref": "#/$defs/length",
@@ -1810,7 +1810,7 @@
         },
         "angle": {
           "$ref": "#/$defs/angle",
-          "description": "12 o'clock = 0, clockwise positive, in this part's own local (copy-0) frame -- a radial pattern composes it with the copy's own rotation, the same way an 'arc' part's 'start_angle:' composes with 'start:'/'step:'. For 'angled', the tilt of the text's own baseline. For 'radial', where around the circle the text starts."
+          "description": "In this part's own local (copy-0) frame -- a radial pattern composes it with the copy's own rotation, the same way an 'arc' part's 'start_angle:' composes with 'start:'/'step:'. Not one convention, the same split '#/$defs/curve's own 'angle:' makes: for 'style: radial', a POSITION (12 o'clock = 0, clockwise positive -- where around the circle the text starts). For 'style: angled', a ROTATION ('0deg' = level/unrotated, clockwise positive -- how far the text's own baseline is tilted). A radial PATTERN with an 'angled' text part composing '0deg' with each copy's own rotation is what makes one 'angle: 0deg' sit tangent to every copy's own radius and read level at the top of the dial, without the author writing one angle per copy."
         },
         "radius": {
           "$ref": "#/$defs/handLength",

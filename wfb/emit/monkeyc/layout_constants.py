@@ -280,10 +280,14 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             # Both angle conventions in the comment, the same `arc`
             # precedent `_arc_constants`'s own `_START` follows -- keeps the
             # conversion auditable without having to re-derive it.
+            author_note = (
+                f"{placed.curve_angle_degrees:g}deg clockwise from 12 o'clock"
+                if placed.curve_style == "radial"
+                else f"{placed.curve_angle_degrees:g}deg clockwise rotation from upright"
+            )
             out.append((
                 f"{prefix}_ANGLE", float(placed.curve_angle_garmin),
-                f"{placed.curve_angle_degrees:g}deg clockwise from 12 o'clock, "
-                "in Garmin's convention",
+                f"{author_note}, in Garmin's convention",
             ))
             if placed.curve_style == "radial":
                 out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))

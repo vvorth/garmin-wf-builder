@@ -239,26 +239,34 @@ These cost real time to discover; do not rediscover them.
   work is the angle's *composition* and one codegen-side behaviour change.
 
   **Composition.** `ResolvedHandPart.curve_angle_garmin` is this part's own
-  *local* angle (`HandPart.curve.angle`, Garmin-converted), for copy 0
-  alone -- never combined with a radial pattern's own rotation in `wfb.
-  layout`. That combination happens twice, independently, at the two
-  places that already know which copy is being drawn: codegen (`wfb.emit.
-  monkeyc.rotated._emit_pattern_text_angle_expr`) and the lint ink box
-  (`wfb.layout._pattern_part_ink`, given a `copy_angle_degrees` computed
-  once per copy by `Resolver._resolve_pattern`'s own loop) -- both apply
-  `g0 = part.curve_angle_garmin - element.start_angle`, then `g0 - i *
-  step_deg` per copy, the *exact* shape a radial pattern's own `arc` part
-  already used for its `start_angle:` (`_emit_pattern_part`'s arc branch,
-  unchanged, one row up from the new text branch). Deriving the sign: a
-  radial pattern turns copy `i` by `element.start_angle + i *
-  element.step_angle` **design** degrees (clockwise from 12); converting a
-  *sum* of design degrees to Garmin's convention subtracts each term
-  (`Angle.to_garmin`'s own `90 - degrees`), so copy `i`'s effective Garmin
-  angle is `part.curve_angle_garmin - element.start_angle - i *
-  element.step_angle` -- `g0` folds the constant `element.start_angle` term
-  in at build time, leaving only the per-copy `i * step_deg` term for the
-  generated code to add, mirroring arc's own `g0` exactly. A linear
-  pattern's `element.start_angle`/`.step_angle` are always `0.0`
+  *local* angle (`HandPart.curve.angle`, run through `wfb.layout.
+  garmin_curve_angle`), for copy 0 alone -- never combined with a radial
+  pattern's own rotation in `wfb.layout`. That combination happens twice,
+  independently, at the two places that already know which copy is being
+  drawn: codegen (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`)
+  and the lint ink box (`wfb.layout._pattern_part_ink`, given a
+  `copy_angle_degrees` computed once per copy by `Resolver._resolve_
+  pattern`'s own loop) -- both apply `g0 = part.curve_angle_garmin -
+  element.start_angle`, then `g0 - i * step_deg` per copy, the *exact*
+  shape a radial pattern's own `arc` part already used for its
+  `start_angle:` (`_emit_pattern_part`'s arc branch, unchanged, one row up
+  from the new text branch). Deriving the sign: a radial pattern turns
+  copy `i` by `element.start_angle + i * element.step_angle` **design**
+  degrees, clockwise from 12 -- always a *position*-style rotation of the
+  whole template, regardless of the part's own `curve.style`. Composing it
+  into a Garmin-space angle by straight subtraction is valid whichever
+  style `part.curve_angle_garmin` itself came from: for `radial` it is
+  `Angle.to_garmin()`'s `90 - degrees` (a position, one fixed offset folded
+  in once by the part's own local angle); for `angled` (2026-09-20:
+  `curve.angle` redefined as a rotation from upright, not a direction --
+  `angle: 0deg` now means level text, not "pointing at 12 o'clock") it is
+  `garmin_curve_angle`'s own `-degrees % 360` (a rotation, no offset to
+  begin with). Either way, subtracting a *further* design-clockwise delta
+  (the copy's own rotation) still just subtracts that same delta in Garmin
+  space -- the offset, when there is one, is a constant contributed once by
+  the local angle, never re-derived per copy -- so `g0 - i * step_deg`
+  composes correctly with no special-casing for which style the part uses.
+  A linear pattern's `element.start_angle`/`.step_angle` are always `0.0`
   (`Resolver._resolve_pattern`), so `g0` reduces to the part's own local
   angle unchanged and no `i *` term is emitted at all -- the "no copy angle
   to compose with" case falls out of the shared formula for free, not a

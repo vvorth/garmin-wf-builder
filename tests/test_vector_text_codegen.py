@@ -187,7 +187,7 @@ def test_angle_constant_carries_both_conventions_in_the_comment(write_design, ba
     device = db.get("fenix8solar47mm")
     layout = emit_layout(resolve(face, device, {})).text
     assert "const BRAND_ANGLE as Float = " in layout
-    assert "45deg clockwise from 12 o'clock, in Garmin's convention" in layout
+    assert "45deg clockwise rotation from upright, in Garmin's convention" in layout
 
 
 def test_radial_gets_a_radius_constant_angled_does_not(write_design, bag, db):

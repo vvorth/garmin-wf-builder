@@ -23,26 +23,29 @@
 # * **`curve: {style: radial}` on a `text` element** (`wordmark`): "FIELD
 #   TRACK" bent along the bottom rim, `direction: counter_clockwise` so it
 #   faces inward and reads right-side up along the bottom of the dial
-#   (`docs/format.md`'s open question on radial glyph facing).
+#   (`docs/format.md`'s open question on radial glyph facing). `radial`'s
+#   `angle:` is a POSITION -- where around the circle the text starts --
+#   this format's usual 12-o'clock-is-0, clockwise convention, same as every
+#   other angle in the format.
 # * **`curve: {style: angled}` on a `text` element** (`solar_badge`): a
-#   tilted ribbon, the plain rotated-baseline case.
+#   tilted ribbon, the plain rotated-baseline case. `angled`'s `angle:` is a
+#   ROTATION, not a position (`docs/format.md` "Angles"): `0deg` is level,
+#   unrotated text, and this ribbon's `35deg` is 35 degrees clockwise from
+#   level -- not "35 degrees clockwise from 12 o'clock" the way a `radial`
+#   angle or an arc's `start_angle:` would read it.
 # * **A pattern `shape: text` part with `curve:`** (`hour_numerals`): the
 #   twelve-hour-numerals case `docs/limitations.md` used to carry as
 #   impossible ("a bitmap font cannot turn, so only the anchor turns") --
-#   one authored `angle: 90deg`, in the template's own local frame, composed
+#   one authored `angle: 0deg`, in the template's own local frame, composed
 #   per copy with the radial pattern's own rotation, so the whole ring is
-#   one authored angle, not twelve. Each numeral sits tangent to its own
-#   position on the circle, which (this composition being a full turn per
-#   lap, not a mirror-symmetric one) makes it read as a bead threaded on the
-#   ring: upright at "12", on its side at "3" and "9", upside down at "6" --
-#   verified by rendering, not assumed. `angle: 90deg` here, not `0deg`, is
-#   only a choice of *where* "upright" falls: `curve.angle` follows this
-#   format's usual 12-o'clock-is-0 convention, so `0deg` points the baseline
-#   itself at 12 (a numeral rotated 90 from level) and `90deg` -- baseline
-#   pointing at 3, i.e. plain horizontal -- is what looks level at copy 0.
-#   The docs' own canonical snippet uses `0deg` (level at copy 3 instead);
-#   either is correct, this design just picked the phase where "12" reads
-#   level rather than "3".
+#   one authored angle, not twelve. `0deg` here means "no rotation" (level),
+#   the same as a standalone `angled` element's `0deg` -- composed with each
+#   copy's own turn around the dial, it makes every numeral sit tangent to
+#   its own radius: level at "12", on its side at "3" and "9", upside down
+#   at "6" -- verified by rendering, not assumed. This is the one case where
+#   the rotation convention actually pays for itself: the natural "no extra
+#   tilt" angle for a tangent ring is the same `0deg` you would reach for
+#   for level text anywhere else, not a value you have to look up.
 # * **`if_unavailable: hide` doing real work, not a decorative key**:
 #   `solar_badge`'s own font, `accent`, names `BionicSemiBold` alone -- no
 #   fallback list -- and that face does not exist on fr955. Without
@@ -132,7 +135,7 @@ elements:
         at: { dy: -82%r }
         curve:
           style: angled
-          angle: 90deg
+          angle: 0deg
 
   - id: clock
     type: text
@@ -178,7 +181,7 @@ elements:
     at: { anchor: center, dx: 34%r, dy: -50%r }
     curve:
       style: angled
-      angle: 55deg
+      angle: 35deg
     lint:
       allow: [font-unavailable]
       reason: "font.accent (BionicSemiBold) is deliberately single-name, no

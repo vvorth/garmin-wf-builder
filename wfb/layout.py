@@ -112,6 +112,48 @@ def garmin_arc(start: float, sweep: float) -> tuple[float, str]:
     )
 
 
+def garmin_curve_angle(style: str, angle: Angle) -> float:
+    """`curve.angle` (`text.curve`/`patternCurve`, both `style:`s), in
+    Garmin's `Dc.drawAngledText`/`Dc.drawRadialText` convention (degrees
+    counter-clockwise from 3 o'clock) -- the one place this conversion
+    happens, the same "exactly one convention" precedent `garmin_arc` sets
+    for `shape: arc`/`progress: {style: arc}` just above.
+
+    The two `curve:` styles share the `angle:` key and its units, but
+    answer genuinely different questions, so they convert differently.
+    **`radial`'s angle is a POSITION** -- where around the circle the text
+    starts -- the same "which way from the centre" quantity every other
+    angle in this format answers (arc start angles, hand angles, a
+    pattern's own `start_angle:`), confirmed against `drawRadialText`'s own
+    doc ("Angle to a point on the circle to justify text"): it keeps this
+    format's universal 12-o'clock-zero/clockwise convention and converts
+    through `Angle.to_garmin()` exactly like those. **`angled`'s angle is a
+    ROTATION** -- how far the text's own baseline is tilted away from
+    level, not a direction from any centre -- so `0deg` means "unrotated",
+    not "pointing at 12 o'clock": converting it needs none of `to_garmin`'s
+    90-degree offset (which exists only to re-anchor a *position*'s zero
+    from 12 o'clock to 3 o'clock), just the sign flip that turns this
+    format's clockwise-positive sense into Garmin's counter-clockwise-
+    positive one. Confirmed against `drawAngledText`'s own doc ("Angle of
+    the text baseline in degrees counter-clockwise from the 3 o'clock
+    position"): Garmin's own `0` is already a horizontal, level baseline,
+    matching this format's `0deg` = level exactly, with no offset needed.
+
+    A radial *pattern*'s own per-copy composition
+    (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`,
+    `_pattern_part_ink` below) still works unmodified for either style:
+    composing a *local* Garmin angle with a copy's own rotation (`design
+    clockwise degrees`, converted by straight negation) is valid whether
+    that local angle came from a position (`to_garmin`, offset folded in
+    once) or a rotation (no offset to begin with) -- the offset, when
+    there is one, is a fixed constant contributed once by the part's own
+    local angle, never by the per-copy delta being composed with it.
+    """
+    if style == "radial":
+        return angle.to_garmin()
+    return (-angle.degrees) % 360.0
+
+
 def _arc_box(
     radius: int, pen: int, cx: float, cy: float, align: str, vertical_align: str,
     start_angle: Angle | None, sweep_angle: Angle | None,
@@ -230,16 +272,20 @@ class PlacedText(Placed):
     #: the emitter never has to re-derive "is this element curved" from the
     #: IR once layout has already answered it.
     curve_style: str | None = None
-    #: `text.curve.angle`, **in the design's own convention** (12 o'clock =
-    #: 0, clockwise positive) -- kept alongside :attr:`curve_angle_garmin`
-    #: exactly as `PlacedShape.start_angle`/`.garmin_start` keep both for
-    #: `shape: arc`: the generated `Layout` comment carries both values
-    #: (plan 11 §2.2), and the preview (a later slice) reasons in the
-    #: design's own convention throughout, the same way it already does for
-    #: `arc`/`progress`. `0.0` when `curve_style` is `None`.
+    #: `text.curve.angle`, **in the design's own author-facing units** --
+    #: kept alongside :attr:`curve_angle_garmin` exactly as `PlacedShape.
+    #: start_angle`/`.garmin_start` keep both for `shape: arc`: the
+    #: generated `Layout` comment carries both values (plan 11 §2.2), and
+    #: the preview reasons in the design's own convention throughout, the
+    #: same way it already does for `arc`/`progress`. **Not one convention**:
+    #: for `radial` this is a *position* (12 o'clock = 0, clockwise
+    #: positive, the same universal direction convention every other angle
+    #: in this format uses); for `angled` it is a *rotation* (0 = level/
+    #: unrotated, clockwise positive) -- see `garmin_curve_angle`'s own
+    #: docstring for why the two differ. `0.0` when `curve_style` is `None`.
     curve_angle_degrees: float = 0.0
-    #: `Angle.to_garmin()` of the same angle -- Garmin's own 3-o'clock/
-    #: counter-clockwise convention, what `Dc.drawAngledText`/
+    #: `garmin_curve_angle(curve_style, text.curve.angle)` -- Garmin's own
+    #: 3-o'clock/counter-clockwise convention, what `Dc.drawAngledText`/
     #: `Dc.drawRadialText`'s own `angle` parameter actually expects, and
     #: what this module's own box math (`Resolver._rotated_text_box`) rotates
     #: by, since that is the rotation the device really draws. `0.0` when
@@ -1024,7 +1070,8 @@ class Resolver:
         curve = element.curve
         curve_style = curve.style if curve is not None else None
         curve_angle_degrees = curve.angle.degrees if curve is not None else 0.0
-        curve_angle_garmin = curve.angle.to_garmin() if curve is not None else 0.0
+        curve_angle_garmin = (garmin_curve_angle(curve_style, curve.angle)
+                              if curve is not None else 0.0)
         curve_radius_px = 0
         curve_direction = curve.direction if curve is not None else None
         if curve_style == "radial" and curve.radius is not None:
@@ -1568,7 +1615,8 @@ class Resolver:
             curve = part.curve
             curve_style = curve.style if curve is not None else None
             curve_angle_degrees = curve.angle.degrees if curve is not None else 0.0
-            curve_angle_garmin = curve.angle.to_garmin() if curve is not None else 0.0
+            curve_angle_garmin = (garmin_curve_angle(curve_style, curve.angle)
+                                  if curve is not None else 0.0)
             curve_radius_px = 0
             curve_direction = curve.direction if curve is not None else None
             if curve_style == "radial" and curve.radius is not None:
@@ -2021,7 +2069,7 @@ __all__ = [
     "ResolvedHand",
     "ResolvedHandPart",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
-    "inside_visible_area_for", "circular_extent", "garmin_arc",
+    "inside_visible_area_for", "circular_extent", "garmin_arc", "garmin_curve_angle",
     "alignment_shift", "round_half_away",
     "is_full_bleed",
 ]

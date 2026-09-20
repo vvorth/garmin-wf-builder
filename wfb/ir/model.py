@@ -234,12 +234,21 @@ class Curve:
     #: *binding* stays identical and only the rendering differs
     #: (`docs/format.md` §`progress`).
     style: str
-    #: The design's own convention -- 12 o'clock = 0, clockwise positive
-    #: (:class:`~wfb.units.Angle`), **not** Garmin's 3-o'clock/counter-
-    #: clockwise one; `Angle.to_garmin()` converts at codegen time, exactly
-    #: as every other angle in this format does.  For `angled`, the tilt of
-    #: the text's own baseline.  For `radial`, where around the circle the
-    #: text starts.
+    #: (:class:`~wfb.units.Angle`) -- **not one convention**, since the two
+    #: styles answer different kinds of question despite sharing units.
+    #: For `radial`, a *position*: where around the circle the text starts,
+    #: this format's universal 12-o'clock-zero/clockwise-positive direction
+    #: convention, the same one every other angle in the format uses
+    #: (arc/hand/pattern start angles). For `angled`, a *rotation*: how far
+    #: the text's own baseline is tilted away from level, clockwise
+    #: positive, with `0deg` meaning unrotated (level) rather than "pointing
+    #: at 12 o'clock" -- deliberately a different zero, since conflating the
+    #: two made the common case (a level bezel numeral, a gently tilted
+    #: ribbon) need `90deg` and made `0deg`, which reads like "no rotation",
+    #: stand text on end. `wfb.layout.garmin_curve_angle` is the one place
+    #: either sense converts to Garmin's own 3-o'clock/counter-clockwise
+    #: convention, exactly as every angle in this format converts in
+    #: exactly one place.
     angle: Angle
     #: `radial` only -- the circle's own radius, resolved through the same
     #: unit rules `at:`/`radius:` already use elsewhere (not restricted to

@@ -174,14 +174,17 @@ def test_if_unavailable_is_accepted_on_a_pattern_part_with_a_face_font(write_des
 
 
 def test_curve_angle_garmin_on_the_resolved_part_is_the_local_angle_only(write_design, bag, db):
-    """`ResolvedHandPart.curve_angle_garmin` must be `Angle.to_garmin()` of
-    the *authored* angle alone -- composition with a radial pattern's own
-    `start`/`step` happens downstream (codegen, preview, the lint ink box),
-    never here. Proven by giving the pattern a non-zero `start:`/`step:`
-    and checking the resolved part is unaffected."""
+    """`ResolvedHandPart.curve_angle_garmin` must be `wfb.layout.
+    garmin_curve_angle` of the *authored* angle alone -- composition with a
+    radial pattern's own `start`/`step` happens downstream (codegen,
+    preview, the lint ink box), never here. Proven by giving the pattern a
+    non-zero `start:`/`step:` and checking the resolved part is
+    unaffected."""
     elements = _radial_hours(count=4).rstrip("\n")
     # non-default start/step: if composition leaked into layout, this would
-    # change `curve_angle_garmin` away from `to_garmin(0deg) == 90.0`.
+    # change `curve_angle_garmin` away from `garmin_curve_angle("angled",
+    # 0deg) == 0.0` (a rotation, not a position: `0deg` is unrotated, so it
+    # converts to Garmin `0.0` with no offset, unlike `radial`'s `to_garmin`).
     elements = elements.replace("pattern: radial\n", "pattern: radial\n    start: 45deg\n"
                                 "    step: 90deg\n")
     face = _load(write_design, bag, _design(_VECTOR_FONT, elements))
@@ -190,7 +193,7 @@ def test_curve_angle_garmin_on_the_resolved_part_is_the_local_angle_only(write_d
     placed = _placed_pattern(resolved, "hours")
     part = placed.parts[0]
     assert part.curve_style == "angled"
-    assert part.curve_angle_garmin == pytest.approx(90.0)  # to_garmin(0deg)
+    assert part.curve_angle_garmin == pytest.approx(0.0)  # garmin_curve_angle("angled", 0deg)
     assert part.curve_angle_degrees == 0.0
 
 
@@ -251,8 +254,8 @@ def test_angle_expr_composes_local_angle_with_element_start_for_radial(write_des
     assert element.start_angle == 0.0
     assert element.step_angle == pytest.approx(90.0)  # 360 / 4
     expr = _emit_pattern_text_angle_expr(element, part)
-    # g0 = to_garmin(0deg) - 0.0 = 90.0; step = 90.0
-    assert expr == "90.0 - i * 90.0"
+    # g0 = garmin_curve_angle("angled", 0deg) - 0.0 = 0.0; step = 90.0
+    assert expr == "0.0 - i * 90.0"
 
 
 def test_angle_expr_folds_element_start_angle_into_g0(write_design, bag, db):
@@ -264,8 +267,8 @@ def test_angle_expr_folds_element_start_angle_into_g0(write_design, bag, db):
     part = placed.parts[0]
     element = face.elements[0]
     expr = _emit_pattern_text_angle_expr(element, part)
-    # g0 = 90.0 (to_garmin(0)) - 10.0 (element.start_angle) = 80.0
-    assert expr == "80.0 - i * 90.0"
+    # g0 = 0.0 (garmin_curve_angle("angled", 0deg)) - 10.0 (element.start_angle) = -10.0
+    assert expr == "-10.0 - i * 90.0"
 
 
 def test_angle_expr_has_no_per_copy_term_for_a_linear_pattern(write_design, bag, db):
@@ -276,8 +279,8 @@ def test_angle_expr_has_no_per_copy_term_for_a_linear_pattern(write_design, bag,
     element = face.elements[0]
     expr = _emit_pattern_text_angle_expr(element, part)
     assert "i *" not in expr
-    # to_garmin(20deg) = 90 - 20 = 70.0
-    assert expr == "70.0"
+    # garmin_curve_angle("angled", 20deg) = (-20) % 360 = 340.0
+    assert expr == "340.0"
 
 
 # --------------------------------------------------------------------------
@@ -297,7 +300,7 @@ def test_angled_pattern_part_emits_draw_angled_text(write_design, bag, db):
     # x, y (rotated anchor), font, text, justification, angle -- in order.
     assert call.index("WfbGeom.rotatedX") < call.index("WfbGeom.rotatedY") < call.index("font0")
     assert call.index("font0") < call.index("TEXT_JUSTIFY")
-    assert call.index("TEXT_JUSTIFY") < call.index("90.0 - i * 90.0")
+    assert call.index("TEXT_JUSTIFY") < call.index("0.0 - i * 90.0")
 
 
 def test_radial_style_pattern_part_emits_draw_radial_text_and_radius_constant(
