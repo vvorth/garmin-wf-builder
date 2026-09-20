@@ -695,7 +695,7 @@ def test_a_config_design_compiles_warning_free_on_every_target(
     """The bar CLAUDE.md and this task both set: real `monkeyc`, all three
     targets, **warning-free**, not merely successful.  `config-unsupported`
     is expected on fr955 and is accepted explicitly here, the same way
-    `examples/config/face.yaml` accepts it -- so this asserts `bag.ok()` for
+    `examples/features/config/face.yaml` accepts it -- so this asserts `bag.ok()` for
     errors and a *known, filtered* set of warnings, not zero warnings
     outright, which is the one place this test cannot mirror
     `test_static.py`'s stricter assertion.

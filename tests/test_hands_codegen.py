@@ -1,4 +1,4 @@
-"""Codegen for analog hands (plan 04), mostly through `examples/analog/
+"""Codegen for analog hands (plan 04), mostly through `examples/features/analog/
 face.yaml` -- the one example that ships two hand sets in two layouts, an
 off-centre subdial, a `config.*` hand colour, `seconds: awake` and a set with
 no second hand at all.
@@ -23,14 +23,14 @@ from wfb.emit.resources import bake_fonts
 from wfb.layout import PlacedHands, resolve
 
 ROOT = Path(__file__).resolve().parent.parent
-DESIGN = ROOT / "examples" / "analog" / "face.yaml"
+DESIGN = ROOT / "examples" / "features" / "analog" / "face.yaml"
 
 
 @pytest.fixture(scope="module")
 def resolved(db):
     # Fails rather than skips: a skip once silently turned the goldens off
     # (tests/CLAUDE.md), and this module is the goldens' stand-in for hands.
-    assert DESIGN.exists(), "examples/analog/face.yaml is missing"
+    assert DESIGN.exists(), "examples/features/analog/face.yaml is missing"
     bag = Bag()
     face = load(DESIGN, bag)
     assert face is not None, bag.render()

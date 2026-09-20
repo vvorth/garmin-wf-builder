@@ -161,7 +161,7 @@ def _pattern_needs_math(placed: "PlacedPattern") -> bool:
     every part is an `arc`: an arc's start angle turns by plain degree
     subtraction through `WfbArc.drawSpan`'s own `startDegrees` parameter,
     not by rotating a coordinate -- so an all-arc radial pattern
-    (`segments` in `examples/patterns/face.yaml`) needs no `sin`/`cos` and
+    (`segments` in `examples/features/patterns/face.yaml`) needs no `sin`/`cos` and
     therefore no `Toybox.Math` either.  A text part is on the same footing
     as a filled circle's centre here: only its *anchor* is rotated (the
     glyphs themselves stay upright), but `WfbGeom.rotatedX`/`rotatedY` (split

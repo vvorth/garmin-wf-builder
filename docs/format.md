@@ -1061,7 +1061,7 @@ therefore cannot drift into meaning different things. The gate on that claim is
 that a design written both ways generates byte-identical Monkey C, resources,
 manifest and jungle for every target
 (`tests/test_desugar.py::test_the_two_forms_generate_byte_identical_output`);
-`examples/complications/face.yaml` is written in the mapping form for the same
+`examples/features/complications/face.yaml` is written in the mapping form for the same
 reason, as a working proof rather than a snippet.
 
 **Order still matters in the mapping form.** A YAML mapping is ordered as
@@ -1582,7 +1582,7 @@ as one `Array<Graphics.Point2D>` constant, so the device does no arithmetic
 (ADR 0004). `fillPolygon` documents a **64-point limit**, which the schema
 enforces.
 
-See `examples/shapes/face.yaml` for all seven on one face.
+See `examples/features/shapes/face.yaml` for all seven on one face.
 
 ### `text`
 
@@ -2213,7 +2213,7 @@ way, inherited from the element's group or the face — but, unlike
 `thickness:`/rectangle `size:` are exactly the lengths the switch clamps.
 See "`min_1px:`" above.
 
-See `examples/analog/face.yaml` for a design exercising two hand sets, an
+See `examples/features/analog/face.yaml` for a design exercising two hand sets, an
 off-centre small-seconds subdial, all four part shapes, a `config.*` hand
 colour, a pin above the hands, and anti-aliased hands in one layout only
 (`classic`), together. It builds warning-free on all
@@ -2402,7 +2402,7 @@ Monkey C may disagree about the sign of `%` on a negative number, which is
 unverified and applies to every expression, not only this one.
 
 A text part in a pattern costs little. The two text patterns in
-`examples/patterns/` (12 numerals and 7 weekday initials, in one custom
+`examples/features/patterns/` (12 numerals and 7 weekday initials, in one custom
 font) add about 470 B together on `fenix8solar47mm`.
 
 #### `when_absent:` on a pattern
@@ -2532,7 +2532,7 @@ radial pattern it is also the disc of its farthest ink from the centre.
 `circular_extent()` checks a full-dial tick ring as the disc it is, the
 same way it checks hands, so a ring does not warn as cropped.
 
-See `examples/patterns/face.yaml` for every part shape, both kinds,
+See `examples/features/patterns/face.yaml` for every part shape, both kinds,
 `start:`, `skip:` and `skip_every:`, a two-part template, patterns in and
 out of `static:`, a per-copy colour (`week_dots`, today lit), and
 `when_absent: hide` with a per-copy part `visible:` (`test_visibility`, a

@@ -384,7 +384,7 @@ renderer can be trusted. It is a capability hand authors do not have.
 >
 > **Plan 07 is complete as of 2026-09-15 (phase E).** Every kind this
 > section lists as accepting the two keys does; the rejections above are
-> the whole set that refuses them. `examples/align/face.yaml` is the
+> the whole set that refuses them. `examples/features/align/face.yaml` is the
 > reference design exercising every accepting kind with non-default
 > alignment on both axes, and `docs/format.md`'s "Placement: `at:` and
 > `align:`" section is the one place the rule is written down in full.

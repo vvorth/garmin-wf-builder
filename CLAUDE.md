@@ -91,7 +91,7 @@ investigating. Full account: `docs/lore/toolchain.md`.
 ## 3. Building
 
 ```sh
-./.venv/bin/python wfb.py build examples/graph/face.yaml   # 3 signed .prg, warning-free
+./.venv/bin/python wfb.py build examples/features/graph/face.yaml   # 3 signed .prg, warning-free
 $CIQ_SDK/bin/monkeyc -f monkey.jungle -d fenix8solar47mm \
     -o out.prg -y ~/ciq/developer_key.der -w -l 3          # generated jungle sets -O 3z itself
 $CIQ_SDK/bin/monkeyc … --build-stats 0                     # memory: the figure that counts
@@ -152,7 +152,7 @@ re-litigate these without new evidence.**
      global).
    - **9c.** **All four axes are in use; none is free.** **Decided and built
      2026-09-13:** colours *and* widget layouts share Styles as explicitly
-     listed entries. See `docs/format.md`; `examples/styles/face.yaml`.
+     listed entries. See `docs/format.md`; `examples/features/styles/face.yaml`.
 10. **`alphaBlendingSupport: false`**: no transparency.
 11. **The graphics pool (1 MB) is separate** from the 128 KB, so a
     `BufferedBitmap` is cheap.

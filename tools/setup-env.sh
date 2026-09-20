@@ -241,12 +241,12 @@ cat <<EOF
 
 Setup complete. Build an example end to end:
 
-  ./wfb.py build examples/graph/face.yaml
+  ./wfb.py build examples/features/graph/face.yaml
 
 Expected: three signed .prg files and a measured memory figure per device, with
 no warnings. Then:
 
-  ./wfb.py preview examples/graph/face.yaml    # PNG in build/preview/, no toolchain
+  ./wfb.py preview examples/features/graph/face.yaml    # PNG in build/preview/, no toolchain
   ./wfb.py doctor                              # what is installed, and what is missing
 
 To run \`wfb\` from any folder, add this alias to your shell profile:

@@ -10,7 +10,7 @@ docker run --rm \
   -v "$PWD:/work" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
   -v wfb-keys:/keys \
-  garmin-wf-builder build examples/graph/face.yaml
+  garmin-wf-builder build examples/features/graph/face.yaml
 ```
 
 (a `-v "<Fonts dir>:/fonts:ro"` mount is also accepted, and optional — see
@@ -208,7 +208,7 @@ Use `wfb preview` instead:
 
 ```sh
 docker run --rm -v "$PWD:/work" -v "$DEVICES:/devices:ro" \
-  garmin-wf-builder preview examples/graph/face.yaml --scale 3
+  garmin-wf-builder preview examples/features/graph/face.yaml --scale 3
 ```
 
 It renders from the **same resolved geometry the generated Monkey C uses**, so

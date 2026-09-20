@@ -93,7 +93,8 @@ def test_no_runtime_lib_function_declares_more_than_9_parameters():
     assert not offenders, "\n".join(offenders)
 
 
-@pytest.mark.parametrize("example", ["patterns", "analog", "showcase"])
+@pytest.mark.parametrize(
+    "example", ["features/patterns", "features/analog", "showcase"])
 def test_no_generated_function_declares_more_than_9_parameters(example, tmp_path, db):
     """The barrel is not the only place a >9-parameter function could grow --
     a generated per-element `drawX` method could too. Builds three examples

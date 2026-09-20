@@ -1,12 +1,16 @@
-# Analog -- a hands-only dial. Each `layouts:` entry carries its own hand
-# set (full three-hand `classic` variants, one with a small-seconds subdial;
-# hour-and-minute `sport`), switched by Styles together with a colour
-# scheme. The shared dial sits in the top-level `static:`.
+# Analog Custom -- a hand-tuned analog face, built from `examples/features/analog/`
+# and taken further into something wearable: a custom numeral font
+# (`assets/Dynalight-Regular.ttf`), hour numerals, two date windows and four
+# colour schemes on the Styles axis.
+#
+# Two `layouts:`: `classic`, drawn by hand, and `classic_generated`, kept as
+# the generated starting point it grew out of (it carries the small-seconds
+# subdial).
 #
 # fr955 has no native editor, so it keeps the default style.
 #
-# Build it:    ./wfb.py build examples/analog/face.yaml
-# Preview it:  ./wfb.py preview examples/analog/face.yaml --time 10:09:42 [--asleep]
+# Build it:    ./wfb.py build examples/analog-custom/face.yaml
+# Preview it:  ./wfb.py preview examples/analog-custom/face.yaml --time 10:09:42 [--asleep]
 #
 # yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
 

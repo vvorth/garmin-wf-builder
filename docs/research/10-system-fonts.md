@@ -350,7 +350,7 @@ existing `FILES` dict; no re-derivation needed).
 ## 9. Calibration against the simulator (2026-09-18)
 
 The user ran the metrics probe (`docs/research/probes/system-font-metrics/`)
-and the three comparison faces (`examples/system-fonts*`) in the Connect IQ
+and the three comparison faces (`examples/system-fonts/*`) in the Connect IQ
 simulator on macOS for all three targets. They also copied their SDK
 Manager's `ConnectIQ/Fonts` into `vendor/fonts/`: 36 `.ttf`, 189 `.cft` and
 225 `.md5` files. Every file is named after the device font name, e.g.

@@ -1,0 +1,248 @@
+# Analog hands (docs/format.md "Analog hands"): `hands:` sets and `type:
+# hands` elements, switched by Styles the same way `examples/features/styles/face.yaml`
+# switches widget layouts.
+#
+# What this design exercises, none of it shown together anywhere else in
+# `examples/`:
+#
+# * **Two hand sets in two `layouts:` entries**, `classic` (hour, minute and
+#   second) and `sport` (hour and minute only -- `sport` therefore has **no
+#   second hand drawn at all** -- any subset of the three may be present) --
+#   switched by **three `config: style:` entries** over **two colour
+#   schemes**, the pattern docs/format.md "Analog hands" describes.
+# * **All four rotatable part shapes** on one hand set: `classic`'s hour is a
+#   tapered `polygon`, its minute is a `rectangle` (folded into a polygon at
+#   build time) plus a `circle` hub, and its second is a `line` with a
+#   `circle` counterweight and a small `circle` centre cap.
+# * **An off-centre axis**: `small_secs` places the `small_seconds` set's
+#   axis at `{anchor: center, dy: 45%r}`, inside its own decorative static
+#   ring: the axis is wherever the element's own `at:` puts it.
+# * **`seconds: awake`** (the default) on both `main_hands` and `small_secs`
+#   -- the second hand and the subdial alike vanish while the watch sleeps.
+# * **A `config.*` colour on a hand**: `classic`'s second hand is
+#   `config.accent_color`, the one native accent-colour axis, read exactly
+#   like a shape's own `color:` would be.
+# * **Anti-aliased hands in one layout only**: `classic`'s two hands
+#   elements set `antialias: true` (a per-element runtime `Dc.setAntiAlias`,
+#   set and restored around their own drawing), while `sport` keeps the face
+#   default and draws crisp. `wfb preview` cannot show the difference: it
+#   draws primitives aliased (docs/limitations.md).
+# * **A pin above the hands**: `center_pin`, an ordinary `shape: circle`
+#   element placed *after* `main_hands`/`small_secs` in `classic`'s own
+#   `elements:` -- hands draw hour, minute, second, and anything placed
+#   after the element draws above all three.
+#
+# The shared dial -- a background, an outer ring and four cardinal ticks,
+# none of it bound to anything -- sits in the design's own top-level
+# `static:`, drawn in every style beneath whichever layout is active
+# (docs/format.md "Styles and layouts": layout content always draws above
+# shared content).
+#
+# `fr955` has no native editor at all (CLAUDE.md constraint 6): it simply
+# keeps the compiled-in default entry (`classic_dark`) and the compiled-in
+# `accent_color` default forever, the same "keeps every declared default"
+# behaviour every other `config:` axis already has there --
+# `config-unsupported`, accepted below on the two elements that bind one.
+#
+# What is verified: this design builds warning-free through the real
+# `monkeyc` on all three targets (`--build-stats` recorded in
+# `docs/history.md`, 2026-09-14 "Analog hands built"). What is NOT verified
+# anywhere in this project: what any of it looks like, whether the second
+# hand actually vanishes on the first sleeping frame, and whether the axes
+# point where the preview says at a real clock time -- there is no simulator
+# and no watch in this container. `wfb preview --time
+# 10:09:42`/`--asleep` is the same resolved geometry the generated code
+# draws from, rendered with no simulator.
+#
+# Build it with:     ./wfb.py build examples/features/analog/face.yaml
+# Preview it with:   ./wfb.py preview examples/features/analog/face.yaml --time 10:09:42
+# Preview asleep:    ./wfb.py preview examples/features/analog/face.yaml --time 10:09:42 --asleep
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 8c5f1022-ed4c-4aaa-bf4a-c61224389ce9
+  name: Analog
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour below -- palette, color_scheme and config alike -- is one the
+# 64-colour MIP panel can show without dithering: each channel is 0x00, 0x55,
+# 0xAA or 0xFF.
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  dark_gray: "#555555"
+  light_gray: "#AAAAAA"
+  orange: "#FF5500"
+  cyan: "#00FFFF"
+
+color_scheme:
+  dark:
+    label: "Dark"
+    colors: { bg: palette.black, fg: palette.white, track: palette.dark_gray }
+  light:
+    label: "Light"
+    colors: { bg: palette.white, fg: palette.black, track: palette.light_gray }
+
+config:
+  accent_color:
+    default: palette.orange
+    choices: [palette.orange, palette.cyan, palette.white]
+  style:
+    default: classic_dark
+    choices:
+      classic_dark: { label: "Classic · Dark", layout: classic, colors: dark }
+      classic_light: { label: "Classic · Light", layout: classic, colors: light }
+      sport: { label: "Sport", layout: sport, colors: dark }
+
+# One named set per style, drawn pointing at 12 o'clock in a frame whose
+# origin is the axis (docs/format.md "Analog hands").
+hands:
+  classic:
+    hour:
+      # color: config.colors.fg
+      parts:
+        - shape: polygon # backgrouond colored outline, same shape, a little bigger
+          color: config.colors.bg
+          points:
+            - { dx: -5%r, dy: 8%r } # 6%r *behind* the axis: a tail
+            - { dx: -4%r, dy: -40%r }
+            - { dy: -47%r } # the tip, straight up
+            - { dx: 4%r, dy: -40%r }
+            - { dx: 5%r, dy: 8%r }
+        - shape: polygon # pointing at 12; origin = the axis
+          color: config.colors.fg
+          points:
+            - { dx: -3%r, dy: 6%r } # 6%r *behind* the axis: a tail
+            - { dx: -2%r, dy: -38%r }
+            - { dy: -44%r } # the tip, straight up
+            - { dx: 2%r, dy: -38%r }
+            - { dx: 3%r, dy: 6%r }
+    minute:
+      color: config.colors.fg
+      parts:
+        - { shape: rectangle, at: { dy: -30%r }, size: { width: 7%r, height: 74%r }, color: config.colors.bg }
+        - { shape: circle, radius: 6%r, color: config.colors.bg } # a hub
+        - { shape: rectangle, at: { dy: -30%r }, size: { width: 3%r, height: 70%r } }
+        - { shape: circle, radius: 4%r, color: palette.light_gray } # a hub
+    second:
+      color: config.accent_color # a config.* colour on a hand
+      parts:
+        - { shape: line, at: { dy: 15%r }, to: { dy: -82%r }, thickness: 2px }
+        - { shape: circle, at: { dy: 15%r }, radius: 3%r } # counterweight
+        - { shape: circle, radius: 2%r, color: palette.black } # centre cap
+
+  sport:
+    hour:
+      color: config.colors.fg
+      parts:
+        - shape: polygon
+          points:
+            - { dx: -4%r, dy: 8%r }
+            - { dy: -50%r }
+            - { dx: 4%r, dy: 8%r }
+    minute:
+      color: config.colors.fg
+      parts:
+        - { shape: rectangle, at: { dy: -42%r }, size: { width: 3%r, height: 92%r } }
+    # No `second:` at all -- `sport` never draws a second hand.
+
+  small_seconds:
+    second:
+      color: config.colors.fg
+      parts:
+        - { shape: line, at: { dy: 3%r }, to: { dy: -20%r }, thickness: 1px }
+
+# Shared: drawn underneath both layouts, in every one of them.
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    # color: palette.light_gray
+    color: config.colors.bg
+
+  dial_ring:
+    type: shape
+    shape: arc
+    at: { anchor: center }
+    radius: 92%r
+    thickness: 3px
+    start_angle: 0deg
+    sweep: 360deg
+    color: config.colors.track
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps every declared default
+        forever, which is this example's whole point -- see the header
+        comment."
+
+  ticks:
+    type: group
+    children:
+      - { id: tick_12, shape: line, type: shape, at: { angle: 0deg, radius: 84%r }, to: { angle: 0deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
+      - { id: tick_3, shape: line, type: shape, at: { angle: 90deg, radius: 84%r }, to: { angle: 90deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
+      - { id: tick_6, shape: line, type: shape, at: { angle: 180deg, radius: 84%r }, to: { angle: 180deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
+      - { id: tick_9, shape: line, type: shape, at: { angle: 270deg, radius: 84%r }, to: { angle: 270deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps every declared default
+        forever, the same as dial_ring above."
+
+layouts:
+  classic:
+    static:
+      subdial_ring:
+        type: shape
+        shape: circle
+        filled: false
+        at: { anchor: center, dy: 45%r }
+        radius: 22%r
+        thickness: 2px
+        color: config.colors.track
+
+    elements:
+      main_hands:
+        type: hands
+        hands: classic
+        at: { anchor: center }
+        seconds: awake
+        antialias: true # soft rotated edges; `sport` stays crisp
+        lint:
+          allow: [antialias-dither]
+          reason: "A soft edge on the 64-colour MIP panel dithers; accepted
+            here so a rotated polygon does not stair-step. Reported against
+            this element, the first to draw anti-aliased, for the whole
+            device."
+
+      small_secs:
+        type: hands
+        hands: small_seconds
+        at: { anchor: center, dy: 45%r } # an off-centre axis
+        seconds: awake
+        antialias: true
+
+      # A pin above every hand: an ordinary shape drawn after
+      # the hands elements above, so it lands on top of them.
+      center_pin:
+        type: shape
+        shape: circle
+        at: { anchor: center }
+        radius: 5%r
+        color: config.colors.bg
+
+  sport:
+    elements:
+      sport_hands:
+        type: hands
+        hands: sport
+        at: { anchor: center }
+        # No `seconds:` -- `sport` has no second hand to gate.

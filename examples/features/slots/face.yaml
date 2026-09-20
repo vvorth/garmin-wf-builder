@@ -1,0 +1,175 @@
+# `config: data:` -- the native editor's **Data axis**: named complication
+# slots the wearer re-points at a different Garmin metric, on the watch, with
+# the editor's own instant preview (docs/research/09-data-library-and-config-
+# axes.md §4). `type: complication_slot` is the element that draws one.
+#
+# Two slots below, deliberately different shapes of the feature:
+#
+# * `top_reading` has an explicit `choices:` list (steps, heart rate,
+#   calories) and `icon_size:`, so its icon is chosen **on-device** from
+#   `Complications.Id.getType()` -- a generated `switch` maps the wearer's
+#   pick to a catalogue name (`wfb.icons.COMPLICATION_ICON`, all 42 native
+#   types since 2026-09-13), and `IconGlyphs.glyph()` turns that name into the
+#   drawn character, the same "which name, then which glyph" split a dynamic
+#   weather icon already uses.
+#   - Per-choice icon overrides (plan 03 §6.1/§6.2): `steps` keeps its
+#     catalogue default (`steps`); `heart_rate` swaps its default (`heart`)
+#     for a custom glyph from the vendored font, `glyph: "U+F05F6"` (Material
+#     Design `md-heart_pulse`, which the catalogue does not name); `calories`
+#     draws no icon at all with `icon: none`, even though the catalogue maps
+#     it to `flame`. Overrides live on the choice, so every element drawing
+#     this slot shares them.
+#   - On the element: `icon_size: 8%r` is the icon's height, `icon_position:
+#     right` puts it after the reading, `icon_gap: 2px` tightens the space
+#     between them (the default is 4px), and `icon_color: palette.accent`
+#     draws the icon in the accent colour while the reading stays
+#     `palette.fg`. The last three are rejected with an explanation unless
+#     `icon_size:` is also declared.
+#   `label: short` and `unit: true` also draw whatever `Complication.
+#   shortLabel`/`.unit` the device supplies alongside the value. It also
+#   declares `on_hold: auto` -- touch and hold opens whatever glance the
+#   wearer's *current* pick belongs to (`Complications.exitTo` on this slot's
+#   own id), resolved fresh on every hold rather than a fixed name baked in
+#   at build time. `auto` is the *only* spelling accepted here: a fixed
+#   target would silently disagree with what is on screen the moment the
+#   wearer repoints the slot -- see `wfb/ir/builder.py`'s `Builder.
+#   _build_complication_slot` for the error this produces if you try.
+# * `bottom_reading` uses `choices: any` -- the editor's own unrestricted
+#   complication picker -- and still declares `icon_size:`. **Superseded
+#   2026-09-13** (plan 03 §6.6): `any` used to forbid `icon_size:` outright,
+#   since the set of icons an unbounded picker could need was unbounded and
+#   nothing could be baked ahead of time. Now that every native complication
+#   type has a catalogue icon, `any` resolves against the whole of
+#   `wfb.icons.COMPLICATION_ICON`: all 42 icons are baked, and a Connect IQ
+#   app's own complication, which the compiler cannot know, draws its reading
+#   with no icon. (Building this exposed a monkeyc crash on two string
+#   literals with the same Java hash, such as the `distance` and
+#   `temperature` glyphs; the compiler now avoids it by building a colliding
+#   glyph at runtime. See `docs/lore/toolchain.md`.) It declares no `on_hold:`
+#   at all -- holding it does nothing, which is a legitimate choice.
+#
+# Neither slot declares `format:` -- it is a schema-and-IR error on this
+# element, on purpose: `Complications.Complication.value` is a `String or
+# Number or Float or Long or Double` union whose concrete type genuinely
+# varies by which choice the wearer makes, so a format string written for one
+# choice would be silently wrong for another. Both slots render
+# the value as the watch reports it (a Float rounded to three significant
+# figures: 12.879 -> 12.9) and fall back to `placeholder:` while the platform has
+# not (yet) delivered a reading -- `when_absent: hide` (the default) would
+# instead blank just the *reading* and leave the icon drawn, which is what a
+# `complication_slot` does differently from every other element's `hide`.
+#
+# `fr955` has no native editor at all (CLAUDE.md constraint 6: it reports
+# ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still lacks
+# it) -- it simply keeps both slots' compiled-in `default:` forever, exactly
+# like every other `config:` axis. The suppressible `config-unsupported`
+# warning is accepted explicitly below rather than left to be discovered on
+# the wrist.
+#
+# What is verified: this design compiles warning-free, through the real
+# `monkeyc`, on all three targets -- including the generated manifest's
+# `minApiLevel="4.2.0"` and `<iq:uses-permission id="ComplicationSubscriber"/>`,
+# which a `config: data:` slot needs even though it binds no ordinary
+# `complication.<name>` data source at all. Both the live-face hold
+# (`top_reading`'s `on_hold: auto` -> `Complications.exitTo`) and the native
+# editor's machinery (`AppBase.onStart`'s edit-mode flag, `WatchFaceDelegate.
+# onTap`/`getComplicationDrawable`, the generated `SlotsSlotDrawable`) are
+# emitted and build warning-free on every target, `fr955` included -- it has
+# no editor at all and simply never calls any of the editor-only methods.
+# What is NOT verified anywhere in this project: any *behaviour* of the
+# on-device editor itself (no simulator in this container, no watch) --
+# whether the two slots list correctly, whether switching a slot's type
+# previews instantly, whether the animated highlight actually animates or
+# lines up with what is drawn, whether `icon_position: right`'s icon+reading
+# pair actually looks right on the wrist, and whether `on_hold`'s hit region
+# reads correctly on a real touchscreen are all UNVERIFIED. What is verified
+# is only that all of it compiles warning-free, that `wfb preview` renders
+# the expected layout, and that none of it crashes a device with no editor
+# (`fr955`).
+#
+# Build it with:  ./wfb.py build examples/features/slots/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 3d9e5c1a-6f27-4b8d-9a4e-7c2f6d8b1e93
+  name: Slots
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  accent: "#00AAFF"   # 64-colour MIP safe: each channel 00/55/AA/FF
+
+config:
+  data:
+    top:
+      default: complication.steps
+      choices:
+        - complication.steps
+        - { type: complication.heart_rate, glyph: "U+F05F6" }  # custom glyph
+        - { type: complication.calories, icon: none }          # no icon
+    bottom:
+      default: complication.body_battery
+      choices: any          # the editor's own full complication picker
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_HOT
+    at: { anchor: center, dy: -4% }
+    color: palette.fg
+
+  - id: top_reading
+    type: complication_slot
+    slot: config.data.top
+    at: { anchor: center, dy: -28% }
+    font: FONT_SMALL
+    icon_size: 18%r
+    icon_position: right
+    icon_gap: 2%r
+    # icon_gap: 2px
+    icon_color: palette.accent
+    color: palette.fg
+    label: short
+    unit: true
+    when_absent: placeholder
+    placeholder: "--"
+    on_hold: auto
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps this slot's declared
+        default forever, which is this example's whole point -- see the
+        header comment"
+
+  - id: bottom_reading
+    type: complication_slot
+    slot: config.data.bottom
+    at: { anchor: center, dy: 28% }
+    font: FONT_SMALL
+    icon_gap: 2%r
+    icon_size: 18%r
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps this slot's declared
+        default forever, which is this example's whole point -- see the
+        header comment"

@@ -76,8 +76,8 @@ out, each on its own, all with the crash unchanged: `GDK_BACKEND=x11`
 (forcing Xwayland instead of whatever default), `JSC_useJIT=0` /
 `WEBKIT_JAVASCRIPTCORE_USE_JIT=0` (in case it was WebKit's JIT — moot
 anyway, since the backtrace never enters WebKit), two different devices
-(`fenix8solar47mm`, `fr955`), and two different `.prg`s (`examples/graph`,
-`examples/shapes`). The absolute-address load is consistent with a
+(`fenix8solar47mm`, `fr955`), and two different `.prg`s (`examples/features/graph`,
+`examples/features/shapes`). The absolute-address load is consistent with a
 compile-time-folded null-pointer field access baked into the simulator's
 own optimized code, not an environment, display-server, or WebKit-ABI
 problem — this SDK 9.2.0 build's `monkeydo`-triggered app load is broken

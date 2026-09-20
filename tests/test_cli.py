@@ -293,7 +293,7 @@ def test_parse_preview_time_rejects_anything_else(bad):
 def test_preview_reports_a_clean_error_for_a_bad_time(db):
     """`wfb preview --time` gives one readable error, not an uncaught
     ValueError from inside the renderer."""
-    result = run("preview", "examples/analog/face.yaml", "--time", "not-a-time",
+    result = run("preview", "examples/features/analog/face.yaml", "--time", "not-a-time",
                  "-d", "fenix8solar47mm", "-o", "build/preview")
     assert result.returncode == 1
     assert "not-a-time" in result.stderr
@@ -304,7 +304,7 @@ def test_preview_renders_a_device_that_is_not_a_target(db, tmp_path):
     """`wfb preview -d` takes any installed device, like `wfb build -d`."""
     if "fenix7pro" not in db.ids():
         pytest.skip("fenix7pro is not installed")
-    result = run("preview", "examples/sun/face.yaml", "-d", "fenix7pro",
+    result = run("preview", "examples/features/sun/face.yaml", "-d", "fenix7pro",
                  "-o", str(tmp_path), "--color", "never")
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "fenix7pro.png").exists()

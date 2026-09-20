@@ -175,10 +175,10 @@ def test_the_two_forms_generate_byte_identical_output(write_design, db, tmp_path
 
 
 def test_the_real_example_still_desugars(pytestconfig, bag):
-    """`examples/complications/` is the mapping form in anger -- so the same
+    """`examples/features/complications/` is the mapping form in anger -- so the same
     rewrite runs over a real design, not only over a fixture written to
     order."""
-    design = pytestconfig.rootpath / "examples" / "complications" / "face.yaml"
+    design = pytestconfig.rootpath / "examples" / "features" / "complications" / "face.yaml"
     if not design.exists():
         pytest.skip("the example is missing")
     doc = yamlsrc.load(design, bag)

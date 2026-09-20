@@ -8,4 +8,4 @@ docs/research/probes/
 docs/research/data/
 vendor/
 build/
-examples/*/assets/
+examples/**/assets/

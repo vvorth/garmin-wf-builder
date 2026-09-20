@@ -573,7 +573,7 @@ lint:
 
 ## 11. More features, from the other examples
 
-### Alignment around a point: [`examples/align`](examples/align/face.yaml)
+### Alignment around a point: [`examples/features/align`](examples/features/align/face.yaml)
 
 ```yaml
 steps_slot:
@@ -598,7 +598,7 @@ grows away from it, so the four corners stay symmetric whatever their content.
 - shapes other than `polygon` and `line`
 - rectangle, circle and text parts of hands and patterns
 
-### Pattern repeats: [`examples/patterns`](examples/patterns/face.yaml)
+### Pattern repeats: [`examples/features/patterns`](examples/features/patterns/face.yaml)
 
 ```yaml
 hour_ticks:
@@ -638,7 +638,7 @@ can use it in a colour, a part's `visible:`, or a text part's `value:`. Parts
 may also be an `arc` centred on the pattern (the slate ring segments).
 `start:` rotates the first copy (the orange diagonal triangles).
 
-### Graph styles and series: [`examples/graph`](examples/graph/face.yaml)
+### Graph styles and series: [`examples/features/graph`](examples/features/graph/face.yaml)
 
 ```yaml
 hr_graph:    { type: graph, series: heart_rate, range: 4h, buckets: 32,
@@ -660,7 +660,7 @@ Four families of series can be plotted:
 The platform keeps pressure, stress and Body Battery history away from watch
 faces. The preview draws a stand-in curve, not real data.
 
-### Shapes: [`examples/shapes`](examples/shapes/face.yaml)
+### Shapes: [`examples/features/shapes`](examples/features/shapes/face.yaml)
 
 ```yaml
 card:    { type: shape, shape: rounded_rectangle, corner_radius: 6px,
@@ -680,7 +680,7 @@ The shapes are `rectangle`, `rounded_rectangle`, `circle`, `ellipse`, `line`,
 plus `thickness:`). An arc is a stroke only. The platform has no filled arc, no
 rounded caps and no gradients.
 
-### Several hand sets and a subdial: [`examples/analog`](examples/analog/face.yaml)
+### Several hand sets and a subdial: [`examples/features/analog`](examples/features/analog/face.yaml)
 
 ```yaml
 hands:
@@ -691,9 +691,9 @@ hands:
     second: { parts: [{ shape: line, at: { dy: 3%r }, to: { dy: -20%r } }] }
 
 layouts:
-  classic_generated:
+  classic:
     elements:
-      main_hands: { type: hands, hands: classic_generated, at: { anchor: center } }
+      main_hands: { type: hands, hands: classic, at: { anchor: center } }
       small_secs: { type: hands, hands: small_seconds,
                     at: { anchor: center, dy: 45%r } }   # an off-centre axis
 ```
@@ -701,13 +701,13 @@ layouts:
 ![analog example styles](docs/screenshots/analog-styles.png)
 
 Each style can use its own hand set. A set can omit any hand, and a `type:
-hands` element can sit anywhere, such as a small-seconds subdial at 6 o'clock
-(fourth panel).
+hands` element can sit anywhere, such as the small-seconds subdial below the
+centre in the two `classic` panels. `sport` has no `second:` at all, so the
+third panel never shows seconds.
 
-In the first three panels, "Wed" spills out of its date window. That is the
-preview, not the watch: the window's text uses the system font `FONT_TINY`, and
-the preview draws system fonts with a stand-in whose letter widths differ
-from Garmin's own face ([Preview caveats](#preview-caveats)).
+[`examples/analog-custom`](examples/analog-custom/face.yaml) takes the same
+pieces further into a face you would wear: a custom numeral font, hour
+numerals and date windows.
 
 ### Features with no example face yet
 
@@ -747,7 +747,7 @@ Glyphs and data are not:
 - **`complication.*` read by a `text` or `progress` element has no sample
   value.** It shows as absent. For example, the showcase's Body Battery
   readout shows `--` right next to a slot showing `62`, and
-  [`examples/sun`](examples/sun/face.yaml) renders as a blank screen.
+  [`examples/features/sun`](examples/features/sun/face.yaml) renders as a blank screen.
 - **An `icon_for:` weather icon always draws.** Weather has no sample value,
   so the readout beside it shows `--°`. On the watch, the icon is hidden when
   there is no weather data.

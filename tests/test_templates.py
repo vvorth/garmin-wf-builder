@@ -91,10 +91,14 @@ def test_template_compiles(tmp_path, bag, db, name):
 
 # -- the worked examples ----------------------------------------------------
 
-EXAMPLES = sorted((Path(__file__).resolve().parent.parent / "examples").glob("*/face.yaml"))
+EXAMPLE_DIR = Path(__file__).resolve().parent.parent / "examples"
+#: Every example, at any depth: `examples/features/` and `examples/system-fonts/`
+#: group them, so a flat glob would sweep none of those up.
+EXAMPLES = sorted(EXAMPLE_DIR.rglob("*/face.yaml"))
 
 
-@pytest.mark.parametrize("design", EXAMPLES, ids=lambda p: p.parent.name)
+@pytest.mark.parametrize(
+    "design", EXAMPLES, ids=lambda p: str(p.parent.relative_to(EXAMPLE_DIR)))
 def test_example_is_clean_on_every_target(design, bag, db):
     """An example is copied verbatim, so a warning in one teaches the warning."""
     from wfb import lint

@@ -75,7 +75,7 @@ outlined polygon (the same "no `drawPolygon`" limit above). **Coordinates
 resolve to whole pixels in the hand's own frame**, so a hand thinner than
 about 2 px may lose its taper. **Edges of a rotated polygon alias on a
 64-colour MIP panel** — `antialias:` is the lever, with the usual
-`antialias-dither` tradeoff (`examples/analog/`'s `classic` layout pulls
+`antialias-dither` tradeoff (`examples/features/analog/`'s `classic` layout pulls
 it), and what it looks like is unobserved: `wfb preview` draws hands
 aliased either way. **Hand
 colours cannot read data**, only palette, literal and `config.*` — a hand
@@ -107,13 +107,13 @@ hands have.
   `formatting.emit` call on the device is unmeasured, and costs nothing
   inside `static:`.
 - **Colours** may read `copy` (the index of the copy being drawn) and any
-  source that is never absent, such as `date.weekday`. `examples/patterns/`'s
+  source that is never absent, such as `date.weekday`. `examples/features/patterns/`'s
   row of dots lights today's this way. They may read a source that **can**
   be absent only when the pattern has `when_absent: hide`: absence then
   hides the whole pattern, checked once per frame before the loop.
 - **Part `visible:`** is a boolean expression evaluated per copy, with `copy`
   bound as in a colour, and hides just that part for that copy
-  (`examples/patterns/`'s `test_visibility`).
+  (`examples/features/patterns/`'s `test_visibility`).
 
 The device cost of the per-copy colour, the per-frame absence check and the
 per-copy `visible:` is unmeasured.
@@ -425,7 +425,7 @@ still true of the shipped feature:
   top of every `complication_slot`'s draw method) — the SDK sample's own
   comment on this exact hazard ("This prevents the complication from being
   drawn on the watch face while it is pulsing") is what makes this mandatory,
-  not optional. Measured on `examples/slots/face.yaml` at a fixed path,
+  not optional. Measured on `examples/features/slots/face.yaml` at a fixed path,
   `fenix8solar47mm`: the editor machinery alone (no `on_hold:`) costs +161 B
   data / +693 B code over the same design without it; `on_hold: auto` on one
   slot adds a further +9 B data / +90 B code on top of that. **No behaviour

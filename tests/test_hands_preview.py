@@ -19,7 +19,7 @@ from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 ROOT = Path(__file__).resolve().parent.parent
-DESIGN = ROOT / "examples" / "analog" / "face.yaml"
+DESIGN = ROOT / "examples" / "features" / "analog" / "face.yaml"
 
 #: The design's own axis, on `fenix8solar47mm` (260x260, so centre is 130,130).
 AXIS = (130, 130)
@@ -28,7 +28,7 @@ AXIS = (130, 130)
 @pytest.fixture(scope="module")
 def resolved(db):
     if not DESIGN.exists():
-        pytest.skip("examples/analog/face.yaml is missing")
+        pytest.skip("examples/features/analog/face.yaml is missing")
     bag = Bag()
     face = load(DESIGN, bag)
     assert face is not None, bag.render()

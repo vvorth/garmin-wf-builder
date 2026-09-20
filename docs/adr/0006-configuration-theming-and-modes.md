@@ -165,7 +165,7 @@ fr955** — the compiler generates both paths from one declaration.
 > delegate, the `<styles>` resource); one *additional* scheme on top of that
 > costs **+9 B data, +28 B code** -- consistent with the probe's own
 > per-style figure. `docs/format.md`'s "Color scheme" section is the
-> author-facing reference; `examples/config/face.yaml` now exercises it,
+> author-facing reference; `examples/features/config/face.yaml` now exercises it,
 > including the static-buffer repaint case (two roles moving together inside
 > a `static:` block, confirmed by a real build rather than assumed).
 
@@ -234,7 +234,7 @@ fr955** — the compiler generates both paths from one declaration.
 > source at all -- a slot is not a catalogue reader, so `_features()`/
 > `permissions()` had to add it as a second, independent trigger alongside
 > "reads a `complication.*` source". `docs/format.md`'s "Configuration → The
-> Data axis" is the full author-facing reference; `examples/slots/face.yaml`
+> Data axis" is the full author-facing reference; `examples/features/slots/face.yaml`
 > exercises both slot shapes.
 >
 > **2026-09-15 correction:** `minApiLevel="4.2.0"` in that measurement is a
@@ -273,7 +273,7 @@ fr955** — the compiler generates both paths from one declaration.
 > A design with no `complication_slot` gets none of this: `onTap` never
 > fires on a live face (research 07 §1), so it would be dead weight there.
 >
-> Cost, measured on `examples/slots/face.yaml` at a fixed path,
+> Cost, measured on `examples/features/slots/face.yaml` at a fixed path,
 > `fenix8solar47mm`: the editor machinery alone (both slots, neither with
 > `on_hold:`) is **+161 B data, +693 B code** over the same design without
 > it; adding `on_hold: auto` to one slot costs a further **+9 B data, +90 B
@@ -288,7 +288,7 @@ fr955** — the compiler generates both paths from one declaration.
 > `onTap` or `getComplicationDrawable`.
 >
 > `docs/format.md`'s "Configuration → The Data axis" carries the full
-> author-facing description; `examples/slots/face.yaml` now declares
+> author-facing description; `examples/features/slots/face.yaml` now declares
 > `on_hold: auto` on one of its two slots.
 
 > **Fifth amendment (2026-09-13): Styles grew a second axis of variation --
@@ -322,7 +322,7 @@ fr955** — the compiler generates both paths from one declaration.
 > each naming a scheme, a layout, or both, by their bare names. A design
 > with no `layouts:` at all migrates as a pure re-spelling -- an entry with
 > only `colors:` falls back to that scheme's own `label:`, so the generated
-> `<style label=...>` text does not move; `examples/config/face.yaml`,
+> `<style label=...>` text does not move; `examples/features/config/face.yaml`,
 > `examples/dashboard/face.yaml` and `examples/enduro/face.yaml` were all
 > migrated this way, by the user's own explicit permission for the two
 > playground files (dashboard, enduro: only their `config:` block touched).
@@ -363,10 +363,10 @@ fr955** — the compiler generates both paths from one declaration.
 > (`wfb.ir.never_together`) -- the same exemption disjoint `modes:` already
 > had.
 >
-> Cost, measured through the real toolchain: `examples/styles/face.yaml`
+> Cost, measured through the real toolchain: `examples/features/styles/face.yaml`
 > (two layouts, each with its own static and dynamic content, three style
 > entries, a shared `complication_slot`) compiles to 5,206-5,207 B (4.0%) on
-> all three targets, warning-free; `examples/config/face.yaml` (colour axes
+> all three targets, warning-free; `examples/features/config/face.yaml` (colour axes
 > only, no `layouts:`) is 2,477-2,478 B (1.9%). The two designs are not a
 > clean isolated delta for "what layouts cost" -- `styles` simply draws more
 > content -- so this is reported as the two absolute, measured figures

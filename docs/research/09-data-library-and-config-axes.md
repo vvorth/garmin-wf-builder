@@ -44,7 +44,7 @@ reference** for its label (`label="@Strings.aqua"`), so a labelled colour
 already implies a generated `<string>` entry — the compiler emits these today
 (`ConfigDataColor0`, …). What the sketch adds is a *name* for the colour so the
 same entry can be reused by several axes and by elements, instead of being
-retyped per choice as it is in `examples/config/face.yaml`.
+retyped per choice as it is in `examples/features/config/face.yaml`.
 
 The design note that matters: **this project already has a colour namespace**,
 `palette:`, and a second one would be a drift hazard of exactly the kind
@@ -102,7 +102,7 @@ Three consequences worth writing into the format up front:
    sometimes undefined. A build-time check, cheap, and the diagnostic writes
    itself.
 2. **A `static:` buffer holding scheme colours must repaint on a config
-   change.** The machinery exists — `examples/config/face.yaml` exists
+   change.** The machinery exists — `examples/features/config/face.yaml` exists
    precisely to exercise it — but a scheme touches far more of a face than one
    accent ring, so this stops being an edge case.
 3. **The editor's menu entry will read whatever Garmin calls the Styles axis**,

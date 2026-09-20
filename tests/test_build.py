@@ -388,8 +388,8 @@ def test_the_noise_filter_strips_the_jvm_notice_and_keeps_real_diagnostics():
 
     # The JVM's four-line deprecated-reflective-access notice, printed
     # verbatim by this SDK whenever a <watchface-config> resource is
-    # compiled (verified: present for examples/config, absent for
-    # examples/graph), interleaved with diagnostics this project has
+    # compiled (verified: present for examples/features/config, absent for
+    # examples/features/graph), interleaved with diagnostics this project has
     # actually hit before -- the delegate's unused `_view` field and the
     # `setAntiAlias` indirect-lookup warning.
     raw = "\n".join([

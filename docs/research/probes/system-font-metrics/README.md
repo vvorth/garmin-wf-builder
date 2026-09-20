@@ -63,7 +63,7 @@ is what a screenshot shows.
 They are the ground truth that `wfb/fonts/fallback.py` is calibrated
 against (`docs/research/10-system-fonts.md` §9; §10.9 for the bitmap-font
 devices, still open). The `w1`/`w2` sample strings are the same ones
-`examples/system-fonts*/` draw, so the widths compare directly.
+`examples/system-fonts/*/` draw, so the widths compare directly.
 
 ## Results (2026-09-18)
 

@@ -1122,7 +1122,7 @@ def test_a_data_axis_design_compiles_warning_free_on_every_target(
         write_design, tmp_path, db, toolchain):  # noqa: F811
     """The bar CLAUDE.md and this task both set: real `monkeyc`, all three
     targets, warning-free (`config-unsupported` on fr955 accepted explicitly
-    per element, the same as `examples/slots/face.yaml` does)."""
+    per element, the same as `examples/features/slots/face.yaml` does)."""
     from wfb.build import build as run_build
 
     text = DESIGN.replace(

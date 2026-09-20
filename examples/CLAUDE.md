@@ -1,66 +1,90 @@
 # examples/
 
 Loaded automatically when working in `examples/`. `README.md` here is the
-user-facing index: `dashboard/`, `analog/` and `showcase/` are the designs
-meant to be worn, the rest demonstrate features. Each feature example's
-header comment explains what it exercises; `slots/` is the only one using the Data
-axis (`config: data:`), `config/` the colour axes and `color_scheme:`,
-`styles/` `layouts:` and `config: style:` (widget-set switching, not just
-colour), and `analog/` analog hands (plan 04, 2026-09-14) -- two hand sets
-in two layouts, an off-centre small-seconds subdial, all four rotatable
-part shapes, and a `config.*` hand colour, and `patterns/` `type: pattern`
-(plan 05, 2026-09-14) -- radial and linear repeats, every part shape
-including `arc`, `start:`, `skip:`/`skip_every:`, in and out of `static:`,
-a per-copy colour (`copy` + `date.weekday`: `week_dots` lights today,
-2026-09-15), and `when_absent: hide` with a per-copy part `visible:`
-(`test_visibility`, a move-bar row, 2026-09-15), and `shape: text` parts
-(plan 06, 2026-09-15: `hour_numerals`, a radial ring, and `weekday_labels`,
-a linear row), and `align/` `align:`/`vertical_align:` as one placement
-rule on every accepting kind (plan 07, 2026-09-15) -- an hour/minute dial
-with four diagonal readouts (`complication_slot`, a `group`, a `graph`,
-`text`), each aligned to grow away from the centre, covering all four
-`align`×`vertical_align` combinations, plus every accepting shape, both
-`progress` styles, a static `icon`, and aligned hand/pattern parts.
-`showcase/` is the widest single face in this directory: two `layouts:`
-switched by Styles -- a quiet classic three-hand `analog` dial (`hands:`, a
-radial tick `pattern`, twelve numerals as one `shape: text` pattern part)
-and a data-rich `digital` dashboard (a monospaced two-tone clock, a
-weather row with a dynamic `icon_for:` condition icon, a heart-rate
-`graph`, `group`+`on_hold:` icon/value clusters, both `progress` styles,
-and a conditional-colour status row) -- plus two shared
-`complication_slot` "registers" (the Data axis, one with per-choice icon
-overrides, one `choices: any`), three `color_scheme:` entries and five
-`config: style:` entries pairing them with the two layouts, and
-several-colour `accent_color`/`data_color` axes. Builds warning-free on
-all three targets at 14.4% of the 128 KB budget.
+user-facing index.
 
-`system-fonts/`, `system-fonts-numbers/` and `system-fonts-numbers-large/`
-(plan 09 step C, 2026-09-18) are calibration faces, not design showcases:
-every `FONT_*` system font this project measures (`wfb.devices.
-Device.system_fonts`, plan 09) drawn as a short literal digits/glyphs
-sample on a 1px guide line, `align: left` at a common `px` x so left edges
-compare across a real simulator screenshot and `wfb preview`'s own PNG
-pixel-for-pixel (plan 09 S7, open until the user sends screenshots).
-`system-fonts/` holds FONT_XTINY..FONT_LARGE plus a `vertical_align:
-center` and a `vertical_align: bottom` repeat of FONT_XTINY, all on one
-screen. The four `FONT_NUMBER_*` sizes do not fit one screen together --
-even the lighter pair's own line heights leave little room, and the
-heaviest pair (FONT_NUMBER_HOT + FONT_NUMBER_THAI_HOT, up to 129px tall)
-genuinely cannot share a round 260/280px screen with a common left x at
-any position (checked by brute-force search over the placement, not
-assumed) -- so they split into `system-fonts-numbers/` (MILD, MEDIUM, plus
-one `center` demo) and `system-fonts-numbers-large/` (HOT, THAI_HOT, no
-demo row -- there is no room for one). All three build warning-free on all
-three targets; every row's placement was checked against this project's
-own round-screen visible-area math before being written down, not
-eyeballed.
-
-The Phase 2 slice is no longer an
-example: it is the test fixture `tests/fixtures/slice/`.
+**Layout (reorganised 2026-09-20).** Four faces at the top level were built
+to be worn -- `dashboard/`, `showcase/`, `analog-custom/` and `enduro/`
+(work in progress). `features/` holds one face per format feature, written
+as each landed, and `system-fonts/` holds the three calibration faces.
+`big-clock-3/` was deleted by the user the same day. Anything that walks the
+examples must recurse: `tests/test_templates.py` uses `rglob`, and a flat
+`examples/*/face.yaml` glob now sweeps up only the four wearable faces.
 
 Every example lints clean on every target. Where a design deliberately
 touches the bezel or accepts a platform gap (no on-device editor, no
 Complications), the element says so with `lint: {allow: [...], reason:}`.
+
+## `features/`
+
+Each face's header comment explains what it exercises. `features/slots/` is
+the only one using the Data axis (`config: data:`), `features/config/` the
+colour axes and `color_scheme:`, `features/styles/` `layouts:` and `config:
+style:` (widget-set switching, not just colour).
+
+`features/analog/` is analog hands (plan 04, 2026-09-14) -- two hand sets in
+two layouts, an off-centre small-seconds subdial, all four rotatable part
+shapes, and a `config.*` hand colour. **Keep it the generated plan-04
+design**: `tests/test_hands_*.py` assert against it, and it was restored
+from `bf1e4d0` on 2026-09-20 after a session's worth of hand-tuning had
+drifted it away from them. That hand-tuned work lives on as the wearable
+`analog-custom/`, which the tests do not read.
+
+`features/patterns/` is `type: pattern` (plan 05, 2026-09-14) -- radial and
+linear repeats, every part shape including `arc`, `start:`,
+`skip:`/`skip_every:`, in and out of `static:`, a per-copy colour (`copy` +
+`date.weekday`: `week_dots` lights today, 2026-09-15), `when_absent: hide`
+with a per-copy part `visible:` (`test_visibility`, a move-bar row,
+2026-09-15), and `shape: text` parts (plan 06, 2026-09-15: `hour_numerals`,
+a radial ring, and `weekday_labels`, a linear row).
+
+`features/align/` is `align:`/`vertical_align:` as one placement rule on
+every accepting kind (plan 07, 2026-09-15) -- an hour/minute dial with four
+diagonal readouts (`complication_slot`, a `group`, a `graph`, `text`), each
+aligned to grow away from the centre, covering all four
+`align`×`vertical_align` combinations, plus every accepting shape, both
+`progress` styles, a static `icon`, and aligned hand/pattern parts.
+
+## `system-fonts/`
+
+`text/`, `numbers/` and `numbers-large/` (plan 09 step C, 2026-09-18) are
+calibration faces, not design showcases: every `FONT_*` system font this
+project measures (`wfb.devices.Device.system_fonts`, plan 09) drawn as a
+short literal digits/glyphs sample on a 1px guide line, `align: left` at a
+common `px` x so left edges compare across a real simulator screenshot and
+`wfb preview`'s own PNG pixel-for-pixel (plan 09 S7, open until the user
+sends screenshots). `text/` holds FONT_XTINY..FONT_LARGE plus a
+`vertical_align: center` and a `vertical_align: bottom` repeat of
+FONT_XTINY, all on one screen. The four `FONT_NUMBER_*` sizes do not fit one
+screen together -- even the lighter pair's own line heights leave little
+room, and the heaviest pair (FONT_NUMBER_HOT + FONT_NUMBER_THAI_HOT, up to
+129px tall) genuinely cannot share a round 260/280px screen with a common
+left x at any position (checked by brute-force search over the placement,
+not assumed) -- so they split into `numbers/` (MILD, MEDIUM, plus one
+`center` demo) and `numbers-large/` (HOT, THAI_HOT, no demo row -- there is
+no room for one). All three build warning-free on all three targets; every
+row's placement was checked against this project's own round-screen
+visible-area math before being written down, not eyeballed. `fr245` is a
+target only so its `.cft` fonts can be measured; its smaller screen crops
+rows the other targets fit, accepted per element with `lint: {allow}`.
+
+## The wearable four
+
+`showcase/` is the widest single face here: two `layouts:` switched by
+Styles -- a quiet classic three-hand `analog` dial (`hands:`, a radial tick
+`pattern`, twelve numerals as one `shape: text` pattern part) and a
+data-rich `digital` dashboard (a monospaced two-tone clock, a weather row
+with a dynamic `icon_for:` condition icon, a heart-rate `graph`,
+`group`+`on_hold:` icon/value clusters, both `progress` styles, and a
+conditional-colour status row) -- plus two shared `complication_slot`
+"registers" (the Data axis, one with per-choice icon overrides, one
+`choices: any`), several `color_scheme:` entries and the `config: style:`
+entries pairing them with the two layouts, and several-colour
+`accent_color`/`data_color` axes. Builds warning-free on all three targets
+at 14.9% of the 128 KB budget.
+
+The Phase 2 slice is no longer an example: it is the test fixture
+`tests/fixtures/slice/`.
 
 ### `examples/dashboard/face.yaml` is the user's own playground
 

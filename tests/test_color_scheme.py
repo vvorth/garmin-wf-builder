@@ -895,7 +895,7 @@ def test_a_color_scheme_design_compiles_warning_free_on_every_target(
         write_design, tmp_path, db, toolchain):  # noqa: F811
     """The bar this task and CLAUDE.md both set: real `monkeyc`, all three
     targets, warning-free (`config-unsupported` on fr955 accepted explicitly,
-    the same as `examples/config/face.yaml` does for the two colour axes)."""
+    the same as `examples/features/config/face.yaml` does for the two colour axes)."""
     from wfb.build import build as run_build
 
     text = DESIGN.replace(

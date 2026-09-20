@@ -1,0 +1,267 @@
+# Patterns (docs/format.md "`pattern`"): one template of primitives, drawn
+# many times -- turned about a centre (`pattern: radial`) or stepped along a
+# line (`pattern: linear`).
+#
+# What this design exercises:
+#
+# * **A 60-copy minute ring with `skip_every: 5`** (`minute_ticks`): the
+#   step defaults to 360deg / 60 = 6deg, and every fifth copy is left out
+#   so the hour ticks can draw there instead.
+# * **A 12-copy hour ring with an explicit `skip: [0]`** (`hour_ticks`),
+#   made of a `rectangle` part -- folded into a polygon at build time,
+#   since a turned rectangle is a polygon.
+# * **A linear pattern of two** (`twelve`): the doubled marker at
+#   12 o'clock, where the hour ring skipped its copy 0.
+# * **Arc parts** (`segments`): twelve 24-degree arcs with 6-degree gaps --
+#   a segmented ring, the thing a single `drawArc` cannot draw.
+# * **`start:`** (`diagonals`): four triangles, the first turned to 45deg,
+#   each a `polygon` part pointing outwards.
+# * **A per-copy, data-driven colour** (`week_dots`): seven outlined
+#   rings, Monday to Sunday, with today's filled in.  The dot part's
+#   `color:` compares `copy` (the index of the copy being drawn) with
+#   `date.weekday`; a two-part linear pattern outside `static:`, because
+#   it reads the date.
+# * **`when_absent: hide` and per-copy part `visible:`** (`test_visibility`,
+#   2026-09-15): a 5-copy move-bar row -- an always-drawn outline/background
+#   part, plus a lit part gated per copy by `visible: "copy <=
+#   activity.move_bar_level-1"` (a source that can be absent, so the
+#   pattern needs `when_absent: hide`).  The element keeps three
+#   colour-only alternatives (1a/1b/1c) as comments; all four variants
+#   build.
+# * **Anti-aliasing** on the three radial rings (soft rotated edges), and
+#   the face default (crisp) on everything else.
+# * **A radial `shape: text` pattern part, custom font** (`hour_numerals`,
+#   plan 06 §3, 2026-09-15): twelve hour numerals as one pattern instead of
+#   twelve polar `text` elements. `value: "(copy + 11) % 12 + 1"` makes
+#   copy 0 draw "12", copy 1 draw "1", and so on, in `font.hourfont`
+#   (`assets/Questrial-Regular.ttf`), placed between the clock and
+#   `segments`. It reads only `copy`, so it is `static:` too.
+# * **A linear `shape: text` pattern part** (`weekday_labels`, plan 06 §3,
+#   2026-09-15): one-letter weekday initials under `week_dots`, with the
+#   same `dx`/`step`, and a `copy`-only ternary chain for `value:`. It is
+#   `static:` for the same reason, even though `week_dots` is not. It uses
+#   `font.hourfont` rather than a system font: `FONT_XTINY` is 22 px tall
+#   on these targets, too big for a 13 px step.
+#
+# Every pattern but `week_dots` and `test_visibility` is in `static:`, so its
+# loop runs once, when the buffer is filled, not once a second -- both of
+# those read data (the date, or the move-bar level) every frame.
+#
+# What is verified: the design builds warning-free through the real
+# `monkeyc` on all three targets. What is NOT verified anywhere in this project: what it
+# looks like on a panel, or that today's dot moves at midnight -- there is
+# no simulator and no watch in this container. `wfb preview` draws the same
+# resolved geometry through the same transform, without anti-aliasing.
+#
+# Build it with:     ./wfb.py build examples/features/patterns/face.yaml
+# Preview it with:   ./wfb.py preview examples/features/patterns/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: b1ca254a-1574-4ae0-a988-ce23d4750126
+  name: Patterns
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+fonts:
+  hourfont:
+    source: assets/Questrial-Regular.ttf
+    size: 10%r
+    antialias: true
+
+# Every colour is one the 64-colour MIP panel shows without dithering:
+# each channel is 0x00, 0x55, 0xAA or 0xFF.
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  gray: "#AAAAAA"
+  slate: "#5555AA"
+  orange: "#FF5500"
+  cyan: "#00AAFF"
+
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.black
+
+  minute_ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center } # the centre every copy turns about
+    count: 60 # step defaults to 360deg / 60 = 6deg
+    skip_every: 5 # copies 0, 5, 10, ... are the hour ticks' places
+    color: palette.gray
+    antialias: true
+    lint:
+      allow: [antialias-dither]
+      reason: "A soft edge on the 64-colour MIP panel dithers; accepted so
+        the turned ticks do not stair-step. Reported against this element,
+        the first to draw anti-aliased, for the whole device."
+    parts: # copy 0, as it looks at 12 o'clock; origin = at:
+      - { shape: line, at: { dy: -94%r }, to: { dy: -88%r }, thickness: 1px }
+
+  hour_ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    step: 30deg
+    skip: [0] # 12 o'clock gets the doubled marker below
+    color: palette.white
+    antialias: true
+    parts:
+      - { shape: rectangle, at: { dy: -88%r }, size: { width: 3%r, height: 12%r } }
+
+  twelve:
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dx: -3%r, dy: -88%r } # copy 0's origin
+    count: 2
+    step: { dx: 6%r } # copy 1 is 6%r to the right
+    color: palette.orange
+    parts:
+      - { shape: rectangle, size: { width: 3%r, height: 12%r } }
+
+  segments:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12 # 30deg apart
+    color: palette.slate
+    antialias: true
+    parts:
+      # centred on the pattern's centre; the start angle turns with the copy
+      - { shape: arc, radius: 72%r, thickness: 4px, start_angle: 3deg, sweep: 24deg }
+
+  diagonals:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 4 # 90deg apart
+    start: 45deg # copy 0 points at half past one
+    color: palette.orange
+    parts:
+      - shape: polygon # a small triangle pointing outwards
+        points:
+          - { dx: -3%r, dy: -56%r }
+          - { dy: -64%r }
+          - { dx: 3%r, dy: -56%r }
+
+  # A `shape: text` pattern part (plan 06 §3): twelve hour numerals as one
+  # radial pattern instead of twelve polar `text` elements.  `value:` reads
+  # only `copy` (0-11), so the ring is `static:` like the rest -- its loop
+  # runs once, when the buffer is filled.  64%r puts the 14 px glyphs
+  # between the clock's box and the inner edge of `segments` (72%r).  The
+  # glyphs stay upright; only each copy's anchor turns.
+  hour_numerals:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    color: palette.white
+    parts:
+      - shape: text
+        # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11" (the safe
+        # spelling for Monkey C's unverified negative-`%` behaviour,
+        # docs/format.md "Text parts").
+        value: "(copy + 11) % 12 + 1"
+        font: font.hourfont
+        at: { dy: -64%r }
+
+  # A linear `shape: text` pattern: one-letter weekday initials under
+  # `week_dots`, with the same `dx`/`step`.  `value:` is a `copy`-only
+  # ternary chain, so this too can be `static:`, unlike `week_dots` itself,
+  # which reads `date.weekday` and must redraw every frame.
+  weekday_labels:
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dx: -30%r, dy: 44%r }
+    count: 7
+    step: { dx: 10%r }
+    color: palette.gray
+    parts:
+      - shape: text
+        value: 'copy == 0 ? "M" : copy == 1 ? "T" : copy == 2 ? "W" :
+          copy == 3 ? "T" : copy == 4 ? "F" : copy == 5 ? "S" : "S"'
+        font: font.hourfont
+
+elements:
+  clock:
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: -8% }
+    color: palette.white
+
+  # Monday to Sunday, left to right, with today's ring filled in.  Not
+  # static: it reads the date, so it is redrawn every frame.
+  week_dots:
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dx: -30%r, dy: 36%r } # copy 0's origin: Monday
+    count: 7
+    step: { dx: 10%r }
+    parts:
+      # `copy` is the copy index, 0-6.  date.weekday is 1 = Sunday ..
+      # 7 = Saturday, so (weekday + 5) % 7 is Monday = 0 .. Sunday = 6.
+      - shape: circle
+        radius: 2%r
+        color: "copy == (date.weekday + 5) % 7 ? palette.cyan : palette.black"
+      - { shape: circle, radius: 4%r, filled: false, thickness: 1px, color: palette.gray }
+
+  # A 5-copy move-bar row: an always-drawn outline (the first two parts)
+  # plus a lit third part that shows how many of the 5 copies are "on",
+  # the way the device's own move bar does.  Not static: a pattern that
+  # reads any data -- part `visible:` included -- is redrawn every frame,
+  # the same rule `week_dots` follows.  `when_absent: hide` is needed only
+  # because the third part reads a source that can be absent.
+  test_visibility:
+    type: pattern
+    pattern: linear
+    at: { anchor: center, dx: -20%r, dy: 25%r }
+    count: 5
+    step: { dx: 10%r }
+    when_absent: hide # required: the third part reads a source that can be absent
+    parts:
+      - shape: rectangle
+        size: { width: 8%r, height: 8%r }
+        color: palette.gray
+      - shape: rectangle
+        size: { width: 6%r, height: 6%r }
+        color: palette.black
+      - shape: rectangle
+        size: { width: 4%r, height: 4%r }
+        # `copy` is the copy index, 0-4 (count: 5).
+
+        # option 1a: system.battery is never absent, so this needs no
+        # `when_absent:` of its own -- builds either way.  The maths maps
+        # <10% to 0 bars ... >90% to 5 bars.
+        # color: "copy <= ((system.battery - 10) / 20) ? palette.orange : palette.black"
+
+        # option 1b: the direct move-bar reading -- can be absent, so this
+        # now builds only because of `when_absent: hide` above.
+        # color: "copy <= activity.move_bar_level-1 ? palette.orange : palette.black"
+
+        # option 1c: the same idea through a complication instead of the
+        # direct source -- also builds with `when_absent: hide`, but costs
+        # more than 1a/1b: it pulls in a ComplicationSubscriber and raises
+        # this face's minApiLevel to 4.2.0.  1a (system.battery) is the
+        # cheap route when a battery reading is all that's wanted.
+        # color: "copy <= ((complication.battery - 10) / 20) ? palette.orange : palette.black"
+
+        # option 2 (live): per-copy `visible:` instead of folding the
+        # condition into the colour -- the key is `visible:`, not
+        # `visibility:` (the schema rejects an unknown key by name).
+        visible: "copy <= activity.move_bar_level-1"
+        color: palette.orange

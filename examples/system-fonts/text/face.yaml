@@ -1,0 +1,218 @@
+# A calibration face for the five text system fonts (plan 09
+# docs/plans/09-system-font-metrics.md, step C): FONT_XTINY, FONT_TINY,
+# FONT_SMALL, FONT_MEDIUM, FONT_LARGE. Every string is a literal (`text:`,
+# no `value:`), so this face has no data bindings and no clock.
+#
+# Layout: one row per size, each a 1px grey `shape: line` guide spanning the
+# row's own width at the row's anchor y, with the sample string
+# `vertical_align: top` sitting on it (the guide marks the *top* of the line
+# box, not a glyph baseline) and `align: left` at a common x (71px) so every
+# row's left edge lines up. Two extra rows repeat FONT_XTINY -- "XT c" with
+# `vertical_align: center` and "XT b" with `vertical_align: bottom` -- each
+# on its own guide at its own anchor y, to show the other two anchors the
+# same way. A short vertical guide at the common x ties the column together.
+#
+# All positions are `px` (docs/format.md "Lengths": "device pixels,
+# verbatim"), not `%`/`%r`, so every row lands on the exact same pixel row
+# on all three targets -- the point of a calibration face. Row spacing uses
+# the *tallest* of the three targets' own published line height per font
+# (fenix8solar51mm's fonts render a little larger than fenix8solar47mm's or
+# fr955's), so nothing overlaps on any of them even though the guide y's
+# themselves do not move. The sample text ("<SIZE ABBR> Hxg0123") mixes case
+# and digits -- enough to see x-height, ascenders/descenders and digit
+# shapes -- short enough that even FONT_LARGE's row (the widest of the five
+# once a row is pushed this close to the bezel) stays inside
+# fr955's/fenix8solar47mm's 260px round bezel and fenix8solar51mm's 280px
+# one: every row's four box corners (`wfb.layout.inside_visible_area`'s own
+# check, run ahead of time here) land inside the round screen's visible
+# disc, with at least ~5px of slack on the tightest row on the tightest
+# target. Computed from this project's own font metrics
+# (`wfb.devices.Device.system_fonts`, `wfb.fonts.fallback.measure`, the same
+# numbers `wfb build`'s `safe-area`/`text-overflow` lints already check
+# against) -- worked numbers land in `docs/research/10-system-fonts.md` once
+# the user's calibration screenshots come back (plan 09 S7).
+#
+# How to compare: build and sideload (or run in the simulator with a build
+# from this repo) on a real target, screenshot it, and compare pixel-for-
+# pixel against `wfb preview`'s PNG for the same target. Any mismatch in
+# line height, baseline position or glyph width is exactly what plan 09 S7
+# (docs/plans/09-system-font-metrics.md) asks the user's screenshots to
+# calibrate -- record findings in docs/research/10-system-fonts.md.
+#
+# Build it with:     ./wfb.py build examples/system-fonts/text/face.yaml
+# Preview it with:   ./wfb.py preview examples/system-fonts/text/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 6fe58f44-5030-4d0e-b207-303a72e9f344
+  name: System Fonts
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+  - fr245
+  - fenix6
+
+# Every colour is one the 64-colour MIP panel shows without dithering: each
+# channel is 0x00, 0x55, 0xAA or 0xFF.
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#AAAAAA"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # The common-x spine: ties every row's left edge together at a glance.
+  - id: spine
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 71, dy: 27 }
+    to: { anchor: top_left, dx: 71, dy: 238 }
+    thickness: 1px
+    color: palette.dim
+    lint:
+      allow: [safe-area]
+      reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
+        here only to measure its .cft fonts, and crops this row"
+
+  # -- FONT_XTINY -----------------------------------------------------
+  - id: xtiny_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 71, dy: 27 }
+    to: { anchor: top_left, dx: 156, dy: 27 }
+    thickness: 1px
+    color: palette.dim
+  - id: xtiny_text
+    type: text
+    text: "XT Hxg0123"
+    font: FONT_XTINY
+    at: { anchor: top_left, dx: 71, dy: 27 }
+    align: left
+    vertical_align: top
+    color: palette.fg
+
+  # -- FONT_TINY --------------------------------------------------------
+  - id: tiny_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 71, dy: 49 }
+    to: { anchor: top_left, dx: 181, dy: 49 }
+    thickness: 1px
+    color: palette.dim
+  - id: tiny_text
+    type: text
+    text: "TI Hxg0123"
+    font: FONT_TINY
+    at: { anchor: top_left, dx: 71, dy: 49 }
+    align: left
+    vertical_align: top
+    color: palette.fg
+
+  # -- FONT_SMALL ---------------------------------------------------------
+  - id: small_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 71, dy: 79 }
+    to: { anchor: top_left, dx: 206, dy: 79 }
+    thickness: 1px
+    color: palette.dim
+  - id: small_text
+    type: text
+    text: "SM Hxg0123"
+    font: FONT_SMALL
+    at: { anchor: top_left, dx: 71, dy: 79 }
+    align: left
+    vertical_align: top
+    color: palette.fg
+
+  # -- FONT_MEDIUM ----------------------------------------------------
+  - id: medium_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 71, dy: 113 }
+    to: { anchor: top_left, dx: 236, dy: 113 }
+    thickness: 1px
+    color: palette.dim
+  - id: medium_text
+    type: text
+    text: "MD Hxg0123"
+    font: FONT_MEDIUM
+    at: { anchor: top_left, dx: 71, dy: 113 }
+    align: left
+    vertical_align: top
+    color: palette.fg
+
+  # -- FONT_LARGE -----------------------------------------------------
+  - id: large_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 71, dy: 152 }
+    to: { anchor: top_left, dx: 231, dy: 152 }
+    thickness: 1px
+    color: palette.dim
+  - id: large_text
+    type: text
+    text: "LG Hxg0123"
+    font: FONT_LARGE
+    at: { anchor: top_left, dx: 71, dy: 152 }
+    align: left
+    vertical_align: top
+    color: palette.fg
+    lint:
+      allow: [safe-area, text-overflow]
+      reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
+        here only to measure its .cft fonts, and crops this row"
+
+  # -- vertical_align: center demo (repeats FONT_XTINY) -----------------
+  - id: center_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 71, dy: 205 }
+    to: { anchor: top_left, dx: 101, dy: 205 }
+    thickness: 1px
+    color: palette.dim
+  - id: center_text
+    type: text
+    text: "XT c"
+    font: FONT_XTINY
+    at: { anchor: top_left, dx: 71, dy: 205 }
+    align: left
+    vertical_align: center
+    color: palette.fg
+
+  # -- vertical_align: bottom demo (repeats FONT_XTINY) ------------------
+  - id: bottom_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 71, dy: 238 }
+    to: { anchor: top_left, dx: 101, dy: 238 }
+    thickness: 1px
+    color: palette.dim
+    lint:
+      allow: [safe-area]
+      reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
+        here only to measure its .cft fonts, and crops this row"
+  - id: bottom_text
+    type: text
+    text: "XT b"
+    font: FONT_XTINY
+    at: { anchor: top_left, dx: 71, dy: 238 }
+    align: left
+    vertical_align: bottom
+    color: palette.fg
+    lint:
+      allow: [safe-area, text-overflow]
+      reason: "rows are fixed px for the 260/280px targets; fr245 (240px) is
+        here only to measure its .cft fonts, and crops this row"

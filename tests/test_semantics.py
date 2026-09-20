@@ -1589,7 +1589,7 @@ def test_a_graph_design_compiles_warning_free_on_every_target(
     """
     from wfb.build import build as run_build
 
-    design_path = repo_root / "examples" / "graph" / "face.yaml"
+    design_path = repo_root / "examples" / "features" / "graph" / "face.yaml"
     result = run_build(design_path, output=tmp_path / "out", bag=bag, db=db,
                        toolchain=toolchain)
     assert result is not None, bag.render()

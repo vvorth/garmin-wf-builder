@@ -1,0 +1,132 @@
+# A calibration face for the two *heaviest* number system fonts (plan 09
+# docs/plans/09-system-font-metrics.md, step C): FONT_NUMBER_HOT and
+# FONT_NUMBER_THAI_HOT. The lighter pair (FONT_NUMBER_MILD,
+# FONT_NUMBER_MEDIUM) is the sibling face `examples/system-fonts/numbers/`
+# instead. Every string here is a literal (`text:`, no `value:`): no data
+# bindings, no clock.
+#
+# **Why split at all.** FONT_NUMBER_THAI_HOT is 121/129/91px tall on
+# fenix8solar47mm/51mm/fr955 and FONT_NUMBER_HOT is 99/107/79px -- between
+# them, on fenix8solar51mm's own worst case, 107+129 = 236px, on a 280px
+# round screen whose safe band (the framebuffer minus the bezel crop
+# `wfb.layout.BEZEL_MARGIN` accounts for) is well under that once either
+# row needs *any* horizontal room at all. All four number sizes stacked on
+# one screen -- verified by literally computing every row's own box against
+# every target's round-screen visible-area check
+# (`wfb.layout.inside_visible_area`) before writing this file -- has no
+# feasible common left x on any of the three targets. Splitting the four
+# sizes across two faces, exactly as plan 09 S4 R3 anticipates, is what
+# makes both halves buildable warning-free.
+#
+# **Why the samples are shorter than the "1058" the plan sketches, and why
+# they are not the same length as each other.** Both number fonts are
+# monospaced (per-glyph advance is identical for every digit, confirmed by
+# measuring: "18", "80", "71" and "10" are all the same pixel width in
+# either font), so a sample's width is exactly `glyph_count *
+# advance_width` and every digit is equally representative -- there is no
+# "narrower" digit to reach for the way a proportional font would offer
+# one. FONT_NUMBER_HOT's own row (`"18"`, two glyphs) already clears every
+# target with margin; giving FONT_NUMBER_THAI_HOT the same two-glyph sample
+# does not (still short by several px on fenix8solar51mm, the tightest
+# target, using this project's own font metrics) purely because
+# THAI_HOT's own line height leaves that row less vertical room to be wide
+# in. FONT_NUMBER_THAI_HOT's row is one glyph (`"8"`) for that reason --
+# still digits-only, still legible, just as tall a sample as the format
+# allows without also being as wide.
+#
+# **No `vertical_align: center`/`bottom` demo row here.** Even the two
+# required rows leave under 6px of clearance on the tightest target at this
+# size class; a third row has nowhere to go. `examples/system-fonts/text/`
+# already demonstrates all three anchors together, and
+# `examples/system-fonts/numbers/` repeats the `center` case once more at a
+# size that has room for it -- nothing about the mechanic goes unverified
+# project-wide.
+#
+# Layout mechanic (same as the sibling faces): a 1px grey `shape: line`
+# guide at each row's anchor y, `vertical_align: top`, `align: left` at a
+# common x (90px). All positions are `px` (docs/format.md "Lengths":
+# "device pixels, verbatim"), so every row lands on the same pixel row on
+# all three targets.
+#
+# How to compare: build and sideload (or run in the simulator with a build
+# from this repo) on a real target, screenshot it, and compare pixel-for-
+# pixel against `wfb preview`'s PNG for the same target -- exactly what
+# plan 09 S7 (docs/plans/09-system-font-metrics.md) asks the user's
+# screenshots to calibrate.
+#
+# Build it with:     ./wfb.py build examples/system-fonts/numbers-large/face.yaml
+# Preview it with:   ./wfb.py preview examples/system-fonts/numbers-large/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 56d3f78e-0d74-49d9-a084-e1ecc4753b36
+  name: System Fonts Numbers Large
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+  - fr245
+  - fenix6
+
+# Every colour is one the 64-colour MIP panel shows without dithering: each
+# channel is 0x00, 0x55, 0xAA or 0xFF.
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#AAAAAA"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # The common-x spine: ties every row's left edge together at a glance.
+  - id: spine
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 90, dy: 18 }
+    to: { anchor: top_left, dx: 90, dy: 125 }
+    thickness: 1px
+    color: palette.dim
+
+  # -- FONT_NUMBER_HOT ---------------------------------------------------
+  - id: hot_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 90, dy: 18 }
+    to: { anchor: top_left, dx: 160, dy: 18 }
+    thickness: 1px
+    color: palette.dim
+  - id: hot_text
+    type: text
+    text: "18"
+    font: FONT_NUMBER_HOT
+    at: { anchor: top_left, dx: 90, dy: 18 }
+    align: left
+    vertical_align: top
+    color: palette.fg
+
+  # -- FONT_NUMBER_THAI_HOT -----------------------------------------------
+  - id: thai_hot_guide
+    type: shape
+    shape: line
+    at: { anchor: top_left, dx: 90, dy: 125 }
+    to: { anchor: top_left, dx: 128, dy: 125 }
+    thickness: 1px
+    color: palette.dim
+  - id: thai_hot_text
+    type: text
+    text: "8"
+    font: FONT_NUMBER_THAI_HOT
+    at: { anchor: top_left, dx: 90, dy: 125 }
+    align: left
+    vertical_align: top
+    color: palette.fg

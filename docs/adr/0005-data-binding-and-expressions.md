@@ -286,7 +286,7 @@ device run it. `copy` only names the loop's index, which that code already
 had, so a colour can depend on it. The alternative within the rule above is
 one element per copy, which is exactly what patterns were built to replace:
 seven `visible:`-gated circles to light today's dot in a week row.
-`examples/patterns/face.yaml`'s `week_dots` did not show the day until this
+`examples/features/patterns/face.yaml`'s `week_dots` did not show the day until this
 change, and it could not be fixed in the YAML.
 
 **What stays true.** A hand colour still reads no data at all (§5.4 of plan
@@ -297,7 +297,7 @@ changes.
 ## Amendment (2026-09-15): `when_absent: hide` on a pattern, and per-copy part `visible:`
 
 **What changed.** Two related relaxations, both requested by the user
-against `examples/patterns/face.yaml`'s `test_visibility` (a 5-copy move-bar
+against `examples/features/patterns/face.yaml`'s `test_visibility` (a 5-copy move-bar
 row):
 
 1. A pattern's colours (the element's own and every part's) may now read a

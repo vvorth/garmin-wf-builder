@@ -321,18 +321,18 @@ def test_a_rectangle_part_turned_90deg_becomes_horizontal(write_design, db, bag)
 # -- smoke test: the shipped example ------------------------------------------
 
 
-DESIGN = Path(__file__).resolve().parent.parent / "examples" / "patterns" / "face.yaml"
+DESIGN = Path(__file__).resolve().parent.parent / "examples" / "features" / "patterns" / "face.yaml"
 SAVE_TO = Path("/home/agent/.claude/jobs/32690555/tmp/patterns-preview.png")
 
 
 def test_examples_patterns_face_renders_without_crashing(db, bag):
-    """`examples/patterns/face.yaml` -- every kind this plan added (radial
+    """`examples/features/patterns/face.yaml` -- every kind this plan added (radial
     and linear, `skip`/`skip_every`, `start:`, `arc` parts, a multi-part
     linear pattern outside `static:`) in one real design. Not a pixel-level
     assertion -- that is what the tests above are for -- just proof the
     renderer gets through the whole thing and produces a real image."""
     if not DESIGN.exists():
-        pytest.skip("examples/patterns/face.yaml is missing")
+        pytest.skip("examples/features/patterns/face.yaml is missing")
     face = load(DESIGN, bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")

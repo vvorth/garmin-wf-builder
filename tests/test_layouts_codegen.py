@@ -1,5 +1,5 @@
 """Codegen for `layouts:` (plan 02 §6.4, §5.4), through
-`examples/styles/face.yaml` -- the one example that actually ships both a
+`examples/features/styles/face.yaml` -- the one example that actually ships both a
 layout-only and a colour-only-adjacent entry, a hold target with a layout,
 and a `low_power` element inside a layout.
 
@@ -26,13 +26,13 @@ from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 
 ROOT = Path(__file__).resolve().parent.parent
-DESIGN = ROOT / "examples" / "styles" / "face.yaml"
+DESIGN = ROOT / "examples" / "features" / "styles" / "face.yaml"
 
 
 @pytest.fixture(scope="module")
 def resolved(db):
     if not DESIGN.exists():
-        pytest.skip("examples/styles/face.yaml is missing")
+        pytest.skip("examples/features/styles/face.yaml is missing")
     bag = Bag()
     face = load(DESIGN, bag)
     assert face is not None, bag.render()

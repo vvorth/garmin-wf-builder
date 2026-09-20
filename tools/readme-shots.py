@@ -37,11 +37,11 @@ SHOTS = {
 
 # Topic examples, rendered whole: name -> (example directory, extra args).
 EXAMPLES = {
-    "align": ("align", []),
-    "patterns": ("patterns", []),
-    "graph": ("graph", []),
-    "shapes": ("shapes", []),
-    "analog-styles": ("analog", ["--all-styles"]),
+    "align": ("features/align", []),
+    "patterns": ("features/patterns", []),
+    "graph": ("features/graph", []),
+    "shapes": ("features/shapes", []),
+    "analog-styles": ("features/analog", ["--all-styles"]),
 }
 
 # On-device editor variants: each sets `config:` defaults, by key, in a
