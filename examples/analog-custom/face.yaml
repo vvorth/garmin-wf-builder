@@ -1,0 +1,431 @@
+# Analog -- a hands-only dial. Each `layouts:` entry carries its own hand
+# set (full three-hand `classic` variants, one with a small-seconds subdial;
+# hour-and-minute `sport`), switched by Styles together with a colour
+# scheme. The shared dial sits in the top-level `static:`.
+#
+# fr955 has no native editor, so it keeps the default style.
+#
+# Build it:    ./wfb.py build examples/analog/face.yaml
+# Preview it:  ./wfb.py preview examples/analog/face.yaml --time 10:09:42 [--asleep]
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 5b2feedc-d537-4768-95dd-4263ee0cbcd9
+  name: Analog
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour below -- palette, color_scheme and config alike -- is one the
+# 64-colour MIP panel can show without dithering: each channel is 0x00, 0x55,
+# 0xAA or 0xFF.
+
+fonts:
+  hourfont:
+    # source: assets/MonteCarlo-Regular.ttf
+    source: assets/Dynalight-Regular.ttf
+    size: 30%r
+    antialias: true
+
+palette:
+  # Primary Neutrals:
+  white: { value: "#FFFFFF", label: "White" }
+  black: { value: "#000000", label: "Black" }
+  light_gray: { value: "#AAAAAA", label: "Light Gray" }
+  dark_gray: { value: "#555555", label: "Dark Gray" }
+  # High-Visibility Accents (100% Saturation):
+  yellow: { value: "#FFFF00", label: "Yellow" }
+  cyan: { value: "#00FFFF", label: "Cyan" }
+  green: { value: "#00FF00", label: "Green" }
+  red: { value: "#FF0000", label: "Red" }
+  orange: { value: "#FF5500", label: "Orange" }
+  #
+  amber: { value: "#FFAA00", label: "Amber" }
+  magenta: { value: "#FF00FF", label: "Magenta" }
+  sky_blue: { value: "#00AAFF", label: "Sky Blue" }
+  lime_green: { value: "#AAFF00", label: "Lime Green" }
+  light_blue: { value: "#55FFFF", label: "Light Blue" }
+  #avoid
+  dark_blue: { value: "#0000FF", label: "Dark Blue" }
+  darker_blue: { value: "#0000AA", label: "Darker Blue" }
+  darkest_blue: { value: "#000055", label: "Darkest Blue" }
+  # have poor reflectivity. They turn into brownish-gray smudges on MIP.
+  dark_olive: { value: "#555500", label: "Dark Olive" }
+  maroon: { value: "#550000", label: "Maroon" }
+  dark_green: { value: "#005500", label: "Dark Green" }
+
+color_scheme:
+  dark:
+    label: "Dark"
+    colors: { bg: palette.black, fg: palette.white, track: palette.light_gray }
+  light:
+    label: "Light"
+    colors: { bg: palette.white, fg: palette.black, track: palette.light_gray }
+  blue:
+    label: "Blue"
+    colors: { bg: palette.darkest_blue, fg: palette.white, track: palette.light_gray }
+  green:
+    label: "Blue"
+    colors: { bg: palette.dark_green, fg: palette.white, track: palette.light_gray }
+
+config:
+  accent_color:
+    default: palette.orange
+    choices: [palette.orange, palette.cyan, palette.white, palette.red]
+  style:
+    default: classic_green
+    choices:
+      classic_blue: { label: "Classic · Blue", layout: classic, colors: blue }
+      classic_green: { label: "Classic · Green", layout: classic, colors: green } 
+      classic_dark: { label: "Classic · Dark", layout: classic, colors: dark }
+      classic_light: { label: "Classic AI · Dark", layout: classic_generated, colors: dark }
+
+# One named set per style, drawn pointing at 12 o'clock in a frame whose
+# origin is the axis (docs/format.md "Analog hands").
+hands:
+  classic:
+    hour:
+      # color: config.colors.fg
+      parts:
+        - shape: polygon # backgrouond colored outline, same shape, a little bigger
+          color: palette.black
+          points: # background
+            - { dx:  -1%r, dy:  21%r }
+            - { dx:   1%r, dy:  21%r }
+            - { dx: -10%r, dy:  -1%r }
+            - { dx:  -2%r, dy: -71%r } # the tip, straight up
+            - { dx:   2%r, dy: -71%r } # the tip, straight up
+            - { dx:  10%r, dy:  -1%r }
+        - shape: polygon
+          color: config.colors.fg
+          points: # arrow
+            - { dx:   0%r, dy:  20%r }
+            - { dx:  -9%r, dy:  -1%r }
+            - { dx:  -1%r, dy: -70%r } # the tip, straight up
+            - { dx:   1%r, dy: -70%r } # the tip, straight up
+            - { dx:   9%r, dy:  -1%r }
+        - shape: polygon
+          color: config.colors.track #todo
+          points: # shade
+            - { dx:   0%r, dy:  16%r }
+            - { dx:  -7%r, dy:  -1%r }
+            - { dx:   0%r, dy: -60%r } # the tip, straight up
+        
+    minute:
+      color: config.colors.fg
+      parts:
+        - shape: polygon
+          color: palette.black
+          points: # background
+            - { dx:  -2%r, dy:  18%r }
+            - { dx:  -6%r, dy:  -1%r }
+            - { dx:  -2%r, dy: -96%r } # the tip, straight up
+            - { dx:   2%r, dy: -96%r } # the tip, straight up
+            - { dx:   6%r, dy:  -1%r }
+            - { dx:   2%r, dy:  19%r }
+        - shape: polygon
+          color: config.colors.fg
+          points: # arrow
+            - { dx:  -1%r, dy:  17%r }
+            - { dx:  -5%r, dy:  -1%r }
+            - { dx:   0%r, dy: -95%r } # the tip, straight up
+            - { dx:   1%r, dy: -95%r } # the tip, straight up
+            - { dx:   5%r, dy:  -1%r }
+            - { dx:   1%r, dy:  18%r }
+        - shape: polygon
+          color: config.colors.track #todo
+          points: # shade
+            - { dx:   0%r, dy:  14%r }
+            - { dx:  -1%r, dy:  14%r }
+            - { dx:  -4%r, dy:  -1%r }
+            - { dx:   -1%r, dy: -70%r } # the tip, straight up
+            - { dx:   0%r, dy: -70%r } # the tip, straight up
+    second:
+      color: config.colors.fg
+      parts:
+        # background
+        - { shape: line, at: { dy: 21%r }, to: { dy: -97%r }, thickness: 4%r, color: palette.black } #arrow bg
+        - { shape: circle, at: { dy: 20%r }, radius: 5%r, color: palette.black } # counterweight bg
+        - { shape: circle, radius: 4%r, color: palette.black } # centre cap bg
+        # arrow
+        - { shape: line, at: { dy: 20%r }, to: { dy: -70%r }, thickness: 2%r } #arrow
+        - { shape: circle, at: { dy: 20%r }, radius: 4%r } # counterweight
+        - { shape: circle, radius: 3%r } # centre cap
+        - { shape: circle, radius: 1%r, color: palette.black } # centre cap axle
+        - { shape: line, at: { dy: -96%r }, to: { dy: -70%r }, thickness: 2%r, color: config.accent_color } #accented point
+
+
+  classic_generated:
+    hour:
+      # color: config.colors.fg
+      parts:
+        - shape: polygon # backgrouond colored outline, same shape, a little bigger
+          color: config.colors.bg
+          points:
+            - { dx: -5%r, dy: 8%r } # 6%r *behind* the axis: a tail
+            - { dx: -4%r, dy: -40%r }
+            - { dy: -47%r } # the tip, straight up
+            - { dx: 4%r, dy: -40%r }
+            - { dx: 5%r, dy: 8%r }
+        - shape: polygon # pointing at 12; origin = the axis
+          color: config.colors.fg
+          points:
+            - { dx: -3%r, dy: 6%r } # 6%r *behind* the axis: a tail
+            - { dx: -2%r, dy: -38%r }
+            - { dy: -44%r } # the tip, straight up
+            - { dx: 2%r, dy: -38%r }
+            - { dx: 3%r, dy: 6%r }
+    minute:
+      color: config.colors.fg
+      parts:
+        - { shape: rectangle, at: { dy: -30%r }, size: { width: 7%r, height: 74%r }, color: config.colors.bg }
+        - { shape: circle, radius: 6%r, color: config.colors.bg } # a hub
+        - { shape: rectangle, at: { dy: -30%r }, size: { width: 3%r, height: 70%r } }
+        - { shape: circle, radius: 4%r, color: palette.light_gray } # a hub
+
+  small_seconds:
+    second:
+      color: config.colors.fg
+      parts:
+        - { shape: line, at: { dy: 3%r }, to: { dy: -20%r }, thickness: 1px }
+
+# Shared: drawn underneath both layouts, in every one of them.
+static:
+  background:
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    # color: palette.light_gray
+    color: config.colors.bg
+
+  dial_ring:
+    type: shape
+    shape: arc
+    at: { anchor: center }
+    radius: 92%r
+    thickness: 3px
+    start_angle: 0deg
+    sweep: 360deg
+    color: config.colors.track
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps every declared default
+        forever, which is this example's whole point -- see the header
+        comment."
+
+  ticks:
+    type: group
+    children:
+      - { id: tick_12, shape: line, type: shape, at: { angle: 0deg, radius: 84%r }, to: { angle: 0deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
+      - { id: tick_3, shape: line, type: shape, at: { angle: 90deg, radius: 84%r }, to: { angle: 90deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
+      - { id: tick_6, shape: line, type: shape, at: { angle: 180deg, radius: 84%r }, to: { angle: 180deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
+      - { id: tick_9, shape: line, type: shape, at: { angle: 270deg, radius: 84%r }, to: { angle: 270deg, radius: 92%r }, thickness: 3px, color: config.colors.track }
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no native editor and keeps every declared default
+        forever, the same as dial_ring above."
+
+layouts:
+  classic:
+    static:
+      classic_background:
+        type: shape
+        shape: rectangle
+        at: { anchor: center }
+        size: { width: 100%, height: 100% }
+        color: config.colors.bg
+
+      minute_ticks:
+        type: pattern
+        pattern: radial
+        at: { anchor: center } # the centre every copy turns about
+        count: 60 # step defaults to 360deg / 60 = 6deg
+        skip_every: 5 # copies 0, 5, 10, ... are the hour ticks' places
+        color: config.colors.track
+        antialias: true
+        lint:
+          allow: [antialias-dither]
+          reason: "to look good"
+        #   reason: "A soft edge on the 64-colour MIP panel dithers; accepted so
+        #     the turned ticks do not stair-step. Reported against this element,
+        #     the first to draw anti-aliased, for the whole device."
+        parts: # copy 0, as it looks at 12 o'clock; origin = at:
+          - { shape: line, at: { dy: -98%r }, to: { dy: -93%r }, thickness: 1px }
+
+      hour_ticks:
+        type: pattern
+        pattern: radial
+        at: { anchor: center }
+        count: 12
+        step: 30deg
+        # skip: [0] # 12 o'clock gets the doubled marker below
+        color: config.colors.track
+        antialias: true
+        lint:
+          allow: [antialias-dither, safe-area]
+          reason: "to look good; the hour dots sit on the rim on purpose"
+        parts:
+          - { shape: circle, at: { dy: 96%r }, radius: 3%r }
+          - shape: text
+            value: '(copy + 11) % 12 + 1'
+            font: font.hourfont
+            at: { angle: 0deg, radius: 80%r }
+            align: center
+      
+      circle_inner:
+        type: shape
+        shape: circle
+        filled: false
+        at: { anchor: center }
+        radius: 67%r
+        thickness: 1px
+        color: palette.dark_gray #config.colors.track
+        antialias: true # soft rotated edges; `sport` stays crisp
+        lint:
+          allow: [antialias-dither]
+          reason: "good"
+
+    elements:
+      data_border_left:
+        type: shape
+        shape: rectangle
+        color: palette.black
+        at: { anchor: center, dx: -63%r }
+        size: { width: 36%r, height: 22%r }
+        align: left
+      data_window_left:
+        type: group
+        at: { anchor: center, dx: -62%r }
+        size: { width: 34%r, height: 20%r }
+        align: left
+        children:
+          data_l_shadow_dark:
+            type: shape
+            shape: rectangle
+            color: palette.dark_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 100% }
+          data_l_shadow:
+            type: shape
+            shape: rectangle
+            color: palette.light_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 80% }
+          data_l_bg:
+            type: shape
+            shape: rectangle
+            color: palette.white
+            at: { anchor: center }
+            size: { width: 100%, height: 40% }
+          data_l_data: # on top of data_window
+            type: text
+            value: date.day_of_week
+            # shape: rectangle
+            color: palette.black
+            font: FONT_TINY
+            # at: { anchor: right, dx: -3%r }
+            # align: right
+            at: { anchor: center }
+
+      data_border_right:
+        type: shape
+        shape: rectangle
+        color: palette.black
+        at: { anchor: center, dx: 63%r }
+        size: { width: 27%r, height: 22%r }
+        align: right
+      data_window_right:
+        type: group
+        at: { anchor: center, dx: 62%r }
+        size: { width: 25%r, height: 20%r }
+        align: right
+        children:
+          data_r_shadow_dark:
+            type: shape
+            shape: rectangle
+            color: palette.dark_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 100% }
+          data_r_shadow:
+            type: shape
+            shape: rectangle
+            color: palette.light_gray
+            at: { anchor: center }
+            size: { width: 100%, height: 80% }
+          data_r_bg:
+            type: shape
+            shape: rectangle
+            color: palette.white
+            at: { anchor: center }
+            size: { width: 100%, height: 40% }
+          data_r_data: # on top of data_window
+            type: text
+            value: date.day
+            # shape: rectangle
+            color: palette.black
+            font: FONT_TINY
+            # at: { anchor: right, dx: -3%r }
+            # align: right
+            at: { anchor: center }
+
+      classic_hands:
+        type: hands
+        hands: classic
+        at: { anchor: center }
+        seconds: awake
+        antialias: true # soft rotated edges; `sport` stays crisp
+        lint:
+          allow: [antialias-dither, safe-area]
+          reason: "good; the second hand's tip reaches the rim on purpose"
+
+
+
+#===================
+
+  classic_generated:
+    static:
+      subdial_ring:
+        type: shape
+        shape: circle
+        filled: false
+        at: { anchor: center, dy: 45%r }
+        radius: 22%r
+        thickness: 2px
+        color: config.colors.track
+
+    elements:
+      main_hands:
+        type: hands
+        hands: classic_generated
+        at: { anchor: center }
+        antialias: true # soft rotated edges; `sport` stays crisp
+        lint:
+          allow: [antialias-dither]
+          reason: "A soft edge on the 64-colour MIP panel dithers; accepted
+            here so a rotated polygon does not stair-step. Reported against
+            this element, the first to draw anti-aliased, for the whole
+            device."
+
+      small_secs:
+        type: hands
+        hands: small_seconds
+        at: { anchor: center, dy: 45%r } # an off-centre axis
+        seconds: awake
+        antialias: true
+
+      # A pin above every hand: an ordinary shape drawn after
+      # the hands elements above, so it lands on top of them.
+      center_pin:
+        type: shape
+        shape: circle
+        at: { anchor: center }
+        radius: 5%r
+        color: config.colors.bg
+
