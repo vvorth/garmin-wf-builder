@@ -4,7 +4,11 @@ Setup details, the command list, the shape of the generated code, the
 repository layout and the tests. For what the tool does and how to write a
 face, start with the [README](../README.md).
 
-**Targets:** fēnix 8 Solar 47 mm / 51 mm, Forerunner 955.
+**Targets:** any Garmin watch that can run a watch face (136 of the 164
+devices in the Connect IQ reference) and whose device definition is installed.
+**Verification devices:** fēnix 8 Solar 47 mm / 51 mm, Forerunner 955 — the
+three that are built and measured against here, not the limit of what is
+supported.
 **Distribution:** personal sideload.
 
 ## Start here

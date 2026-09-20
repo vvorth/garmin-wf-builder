@@ -26,15 +26,27 @@ broad searches. They are still readable by explicit path.
 
 A **watchface builder framework for Garmin Connect IQ**: YAML design and data
 bindings in, a compilable, sideloadable watch face (`.prg`) out.
-**Targets:** `fenix8solar47mm`, `fenix8solar51mm`, `fr955`. Personal sideload
-only. Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
+**Scope: Garmin watch faces in general**, not a fixed device list. A face's
+`targets:` may name any device whose definition is installed; the compiler
+reads every limit and capability out of the device files
+(`wfb/devices.py`) and never hardcodes a device. **136 of the 164 devices in
+the reference can run a watch face** (28 cannot — §4.2).
+
+**`fenix8solar47mm`, `fenix8solar51mm` and `fr955` are the *verification*
+devices** — the three the user owns and can sideload to — so they are what
+examples target, what tests build, and what "measured" claims in these docs
+were measured on. **They are not the supported set.** A claim of the form
+"warning-free on all three targets" is evidence from those three, not a
+statement that nothing else is supported; when a feature's behaviour varies
+across the fleet, model it per device and say so. Personal sideload only.
+Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 
 **Research-then-build:** the user asked for readable reasoning, so
 `docs/research/` and `docs/adr/` are deliverables, not scaffolding.
 
 | Phase | State |
 |---|---|
-| 0 research (`docs/research/00`–`09`) | complete, reviewed |
+| 0 research (`docs/research/00`–`12`) | complete, reviewed |
 | 1 ADRs (`docs/adr/0001`–`0009`) | complete, reviewed |
 | 2 thin vertical slice | complete; the `.prg` runs in the user's host simulator |
 | 3 breadth | in progress: all 9 element types (analog hands and patterns added 2026-09-14, plans 04–05), `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:`/`vertical_align:` everywhere (plan 07) shipped — see §6 |
@@ -119,8 +131,11 @@ One line each. The full text and citations are in
 re-litigate these without new evidence.**
 
 1. **No device-side renderer**, which is why this is codegen (ADR 0003).
-2. **Watch faces get 131 072 B (128 KB)** on all targets, a sixth of a watch
-   app's. 28 of 164 devices cannot run a face at all.
+2. **The watch-face memory limit is per device — read it, never assume
+   128 KB.** 131 072 B is only the *most common* value (62 of the 136
+   watch-face-capable devices); 19 devices get 65 536 B and the floor is
+   49 152 B. Use `Device.watchface_memory_limit`, which already reads
+   `compiler.json`. 28 of 164 devices cannot run a face at all.
 3. **No filled arc.** Rings are `setPenWidth` + `drawArc` only: no caps, no
    annulus, no gradient.
 4. **An `onPartialUpdate` overrun is permanent** for the app's lifetime.
@@ -154,8 +169,9 @@ re-litigate these without new evidence.**
      2026-09-13:** colours *and* widget layouts share Styles as explicitly
      listed entries. See `docs/format.md`; `examples/features/styles/face.yaml`.
 10. **`alphaBlendingSupport: false`**: no transparency.
-11. **The graphics pool (1 MB) is separate** from the 128 KB, so a
-    `BufferedBitmap` is cheap.
+11. **The graphics pool (1 MB) is separate** from the app's own budget, so a
+    `BufferedBitmap` is cheap — and, since API 4.0.0, a loaded bitmap or font
+    resource lands there rather than in the watch-face limit.
 12. **`onSettingsChanged` fires only for Garmin Connect pushes.** Invalidate
     caches explicitly.
 13. **64-colour MIP palette:** each channel must be `00`/`55`/`AA`/`FF`, or
@@ -165,6 +181,17 @@ re-litigate these without new evidence.**
     - **14b.** **Four plottable series only**: HR history,
       `ActivityMonitor.getHistory`, hourly and daily forecast.
       `SensorHistory` is closed to faces, and solar has no history.
+15. **A watch face cannot ship its own TTF/OTF.** A `<font>` resource takes a
+    BMFont `.fnt` and nothing else, and no API anywhere loads font bytes. An
+    author's typeface is therefore *always* baked to a bitmap at build time
+    (`wfb/fonts/bmfont.py`). `Graphics.getVectorFont` (API 4.2.1) is
+    scalable text from **Garmin's own device-resident faces only** — about 14
+    Latin ones, on **44 of the 136** watch-face-capable devices, and nothing
+    can be added to the list. It is the only way to get rotated or curved
+    text (`drawAngledText`/`drawRadialText` refuse resource fonts), but it is
+    **not** a memory win: a baked sheet already lives in the graphics pool
+    (11), not the watch-face budget. Full analysis and measurements:
+    `docs/research/12-vector-fonts.md`.
 
 ---
 
@@ -227,6 +254,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `vertical_align: baseline` (renamed `bottom`).
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
+  - vector fonts, and so rotated/curved text (researched, not built:
+    `docs/research/12-vector-fonts.md` §5);
   - per-device `overrides` (writing one is a build error);
   - `segments`/`scale` progress styles;
   - unit conversion;

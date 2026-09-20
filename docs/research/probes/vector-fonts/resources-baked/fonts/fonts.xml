@@ -1,0 +1,5 @@
+<fonts xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+    <!-- Baked by wfb.fonts.bmfont from examples/showcase/assets/ChivoMono-Bold.ttf
+         at 68 px, glyphs "0123456789:". Used by the `baked` variant only. -->
+    <font id="Clock" filename="Clock.fnt" />
+</fonts>

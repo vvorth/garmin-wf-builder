@@ -163,11 +163,16 @@ headless Linux container"). The generated code rebuilds its cached series
 only when the clock minute changes, which is a cheap precaution, not a
 measurement.
 
-### 128 KB, and 28 devices that cannot run a watch face at all
+### The memory limit is per device (48 KB – 1 MB), and 28 devices cannot run a watch face at all
 
-A watch face gets **131 072 bytes** on all three targets — one sixth of the
-786 432 bytes the same hardware gives a watch app. Of 164 documented devices,
-**28 cannot run a watch face at all**.
+A watch face gets **131 072 bytes** on the three verification devices — one
+sixth of the 786 432 bytes the same hardware gives a watch app — but that
+figure is **not** the platform's. Across the 136 documented devices that can
+run a face, 62 are at 131 072 B, 38 at 98 304 B, 19 at 65 536 B, 10 at
+524 288 B, and the floor is **49 152 B**: a 21× spread. A design that is
+comfortable on a fēnix 8 may not fit on the 21 devices at or below 64 KB, so
+check `--build-stats` on each device actually named in `targets:`. Of the 164
+documented devices, **28 cannot run a watch face at all**.
 
 The build reports measured usage per device. It is measured by
 `monkeyc --build-stats`, not estimated — see §3 for what that figure does and
@@ -189,6 +194,27 @@ nothing inside it changed.
 MIP and AMOLED are structurally different low-power paths, not a styling
 difference. All three targets here are MIP; **74 of 164 devices are
 AMOLED-class** and need the `always_on` path instead.
+
+### A face cannot ship its own TTF, and vector fonts are Garmin's only
+
+An author's typeface is **always** rasterised to a bitmap sheet at build time.
+Connect IQ has no way to carry an outline font inside a `.prg`: a `<font>`
+resource accepts only a BMFont `.fnt`, and no API anywhere loads font bytes.
+
+`Graphics.getVectorFont` (API 4.2.1) draws scalable text at any pixel size,
+but only from faces **already on the watch** — about 14 Latin faces, of which
+only `RobotoCondensedBold`/`Regular` is widely present, on **44 of the 136**
+watch-face-capable devices. The catalogue cannot be extended, so the
+typefaces this project's own examples use (Chivo Mono, Dynalight, Questrial)
+can never be vector fonts.
+
+The practical consequence today is that **text drawn with an author's font
+cannot be rotated or curved**: `Dc.drawAngledText` and `Dc.drawRadialText`
+accept scalable fonts only and explicitly refuse resource fonts. It is *not*,
+however, a memory limitation — a baked sheet loads into the separate graphics
+pool, not the watch-face budget (measured in
+`docs/research/probes/vector-fonts/`). Full analysis:
+`docs/research/12-vector-fonts.md`. Not implemented; see §2.
 
 ### Single-colour bitmap fonts
 
@@ -547,6 +573,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | Missing | Where it is specified |
 |---|---|
 | `image` elements | ADR 0004 |
+| Vector fonts (`Graphics.getVectorFont`), and with them `drawAngledText`/`drawRadialText` | `docs/research/12-vector-fonts.md` §5 — researched, not built. Worth building for rotated/curved text, which a baked font cannot do at all; **not** worth building as a memory measure. Needs a `face:`-style second font kind with the baked sheet as the per-device fallback, since 92 of the 136 watch-face-capable devices have no scalable face |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
 | Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1 -- the one piece of it still unbuilt, and the only route that would give `fr955` any configuration at all. Frozen, incomplete, on `wip/phone-settings` |

@@ -1,0 +1,6 @@
+<drawables xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+    <!-- 40x40 flat placeholder, copied from ../system-font-metrics. The probe
+         measures memory, not pixels; the icon is only here to satisfy the
+         manifest. -->
+    <bitmap id="LauncherIcon" filename="launcher_icon.png" />
+</drawables>

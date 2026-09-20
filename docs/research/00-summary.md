@@ -22,6 +22,7 @@ Detail lives in:
 | `09-data-library-and-config-axes.md` | colour library, colour schemes, selectable data library |
 | `10-system-fonts.md` | system-font names, free stand-ins, metrics, `.cft` bitmap fonts |
 | `11-always-on-display.md` | AMOLED always-on: burn-in rules, the API per device, and how to build AOD on the existing element model |
+| `12-vector-fonts.md` | can a face ship its own TTF? No — the two font paths, `getVectorFont`'s four availability gates, 44/136 devices, and measured costs |
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
 | `data/capability-matrix.json` | feature × device support, machine-readable |
 

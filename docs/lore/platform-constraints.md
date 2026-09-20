@@ -15,21 +15,36 @@ These are the findings that shaped every decision. Full detail and citations in
    codegen (ADR 0003) — an interpreter would have to ship inside the same
    128 KB the design must fit in.
 
-2. **Watch faces get 131 072 B (128 KB)** on all three primary targets
-   (`fenix8solar47mm`/`51mm`, `fr955`) — one sixth of the 786 432 B the same
-   hardware gives a watch app. 28 of 164 documented devices cannot run a
-   watch face at all.
+2. **The watch-face memory limit is a per-device number. Read it; do not
+   assume 128 KB.** 131 072 B — one sixth of the 786 432 B the same hardware
+   gives a watch app — is the *most common* value, not the rule. Across the
+   **136 of 164** documented devices that can run a watch face at all
+   (computed over `docs/research/data/devices/*.json`, SDK 9.2.0):
 
-   **2026-09-15 nuance (`docs/research/probes/api-gating/`, `wfb devices`
-   against the vendored SDK 9.2.0 device set):** the 128 KB figure is not
-   universal even among devices this project can now target. `fr245`'s
-   watch-face limit is **96 KB**, a quarter less; `fenix6`'s is **112 KB**.
-   Both are below the three primary targets, which stay at 128 KB. A design
-   built for the primary targets is not automatically safe to add either
-   device to `targets:` without checking `--build-stats` on it too —
-   `examples/dashboard/face.yaml` (the largest example) measured at 14 817 B
-   on `fenix6` the day this was added, comfortably inside 112 KB, but that is
-   a per-design fact, not a guarantee.
+   | limit | devices |
+   |---|---|
+   | 131 072 B (128 KB) | 62 |
+   | 98 304 B (96 KB) | 38 |
+   | 65 536 B (64 KB) | 19 |
+   | 524 288 B (512 KB) | 10 |
+   | 114 688 B (112 KB) | 3 |
+   | 49 152 B (48 KB) | 2 |
+   | 135 168 B, 1 048 576 B | 1 each |
+
+   So the budget spans **48 KB to 1 MB, a factor of 21**, and a design that
+   fits comfortably on a fēnix 8 can be impossible on the 21 devices at or
+   below 64 KB. `Device.watchface_memory_limit` (`wfb/devices.py`) already
+   reads the real figure out of each `compiler.json`; nothing should hardcode
+   131 072.
+
+   The three verification devices (`fenix8solar47mm`/`51mm`, `fr955`) all sit
+   at 128 KB, which is exactly why measurements taken on them are not a
+   safety argument for anything else. Among the other vendored devices,
+   `fr245` is **96 KB** and `fenix6` **112 KB** — adding either to `targets:`
+   needs its own `--build-stats` check
+   (`docs/research/probes/api-gating/`). `examples/dashboard/face.yaml`, the
+   largest example, measured 14 817 B on `fenix6`: comfortable, but a
+   per-design fact rather than a guarantee.
 
 3. **There is no filled-arc primitive.** No `fillArc`, `fillSector` or
    `drawSector` exists anywhere in the API. Rings are `setPenWidth` + `drawArc`
@@ -144,10 +159,18 @@ These are the findings that shaped every decision. Full detail and citations in
    Data Color. Plans 01–02 hold the rejected options (`docs/CLAUDE.md`);
    `examples/features/styles/face.yaml` is the worked example.
 
-10. **`alphaBlendingSupport: false`** on all three targets. No transparency.
+10. **`alphaBlendingSupport: false`** on all three verification devices. No
+    transparency. Per device, like everything else: read the flag.
 
 11. **The graphics pool is separate** — `graphicsResourcePoolSize` is 1 MB,
-    distinct from the 128 KB app limit. Makes `BufferedBitmap` cheaper than feared.
+    distinct from the app's own limit. Makes `BufferedBitmap` cheaper than
+    feared, and, from API 4.0.0, a bitmap or font resource loaded at runtime
+    goes there too: "when you load a bitmap or font at runtime, the resource
+    will load into the graphics pool"
+    (`$CIQ_SDK/doc/docs/Core_Topics/Graphics.html`). Measured corroboration —
+    a baked font sheet grown from 11 to 95 glyphs left `--build-stats` data
+    and code byte-identical and only grew the `.prg`
+    (`docs/research/probes/vector-fonts/`).
 
 12. **`onSettingsChanged` fires only for Garmin Connect pushes**, not on-watch
     edits. Any property write needs explicit cache invalidation.
@@ -172,3 +195,36 @@ These are the findings that shaped every decision. Full detail and citations in
 14. **`deviceFamily` in `compiler.json` is the resource-qualifier directory
     name** — `round-260x260` (47 mm, fr955) vs `round-280x280` (51 mm). Read it;
     don't derive it.
+
+15. **A watch face cannot ship its own outline font.** Connect IQ has two font
+    paths and neither accepts an app-supplied `.ttf`/`.otf`:
+
+    - **`<font>` resources take a BMFont `.fnt` and nothing else.** The
+      resource compiler's own XSD (`$CIQ_SDK/bin/resources.xsd`, `fontType`)
+      allows `id`/`filename`/`filter`/`antialias`/`scope`/`personality`, and
+      `Core_Topics/Resources.html` §Fonts documents `filename` as a "BMFont
+      generated .fnt file". `FontProcessor.processFont` in `monkeybrains.jar`
+      takes a parsed `BMFont`; there is no TrueType rasteriser on that path.
+      (The jar's `resourcecompiler/fonts/TTFont.class` is *not* one: it
+      implements the layout-XML syntax `font="#FaceName:size"`, which emits a
+      `Graphics.getVectorFont` call.)
+    - **No API loads font bytes.** Every `*Font*` function in
+      `$CIQ_SDK/bin/api.debug.xml` is `getFontAscent`, `getFontDescent`,
+      `getFontHeight`, `getVectorFont`, `Text.setFont` and `TextArea.setFont`.
+
+    So an author's typeface is always baked at build time
+    (`wfb/fonts/bmfont.py`). **`Graphics.getVectorFont`** (API 4.2.1,
+    `:face` + `:size` in pixels, returns null when unavailable) draws
+    scalable text from **Garmin's own device-resident faces only** — roughly
+    14 Latin faces, of which only `RobotoCondensedBold`/`Regular` is close to
+    dependable, on **44 of the 136** watch-face-capable devices. Nothing can
+    be added to that catalogue.
+
+    Two consequences worth keeping straight. It is the **only** way to draw
+    rotated or curved text — `Dc.drawAngledText`/`drawRadialText` "only
+    support scalable fonts and do not support custom fonts loaded as
+    resources" (`Core_Topics/Graphics.html`). And it is **not** a memory win:
+    per constraint 11 a baked sheet already sits in the graphics pool rather
+    than the watch-face budget. Measurements, the four availability gates and
+    the full face/device inventory: `docs/research/12-vector-fonts.md`,
+    `docs/research/probes/vector-fonts/`.
