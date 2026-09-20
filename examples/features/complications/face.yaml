@@ -28,7 +28,7 @@ format: 1
 
 face:
   id: 2e397ee6-193f-4157-accf-013e47ada318
-  name: Complications
+  name: Feature Complications
   version: 1.0.0
 
 targets:

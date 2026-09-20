@@ -17,7 +17,10 @@ Complications), the element says so with `lint: {allow: [...], reason:}`.
 
 ## `features/`
 
-Each face's header comment explains what it exercises. `features/slots/` is
+Each face's header comment explains what it exercises, and every face here
+is named `Feature <thing>` (2026-09-20) so a sideloaded build is obviously a
+demo on the watch -- keep that convention for new ones; it also decides the
+`.prg` name (`feature-graph-fr955.prg`). `features/slots/` is
 the only one using the Data axis (`config: data:`), `features/config/` the
 colour axes and `color_scheme:`, `features/styles/` `layouts:` and `config:
 style:` (widget-set switching, not just colour).

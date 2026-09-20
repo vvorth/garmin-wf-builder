@@ -79,7 +79,7 @@ format: 1
 
 face:
   id: a1b2c3d4-e5f6-4789-a123-456789abcdef
-  name: Align
+  name: Feature Align
   version: 1.0.0
 
 targets:

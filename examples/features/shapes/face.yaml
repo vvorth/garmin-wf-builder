@@ -20,7 +20,7 @@ format: 1
 
 face:
   id: 9c1d5f30-6a72-4b18-8d4e-0f2a71c93b64
-  name: Shapes
+  name: Feature Shapes
   version: 1.0.0
 
 targets:

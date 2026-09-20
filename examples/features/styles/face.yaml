@@ -68,7 +68,7 @@ format: 1
 
 face:
   id: 565ddf22-b8b4-4182-b70d-813ddb91d268
-  name: Styles
+  name: Feature Styles
   version: 1.0.0
 
 targets:

@@ -45,7 +45,8 @@ patterns, graphs, shapes, alignment, the on-device config axes, complication
 slots and layouts. Each was written when that feature landed, so it
 demonstrates the feature rather than being a design. Its header comment says
 what it exercises, and [`docs/format.md`](../docs/format.md) is the
-reference.
+reference. Each one's `name:` is `Feature <thing>`, so a sideloaded build
+says what it is on the watch.
 
 [`system-fonts/`](system-fonts/) holds three calibration faces (`text/`,
 `numbers/`, `numbers-large/`). They draw every system font as a fixed sample

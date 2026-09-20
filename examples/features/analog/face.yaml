@@ -64,7 +64,7 @@ format: 1
 
 face:
   id: 8c5f1022-ed4c-4aaa-bf4a-c61224389ce9
-  name: Analog
+  name: Feature Analog
   version: 1.0.0
 
 targets:

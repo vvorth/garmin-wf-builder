@@ -38,7 +38,7 @@ format: 1
 
 face:
   id: 8f3c6e2a-1d4b-4a7e-9c5f-2b6a7d4e9f10
-  name: Config
+  name: Feature Config
   version: 1.0.0
 
 targets:

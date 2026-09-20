@@ -2,7 +2,7 @@ format: 1
 
 face:
   id: 3d9a7c14-6b28-4e55-8a10-cf42d7b90e63
-  name: SunArc
+  name: Feature Sun Bar
   version: 1.0.0
 
 targets: [fenix8solar47mm, fenix8solar51mm, fr955]
