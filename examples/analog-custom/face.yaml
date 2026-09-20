@@ -101,11 +101,11 @@ hands:
           color: palette.black
           points: # background
             - { dx:  -1%r, dy:  21%r }
-            - { dx:   1%r, dy:  21%r }
             - { dx: -10%r, dy:  -1%r }
             - { dx:  -2%r, dy: -71%r } # the tip, straight up
             - { dx:   2%r, dy: -71%r } # the tip, straight up
             - { dx:  10%r, dy:  -1%r }
+            - { dx:   1%r, dy:  21%r }
         - shape: polygon
           color: config.colors.fg
           points: # arrow
