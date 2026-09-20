@@ -21,6 +21,7 @@ Detail lives in:
 | `08-graphs-and-configuration.md` | graphs and user configuration |
 | `09-data-library-and-config-axes.md` | colour library, colour schemes, selectable data library |
 | `10-system-fonts.md` | system-font names, free stand-ins, metrics, `.cft` bitmap fonts |
+| `11-always-on-display.md` | AMOLED always-on: burn-in rules, the API per device, and how to build AOD on the existing element model |
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
 | `data/capability-matrix.json` | feature × device support, machine-readable |
 
