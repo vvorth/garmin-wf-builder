@@ -494,6 +494,27 @@ exist — but a future feature that revisits the `bottom` restriction under
 equivalent of `_glyph_y_expr`'s screen-space subtraction for a rotated
 baseline) before it could emit anything for it.
 
+**A further follow-up (2026-09-21): the round-screen `safe-area` check
+itself was still testing the tightened box's own corners, not the shape it
+bounds.** Tightening the *box* (above) does not by itself tighten the
+*safe-area test* against it: `wfb.layout.inside_visible_area` tests
+whether all four of a box's corners sit within the visible disc, and even
+a genuinely tight annulus-sector AABB has corners that are not points on
+the sector at all (the same "union of extremes is not a point on the
+shape" trap `arc_bbox`'s own docstring names for the framebuffer-relative
+case) — measured from the screen centre rather than the sector's own
+centre, those phantom corners can sit well outside `radius:`'s own outer
+edge even when every glyph is comfortably inside. This is exactly what
+`examples/showcase`'s twelve-numeral ring (`curve: {style: radial}`,
+`radius: 75%r`) hit, tripping `safe-area` and forcing a `lint: {allow:
+[safe-area]}` suppression despite fitting easily. `wfb.layout.
+annulus_sector_reach`/`rotated_rect_corners`/`visible_reach` (ADR 0008's
+2026-09-21 amendment) fix this by testing the shape's own real farthest
+point from the screen centre instead of the box's corners, for a curved
+standalone `text` element and for a radial pattern's own `shape: text`
+part alike; `off-screen` (the framebuffer test, still corner-based) is
+unaffected, since the framebuffer really is rectangular.
+
 ---
 
 ## 6. Sources

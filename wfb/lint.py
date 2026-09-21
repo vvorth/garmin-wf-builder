@@ -24,8 +24,8 @@ from .ir import (
     PatternElement, StyleEntry, Text, authored_draw_order, never_together,
 )
 from .layout import (
-    ANTIALIASED_PRIMITIVES, PlacedPattern, PlacedText, ResolvedFace,
-    inside_screen, inside_visible_area_for, is_full_bleed,
+    ANTIALIASED_PRIMITIVES, BEZEL_MARGIN, PlacedPattern, PlacedText, ResolvedFace,
+    inside_screen, inside_visible_area_for, is_full_bleed, visible_reach,
 )
 from .palette import Color
 from .units import IntBox
@@ -1049,14 +1049,30 @@ def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
         if visible is None:
             unchecked_shape = True
         elif not visible:
+            notes = ["the framebuffer is rectangular but the panel is not; the outer "
+                     "edge is cropped by the bezel"]
+            if device.shape == "round":
+                # A shape-aware reach (`visible_reach`) is what actually
+                # decided this for a round screen whenever one applies (an
+                # arc/circle/hands/radial-pattern disc, or a curved text
+                # element's own real ink) -- name the two numbers the
+                # comparison came down to, rather than leaving the author to
+                # re-derive them from `box` alone, which for any of those
+                # kinds is no longer the shape this check tested against.
+                screen_cx, screen_cy = device.width / 2, device.height / 2
+                reach = visible_reach(placed, screen_cx, screen_cy)
+                limit = device.minor_radius * (1.0 - BEZEL_MARGIN)
+                if reach is not None:
+                    notes.append(
+                        f"this element's own ink reaches {reach:.1f}px from {device.id}'s "
+                        f"screen centre; the visible disc's own limit is {limit:.1f}px")
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
                 "safe-area",
                 f"{placed.id} reaches outside the visible area of {device.id}'s "
                 f"{device.shape} screen",
                 placed.element.span,
-                notes=["the framebuffer is rectangular but the panel is not; the outer "
-                       "edge is cropped by the bezel"],
+                notes=notes,
                 confidence="exact for round and rectangle screens",
             ))
     if unchecked_shape:

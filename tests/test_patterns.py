@@ -1113,3 +1113,41 @@ def test_a_constant_true_visible_part_emits_no_gate(write_design, bag, db, tmp_p
     body = _loop_body(view)
     assert "if (" not in body
     assert "fillCircle" in body
+
+
+# -- lint: safe-area on a radial ring of non-text parts (fix B contrast) ------
+#
+# Unlike a `shape: text` part (`tests/test_pattern_text_curve.py`'s own
+# "safe-area" section), a polygon/line/circle/arc pattern part's own reach
+# was already exact before that fix (`Resolver._resolve_hand_part` derives
+# it straight from the part's own rotation-invariant geometry, never from
+# an AABB's corners) -- these two tests are a regression guard confirming
+# the `_pattern_part_ink` refactor (fix B) left that already-correct path
+# alone, not a "driven red" case for this fix itself.
+
+
+def _tick_ring(inner_px: int, outer_px: int, count: int = 12) -> str:
+    return f"""  - id: ticks
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: {count}
+    color: palette.fg
+    parts:
+      - {{shape: line, at: {{dy: -{inner_px}px}}, to: {{dy: -{outer_px}px}}, thickness: 2px}}
+"""
+
+
+def test_radial_tick_ring_inside_the_disc_does_not_warn_safe_area(lint_run):
+    """A full 12-tick ring reaching to 125px on `fenix8solar47mm` (130px
+    minor radius, 127.4px visible limit) -- comfortably inside."""
+    bag = lint_run(design(_tick_ring(117, 125)))
+    assert not any(d.code == "safe-area" for d in bag.items), bag.render()
+
+
+def test_radial_tick_ring_pushed_out_warns_safe_area(lint_run):
+    """The same ring, reaching to 127px -- just past the 127.4px visible
+    limit, so `safe-area` must still fire for a ring of plain shapes
+    exactly the way it always did."""
+    bag = lint_run(design(_tick_ring(119, 127)))
+    assert any(d.code == "safe-area" for d in bag.items), bag.render()

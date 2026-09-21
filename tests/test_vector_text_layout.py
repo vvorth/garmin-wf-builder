@@ -31,7 +31,9 @@ import pytest
 
 from wfb import build, lint
 from wfb.layout import (
-    PlacedText, arc_bbox, inside_screen, radial_text_angle_span, radial_text_band, resolve,
+    PlacedText, annulus_sector_reach, arc_bbox, inside_screen, inside_visible_area,
+    inside_visible_area_for, radial_text_angle_span, radial_text_band, resolve,
+    rotated_rect_corners, visible_reach,
 )
 
 # -- design templates ---------------------------------------------------------
@@ -612,3 +614,174 @@ def test_upright_vector_font_text_measures_like_any_other_estimated_text(write_d
     assert placed.width_is_estimated is True
     assert placed.measured_width > 0
     assert placed.box.width > 0 and placed.box.height > 0
+
+
+# -- annulus_sector_reach: the round-screen safe-area check's own exact
+# farthest-point test, replacing an AABB's own (overreaching) corners -------
+
+
+def test_annulus_sector_reach_from_the_sectors_own_centre_is_exact_r_outer():
+    """The trivial case (`Resolver._resolve_text`'s own `curve: {style:
+    radial}` `at:` reinterpretation makes the circle's own centre the
+    common case): every point of the swept range shares the same distance
+    from its own centre only at `r_outer`, so the farthest point is
+    `r_outer` regardless of the sweep. Also the exact concrete case that
+    proves an AABB's own *corners* are the wrong thing to measure this
+    from: `arc_bbox`'s corner for this same sector sits well past
+    `r_outer`, even measured from the sector's own centre."""
+    reach = annulus_sector_reach(0.0, 0.0, 90.0, 100.0, 10.0, 80.0, 0.0, 0.0)
+    assert reach == pytest.approx(100.0)
+    box = arc_bbox(0.0, 0.0, 90.0, 100.0, 10.0, 80.0)
+    corners = ((box.x, box.y), (box.x, box.y + box.height),
+              (box.x + box.width, box.y), (box.x + box.width, box.y + box.height))
+    corner_reach = max(math.hypot(x, y) for x, y in corners)
+    assert corner_reach > reach, (
+        "the AABB's own corner overreaches the sector's real farthest point "
+        "-- the exact bug this function exists to avoid measuring from"
+    )
+
+
+def test_annulus_sector_reach_uses_the_unconstrained_direction_when_in_sweep():
+    """When the direction straight away from the external point falls
+    inside the sector's own sweep, the sector's farthest point is the same
+    one a full circle would have: colinear with the point and the centre,
+    at `dist(centre, point) + r_outer` exactly."""
+    # Point at (50, 0): "away" from it, from a centre at the origin, is the
+    # 180-degree direction -- squarely inside a 135..225-degree sweep.
+    reach = annulus_sector_reach(0.0, 0.0, 5.0, 10.0, 135.0, 225.0, 50.0, 0.0)
+    assert reach == pytest.approx(60.0)
+
+
+def test_annulus_sector_reach_falls_back_to_the_nearer_endpoint_when_out_of_sweep():
+    """The contrast case: when the unconstrained direction falls OUTSIDE
+    the swept range, the farthest point moves to whichever of the two
+    endpoints is angularly closer to that direction -- checked at both
+    radii, since the farther one is not always the outer radius (a convex
+    function's max over a bounded interval is always at an endpoint, not
+    necessarily the same endpoint at every radius)."""
+    # Point at (60, 0): "away" from it is the 180-degree direction, well
+    # outside this sector's 0..30-degree sweep.
+    reach = annulus_sector_reach(0.0, 0.0, 8.0, 10.0, 0.0, 30.0, 60.0, 0.0)
+    candidates = []
+    for theta_deg in (0.0, 30.0):
+        theta = math.radians(theta_deg)
+        for r in (8.0, 10.0):
+            x, y = r * math.cos(theta), -r * math.sin(theta)
+            candidates.append(math.hypot(x - 60.0, y - 0.0))
+    assert reach == pytest.approx(max(candidates))
+    # And the naive "always dist + r_outer" answer this replaces would have
+    # under-reported it (the true farthest point is at the INNER radius
+    # here, not the outer one, because the sector is entirely on the near
+    # side of the external point).
+    assert reach > 60.0 - 10.0  # sanity: still farther than the near edge
+
+
+# -- visible_reach / inside_visible_area_for: a standalone curved text
+# element's exact shape, not its (still-overreaching) AABB corners --------
+
+
+def test_radial_text_crossing_a_diagonal_passes_where_its_aabb_corner_would_fail(
+    write_design, bag, db,
+):
+    """The standalone-element half of fix B (`docs/plans/` numerals case):
+    a `curve: {style: radial}` run centred away from 12/3/6/9 o'clock (a
+    diagonal, 45 degrees here) has an AABB whose own corners sit farther
+    from the screen centre than the run's real ink ever does -- exactly
+    the same trap `annulus_sector_reach`'s own docstring proves in
+    isolation above, now exercised through the full resolve+lint path.
+    `radius: 90%r` is comfortably inside the visible disc by the real
+    (exact) reach, but its AABB's own corner-distance test
+    (`inside_visible_area`, unchanged -- still the right test for the
+    rectangular *framebuffer*) would have failed it -- CLAUDE.md §7's own
+    "must be able to fail against a knowingly broken implementation": a
+    version of `inside_visible_area_for` that fell straight through to
+    `inside_visible_area(placed.box, device)` for every kind (exactly what
+    it did before `visible_reach` existed) gets this one wrong."""
+    element = _text("radial", "    curve: {style: radial, angle: 45deg, radius: 90%r}\n")
+    face = _load(write_design, bag, _design(_SINGLE_FONT, element))
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    placed = _placed(resolved, "radial")
+
+    assert inside_visible_area(placed.box, device) is False, (
+        "the AABB's own corners must still (correctly) look cropped -- the "
+        "contrast this test exercises"
+    )
+    assert inside_visible_area_for(placed, device) is True, (
+        "the shape-aware reach must recognise the real ink fits"
+    )
+
+    lint.check_geometry(resolved, bag)
+    assert not any(d.code == "safe-area" for d in bag.items), bag.render()
+
+
+def test_radial_text_that_truly_crosses_the_diagonal_bezel_still_warns(
+    write_design, bag, db,
+):
+    """The non-regression half of the same case: pushed out far enough
+    (`radius: 95%r`) the run's real ink genuinely crosses the bezel margin
+    too, so both the AABB-corner test and the exact one agree it fails --
+    proving the fix tightened the check rather than silently disabling it
+    for every diagonal run."""
+    element = _text("radial", "    curve: {style: radial, angle: 45deg, radius: 95%r}\n")
+    face = _load(write_design, bag, _design(_SINGLE_FONT, element))
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    placed = _placed(resolved, "radial")
+
+    assert inside_visible_area(placed.box, device) is False
+    assert inside_visible_area_for(placed, device) is False
+
+    lint.check_geometry(resolved, bag)
+    warnings = [d for d in bag.items if d.code == "safe-area"]
+    assert warnings, bag.render()
+    # The diagnostic names the reach/limit numbers it actually compared,
+    # not just "outside the visible area" -- ADR 0008's own confidence
+    # discipline: a reader should be able to check the claim, not just
+    # trust it.
+    assert any("reaches" in n and "px" in n and "limit" in n for n in warnings[0].notes), (
+        warnings[0].notes
+    )
+
+
+def test_angled_text_off_the_main_axes_passes_where_its_aabb_corner_would_fail(
+    write_design, bag, db,
+):
+    """The same AABB-corner-overreach trap, for `curve: {style: angled}`
+    instead of `radial`: a rotated rectangle's own AABB has corners that
+    are not points on the rectangle at all once it is turned away from a
+    multiple of 90 degrees, so an element sitting off-centre on a diagonal
+    can have those phantom corners land outside the visible disc while
+    every real corner of the (turned) text box stays inside it."""
+    fonts = "  bezel:\n    face: RobotoCondensedBold\n    size: 10%r\n"
+    element = """\
+  - id: angled
+    type: text
+    text: "GARMIN"
+    color: palette.fg
+    at: {anchor: center, dx: 56.57%r, dy: 56.57%r}
+    font: font.bezel
+    curve: {style: angled, angle: 40deg}"""
+    face = _load(write_design, bag, _design(fonts, element))
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    placed = _placed(resolved, "angled")
+
+    assert inside_visible_area(placed.box, device) is False
+    assert inside_visible_area_for(placed, device) is True
+
+    lint.check_geometry(resolved, bag)
+    assert not any(d.code == "safe-area" for d in bag.items), bag.render()
+
+
+def test_visible_reach_is_none_for_upright_text_and_ordinary_shapes(write_design, bag, db):
+    """`visible_reach` only has a shape-aware answer for a curved element
+    or a kind `circular_extent` already covers -- upright text has none:
+    its `box` IS its real shape already, so there is nothing to tighten,
+    and the caller must fall back to the plain AABB-corners test."""
+    face = _load(write_design, bag, _design(_SINGLE_FONT, _text("upright")))
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    placed = _placed(resolved, "upright")
+    assert placed.curve_style is None
+    assert visible_reach(placed, device.width / 2, device.height / 2) is None

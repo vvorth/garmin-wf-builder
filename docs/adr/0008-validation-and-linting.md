@@ -160,3 +160,59 @@ value still on the wrong side of it, producing a negative width or height.
 Fixed to compute the intersection properly, floored at zero per axis, so a
 fully off-screen `low_power` element now clamps to a genuinely empty
 (zero-area) clip rather than a nonsense one.
+
+## Amendment (2026-09-21): check 4's `safe-area` half is shape-aware, not box-corner-aware
+
+**What changed.** On a round screen, `safe-area` (outside the visible disc,
+row 4's second half) no longer tests every element's four AABB corners
+against the disc. `wfb.layout.circular_extent`/`visible_reach` compute the
+element's own *real* farthest reach from the screen centre instead, for
+every kind that genuinely is not its own bounding box: `shape: arc`/
+`circle`, a `progress` arc, `hands`, a radial `pattern` (already true before
+this amendment for a `line`/`circle`/`arc`/`polygon` template part, whose
+own reach `Resolver._resolve_hand_part` already derived from real
+geometry, rotation-invariant), a standalone `curve: {style: radial}` or
+`{style: angled}` `text` element, and — the fix this amendment records — a
+radial pattern's own `shape: text` part under either `curve:` style, whose
+reach used to come from that part's per-copy AABB corners instead.
+`off-screen` (row 4's first half, the rectangular framebuffer test) is
+unchanged: the framebuffer really is rectangular, so its own AABB corners
+are the right test there, and remain so.
+
+**Why.** An axis-aligned bounding box drawn *around* a rotated rectangle or
+an annulus sector has corners that are not points on the shape at all —
+the same "union of extremes is not a point on the shape" trap
+`wfb.layout.arc_bbox`'s own docstring already named for the framebuffer-
+relative case. Measured from an *arbitrary* external point (the screen
+centre, not necessarily the shape's own centre), that AABB's corners can
+sit substantially farther out than the shape's real farthest point ever
+does. Concretely: a full 12-copy radial ring of `shape: text` numerals
+(`examples/showcase`'s own `numerals` element, `curve: {style: radial}`)
+tripped `safe-area` at a radius comfortably inside the visible disc, purely
+because each copy's own annulus-sector AABB has corners well outside
+`radius:`'s own outer edge — acknowledged with `lint: {allow: [safe-area],
+reason: ...}` until this fix, now unnecessary and removed.
+
+**How.** `wfb.layout.annulus_sector_reach(cx, cy, r_inner, r_outer,
+theta_a, theta_b, px, py)` is the farthest distance from an arbitrary point
+to an annulus sector — exact when the direction from the sector's own
+centre straight away from that point falls inside the sector's sweep (the
+common case, and the only case for a ring whose curve centre coincides
+with the pattern's own rotation axis, `radius: 75%r` and no `at:` override
+being the exact shape `examples/showcase`'s own numerals use), and a tight
+comparison of both radii at both sweep endpoints otherwise.
+`wfb.layout.rotated_rect_corners` is the analogous fix for `curve:
+{style: angled}`: the four *real* corners of the rotated text box, not
+its AABB's. Both a standalone element (`wfb.layout.visible_reach`, read by
+`wfb.layout.inside_visible_area_for`) and a pattern's own `shape: text`
+part (`Resolver._resolve_pattern`'s per-copy `text_reach`, sharing
+`wfb.layout._pattern_text_ink_geometry` with `_pattern_part_ink`'s own
+AABB so the two questions are always asked of the same shape) go through
+this geometry. `check_geometry`'s `safe-area` message now also names the
+reach and the limit it compared against, not just "outside the visible
+area", so the finding can be checked, not just trusted (`ADR 0008`'s own
+confidence discipline). Full design: `wfb/layout.py`'s own docstrings
+(`annulus_sector_reach`, `rotated_rect_corners`, `visible_reach`,
+`circular_extent`), and `docs/format.md`'s "`curve:` — rotated and radial
+text" section. Tests: `tests/test_pattern_text_curve.py`,
+`tests/test_vector_text_layout.py`, `tests/test_patterns.py`.

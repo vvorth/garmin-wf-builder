@@ -33,7 +33,7 @@ from wfb.diagnostics import Bag
 from wfb.emit.monkeyc import emit_layout, emit_view
 from wfb.emit.monkeyc.rotated import _emit_pattern_text_angle_expr
 from wfb.emit.resources import bake_fonts
-from wfb.layout import PlacedPattern, inside_screen, resolve
+from wfb.layout import PlacedPattern, _pattern_part_ink, inside_screen, resolve
 from wfb.preview import PreviewOptions, render
 
 
@@ -539,3 +539,161 @@ def test_preview_draws_nothing_for_a_hidden_unavailable_pattern_part(write_desig
     for x in (0, w // 2, w - 1):
         for y in (0, h // 2, h - 1):
             assert image.getpixel((x, y)) in ((0, 0, 0),)
+
+
+# --------------------------------------------------------------------------
+# safe-area: a full radial ring's exact reach, not the union AABB's corners
+# (fix B: `docs/lore/platform-constraints.md` §4 "safe-area is shape-aware").
+
+
+def _radial_ring_text(curve: str, count: int = 12, font: str = "font.bezel") -> str:
+    """A 12-numeral radial ring with no `at:` override on the part -- the
+    exact shape `examples/showcase`'s own `numerals` element uses: the
+    curve circle's own centre (for `radial`) or the text anchor (for
+    `angled`) coincides with the pattern's own rotation axis, so every
+    copy's ink sits at the same reach from that axis and only its angle
+    changes -- the case the old, AABB-corner-based `text_reach` most
+    badly overreported (`annulus_sector_reach`'s own docstring: even
+    centred exactly on the reference point, an annulus sector's AABB
+    corners sit past `r_outer`)."""
+    return f"""\
+  - id: hours
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: {count}
+    color: palette.fg
+    parts:
+      - shape: text
+        value: "(copy + 11) % 12 + 1"
+        font: {font}
+        {curve}"""
+
+
+def _old_style_pattern_reach(placed: PlacedPattern) -> float:
+    """Reconstructs the AABB-corner-based `text_reach` `Resolver.
+    _resolve_pattern` used before this fix -- the max distance from the
+    pattern's own axis to any DRAWN COPY's own `_pattern_part_ink` corners,
+    rather than the exact geometry `annulus_sector_reach`/
+    `rotated_rect_corners` now derive. `_pattern_part_ink` itself is
+    unchanged by the fix (still the right AABB for `off-screen`), so this
+    is a faithful reconstruction of the old numbers, not a guess -- the
+    same "rebuild the old box by hand since the code that made it no
+    longer exists to call" precedent `tests/test_vector_text_layout.py::
+    test_radial_band_is_line_height_over_two_not_line_height` sets."""
+    cx_f, cy_f = float(placed.center[0]), float(placed.center[1])
+    old_reach = 0.0
+    for index in placed.copies:
+        ox, oy, sin_t, cos_t = placed.transform(index)
+        copy_angle_degrees = placed.start + index * placed.step
+        for part in placed.parts:
+            lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(
+                part, ox, oy, sin_t, cos_t, index, copy_angle_degrees)
+            for corner_x, corner_y in ((lo_x, lo_y), (lo_x, hi_y), (hi_x, lo_y), (hi_x, hi_y)):
+                old_reach = max(old_reach, math.hypot(corner_x - cx_f, corner_y - cy_f))
+    return old_reach
+
+
+def test_radial_curve_ring_inside_the_disc_does_not_warn_safe_area(write_design, bag, db):
+    """A full 12-copy ring of `curve: {style: radial}` numerals,
+    `radius: 92%r`: comfortably inside the visible disc by the real
+    (exact) reach every glyph's ink actually occupies. The old,
+    AABB-corner-based `text_reach` this replaces would have failed this
+    exact case (reconstructed below, CLAUDE.md §7's "must be able to fail
+    against a knowingly broken implementation") -- the false positive the
+    user was papering over with `lint: {allow: [safe-area]}` on
+    `examples/showcase`'s own `numerals` element."""
+    elements = _radial_ring_text("curve: {style: radial, angle: 0deg, radius: 92%r}")
+    face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    placed = next(p for p in resolved.items if p.id == "hours")
+    assert isinstance(placed, PlacedPattern)
+
+    limit = device.minor_radius * (1.0 - 0.02)
+    assert placed.reach <= limit + 0.5, "the exact reach must fit"
+    assert _old_style_pattern_reach(placed) > limit + 0.5, (
+        "the old AABB-corner reconstruction must still overreport this "
+        "exact ring -- the contrast this fix exists to correct"
+    )
+
+    lint.check_geometry(resolved, bag)
+    assert not any(d.code == "safe-area" for d in bag.items), bag.render()
+
+
+def test_radial_curve_ring_pushed_out_still_warns_safe_area(write_design, bag, db):
+    """The non-regression half: pushed out far enough (`radius: 95%r`) the
+    ring's real ink genuinely crosses the bezel margin too, so the fix
+    must still catch it -- not silently disable `safe-area` for every
+    radial-text ring."""
+    elements = _radial_ring_text("curve: {style: radial, angle: 0deg, radius: 95%r}")
+    face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    placed = next(p for p in resolved.items if p.id == "hours")
+
+    lint.check_geometry(resolved, bag)
+    warnings = [d for d in bag.items if d.code == "safe-area"]
+    assert warnings, bag.render()
+    assert any("reaches" in n and "limit" in n for n in warnings[0].notes), warnings[0].notes
+
+
+def test_angled_curve_ring_inside_the_disc_does_not_warn_safe_area(write_design, bag, db):
+    """The same ring, `curve: {style: angled}` instead of `radial`
+    (`at: {dy: -92%r}` supplies the ring radius this style has no
+    `curve.radius` of its own for): each copy's own rotated-rectangle box
+    has AABB corners that are not points on the rectangle once turned away
+    from a multiple of 90 degrees, the same trap `rotated_rect_corners`
+    exists to avoid -- 12 copies around a full turn guarantee some of them
+    land at exactly such an angle."""
+    elements = _radial_ring_text(
+        "at: {dy: -92%r}\n        curve: {style: angled, angle: 0deg}")
+    face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    placed = next(p for p in resolved.items if p.id == "hours")
+    assert isinstance(placed, PlacedPattern)
+
+    limit = device.minor_radius * (1.0 - 0.02)
+    assert placed.reach <= limit + 0.5
+    assert _old_style_pattern_reach(placed) > limit + 0.5, (
+        "the old AABB-corner reconstruction must still overreport this ring"
+    )
+
+    lint.check_geometry(resolved, bag)
+    assert not any(d.code == "safe-area" for d in bag.items), bag.render()
+
+
+def test_angled_curve_ring_pushed_out_still_warns_safe_area(write_design, bag, db):
+    elements = _radial_ring_text(
+        "at: {dy: -95%r}\n        curve: {style: angled, angle: 0deg}")
+    face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+
+    lint.check_geometry(resolved, bag)
+    assert any(d.code == "safe-area" for d in bag.items), bag.render()
+
+
+def test_off_screen_pattern_still_uses_the_aabb_not_the_exact_reach(write_design, bag, db):
+    """`off-screen` (the rectangular *framebuffer* test) must stay on
+    `placed.box`'s own AABB regardless of this fix -- only the round-disc
+    `safe-area` check became shape-aware. A ring radius far past the
+    framebuffer itself is cropped no matter how tightly its real ink is
+    measured, and acknowledging `off-screen` must still silence the
+    (otherwise redundant) `safe-area` warning underneath it, the same
+    suppression `wfb.lint.check_geometry`'s own docstring already
+    documents for any other kind."""
+    elements = _radial_ring_text("curve: {style: radial, angle: 0deg, radius: 400%r}")
+    face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+
+    lint.check_geometry(resolved, bag)
+    assert any(d.code == "off-screen" for d in bag.items), bag.render()
+    assert not any(d.code == "safe-area" for d in bag.items), bag.render()

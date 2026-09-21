@@ -316,6 +316,94 @@ def arc_bbox(
     return Box(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
 
 
+def rotated_rect_corners(
+    x: float, y: float, width: float, height: float, align: str, vertical_align: str,
+    garmin_angle_degrees: float,
+) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]:
+    """The four REAL corners of a `width`x`height` text box, anchored at
+    `(x, y)`, shifted by `align`/`vertical_align` in its own unrotated frame
+    (`alignment_shift`), then rotated about `(x, y)` by
+    `garmin_angle_degrees` -- Garmin's own convention, the exact rotation
+    `Resolver._rotated_text_box` (below) already applies to get its AABB.
+
+    Split out of that method so the AABB and the round-screen reach check
+    (`visible_reach`, and a radial pattern's own per-copy `text_reach` in
+    `Resolver._resolve_pattern`) can share one rotation instead of two
+    independently-written copies: an AABB's own *corners* generically
+    overreach a rotated rectangle's real ones (the axis-aligned box drawn
+    around a tilted rectangle has corners that are not points on the
+    rectangle at all), the same "the union of extremes is not a point on
+    the shape" trap `arc_bbox`'s own docstring calls out for an annulus
+    sector -- so the AABB stays the right shape for the framebuffer
+    (`off-screen`) check, but the round-screen (`safe-area`) reach check
+    needs these actual corners instead.
+    """
+    theta = math.radians(garmin_angle_degrees)
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+    dx, dy = alignment_shift(width, height, align, vertical_align)
+    cx = x + dx * cos_t + dy * sin_t
+    cy = y - dx * sin_t + dy * cos_t
+    hw, hh = width / 2.0, height / 2.0
+    corners = []
+    for lx, ly in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+        corners.append((cx + lx * cos_t + ly * sin_t, cy - lx * sin_t + ly * cos_t))
+    return corners[0], corners[1], corners[2], corners[3]
+
+
+def annulus_sector_reach(
+    cx: float, cy: float, r_inner: float, r_outer: float,
+    theta_a_degrees: float, theta_b_degrees: float, px: float, py: float,
+) -> float:
+    """The farthest distance from an arbitrary point `(px, py)` to any point
+    of the annulus sector `arc_bbox` bounds -- radii `r_inner`..`r_outer`,
+    swept between `theta_a_degrees`/`theta_b_degrees` (either order, same
+    convention as `arc_bbox`). This is what the round-screen `safe-area`
+    check needs instead of `arc_bbox`'s own AABB corners: an AABB's corners
+    generically sit farther from an arbitrary external point than the
+    shape's own farthest point ever does (`arc_bbox`'s docstring already
+    makes the analogous point about the screen's own axes; this is the same
+    trap for a point that need not even be axis-aligned with the sector).
+
+    The farthest point of a *full* circle of radius `r` from an external
+    point `P` always lies in the direction from the centre straight away
+    from `P` -- colinear with `P` and the centre, at distance
+    `dist(centre, P) + r`. When that direction falls inside the sector's own
+    sweep, the sector's farthest point is that exact same one (the inner
+    radius is never the extreme there, the same "closer to centre, never
+    the extreme" reasoning `arc_bbox` already relies on). Otherwise the
+    farthest point of the *swept* range is at one of its two ends
+    (`theta_a`/`theta_b`): distance from `P` to a point at a fixed angle is
+    a convex function of that point's own radius, and a convex function's
+    max over a bounded interval is always at one of the interval's two
+    ends, so checking both radii at both ends is enough. Exact, not merely
+    conservative, for every case actually reachable through this format:
+    `radial_text_band`'s own band is always exactly one `line_height` wide,
+    and every sweep this project builds comes from one contiguous run of
+    text, never a reflex (>180 degree) sector -- documented as the same
+    "tight for the shapes this project actually produces" contract
+    `arc_bbox`'s own docstring sets, rather than an independently proven
+    bound for arbitrary radii and reflex sweeps.
+    """
+    dist_c = math.hypot(cx - px, cy - py)
+    theta_min = min(theta_a_degrees, theta_b_degrees)
+    theta_max = max(theta_a_degrees, theta_b_degrees)
+    sweep = theta_max - theta_min
+    r_inner = max(0.0, r_inner)
+    if sweep >= 360.0 or dist_c < 1e-9:
+        return dist_c + r_outer
+    theta_far = math.degrees(math.atan2(-(cy - py), cx - px)) % 360.0
+    if (theta_far - theta_min) % 360.0 <= sweep:
+        return dist_c + r_outer
+    best = 0.0
+    for theta in (theta_min, theta_max):
+        rad = math.radians(theta)
+        cos_t, sin_t = math.cos(rad), math.sin(rad)
+        for r in (r_inner, r_outer):
+            x, y = cx + r * cos_t, cy - r * sin_t
+            best = max(best, math.hypot(x - px, y - py))
+    return best
+
+
 def _arc_box(
     radius: int, pen: int, cx: float, cy: float, align: str, vertical_align: str,
     start_angle: Angle | None, sweep_angle: Angle | None,
@@ -465,6 +553,16 @@ class PlacedText(Placed):
     #: slice) -- this module never needs the Garmin constant name itself,
     #: only the author's own word.
     curve_direction: str | None = None
+    #: The measured (or estimated) line height, in device pixels -- the
+    #: same value `Resolver._resolve_text` already used locally to build
+    #: `box`. Kept here too so `visible_reach` (module level) can
+    #: reconstruct a curved element's exact `angled`/`radial` geometry
+    #: later, at lint time, from this one record instead of a second,
+    #: independently-recomputed box (upright text needs no reconstruction
+    #: at all -- `box.height` already *is* the line height -- but this is
+    #: set for every `PlacedText`, not just a curved one, rather than leave
+    #: a silently-zero field on the common case).
+    line_height: float = 0.0
 
 
 @dataclass
@@ -757,30 +855,84 @@ def _pattern_part_ink(
         ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
         width = part.widths[index] if part.widths else 0
         height = part.line_height
-        if part.curve_style == "angled":
-            effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
-            box = Resolver._rotated_text_box(
-                ax, ay, width, height, part.align, part.vertical_align, effective_garmin)
+        kind, geo = _pattern_text_ink_geometry(part, ax, ay, width, height, copy_angle_degrees)
+        if kind == "sector":
+            cx, cy, r_inner, r_outer, theta_a, theta_b = geo
+            box = arc_bbox(cx, cy, r_inner, r_outer, theta_a, theta_b)
             return box.x, box.y, box.x + box.width, box.y + box.height
-        if part.curve_style == "radial":
-            if part.curve_radius_px > 0:
-                effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
-                theta_a, theta_b = radial_text_angle_span(
-                    effective_garmin, part.curve_direction, part.align, width, part.curve_radius_px)
-                r_inner, r_outer = radial_text_band(
-                    part.curve_radius_px, height, part.vertical_align, part.curve_direction)
-                box = arc_bbox(ax, ay, r_inner, r_outer, theta_a, theta_b)
-                return box.x, box.y, box.x + box.width, box.y + box.height
-            reach = part.curve_radius_px + height
-            return ax - reach, ay - reach, ax + reach, ay + reach
-        dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
-        left = ax + dx - width / 2.0
-        top = ay + dy - height / 2.0
-        return left, top, left + width, top + height
+        if kind == "rotated":
+            xs = [p[0] for p in geo]
+            ys = [p[1] for p in geo]
+            return min(xs), min(ys), max(xs), max(ys)
+        left, top, right, bottom = geo
+        return left, top, right, bottom
     # arc: always centred on the copy's own origin.
     px, py = tf(0.0, 0.0)
     pad = part.radius + part.thickness / 2.0
     return px - pad, py - pad, px + pad, py + pad
+
+
+def _pattern_text_ink_geometry(
+    part: ResolvedHandPart, ax: float, ay: float, width: float, height: float,
+    copy_angle_degrees: float,
+) -> tuple[str, tuple]:
+    """The real ink shape of one pattern text part, for one copy, already
+    anchored (`ax`, `ay`) and measured (`width`, `height`) -- the one place
+    this geometry is derived, shared by :func:`_pattern_part_ink`'s own AABB
+    (above) and :meth:`Resolver._resolve_pattern`'s own per-copy reach
+    (`annulus_sector_reach`/a rotated box's own corners), so "what box
+    bounds this ink" and "how far can this ink reach from an arbitrary
+    point" are always answered from the exact same shape, never two
+    independently re-derived ones (the same discipline `radial_text_band`'s
+    own docstring already asks of `Resolver._resolve_text`).  Returns one
+    of:
+
+    * ``("rotated", corners)`` -- `angled`: the four REAL corners of the
+      rotated text box (:func:`rotated_rect_corners`), not its AABB.
+    * ``("sector", (cx, cy, r_inner, r_outer, theta_a, theta_b))`` --
+      `radial` with a usable radius: the annulus sector both
+      :func:`arc_bbox` (the AABB) and :func:`annulus_sector_reach` (the
+      exact farthest point from an arbitrary point) already understand.
+    * ``("box", (left, top, right, bottom))`` -- upright text, or the
+      schema-unreachable `radial`-with-no-radius fallback: an unrotated,
+      screen-aligned rectangle's AABB corners already ARE its real
+      corners, so this needs no further tightening either way.
+    """
+    if part.curve_style == "angled":
+        effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
+        corners = rotated_rect_corners(
+            ax, ay, width, height, part.align, part.vertical_align, effective_garmin)
+        return "rotated", corners
+    if part.curve_style == "radial":
+        if part.curve_radius_px > 0:
+            effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
+            theta_a, theta_b = radial_text_angle_span(
+                effective_garmin, part.curve_direction, part.align, width, part.curve_radius_px)
+            r_inner, r_outer = radial_text_band(
+                part.curve_radius_px, height, part.vertical_align, part.curve_direction)
+            return "sector", (ax, ay, r_inner, r_outer, theta_a, theta_b)
+        reach = part.curve_radius_px + height
+        return "box", (ax - reach, ay - reach, ax + reach, ay + reach)
+    dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
+    left = ax + dx - width / 2.0
+    top = ay + dy - height / 2.0
+    return "box", (left, top, left + width, top + height)
+
+
+def _pattern_text_ink_reach(kind: str, geo: tuple, from_x: float, from_y: float) -> float:
+    """The farthest distance from `(from_x, from_y)` to the ink
+    :func:`_pattern_text_ink_geometry` describes -- the reach counterpart
+    to :func:`_pattern_part_ink`'s AABB, read from the exact same corners/
+    sector so the two can never silently disagree about where the glyphs
+    actually are."""
+    if kind == "sector":
+        cx, cy, r_inner, r_outer, theta_a, theta_b = geo
+        return annulus_sector_reach(cx, cy, r_inner, r_outer, theta_a, theta_b, from_x, from_y)
+    if kind == "rotated":
+        return max(math.hypot(x - from_x, y - from_y) for x, y in geo)
+    left, top, right, bottom = geo
+    return max(math.hypot(x - from_x, y - from_y)
+              for x, y in ((left, top), (right, top), (left, bottom), (right, bottom)))
 
 
 #: The placed kinds whose own drawing `antialias:` reaches as a runtime
@@ -1320,6 +1472,7 @@ class Resolver:
             curve_angle_garmin=curve_angle_garmin,
             curve_radius_px=curve_radius_px,
             curve_direction=curve_direction,
+            line_height=line_height,
         )
 
     def _vector_gate1_ok(self, curve_style: str | None) -> bool:
@@ -1415,18 +1568,18 @@ class Resolver:
         only) -- computed in the text's own unrotated baseline frame first,
         then rotated along with the rest of the box, so the shift turns
         with the text instead of staying screen-aligned.
+
+        The AABB of :func:`rotated_rect_corners`' own four real corners --
+        kept as a thin wrapper (not inlined) because this box is what
+        `off-screen`'s framebuffer test wants (the framebuffer is
+        rectangular, so its own AABB is the right shape); the round-screen
+        `safe-area` test wants the real corners instead, straight from that
+        function (`visible_reach` below).
         """
-        theta = math.radians(garmin_angle_degrees)
-        cos_t, sin_t = math.cos(theta), math.sin(theta)
-        dx, dy = alignment_shift(width, height, align, vertical_align)
-        cx = x + dx * cos_t + dy * sin_t
-        cy = y - dx * sin_t + dy * cos_t
-        hw, hh = width / 2.0, height / 2.0
-        xs: list[float] = []
-        ys: list[float] = []
-        for lx, ly in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
-            xs.append(cx + lx * cos_t + ly * sin_t)
-            ys.append(cy - lx * sin_t + ly * cos_t)
+        xs_ys = rotated_rect_corners(x, y, width, height, align, vertical_align,
+                                     garmin_angle_degrees)
+        xs = [p[0] for p in xs_ys]
+        ys = [p[1] for p in xs_ys]
         return Box(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
 
     def _resolve_progress(self, element: Progress, parent: Box, depth: int) -> Placed:
@@ -1881,8 +2034,12 @@ class Resolver:
         A `shape: text` part breaks the "rotation-invariant" half of that
         shortcut: upright glyphs are not the same distance
         from the centre at every angle, so `_resolve_hand_part` always
-        returns `0.0` reach for one, and the real farthest corner of any
-        *drawn* copy's text box is instead folded into the per-copy ink loop
+        returns `0.0` reach for one, and the real farthest point of any
+        *drawn* copy's own ink (an upright box's real corner, a rotated
+        box's real corner (`rotated_rect_corners`) or an annulus sector's
+        real farthest point (`annulus_sector_reach`) under `curve:` --
+        never an AABB's own corners, which can sit farther out than the
+        shape they bound) is instead folded into the per-copy ink loop
         below, alongside `box` -- the one other quantity that already has to
         look at drawn copies individually.
         """
@@ -1932,10 +2089,24 @@ class Resolver:
                 min_x, min_y = min(min_x, lo_x), min(min_y, lo_y)
                 max_x, max_y = max(max_x, hi_x), max(max_y, hi_y)
                 if part.shape == "text" and element.pattern == "radial":
-                    for corner_x, corner_y in (
-                        (lo_x, lo_y), (lo_x, hi_y), (hi_x, lo_y), (hi_x, hi_y),
-                    ):
-                        text_reach = max(text_reach, math.hypot(corner_x - cx_f, corner_y - cy_f))
+                    # The exact farthest point of this copy's own real ink
+                    # from the axis, not its AABB's corners: an AABB's own
+                    # corners generically overreach the shape it bounds
+                    # (`annulus_sector_reach`'s own docstring), which used
+                    # to make a full ring of radial or angled text trip
+                    # `safe-area` even when every glyph sat well inside the
+                    # disc (`docs/adr/0008-validation-and-linting.md`'s
+                    # 2026-09-21 "safe-area is shape-aware" amendment).
+                    # `_pattern_text_ink_geometry` is the exact same
+                    # geometry `_pattern_part_ink` just derived its AABB
+                    # from, above -- never a second, independently
+                    # recomputed shape.
+                    ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
+                    width = part.widths[index] if part.widths else 0
+                    height = part.line_height
+                    kind, geo = _pattern_text_ink_geometry(
+                        part, ax, ay, width, height, copy_angle_degrees)
+                    text_reach = max(text_reach, _pattern_text_ink_reach(kind, geo, cx_f, cy_f))
         if min_x > max_x:
             # Unreachable once the schema and `wfb.ir` have run (`parts:`
             # needs at least one entry, and every copy skipped is a build
@@ -2208,17 +2379,90 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
     return None
 
 
+def _placed_text_curve_reach(placed: "PlacedText", from_x: float, from_y: float) -> float:
+    """The exact farthest distance a curved standalone `text` element's own
+    ink can reach from an arbitrary point `(from_x, from_y)` -- shares
+    `Resolver._resolve_text`'s own local geometry (`radial_text_angle_
+    span`/`radial_text_band` for `radial`, `rotated_rect_corners` for
+    `angled`), recomputed from the fields that method already stores
+    (`anchor_point`, `measured_width`, `line_height`, `curve_angle_garmin`,
+    `curve_radius_px`, `curve_direction`, plus `element.align`/`.vertical_
+    align`) rather than a second, independently-derived model that could
+    silently disagree with the box `Resolver._resolve_text` itself built.
+    Only ever called with `placed.curve_style` set (`visible_reach`'s own
+    gate); upright text has no need of this -- its `box`'s own AABB corners
+    already are its real corners.
+    """
+    x, y = placed.anchor_point
+    width = float(placed.measured_width)
+    height = placed.line_height
+    align = placed.element.align
+    vertical_align = placed.element.vertical_align
+    if placed.curve_style == "angled":
+        corners = rotated_rect_corners(
+            x, y, width, height, align, vertical_align, placed.curve_angle_garmin)
+        return max(math.hypot(px - from_x, py - from_y) for px, py in corners)
+    # radial -- `(x, y)` is already the circle's own centre here (`Text.
+    # curve`'s `at:` reinterpretation, plan 11 §2.2).
+    if placed.curve_radius_px <= 0:
+        # Schema-unreachable (`radius:` > 0 is required with `style:
+        # radial`) -- `Resolver._resolve_text`'s own conservative square
+        # fallback for this case, mirrored here rather than left unhandled.
+        reach = placed.curve_radius_px + height
+        return math.hypot(x - from_x, y - from_y) + reach
+    theta_a, theta_b = radial_text_angle_span(
+        placed.curve_angle_garmin, placed.curve_direction, align, width, placed.curve_radius_px)
+    r_inner, r_outer = radial_text_band(
+        placed.curve_radius_px, height, vertical_align, placed.curve_direction)
+    return annulus_sector_reach(x, y, r_inner, r_outer, theta_a, theta_b, from_x, from_y)
+
+
+def visible_reach(placed: "Placed", screen_cx: float, screen_cy: float) -> float | None:
+    """The farthest distance any of `placed`'s own real ink can reach from
+    `(screen_cx, screen_cy)` -- the round-screen `safe-area` check's
+    shape-aware replacement for `placed.box`'s corners.  `None` means "no
+    shape-aware answer for this kind" -- the caller falls back to the plain
+    AABB-corners test (`inside_visible_area`), the same test every kind
+    used before this function existed, and still the right one for the
+    rectangular *framebuffer* `off-screen` check (`docs/format.md`'s
+    "off-screen uses the box, safe-area uses the shape" split -- shape
+    genuinely does not matter there, `inside_screen`'s own docstring).
+
+    * `circular_extent`'s own kinds (`shape: arc`/`circle`, a `progress`
+      arc, `hands`, a radial `pattern` whose own `.reach` is already exact
+      -- see `Resolver._resolve_pattern`) -- unchanged: distance from the
+      shape's own centre to the screen centre, plus its reach.
+    * A curved standalone `text` element (`angled`/`radial`) --
+      `_placed_text_curve_reach`, above: `PlacedText.box` is already a
+      tight AABB (`Resolver._resolve_text`), but even a tight AABB's own
+      *corners* can sit farther from the screen centre than the shape's
+      real farthest point ever does (`annulus_sector_reach`'s own
+      docstring), so this reconstructs the real rotated rectangle or
+      annulus sector instead of trusting the box's corners.
+    * Everything else (plain shapes, icons, complication slots, upright
+      text, a linear pattern, ...) -- `None`: the box IS the real shape (or
+      close enough that the AABB corners are the real corners), so there is
+      nothing to tighten.
+    """
+    circle = circular_extent(placed)
+    if circle is not None:
+        cx, cy, reach = circle
+        return math.hypot(cx - screen_cx, cy - screen_cy) + reach
+    if isinstance(placed, PlacedText) and placed.curve_style is not None:
+        return _placed_text_curve_reach(placed, screen_cx, screen_cy)
+    return None
+
+
 def inside_visible_area_for(placed: "Placed", device: Device) -> bool | None:
     """Visibility test that respects the element's actual shape."""
-    circle = circular_extent(placed)
-    if circle is None:
-        return inside_visible_area(placed.box, device)
     if device.shape != "round":
         return inside_visible_area(placed.box, device)
-    cx, cy, reach = circle
     screen_cx, screen_cy = device.width / 2, device.height / 2
+    reach = visible_reach(placed, screen_cx, screen_cy)
+    if reach is None:
+        return inside_visible_area(placed.box, device)
     limit = device.minor_radius * (1.0 - BEZEL_MARGIN)
-    return math.hypot(cx - screen_cx, cy - screen_cy) + reach <= limit + 0.5
+    return reach <= limit + 0.5
 
 
 def inside_visible_area(box: IntBox, device: Device) -> bool | None:
@@ -2269,7 +2513,8 @@ __all__ = [
     "ResolvedHand",
     "ResolvedHandPart",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
-    "inside_visible_area_for", "circular_extent", "garmin_arc", "garmin_curve_angle",
-    "alignment_shift", "round_half_away",
-    "is_full_bleed",
+    "inside_visible_area_for", "circular_extent", "visible_reach", "garmin_arc",
+    "garmin_curve_angle", "alignment_shift", "round_half_away",
+    "is_full_bleed", "arc_bbox", "annulus_sector_reach", "rotated_rect_corners",
+    "radial_text_band", "radial_text_angle_span",
 ]

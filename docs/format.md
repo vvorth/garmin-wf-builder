@@ -1809,6 +1809,18 @@ axis, so the ink would land somewhere this compiler cannot predict. Use
 way on a curved element as on any other `face:`-font `text` element, and can
 still be set on the element to override the font's own value outright.
 
+**On a round screen, `safe-area` checks the curved run's own real shape, not
+its bounding box's corners.** A `style: radial` run's box is a tight annulus
+sector (the ring `radius:` +/- half a `line_height`, over the angular span
+the text actually sweeps), and a `style: angled` run's is that sector's or
+rectangle's own rotated corners — an axis-aligned box drawn *around* either
+shape has corners that are not points on the shape at all once it sits off
+a multiple of 90 degrees from the screen centre, and checking those phantom
+corners against the visible disc over-warns a run that never actually
+reaches the bezel. `off-screen` (the rectangular *framebuffer* check) is
+unaffected either way — the framebuffer really is rectangular, so its own
+AABB is the right shape to test there.
+
 > **Which way a radial glyph faces.** `direction: clockwise` faces glyphs
 > outward and `counter_clockwise` faces inward, so text running along the
 > bottom of the dial reads right-side up. Confirmed against the real
@@ -2760,10 +2772,17 @@ drawn, and emits no draw code at all.
 Per device, the `pattern-step` lint is an error when a linear step rounds
 to `{0, 0}` pixels, which would stack every copy on the first.
 
-The element's extent is the bounding box of every drawn copy's ink. For a
-radial pattern it is also the disc of its farthest ink from the centre.
-`circular_extent()` checks a full-dial tick ring as the disc it is, the
-same way it checks hands, so a ring does not warn as cropped.
+The element's extent is the bounding box of every drawn copy's ink -- what
+`off-screen` (the rectangular framebuffer check) tests against. On a round
+screen, `safe-area` tests something tighter instead: for a radial pattern,
+the disc of its farthest ink from the centre, not that bounding box's own
+corners. `circular_extent()`/`visible_reach()` check a full-dial tick ring,
+or a full ring of `shape: text` numerals (`curve: {style: radial}` or
+`angled`), as the disc or annulus sector it really is, the same way they
+already check hands and a bare `shape: arc`/`circle` -- a full ring's own
+bounding box is a square whose corners sit well outside the ring, so
+checking *that* against the round panel would call every full-width ring
+cropped even when every glyph sits comfortably inside the bezel.
 
 See `examples/features/patterns/face.yaml` for every part shape, both kinds,
 `start:`, `skip:` and `skip_every:`, a two-part template, patterns in and
