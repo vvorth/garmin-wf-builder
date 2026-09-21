@@ -1537,8 +1537,8 @@ class Resolver:
         # least has a plausible ceiling), so *any* fixed padding here is a
         # guess that would either be routinely wrong or -- picked large
         # enough to rarely be wrong -- inflate every ordinary slot's box
-        # into a spurious `off-screen` build **error** (checked directly:
-        # an 8-character placeholder pushed a design that fits comfortably
+        # into a spurious `off-screen` warning (checked directly: an
+        # 8-character placeholder pushed a design that fits comfortably
         # off the framebuffer). `docs/limitations.md` records this as a
         # documented gap instead: the geometry/overflow checks size a
         # slot's box from its value alone.

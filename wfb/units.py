@@ -366,8 +366,23 @@ class IntBox:
         return IntBox(self.x - by, self.y - by, self.width + 2 * by, self.height + 2 * by)
 
     def clamp_to(self, width: int, height: int) -> "IntBox":
-        x, y = max(0, self.x), max(0, self.y)
-        return IntBox(x, y, min(self.right, width) - x, min(self.bottom, height) - y)
+        """Intersect with ``(0, 0, width, height)``.
+
+        A box that does not overlap the frame at all -- now reachable since
+        `off-screen` is a suppressible warning rather than a hard build
+        error (`wfb.lint.check_geometry`) -- must clamp to a genuinely empty
+        box, never a *negative*-width/height one: this feeds
+        `ResolvedFace.clip_for`, whose result is emitted straight into
+        generated Monkey C as `dc.setClip(x, y, width, height)`
+        (`wfb.emit.monkeyc.view._emit_on_partial_update`), and a negative
+        extent there is nonsense at runtime. Clamping each edge separately
+        (as an earlier version of this method did) gets this wrong: it can
+        clamp `x` up to `0` while `right` clamps down to a value still left
+        of it, yielding a negative width instead of zero.
+        """
+        x0, y0 = max(0, min(self.x, width)), max(0, min(self.y, height))
+        x1, y1 = max(0, min(self.right, width)), max(0, min(self.bottom, height))
+        return IntBox(x0, y0, max(0, x1 - x0), max(0, y1 - y0))
 
     @property
     def area(self) -> int:

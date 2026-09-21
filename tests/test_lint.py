@@ -133,17 +133,20 @@ def test_emit_for_element_refuses_to_suppress_a_non_suppressible_code():
     """The half of the contract the five declaration-scoped checks used to
     drop by hand-rolling `if any(code in element.lint_allow for ...): continue`:
     that test alone says nothing about whether the code is suppressible at
-    all.  `off-screen` is a real, hard-platform-limit code deliberately
-    absent from `SUPPRESSIBLE` -- an element naming it in `lint_allow` must
-    not silence a diagnostic routed through `_emit_for_element`.
+    all.  `api-gated-unguardable` is a real, hard-platform-limit code
+    deliberately absent from `SUPPRESSIBLE` -- an element naming it in
+    `lint_allow` must not silence a diagnostic routed through
+    `_emit_for_element`. (`off-screen` used to be this module's example of
+    an unsuppressible code; it is a suppressible warning now -- see
+    `wfb.lint.check_geometry`.)
     """
-    assert "off-screen" not in lint.SUPPRESSIBLE
-    element = SimpleNamespace(lint_allow={"off-screen"})
+    assert "api-gated-unguardable" not in lint.SUPPRESSIBLE
+    element = SimpleNamespace(lint_allow={"api-gated-unguardable"})
     bag = Bag()
     lint._emit_for_element(bag, [element], Diagnostic(
-        Severity.ERROR, "off-screen", "test message",
+        Severity.ERROR, "api-gated-unguardable", "test message",
     ))
-    assert "off-screen" in codes(bag)
+    assert "api-gated-unguardable" in codes(bag)
 
 
 def test_suppressed_by_any_agrees_with_suppressed_element():
@@ -200,7 +203,12 @@ def test_a_full_bleed_background_is_not_flagged(check):
     assert "off-screen" not in codes(bag)
 
 
-def test_an_element_off_the_framebuffer_is_an_error(check):
+def test_an_element_off_the_framebuffer_warns_but_does_not_fail_the_build(check):
+    """SDK 9.2.0's `Dc` documents no exception for an out-of-range draw call
+    on any draw method -- it clips silently, the same way `setClip` does --
+    so drawing off the framebuffer is a cropped design, not a broken one:
+    `off-screen` is a warning, not an error, and the build proceeds.
+    """
     bag = check("""
   - id: stray
     type: shape
@@ -209,7 +217,44 @@ def test_an_element_off_the_framebuffer_is_an_error(check):
     radius: 10px
     color: palette.fg
 """)
-    assert "off-screen" in {d.code for d in bag.errors}
+    assert "off-screen" in codes(bag)
+    assert "off-screen" not in {d.code for d in bag.errors}
+    assert bag.ok()
+
+
+def test_off_screen_is_suppressible(check):
+    """`lint: {allow: [off-screen], reason: ...}` silences the warning."""
+    bag = check("""
+  - id: stray
+    type: shape
+    shape: circle
+    at: {anchor: center, dx: 200%}
+    radius: 10px
+    color: palette.fg
+    lint:
+      allow: [off-screen]
+      reason: "deliberately runs off screen"
+""")
+    assert "off-screen" not in codes(bag)
+
+
+def test_suppressing_off_screen_also_suppresses_the_redundant_safe_area_warning(check):
+    """A box outside the rectangular framebuffer is necessarily outside the
+    visible disc it contains too -- once `off-screen` is acknowledged there
+    is nothing left for `safe-area` to add, so acknowledging the crop must
+    not leave a second, redundant `safe-area` warning behind."""
+    bag = check("""
+  - id: stray
+    type: shape
+    shape: circle
+    at: {anchor: center, dx: 200%}
+    radius: 10px
+    color: palette.fg
+    lint:
+      allow: [off-screen]
+      reason: "deliberately runs off screen"
+""")
+    assert "safe-area" not in codes(bag)
 
 
 def test_an_element_under_the_bezel_warns(check):
@@ -847,12 +892,15 @@ def test_an_unknown_lint_code_is_never_offered_a_misleading_suggestion(write_des
 
 
 def test_a_real_but_unsuppressible_code_is_reported_with_the_reason(write_design, bag):
-    """`off-screen` is a real code that fires all the time -- but SUPPRESSIBLE
-    excludes it on purpose, because silencing a hard platform limit produces a
-    face that does not work.  'allow: [off-screen]' must be refused with that
-    reason stated, not treated as a plain typo.
+    """`api-gated-unguardable` is a real code -- but SUPPRESSIBLE excludes it
+    on purpose, because silencing it means the generator emits an unguarded
+    call that crashes on a device that lacks it.  'allow:
+    [api-gated-unguardable]' must be refused with that reason stated, not
+    treated as a plain typo. (`off-screen` used to be this test's example of
+    an unsuppressible code; it is a suppressible warning now -- see
+    `wfb.lint.check_geometry`.)
     """
-    face = _face_allowing(write_design, bag, "off-screen")
+    face = _face_allowing(write_design, bag, "api-gated-unguardable")
     lint.check_lint_allow(face, bag)
     diag = next(d for d in bag.errors if d.code == "lint-allow")
     assert "not" in diag.message and "suppressible" in diag.message

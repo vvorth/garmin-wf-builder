@@ -260,6 +260,36 @@ def test_low_power_clip_ignores_a_wrapping_groups_box(write_design, bag, db):
     assert grouped_clip == ungrouped_clip
 
 
+def test_low_power_clip_clamps_a_fully_off_screen_element(write_design, bag, db):
+    """Drawing off the framebuffer is now a suppressible warning, not a hard
+    build error (`wfb.lint.check_geometry`), so a `low_power` element can
+    reach `clip_for` while sitting entirely outside the frame -- and the
+    union clip that flows into generated `dc.setClip(...)` must never come
+    out with a negative width or height.
+
+    `IntBox.clamp_to` used to clamp each edge independently: for a box with
+    *no* overlap with the frame at all, that could clamp one edge up to `0`
+    while the opposite edge clamped down to a value still on the wrong side
+    of it, producing a negative extent. Run against the unfixed
+    `IntBox.clamp_to` this fails with a negative `clip.width`.
+    """
+    design = DESIGN.replace(
+        "    at: {anchor: center, dy: 25%}\n    color: palette.fg",
+        "    at: {anchor: center, dy: 25%, dx: 500%}\n    color: palette.fg\n"
+        "    modes: [active, low_power]\n"
+        '    lint: {allow: [off-screen], reason: "probing"}',
+    )
+    face = load(write_design(design), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    clip = resolved.clip_for("low_power")
+    assert clip is not None
+    assert clip.width >= 0
+    assert clip.height >= 0
+    assert clip.area == 0
+
+
 def test_drawn_in_mode_excludes_groups(resolved_for):
     """`drawn_in_mode` is `in_mode` minus groups -- the accessor `clip_for`
     (and the partial-update-budget lint's element count) now use, so what

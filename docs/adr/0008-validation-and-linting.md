@@ -28,7 +28,7 @@ and every diagnostic carries **file, line and column** from the YAML source
 | 1 | **Unbound / misspelled data source** | error | generated catalogue from SDK | exact |
 | 2 | **Unsupported API for a targeted device** | error | **the device's own `<id>.api.debug.xml`** (`05-device-files.md` §2) | exact |
 | 3 | **Palette-illegal colour** | warning | device `display_colors` (64 → `0x00/55/AA/FF`) | exact |
-| 4 | **Element outside safe/visible area** | error (outside screen) / warning (outside safe area) | resolved geometry + `screen_shape` | exact for round/rectangle; **unavailable** for semi-round/semi-octagon (ADR 0004) |
+| 4 | **Element outside safe/visible area** | warning, suppressible (`off-screen` outside the framebuffer / `safe-area` outside the safe area — see amendment below) | resolved geometry + `screen_shape` | exact for round/rectangle; **unavailable** for semi-round/semi-octagon (ADR 0004) |
 | 5 | **Text overflows its slot** | warning | resolved geometry + per-device, per-language font pixel metrics | exact for fixed system fonts; approximate for vector fonts |
 | 6 | **Missing glyph in a subsetted font** | error | used-glyph set vs. font `cmap` | exact |
 | 7 | **Estimated memory overrun** | warning | `monkeyc --build-stats` against the device limit from the device DB | **measured, not estimated** — see below |
@@ -123,3 +123,40 @@ which the compiler would have accepted and silently ignored.
   confident wrong answer.
 - `docs/limitations.md` should list what is *not* checked, alongside what the
   platform disallows.
+
+## Amendment (2026-09-21): check 4's off-screen half is a suppressible warning
+
+**What changed.** `off-screen` (drawing partly or fully off the framebuffer)
+is no longer the `error`-severity, unsuppressible half of check 4. It is now
+`Severity.WARNING` and in `lint.SUPPRESSIBLE`, the same as `safe-area`
+(outside the visible disc but still on the framebuffer). An element that
+suppresses `off-screen` is not also checked for `safe-area`: a box outside
+the rectangular framebuffer is necessarily outside the visible disc it
+contains, so the second check would only repeat the first finding under a
+different name (`wfb.lint.check_geometry`).
+
+**Why.** SDK 9.2.0's `Toybox.Graphics.Dc` documents no exception for
+out-of-range draw coordinates on any draw call — only `drawBitmap2` throws,
+and that is for a *source* rect inside the bitmap, not a destination point.
+`Dc` clips silently, the same way `setClip` does ("Pixels outside of the
+region will not be affected by any operations"). Check 2 and check 11 remain
+`error` and unsuppressible because they describe an API the generated code
+would call and get a crash or an invalid manifest back; check 4's off-screen
+half describes no such failure — a cropped element is exactly as legal as
+one that runs off under the bezel, which check 4's other half already
+treated as a warning. Treating the two halves differently was never
+supported by anything platform-specific, only by an earlier, mistaken
+assumption that an out-of-range `Dc` call throws.
+
+**Consequence for `ResolvedFace.clip_for`.** An off-screen `low_power`
+element can now reach codegen instead of being rejected at the lint stage,
+so the `low_power` clip rectangle it feeds (`wfb.layout.ResolvedFace.
+clip_for`, emitted into `dc.setClip(...)` by `wfb.emit.monkeyc.view.
+_emit_on_partial_update`) must itself be clamped to the framebuffer, never
+left negative. `wfb.units.IntBox.clamp_to` was intersecting each edge
+independently, which — for a box with **no** overlap with the frame at all —
+could clamp one edge up to `0` while the opposite edge clamped down to a
+value still on the wrong side of it, producing a negative width or height.
+Fixed to compute the intersection properly, floored at zero per axis, so a
+fully off-screen `low_power` element now clamps to a genuinely empty
+(zero-area) clip rather than a nonsense one.

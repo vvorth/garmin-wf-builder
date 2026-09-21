@@ -795,7 +795,7 @@ byte cost, never a description of what the editor's UI actually does.
 and a `String`-typed `unit:` are localised device strings with no documented
 upper bound -- unlike a digit count, padding for them would either be
 routinely wrong or, picked generously, turn an ordinary slot into a spurious
-`off-screen` build **error** (confirmed directly: an 8-character placeholder
+`off-screen` warning (confirmed directly: an 8-character placeholder
 pushed a comfortably-fitting design off the framebuffer). So the safe-area/
 off-screen/overflow checks do not account for `label:`/`unit:` width at all --
 a slot whose label or unit runs long on the real device can overflow further
@@ -3234,12 +3234,15 @@ lint:
 
 `reason` is required — a suppression without a stated reason is how linters get
 disabled wholesale. Errors that reflect hard platform limits (missing glyphs,
-off-screen geometry, `hold-auto-ambiguous`/`hold-auto-unresolved`,
-`api-gated-unguardable`) are **not** suppressible: silencing one produces a
-face that does not work.
+`hold-auto-ambiguous`/`hold-auto-unresolved`, `api-gated-unguardable`) are
+**not** suppressible: silencing one produces a face that does not work.
+`off-screen` is not one of these — SDK 9.2.0's `Dc` documents no exception for
+an out-of-range draw call, it clips silently the same way `setClip` does, so
+drawing partly or fully off the framebuffer is a cropped design, not a broken
+one, and the check is a warning like `safe-area`.
 
-Seventeen codes are suppressible: `palette-dither`, `safe-area`, `text-overflow`,
-`contrast`, `partial-update-budget`, `hold-overlap`,
+Eighteen codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
+`text-overflow`, `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
 `duplicate-style`, `unreachable-layout`, `sub-pixel-length` and
@@ -3254,6 +3257,11 @@ the normative list; check there if the two ever disagree. **A code that is not o
 build error**, and the message distinguishes the two ways that happens — a code the compiler does not emit at all (with a "did you mean"
 suggestion) versus a real code that is deliberately unsuppressible (with the
 reason), so a typo is never mistaken for a check that refuses to be silenced.
+**`off-screen` on an element also stands in for `safe-area` on it**: a box
+outside the rectangular framebuffer is necessarily outside the visible disc
+it contains too, so once an element's `lint: {allow: [off-screen], ...}`
+acknowledges the crop, the geometry check does not also raise `safe-area`
+for the same box — there is nothing further to acknowledge.
 
 Five of them are not element-scoped diagnostics, so the allow goes on the
 element that causes them: `palette-dither` on an element whose `color:` or

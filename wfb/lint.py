@@ -38,7 +38,7 @@ SUPPRESSIBLE = frozenset({
     "hold-unsupported", "hold-overlap", "api-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
-    "sub-pixel-length", "font-unavailable",
+    "sub-pixel-length", "font-unavailable", "off-screen",
 })
 #: `api-gated-unguardable` is deliberately absent here -- see
 #: `check_api_gated`'s case 5: it means the generator would emit an unguarded
@@ -1006,7 +1006,23 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
-    """Off the framebuffer is an error; outside the visible disc is a warning."""
+    """Off the framebuffer and outside the visible disc are both warnings.
+
+    SDK 9.2.0's `Toybox.Graphics.Dc` documents no exception for out-of-range
+    draw coordinates on any draw call (only `drawBitmap2` throws, and that is
+    for a *source* rect inside the bitmap, not a destination point) -- `Dc`
+    clips the same way `setClip` does: "Pixels outside of the region will not
+    be affected by any operations." An off-screen element is therefore a
+    cropped design, not a broken one -- the same class of thing as
+    `safe-area`, so `off-screen` is in `SUPPRESSIBLE` too.
+
+    **Suppressing `off-screen` also skips `safe-area` for that element.** The
+    `continue` below runs whether or not `_emit` actually added a diagnostic
+    (suppressed or not) -- a box outside the rectangular framebuffer is
+    necessarily also outside the visible disc it contains, so `safe-area`
+    would only repeat the same finding under a different name. An author who
+    has already acknowledged the crop has nothing further to acknowledge.
+    """
     device = resolved.device
     unchecked_shape = False
     for placed in resolved.items:
@@ -1015,11 +1031,15 @@ def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
         box = placed.box
         if not inside_screen(box, device):
             _emit(bag, placed, Diagnostic(
-                Severity.ERROR,
+                Severity.WARNING,
                 "off-screen",
                 f"{placed.id}: {box.width}x{box.height} at ({box.x}, {box.y}) falls outside "
                 f"the {device.width}x{device.height} framebuffer",
                 placed.element.span,
+                notes=["the device clips silently (Dc, like setClip: pixels outside the "
+                       "region are simply not drawn), so this is a cropped design, not a "
+                       "broken one -- acknowledge it with 'lint: {allow: [off-screen], "
+                       "reason: ...}' if it is deliberate"],
                 confidence="exact -- resolved geometry",
             ))
             continue

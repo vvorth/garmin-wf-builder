@@ -40,6 +40,54 @@ def test_quantising_snaps_to_the_devices_own_palette(resolved):
     assert channels <= set(MIP64_LEVELS)
 
 
+def test_preview_renders_an_off_screen_element_cropped_without_crashing(
+    write_design, bag, db,
+):
+    """Drawing off the framebuffer is now a suppressible warning, not a hard
+    build error (`wfb.lint.check_geometry`), so the preview -- which mirrors
+    the device's own silent-clip behaviour rather than throwing -- has to
+    stay well-behaved when an element's resolved box has a negative
+    coordinate or runs past the screen edge in either direction. Pillow
+    itself clips off-canvas draws silently; this pins that down against the
+    actual resolved geometry this compiler produces, not just Pillow's
+    documented behaviour in isolation.
+    """
+    design = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: stray
+    type: shape
+    shape: circle
+    at: {anchor: center, dx: -500%}
+    radius: 30px
+    color: palette.fg
+    lint:
+      allow: [off-screen]
+      reason: "probing"
+"""
+    face = load(write_design(design), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    stray = next(p for p in resolved.items if p.id == "stray")
+    assert stray.box.x < 0  # confirms this exercises the negative-box path
+    image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
+    assert image.size == (device.width, device.height)
+
+
 def test_the_face_actually_draws_something(resolved):
     image = render(resolved, PreviewOptions(scale=1, mask_shape=False))
     colors = {pixel for pixel in image.get_flattened_data()}

@@ -554,9 +554,9 @@ still true of the shipped feature:
 * **A slot's geometry lints are sized from its value alone, never `label:`/
   `unit:`.** Both are localised device strings with no documented upper
   bound; padding for them was tried and produced a spurious `off-screen`
-  **build error** on an ordinary slot (confirmed directly), which is worse
-  than the gap it would have closed. `docs/format.md`'s "What this compiler
-  cannot tell you" records this the same way this file does.
+  warning on an ordinary slot (confirmed directly), which is worse than the
+  gap it would have closed. `docs/format.md`'s "What this compiler cannot
+  tell you" records this the same way this file does.
 
 ### A live watch face receives exactly one gesture: touch and hold
 

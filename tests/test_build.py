@@ -48,6 +48,54 @@ def test_generation_needs_no_toolchain(slice_design, tmp_path, db):
         assert (root / f"resources-{device.id}" / "drawables" / "launcher_icon.png").exists()
 
 
+def test_an_off_screen_low_power_element_builds_and_clamps_the_clip(
+    write_design, tmp_path, db, bag,
+):
+    """End-to-end: drawing off the framebuffer is now a suppressible
+    warning, not a build error (`wfb.lint.check_geometry`), so a design with
+    an off-screen `low_power` element must still generate rather than abort
+    at the lint stage. The low-power clip rectangle it feeds
+    (`wfb.layout.ResolvedFace.clip_for`) must clamp to the framebuffer, not
+    emit a negative-width/height `dc.setClip(...)` call
+    (`wfb.emit.monkeyc.view._emit_on_partial_update`).
+    """
+    design = write_design("""
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.bg
+  - id: stray
+    type: shape
+    shape: circle
+    at: {anchor: center, dx: 500%}
+    radius: 10px
+    color: palette.fg
+    modes: [active, low_power]
+    lint:
+      allow: [off-screen]
+      reason: "probing"
+""")
+    result = build(design, output=tmp_path, bag=bag, db=db, compile_prg=False)
+    assert result is not None
+    assert bag.ok(), bag.render()
+    layout_mc = (result.output_dir / "source-fenix8solar47mm" / "Layout.mc").read_text()
+    for name in ("LOW_POWER_CLIP_WIDTH", "LOW_POWER_CLIP_HEIGHT"):
+        line = next(l for l in layout_mc.splitlines() if f"{name} as Number" in l)
+        value = int(line.split("=")[1].strip().rstrip(";"))
+        assert value >= 0, line
+
+
 def test_launcher_icons_are_generated_at_each_devices_own_size(slice_design, tmp_path, db):
     """Shipping one icon and letting the compiler scale it warns on every build."""
     from PIL import Image

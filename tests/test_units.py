@@ -116,6 +116,36 @@ def test_intbox_union_and_clamp():
     assert a.area == 100
 
 
+def test_intbox_clamp_of_a_box_with_no_overlap_is_empty_not_negative():
+    """A box entirely outside the frame -- reachable now that `off-screen` is
+    a suppressible warning rather than a hard build error
+    (`wfb.lint.check_geometry`) -- must clamp to a genuinely empty box.
+
+    Clamping each edge independently gets this wrong: `x` clamps up to `0`
+    while `right` (also negative) clamps down to a value still left of `0`,
+    leaving `width = right - x` negative. This feeds
+    `wfb.layout.ResolvedFace.clip_for`, whose result is emitted straight into
+    a generated `dc.setClip(...)` call, where a negative extent is nonsense.
+    """
+    off_left = IntBox(-100, 10, 50, 20)
+    clamped = off_left.clamp_to(260, 260)
+    assert clamped.width == 0
+    assert clamped.area == 0
+
+    off_right = IntBox(300, 10, 50, 20)
+    clamped = off_right.clamp_to(260, 260)
+    assert clamped.width == 0
+    assert clamped.area == 0
+
+    off_top = IntBox(10, -100, 20, 50)
+    clamped = off_top.clamp_to(260, 260)
+    assert clamped.height == 0
+    assert clamped.area == 0
+
+    # Partial overlap still clips to exactly the visible portion.
+    assert IntBox(200, 200, 100, 100).clamp_to(260, 260) == IntBox(200, 200, 60, 60)
+
+
 # -- sizes resolved before layout runs ---------------------------------------
 #
 # `pixel_size` and `SIZE_UNITS` used to live in `wfb.icons`, where only an
