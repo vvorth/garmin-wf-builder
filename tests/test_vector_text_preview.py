@@ -19,6 +19,7 @@ its boundary) instead of an exact-colour match.
 
 from __future__ import annotations
 
+import itertools
 import math
 
 import pytest
@@ -26,6 +27,7 @@ import pytest
 from wfb import build
 from wfb import preview as preview_module
 from wfb.emit.resources import bake_fonts
+from wfb.fonts.fallback import system_face
 from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
@@ -411,10 +413,17 @@ def test_radial_counter_clockwise_at_six_oclock_faces_inward_not_outward(write_d
     as that glyph drawn as ordinary upright `text` -- not the shape of the
     same glyph rotated 180deg, which is what the pre-fix "always outward"
     behaviour drew there instead (`pos - 90 == 180`). A single character
-    with `align: left` isolates facing from letter order entirely: with
+    with `align: center` isolates facing from letter order entirely: with
     only one glyph, `direction:` cannot be observed through sweep order
     (`test_radial_clockwise_and_counter_clockwise_sweep_opposite_ways`
-    above already covers order), only through which way it faces."""
+    above already covers order), only through which way it faces. `align:
+    center` (not `left`, the per-glyph midline fix) is what puts this
+    single glyph's own centre -- not its left edge -- exactly on the 6
+    o'clock point
+    (`align_offset == advance / 2` cancels the fix's own `pen + advance /
+    2` for a one-character string, for *any* advance), so the exact-180
+    comparison below is checking facing alone, with no residual position
+    offset of its own to confound it."""
     upright_body = """\
   - id: glyph
     type: text
@@ -422,7 +431,7 @@ def test_radial_counter_clockwise_at_six_oclock_faces_inward_not_outward(write_d
     font: font.bezel
     color: palette.fg
     at: {anchor: center}
-    align: left
+    align: center
     vertical_align: center
 """
     radial_ccw_body = """\
@@ -432,7 +441,7 @@ def test_radial_counter_clockwise_at_six_oclock_faces_inward_not_outward(write_d
     font: font.bezel
     color: palette.fg
     at: {anchor: center}
-    align: left
+    align: center
     vertical_align: center
     curve: {style: radial, angle: 180deg, radius: 40%r, direction: counter_clockwise}
 """
@@ -469,7 +478,13 @@ def test_radial_clockwise_at_six_oclock_faces_outward_upside_down(write_design, 
     against an independently-computed 180deg rotation of the same glyph's
     own upright mask, exactly as
     `test_angled_180deg_is_a_true_rotation_not_a_mirror` isolates a true
-    rotation from a mirrored glyph for `angled` text."""
+    rotation from a mirrored glyph for `angled` text. `align: center`
+    (not `left`, the per-glyph midline fix) puts this single glyph's own
+    centre -- not its left edge -- exactly on the 6 o'clock point, so the
+    same-shape comparison below is not confounded by a residual position
+    offset of its own (`test_radial_counter_clockwise_at_six_oclock_faces_
+    inward_not_outward`'s own docstring has the exact-cancellation
+    reasoning)."""
     upright_body = """\
   - id: glyph
     type: text
@@ -477,7 +492,7 @@ def test_radial_clockwise_at_six_oclock_faces_outward_upside_down(write_design, 
     font: font.bezel
     color: palette.fg
     at: {anchor: center}
-    align: left
+    align: center
     vertical_align: center
 """
     radial_cw_body = """\
@@ -487,7 +502,7 @@ def test_radial_clockwise_at_six_oclock_faces_outward_upside_down(write_design, 
     font: font.bezel
     color: palette.fg
     at: {anchor: center}
-    align: left
+    align: center
     vertical_align: center
     curve: {style: radial, angle: 180deg, radius: 40%r, direction: clockwise}
 """
@@ -628,6 +643,373 @@ def test_radial_counter_clockwise_vertical_align_orders_ink_radius_bottom_lt_cen
         f"counter_clockwise 'top' ink (mean r={r_top:.1f}) should sit "
         f"mostly OUTSIDE the nominal circle radius ({_NOMINAL_RADIUS:.1f}px)"
     )
+
+
+# -- R1: per-glyph midline on its own radius, not half an advance off ------------
+
+
+def _perp_distance_from_ray(cx: float, cy: float, angle_garmin_degrees: float,
+                             point: tuple[float, float]) -> float:
+    """How far `point` sits from the infinite line through `(cx, cy)` at
+    Garmin angle `angle_garmin_degrees` -- the "off its own radius" measure
+    R1 claims fixes: a glyph whose midline truly lies on the radius through
+    its own centre has its ink's centre of mass land on this line (distance
+    ~0); the pre-fix left-edge-anchored placement displaces it tangentially
+    instead, so this distance is what catches it. `(cos, -sin)` is the
+    outward unit vector at that angle in Garmin's convention (screen y
+    down, `_polar`'s own convention above); the perpendicular distance from
+    a point to a line through the origin along a *unit* direction is the
+    magnitude of their 2D cross product."""
+    theta = math.radians(angle_garmin_degrees)
+    ux, uy = math.cos(theta), -math.sin(theta)
+    vx, vy = point[0] - cx, point[1] - cy
+    return abs(vx * uy - vy * ux)
+
+
+def _find_ink_blobs(image, region: tuple[int, int, int, int] = (0, 0, 260, 260),
+                     min_channel: int = 60) -> list[list[tuple[int, int]]]:
+    """4-connected flood fill over every lit pixel in `region`, returning
+    one pixel list per connected component -- how this file tells "several
+    separate glyphs" apart in a single rendered image without assuming
+    anything about where each one landed (which is exactly what is under
+    test): a bug that shifts every glyph would still leave them as
+    separate blobs (they stay well clear of each other, by design -- see
+    `test_radial_same_width_glyphs_each_sit_on_their_own_radius`'s own
+    spacing), just at the wrong positions, which the caller checks
+    separately."""
+    x0, y0, x1, y1 = region
+    w, h = x1 - x0, y1 - y0
+    visited = [[False] * w for _ in range(h)]
+
+    def lit(x: int, y: int) -> bool:
+        r, g, b = image.getpixel((x, y))
+        return r > min_channel or g > min_channel or b > min_channel
+
+    blobs: list[list[tuple[int, int]]] = []
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            lx, ly = x - x0, y - y0
+            if visited[ly][lx]:
+                continue
+            visited[ly][lx] = True
+            if not lit(x, y):
+                continue
+            stack = [(x, y)]
+            pixels = [(x, y)]
+            while stack:
+                cx0, cy0 = stack.pop()
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = cx0 + dx, cy0 + dy
+                    if x0 <= nx < x1 and y0 <= ny < y1:
+                        nlx, nly = nx - x0, ny - y0
+                        if not visited[nly][nlx]:
+                            visited[nly][nlx] = True
+                            if lit(nx, ny):
+                                stack.append((nx, ny))
+                                pixels.append((nx, ny))
+            blobs.append(pixels)
+    return blobs
+
+
+def _blob_centroid(image, pixels: list[tuple[int, int]], min_channel: int = 60) -> tuple[float, float]:
+    """Intensity-weighted centre of mass of one `_find_ink_blobs` blob --
+    the same weighting `_weighted_centroid` above uses, restricted to one
+    connected component's own pixels instead of a whole region."""
+    sx = sy = total = 0.0
+    for x, y in pixels:
+        r, g, b = image.getpixel((x, y))
+        w = max(r, g, b)
+        if w > min_channel:
+            sx += w * x
+            sy += w * y
+            total += w
+    assert total > 0
+    return sx / total, sy / total
+
+
+def _render_with_resolved(write_design, db, bag, body: str, *, target: str = "fenix8solar47mm",
+                          font_size: str = "10%r", **options):
+    """Like `_render` above, but also hands back the `ResolvedFace` --
+    `wfb.layout.resolve`'s own output, built by the *same* pipeline `wfb
+    build`/`wfb preview` use, never by `wfb.preview`'s per-glyph loop
+    (`_draw_radial_vector_text`, the code under test here). The two tests
+    below read `curve_radius_px`/`curve_angle_garmin`/`anchor_point` off it
+    directly (`wfb.layout`'s own resolved geometry -- already verified
+    elsewhere, e.g. `tests/test_vector_text_layout.py`) and real glyph
+    advances off `wfb.fonts.fallback.system_face` -- both independent of
+    the placement arithmetic being tested -- so the *expected* slot a
+    glyph should land at can be predicted without importing or re-running
+    any of `_draw_radial_vector_text`'s own code, the same
+    independent-prediction discipline `_polar` above uses for the simpler,
+    whole-string tests."""
+    design = _HEADER.format(target=target, if_unavailable="", body=body, font_size=font_size)
+    path = write_design(design)
+    face = build.load(path, bag)
+    assert face is not None, bag.render()
+    device = db.get(target)
+    resolved = resolve(face, device, bake_fonts(face, device))
+    opts = {"scale": 1, "mask_shape": False, "quantise": False, **options}
+    image = render(resolved, PreviewOptions(**opts))
+    return image, resolved
+
+
+def _placed(resolved, element_id: str):
+    """The `Placed*` item for `element_id` -- `resolved.items` has one per
+    element, each carrying its own source `.element` back-reference."""
+    return next(item for item in resolved.items
+                if getattr(getattr(item, "element", None), "id", None) == element_id)
+
+
+def _expected_radial_slot(placed, text: str, index: int) -> float:
+    """R1's own formula (`pen + advance/2 - align_offset`, turned into an
+    angle with `direction_sign`/`radius`) for `text[index]`'s expected
+    Garmin angle, assuming `placed.align == "center"` (so `align_offset ==
+    sum(advances) / 2`, matching every design below) -- reproduced here,
+    independently, using real advances from `wfb.fonts.fallback.
+    system_face` (never from `wfb.preview`'s own per-glyph loop, the code
+    under test), so a bug in that loop cannot also hide from the
+    prediction it is checked against. `sum(text[:index])`'s pen still
+    counts a space's own advance even though a space draws no ink -- the
+    same pen a real render advances by."""
+    face = system_face(placed.font_metric)
+    advances = face.advances(text)
+    align_offset = sum(advances) / 2.0
+    pen = sum(advances[:index])
+    pixel_offset = pen + advances[index] / 2.0 - align_offset
+    direction_sign = 1.0 if placed.curve_direction == "counter_clockwise" else -1.0
+    theta = math.radians(placed.curve_angle_garmin) + direction_sign * (pixel_offset / placed.curve_radius_px)
+    return math.degrees(theta) % 360.0
+
+
+def test_radial_wide_glyph_centre_of_mass_sits_on_its_own_radius(write_design, db, bag):
+    """R1: `_draw_radial_vector_text` must place a glyph at the arc
+    position of the *middle* of its advance, not its left edge -- ground
+    truth from the real simulator (2026-09-21, `fenix8solar51mm`, large
+    roman numerals in `examples/showcase`): every glyph's own vertical
+    midline lies on the radius through that glyph's own centre, like
+    spokes. A single glyph with `align: center` isolates this cleanly: the
+    whole-string `align:` (already correct, out of scope for R1) places
+    this one glyph's *slot* exactly at `curve.angle` regardless of its
+    advance width (`align_offset == total / 2 == advance / 2` for a
+    one-character string, so `pixel_offset` is exactly `0` under the fix,
+    for *any* advance) -- so a correct per-glyph placement puts the ink's
+    centre of mass exactly on the radius through `curve.angle` (Garmin
+    `40deg` for the design `50deg` used below -- away from every axis in
+    either convention, so the bug cannot hide behind the glyph's own
+    left/right or top/bottom symmetry), while the pre-fix left-edge-
+    anchored placement (`pixel_offset = pen - align_offset`, i.e.
+    `-advance / 2`, always pasted `align="left"`) rotates the glyph about
+    its own left edge instead of its centre, displacing the ink
+    tangentially. A very large glyph relative to a small radius (`80%r`
+    font, `20%r` radius) makes the pre-fix displacement tens of pixels,
+    not a fraction of one -- confirmed against the unfixed code (the
+    mandatory red run) before this fix landed: centre of mass ~12-18px off
+    this same ray, an order of magnitude past the tolerance below, never a
+    coin-flip near it."""
+    body = f"""\
+  - id: glyph
+    type: text
+    text: "H"
+    font: font.bezel
+    color: palette.fg
+    at: {{anchor: center}}
+    align: center
+    vertical_align: center
+    curve: {{style: radial, angle: 50deg, radius: 20%r, direction: clockwise}}
+"""
+    image, resolved = _render_with_resolved(write_design, db, bag, body, font_size="80%r")
+    placed = _placed(resolved, "glyph")
+    centroid = _weighted_centroid(image)
+    cx, cy = placed.anchor_point
+    dist = _perp_distance_from_ray(cx, cy, placed.curve_angle_garmin, centroid)
+    assert dist < 3.0, (
+        f"glyph centre of mass is {dist:.2f}px off the radius through "
+        f"curve.angle ({placed.curve_angle_garmin:.1f}deg Garmin) -- "
+        "expected it to sit on that radius (R1); a distance anywhere near "
+        "the glyph's own half-advance width means the pre-fix left-edge-"
+        "anchored placement bug is back"
+    )
+
+
+def test_radial_same_width_glyphs_each_sit_on_their_own_radius(write_design, db, bag):
+    """The multi-glyph half of R1/R2: three same-width glyphs ("H"),
+    spaced out with literal spaces (which advance the pen and draw no ink)
+    so each glyph's own blob stays well clear of its neighbours -- three
+    *adjacent* "H"s touch/overlap into a single connected blob at any
+    font/radius ratio big enough to make the bug's displacement clear
+    anti-aliasing noise, regardless of the bug, which would make this test
+    measure glyph spacing instead of glyph placement (verified by hand
+    while tuning these parameters: this exact font/radius/spacing
+    combination gives three separate blobs both before and after R1 --
+    the two states move the ink by only a few px, not by the tens of px a
+    single, un-spaced glyph can show, so the spacing has to be tuned
+    against *both* to avoid a red run that merely fails to find three
+    blobs at all, and R2 requires the red run to fail for the *placement*
+    reason). `align: center` on the whole string keeps the classic
+    three-slot symmetry (`-a, 0, +a` arc-length offsets from `curve.angle`
+    for the first/middle/last "H"), but each glyph's own expected slot is
+    computed independently by `_expected_radial_slot` (real advances, not
+    assumed equal) rather than relying on that symmetry alone.
+
+    Blobs are matched to expected slots by nearest total distance
+    (`itertools.permutations` over just 3 candidates), not by sorting on
+    raw Garmin angle: `direction: clockwise` sweeps through *decreasing*
+    Garmin angle as the pen advances, which wraps through 0/360 for this
+    design's own angle/spacing (discovered while tuning this test --
+    sorting by angle mod 360 silently mismatched glyphs to the wrong
+    slots across the wraparound and produced a nonsense ~25-30px "red"
+    failure for the wrong reason). The pre-fix bug's tangential
+    displacement is close to uniform across the three glyphs -- confirmed
+    against the unfixed code (the mandatory red run): all three land
+    ~3-4px off their own expected slot, not just one of them, which is
+    what proves each glyph independently sits on its own radius rather
+    than merely holding together as a group."""
+    text = "H  H  H"
+    body = f"""\
+  - id: glyphs
+    type: text
+    text: "{text}"
+    font: font.bezel
+    color: palette.fg
+    at: {{anchor: center}}
+    align: center
+    vertical_align: center
+    curve: {{style: radial, angle: 50deg, radius: 28%r, direction: clockwise}}
+"""
+    image, resolved = _render_with_resolved(write_design, db, bag, body, font_size="65%r")
+    placed = _placed(resolved, "glyphs")
+    glyph_indices = [i for i, ch in enumerate(text) if ch != " "]
+    expected_angles = [_expected_radial_slot(placed, text, i) for i in glyph_indices]
+    n = len(expected_angles)
+
+    blobs = [b for b in _find_ink_blobs(image) if len(b) > 10]  # drop stray AA specks
+    assert len(blobs) == n, f"expected {n} separate glyph blobs, found {len(blobs)}"
+
+    cx, cy = placed.anchor_point
+    centroids = [_blob_centroid(image, b) for b in blobs]
+    # Nearest-match assignment (see the docstring above for why this is
+    # not a simple angle sort): the permutation of blobs -> expected slots
+    # that minimises the total perpendicular distance.
+    best_perm = min(
+        itertools.permutations(range(n)),
+        key=lambda perm: sum(_perp_distance_from_ray(cx, cy, expected_angles[i], centroids[perm[i]])
+                             for i in range(n)),
+    )
+
+    for i in range(n):
+        centroid = centroids[best_perm[i]]
+        dist = _perp_distance_from_ray(cx, cy, expected_angles[i], centroid)
+        assert dist < 2.0, (
+            f"glyph {i} ('H' #{i}) centre of mass is {dist:.2f}px off the "
+            f"radius through its own expected slot ({expected_angles[i]:.2f}deg "
+            f"Garmin) -- each same-width glyph must sit on its own radius, "
+            "not offset by (roughly) half an advance from it"
+        )
+
+
+def _principal_axis_angle(image, pixels: list[tuple[int, int]],
+                          min_channel: int = 60) -> tuple[float, tuple[float, float]]:
+    """The weighted second-moment principal (major) axis of one ink blob,
+    as an angle in image coordinates (screen y-down, same frame as every
+    `(x, y)` pixel), together with its weighted centroid. A thin, roughly
+    straight bar (an "I") has one dominant axis of inertia running along
+    its own length, so this recovers "which way this stroke points"
+    directly from the pixels -- not from any angle the code under test
+    computed -- exactly the standard image-moments formula for an
+    ellipse's major axis (`0.5 * atan2(2*Sxy, Sxx - Syy)` on the
+    intensity-weighted central second moments), range `(-90, 90]` degrees
+    since a *line*'s own orientation (not a directed vector) is only
+    defined modulo 180 degrees -- `_acute_angle_diff` below is what
+    compares two such orientations correctly."""
+    sx = sy = sw = 0.0
+    weighted = []
+    for x, y in pixels:
+        r, g, b = image.getpixel((x, y))
+        w = max(r, g, b)
+        if w > min_channel:
+            weighted.append((x, y, w))
+            sx += w * x
+            sy += w * y
+            sw += w
+    assert sw > 0
+    mx, my = sx / sw, sy / sw
+    sxx = syy = sxy = 0.0
+    for x, y, w in weighted:
+        dx, dy = x - mx, y - my
+        sxx += w * dx * dx
+        syy += w * dy * dy
+        sxy += w * dx * dy
+    angle = math.degrees(0.5 * math.atan2(2 * sxy, sxx - syy))
+    return angle, (mx, my)
+
+
+def _acute_angle_diff(a_degrees: float, b_degrees: float) -> float:
+    """The smallest angle between two *undirected* lines' own orientations
+    (each only defined modulo 180 degrees) -- `0` when parallel, up to `90`
+    when perpendicular."""
+    diff = (a_degrees - b_degrees) % 180.0
+    return min(diff, 180.0 - diff)
+
+
+def test_radial_glyph_stroke_points_at_the_circles_centre(write_design, db, bag):
+    """The user-visible defect, measured directly by orientation rather
+    than by centre of mass (the two tests above): ground truth from the
+    real simulator (2026-09-21, `fenix8solar51mm`, large roman numerals in
+    `examples/showcase`) is that every stroke of every "I" points exactly
+    at the circle's centre, like spokes. The two centre-of-mass tests
+    above only see this defect as a *second-order* effect (the pre-fix
+    anchor and the pre-fix paste-alignment shift partly cancel in
+    *position*, which is why those tests needed an extreme font-to-radius
+    ratio to separate red from green) -- the defect is really about
+    *orientation*: the pre-fix code rotates a glyph by the tangent at its
+    own LEFT edge, so its stroke tilts off the true radius through its own
+    centroid by about `advance / (2 * radius)` radians, independent of how
+    close that radius is to the glyph's own position. Measuring
+    orientation directly catches this at an ordinary, realistic size --
+    close to `examples/showcase`'s own numerals -- with no extreme ratio
+    needed.
+
+    "III" gives three separate, thin, straight bars -- an ink shape whose
+    weighted second-moment principal axis (`_principal_axis_angle`) is a
+    robust, direct read of "which way this stroke points," unlike a wider
+    or more complex glyph shape. For each "I"'s own blob, that axis must
+    be (near) parallel to the radius from the circle's centre through
+    that same blob's own centroid -- not to `curve.angle`, not to some
+    other glyph's radius, but to its *own*. `angle: 50deg` (design) is
+    away from every axis in either convention, so the defect cannot hide
+    behind the glyph's own symmetry. Driven red against the unfixed code
+    (temporarily reverting R1's two lines): every "I" tilts by
+    ~2.0-2.4deg off its own radius; the fixed code holds every "I" under
+    0.6deg -- both measured by hand while writing this test, see the
+    tolerance below."""
+    body = """\
+  - id: glyphs
+    type: text
+    text: "III"
+    font: font.bezel
+    color: palette.fg
+    at: {anchor: center}
+    align: center
+    vertical_align: center
+    curve: {style: radial, angle: 50deg, radius: 80%r, direction: clockwise}
+"""
+    image = _render(write_design, db, bag, body, font_size="35%r")
+    blobs = [b for b in _find_ink_blobs(image) if len(b) > 20]
+    assert len(blobs) == 3, f"expected 3 separate 'I' blobs, found {len(blobs)}"
+
+    for i, pixels in enumerate(blobs):
+        axis_angle, (mx, my) = _principal_axis_angle(image, pixels)
+        # Image-coordinate direction from the circle's centre to this
+        # blob's own centroid -- same frame as `axis_angle`, so no Garmin
+        # conversion is needed to compare the two.
+        radius_dir_angle = math.degrees(math.atan2(my - CY, mx - CX))
+        tilt = _acute_angle_diff(axis_angle, radius_dir_angle)
+        assert tilt < 1.0, (
+            f"'I' blob {i} (centroid ({mx:.1f}, {my:.1f})) has its stroke "
+            f"tilted {tilt:.2f}deg off the radius through its own centroid "
+            "-- every glyph's own midline should point at the circle's "
+            "centre, like a spoke, not be rotated about its left edge"
+        )
 
 
 # -- font_available: False (if_unavailable: hide) --------------------------------

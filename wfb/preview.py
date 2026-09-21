@@ -1361,15 +1361,28 @@ class _Renderer:
         `align` places the *whole string* along the arc exactly as
         `TEXT_JUSTIFY_LEFT/CENTER/RIGHT` would (`left`: the string starts
         at `curve_angle_garmin`; `right`: it ends there; `center`: it is
-        centred on it) -- each individual glyph is then drawn `align:
-        "left"` at its own resolved slot, the same "whole-string
-        justification, per-glyph left-anchored placement" any text-on-a-
-        path layout uses. `direction: clockwise` advances through the
-        string with *decreasing* Garmin angle and `counter_clockwise` with
-        increasing -- verified against the SDK's own `RADIAL_TEXT_SCENARIO`
-        sample (`angle=0, orientation=CLOCKWISE, justification=LEFT` reads
-        starting at the 3 o'clock point and sweeping toward 6 o'clock, i.e.
-        decreasing Garmin angle).
+        centred on it) -- unaffected by the per-glyph placement below.
+        **Per-glyph placement: each glyph's own slot is the arc position
+        of the *middle* of its own advance
+        (`pen + advance / 2 - align_offset`), and it is pasted `align:
+        "center"` there, using the rotation for that *same* angle --
+        verified on the real simulator (2026-09-21, `fenix8solar51mm`,
+        large roman numerals in `examples/showcase`): every glyph's own
+        vertical midline lies on the radius through that glyph's own
+        centre, like spokes.** A glyph pasted `align: "left"` at the angle
+        computed for its *left edge* (the pre-fix bug) rotates about a
+        point its own ink does not sit at once the paste's own alignment
+        shift moves the box away from that anchor, so the glyph's midline
+        no longer points at the circle's centre and the ring looks
+        twisted -- `align: "center"` needs no such shift (`alignment_
+        shift`'s own `dx == 0`), so the point used for rotation and the
+        point ink physically ends up at are the same point. `direction:
+        clockwise` advances through the string with *decreasing* Garmin
+        angle and `counter_clockwise` with increasing -- verified against
+        the SDK's own `RADIAL_TEXT_SCENARIO` sample (`angle=0,
+        orientation=CLOCKWISE, justification=LEFT` reads starting at the 3
+        o'clock point and sweeping toward 6 o'clock, i.e. decreasing
+        Garmin angle).
 
         `font_metric` (plan 12 R2.3) is threaded straight through to every
         per-glyph `_paste_rotated_run` call below, unchanged -- it is what
@@ -1407,12 +1420,12 @@ class _Renderer:
         base_theta = math.radians(curve_angle_garmin)
         pen = 0.0
         for char, advance in zip(text, advances):
-            pixel_offset = pen - align_offset
+            pixel_offset = pen + advance / 2.0 - align_offset
             theta_pos = base_theta + direction_sign * (pixel_offset / radius)
             px = cx + glyph_radius * math.cos(theta_pos)
             py = cy - glyph_radius * math.sin(theta_pos)
             glyph_angle_garmin = math.degrees(theta_pos) + facing_offset
-            self._paste_rotated_run(face, char, glyph_angle_garmin, "left",
+            self._paste_rotated_run(face, char, glyph_angle_garmin, "center",
                                     glyph_vertical_align, (px, py), color,
                                     font_metric=font_metric)
             pen += advance
@@ -1426,7 +1439,9 @@ class _Renderer:
         about the point `align`/`vertical_align` would place it at, and
         composite the result so that point lands exactly at `anchor_xy`
         (already scaled preview pixels). Shared by `angled` (one call, the
-        whole string) and `radial` (one call per glyph, `align="left"`).
+        whole string) and `radial` (one call per glyph, `align="center"`,
+        the point matching the angle the glyph is rotated to --
+        `_draw_radial_vector_text`'s own docstring has the reasoning).
 
         The paste position reuses `wfb.layout.Resolver._rotated_text_box`'s
         own rotation matrix (`cx = dx*cos + dy*sin`, `cy = -dx*sin +

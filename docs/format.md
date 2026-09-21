@@ -1845,8 +1845,13 @@ AABB is the right shape to test there.
 
 > **Which way a radial glyph faces.** `direction: clockwise` faces glyphs
 > outward and `counter_clockwise` faces inward, so text running along the
-> bottom of the dial reads right-side up. Confirmed against the real
-> simulator on `fenix8solar47mm` (2026-09-21), using this project's own
+> bottom of the dial reads right-side up. Each glyph is rotated
+> individually about its own centre, so its own vertical midline lies on
+> the radius through that glyph's own centre — a ring of glyphs reads like
+> spokes, confirmed against the real simulator on `fenix8solar51mm`
+> (2026-09-21) with `examples/showcase`'s large roman numerals. Facing
+> itself was confirmed against the real simulator on `fenix8solar47mm`
+> (2026-09-21), using this project's own
 > `examples/features/vector-text/face.yaml`, which authors **both**
 > directions: `wordmark` (`counter_clockwise`) and `left_cw`
 > (`clockwise`), plus the controlled pair `top_ccw`/`top_cw` — the same

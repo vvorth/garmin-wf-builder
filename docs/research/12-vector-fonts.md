@@ -413,6 +413,16 @@ caveat and is unaffected by this. `docs/format.md` and `docs/limitations.md`
 now state the facing model as fact rather than an open question, for both
 directions.
 
+**Per-glyph placement -- VERIFIED** (real simulator, 2026-09-21, `fenix8solar51mm`,
+large roman numerals in `examples/showcase`): `Dc.drawRadialText` rotates
+each glyph individually, and every glyph's own vertical midline lies on the
+radius through that glyph's own centre -- every stroke of every "I" in
+`XII`/`VIII` points at the circle's centre, like spokes. `wfb preview`
+models this by placing each glyph at the arc position of the *middle* of
+its own advance, pasted centred and rotated for that same angle
+(`wfb/preview.py` `_draw_radial_vector_text`). Whole-string justification
+(`align:` relative to `curve.angle`) is independent of it.
+
 **Slice 2 landed too:** a pattern's own `shape: text` part now takes
 `curve:` the same way a standalone `text` element does (plan 11 §5 slice
 2), reaching the capability §5.2 called out as otherwise unreachable —

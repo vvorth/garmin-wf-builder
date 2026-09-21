@@ -170,3 +170,19 @@ here directly, with no radius offset needed. Full derivation and the
 new `top` offset itself has not yet been rebuilt and reloaded on the
 simulator** — this table's `top` row is the *pre-fix* emission; only the
 diagnosis is device-measured, not yet the fix's own output.
+
+## Radial per-glyph placement: midline on its own radius, measured 2026-09-21
+
+Measured on the real simulator, `fenix8solar51mm`, with
+`examples/showcase`'s large roman numerals: every
+glyph is rotated individually, and each glyph's own vertical midline lies on
+the radius through that glyph's own centre — every stroke of every "I" in
+`XII`/`VIII` points exactly at the circle's centre, like spokes.
+
+`wfb preview` places each glyph at the arc position of the *middle* of
+its own advance, pasted centred and rotated for that same angle, to match.
+Full derivation: `docs/research/12-vector-fonts.md` §5.3;
+`tests/test_vector_text_preview.py` covers it directly (a single wide
+glyph's centre of mass on its own radius, several same-width glyphs each on
+their own radius, and each glyph's stroke orientation pointing at the
+circle's centre).
