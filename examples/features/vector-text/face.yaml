@@ -97,7 +97,7 @@ fonts:
     # rasterised at build time. BionicSemiBold is on the two fenix8 solar
     # targets; fr955 falls through to RobotoCondensedBold.
     face: [BionicSemiBold, RobotoCondensedBold]
-    size: 8%r
+    size: 14%r
 
   accent:
     # a single name, deliberately with no fallback: fr955 does not publish
@@ -171,6 +171,44 @@ elements:
       angle: 165deg
       radius: 60%r
       direction: counter_clockwise
+
+  - id: left_cw
+    type: text
+    text: "WORLD'S END"
+    font: font.dial
+    color: palette.gray
+    at: { anchor: center }
+    curve:
+      style: radial
+      angle: 270deg
+      radius: 60%r
+      direction: clockwise
+
+  - id: top_ccw
+    type: text
+    text: "TOP CCW"
+    font: font.dial
+    color: palette.gray
+    at: { anchor: center }
+    align: left
+    curve:
+      style: radial
+      angle: 350deg
+      radius: 60%r
+      direction: counter_clockwise
+
+  - id: top_cw
+    type: text
+    text: "TOP CW"
+    font: font.dial
+    color: palette.white
+    at: { anchor: center }
+    align: left
+    curve:
+      style: radial
+      angle: 350deg
+      radius: 60%r
+      direction: clockwise
 
   # A tilted "SOLAR" ribbon, upper right -- only on the two solar-charging
   # targets, because font.accent's face is only published there. This is
