@@ -8,7 +8,7 @@ from ... import expr, formatting
 from ...ir import PatternElement
 from ...layout import PlacedHands, PlacedPattern
 from .common import _color, _const_prefix, _field, _glyph_y_expr, _mc_float, _pattern_needs_math
-from .shapes import _RADIAL_DIRECTION
+from .shapes import _RADIAL_DIRECTION, _radial_radius_expr
 from ..writer import Writer
 
 
@@ -266,11 +266,13 @@ def _emit_pattern_text_draw(
     else:  # "radial"
         angle_expr = _emit_pattern_text_angle_expr(element, part)
         direction = _RADIAL_DIRECTION[part.curve_direction or "clockwise"]
+        radius_expr = _radial_radius_expr(f"Layout.{part_prefix}_RADIUS", part.vertical_align,
+                                          part.curve_direction, font_expr)
         pad = " " * len("dc.drawRadialText(")
         lines = [
             f"dc.drawRadialText({x_expr},",
             f"{pad}{y_expr}, {font_expr}, {value_code},",
-            f"{pad}{justify}, {angle_expr}, Layout.{part_prefix}_RADIUS,",
+            f"{pad}{justify}, {angle_expr}, {radius_expr},",
             f"{pad}Graphics.{direction});",
         ]
 

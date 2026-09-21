@@ -178,6 +178,16 @@ def test_vertical_align_bottom_rejected_under_curve(write_design, bag):
     assert any("vertical_align: bottom" in e.message for e in errors), bag.render()
 
 
+def test_vertical_align_bottom_accepted_under_radial_curve(write_design, bag):
+    """`radial`'s native no-`VCENTER` mode is baseline-on-the-circle, so
+    `bottom` is legal there; only `angled` still rejects it."""
+    elements = _radial_hours(
+        curve="curve: {style: radial, angle: 0deg, radius: 10%r}\n        ",
+    ).rstrip("\n") + "\n        vertical_align: bottom\n"
+    face = load(write_design(_design(_VECTOR_FONT, elements)), bag)
+    assert face is not None, bag.render()
+
+
 def test_radius_and_direction_rejected_under_angled(write_design, bag):
     elements = _radial_hours(
         curve="curve: {style: angled, angle: 0deg, radius: 10%r}\n        ",

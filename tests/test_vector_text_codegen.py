@@ -89,7 +89,7 @@ def _angled(vertical_align: str | None = None) -> str:
 {extra}"""
 
 
-def _radial(direction: str = "clockwise") -> str:
+def _radial(direction: str = "clockwise", vertical_align: str = "center") -> str:
     return f"""\
   - id: brand
     type: text
@@ -97,6 +97,7 @@ def _radial(direction: str = "clockwise") -> str:
     font: font.bezel
     color: palette.fg
     at: {{anchor: center}}
+    vertical_align: {vertical_align}
     curve: {{style: radial, angle: 90deg, radius: 40%r, direction: {direction}}}
 """
 
@@ -320,6 +321,30 @@ def test_justification_composes_vcenter_under_curve(
     call = method.split("dc.drawAngledText(")[1]
     assert ("TEXT_JUSTIFY_VCENTER" in call) is expect_vcenter
     assert "Graphics.TEXT_JUSTIFY_CENTER" in call
+
+
+@pytest.mark.parametrize("vertical_align,direction,vcenter,radius", [
+    ("center", "clockwise", True, "Layout.BRAND_RADIUS,"),
+    ("bottom", "clockwise", False, "Layout.BRAND_RADIUS,"),
+    ("bottom", "counter_clockwise", False, "Layout.BRAND_RADIUS,"),
+    ("top", "clockwise", False, "Layout.BRAND_RADIUS - Graphics.getFontAscent(font),"),
+    ("top", "counter_clockwise", False, "Layout.BRAND_RADIUS + Graphics.getFontAscent(font),"),
+])
+def test_radial_vertical_align_maps_to_justify_and_radius(
+    write_design, bag, db, vertical_align, direction, vcenter, radius,
+):
+    """Without VCENTER the device puts the BASELINE on the circle (measured
+    2026-09-21): that is `bottom` as-is, and `top` moves the baseline one
+    ascent toward the glyphs' "down" -- inward when they face out
+    (`clockwise`), outward when they face in. The bug this guards: `top`
+    emitted the bare radius, so it drew exactly like `bottom`."""
+    face = _load(write_design, bag, _design(
+        _SINGLE_FONT, _background() + _radial(direction, vertical_align)))
+    device = db.get("fenix8solar47mm")
+    view = emit_view(resolve(face, device, {})).text
+    call = view.split("private function drawBrand")[1].split("dc.drawRadialText(")[1].split(";")[0]
+    assert ("TEXT_JUSTIFY_VCENTER" in call) is vcenter
+    assert f"Layout.BRAND_ANGLE, {radius}" in call
 
 
 # --------------------------------------------------------------------------

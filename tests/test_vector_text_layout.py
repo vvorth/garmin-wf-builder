@@ -515,39 +515,31 @@ def test_radial_band_flips_inward_outward_with_facing(write_design, bag, db):
 
 def test_radial_text_band_center_is_direction_independent():
     """`vertical_align: center` splits the line evenly either side of the
-    circle, regardless of `direction:` -- the one case that does not
-    depend on facing at all."""
+    circle, regardless of `direction:` or the font's ascent -- the one case
+    that does not depend on facing at all."""
     for direction in ("clockwise", "counter_clockwise", None):
-        assert radial_text_band(100.0, 20.0, "center", direction) == (90.0, 110.0)
+        assert radial_text_band(100.0, 20.0, "center", direction, 16.0) == (90.0, 110.0)
 
 
-def test_radial_text_band_top_flips_with_facing():
-    """`vertical_align: top` sits on the side OPPOSITE the glyph's own
-    facing (`clockwise` faces outward, so 'top' is inward; `counter_
-    clockwise` faces inward, so 'top' is outward) -- the exact truth table
-    `wfb.layout.radial_text_band`'s own docstring derives, checked here as
-    a pure function of the four values, independent of any device or
-    build pipeline."""
-    assert radial_text_band(100.0, 20.0, "top", "clockwise") == (80.0, 100.0)
-    assert radial_text_band(100.0, 20.0, "top", "counter_clockwise") == (100.0, 120.0)
-    # No `direction:` authored resolves to the schema default ("clockwise")
-    # well before this function ever runs (`Resolver._resolve_text`'s own
-    # `curve_direction`), but this function does not itself assume that --
-    # `direction=None` still has to mean something, and "not explicitly
-    # counter_clockwise" is the same outward-facing default the schema uses.
-    assert radial_text_band(100.0, 20.0, "top", None) == (80.0, 100.0)
+def test_radial_text_band_top_hangs_the_whole_line_from_the_circle():
+    """`vertical_align: top` puts the line box's top edge on the circle, so
+    the whole `line_height` lies on the glyphs' "down" side: inward when
+    they face out (`clockwise`), outward when they face in. Independent of
+    the ascent -- the emitter moves the baseline by exactly that much."""
+    assert radial_text_band(100.0, 20.0, "top", "clockwise", 16.0) == (80.0, 100.0)
+    assert radial_text_band(100.0, 20.0, "top", "counter_clockwise", 16.0) == (100.0, 120.0)
+    # `direction=None` still means the outward-facing schema default.
+    assert radial_text_band(100.0, 20.0, "top", None, 16.0) == (80.0, 100.0)
 
 
-def test_radial_text_band_bottom_is_the_mirror_of_top():
-    """`vertical_align: bottom` is rejected as a build error under any
-    `curve:` (`wfb.ir.builder`), so this input is author-unreachable in
-    practice -- but the function still answers it defensively, as the
-    exact mirror of `top` (CLAUDE.md §7's own "must be able to fail
-    against a knowingly broken implementation": swapping `top`'s branch
-    for `bottom`'s in the implementation would flip these two assertions'
-    truth values without this test noticing anything else)."""
-    assert radial_text_band(100.0, 20.0, "bottom", "clockwise") == (100.0, 120.0)
-    assert radial_text_band(100.0, 20.0, "bottom", "counter_clockwise") == (80.0, 100.0)
+def test_radial_text_band_bottom_puts_the_baseline_on_the_circle():
+    """`vertical_align: bottom` is the device's native no-`VCENTER` mode:
+    the BASELINE on the circle (measured on the real simulator, 2026-09-21)
+    -- the ascent on the glyphs' "up" side, the descent on the other. A
+    band that treated `bottom` as the box's bottom edge (no descent below
+    the circle) or as the mirror of `top` would fail both assertions."""
+    assert radial_text_band(100.0, 20.0, "bottom", "clockwise", 16.0) == (96.0, 116.0)
+    assert radial_text_band(100.0, 20.0, "bottom", "counter_clockwise", 16.0) == (84.0, 104.0)
 
 
 # -- arc_bbox: the shared annulus-sector bounding box ----------------------

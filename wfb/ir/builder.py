@@ -3060,10 +3060,11 @@ class Builder:
         direction = str(raw.get("direction", "clockwise")) if style == "radial" else None
         if font_ok:
             self._check_curve_font(element, span)
-        if element.vertical_align == "bottom":
+        if element.vertical_align == "bottom" and style == "angled":
             self.bag.error(
                 "text-curve",
-                f"{element.id}: 'vertical_align: bottom' is not accepted under 'curve:'",
+                f"{element.id}: 'vertical_align: bottom' is not accepted under "
+                "'curve: {style: angled}'",
                 self.doc.span(node, "vertical_align") or span,
                 notes=[
                     "an upright text's 'bottom' is implemented by subtracting the "
@@ -3071,7 +3072,8 @@ class Builder:
                     "baseline is rotated that subtraction no longer points along "
                     "the text's own vertical axis, so the ink would land somewhere "
                     "this compiler cannot predict",
-                    "use 'top' or 'center' instead",
+                    "use 'top' or 'center' instead ('curve: {style: radial}' "
+                    "accepts all three)",
                 ],
             )
         return Curve(style=style, angle=angle, radius=radius, direction=direction)
@@ -3187,10 +3189,11 @@ class Builder:
                     "'font:' at one that already does",
                 ],
             )
-        if vertical_align == "bottom":
+        if vertical_align == "bottom" and style == "angled":
             self.bag.error(
                 "text-curve",
-                f"{part_where}: 'vertical_align: bottom' is not accepted under 'curve:'",
+                f"{part_where}: 'vertical_align: bottom' is not accepted under "
+                "'curve: {style: angled}'",
                 self.doc.span(node, "vertical_align") or span,
                 notes=[
                     "an upright text's 'bottom' is implemented by subtracting the "
@@ -3198,7 +3201,8 @@ class Builder:
                     "baseline is rotated that subtraction no longer points along "
                     "the text's own vertical axis, so the ink would land somewhere "
                     "this compiler cannot predict",
-                    "use 'top' or 'center' instead",
+                    "use 'top' or 'center' instead ('curve: {style: radial}' "
+                    "accepts all three)",
                 ],
             )
         return Curve(style=style, angle=angle, radius=radius, direction=direction)

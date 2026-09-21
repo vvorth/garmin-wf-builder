@@ -131,6 +131,25 @@ _RADIAL_DIRECTION = {
 }
 
 
+def _radial_radius_expr(radius_expr: str, vertical_align: str, direction: str | None,
+                        font_expr: str) -> str:
+    """`dc.drawRadialText`'s `radius` argument for `vertical_align`.
+
+    Without `TEXT_JUSTIFY_VCENTER` the device puts the text's **baseline**
+    on the circle, glyphs growing toward their own "up" -- outward under
+    `clockwise`, inward under `counter_clockwise` (measured on the real
+    simulator 2026-09-21, `docs/research/12-vector-fonts.md` §5.3). That is
+    `bottom` as-is. `top` hangs the line box from the circle instead, so
+    the baseline moves one `Graphics.getFontAscent` (it takes a
+    `VectorFont`: `FontType` includes it) toward the glyphs' "down".
+    `center` is `VCENTER` and needs no adjustment.
+    """
+    if vertical_align != "top":
+        return radius_expr
+    sign = "+" if direction == "counter_clockwise" else "-"
+    return f"{radius_expr} {sign} Graphics.getFontAscent({font_expr})"
+
+
 def _emit_text_draw(w: Writer, placed: PlacedText, value_code: str) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -185,8 +204,9 @@ def _emit_vector_text_draw(
         elif placed.curve_style == "radial":
             direction = _RADIAL_DIRECTION[placed.curve_direction or "clockwise"]
             w.line(f"dc.drawRadialText(Layout.{prefix}_X, Layout.{prefix}_Y, font, {value_code},")
-            w.line(f"                  {justify}, Layout.{prefix}_ANGLE, "
-                   f"Layout.{prefix}_RADIUS,")
+            radius = _radial_radius_expr(f"Layout.{prefix}_RADIUS", element.vertical_align,
+                                         placed.curve_direction, "font")
+            w.line(f"                  {justify}, Layout.{prefix}_ANGLE, {radius},")
             w.line(f"                  Graphics.{direction});")
         else:
             y_expr = _glyph_y_expr(f"Layout.{prefix}_Y", element.vertical_align, "font")

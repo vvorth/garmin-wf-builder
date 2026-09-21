@@ -1797,13 +1797,31 @@ Bends a `text` element's content along a straight line (`style: angled`,
 `align:` maps straight onto `TEXT_JUSTIFY_LEFT`/`CENTER`/`RIGHT`, the same
 device-side justify an upright `text` already uses. `vertical_align: center`
 OR's in `TEXT_JUSTIFY_VCENTER` (confirmed against the SDK's own
-`TrueTypeFonts` sample, which does the same under both calls) and `top`
-omits it — but **`vertical_align: bottom` is a build error under `curve:`**:
-an upright text's `bottom` is implemented by subtracting the font's own
-on-device height from the anchor *in screen space*, and once the baseline is
-rotated that subtraction no longer points along the text's own vertical
-axis, so the ink would land somewhere this compiler cannot predict. Use
-`top` or `center` instead.
+`TrueTypeFonts` sample, which does the same under both calls); what `top`
+and `bottom` mean depends on `style:`:
+
+* **`style: angled`: `top` omits `VCENTER`, and `vertical_align: bottom` is
+  a build error.** An upright text's `bottom` is implemented by subtracting
+  the font's own on-device height from the anchor *in screen space*, and
+  once the baseline is rotated that subtraction no longer points along the
+  text's own vertical axis, so the ink would land somewhere this compiler
+  cannot predict. Use `top` or `center` instead. (`drawAngledText`'s actual
+  no-`VCENTER` device behaviour is otherwise unmeasured — an open question,
+  `docs/research/12-vector-fonts.md` §5.3.)
+* **`style: radial`: all three values are accepted.** Measured on the real
+  simulator (`fenix8solar47mm`, 2026-09-21,
+  `docs/research/12-vector-fonts.md` §5.3): without `TEXT_JUSTIFY_VCENTER`,
+  `Dc.drawRadialText` puts the text's **baseline** on the circle, and each
+  glyph grows toward its own "up" — outward under `direction: clockwise`,
+  inward under `counter_clockwise`. That *is* `bottom`, used as-is: the
+  ascent lands on the glyphs' "up" side of the circle, the descent on the
+  other. `top` hangs the *line box's* top edge on the circle instead, so
+  the compiler emits the radius shifted by one `Graphics.getFontAscent`
+  toward the glyphs' "down" side (`Layout.<P>_RADIUS -/+
+  Graphics.getFontAscent(font)`, minus for clockwise, plus for
+  counter_clockwise) rather than the bare radius — the whole line then
+  falls on the "down" side, as an upright `top` puts the whole line below
+  its anchor. `center` needs no adjustment; it is `VCENTER`, as above.
 
 `if_unavailable:` (`error`/`hide`, see "Fonts" above) works exactly the same
 way on a curved element as on any other `face:`-font `text` element, and can
@@ -1811,8 +1829,12 @@ still be set on the element to override the font's own value outright.
 
 **On a round screen, `safe-area` checks the curved run's own real shape, not
 its bounding box's corners.** A `style: radial` run's box is a tight annulus
-sector (the ring `radius:` +/- half a `line_height`, over the angular span
-the text actually sweeps), and a `style: angled` run's is that sector's or
+sector, over the angular span the text actually sweeps: `radius:` +/- half a
+`line_height` for `vertical_align: center`; the full `line_height` to one
+side for `top` (which side set by `direction:`, above); and the ascent
+split off from the descent, one on each side, for `bottom` (the device's
+own native, un-centred placement — see `direction:` above for which side
+gets the ascent). A `style: angled` run's is that sector's or
 rectangle's own rotated corners — an axis-aligned box drawn *around* either
 shape has corners that are not points on the shape at all once it sits off
 a multiple of 90 degrees from the screen centre, and checking those phantom
@@ -2600,8 +2622,9 @@ elements:
 `direction:` a standalone `text` element's own `curve:` does (see
 ["`curve:` — rotated and radial text"](#curve--rotated-and-radial-text)
 above for the full rules: a `face:` font is required, `radius:`/
-`direction:` are rejected on `angled`, and `vertical_align: bottom` is a
-build error). **The one real difference:** `angle:` is in the *template's
+`direction:` are rejected on `angled`, `vertical_align: bottom` is a build
+error under `style: angled` but accepted under `style: radial`).
+**The one real difference:** `angle:` is in the *template's
 own local frame*, for copy 0 alone — a radial pattern turns every later
 copy's angle right along with its anchor, the same way a pattern `shape:
 arc` part's own `start_angle:` already turns with the copy (its own row

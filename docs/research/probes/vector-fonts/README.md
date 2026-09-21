@@ -136,3 +136,37 @@ pre-existing "glyph rendering is approximate" caveat, unrelated to facing.
 
 This is evidence for one device (`fenix8solar47mm`), in the simulator (not
 physical hardware). Both `direction:` branches are now directly exercised.
+
+## Radial vertical alignment (`top`/`bottom`): baseline-on-the-circle, measured 2026-09-21
+
+The facing comparison above never varied `vertical_align:`, so it said
+nothing about *where along the radius* a curved run actually sits — that
+gap is what a follow-up pixel measurement on the same `top_cw`/`top_ccw`
+pair (against the centred `wordmark`/`left_cw`) closed, still on
+`fenix8solar47mm`, `radius: 60%r` = 78px:
+
+| run | `vertical_align:` | device ink radii (px) |
+|---|---|---|
+| `wordmark`/`left_cw` | `center` | 73–82 |
+| `top_cw`/`top_ccw` (as then emitted: bare radius, no `TEXT_JUSTIFY_VCENTER`) | `top` | clockwise 77.7–86.7; counter_clockwise 68.8–76.9 |
+
+That is `Dc.drawRadialText` putting the text's **baseline**, not the line
+box, on the circle when `TEXT_JUSTIFY_VCENTER` is absent — each glyph grows
+toward its own "up" (outward under `clockwise`, inward under
+`counter_clockwise`). `wfb preview` and `wfb.layout`'s lint band had `top`
+hanging the *opposite* way at the time (predicted clockwise 65.5–73.9,
+counter_clockwise 82.2–90.7): a real bug, not a rendering-fidelity gap —
+`top` was landing outside the ring the compiler thought it occupied. Fixed
+by changing what codegen emits, not the lint model: `top` now asks the
+device for `Layout.<P>_RADIUS -/+ Graphics.getFontAscent(font)` rather than
+the bare radius (`wfb.emit.monkeyc.shapes._radial_radius_expr`), which
+walks the baseline one ascent toward the glyphs' "down" side so the *line
+box's* top edge, not its baseline, lands on the circle — matching what the
+preview and lint band already assumed. `bottom` (previously rejected as a
+build error under any `curve:`) is accepted under `style: radial` as of
+the same fix, using the device's native no-`VCENTER` placement measured
+here directly, with no radius offset needed. Full derivation and the
+`ascent`/`descent` split: `docs/research/12-vector-fonts.md` §5.3. **The
+new `top` offset itself has not yet been rebuilt and reloaded on the
+simulator** — this table's `top` row is the *pre-fix* emission; only the
+diagnosis is device-measured, not yet the fix's own output.

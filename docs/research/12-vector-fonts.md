@@ -449,50 +449,64 @@ outer edge (`105 + 36 = 141`) sat one pixel past the framebuffer's own
 140px half-width, a false `off-screen`, even though the real ink
 (`105 + 36/2 = 123`) is comfortably inside.
 
-`wfb.layout.radial_text_band(radius, line_height, vertical_align,
-direction)` is now the one place both `Resolver._resolve_text` and
+`wfb.layout.radial_text_band(radius, line_height, vertical_align, direction,
+ascent)` is the one place both `Resolver._resolve_text` and
 `_pattern_part_ink` derive the band, matching exactly what `wfb.preview.
-_draw_radial_vector_text`/`._paste_rotated_run` draw (never a second,
-independently-derived model): `vertical_align: center` is symmetric,
-`radius -/+ line_height / 2`, regardless of `direction:`. `vertical_align:
-top` is asymmetric and **direction-dependent**, because it is defined
-relative to the glyph's own local "up", which the facing model above
-(`clockwise` outward, `counter_clockwise` inward) rotates onto the radial
-direction: `clockwise` (outward-facing) puts `top` on the INWARD side
-(`radius - line_height`..`radius`), `counter_clockwise` (inward-facing)
-puts it on the OUTWARD side (`radius`..`radius + line_height`).
-`vertical_align: bottom` is out of scope for this derivation because it is
-already a build error under any `curve:` (`wfb.ir.builder`, both
-`text.curve` and a pattern part's `patternCurve` — see this section's own
-`vertical_align: bottom` note above) — `radial_text_band` fills in the
-mirror-of-`top` case anyway, defensively, rather than leaving it to raise
-on an author-unreachable input.
+_draw_radial_vector_text`/`._paste_rotated_run` draw. **The device-behaviour
+question above was resolved by measurement, not left open: the SDK's own
+`justification` doc never distinguishes a rotated run's `top` from its
+`center`, so it had to be read off the real simulator (2026-09-21,
+`fenix8solar47mm`, `examples/features/vector-text/face.yaml`'s `top_cw`/
+`top_ccw` pair against the centred `wordmark`/`left_cw`; radius `60%r` =
+78px).** `Dc.drawRadialText` without `TEXT_JUSTIFY_VCENTER` puts the text's
+**baseline** on the circle, each glyph growing toward its own local "up" —
+outward under `clockwise`, inward under `counter_clockwise`. Ink radii in
+device px: centred (`VCENTER`) runs 73–82; `top` as it was *then* emitted
+(bare radius, no `VCENTER`) measured clockwise 77.7–86.7, counter_clockwise
+68.8–76.9 — baseline-on-the-circle, growing outward/inward respectively.
+The preview and the lint band had `top` hanging the *opposite* way
+(predicted clockwise 65.5–73.9, counter_clockwise 82.2–90.7): a real bug,
+now fixed, not merely an unverified assumption.
 
-**Open question, genuinely undocumented device behaviour.** The SDK's own
-`drawAngledText`/`drawRadialText` docs (`$CIQ_SDK/doc/Toybox/Graphics/
-Dc.html`) give `justification` the same one-line generic description
-("Specifies how text placed relative to the text location") as plain
-`drawText`, with no worked example distinguishing a rotated run's `top`
-from its `center`. The band above assumes the device applies
-`vertical_align` in the glyph's own local, rotated frame — the only model
-this project's preview renders, and the only one any of its geometry
-reasons about — not some other reinterpretation relative to the unrotated
-screen axes. This is **unverified** beyond the facing comparison already
-documented above (real simulator, `fenix8solar47mm` only, and that
-comparison never varied `vertical_align`). A second, related observation
-from deriving this: current codegen (`wfb.emit.monkeyc.shapes.
-_emit_vector_text_draw`, via `Resolver._justify`) never emits a
-justification flag that distinguishes `top` from `bottom` for a curved
-element — only `center` adds `TEXT_JUSTIFY_VCENTER`, and there is no
-`TEXT_JUSTIFY_BOTTOM` on the platform at all (confirmed in
-`bin/api.debug.xml`: only `_LEFT`/`_CENTER`/`_RIGHT`/`_VCENTER` exist).
-Since `bottom` is already rejected at build time under `curve:`, `top` is
-the *only* non-centred `vertical_align` that ever reaches a curved draw
-call today, so nothing currently depends on a `bottom` flag that does not
-exist — but a future feature that revisits the `bottom` restriction under
-`curve:` would need to resolve this gap (find or confirm the on-device
-equivalent of `_glyph_y_expr`'s screen-space subtraction for a rotated
-baseline) before it could emit anything for it.
+Three vertical placements follow, one function computing all three:
+
+* `center` — `VCENTER`, symmetric: `radius -/+ line_height / 2`,
+  direction-free.
+* `bottom` (now **accepted** under `curve: {style: radial}`; still
+  rejected under `angled`, below) — the device's own native no-`VCENTER`
+  mode, used as-is: `ascent` on the glyphs' "up" side of the circle, the
+  descent (`line_height - ascent`) on the other. `ascent` is
+  `wfb.fonts.fallback.ascent`, the preview's own baseline metric — the
+  stand-in for `Graphics.getFontAscent` (which accepts a `VectorFont`;
+  `FontType` includes it, `$CIQ_SDK/doc/Toybox/Graphics.html`).
+* `top` — the line box's *top* edge on the circle instead of the baseline,
+  so the whole `line_height` falls on the "down" side: the same band shape
+  (`radius -/+ line_height`, entirely to one side by facing) this function
+  already computed before the fix. What changed is codegen, which
+  previously emitted the bare radius (giving the baseline-on-the-circle,
+  wrong-way ink measured above) and now emits `Layout.<P>_RADIUS -/+
+  Graphics.getFontAscent(font)` (`wfb.emit.monkeyc.shapes.
+  _radial_radius_expr`, minus for `clockwise`, plus for
+  `counter_clockwise`), so the baseline sits one ascent toward the "down"
+  side and the box's top edge, not its baseline, lands on the circle.
+  **This offset codegen has not yet been confirmed on the simulator** — the
+  2026-09-21 measurement above covers the *old*, buggy bare-radius `top`
+  emission and the always-native `bottom`; the new `top` expression reuses
+  the same `getFontAscent` call `bottom`'s own measurement validates, but
+  has not itself been rebuilt and reloaded on hardware or the simulator.
+
+"Up" is outward under `clockwise` and inward under `counter_clockwise`
+throughout — `wfb.preview._draw_radial_vector_text`'s facing model,
+verified in both directions (§5.3 above).
+
+**`style: angled`'s `bottom` remains the one open question.** The `radial`
+measurement above says nothing about `drawAngledText`'s own no-`VCENTER`
+behaviour, which may or may not match `drawRadialText`'s. `vertical_align:
+bottom` is still rejected at build time under `curve: {style: angled}` — an
+upright text's `bottom` is a screen-space subtraction that would not point
+along a rotated baseline's own axis once tilted, and the device model that
+would justify (or contradict) lifting that restriction is still
+unmeasured.
 
 **A further follow-up (2026-09-21): the round-screen `safe-area` check
 itself was still testing the tightened box's own corners, not the shape it

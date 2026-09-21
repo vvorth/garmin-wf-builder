@@ -1393,16 +1393,27 @@ class _Renderer:
         # Facing: outward (`pos - 90`) for clockwise, inward (`pos + 90`)
         # for counter_clockwise -- see the derivation above.
         facing_offset = 90.0 if counter_clockwise else -90.0
+        # `bottom`: the device's native no-`VCENTER` mode puts the BASELINE
+        # on the circle (`wfb.layout.radial_text_band`'s device model), so
+        # each glyph's box top sits one ascent toward its own "up" --
+        # outward when facing out, inward when facing in -- and is pasted
+        # `top`-aligned from there. `top`/`center` are the box edge/centre
+        # on the circle already, which `_paste_rotated_run` does as-is.
+        glyph_vertical_align = vertical_align
+        glyph_radius = radius
+        if vertical_align == "bottom":
+            glyph_vertical_align = "top"
+            glyph_radius = radius + (-face.baseline if counter_clockwise else face.baseline)
         base_theta = math.radians(curve_angle_garmin)
         pen = 0.0
         for char, advance in zip(text, advances):
             pixel_offset = pen - align_offset
             theta_pos = base_theta + direction_sign * (pixel_offset / radius)
-            px = cx + radius * math.cos(theta_pos)
-            py = cy - radius * math.sin(theta_pos)
+            px = cx + glyph_radius * math.cos(theta_pos)
+            py = cy - glyph_radius * math.sin(theta_pos)
             glyph_angle_garmin = math.degrees(theta_pos) + facing_offset
             self._paste_rotated_run(face, char, glyph_angle_garmin, "left",
-                                    vertical_align, (px, py), color,
+                                    glyph_vertical_align, (px, py), color,
                                     font_metric=font_metric)
             pen += advance
 

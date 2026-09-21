@@ -393,3 +393,20 @@ def line_height(metric: FontMetric) -> int:
     if face is not None and face.bitmap is not None:
         return face.line_height
     return metric.height_px if metric.height_px is not None else metric.size_px
+
+
+def ascent(metric: FontMetric) -> int:
+    """The baseline's distance below the line box's top -- the stand-in for
+    `Graphics.getFontAscent` that `wfb.layout` measures radial text with
+    (`radial_text_band`), read from the same cached `system_face` the
+    preview draws with, so the lint band and the preview's own baseline
+    agree by construction. Falls back to `metric.ascent_px` when stated,
+    else the full line height (the whole box above the baseline -- the
+    conservative end for a band built on it).
+    """
+    face = system_face(metric)
+    if face is not None:
+        return face.baseline
+    if metric.ascent_px is not None:
+        return metric.ascent_px
+    return line_height(metric)

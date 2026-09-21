@@ -2051,7 +2051,7 @@
           "$ref": "#/$defs/align"
         },
         "vertical_align": {
-          "description": "'shape: rectangle', 'circle' or 'text' only. Same frame-vs-anchor distinction as 'align' above. 'bottom' is rejected under 'curve:', the same reason a 'text' element's own 'curve:' rejects it.",
+          "description": "'shape: rectangle', 'circle' or 'text' only. Same frame-vs-anchor distinction as 'align' above. Under 'curve: {style: radial}' all three values are accepted -- 'top'/'bottom' choose which side of the circle the line box falls on (Dc.drawRadialText's own baseline-on-the-circle behaviour without TEXT_JUSTIFY_VCENTER). 'bottom' is rejected under 'curve: {style: angled}', the same reason a 'text' element's own 'curve:' rejects it there.",
           "$ref": "#/$defs/verticalAlign"
         },
         "min_1px": {

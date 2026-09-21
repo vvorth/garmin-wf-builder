@@ -515,6 +515,121 @@ def test_radial_clockwise_at_six_oclock_faces_outward_upside_down(write_design, 
     )
 
 
+def _weighted_mean_radius(image, cx: int, cy: int,
+                          region: tuple[int, int, int, int] = (0, 0, 260, 260),
+                          min_channel: int = 60) -> float:
+    """Intensity-weighted mean *radial* distance from `(cx, cy)` of every
+    lit pixel in `region` -- the same anti-aliasing-tolerant weighting
+    `_weighted_centroid` above uses for centre-of-mass (`w = max(r, g,
+    b)`), folded onto one radial axis instead of two Cartesian ones: what
+    `vertical_align` under `curve: {style: radial}` actually claims is
+    about the *circle* -- how far out or in the ink sits -- not where its
+    centroid falls in x/y, which a curved run can also shift sideways
+    along the arc for reasons (advance rounding, `align:`) unrelated to
+    vertical alignment."""
+    x0, y0, x1, y1 = region
+    wsum = total = 0.0
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            r, g, b = image.getpixel((x, y))
+            w = max(r, g, b)
+            if w > min_channel:
+                wsum += w * math.hypot(x - cx, y - cy)
+                total += w
+    assert total > 0, "no ink drawn at all"
+    return wsum / total
+
+
+# `curve: {style: radial, angle: 90deg, radius: 40%r}` places the single
+# glyph these tests draw at the Garmin-0deg (3 o'clock) point, `0.40 * 130`
+# preview px out from `(CX, CY)` -- the same `_polar`/`radius` combination
+# `test_radial_text_follows_the_circle_near_the_start_angle` above already
+# uses, reused here as the "nominal" (`center`-aligned, no baseline shift)
+# radius bottom/top ink is claimed to sit outside/inside of.
+_NOMINAL_RADIUS = 0.40 * 130
+
+
+def _radial_mean_radius(write_design, db, bag, *, direction: str, vertical_align: str) -> float:
+    body = f"""\
+  - id: glyph
+    type: text
+    text: "R"
+    font: font.bezel
+    color: palette.fg
+    at: {{anchor: center}}
+    align: left
+    vertical_align: {vertical_align}
+    curve: {{style: radial, angle: 90deg, radius: 40%r, direction: {direction}}}
+"""
+    # A large-ish glyph (`font_size` well above the other radial tests'
+    # default `10%r`): the gap this bug produces is about one ascent
+    # (`face.baseline`), so the glyph has to be big enough for that gap to
+    # dominate anti-aliasing noise at the pixel level.
+    image = _render(write_design, db, bag, body, font_size="20%r")
+    return _weighted_mean_radius(image, CX, CY)
+
+
+def test_radial_clockwise_vertical_align_orders_ink_radius_top_lt_center_lt_bottom(write_design, db, bag):
+    """The bug this test guards: `Dc.drawRadialText` WITHOUT
+    `TEXT_JUSTIFY_VCENTER` puts the text's BASELINE on the circle, each
+    glyph growing toward its own "up" -- outward for `clockwise`
+    (`wfb.preview._Renderer._draw_radial_vector_text`'s own facing model:
+    `clockwise` faces outward). So under `clockwise`: `top` (line box top
+    edge on the circle, hanging inward/"down") sits closest to the centre,
+    `center` (VCENTER, box straddling the circle) in the middle, and
+    `bottom` (baseline on the circle, ascender reaching further outward
+    than the box-centre case) sits furthest out -- `r(top) < r(center) <
+    r(bottom)`. A broken `bottom` branch (the pre-fix state: no ascent
+    shift at all, or the shift's sign flipped so it moves `bottom` in
+    instead of out) would either put `bottom` at the same radius as `top`
+    (no ordering) or push it inward past `center`, failing the strict
+    ordering asserted below -- this is the exact contrast the fix claims,
+    not just "some difference exists.\""""
+    r_top = _radial_mean_radius(write_design, db, bag, direction="clockwise", vertical_align="top")
+    r_center = _radial_mean_radius(write_design, db, bag, direction="clockwise", vertical_align="center")
+    r_bottom = _radial_mean_radius(write_design, db, bag, direction="clockwise", vertical_align="bottom")
+    assert r_top < r_center < r_bottom, (r_top, r_center, r_bottom)
+    # And the two extremes actually cross the circle itself, not merely
+    # order correctly on the same side of it.
+    assert r_bottom > _NOMINAL_RADIUS, (
+        f"clockwise 'bottom' ink (mean r={r_bottom:.1f}) should sit mostly "
+        f"OUTSIDE the nominal circle radius ({_NOMINAL_RADIUS:.1f}px) -- "
+        "the baseline sits ON the circle and glyphs face outward"
+    )
+    assert r_top < _NOMINAL_RADIUS, (
+        f"clockwise 'top' ink (mean r={r_top:.1f}) should sit mostly "
+        f"INSIDE the nominal circle radius ({_NOMINAL_RADIUS:.1f}px)"
+    )
+
+
+def test_radial_counter_clockwise_vertical_align_orders_ink_radius_bottom_lt_center_lt_top(write_design, db, bag):
+    """The mirror of the test above: `counter_clockwise` faces INWARD, so
+    every "up"/"outward" in that test's reasoning flips -- `bottom`
+    (baseline on the circle, ascender reaching further inward) sits
+    closest to the centre, `top` (box top edge on the circle, hanging
+    outward) sits furthest out, `r(bottom) < r(center) < r(top)` -- and
+    `bottom` ink lands mostly INSIDE the circle, `top` mostly OUTSIDE,
+    exactly the opposite pairing from `clockwise` above. A `bottom` branch
+    that used the wrong sign for `counter_clockwise` specifically (e.g. it
+    happened to get `clockwise` right by accident but shares one un-mirrored
+    sign for both directions) would fail only this test while the
+    `clockwise` one above still passed, which is why both directions are
+    asserted, not just one."""
+    r_top = _radial_mean_radius(write_design, db, bag, direction="counter_clockwise", vertical_align="top")
+    r_center = _radial_mean_radius(write_design, db, bag, direction="counter_clockwise", vertical_align="center")
+    r_bottom = _radial_mean_radius(write_design, db, bag, direction="counter_clockwise", vertical_align="bottom")
+    assert r_bottom < r_center < r_top, (r_bottom, r_center, r_top)
+    assert r_bottom < _NOMINAL_RADIUS, (
+        f"counter_clockwise 'bottom' ink (mean r={r_bottom:.1f}) should sit "
+        f"mostly INSIDE the nominal circle radius ({_NOMINAL_RADIUS:.1f}px) "
+        "-- the baseline sits ON the circle and glyphs face inward"
+    )
+    assert r_top > _NOMINAL_RADIUS, (
+        f"counter_clockwise 'top' ink (mean r={r_top:.1f}) should sit "
+        f"mostly OUTSIDE the nominal circle radius ({_NOMINAL_RADIUS:.1f}px)"
+    )
+
+
 # -- font_available: False (if_unavailable: hide) --------------------------------
 
 

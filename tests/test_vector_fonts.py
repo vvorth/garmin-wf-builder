@@ -327,11 +327,28 @@ def test_vertical_align_top_and_center_are_accepted_under_curve(
 ):
     """§2.3's VCENTER finding: the SDK's own `TrueTypeFonts` sample ORs
     `Graphics.TEXT_JUSTIFY_VCENTER` into `drawAngledText`/`drawRadialText`'s
-    `justification`, so `top`/`center` both stay legal under `curve:` and
+    `justification`, so `top`/`center` both stay legal under `angled` and
     only `bottom` (a screen-space subtraction that cannot follow a rotated
-    baseline) is rejected."""
+    baseline) is rejected there."""
     element = _text_element(
         f"    curve: {{style: angled, angle: 45deg}}\n    vertical_align: {vertical_align}\n",
+    )
+    design = _design(_VECTOR_FONT, element, repo_root=repo_root)
+    face = load(write_design(design), bag)
+    assert face is not None, bag.render()
+    assert face.elements[0].vertical_align == vertical_align
+
+
+@pytest.mark.parametrize("vertical_align", ["top", "center", "bottom"])
+def test_every_vertical_align_is_accepted_under_radial_curve(
+    write_design, bag, repo_root, vertical_align,
+):
+    """`radial` accepts all three: `bottom` is the device's own
+    baseline-on-the-circle mode (measured 2026-09-21), `top` the same call
+    at a radius moved by the font's ascent, `center` is `VCENTER`."""
+    element = _text_element(
+        "    curve: {style: radial, angle: 45deg, radius: 50%r}\n"
+        f"    vertical_align: {vertical_align}\n",
     )
     design = _design(_VECTOR_FONT, element, repo_root=repo_root)
     face = load(write_design(design), bag)

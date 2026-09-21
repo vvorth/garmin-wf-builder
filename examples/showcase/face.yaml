@@ -891,6 +891,7 @@ layouts:
             # at: { dy: -69%r }
             # curve: { style: angled, angle: 0deg }
             curve: { style: radial, angle: 0deg, radius: 90%r }
+            vertical_align: bottom
 
       # A "mechanical opening" without alpha (plan 13 R3.2):
       # `alphaBlendingSupport` is false on every target (root CLAUDE.md
