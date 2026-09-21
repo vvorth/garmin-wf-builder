@@ -73,18 +73,27 @@ rows the other targets fit, accepted per element with `lint: {allow}`.
 
 ## The wearable four
 
-`showcase/` is the widest single face here: two `layouts:` switched by
+`showcase/` is the widest single face here: three `layouts:` switched by
 Styles -- a quiet classic three-hand `analog` dial (`hands:`, a radial tick
-`pattern`, twelve numerals as one `shape: text` pattern part) and a
+`pattern`, twelve numerals as one `shape: text` pattern part), a
 data-rich `digital` dashboard (a monospaced two-tone clock, a weather row
 with a dynamic `icon_for:` condition icon, a heart-rate `graph`,
 `group`+`on_hold:` icon/value clusters, both `progress` styles, and a
-conditional-colour status row) -- plus two shared `complication_slot`
-"registers" (the Data axis, one with per-choice icon overrides, one
-`choices: any`), several `color_scheme:` entries and the `config: style:`
-entries pairing them with the two layouts, and several-colour
-`accent_color`/`data_color` axes. Builds warning-free on all three targets
-at 14.9% of the 128 KB budget.
+conditional-colour status row), and a vintage `roman` dial (plan 13,
+2026-09-21: big roman numerals curved tangent to their own radius with a
+device-resident `face:` font and `curve:`, a second `hands:` set --
+`vintage` -- with Breguet/moon-style hour and minute hands, the two
+shared registers doubling as sub-dials at 2 and 10 o'clock (`skip: [2,
+10]` on the numeral ring -- a `complication_slot` can't move, so the
+numeral gives way instead), and a mechanical-looking day/date aperture --
+a light well with dark text and a 1 px frame, reading as a wheel cut
+through the dial rather than a UI chip, since `alphaBlendingSupport` is
+false and nothing can be cut out) -- plus
+two shared `complication_slot` "registers" (the Data axis, one with
+per-choice icon overrides, one `choices: any`), several `color_scheme:`
+entries and the `config: style:` entries pairing them with the three
+layouts, and several-colour `accent_color`/`data_color` axes. Builds
+warning-free on all three targets at 16.8% of the 128 KB budget.
 
 The Phase 2 slice is no longer an example: it is the test fixture
 `tests/fixtures/slice/`.

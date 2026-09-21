@@ -19,10 +19,10 @@ personal project that works end to end and is still changing. The format is
 versioned (`format: 1`). [`docs/limitations.md`](docs/limitations.md) lists
 what isn't built yet.
 
-![All five styles of the showcase face](docs/screenshots/showcase-styles.png)
+![All seven styles of the showcase face](docs/screenshots/showcase-styles.png)
 
-*[`examples/showcase`](examples/showcase/face.yaml): one file, five on-device
-styles made from two layouts and three colour schemes.*
+*[`examples/showcase`](examples/showcase/face.yaml): one file, seven on-device
+styles made from three layouts and three colour schemes.*
 
 This page is a tour by example. Section 1 gets you from nothing to a face on
 your watch. Sections 2–10 follow the showcase face, and section 11 covers

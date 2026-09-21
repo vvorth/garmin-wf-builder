@@ -1,8 +1,10 @@
-# Showcase -- one face, two layouts switched by Styles: `analog` (a quiet
-# three-hand dial with tick and numeral patterns) and `digital` (a dense
+# Showcase -- one face, three layouts switched by Styles: `analog` (a quiet
+# three-hand dial with tick and numeral patterns), `digital` (a dense
 # dashboard: two-tone clock, weather row, heart-rate graph, data clusters,
-# progress bar and ring, status row). Two shared `complication_slot`
-# registers draw beneath both.
+# progress bar and ring, status row), and `roman` (a vintage roman-numeral
+# dial with Breguet-style hands and a mechanical day/date aperture -- plan
+# 13, `docs/plans/13-showcase-roman-layout.md`). Two shared
+# `complication_slot` registers draw beneath all three.
 #
 # Config: several colour schemes paired with the layouts as `config: style:`
 # entries, both colour axes, and the Data axis (the two registers). fr955
@@ -18,7 +20,7 @@ format: 1
 face:
   id: 5ca5867b-1d30-4581-94c0-617033e6824c
   name: Showcase
-  version: 1.1.0
+  version: 1.2.0
 
 targets:
   - fenix8solar47mm
@@ -36,6 +38,14 @@ fonts:
     source: assets/Dynalight-Regular.ttf
     size: 13%r
     antialias: true
+  # Device-resident, scalable -- `docs/format.md` "Vector (`face:`) fonts".
+  # RobotoCondensedBold is the one Latin face all three targets publish
+  # (checked against each device's `scalable_faces`), so this needs no
+  # `if_unavailable:` -- the roman layout's numeral ring turns it with
+  # `curve:`, which only a `face:` font can do (a baked sheet cannot rotate).
+  romandial:
+    face: [RobotoCondensedBold]
+    size: 26%r
 
 palette:
   black: { value: "#000000", label: "Black" }
@@ -101,6 +111,8 @@ config:
       analog_crimson: { label: "Analog · Crimson",  layout: analog,  colors: crimson }
       digital_dark:  { label: "Digital · Dark", layout: digital, colors: dark }
       digital_light: { label: "Digital · Light", layout: digital, colors: light }
+      roman_dark:    { label: "Roman · Dark",    layout: roman,   colors: dark }
+      roman_crimson: { label: "Roman · Crimson", layout: roman,   colors: crimson }
   data:
     left_register:
       default: complication.steps
@@ -140,7 +152,93 @@ hands:
         - { shape: circle, radius: 2%r, color: config.accent_color }
         - { shape: line, at: { dy: -76%r }, to: { dy: -64%r }, thickness: 2px, color: config.accent_color }
 
-# Shared: drawn underneath both layouts, in every one of them -- two side
+  # A second hand set for the roman layout -- `classic` above is untouched,
+  # since the analog layout still uses it. "Vintage" here means Breguet
+  # (moon) hour/minute hands: a tapered shaft, an open ring set near the tip,
+  # and a short point beyond it -- the read a period dress watch's hands
+  # give -- without inventing any part kind a hand does not already have
+  # (`docs/format.md` "Analog hands" -- polygon/rectangle/line/circle only).
+  # The hour hand is both shorter AND visibly heavier (a 4%r-wide shaft
+  # against the minute's 2.4%r) than the minute hand, per plan 13 R2.3, and
+  # both stay clear of the numeral ring, which starts well past the minute
+  # hand's -64%r tip.
+  #
+  # Revised after rendering `--style roman_crimson --time 4:38:12` showed a
+  # visible gap at the hub: the first draft's shaft tails were too thin to
+  # read as "meeting" anything, and a separate `config.colors.bg` pin
+  # (`roman_center_pin`, drawn last, over every hand) was punching a hole
+  # bigger than those thin tails -- fine on `classic`'s much thicker hands
+  # (a deliberate "drilled screw" look there), but on these it erased the
+  # joint, and the second hand's own accent-coloured pivot jewel, instead
+  # of covering it. `docs/format.md`'s own idiom for this ("a hub *between*
+  # hands is a circle part at the origin of the hand below it") is what
+  # `classic`'s `minute` already does -- a plain filled circle at the
+  # origin, drawn as part of `minute` so it sits over `hour`'s shaft below
+  # it. `vintage` now does the same, sized to comfortably cover the
+  # thicker shafts below: `minute`'s own hub circle (`radius: 3%r`) covers
+  # the `hour`/`minute` joint, and `second` (drawn last, per the fixed
+  # hour/minute/second order) rides on top of that with its own small
+  # accent-coloured pivot dot as the jewel at dead centre -- no separate
+  # trailing pin element needed, so `roman_center_pin` is gone.
+  vintage:
+    hour:
+      color: config.colors.fg
+      parts:
+        - shape: polygon                    # tapered shaft, heavier than the minute's
+          points:
+            - { dx: -2%r, dy: 10%r }         # a short tail past the axis
+            - { dx: -1.5%r, dy: -26%r }
+            - { dx: 1.5%r, dy: -26%r }
+            - { dx: 2%r, dy: 10%r }
+        - shape: circle                      # the open "moon" ring -- bigger, chunkier
+          at: { dy: -32%r }
+          radius: 4%r
+          filled: false
+          thickness: 2px
+        - shape: polygon                     # the point beyond the ring
+          points:
+            - { dx: -1.5%r, dy: -34%r }
+            - { dy: -40%r }
+            - { dx: 1.5%r, dy: -34%r }
+    minute:
+      color: config.colors.fg
+      parts:
+        - shape: circle                      # the hub: covers the hour/minute joint
+          radius: 3%r                        # `at:` defaults to the axis
+        - shape: polygon
+          points:
+            - { dx: -1.2%r, dy: 12%r }        # a longer tail than the hour's --
+            - { dx: -1%r, dy: -44%r }         # the counterweight below reads as its mass
+            - { dx: 1%r, dy: -44%r }
+            - { dx: 1.2%r, dy: 12%r }
+        - shape: circle                      # a small counterweight, past the axis
+          at: { dy: 12%r }
+          radius: 2%r
+        - shape: circle                      # the open "moon" ring -- bigger, chunkier
+          at: { dy: -52%r }
+          radius: 4.5%r
+          filled: false
+          thickness: 2px
+        - shape: polygon                     # the point beyond the ring
+          points:
+            - { dx: -1%r, dy: -54%r }
+            - { dy: -64%r }
+            - { dx: 1%r, dy: -54%r }
+    second:
+      # A thin needle with a counterweight tail, same convention as
+      # `classic`'s own second hand (R2.4): config.accent_color at the tip,
+      # `seconds: awake` on the element so the sleeping frame drops it. Its
+      # own small circle at the axis (radius 1.5%r, accent-coloured) is the
+      # final pivot jewel, riding on top of `minute`'s wider hub circle
+      # above -- the last thing drawn, dead centre.
+      color: config.colors.dim
+      parts:
+        - { shape: line, at: { dy: 16%r }, to: { dy: -72%r }, thickness: 1px }
+        - { shape: circle, at: { dy: 16%r }, radius: 2.5%r }
+        - { shape: circle, radius: 1.5%r, color: config.accent_color }
+        - { shape: line, at: { dy: -72%r }, to: { dy: -62%r }, thickness: 1px, color: config.accent_color }
+
+# Shared: drawn underneath every layout, roman included -- two side
 # "registers" (a re-pointable complication behind a card) and a small date
 # window, the same three shapes every layout benefits from.
 static:
@@ -199,12 +297,23 @@ elements:
     lint:
       allow: [config-unsupported, static-overlap]
       reason: "fr955 has no native editor and keeps this register's declared
-        default forever -- see the header comment. static-overlap: the
-        analog layout's full-dial tick/numeral patterns bound this register
-        card's overlap box (any dynamic element trivially overlaps a
-        full-circle pattern's bounding disc), but no ink from either pattern
-        actually falls inside this card at dx -42%r -- the numerals sit at
-        radius 78%r along the 3/9 o'clock row, well clear of it"
+        default forever -- see the header comment. static-overlap: both the
+        analog layout's full-dial tick/numeral patterns and the roman
+        layout's own numeral ring bound this register card's overlap box
+        (any dynamic element trivially overlaps a full-circle pattern's
+        bounding disc). Analog's numerals (radius 78%r, the small
+        font.dialfont) clear this card with a visible gap, confirmed by
+        rendering `--time 10:09:30` -- 'X' and '2' sit above it, not inside
+        it. Roman's own ring (radius 69%r, the much larger font.romandial)
+        is a different story: II and X land almost exactly on this
+        register's position (`dx: ±50%r, dy: -30%r` is ~58%r out at ~59°
+        off 12, i.e. the 2/10 o'clock spokes -- a `complication_slot`
+        cannot live inside a `layouts:` body, so this position is fixed for
+        every layout) and DID draw under the card and its icon before the
+        roman `numerals` pattern below added `skip: [2, 10]` for exactly
+        this reason. With the skip in place, no roman numeral's ink falls
+        inside this card either -- re-checked the same way, at the same
+        time, on all three targets, after the skip"
 
   right_register:
     type: complication_slot
@@ -223,8 +332,9 @@ elements:
       allow: [config-unsupported, static-overlap]
       reason: "fr955 has no native editor and keeps this register's declared
         default forever -- see the header comment. static-overlap: same
-        full-dial-pattern bounding-box overstatement as left_register above,
-        mirrored at dx +42%r"
+        full-dial-pattern bounding-box overstatement as left_register above
+        (both analog's and roman's numeral rings, roman's own only true
+        after `skip: [2, 10]` -- see that reason), mirrored at dx +42%r"
 
   # date_text:
   #   type: text
@@ -667,4 +777,177 @@ layouts:
         size: 12%r
         at: { anchor: bottom, dy: -11%, dx: 12% }
         color: "device.alarm_count > 0 ? config.accent_color : config.colors.dark"
+
+  # -------------------------------------------------------------------
+  # Roman: a classy, vintage dial (plan 13,
+  # docs/plans/13-showcase-roman-layout.md). Big roman numerals curved
+  # around the rim (with II and X given up to the two shared registers,
+  # which read as sub-dials at 2 and 10 o'clock -- see `skip:` below),
+  # Breguet-style hands (see `hands: vintage:` above), and a
+  # mechanical-looking day/date aperture above and below the axle.
+  # -------------------------------------------------------------------
+  roman:
+    static:
+      # Twelve numerals as one radial `shape: text` pattern part, the same
+      # device-resident-font route `analog`'s own `hour_numerals` uses for
+      # plain digits (docs/format.md "Text parts") -- except this one turns
+      # each numeral with `curve:` so its own bottom faces the centre
+      # (level at XII, on its side at III/IX, inverted at VI), which only a
+      # `face:` (vector) font can do; a baked sheet cannot rotate at all
+      # (root CLAUDE.md constraint 15). The chained ternary over `copy` is
+      # how a roman numeral is picked: the expression language has string
+      # literals and nested ternaries, no arrays or lookup tables
+      # (`wfb/expr.py`) -- verbose on purpose, reads as a table.
+      #
+      # Size and radius (26%r, -69%r) were tuned by rendering, not
+      # asserted (plan 13 R1.4): the probe in the plan (22%r/-78%r)
+      # tripped `safe-area` on fenix8solar47mm and fr955 because the ring's
+      # ink reached past the round panel's own visible disc
+      # (`wfb.layout.BEZEL_MARGIN`, a 2% inset). 26%r/-69%r is
+      # warning-free on all three targets and reads as big and vintage
+      # rather than cramped; the minute hand's own tip (-64%r, `hands:
+      # vintage:` below) sits just inside the ring's inner edge, which is
+      # deliberate -- a real dress watch's hands do pass close beneath the
+      # chapter ring.
+      # `skip: [2, 10]` leaves out II and X. This is not decoration -- a
+      # `complication_slot` cannot appear inside a `layouts:` body
+      # (docs/format.md), so the two shared registers are fixed at
+      # `dx: ±50%r, dy: -30%r` for every layout, which resolves to ~58%r
+      # from the axis at ~59° either side of 12 -- almost exactly where II
+      # and X land on a 12-count ring. Rendered without the skip, the
+      # register cards and their icons drew right on top of both glyphs
+      # (confirmed by rendering `--time 10:09:30` and looking at 2 and 10
+      # o'clock, not assumed). Letting a sub-dial or window displace the
+      # numeral it would otherwise collide with is period-correct -- a
+      # date window replacing III at 3 o'clock is the textbook case -- so
+      # the two registers now read as a pair of vintage sub-dials sitting
+      # where II and X would have been, rather than numerals fighting
+      # complications for the same few square millimetres.
+      numerals:
+        type: pattern
+        pattern: radial
+        at: { anchor: center }
+        count: 12
+        skip: [2, 10]
+        color: config.colors.fg
+        parts:
+          - shape: text
+            value: >-
+              copy == 0 ? "XII" : copy == 1 ? "I" : copy == 3 ? "III" :
+              copy == 4 ? "IV" : copy == 5 ? "V" : copy == 6 ? "VI" :
+              copy == 7 ? "VII" : copy == 8 ? "VIII" : copy == 9 ? "IX" :
+              "XI"
+            font: font.romandial
+            at: { dy: -69%r }
+            curve: { style: angled, angle: 0deg }
+
+      # A "mechanical opening" without alpha (plan 13 R3.2):
+      # `alphaBlendingSupport` is false on every target (root CLAUDE.md
+      # constraint 10), so there is no way to cut a hole in the dial --
+      # an aperture is drawn, not cut.
+      #
+      # Revised after rendering: a dark well with light text (the first
+      # draft) read as a grey UI chip sitting on the dial, not a cut
+      # through it -- a real date window shows a *light* wheel through a
+      # *dark* dial plate, with the text dark-on-light on the wheel itself.
+      # So this inverts the first draft: the well is `config.colors.fg`
+      # (the light wheel), the text on top of it is `config.colors.bg`
+      # (dark, so it reads against its own wheel rather than the dial), and
+      # a `config.colors.dark` frame -- the same role the two register
+      # cards fill their own boxes with -- rings it for the bevel. That
+      # frame colour, not `fg`, is deliberate: it has to read as a third,
+      # distinct tone against a light (`fg`) well, which a same-colour
+      # frame could not. Both windows sit on the vertical centre line,
+      # day-of-week above the axle and day-of-month below it, per the
+      # user's own words in plan 13 R4 -- well inside the numeral ring and
+      # well clear of the shared register cards, which are off at dx
+      # ±50%r.
+      #
+      # Both windows are also sized wider than tall now, not the first
+      # draft's tall, narrow "keycap": day/date text moved from
+      # FONT_XTINY/FONT_TINY to FONT_XTINY for both (below), so one line
+      # height governs both boxes' height, and only the width differs --
+      # wider for "Wed"/"Mon" (day), narrower for a 1-2 digit date. This
+      # supersedes plan 13 R3.4's "the date is the larger of the two":
+      # that pairing was what produced the keycap shape in the first
+      # place, and a convincing window shape matters more here than which
+      # of the two reads bigger.
+      day_window_well:
+        type: shape
+        shape: rounded_rectangle
+        at: { anchor: center, dy: -26%r }
+        size: { width: 26%r, height: 20%r }
+        corner_radius: 3%r
+        color: config.colors.fg
+      day_window_frame:
+        type: shape
+        shape: rounded_rectangle
+        at: { anchor: center, dy: -26%r }
+        size: { width: 26%r, height: 20%r }
+        corner_radius: 3%r
+        filled: false
+        thickness: 1px
+        color: config.colors.dark
+
+      date_window_well:
+        type: shape
+        shape: rounded_rectangle
+        at: { anchor: center, dy: 26%r }
+        size: { width: 22%r, height: 20%r }
+        corner_radius: 3%r
+        color: config.colors.fg
+      date_window_frame:
+        type: shape
+        shape: rounded_rectangle
+        at: { anchor: center, dy: 26%r }
+        size: { width: 22%r, height: 20%r }
+        corner_radius: 3%r
+        filled: false
+        thickness: 1px
+        color: config.colors.dark
+
+    elements:
+      # The day/date readings themselves are data-bound, so they cannot
+      # live in `static:` above (any data binding in a static subtree is
+      # rejected outright -- docs/format.md "static:") -- only their wells
+      # and frames can. Document order puts them after the wells/frames
+      # (already drawn first, being static) and before the hands below, so
+      # a real watch's own draw order falls out for free: hands are drawn
+      # last and cross over the date windows, exactly like the real thing
+      # (plan 13 R3.3). The format has no case-transform or letter-spacing
+      # key, so `%a` draws exactly what the firmware's own localisation
+      # returns (e.g. "Thu") rather than a forced, tracked "THU" -- noted
+      # here rather than silently claimed otherwise.
+      day_text:
+        type: text
+        value: date.today
+        format: "{:%a}"
+        font: FONT_XTINY
+        at: { anchor: center, dy: -26%r }
+        color: config.colors.bg
+
+      date_text:
+        type: text
+        value: date.today
+        format: "{:%e}"
+        font: FONT_XTINY
+        at: { anchor: center, dy: 26%r }
+        color: config.colors.bg
+
+      # No trailing "center pin" element here, unlike `analog`'s own
+      # `center_pin` -- see `hands: vintage:`'s own comment above for why:
+      # `minute`'s hub circle plus `second`'s own pivot dot already cap the
+      # joint, and a `config.colors.bg` pin big enough to matter on these
+      # thinner hands punched a hole through both instead of covering them.
+      roman_hands:
+        type: hands
+        hands: vintage
+        at: { anchor: center }
+        seconds: awake
+        antialias: true
+        lint:
+          allow: [antialias-dither]
+          reason: "a soft edge on the 64-colour MIP panel dithers; accepted
+            so the rotated vintage hands do not stair-step -- the same
+            acceptance the analog layout's own hands carry above"
 
