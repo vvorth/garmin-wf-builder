@@ -24,6 +24,7 @@ import math
 import pytest
 
 from wfb import build
+from wfb import preview as preview_module
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
@@ -254,9 +255,17 @@ def test_angled_45deg_tilts_down_and_to_the_right_not_the_mirror_image(write_des
     minx, miny, maxx, maxy = bbox
     # Every pixel is down and to the right of the anchor: the box's own
     # upper-left corner sits at (or past) the anchor, never inside the
-    # opposite quadrant.
-    assert minx >= CX - 1
-    assert miny >= CY - 1
+    # opposite quadrant. Tolerance is 2px, not 1px: plan 12 R2 rasterises
+    # this run through a 4x-supersampled layer instead of resampling an
+    # already-blurred one, so a corner that used to anti-alias down below
+    # `_ink_bbox`'s own 60-level threshold before it could ever reach this
+    # pixel grid now clears it -- verified by hand (2026-09-21) that this
+    # is real ink genuinely closer to the anchor, not a placement shift:
+    # the pre-change render already had faint (~13/255) ink one row lower
+    # at the same column, well under the threshold. A real backwards-signed
+    # rotation would still fail this by tens of pixels, not two.
+    assert minx >= CX - 2
+    assert miny >= CY - 2
     # And it is genuinely tilted, not flat: real vertical spread, not a
     # one-pixel-tall sliver sitting exactly on the horizontal through the
     # anchor (which an un-rotated `align: left` upright string would draw).
@@ -538,3 +547,179 @@ def test_unavailable_vector_font_draws_nothing_upright_or_curved(write_design, d
     for y in range(0, 260, 4):
         for x in range(0, 260, 4):
             assert image.getpixel((x, y)) == BACKGROUND, (x, y)
+
+
+# -- R2 (plan 12): rasterised, not resampled --------------------------------
+
+
+def _weighted_centroid(image, region: tuple[int, int, int, int] = (0, 0, 260, 260),
+                       min_channel: int = 10) -> tuple[float, float]:
+    """Intensity-weighted centre of mass of every pixel in `region` lit
+    above `min_channel` -- `_paste_rotated_run`'s own R2.2 contrast.
+    Weighted, not a hard bounding box (`_ink_bbox`): R2's whole point is
+    that ink gets *sharper*, which is exactly the kind of change a single
+    threshold-crossing pixel at one corner can misreport as "moved" by a
+    pixel or two on its own (see the tolerance note on
+    `test_angled_45deg_tilts_down_and_to_the_right_not_the_mirror_image`
+    above, hit while writing this test) -- a soft, low-level anti-aliased
+    tail and a tight, high-contrast edge both contribute their own real
+    weight to a centroid instead."""
+    x0, y0, x1, y1 = region
+    sx = sy = total = 0.0
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            r, g, b = image.getpixel((x, y))
+            w = max(r, g, b)
+            if w > min_channel:
+                sx += w * x
+                sy += w * y
+                total += w
+    assert total > 0, "no ink drawn at all"
+    return sx / total, sy / total
+
+
+def _assert_centre_of_mass_stable(write_design, db, bag, monkeypatch, body: str) -> None:
+    """Renders `body` twice -- once with R2's supersample-then-downsample
+    path live, once with `_ROTATED_TEXT_SUPERSAMPLE` monkeypatched to `1`
+    -- and asserts the drawn ink's centre of mass moved by under a pixel.
+
+    Forcing the factor to `1` is not a second, independently-typed copy of
+    the pre-R2 formula that could quietly drift from what
+    `_paste_rotated_run` actually does: `ss == 1` skips every line R2
+    added (the supersampled `_system_face` lookup, the wider layer, the
+    `Image.LANCZOS` downsample) and falls straight through to exactly the
+    arithmetic that shipped before this slice, so this comparison *is* the
+    "against the pre-change implementation" check plan 12 R2.2 asks for,
+    read from the one place that arithmetic lives rather than re-derived.
+
+    A regression here would mean every `angled`/`radial` element this
+    preview draws silently moved -- the reason this test is the point of
+    the slice, not an afterthought."""
+    with monkeypatch.context() as m:
+        m.setattr(preview_module, "_ROTATED_TEXT_SUPERSAMPLE", 1)
+        baseline = _render(write_design, db, bag, body, font_size="30%r")
+    supersampled = _render(write_design, db, bag, body, font_size="30%r")
+
+    bx, by = _weighted_centroid(baseline)
+    sx, sy = _weighted_centroid(supersampled)
+    drift = math.hypot(bx - sx, by - sy)
+    assert drift < 1.0, (
+        f"centre of mass moved {drift:.3f}px when supersampling was "
+        "turned on -- R2 must change ink weight, not placement"
+    )
+
+
+@pytest.mark.parametrize("angle", [0, 20, 45, 90, 135, 200, 270, 330])
+def test_angled_supersampling_does_not_move_the_centre_of_mass(write_design, db, bag, monkeypatch, angle):
+    """R2.2, `angled` -- a spread of angles, including axis-aligned ones
+    (`0`/`90`/`270`, where `Image.rotate`'s own `expand=True` bounding box
+    is a no-op or a pure swap) and oblique ones (`45`/`135`/`200`/`330`,
+    where it genuinely grows). A single glyph (`"R"`), not a multi-
+    character word, isolates the anchor maths from a second, expected,
+    unrelated source of sub-pixel movement: a supersampled face's own
+    per-glyph advances are measured on a different (larger) pixel grid
+    than the ordinary-scale face's `hmtx` rounding, so a multi-glyph run's
+    *total* width can differ from the ordinary-scale run's by a fraction
+    of a pixel purely from independent rounding at each scale -- real,
+    harmless, and not what this test is checking."""
+    body = f"""\
+  - id: glyph
+    type: text
+    text: "R"
+    font: font.bezel
+    color: palette.fg
+    at: {{anchor: center}}
+    align: center
+    vertical_align: center
+    curve: {{style: angled, angle: {angle}deg}}
+"""
+    _assert_centre_of_mass_stable(write_design, db, bag, monkeypatch, body)
+
+
+@pytest.mark.parametrize("angle", [0, 45, 90, 180, 270])
+def test_radial_supersampling_does_not_move_the_centre_of_mass(write_design, db, bag, monkeypatch, angle):
+    """R2.2, `radial` -- `_draw_radial_vector_text` calls
+    `_paste_rotated_run` once per glyph (its own docstring), so it
+    inherits R2 exactly the same way `angled` text does and needs the same
+    guard; a bug that only threaded `font_metric` through one of the two
+    call sites (R2.3's own warning) would leave this one still resampling
+    while `test_angled_supersampling_does_not_move_the_centre_of_mass`
+    passed, so the two tests together are what actually confirm "both call
+    sites... consistent." """
+    body = f"""\
+  - id: glyph
+    type: text
+    text: "R"
+    font: font.bezel
+    color: palette.fg
+    at: {{anchor: center}}
+    align: center
+    vertical_align: center
+    curve: {{style: radial, angle: {angle}deg, radius: 30%r, direction: clockwise}}
+"""
+    _assert_centre_of_mass_stable(write_design, db, bag, monkeypatch, body)
+
+
+def test_paste_rotated_run_skips_supersampling_for_a_bitmap_face():
+    """R2.4: a bitmap (`.cft`) face has no outline to supersample.
+    Purely defensive -- gate 2 (`docs/lore/codegen.md`) only ever publishes
+    an outline face as a vector `face:` font, so `_draw_vector_text` can
+    never actually hand `_paste_rotated_run` a bitmap `SystemFace` from a
+    real design, which is why this test builds a bare `_Renderer` and a
+    stand-in bitmap face directly instead of going through `_render` --
+    there is no `curve:` design that could reach this branch to exercise
+    it any other way.
+
+    The stand-in `bitmap` is not a real decoded `.cft` (`wfb.fonts.cft`'s
+    own tests already cover that decode); it only needs the one method
+    `SystemFace.advances` calls. What this test actually checks is that
+    `_paste_rotated_run` never calls `_system_face` at all when
+    `face.bitmap` is set (monkeypatched to raise if it is) and draws
+    through the bitmap face itself, at `ss == 1` -- the layer it hands
+    `_draw_system_line` is exactly `layer_w x layer_h`, never
+    `_ROTATED_TEXT_SUPERSAMPLE` times larger."""
+    from PIL import Image, ImageDraw
+
+    from wfb.fonts.fallback import SystemFace
+    from wfb.preview import PreviewOptions, _Renderer
+
+    class _StubBitmap:
+        def advances(self, text: str) -> list[float]:
+            return [6.0 for _ in text]
+
+    face = SystemFace(font=None, line_height=12, baseline=9, match="garmin",
+                      path="stand-in.cft", bitmap=_StubBitmap())
+
+    canvas = Image.new("RGB", (40, 40), (0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    renderer = _Renderer(None, draw, canvas, 1, {}, PreviewOptions())
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("_system_face must not be called for a bitmap face")
+
+    renderer._system_face = _boom
+
+    seen: dict = {}
+    real_draw_system_line = _Renderer._draw_system_line
+
+    def _spy(self, drawn_face, left, baseline_y, text, color, *, draw=None, image=None):
+        seen["face"] = drawn_face
+        seen["layer_size"] = image.size
+        return real_draw_system_line(self, drawn_face, left, baseline_y, text, color,
+                                     draw=draw, image=image)
+
+    renderer._draw_system_line = _spy.__get__(renderer, _Renderer)
+
+    renderer._paste_rotated_run(face, "R", 30.0, "left", "top", (20, 20),
+                                (255, 255, 255), font_metric=object())
+
+    assert seen["face"] is face  # render_face stayed the bitmap face itself
+    # Same `pad`/`layer_w`/`layer_h` formula `_paste_rotated_run` itself
+    # uses, reproduced rather than hand-computed, so this assertion is
+    # about `ss` staying `1` (no widening), not a second copy of the sizing
+    # arithmetic that could drift from the real one.
+    pad = max(2, int(math.ceil(face.line_height * 0.2)))
+    width = face.width("R")
+    layer_w = int(math.ceil(width)) + 2 * pad
+    layer_h = int(math.ceil(face.line_height)) + 2 * pad
+    assert seen["layer_size"] == (layer_w, layer_h)  # ss == 1, no widening

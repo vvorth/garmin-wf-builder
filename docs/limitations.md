@@ -262,6 +262,22 @@ remains approximate (preview uses a located stand-in face, not the real
 one) — unrelated to and unchanged by this. Still just one device
 (`fenix8solar47mm`) and the simulator, not physical hardware.
 
+**Rotated (`angled`/`radial`) ink is closer, not exact (plan 12 R2,
+2026-09-21).** Garmin rotates the outline and rasterises the result; the
+preview used to draw the run upright and `Image.rotate(...,
+resample=Image.BICUBIC)` the already-rasterised bitmap, which softened and
+thinned stems well beyond what the device actually draws.
+`wfb.preview._Renderer._paste_rotated_run` now renders that throwaway layer
+through the same `fonts:` `face:` at 4x the preview's own scale, rotates
+the larger layer, and downsamples with `Image.LANCZOS` before compositing
+— closer to a true rotated-outline rasterisation, at real cost (a run's
+layer stays well under 800x320 px even supersampled) but still a bitmap
+rotation, not an outline one, so it is an improvement in stem weight and
+edge sharpness, not a claim of exactness. The anchor/placement maths is
+unchanged by this — only ink weight moved, confirmed by a centre-of-mass
+test in `tests/test_vector_text_preview.py` — so it does not affect
+anything above about facing or position.
+
 It is *not* a memory limitation either way — a baked sheet loads into the
 separate graphics pool, not the watch-face budget (measured in
 `docs/research/probes/vector-fonts/`). Full analysis:

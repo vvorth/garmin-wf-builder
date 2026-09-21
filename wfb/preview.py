@@ -148,6 +148,23 @@ class PreviewOptions:
 #: change the glyph shapes a preview actually draws.
 _STAND_IN_MATCHES = frozenset({"substitute", "none"})
 
+#: Plan 12 R2.1: how much larger `_paste_rotated_run` renders its throwaway
+#: layer before rotating, so the rotation samples a raster fine enough to
+#: approximate Garmin's own rotated-*outline* rasterisation instead of
+#: Pillow's `Image.rotate` blurring an already-upright, already-aliased
+#: bitmap. 4x: a run's layer is typically well under 200x80 px at the
+#: preview's own scale, so the supersampled layer stays under 800x320 --
+#: rotating and `Image.LANCZOS`-downsampling an image that size costs well
+#: under a millisecond, and an informal comparison against renders at 2x
+#: and 8x found 4x already visually indistinguishable from 8x (stem edges
+#: sharp, no visible ringing) while 2x still showed the soft edges this
+#: slice exists to fix -- the same "supersample, then filter down" shape
+#: `docs/lore/codegen.md`'s glyph-baking finding used for a different
+#: symptom (sub-pixel asymmetry, not rotation blur) at a higher factor
+#: because it is baking many tiny glyphs once at build time, not rotating
+#: a whole run on every preview render.
+_ROTATED_TEXT_SUPERSAMPLE = 4
+
 
 def _drawn_with(face: "fallback.SystemFace") -> str:
     """What a stand-in warning names as "drawn instead": the located file's
@@ -1266,16 +1283,18 @@ class _Renderer:
         if curve_style == "angled":
             x, y = anchor_point[0] * s, anchor_point[1] * s
             self._paste_rotated_run(face, text, curve_angle_garmin,
-                                    align, vertical_align, (x, y), color)
+                                    align, vertical_align, (x, y), color,
+                                    font_metric=font_metric)
         else:
             self._draw_radial_vector_text(
                 anchor_point, curve_radius_px, curve_angle_garmin, curve_direction,
-                face, text, align, vertical_align, color)
+                face, text, align, vertical_align, color, font_metric)
 
     def _draw_radial_vector_text(
         self, anchor_point: tuple[int, int], curve_radius_px: int,
         curve_angle_garmin: float, curve_direction: str | None,
         face, text: str, align: str, vertical_align: str, color,
+        font_metric=None,
     ) -> None:
         """`curve: {style: radial}` -- each glyph is its own tiny "angled"
         run (`_paste_rotated_run`), placed at its own position around the
@@ -1351,6 +1370,15 @@ class _Renderer:
         sample (`angle=0, orientation=CLOCKWISE, justification=LEFT` reads
         starting at the 3 o'clock point and sweeping toward 6 o'clock, i.e.
         decreasing Garmin angle).
+
+        `font_metric` (plan 12 R2.3) is threaded straight through to every
+        per-glyph `_paste_rotated_run` call below, unchanged -- it is what
+        lets that method fetch the *same* face at a supersampled scale
+        instead of resampling the already-rasterised `face` this method
+        itself draws with, and it has to be the caller's `FontMetric`
+        (`_draw_vector_text`'s own `font_metric` parameter), not something
+        re-derived from `face`, because a `SystemFace` does not carry its
+        own metric back.
         """
         s = self.scale
         radius = curve_radius_px * s
@@ -1374,19 +1402,20 @@ class _Renderer:
             py = cy - radius * math.sin(theta_pos)
             glyph_angle_garmin = math.degrees(theta_pos) + facing_offset
             self._paste_rotated_run(face, char, glyph_angle_garmin, "left",
-                                    vertical_align, (px, py), color)
+                                    vertical_align, (px, py), color,
+                                    font_metric=font_metric)
             pen += advance
 
     def _paste_rotated_run(self, face, run: str, angle_garmin_degrees: float,
                            align: str, vertical_align: str,
-                           anchor_xy: tuple[float, float], color) -> None:
-        """Render `run` upright through `face` onto a throwaway transparent
-        layer, rotate the layer by `angle_garmin_degrees` (Garmin's own
-        convention -- see `_draw_vector_text`'s docstring) about the point
-        `align`/`vertical_align` would place it at, and composite the
-        result so that point lands exactly at `anchor_xy` (already scaled
-        preview pixels). Shared by `angled` (one call, the whole string)
-        and `radial` (one call per glyph, `align="left"`).
+                           anchor_xy: tuple[float, float], color,
+                           font_metric: FontMetric | None = None) -> None:
+        """Render `run` upright, rotate it by `angle_garmin_degrees`
+        (Garmin's own convention -- see `_draw_vector_text`'s docstring)
+        about the point `align`/`vertical_align` would place it at, and
+        composite the result so that point lands exactly at `anchor_xy`
+        (already scaled preview pixels). Shared by `angled` (one call, the
+        whole string) and `radial` (one call per glyph, `align="left"`).
 
         The paste position reuses `wfb.layout.Resolver._rotated_text_box`'s
         own rotation matrix (`cx = dx*cos + dy*sin`, `cy = -dx*sin +
@@ -1403,7 +1432,53 @@ class _Renderer:
         angle increases) -- exactly the visual sense Garmin's own
         3-o'clock/counter-clockwise-positive convention calls positive
         too, so `angle_garmin_degrees` is passed straight through with no
-        sign flip.
+        sign flip. **That convention is unaffected by everything below**:
+        R2 changes what gets rotated, at what resolution, never the sign or
+        the rotation formula itself.
+
+        **R2 (plan 12): rasterised, not resampled.** Before this, `layer`
+        was rendered at the preview's own scale and `Image.rotate(...,
+        BICUBIC)`d directly -- Garmin rotates the *outline* and rasterises
+        the result, so a device render has crisp stems at any angle, while
+        rotating an already-rasterised, already-anti-aliased bitmap through
+        BICUBIC softens and thins them further. `_ROTATED_TEXT_SUPERSAMPLE`
+        (4, see its own module-level comment) closes most of that gap
+        without hand-rolling outline rotation: `render_face` -- the *same*
+        `font_metric`, fetched through `_system_face` at
+        `self.scale * _ROTATED_TEXT_SUPERSAMPLE` instead of `self.scale`
+        (R2.3 -- one cached call, the same advances model, no new
+        `SystemFace` field) -- draws the run onto a layer `ss` times larger
+        in each dimension, which is rotated exactly as before and then
+        downsampled by `ss` with `Image.LANCZOS` (a real reconstruction
+        filter, unlike the nearest/bilinear-ish softening `Image.rotate`
+        alone produces) before the paste below.
+
+        **Geometry must not move (R2.2).** `width`, `line_height`, `pad`,
+        `layer_w`/`layer_h`, `dx`/`dy` (`alignment_shift`) and the final
+        `top_left` are all computed from `face` at the *ordinary* preview
+        scale, exactly as before supersampling existed -- `ss` only widens
+        and heightens the throwaway layer that gets drawn into and later
+        shrunk back down; every placement number downstream of it is
+        untouched. `rotated`'s own width/height after the LANCZOS downsample
+        are what `top_left` is still computed from, so a `layer_w`/`ss` that
+        rounds slightly differently than `layer_w` itself can only ever
+        shift the paste by a fraction of a preview pixel, not by `ss`
+        pixels -- a test (`test_vector_text_preview.py`) asserts the centre
+        of mass of a rotated run drawn with supersampling on vs. off (i.e.
+        `ss == 1`, which collapses every line below to exactly this
+        method's pre-R2 behaviour) moves by under a pixel across a spread
+        of angles, both `angled` and `radial`.
+
+        **A bitmap (`.cft`) face has no outline to supersample (R2.4).**
+        `render_face` only replaces `face` when `face.bitmap is None` --
+        `font_metric` given, `_system_face` resolving to another outline
+        face -- so a bitmap face keeps today's behaviour (`ss = 1`,
+        draw/rotate/composite, no downsample) unconditionally. Purely
+        defensive: gate 2 (`docs/lore/codegen.md`) only ever publishes an
+        outline face as a vector `face:` font, so `_draw_vector_text` can
+        never actually reach this method with a bitmap `face` in the first
+        place -- but this method has no way to see that guarantee from
+        here, so it checks rather than assumes.
         """
         if not run:
             return
@@ -1414,13 +1489,26 @@ class _Renderer:
         pad = max(2, int(math.ceil(line_height * 0.2)))
         layer_w = int(math.ceil(width)) + 2 * pad
         layer_h = int(math.ceil(line_height)) + 2 * pad
-        layer = Image.new("RGBA", (layer_w, layer_h), (0, 0, 0, 0))
+
+        ss = 1
+        render_face = face
+        if face.bitmap is None and font_metric is not None:
+            candidate = self._system_face(font_metric, scale=self.scale * _ROTATED_TEXT_SUPERSAMPLE)
+            if candidate is not None and candidate.bitmap is None:
+                render_face = candidate
+                ss = _ROTATED_TEXT_SUPERSAMPLE
+
+        layer = Image.new("RGBA", (layer_w * ss, layer_h * ss), (0, 0, 0, 0))
         layer_draw = ImageDraw.Draw(layer)
-        local_left = float(pad)
-        local_baseline_y = pad + face.baseline
-        self._draw_system_line(face, local_left, local_baseline_y, run, color,
+        local_left = float(pad) * ss
+        local_baseline_y = pad * ss + render_face.baseline
+        self._draw_system_line(render_face, local_left, local_baseline_y, run, color,
                                draw=layer_draw, image=layer)
         rotated = layer.rotate(angle_garmin_degrees, resample=Image.BICUBIC, expand=True)
+        if ss != 1:
+            downsampled_size = (max(1, round(rotated.width / ss)),
+                                max(1, round(rotated.height / ss)))
+            rotated = rotated.resize(downsampled_size, Image.LANCZOS)
         theta = math.radians(angle_garmin_degrees)
         cos_t, sin_t = math.cos(theta), math.sin(theta)
         dx, dy = alignment_shift(width, line_height, align, vertical_align)
