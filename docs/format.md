@@ -1809,16 +1809,18 @@ axis, so the ink would land somewhere this compiler cannot predict. Use
 way on a curved element as on any other `face:`-font `text` element, and can
 still be set on the element to override the font's own value outright.
 
-> **Open question, not yet confirmed on a device: which way a radial glyph
-> faces.** `wfb preview` draws `clockwise` facing glyphs outward and
-> `counter_clockwise` facing inward (so text running along the bottom of the
-> dial still reads right-side up) — the standard "text on a path" convention,
-> and the only reading consistent with Garmin's own
-> `TrueTypeFontsRadialText.mc` sample demonstrating both direction constants
-> at the same fixed angle. The SDK prose does not document glyph facing, and
-> the simulator does not run in this environment (`CLAUDE.md` §3), so this
-> is an informed model, not confirmed device behaviour. If you build this on
-> your own hardware or simulator, that is the one thing worth checking.
+> **Which way a radial glyph faces.** `direction: clockwise` faces glyphs
+> outward and `counter_clockwise` faces inward, so text running along the
+> bottom of the dial reads right-side up. Confirmed against the real
+> simulator on `fenix8solar47mm` (2026-09-21), using this project's own
+> `examples/features/vector-text/face.yaml` (`wordmark`, `direction:
+> counter_clockwise`): the simulator's rendering agrees with `wfb preview`
+> on facing, angular position and the twelve tangent hour numerals.
+> `clockwise` itself was not directly exercised — the example only uses
+> `counter_clockwise` — but it is the same formula's other branch, and the
+> shared rotation machinery is corroborated by the same screenshot. Evidence
+> and full derivation: `docs/research/12-vector-fonts.md`,
+> `docs/research/probes/vector-fonts/README.md`.
 
 Everything else on `text` keeps working untouched under `curve:` —
 `value:`/`text:`, `format:`, `color:`, `visible:`, `when_absent:`,

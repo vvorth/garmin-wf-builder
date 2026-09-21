@@ -85,9 +85,45 @@ contains anything device-dependent.
 ## What this probe does *not* establish
 
 **Runtime** behaviour. `--build-stats` reports static data and code; it says
-nothing about heap or graphics-pool occupancy while the face runs, and
-nothing about how the two fonts actually *look*. Answer (d) is therefore an
-inference from the build figures plus the SDK's statement that font resources
-load into the graphics pool from API 4.0.0, not a measurement of the pool.
-Running it needs the simulator, which does not survive `monkeydo` in any
-environment tried here (root `CLAUDE.md` §3).
+nothing about heap or graphics-pool occupancy while these three variants
+run. Answer (d) is therefore an inference from the build figures plus the
+SDK's statement that font resources load into the graphics pool from API
+4.0.0, not a measurement of the pool. None of the three variants here uses
+`curve:` — they draw straight, upright text — so this probe has nothing to
+say about `drawAngledText`/`drawRadialText` or glyph facing; that question
+is answered separately, below.
+
+## Radial glyph-facing: confirmed against the real simulator (2026-09-21)
+
+`wfb preview`'s radial glyph-facing model — `direction: clockwise` faces
+glyphs outward, `counter_clockwise` faces inward, so text along the bottom
+of a dial reads right-side up — was, until now, an inference from
+text-on-a-path convention and Garmin's own `TrueTypeFontsRadialText.mc`
+sample, never checked against a real device or simulator (full derivation:
+`docs/research/12-vector-fonts.md`, `wfb/preview.py`'s
+`_draw_radial_vector_text`).
+
+The user ran the real Connect IQ simulator on their macOS host, on
+`fenix8solar47mm`, against `examples/features/vector-text/face.yaml` — the
+shipped example, whose `wordmark` element is `curve: {style: radial,
+direction: counter_clockwise}`. `radial-facing-simulator-vs-preview.png` in
+this directory is the comparison: left half the simulator, right half `wfb
+preview` for the same face, both cropped to the display and scaled to the
+same 520x520 dial diameter. They agree on:
+
+- **glyph facing** — "FIELD TRACK" along the bottom rim reads right-side up
+  in both (the claim under test);
+- the wordmark's angular position and its upward-to-the-right tilt;
+- the twelve hour numerals' tangent phase (`12` upright at top, `3`/`9` on
+  their side, `6` inverted);
+- the `SOLAR` angled badge's position and tilt.
+
+The one visible difference is glyph *shape* — the simulator draws the real
+`BionicSemiBold`, `wfb preview` a located stand-in — which is the
+pre-existing "glyph rendering is approximate" caveat, unrelated to facing.
+
+This is evidence for one device (`fenix8solar47mm`), in the simulator (not
+physical hardware), and only for the `counter_clockwise` (inward-facing)
+branch — the example does not author `clockwise`. The `clockwise` case is
+the same formula's other branch and shares the rotation machinery the
+numerals also exercise, but was not itself screenshotted.

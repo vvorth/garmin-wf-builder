@@ -232,7 +232,7 @@ the practical consequence is permanent. What *is* built (plan 11,
 device-resident face instead of baking one (`face:` instead of `source:`),
 and a `text` **element**, or a pattern's own `shape: text` part (slice 2),
 can bend it along a line (`style: angled`) or around a circle (`style:
-radial`). Two honest limits on that, not to be glossed over:
+radial`). One honest limit on that, not to be glossed over:
 
 * **`if_unavailable: error` is a build-time guarantee only.**
   `Graphics.getVectorFont` returns `null` rather than throwing, and the
@@ -241,15 +241,22 @@ radial`). Two honest limits on that, not to be glossed over:
   identically in `error` and `hide` mode. `error` guarantees a usable face
   was published at build time on every target; it does not, and cannot,
   guarantee the element is never missing from the wrist.
-* **The radial glyph-facing model is unverified.** `wfb preview` draws
-  `curve: {style: radial, direction: clockwise}` facing glyphs outward and
-  `counter_clockwise` facing inward, inferred from standard text-on-a-path
-  convention and from Garmin's own `TrueTypeFontsRadialText.mc` sample
-  demonstrating both direction constants at one fixed angle — a
-  well-reasoned model, not a confirmed one: the SDK prose does not document
-  glyph facing, and the simulator does not run in this environment (below,
-  "The simulator crashes when an app is pushed"), so nothing here has been
-  checked against a real device or simulator.
+
+The radial glyph-facing model — `curve: {style: radial, direction:
+clockwise}` faces glyphs outward, `counter_clockwise` faces inward, so text
+running along the bottom of a dial reads right-side up — is confirmed
+against the real simulator, not just inferred: the user built
+`examples/features/vector-text/face.yaml` (its `wordmark`,
+`direction: counter_clockwise`) on `fenix8solar47mm` on their host
+(2026-09-21) and it matches `wfb preview` on facing, angular position and
+the twelve tangent hour numerals — `clockwise` was not
+directly exercised (the example only uses `counter_clockwise`) but follows
+from the same formula's other branch and is corroborated by the same
+shared rotation machinery. Evidence:
+`docs/research/probes/vector-fonts/radial-facing-simulator-vs-preview.png`,
+`docs/research/probes/vector-fonts/README.md`. Glyph *shape* fidelity
+remains approximate (preview uses a located stand-in face, not the real
+one) — unrelated to and unchanged by this.
 
 It is *not* a memory limitation either way — a baked sheet loads into the
 separate graphics pool, not the watch-face budget (measured in

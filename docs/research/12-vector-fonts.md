@@ -389,11 +389,28 @@ achievable exactly as predicted — `vendor/fonts/` already held Garmin's
 real `RobotoCondensed-Bold.ttf`, and `wfb/fonts/registry.json` already
 mapped free stand-ins for hosts without it — plus one thing this section did
 not anticipate needing: `wfb preview`'s radial glyph-facing model
-(`clockwise` outward, `counter_clockwise` inward) is inferred from
-text-on-a-path convention and Garmin's own `TrueTypeFontsRadialText.mc`
-sample, not verified on a device or simulator (neither runs in this
-environment), and is recorded as an open question in `docs/format.md` and
-`docs/limitations.md` rather than asserted as fact.
+(`clockwise` outward, `counter_clockwise` inward). **VERIFIED** (2026-09-21,
+superseding the original inference from text-on-a-path convention and
+Garmin's own `TrueTypeFontsRadialText.mc` sample): the user built
+`examples/features/vector-text/face.yaml` on the real simulator, on
+`fenix8solar47mm`, on their host. Its `wordmark` element is `curve: {style:
+radial, direction: counter_clockwise}`; the simulator's rendering agrees
+with `wfb preview` on glyph facing (text along the bottom rim reads
+right-side up), the wordmark's angular position and tilt, the twelve tangent
+hour numerals' phase, and the `SOLAR` angled badge — all compared at the
+same normalised dial diameter. Evidence:
+`docs/research/probes/vector-fonts/radial-facing-simulator-vs-preview.png`
+(left half simulator, right half `wfb preview`), described in
+`docs/research/probes/vector-fonts/README.md`. **Still not directly
+exercised:** the `clockwise` (outward-facing) branch — the example only
+authors `counter_clockwise` — and any device other than `fenix8solar47mm`;
+`clockwise` follows from the same formula's other branch and is
+corroborated by the shared rotation machinery the numerals also exercise,
+but was not itself screenshotted. Glyph *shape* fidelity (preview's stand-in
+face vs. the simulator's real `BionicSemiBold`) remains the pre-existing
+"approximate" caveat and is unaffected by this. `docs/format.md` and
+`docs/limitations.md` now state the facing model as fact rather than an
+open question.
 
 **Slice 2 landed too:** a pattern's own `shape: text` part now takes
 `curve:` the same way a standalone `text` element does (plan 11 §5 slice

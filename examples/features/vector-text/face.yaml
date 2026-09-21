@@ -22,8 +22,11 @@
 #   check the three renders side by side to see it.
 # * **`curve: {style: radial}` on a `text` element** (`wordmark`): "FIELD
 #   TRACK" bent along the bottom rim, `direction: counter_clockwise` so it
-#   faces inward and reads right-side up along the bottom of the dial
-#   (`docs/format.md`'s open question on radial glyph facing). `radial`'s
+#   faces inward and reads right-side up along the bottom of the dial --
+#   this is the very build that confirmed `wfb preview`'s radial
+#   glyph-facing model against the real simulator (2026-09-21,
+#   `fenix8solar47mm`; `docs/research/12-vector-fonts.md`,
+#   `docs/research/probes/vector-fonts/README.md`). `radial`'s
 #   `angle:` is a POSITION -- where around the circle the text starts --
 #   this format's usual 12-o'clock-is-0, clockwise convention, same as every
 #   other angle in the format.

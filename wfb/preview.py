@@ -1159,20 +1159,23 @@ class _Renderer:
         inward.** This is standard text-on-a-path behaviour (a circular
         badge: the top arc reads clockwise with glyphs facing out, the
         bottom arc reads counter-clockwise with glyphs facing in, and BOTH
-        read normally) -- not verified against a real device or the
-        simulator (neither is available in this environment, `CLAUDE.md`
-        §3, and `drawRadialText`'s glyph facing is not documented in SDK
-        prose), but it is the only model consistent with Garmin's own
-        `$CIQ_SDK/samples/TrueTypeFonts/source/MenuItems/
-        TrueTypeFontsRadialText.mc`: `RADIAL_TEXT_SCENARIO` draws at
-        `:angle => 270` (the 6 o'clock point) with BOTH
+        read normally). It was originally an inference from that convention
+        plus Garmin's own `$CIQ_SDK/samples/TrueTypeFonts/source/MenuItems/
+        TrueTypeFontsRadialText.mc` (`RADIAL_TEXT_SCENARIO` draws at
+        `:angle => 270`, the 6 o'clock point, with BOTH
         `RADIAL_TEXT_DIRECTION_CLOCKWISE` and
         `RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE` in the same demo -- a
-        comparison that is only meaningful if the two differ in glyph
-        facing, not merely in the order letters advance (reversing only the
-        letter order at a single fixed point produces gibberish, not a
-        demonstration of a "direction" parameter). Treat this derivation as
-        a well-reasoned inference, not a confirmed fact.
+        comparison only meaningful if the two differ in glyph facing, not
+        merely in the order letters advance), since `drawRadialText`'s
+        glyph facing is not documented in SDK prose. **VERIFIED** against
+        the real simulator (2026-09-21, `fenix8solar47mm`, the user's host,
+        `examples/features/vector-text/face.yaml`'s `wordmark`, `direction:
+        counter_clockwise`): the simulator's rendering matches this facing
+        model -- see `docs/research/12-vector-fonts.md` and
+        `docs/research/probes/vector-fonts/README.md` for the comparison
+        image. `clockwise` (outward) itself was not directly exercised by
+        that build -- the example only authors `counter_clockwise` -- but
+        it is this same formula's other branch.
 
         Per-glyph angle derivation: a glyph whose local "up" (the
         unrotated `(0, -1)` direction `_paste_rotated_run`'s own rotation
