@@ -69,6 +69,15 @@ incrementally. `wfb doctor` reports which root it found (`--fonts DIR` or
 registry's stand-in once a build/preview actually consults it (plan 09's Step
 B). See plan 09 R1b and `docs/lore/toolchain.md`.
 
+**Without the Garmin font root, `wfb preview` draws stand-in typefaces for
+any face the registry has no exact match for** — not merely "an estimate",
+a genuinely different family's letterforms (`wfb.fonts.fallback`'s own
+`"substitute"`/`"none"` match levels). `wfb preview` names exactly which
+fonts this happened to, once per run, on stderr; `wfb doctor` reports the
+same thing as one line next to the root it did or did not find. `--fonts
+DIR` on either command points at a root without installing it system-wide
+(plan 12 R1/R3).
+
 **Platforms.** `setup-env.sh` is tested on Linux only. It downloads the Linux
 SDK, and it appends `CIQ_SDK`/`PATH` to `/etc/sandbox-persistent.sh` when that
 file exists and is writable (the development sandbox). Otherwise it prints the

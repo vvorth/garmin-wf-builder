@@ -266,6 +266,22 @@ non-empty candidate winning: an explicit override (`--fonts DIR`), then
 locations (`%APPDATA%` only consulted when set, for Windows). It is
 optional; without it the registry's free stand-ins are used.
 
+**What that actually costs (plan 12 R1/R3): `wfb preview` draws a
+different family's letterforms, not just an estimate of the right one.**
+`locate`'s `"garmin"` match and a registry `"exact"`/`"family"` match both
+draw the *same* glyph shapes the device does (a free release of the same,
+or a closely related, typeface); only `"substitute"` (a different family
+entirely, picked for a similar role -- most of Bionic's own weights have
+no free release at all and resolve this way absent the root) and `"none"`
+(Pillow's own bundled default) actually change what a preview draws.
+`wfb preview` records every distinct face a run resolved
+(`wfb.preview.render`'s own `used_faces` parameter) and prints one warning
+to stderr, naming each `"substitute"`/`"none"` font and what was drawn
+instead, whenever any were -- never suppressed by `-q`/`-o -`, since it is
+a correctness warning, not progress. `wfb doctor`'s `Garmin fonts` line
+states the same consequence next to the root it did or did not find. Both
+commands take `--fonts DIR` as a one-off override, same as `WFB_FONTS`.
+
 The directory is flat: `.ttf`, `.cft` and `.md5` files, each named exactly
 after the `simulator.json` `filename` (e.g. `RobotoCondensed-Bold.ttf`,
 `FNT_FENIX6_CDPG_ROBOTO_20B.cft`). `garmin_any_file` matches the stem

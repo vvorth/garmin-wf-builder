@@ -373,3 +373,80 @@ def test_preview_to_stdout_refuses_to_watch(db):
     result = run("preview", "examples/features/sun/face.yaml", "-o", "--", "--watch")
     assert result.returncode == 1
     assert "--watch" in result.stderr
+
+
+#: `FONT_NUMBER_HOT` on `fenix8solar47mm` resolves to `Bionic_semibold`
+#: (`docs/plans/12-preview-font-fidelity.md` §1.1's own worked example),
+#: which the registry's `names` table maps to the `bionic-substitute`
+#: stand-in -- match `"substitute"`, a different family entirely, not a
+#: free release of Bionic itself (`tests/test_font_registry.py`) -- which
+#: is what makes it a reliable way to force the R1.2 warning at the CLI
+#: layer without depending on which symbols happen to be `exact`-matched
+#: today.
+_FONT_WARNING_DESIGN = """
+format: 1
+face:
+  id: 8f4c1e92-4a5b-4d81-9e6f-2b0c8d4a1f58
+  name: FontWarningTest
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: label
+    type: text
+    text: "88"
+    font: FONT_NUMBER_HOT
+    align: center
+    vertical_align: center
+    at: {anchor: center}
+    color: palette.fg
+"""
+
+
+def _require_bionic_substitute():
+    from wfb.fonts import fetch_system
+
+    if fetch_system.path_for("bionic-substitute") is None:
+        pytest.skip("bionic-substitute.ttf is not installed at wfb/assets/system-fonts/")
+
+
+def test_preview_warns_about_a_stand_in_font_even_with_dash_o(db, tmp_path):
+    """R1.2/R1.4: with no Garmin font root (conftest's session-wide
+    `WFB_NO_GARMIN_FONTS=1`, inherited by the subprocess), `FONT_NUMBER_HOT`
+    draws with the free `bionic-substitute` stand-in instead of Bionic
+    itself -- the warning must reach stderr even under `-o -`, which R1.4
+    says silences stdout *progress* only, never a correctness warning."""
+    _require_bionic_substitute()
+    design = tmp_path / "face.yaml"
+    design.write_text(_FONT_WARNING_DESIGN, encoding="utf-8")
+    result = run_binary("preview", str(design), "-d", "fenix8solar47mm", "-o", "-")
+    assert result.returncode == 0, result.stderr.decode()
+    stderr = result.stderr.decode()
+    assert "warning:" in stderr
+    assert "Bionic" in stderr
+    assert "bionic-substitute.ttf" in stderr
+    assert "wfb doctor" in stderr
+
+
+def test_preview_fonts_flag_silences_the_warning(db, tmp_path):
+    """R1.5: `--fonts DIR` reaches every `fallback.system_face` call this
+    renderer makes, the same way `wfb doctor --fonts` already reaches its
+    own report.  Pointing it at a directory holding a file named exactly
+    like the device's own `Bionic_semibold` stem makes `fetch_system.locate`
+    report a `"garmin"` match (decided by name and location, not content --
+    the bytes here are `tests/fixtures/slice/assets/OpenSans-Regular.ttf`,
+    not Garmin's own), so the same design that just warned above now draws
+    silently."""
+    _require_bionic_substitute()
+    design = tmp_path / "face.yaml"
+    design.write_text(_FONT_WARNING_DESIGN, encoding="utf-8")
+    font_root = tmp_path / "fonts"
+    font_root.mkdir()
+    stand_in = ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"
+    (font_root / "Bionic_semibold.ttf").write_bytes(stand_in.read_bytes())
+
+    result = run_binary("preview", str(design), "-d", "fenix8solar47mm", "-o", "-",
+                        "--fonts", str(font_root))
+    assert result.returncode == 0, result.stderr.decode()
+    assert "warning:" not in result.stderr.decode()

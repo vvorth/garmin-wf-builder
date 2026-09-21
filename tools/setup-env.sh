@@ -180,6 +180,17 @@ else
     echo "no vendor/fonts/ found; skipping (optional -- see docs/container.md)"
 fi
 
+# One line stating what the absence of a Garmin font root actually *costs*
+# (plan 12 R3.1) -- not just that it is optional. Mirrors garmin_font_root's
+# own priority closely enough for a status line: vendor/fonts/ (just handled
+# above) or FONTS_DEST (already installed from a previous run, or placed
+# there by hand) either one means "found".
+if [ -n "$(ls -A "${VENDOR_FONTS}" 2>/dev/null)" ] || [ -n "$(ls -A "${FONTS_DEST}" 2>/dev/null)" ]; then
+    echo "preview fidelity: exact glyph shapes (Garmin font root found)"
+else
+    echo "preview fidelity: stand-in typefaces for any face the registry has no exact match for; see wfb doctor"
+fi
+
 # -------------------------------------------------------- icon font ---------
 say "icon font"
 python3 "${REPO_ROOT}/tools/fetch-icon-font.py"

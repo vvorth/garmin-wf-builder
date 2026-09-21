@@ -11,6 +11,16 @@ simulator needs a GUI, and in a headless container it is unavailable.
 What the preview does *not* claim: it is not a firmware-accurate renderer.
 Anti-aliasing, the exact arc cap shape and the transflective panel's real
 appearance are approximations, and the header on every image says so.
+
+**Typeface, not just position, can silently drift too** (plan 12): a system
+or vector font resolves through `wfb.fonts.fallback.system_face`, which
+prefers the user's own licensed Garmin font root but falls back to a free
+stand-in, or even Pillow's bundled default, with no error -- the geometry
+still agrees with the device, but the glyph *shapes* do not.
+`render`/`render_all_styles`' own `used_faces` parameter is how a caller
+(`wfb.cli._render_preview`) finds out: every distinct face a run actually
+drew with, `stand_in_warning` turning it into the one warning R1.2 wants
+when any of them was a `"substitute"`/`"none"` match.
 """
 
 from __future__ import annotations
@@ -120,6 +130,80 @@ class PreviewOptions:
     #: `awake`-only second hand either way -- the same choice the
     #: generated view's own `_sleeping` branch makes.
     asleep: bool = False
+    #: `--fonts DIR` -- overrides `wfb.fonts.fetch_system.garmin_font_root`'s
+    #: search (`WFB_FONTS`, `vendor/fonts/`, the per-OS SDK Manager
+    #: locations), the same override `wfb doctor --fonts` already takes.
+    #: Threaded straight through every `fallback.system_face` call this
+    #: renderer makes (plan 12 R1.5) -- today there was no way to point a
+    #: preview at a font root at all.
+    fonts_root: str | None = None
+
+
+#: `SystemFace.match` levels a stand-in warning is owed (plan 12 R1.3):
+#: `"garmin"` and `"exact"`/`"family"` all draw the *same letterforms* the
+#: device does -- the installed root, or a free release of the very same
+#: (or, for `family`, a closely related) typeface -- so only `"substitute"`
+#: (a different family entirely, picked for a similar role) and `"none"`
+#: (Pillow's own bundled default, `wfb.fonts.fallback._pillow_fallback`)
+#: change the glyph shapes a preview actually draws.
+_STAND_IN_MATCHES = frozenset({"substitute", "none"})
+
+
+def _drawn_with(face: "fallback.SystemFace") -> str:
+    """What a stand-in warning names as "drawn instead": the located file's
+    own basename, or `"Pillow default"` for a `"none"` match, which has no
+    file at all (`SystemFace.path is None`)."""
+    return Path(face.path).name if face.path else "Pillow default"
+
+
+def stand_in_warning(used_faces: dict[FontMetric, "fallback.SystemFace"]) -> str | None:
+    """R1.2's one warning block naming every face `used_faces` recorded at
+    match level `"substitute"`/`"none"` (`_STAND_IN_MATCHES`), or `None`
+    when there are none -- the common case, and every case on a machine
+    with the Garmin font root installed.
+
+    `used_faces` is exactly what `render`/`render_all_styles`'s own
+    `used_faces` parameter collected: `wfb.cli._render_preview` passes one
+    dict to every render across a whole `wfb preview` invocation (every
+    device, every `--all-styles` panel) and calls this once at the end, so
+    the warning fires once per *run*, not once per device or panel (R1.2).
+    Sorted by display name for a stable, rerun-to-rerun-identical order --
+    dict iteration order would otherwise depend on which device/style
+    happened to resolve a given face first.
+
+    **One row per substituted *typeface*, not per `FontMetric`.** The
+    metrics are keyed per symbol *and* size, so one `face:` font used at
+    two sizes -- or one `FONT_*` symbol resolved on two devices in the same
+    run -- arrives here as several entries naming the identical
+    substitution. Collapsing on `(name, file, match)` is what makes the
+    count read as "1 font was drawn with a stand-in" rather than "2 fonts",
+    which is what a reader would have to reconcile against a design that
+    declares one.
+    """
+    affected = sorted(
+        {
+            (metric.face or metric.symbol, _drawn_with(face), face.match)
+            for metric, face in used_faces.items()
+            if face.match in _STAND_IN_MATCHES
+        }
+    )
+    if not affected:
+        return None
+
+    name_width = max(len(name) for name, _, _ in affected)
+    drawn_width = max(len(drawn) for _, drawn, _ in affected)
+    count = len(affected)
+    lines = [
+        f"warning: {count} font{'s' if count != 1 else ''} "
+        f"{'were' if count != 1 else 'was'} drawn with a stand-in, not "
+        "Garmin's own face --",
+        "         glyph shapes will not match the simulator:",
+    ]
+    for name, drawn, match in affected:
+        lines.append(f"           {name:<{name_width}}  -> {drawn:<{drawn_width}}  ({match})")
+    lines.append("         install the SDK Manager's Fonts directory at vendor/fonts/,")
+    lines.append("         or set WFB_FONTS / pass --fonts DIR -- see `wfb doctor`.")
+    return "\n".join(lines)
 
 
 def _resolve_style_entry(face, name: str | None):
@@ -145,7 +229,23 @@ def _resolve_style_entry(face, name: str | None):
     )
 
 
-def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Image.Image:
+def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
+          used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None) -> Image.Image:
+    """Render `resolved` to an `Image`.
+
+    `used_faces`, when given, is a caller-owned dict this render **adds
+    into** (never replaces) -- every distinct `FontMetric` this render
+    actually resolved a `fallback.SystemFace` for, keyed by the metric
+    itself (`FontMetric` is frozen/hashable exactly for this).  Plan 12
+    R1.1: a caller (`wfb.cli._render_preview`) that wants to know what
+    typefaces a whole run drew with passes the *same* dict to every
+    `render`/`render_all_styles` call in that run -- one device, one
+    style, or all of them -- and reads it back once at the end
+    (`stand_in_warning`).  `None` (every test in this repo, and any other
+    direct caller) costs nothing beyond the one extra `is not None` check
+    per glyph run; this is how `wfb.preview` itself stays free of any
+    global mutable state for something only `wfb.cli` needs to aggregate.
+    """
     options = options or PreviewOptions()
     entry = _resolve_style_entry(resolved.face, options.style)
     values = dict(SAMPLE)
@@ -199,7 +299,7 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     # element set when the design has one, `active` otherwise -- the same
     # choice `wfb/emit/monkeyc.py`'s own `_sleeping` branch makes.
     draw_mode = "always_on" if options.asleep and resolved.in_mode("always_on") else "active"
-    renderer = _Renderer(resolved, draw, image, scale, values, options)
+    renderer = _Renderer(resolved, draw, image, scale, values, options, used_faces)
     for placed in resolved.items:
         if placed.kind == "group":
             continue
@@ -216,7 +316,8 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Ima
     return image
 
 
-def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = None) -> Image.Image:
+def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
+                      used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None) -> Image.Image:
     """Every `config: style:` entry, rendered and laid out side by side in
     one image -- `wfb preview --all-styles`.
 
@@ -226,6 +327,11 @@ def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = N
     entry's own label (`Face.style_label`, the same fallback the generated
     `<style label=...>` resource uses), so the two never disagree about
     what an entry is called either.
+
+    `used_faces` is passed straight through to every panel's own `render`
+    call, so one dict collects across every entry -- the same "one warning
+    per run, not per panel" shape `_render_preview` relies on (plan 12
+    R1.2).
 
     Raises `UnknownStyleError` the same way `render` does when the design
     declares no `config: style:` at all -- there is nothing to lay out side
@@ -242,7 +348,7 @@ def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = N
     caption_height = max(16, 10 * max(1, options.scale))
     panels = []
     for entry in axis.entries:
-        panel = render(resolved, dataclass_replace(options, style=entry.name))
+        panel = render(resolved, dataclass_replace(options, style=entry.name), used_faces=used_faces)
         label = face.style_label(entry) or entry.name
         panels.append((panel, label))
 
@@ -293,13 +399,35 @@ def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
 
 
 class _Renderer:
-    def __init__(self, resolved, draw, image, scale, values, options) -> None:
+    def __init__(self, resolved, draw, image, scale, values, options, used_faces=None) -> None:
         self.resolved = resolved
         self.draw = draw
         self.image = image
         self.scale = scale
         self.values = values
         self.options = options
+        #: `render`'s own `used_faces` (plan 12 R1.1), or `None` -- see
+        #: `_system_face`, the one place every one of this renderer's three
+        #: `fallback.system_face` call sites now goes through.
+        self.used_faces = used_faces
+
+    def _system_face(self, metric: FontMetric, *, scale: float | None = None):
+        """`fallback.system_face`, plus (a) threading `PreviewOptions.
+        fonts_root` through (plan 12 R1.5 -- `--fonts DIR`/`WFB_FONTS`
+        reaching every draw, not just `wfb doctor`'s own report) and (b)
+        recording the resolved face into `self.used_faces`, when the
+        caller asked for one, so a whole run's worth of "what did this
+        actually draw with" can be reported in one place after every
+        device/style is done (`stand_in_warning`). The three call sites
+        this replaces (`_complication_slot`, `_approximate_text`,
+        `_draw_vector_text`) differ only in which `scale` they pass --
+        `self.scale` when omitted, matching what all three already used.
+        """
+        face = fallback.system_face(metric, scale=self.scale if scale is None else scale,
+                                    fonts_root=self.options.fonts_root)
+        if self.used_faces is not None and face is not None:
+            self.used_faces.setdefault(metric, face)
+        return face
 
     # -- dispatch ---------------------------------------------------------
 
@@ -867,7 +995,7 @@ class _Renderer:
                     pen_x += glyph.xadvance
                 return
         if placed.font_metric is not None:
-            face = fallback.system_face(placed.font_metric, scale=s)
+            face = self._system_face(placed.font_metric, scale=s)
             if face is not None:
                 # `top` is the text box's own top edge (`geometry.text_y`,
                 # sized from `fallback.line_height` above); draw at its
@@ -1018,7 +1146,7 @@ class _Renderer:
                 self.draw.rectangle(self._rect(box), outline=(64, 64, 64), width=1)
             return
         s = self.scale
-        face = fallback.system_face(metric, scale=s)
+        face = self._system_face(metric, scale=s)
         if face is None:
             # No scalable face at all (older Pillow with no scalable
             # default, and no TTF located either): fall back to marking the
@@ -1131,7 +1259,7 @@ class _Renderer:
             self._approximate_text(text, anchor_point, align, vertical_align,
                                    font_metric, color, box=box)
             return
-        face = fallback.system_face(font_metric, scale=self.scale)
+        face = self._system_face(font_metric)
         if face is None:
             return  # same rare fallback; angled/radial have no box to outline
         s = self.scale
@@ -1410,10 +1538,12 @@ def _save(image: Image.Image, path: Path) -> Path:
     return path
 
 
-def write(resolved: ResolvedFace, path: Path, options: PreviewOptions | None = None) -> Path:
-    return _save(render(resolved, options), path)
+def write(resolved: ResolvedFace, path: Path, options: PreviewOptions | None = None, *,
+         used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None) -> Path:
+    return _save(render(resolved, options, used_faces=used_faces), path)
 
 
 def write_all_styles(resolved: ResolvedFace, path: Path,
-                     options: PreviewOptions | None = None) -> Path:
-    return _save(render_all_styles(resolved, options), path)
+                     options: PreviewOptions | None = None, *,
+                     used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None) -> Path:
+    return _save(render_all_styles(resolved, options, used_faces=used_faces), path)

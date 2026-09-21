@@ -280,6 +280,11 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--interval", type=float, default=0.4,
                          help="seconds between checks while watching (default: 0.4)")
     preview.add_argument("--devices-dir")
+    preview.add_argument("--fonts", dest="fonts_dir",
+                         help="Garmin ConnectIQ Fonts directory (default: $WFB_FONTS, "
+                              "vendor/fonts/, or the SDK Manager's per-OS install location); "
+                              "without it, any face the registry has no exact match for is "
+                              "drawn with a stand-in typeface -- see `wfb doctor`")
 
     simulate = _command(sub, "simulate", _simulate)
     simulate.add_argument("design", type=Path)
@@ -426,6 +431,7 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     unaffected either way, because `Bag.print` writes to stderr.
     """
     from .preview import PreviewOptions, UnknownStyleError, render, render_all_styles
+    from .preview import stand_in_warning as preview_stand_in_warning
     from .preview import write as write_preview, write_all_styles
 
     to_stdout = _is_stdout(getattr(args, "output", None))
@@ -467,29 +473,44 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
         return 1, watched
 
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
-                             time=time, asleep=getattr(args, "asleep", False))
+                             time=time, asleep=getattr(args, "asleep", False),
+                             fonts_root=getattr(args, "fonts_dir", None))
     color_out = term.should_color(sys.stdout)
     label = _status("preview", color=color_out)
+    # Collects every distinct face this whole call resolves, across every
+    # device and (with --all-styles) every panel, so the stand-in warning
+    # below fires once per run rather than once per device (plan 12 R1.1/R1.2).
+    used_faces: dict = {}
     try:
         for device_id, result in resolved.items():
             if to_stdout:
-                image = (render_all_styles(result, options) if all_styles
-                         else render(result, options))
+                image = (render_all_styles(result, options, used_faces=used_faces) if all_styles
+                         else render(result, options, used_faces=used_faces))
                 image.save(sys.stdout.buffer, format="PNG")
                 sys.stdout.buffer.flush()
                 continue
             if all_styles:
                 path = write_all_styles(
-                    result, args.output / f"{device_id}--all-styles.png", options)
+                    result, args.output / f"{device_id}--all-styles.png", options,
+                    used_faces=used_faces)
             else:
                 suffix = f"--{style}" if style is not None else ""
-                path = write_preview(result, args.output / f"{device_id}{suffix}.png", options)
+                path = write_preview(result, args.output / f"{device_id}{suffix}.png", options,
+                                     used_faces=used_faces)
             if not quiet:
                 print(f"{label}    {path}  ({result.device.width}x{result.device.height} "
                       f"at {args.scale}x)", flush=True)
     except UnknownStyleError as exc:
         _error(str(exc))
         return 1, watched
+    # Not suppressed by -q/-o - (R1.4): those silence stdout progress, and a
+    # wrong typeface is a correctness warning, not progress.  Always to
+    # stderr, always after every device/panel has had a chance to record a
+    # face, so it names everything the whole run drew with, not just the
+    # first device.
+    warning = preview_stand_in_warning(used_faces)
+    if warning:
+        print(warning, file=sys.stderr)
     if blurb and not quiet:
         print()
         for line in (
@@ -509,6 +530,14 @@ def _preview(args) -> int:
     compiled face cannot disagree about *position*. Glyph shapes and arc
     caps are approximations; the Connect IQ simulator is authoritative for
     those, when it can run at all (see docs/limitations.md).
+
+    A system or vector font is drawn with the user's own licensed Garmin
+    font file when `--fonts DIR` (or `WFB_FONTS`, or `vendor/fonts/`) finds
+    one; otherwise it falls back to a free stand-in, or even Pillow's own
+    bundled default, silently as far as the image goes -- except that this
+    command then prints one warning to stderr naming every font that
+    happened to, and what to do about it (`wfb doctor` reports the same
+    root). See `docs/lore/toolchain.md`.
 
     `--style <entry>` renders one `config: style:` entry -- its scheme's
     colours and only the shared content plus that entry's own layout --
@@ -742,12 +771,18 @@ def _doctor(args) -> int:
 
     # -- Garmin's own font files (optional; outrank the registry when found) --
     # Never triggers a download: doctor only reports what is already there.
+    # Both branches state the *consequence* of the finding, not only whether
+    # it is optional (plan 12 R3.2) -- "optional" alone reads as "safe to
+    # ignore", when what it actually costs is `wfb preview` drawing every
+    # non-exact-matched face with a stand-in typeface instead of the
+    # device's own (`wfb.preview.stand_in_warning`, R1, says which ones).
     fetch_system = fonts.fetch_system
     fonts_root = fetch_system.garmin_font_root(getattr(args, "fonts_dir", None))
     if fonts_root is not None:
-        print(f"{ok} Garmin fonts     {fonts_root}")
+        print(f"{ok} Garmin fonts     {fonts_root}  (previews draw exact glyph shapes)")
     else:
-        print(f"{absent} Garmin fonts     not found (optional)")
+        print(f"{absent} Garmin fonts     not found (optional; previews draw stand-in "
+              "typefaces for any face the registry has no exact match for)")
         if os.environ.get("WFB_CONTAINER") == "1":
             # vendor/ never reaches the image (.dockerignore): a mount is the
             # only way in, at the WFB_FONTS the Dockerfile sets.
