@@ -433,6 +433,67 @@ angled}` and `curve: {style: radial}` on standalone `text` elements, the
 twelve-hour-numerals pattern case, and `if_unavailable: hide` load-bearing
 rather than decorative (a face published on only two of the three targets).
 
+**The `style: radial` lint box was tightened twice more (2026-09-21), and
+the second tightening is where an open device-behaviour question surfaced.**
+The first fix replaced a full square (`centre ± (radius + line_height)`,
+corners at `(radius + line_height) * sqrt(2)`) with the tight annulus
+sector the run actually sweeps (`wfb.layout.radial_text_angle_span` +
+`arc_bbox`) — still bounded radially by a flat `radius -/+ line_height` on
+every side, which is itself double the true reach: each glyph's own
+vertical shift off the baseline circle is at most `line_height / 2`, not a
+full `line_height`. The concrete case that surfaced it:
+`examples/showcase`'s vintage roman-numeral dial (plan 13), whose numerals
+sit on a 280px round device (`fenix8solar51mm`, minor radius 140px) at
+`radius: 75%r` = 105px with a 36px `line_height` — the old flat band's
+outer edge (`105 + 36 = 141`) sat one pixel past the framebuffer's own
+140px half-width, a false `off-screen`, even though the real ink
+(`105 + 36/2 = 123`) is comfortably inside.
+
+`wfb.layout.radial_text_band(radius, line_height, vertical_align,
+direction)` is now the one place both `Resolver._resolve_text` and
+`_pattern_part_ink` derive the band, matching exactly what `wfb.preview.
+_draw_radial_vector_text`/`._paste_rotated_run` draw (never a second,
+independently-derived model): `vertical_align: center` is symmetric,
+`radius -/+ line_height / 2`, regardless of `direction:`. `vertical_align:
+top` is asymmetric and **direction-dependent**, because it is defined
+relative to the glyph's own local "up", which the facing model above
+(`clockwise` outward, `counter_clockwise` inward) rotates onto the radial
+direction: `clockwise` (outward-facing) puts `top` on the INWARD side
+(`radius - line_height`..`radius`), `counter_clockwise` (inward-facing)
+puts it on the OUTWARD side (`radius`..`radius + line_height`).
+`vertical_align: bottom` is out of scope for this derivation because it is
+already a build error under any `curve:` (`wfb.ir.builder`, both
+`text.curve` and a pattern part's `patternCurve` — see this section's own
+`vertical_align: bottom` note above) — `radial_text_band` fills in the
+mirror-of-`top` case anyway, defensively, rather than leaving it to raise
+on an author-unreachable input.
+
+**Open question, genuinely undocumented device behaviour.** The SDK's own
+`drawAngledText`/`drawRadialText` docs (`$CIQ_SDK/doc/Toybox/Graphics/
+Dc.html`) give `justification` the same one-line generic description
+("Specifies how text placed relative to the text location") as plain
+`drawText`, with no worked example distinguishing a rotated run's `top`
+from its `center`. The band above assumes the device applies
+`vertical_align` in the glyph's own local, rotated frame — the only model
+this project's preview renders, and the only one any of its geometry
+reasons about — not some other reinterpretation relative to the unrotated
+screen axes. This is **unverified** beyond the facing comparison already
+documented above (real simulator, `fenix8solar47mm` only, and that
+comparison never varied `vertical_align`). A second, related observation
+from deriving this: current codegen (`wfb.emit.monkeyc.shapes.
+_emit_vector_text_draw`, via `Resolver._justify`) never emits a
+justification flag that distinguishes `top` from `bottom` for a curved
+element — only `center` adds `TEXT_JUSTIFY_VCENTER`, and there is no
+`TEXT_JUSTIFY_BOTTOM` on the platform at all (confirmed in
+`bin/api.debug.xml`: only `_LEFT`/`_CENTER`/`_RIGHT`/`_VCENTER` exist).
+Since `bottom` is already rejected at build time under `curve:`, `top` is
+the *only* non-centred `vertical_align` that ever reaches a curved draw
+call today, so nothing currently depends on a `bottom` flag that does not
+exist — but a future feature that revisits the `bottom` restriction under
+`curve:` would need to resolve this gap (find or confirm the on-device
+equivalent of `_glyph_y_expr`'s screen-space subtraction for a rotated
+baseline) before it could emit anything for it.
+
 ---
 
 ## 6. Sources

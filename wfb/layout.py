@@ -184,6 +184,89 @@ def radial_text_angle_span(
     return theta_a, theta_b
 
 
+def radial_text_band(
+    radius: float, line_height: float, vertical_align: str, direction: str | None,
+) -> tuple[float, float]:
+    """The radii (`r_inner`, `r_outer`) a `curve: {style: radial}` run's
+    lint band actually spans -- the ONE place both `Resolver._resolve_text`
+    and `_pattern_part_ink` derive it, so they cannot drift into two
+    different bands the way the old `radius -/+ line_height` copy briefly
+    did (2026-09-21: that was deliberate, admitted slack -- see the removed
+    comment this replaces -- since every glyph's own vertical shift off the
+    baseline circle is at most `line_height / 2`, so a full `line_height`
+    on *both* sides double-counted it; on `examples/showcase`'s numerals
+    (280px round, `radius: 75%r` = 105px, `line_height` 36px) that slack
+    alone pushed the box to 141px from centre -- past the 140px half-width
+    of the 280px framebuffer -- while the real ink reaches about 123px,
+    comfortably inside).
+
+    Derived from where each glyph's own "up" direction points, matching
+    `wfb.preview._draw_radial_vector_text`/`._paste_rotated_run` exactly
+    (the lint box and the preview must not silently disagree about where
+    the text sits, the same discipline the angular span above already
+    follows): **`clockwise` faces OUTWARD** (a glyph's cap-height points
+    away from the centre) and **`counter_clockwise` faces INWARD**
+    (cap-height points toward the centre) -- `_draw_radial_vector_text`'s
+    own facing derivation. Every glyph's anchor sits exactly ON the
+    circle; `_paste_rotated_run` then shifts the glyph's box off that
+    anchor by `alignment_shift`'s own vertical rule, in the glyph's local
+    (unrotated) frame, before the facing rotation carries that shift onto
+    the radial direction:
+
+    * `vertical_align: center` -- the anchor is the box's own vertical
+      centre either way, so the band is symmetric and
+      direction-independent: `radius -/+ line_height / 2`.
+    * `vertical_align: top` -- the anchor sits at the box's top edge, and
+      the box occupies local "down" from it, which is the side OPPOSITE
+      the facing direction: inward (`radius - line_height`..`radius`)
+      under `clockwise` (outward-facing, so "away from up" is inward),
+      outward (`radius`..`radius + line_height`) under
+      `counter_clockwise` (inward-facing, so "away from up" is outward).
+    * `vertical_align: bottom` is rejected as a build error under `curve:`
+      before this is ever reached (`wfb.ir.builder`, both `text.curve` and
+      a pattern part's `patternCurve`: an upright `bottom` is a
+      screen-space subtraction that would not point along a rotated
+      baseline's own axis once curved, `docs/format.md`'s `curve:`
+      section) -- filled in here anyway, defensively, as the mirror of
+      `top`: the box occupies the facing side instead (outward under
+      `clockwise`, inward under `counter_clockwise`).
+
+    Returned `(r_inner, r_outer)` with `r_inner <= r_outer` always -- a
+    schema-legal `line_height >= 0` keeps every branch ordered by
+    construction, which matters because `arc_bbox` clamps `r_inner` to
+    `>= 0` itself but trusts `r_outer` to actually be the far radius for
+    its own axis-crossing extremes.
+
+    **Open question, undocumented device behaviour:** the SDK's own
+    `drawAngledText`/`drawRadialText` docs (`$CIQ_SDK/doc/Toybox/Graphics/
+    Dc.html`) give `justification` the same generic one-line description
+    ("Specifies how text placed relative to the text location") as plain
+    `drawText`, with no worked example distinguishing a rotated run's
+    `top` from its `center`. This band assumes the device applies
+    `vertical_align` in the glyph's own local, rotated frame -- the model
+    `wfb.preview` already renders, and this function now matches exactly
+    -- not some other reinterpretation relative to the unrotated screen
+    axes. Unverified beyond the facing comparison
+    `docs/research/12-vector-fonts.md` §5.3 documents (real simulator,
+    `fenix8solar47mm` only); see that section for the fuller note. A
+    second, separate observation from writing this: current codegen
+    (`wfb.emit.monkeyc.shapes._emit_vector_text_draw`, via `Resolver.
+    _justify`) never emits a distinguishing flag between `top` and
+    `bottom` for a curved element -- only `center` adds
+    `TEXT_JUSTIFY_VCENTER` -- so `top` is the *only* non-centred value
+    that ever reaches a curved draw call today (`bottom` being rejected
+    at build time, above); nothing here depends on a `bottom` flag that
+    does not exist, but a future feature that revisits the `bottom`
+    restriction would need to resolve that gap first.
+    """
+    if vertical_align == "center":
+        half = line_height / 2.0
+        return radius - half, radius + half
+    facing_outward = direction != "counter_clockwise"  # clockwise (default) faces outward
+    inward = (vertical_align == "top") == facing_outward
+    return (radius - line_height, radius) if inward else (radius, radius + line_height)
+
+
 def arc_bbox(
     cx: float, cy: float, r_inner: float, r_outer: float,
     theta_a_degrees: float, theta_b_degrees: float,
@@ -645,12 +728,13 @@ def _pattern_part_ink(
     composition codegen performs), reusing `Resolver._rotated_text_box`
     rather than a second copy of that rotation math; `radial` composes the
     same *effective* angle and hands it to `radial_text_angle_span`/
-    `arc_bbox` -- the tight annulus-sector box a standalone `curve:
-    {style: radial}` text element's own lint box now uses
-    (`Resolver._resolve_text`, 2026-09-21 follow-up to plan 11 §4; the
-    "centre +/- (radius + line_height)" square it replaced there over-
-    reported on a round screen) -- the centre here is this copy's own
-    rotated/translated anchor, not a fixed point.
+    `arc_bbox`, with `radial_text_band` (module level, shared with
+    `Resolver._resolve_text`'s own radial branch so the two can never
+    drift into two different bands) deriving the radii from `part.
+    vertical_align`/`part.curve_direction` -- the tight annulus-sector box
+    a standalone `curve: {style: radial}` text element's own lint box uses
+    too -- the centre here is this copy's own rotated/translated anchor,
+    not a fixed point.
     """
     def tf(x: float, y: float) -> tuple[float, float]:
         return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
@@ -683,8 +767,9 @@ def _pattern_part_ink(
                 effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
                 theta_a, theta_b = radial_text_angle_span(
                     effective_garmin, part.curve_direction, part.align, width, part.curve_radius_px)
-                box = arc_bbox(ax, ay, part.curve_radius_px - height, part.curve_radius_px + height,
-                               theta_a, theta_b)
+                r_inner, r_outer = radial_text_band(
+                    part.curve_radius_px, height, part.vertical_align, part.curve_direction)
+                box = arc_bbox(ax, ay, r_inner, r_outer, theta_a, theta_b)
                 return box.x, box.y, box.x + box.width, box.y + box.height
             reach = part.curve_radius_px + height
             return ax - reach, ay - reach, ax + reach, ay + reach
@@ -1189,18 +1274,19 @@ class Resolver:
             # (the same per-glyph placement model `wfb.preview.
             # _draw_radial_vector_text` draws with, so the lint box and the
             # preview cannot silently disagree about where the text sits),
-            # at radii `radius -/+ line_height`. That radial band is
-            # conservative, not tight: each glyph's own vertical shift off
-            # the baseline circle is at most `line_height / 2`
-            # (`alignment_shift`'s `top`/`bottom` cases), so a full
-            # `line_height` on both sides is already slack, never a
-            # closest-fit estimate. `(x, y)` is already the circle's own
-            # centre here (`Text.curve`'s `at:` reinterpretation, §2.2).
+            # at the radii `radial_text_band` derives from `vertical_align`
+            # and `direction` (2026-09-21 tightening: the previous
+            # `radius -/+ line_height` on both sides was still double the
+            # true reach -- see that function's own docstring for the
+            # concrete case that motivated it and the facing/vertical_align
+            # derivation). `(x, y)` is already the circle's own centre here
+            # (`Text.curve`'s `at:` reinterpretation, §2.2).
             if curve_radius_px > 0:
                 theta_a, theta_b = radial_text_angle_span(
                     curve_angle_garmin, curve_direction, element.align, width, curve_radius_px)
-                box = arc_bbox(x, y, curve_radius_px - line_height, curve_radius_px + line_height,
-                               theta_a, theta_b)
+                r_inner, r_outer = radial_text_band(
+                    curve_radius_px, line_height, element.vertical_align, curve_direction)
+                box = arc_bbox(x, y, r_inner, r_outer, theta_a, theta_b)
             else:
                 # No usable radius -- schema requires `radius:` > 0 with
                 # `style: radial`, so this is unreachable in practice, but

@@ -29,10 +29,11 @@ import pytest
 
 from tests.test_diagnostics import load
 from wfb import build, lint
+from wfb.diagnostics import Bag
 from wfb.emit.monkeyc import emit_layout, emit_view
 from wfb.emit.monkeyc.rotated import _emit_pattern_text_angle_expr
 from wfb.emit.resources import bake_fonts
-from wfb.layout import PlacedPattern, resolve
+from wfb.layout import PlacedPattern, inside_screen, resolve
 from wfb.preview import PreviewOptions, render
 
 
@@ -60,6 +61,40 @@ _HIDE_FONT = """\
     size: 8%r
     if_unavailable: hide
 """
+
+#: `line_height` 36px on `fenix8solar51mm` (minor radius 140) -- the same
+#: showcase-motivated case `tests/test_vector_text_layout.py`'s own
+#: `_TALL_FONT` uses: `size: 26%r` -> `round(0.26 * 140) == 36`.
+_TALL_FONT = """\
+  bezel:
+    face: RobotoCondensedBold
+    size: 26%r
+"""
+
+
+def _radial_badge(vertical_align: str = "center", direction: str = "clockwise") -> str:
+    """A single-copy (`count: 1`, so `copy_angle_degrees == 0.0` and the
+    part's own local curve angle is never composed with anything) radial
+    pattern whose one `shape: text` part is otherwise exactly the
+    standalone-element case `tests/test_vector_text_layout.py`'s own
+    radial-band tests use -- `radius: 75%r` = 105px on `fenix8solar51mm`
+    -- so the two files' worth of tests below can reuse the same
+    reasoning and expected numbers.
+    """
+    return f"""\
+  - id: badge
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: 1
+    color: palette.fg
+    parts:
+      - shape: text
+        text: "GARMIN"
+        font: font.bezel
+        vertical_align: {vertical_align}
+        curve: {{style: radial, angle: 0deg, radius: 75%r, direction: {direction}}}"""
+
 
 def _radial_hours(curve: str = "curve: {style: angled, angle: 0deg}\n        ",
                   font: str = "font.bezel", count: int = 12) -> str:
@@ -220,6 +255,66 @@ def test_radial_style_curve_gets_a_radius_on_the_resolved_part(write_design, bag
     part = placed.parts[0]
     assert part.curve_style == "radial"
     assert part.curve_radius_px > 0
+
+
+def test_pattern_radial_band_is_line_height_over_two_not_line_height(write_design, bag, db):
+    """The same 2026-09-21 radial-band tightening as a standalone `text`
+    element's own lint box (`tests/test_vector_text_layout.py::test_
+    radial_band_is_line_height_over_two_not_line_height`), for a
+    pattern's `shape: text` part instead: `_pattern_part_ink`'s radial
+    branch shares `wfb.layout.radial_text_band` with `Resolver._resolve_
+    text`, so the two can never drift into two different bands. Same
+    showcase-motivated geometry -- a 280px round device
+    (`fenix8solar51mm`), `radius: 75%r` = 105px, `line_height` 36px --
+    reused here with `count: 1` (a single, unrotated copy) so the
+    pattern's own ink box is exactly the annulus sector the standalone
+    test already proved fits, not something the extra rotation/copy
+    machinery could accidentally get right for a different reason."""
+    face = _load(
+        write_design, bag, _design(_TALL_FONT, _radial_badge(), targets="[fenix8solar51mm]"))
+    device = db.get("fenix8solar51mm")
+    resolved = resolve(face, device, {})
+    placed = _placed_pattern(resolved, "badge")
+    part = placed.parts[0]
+    assert part.font_px == 36  # pins "line_height 36" from the standalone case
+    assert part.curve_radius_px == 105  # pins "radius 75%r == 105px"
+
+    fresh = Bag()
+    lint.check_geometry(resolved, fresh)
+    assert not any(d.code == "off-screen" for d in fresh.items), (
+        "the tightened +/-line_height/2 band must fit on this device, "
+        "just like the standalone element's own box"
+    )
+
+
+def test_pattern_radial_band_flips_inward_outward_with_facing(write_design, bag, db):
+    """`vertical_align: top`'s band flips with `direction:` for a pattern
+    text part exactly the way it does for a standalone element
+    (`tests/test_vector_text_layout.py::test_radial_band_flips_inward_
+    outward_with_facing`), reusing the same showcase-motivated geometry:
+    `clockwise` (outward-facing) keeps the inward band, which still fits;
+    `counter_clockwise` (inward-facing) keeps the outward band, which
+    still reaches the same edge the direction-blind old band did --
+    proving `_pattern_part_ink` reads `part.curve_direction`, not just
+    `part.vertical_align` alone (CLAUDE.md §7)."""
+    def _resolved(direction: str):
+        face = _load(write_design, bag, _design(
+            _TALL_FONT, _radial_badge(vertical_align="top", direction=direction),
+            targets="[fenix8solar51mm]"))
+        device = db.get("fenix8solar51mm")
+        return resolve(face, device, {}), device
+
+    inward_resolved, device = _resolved("clockwise")
+    outward_resolved, _ = _resolved("counter_clockwise")
+    inward_box = _placed_pattern(inward_resolved, "badge").box
+    outward_box = _placed_pattern(outward_resolved, "badge").box
+    assert inside_screen(inward_box, device), (
+        "clockwise (outward-facing) 'top' is the inward band and must fit"
+    )
+    assert not inside_screen(outward_box, device), (
+        "counter_clockwise (inward-facing) 'top' is the outward band, "
+        "reaching the same edge the direction-blind old band did"
+    )
 
 
 def test_linear_pattern_curve_has_no_copy_angle_to_compose_with(write_design, bag, db):

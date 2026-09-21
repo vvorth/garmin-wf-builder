@@ -30,7 +30,9 @@ import math
 import pytest
 
 from wfb import build, lint
-from wfb.layout import PlacedText, arc_bbox, resolve
+from wfb.layout import (
+    PlacedText, arc_bbox, inside_screen, radial_text_angle_span, radial_text_band, resolve,
+)
 
 # -- design templates ---------------------------------------------------------
 
@@ -57,6 +59,15 @@ _HIDE_FONT = """\
     face: RobotoCondensedBold
     size: 6%r
     if_unavailable: hide
+"""
+
+#: `line_height` 36px on `fenix8solar51mm` (minor radius 140) -- the exact
+#: "examples/showcase numerals" case that motivated the radial-band
+#: tightening below: `size: 26%r` -> `round(0.26 * 140) == 36`.
+_TALL_FONT = """\
+  bezel:
+    face: RobotoCondensedBold
+    size: 26%r
 """
 
 
@@ -382,10 +393,12 @@ def test_radial_box_is_a_tight_arc_not_the_old_square(write_design, bag, db):
     assert new_area < old_square_area, (
         "the tight arc box must be smaller than the square it replaced"
     )
-    # And it must still be centred on the circle's own centre, radially
-    # bounded by radius -/+ line_height (font_px, per the note above) --
-    # never reaching all the way out to the old square's full reach on
-    # every side at once.
+    # And it must still be centred on the circle's own centre, well inside
+    # the old square's full reach on every side at once -- the exact band
+    # is `radius -/+ line_height / 2` for this default `vertical_align:
+    # center` (`radial_text_band`, a second, same-day tightening of this
+    # very box: see `test_radial_band_is_line_height_over_two_not_line_
+    # height` below for the contrast that proves *that* one).
     cx, cy = placed.center
     assert placed.box.x > cx - old_reach or placed.box.y > cy - old_reach
 
@@ -393,10 +406,17 @@ def test_radial_box_is_a_tight_arc_not_the_old_square(write_design, bag, db):
 def test_radial_text_that_genuinely_overflows_still_warns(write_design, bag, db):
     """The tight arc box must never UNDER-report: a radial run whose own
     radius already sits right at the bezel margin, further widened by the
-    +line_height ink band, must still trip 'safe-area' -- proving the fix
-    tightened the box rather than quietly turning the check off
-    (CLAUDE.md §7)."""
-    element = _text("radial", "    curve: {style: radial, angle: 0deg, radius: 93%r}\n")
+    ink band `radial_text_band` derives, must still trip 'safe-area' --
+    proving the fix tightened the box rather than quietly turning the
+    check off (CLAUDE.md §7). `radius: 95%r` (not the `93%r` this test
+    used before the follow-up `radius -/+ line_height/2` tightening,
+    `radial_text_band`) is retuned to actually sit past the new, tighter
+    band's own edge -- `93%r` no longer does (the whole point of the
+    tightening), so re-checked directly: 90/93%r warn nothing under the
+    new band, 95/97%r trip 'safe-area', 98%r+ trips 'off-screen' instead
+    (a bezel this close overruns the framebuffer, not just the visible
+    disc) -- `95%r` is comfortably inside the 'safe-area'-only window."""
+    element = _text("radial", "    curve: {style: radial, angle: 0deg, radius: 95%r}\n")
     face = _load(write_design, bag, _design(_SINGLE_FONT, element))
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, {})
@@ -404,6 +424,128 @@ def test_radial_text_that_genuinely_overflows_still_warns(write_design, bag, db)
     assert any(d.code == "safe-area" for d in bag.items), (
         "a radial run this close to the bezel must still warn"
     )
+    assert not any(d.code == "off-screen" for d in bag.items), (
+        "this case is meant to probe 'safe-area' specifically, not the "
+        "framebuffer edge -- see test_radial_band_is_line_height_over_two_"
+        "not_line_height below for that contrast"
+    )
+
+
+def test_radial_band_is_line_height_over_two_not_line_height(write_design, bag, db):
+    """2026-09-21 follow-up to the annulus-vs-square fix just above: the
+    annulus itself was still bounded by `radius -/+ line_height` on every
+    side, which is *also* slack -- each glyph's own vertical shift off the
+    baseline circle is at most `line_height / 2` either way
+    (`wfb.layout.radial_text_band`'s own docstring), so a full
+    `line_height` on both sides double-counts it.
+
+    The motivating case (task brief): `examples/showcase`'s vintage
+    numerals, a 280px round device (`fenix8solar51mm`, minor radius 140),
+    `radius: 75%r` = 105px, `line_height` 36px (`_TALL_FONT`'s own
+    `size: 26%r`) -- the OLD band's outer edge (`105 + 36 = 141`) sits one
+    pixel past the framebuffer's own 140px half-width even though the real
+    ink (`105 + 36/2 = 123`) is comfortably inside. Reconstructs the old
+    box by hand -- the function this replaced no longer exists to call --
+    rather than just re-asserting whatever the new code already does
+    (CLAUDE.md §7): both boxes are built from the same placed geometry, so
+    only the radii differ."""
+    element = _text("radial", "    curve: {style: radial, angle: 0deg, radius: 75%r}\n")
+    face = _load(write_design, bag, _design(_TALL_FONT, element, targets="[fenix8solar51mm]"))
+    device = db.get("fenix8solar51mm")
+    resolved = resolve(face, device, {})
+    placed = _placed(resolved, "radial")
+
+    assert placed.font_px == 36  # pins "line_height 36" from the case above
+    assert placed.curve_radius_px == 105  # pins "radius 75%r == 105px"
+
+    theta_a, theta_b = radial_text_angle_span(
+        placed.curve_angle_garmin, placed.curve_direction, "center",
+        placed.measured_width, placed.curve_radius_px)
+    old_box = arc_bbox(
+        placed.center[0], placed.center[1],
+        placed.curve_radius_px - placed.font_px, placed.curve_radius_px + placed.font_px,
+        theta_a, theta_b)
+    assert not inside_screen(old_box, device), (
+        "the old +/-line_height band must still overflow this exact case"
+    )
+    assert inside_screen(placed.box, device), (
+        "the new +/-line_height/2 band must fit"
+    )
+
+
+def test_radial_band_flips_inward_outward_with_facing(write_design, bag, db):
+    """`vertical_align: top`'s band sits on the side OPPOSITE the glyph's
+    own facing (`wfb.layout.radial_text_band`'s docstring: `clockwise`
+    faces outward, so 'top' -- away from up, i.e. away from outward -- is
+    the INWARD band; `counter_clockwise` faces inward, so 'top' is the
+    OUTWARD band). Reuses the exact showcase-motivated geometry from
+    `test_radial_band_is_line_height_over_two_not_line_height` above --
+    same radius, same `line_height`, same framebuffer edge -- so flipping
+    only `direction:` between the two loads is what proves the band
+    tracks facing and not just `vertical_align` alone: `clockwise`'s
+    inward band still fits; `counter_clockwise`'s outward band reaches the
+    same `radius + line_height` edge the old, pre-`vertical_align:-aware`
+    band did, so it still doesn't (CLAUDE.md §7 -- a real contrast, not
+    two assertions that would pass under either band)."""
+    def _placed_for(direction: str):
+        element = _text(
+            "radial",
+            "    vertical_align: top\n"
+            f"    curve: {{style: radial, angle: 0deg, radius: 75%r, direction: {direction}}}\n",
+        )
+        face = _load(write_design, bag, _design(_TALL_FONT, element, targets="[fenix8solar51mm]"))
+        device = db.get("fenix8solar51mm")
+        return _placed(resolve(face, device, {}), "radial"), device
+
+    inward, device = _placed_for("clockwise")
+    outward, _ = _placed_for("counter_clockwise")
+    assert inside_screen(inward.box, device), (
+        "clockwise (outward-facing) 'top' is the inward band and must fit"
+    )
+    assert not inside_screen(outward.box, device), (
+        "counter_clockwise (inward-facing) 'top' is the outward band, "
+        "reaching the same edge the direction-blind old band did"
+    )
+
+
+# -- radial_text_band: the shared radii, in isolation ----------------------
+
+
+def test_radial_text_band_center_is_direction_independent():
+    """`vertical_align: center` splits the line evenly either side of the
+    circle, regardless of `direction:` -- the one case that does not
+    depend on facing at all."""
+    for direction in ("clockwise", "counter_clockwise", None):
+        assert radial_text_band(100.0, 20.0, "center", direction) == (90.0, 110.0)
+
+
+def test_radial_text_band_top_flips_with_facing():
+    """`vertical_align: top` sits on the side OPPOSITE the glyph's own
+    facing (`clockwise` faces outward, so 'top' is inward; `counter_
+    clockwise` faces inward, so 'top' is outward) -- the exact truth table
+    `wfb.layout.radial_text_band`'s own docstring derives, checked here as
+    a pure function of the four values, independent of any device or
+    build pipeline."""
+    assert radial_text_band(100.0, 20.0, "top", "clockwise") == (80.0, 100.0)
+    assert radial_text_band(100.0, 20.0, "top", "counter_clockwise") == (100.0, 120.0)
+    # No `direction:` authored resolves to the schema default ("clockwise")
+    # well before this function ever runs (`Resolver._resolve_text`'s own
+    # `curve_direction`), but this function does not itself assume that --
+    # `direction=None` still has to mean something, and "not explicitly
+    # counter_clockwise" is the same outward-facing default the schema uses.
+    assert radial_text_band(100.0, 20.0, "top", None) == (80.0, 100.0)
+
+
+def test_radial_text_band_bottom_is_the_mirror_of_top():
+    """`vertical_align: bottom` is rejected as a build error under any
+    `curve:` (`wfb.ir.builder`), so this input is author-unreachable in
+    practice -- but the function still answers it defensively, as the
+    exact mirror of `top` (CLAUDE.md §7's own "must be able to fail
+    against a knowingly broken implementation": swapping `top`'s branch
+    for `bottom`'s in the implementation would flip these two assertions'
+    truth values without this test noticing anything else)."""
+    assert radial_text_band(100.0, 20.0, "bottom", "clockwise") == (100.0, 120.0)
+    assert radial_text_band(100.0, 20.0, "bottom", "counter_clockwise") == (80.0, 100.0)
 
 
 # -- arc_bbox: the shared annulus-sector bounding box ----------------------
