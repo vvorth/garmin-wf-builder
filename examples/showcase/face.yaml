@@ -184,6 +184,27 @@ hands:
     hour:
       color: config.colors.fg
       parts:
+        # bg 
+        - shape: polygon                    # tapered shaft, heavier than the minute's
+          color: palette.black
+          points:
+            - { dx: -3%r, dy: 11%r }         # a short tail past the axis
+            - { dx: -2.5%r, dy: -27%r }
+            - { dx: 2.5%r, dy: -27%r }
+            - { dx: 3%r, dy: 11%r }
+        - shape: circle                      # the open "moon" ring -- bigger, chunkier
+          color: palette.black
+          at: { dy: -32%r }
+          radius: 5%r
+          filled: false
+          thickness: 4px
+        - shape: polygon                     # the point beyond the ring
+          color: palette.black
+          points:
+            - { dx: -2.5%r, dy: -35%r }
+            - { dy: -42%r }
+            - { dx: 2.5%r, dy: -35%r }
+        # fg 
         - shape: polygon                    # tapered shaft, heavier than the minute's
           points:
             - { dx: -2%r, dy: 10%r }         # a short tail past the axis
@@ -203,6 +224,34 @@ hands:
     minute:
       color: config.colors.fg
       parts:
+        # bg
+        - shape: circle                      # the hub: covers the hour/minute joint
+          color: palette.black
+          radius: 4%r                        # `at:` defaults to the axis
+        - shape: polygon
+          color: palette.black
+          points:
+            - { dx: -2.2%r, dy: 13%r }        # a longer tail than the hour's --
+            - { dx: -2%r, dy: -45%r }         # the counterweight below reads as its mass
+            - { dx: 2%r, dy: -45%r }
+            - { dx: 2.2%r, dy: 13%r }
+        - shape: circle                      # a small counterweight, past the axis
+          color: palette.black
+          at: { dy: 12%r }
+          radius: 3%r
+        - shape: circle                      # the open "moon" ring -- bigger, chunkier
+          color: palette.black
+          at: { dy: -52%r }
+          radius: 5.5%r
+          filled: false
+          thickness: 4px
+        - shape: polygon                     # the point beyond the ring
+          color: palette.black
+          points:
+            - { dx: -2%r, dy: -55%r }
+            - { dy: -66%r }
+            - { dx: 2%r, dy: -55%r }
+        # fg
         - shape: circle                      # the hub: covers the hour/minute joint
           radius: 3%r                        # `at:` defaults to the axis
         - shape: polygon
@@ -231,12 +280,13 @@ hands:
       # own small circle at the axis (radius 1.5%r, accent-coloured) is the
       # final pivot jewel, riding on top of `minute`'s wider hub circle
       # above -- the last thing drawn, dead centre.
-      color: config.colors.dim
+      # color: config.colors.dim
+      color: config.accent_color
       parts:
         - { shape: line, at: { dy: 16%r }, to: { dy: -72%r }, thickness: 1px }
         - { shape: circle, at: { dy: 16%r }, radius: 2.5%r }
         - { shape: circle, radius: 1.5%r, color: config.accent_color }
-        - { shape: line, at: { dy: -72%r }, to: { dy: -62%r }, thickness: 1px, color: config.accent_color }
+        # - { shape: line, at: { dy: -72%r }, to: { dy: -62%r }, thickness: 1px, color: config.accent_color }
 
 # Shared: drawn underneath every layout, roman included -- two side
 # "registers" (a re-pointable complication behind a card) and a small date
@@ -879,7 +929,7 @@ layouts:
         at: { anchor: center, dy: -26%r }
         size: { width: 26%r, height: 20%r }
         corner_radius: 3%r
-        color: config.colors.fg
+        color: config.colors.track
       day_window_frame:
         type: shape
         shape: rounded_rectangle
@@ -896,7 +946,7 @@ layouts:
         at: { anchor: center, dy: 26%r }
         size: { width: 22%r, height: 20%r }
         corner_radius: 3%r
-        color: config.colors.fg
+        color: config.colors.track
       date_window_frame:
         type: shape
         shape: rounded_rectangle
