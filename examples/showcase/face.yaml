@@ -45,7 +45,7 @@ fonts:
   # `curve:`, which only a `face:` font can do (a baked sheet cannot rotate).
   romandial:
     face: [RobotoCondensedBold]
-    size: 26%r
+    size: 30%r
 
 palette:
   black: { value: "#000000", label: "Black" }
@@ -828,18 +828,19 @@ layouts:
         pattern: radial
         at: { anchor: center }
         count: 12
-        skip: [2, 10]
+        # skip: [2, 10]
         color: config.colors.fg
         parts:
           - shape: text
             value: >-
-              copy == 0 ? "XII" : copy == 1 ? "I" : copy == 3 ? "III" :
-              copy == 4 ? "IV" : copy == 5 ? "V" : copy == 6 ? "VI" :
-              copy == 7 ? "VII" : copy == 8 ? "VIII" : copy == 9 ? "IX" :
-              "XI"
+              copy == 0 ? "XII" : copy == 1 ? "I"   : copy == 2 ? "II" :
+              copy == 3 ? "III" : copy == 4 ? "IV"  : copy == 5 ? "V" :
+              copy == 6 ? "VI"  : copy == 7 ? "VII" : copy == 8 ? "VIII" :
+              copy == 9 ? "IX" : copy == 10 ? "X" : "XI"
             font: font.romandial
-            at: { dy: -69%r }
-            curve: { style: angled, angle: 0deg }
+            # at: { dy: -69%r }
+            # curve: { style: angled, angle: 0deg }
+            curve: { style: radial, angle: 0deg, radius: 90%r }
 
       # A "mechanical opening" without alpha (plan 13 R3.2):
       # `alphaBlendingSupport` is false on every target (root CLAUDE.md
