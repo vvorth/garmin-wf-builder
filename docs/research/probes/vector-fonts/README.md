@@ -93,7 +93,7 @@ SDK's statement that font resources load into the graphics pool from API
 say about `drawAngledText`/`drawRadialText` or glyph facing; that question
 is answered separately, below.
 
-## Radial glyph-facing: confirmed against the real simulator (2026-09-21)
+## Radial glyph-facing: confirmed against the real simulator, both directions (2026-09-21)
 
 `wfb preview`'s radial glyph-facing model — `direction: clockwise` faces
 glyphs outward, `counter_clockwise` faces inward, so text along the bottom
@@ -105,15 +105,27 @@ sample, never checked against a real device or simulator (full derivation:
 
 The user ran the real Connect IQ simulator on their macOS host, on
 `fenix8solar47mm`, against `examples/features/vector-text/face.yaml` — the
-shipped example, whose `wordmark` element is `curve: {style: radial,
-direction: counter_clockwise}`. `radial-facing-simulator-vs-preview.png` in
-this directory is the comparison: left half the simulator, right half `wfb
-preview` for the same face, both cropped to the display and scaled to the
-same 520x520 dial diameter. They agree on:
+shipped example, which now authors **both** directions: `wordmark`
+(`curve: {style: radial, direction: counter_clockwise}`), `left_cw`
+(`clockwise`), and the pair `top_ccw`/`top_cw` at the *same* `angle:` and
+`radius:`, opposite `direction:` — the controlled comparison that isolates
+facing from position, since the two texts occupy the same spot on the dial
+and differ in nothing else.
 
-- **glyph facing** — "FIELD TRACK" along the bottom rim reads right-side up
-  in both (the claim under test);
-- the wordmark's angular position and its upward-to-the-right tilt;
+`radial-facing-simulator-vs-preview.png` (original, `counter_clockwise`
+only) and `radial-facing-both-directions.png` (current: full dials,
+simulator left half, `wfb preview` right half, both cropped to the display
+and scaled to the same dial diameter) are both in this directory;
+`radial-facing-top-pair.png` magnifies just the `top_cw`/`top_ccw` pair,
+simulator above and preview below. They agree on:
+
+- **glyph facing, both directions** — `clockwise` (`left_cw`, `top_cw`)
+  faces glyphs outward: "TOP CW" reads normally over the top of the dial,
+  "WORLD'S END" runs bottom-to-top up the left side; `counter_clockwise`
+  (`wordmark`, `top_ccw`) faces glyphs inward: "FIELD TRACK" reads normally
+  along the bottom, "TOP CCW" is inverted at the top;
+- the `top_cw`/`top_ccw` pair's shared angular position and radius, direction
+  isolated as the only variable;
 - the twelve hour numerals' tangent phase (`12` upright at top, `3`/`9` on
   their side, `6` inverted);
 - the `SOLAR` angled badge's position and tilt.
@@ -123,7 +135,4 @@ The one visible difference is glyph *shape* — the simulator draws the real
 pre-existing "glyph rendering is approximate" caveat, unrelated to facing.
 
 This is evidence for one device (`fenix8solar47mm`), in the simulator (not
-physical hardware), and only for the `counter_clockwise` (inward-facing)
-branch — the example does not author `clockwise`. The `clockwise` case is
-the same formula's other branch and shares the rotation machinery the
-numerals also exercise, but was not itself screenshotted.
+physical hardware). Both `direction:` branches are now directly exercised.

@@ -1813,13 +1813,13 @@ still be set on the element to override the font's own value outright.
 > outward and `counter_clockwise` faces inward, so text running along the
 > bottom of the dial reads right-side up. Confirmed against the real
 > simulator on `fenix8solar47mm` (2026-09-21), using this project's own
-> `examples/features/vector-text/face.yaml` (`wordmark`, `direction:
-> counter_clockwise`): the simulator's rendering agrees with `wfb preview`
-> on facing, angular position and the twelve tangent hour numerals.
-> `clockwise` itself was not directly exercised — the example only uses
-> `counter_clockwise` — but it is the same formula's other branch, and the
-> shared rotation machinery is corroborated by the same screenshot. Evidence
-> and full derivation: `docs/research/12-vector-fonts.md`,
+> `examples/features/vector-text/face.yaml`, which authors **both**
+> directions: `wordmark` (`counter_clockwise`) and `left_cw`
+> (`clockwise`), plus the controlled pair `top_ccw`/`top_cw` — the same
+> `angle:` and `radius:`, opposite `direction:`, isolating facing from
+> position. The simulator's rendering agrees with `wfb preview` on facing,
+> angular position and the twelve tangent hour numerals, for both
+> directions. Evidence and full derivation: `docs/research/12-vector-fonts.md`,
 > `docs/research/probes/vector-fonts/README.md`.
 
 Everything else on `text` keeps working untouched under `curve:` —

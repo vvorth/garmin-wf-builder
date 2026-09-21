@@ -1167,15 +1167,19 @@ class _Renderer:
         `RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE` in the same demo -- a
         comparison only meaningful if the two differ in glyph facing, not
         merely in the order letters advance), since `drawRadialText`'s
-        glyph facing is not documented in SDK prose. **VERIFIED** against
-        the real simulator (2026-09-21, `fenix8solar47mm`, the user's host,
-        `examples/features/vector-text/face.yaml`'s `wordmark`, `direction:
-        counter_clockwise`): the simulator's rendering matches this facing
-        model -- see `docs/research/12-vector-fonts.md` and
+        glyph facing is not documented in SDK prose. **VERIFIED, both
+        directions** against the real simulator (2026-09-21,
+        `fenix8solar47mm`, the user's host,
+        `examples/features/vector-text/face.yaml`'s `wordmark`
+        (`counter_clockwise`) and `left_cw` (`clockwise`), plus the
+        `top_ccw`/`top_cw` pair -- one shared `angle:`/`radius:`, opposite
+        `direction:`, the controlled comparison that isolates facing from
+        position): the simulator's rendering matches this facing model in
+        both directions -- see `docs/research/12-vector-fonts.md` and
         `docs/research/probes/vector-fonts/README.md` for the comparison
-        image. `clockwise` (outward) itself was not directly exercised by
-        that build -- the example only authors `counter_clockwise` -- but
-        it is this same formula's other branch.
+        images (`radial-facing-both-directions.png`,
+        `radial-facing-top-pair.png`). Still just one device
+        (`fenix8solar47mm`) and the simulator, not physical hardware.
 
         Per-glyph angle derivation: a glyph whose local "up" (the
         unrotated `(0, -1)` direction `_paste_rotated_run`'s own rotation

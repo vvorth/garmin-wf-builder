@@ -154,6 +154,85 @@ def garmin_curve_angle(style: str, angle: Angle) -> float:
     return (-angle.degrees) % 360.0
 
 
+def radial_text_angle_span(
+    curve_angle_garmin: float, direction: str | None, align: str,
+    total_advance: float, radius: float,
+) -> tuple[float, float]:
+    """The Garmin-degree interval a `curve: {style: radial}` run actually
+    sweeps -- derived the same way `wfb.preview._draw_radial_vector_text`
+    places each glyph, rather than a second, independently-invented model
+    that could silently disagree with it (that function's own docstring
+    carries the facing/direction derivations this reuses unchanged).
+
+    The run covers a pixel range of `total_advance` (the whole string's
+    measured width) starting `align_offset` pixels *before* the anchor
+    (`align: left` starts exactly at `curve_angle_garmin`; `right` ends
+    there; `center` straddles it) -- exactly `_draw_radial_vector_text`'s
+    own `pixel_offset = pen - align_offset`, evaluated at the run's two
+    ends (`pen = 0` and `pen = total_advance`) instead of per glyph.
+    Dividing by `radius` turns that pixel range into an angular one, and
+    `direction` supplies the sign Garmin angle changes as the pen advances
+    (`direction_sign` there: `+1` for `counter_clockwise`, `-1` for
+    `clockwise`).  Returned as `(theta_a, theta_b)`, **not** ordered
+    min-before-max -- `arc_bbox` below takes them either order.
+    """
+    counter_clockwise = direction == "counter_clockwise"
+    direction_sign = 1.0 if counter_clockwise else -1.0
+    align_offset = {"left": 0.0, "center": total_advance / 2.0, "right": total_advance}[align]
+    theta_a = curve_angle_garmin - direction_sign * math.degrees(align_offset / radius)
+    theta_b = curve_angle_garmin + direction_sign * math.degrees((total_advance - align_offset) / radius)
+    return theta_a, theta_b
+
+
+def arc_bbox(
+    cx: float, cy: float, r_inner: float, r_outer: float,
+    theta_a_degrees: float, theta_b_degrees: float,
+) -> Box:
+    """The axis-aligned bounding box of an annulus sector: the ring between
+    radii `r_inner`..`r_outer` (`r_inner` clamped to `>= 0`, so a sector
+    that would dip past the centre just becomes a pie slice instead of
+    wrapping to the far side), swept through the Garmin-angle interval
+    between `theta_a_degrees` and `theta_b_degrees` (either order) --
+    degrees counter-clockwise from the 3 o'clock position, screen y down
+    (`px = cx + r*cos(theta), py = cy - r*sin(theta)`), the same
+    convention `wfb.layout.Resolver._rotated_text_box` and
+    `wfb.preview._draw_radial_vector_text` both already use.
+
+    The classic arc-bbox bug: the four corner points (both radii at both
+    angular ends) are not enough on their own. An arc that crosses due
+    north, say, has its topmost point *mid-sweep* -- at neither endpoint --
+    so the four axis-aligned extremes (Garmin 0/90/180/270 degrees: 3, 12,
+    9 and 6 o'clock) are added too, each at the OUTER radius, whenever that
+    direction actually falls inside the swept interval. The inner radius is
+    never the extreme there: it is closer to the centre than a corner
+    already collected, in every direction.
+    """
+    theta_min, theta_max = min(theta_a_degrees, theta_b_degrees), max(theta_a_degrees, theta_b_degrees)
+    sweep = theta_max - theta_min
+    r_inner = max(0.0, r_inner)
+    xs: list[float] = []
+    ys: list[float] = []
+    for theta in (theta_min, theta_max):
+        rad = math.radians(theta)
+        cos_t, sin_t = math.cos(rad), math.sin(rad)
+        for r in (r_inner, r_outer):
+            xs.append(cx + r * cos_t)
+            ys.append(cy - r * sin_t)
+    if sweep >= 360.0:
+        # A full turn: every axis extreme is included -- equivalent to the
+        # ordinary full-circle-at-r_outer box (a superset of adding the
+        # four points one at a time below, and cheaper to state directly).
+        xs += [cx - r_outer, cx + r_outer]
+        ys += [cy - r_outer, cy + r_outer]
+    else:
+        for axis_theta in (0.0, 90.0, 180.0, 270.0):
+            if (axis_theta - theta_min) % 360.0 <= sweep:
+                rad = math.radians(axis_theta)
+                xs.append(cx + r_outer * math.cos(rad))
+                ys.append(cy - r_outer * math.sin(rad))
+    return Box(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+
+
 def _arc_box(
     radius: int, pen: int, cx: float, cy: float, align: str, vertical_align: str,
     start_angle: Angle | None, sweep_angle: Angle | None,
@@ -564,10 +643,13 @@ def _pattern_part_ink(
     `width`x`height` rectangle rotated about the anchor by the *effective*
     Garmin angle (`part.curve_angle_garmin - copy_angle_degrees`, the same
     composition codegen performs), reusing `Resolver._rotated_text_box`
-    rather than a second copy of that rotation math; `radial` is centre +/-
-    (radius + line_height), the same "acceptable and honest" box a
-    standalone `curve: {style: radial}` text element's own lint box uses
-    (`Resolver._resolve_text`) -- the centre here is this copy's own
+    rather than a second copy of that rotation math; `radial` composes the
+    same *effective* angle and hands it to `radial_text_angle_span`/
+    `arc_bbox` -- the tight annulus-sector box a standalone `curve:
+    {style: radial}` text element's own lint box now uses
+    (`Resolver._resolve_text`, 2026-09-21 follow-up to plan 11 §4; the
+    "centre +/- (radius + line_height)" square it replaced there over-
+    reported on a round screen) -- the centre here is this copy's own
     rotated/translated anchor, not a fixed point.
     """
     def tf(x: float, y: float) -> tuple[float, float]:
@@ -597,6 +679,13 @@ def _pattern_part_ink(
                 ax, ay, width, height, part.align, part.vertical_align, effective_garmin)
             return box.x, box.y, box.x + box.width, box.y + box.height
         if part.curve_style == "radial":
+            if part.curve_radius_px > 0:
+                effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
+                theta_a, theta_b = radial_text_angle_span(
+                    effective_garmin, part.curve_direction, part.align, width, part.curve_radius_px)
+                box = arc_bbox(ax, ay, part.curve_radius_px - height, part.curve_radius_px + height,
+                               theta_a, theta_b)
+                return box.x, box.y, box.x + box.width, box.y + box.height
             reach = part.curve_radius_px + height
             return ax - reach, ay - reach, ax + reach, ay + reach
         dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
@@ -1087,12 +1176,37 @@ class Resolver:
                                          element.align, element.vertical_align,
                                          curve_angle_garmin)
         elif curve_style == "radial":
-            # centre +/- (radius + line_height): "acceptable and honest"
-            # (plan 11 §4) rather than the tighter per-glyph sweep a real arc
-            # of text occupies -- `(x, y)` is already the circle's own
+            # The tight arc-shaped box (2026-09-21 follow-up to plan 11 §4):
+            # a SQUARE centred on the circle over-reports badly on a round
+            # screen -- its corners sit at (radius + line_height) * sqrt(2)
+            # from centre, well outside the panel, even when every glyph is
+            # comfortably inside (confirmed on the real simulator and in
+            # `wfb preview`, `docs/research/probes/vector-fonts/
+            # radial-facing-both-directions.png`: nothing in
+            # `examples/features/vector-text/face.yaml` actually overflows).
+            # Bound the ink the run actually puts down instead: an annulus
+            # sector over the angular range `radial_text_angle_span` derives
+            # (the same per-glyph placement model `wfb.preview.
+            # _draw_radial_vector_text` draws with, so the lint box and the
+            # preview cannot silently disagree about where the text sits),
+            # at radii `radius -/+ line_height`. That radial band is
+            # conservative, not tight: each glyph's own vertical shift off
+            # the baseline circle is at most `line_height / 2`
+            # (`alignment_shift`'s `top`/`bottom` cases), so a full
+            # `line_height` on both sides is already slack, never a
+            # closest-fit estimate. `(x, y)` is already the circle's own
             # centre here (`Text.curve`'s `at:` reinterpretation, §2.2).
-            reach = curve_radius_px + line_height
-            box = Box(x - reach, y - reach, 2 * reach, 2 * reach)
+            if curve_radius_px > 0:
+                theta_a, theta_b = radial_text_angle_span(
+                    curve_angle_garmin, curve_direction, element.align, width, curve_radius_px)
+                box = arc_bbox(x, y, curve_radius_px - line_height, curve_radius_px + line_height,
+                               theta_a, theta_b)
+            else:
+                # No usable radius -- schema requires `radius:` > 0 with
+                # `style: radial`, so this is unreachable in practice, but
+                # stay conservative rather than divide by zero.
+                reach = curve_radius_px + line_height
+                box = Box(x - reach, y - reach, 2 * reach, 2 * reach)
         else:
             # The lint box only -- the runtime `drawText` anchor stays `(x, y)`
             # unshifted: a glyph kind's alignment is a device-side justify, not

@@ -25,10 +25,12 @@ cross-device check wired into it, without tripping over that unrelated bug.
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from wfb import build, lint
-from wfb.layout import PlacedText, resolve
+from wfb.layout import PlacedText, arc_bbox, resolve
 
 # -- design templates ---------------------------------------------------------
 
@@ -347,7 +349,19 @@ def test_angled_box_is_the_rotated_bounding_box(write_design, bag, db):
     assert abs(angled.box.height - upright.box.width) <= 1
 
 
-def test_radial_box_is_centre_plus_radius_plus_line_height(write_design, bag, db):
+def test_radial_box_is_a_tight_arc_not_the_old_square(write_design, bag, db):
+    """2026-09-21 follow-up to plan 11 §4: the old box was a SQUARE, centre
+    +/- (radius + line_height) -- on a round screen its corners sit at
+    (radius + line_height) * sqrt(2) from centre, comfortably outside the
+    panel even when the run itself sits nowhere near the edge (the false
+    positive on `examples/features/vector-text/face.yaml`'s `wordmark`/
+    `left_cw`/`top_ccw`/`top_cw`, confirmed not to overflow on the real
+    simulator: `docs/research/probes/vector-fonts/
+    radial-facing-both-directions.png`). The fix bounds the annulus sector
+    the run actually sweeps (`radial_text_angle_span` + `arc_bbox`), which
+    must be strictly smaller in area than that square for an ordinary
+    (sub-360-degree) run -- CLAUDE.md §7: a test must exercise the contrast
+    it claims, not just re-assert whatever the code already does."""
     element = _text("radial", "    curve: {style: radial, angle: 0deg, radius: 40%r}\n")
     face = _load(write_design, bag, _design(_SINGLE_FONT, element))
     device = db.get("fenix8solar47mm")
@@ -361,15 +375,86 @@ def test_radial_box_is_centre_plus_radius_plus_line_height(write_design, bag, db
 
     # A synthetic vector-font `FontMetric` never carries `height_px`, so
     # `wfb.fonts.fallback.line_height` falls back to `metric.size_px` --
-    # which is exactly `font_px` (`Resolver._vector_font_metric`) -- making
-    # this reach independently reconstructible from `font_px` alone rather
-    # than needing a second exposed field just for this assertion.
-    reach = expected_radius + placed.font_px
+    # which is exactly `font_px` (`Resolver._vector_font_metric`).
+    old_reach = expected_radius + placed.font_px
+    old_square_area = (2 * old_reach) ** 2
+    new_area = placed.box.width * placed.box.height
+    assert new_area < old_square_area, (
+        "the tight arc box must be smaller than the square it replaced"
+    )
+    # And it must still be centred on the circle's own centre, radially
+    # bounded by radius -/+ line_height (font_px, per the note above) --
+    # never reaching all the way out to the old square's full reach on
+    # every side at once.
     cx, cy = placed.center
-    assert placed.box.x == cx - reach
-    assert placed.box.y == cy - reach
-    assert placed.box.width == 2 * reach
-    assert placed.box.height == 2 * reach
+    assert placed.box.x > cx - old_reach or placed.box.y > cy - old_reach
+
+
+def test_radial_text_that_genuinely_overflows_still_warns(write_design, bag, db):
+    """The tight arc box must never UNDER-report: a radial run whose own
+    radius already sits right at the bezel margin, further widened by the
+    +line_height ink band, must still trip 'safe-area' -- proving the fix
+    tightened the box rather than quietly turning the check off
+    (CLAUDE.md §7)."""
+    element = _text("radial", "    curve: {style: radial, angle: 0deg, radius: 93%r}\n")
+    face = _load(write_design, bag, _design(_SINGLE_FONT, element))
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    lint.check_geometry(resolved, bag)
+    assert any(d.code == "safe-area" for d in bag.items), (
+        "a radial run this close to the bezel must still warn"
+    )
+
+
+# -- arc_bbox: the shared annulus-sector bounding box ----------------------
+
+
+def test_arc_bbox_axis_crossing_finds_the_true_extreme_not_just_the_corners():
+    """The classic arc-bbox bug: a sector that sweeps through 90 Garmin
+    degrees (screen convention `py = cy - r*sin(theta)`, so this is the
+    point directly ABOVE centre) has its topmost point mid-sweep, at
+    neither of its two corners (45/135 degrees). Using only the four
+    corner points would put the box's top at `r_outer * cos(45deg) ~=
+    7.07`, not the true `r_outer == 10` -- a real under-report, which is
+    exactly the "missing the axis-extreme point" failure mode plan 11's
+    follow-up calls out."""
+    box = arc_bbox(0.0, 0.0, 5.0, 10.0, 45.0, 135.0)
+    half_diag_outer = 10.0 * math.sqrt(2.0) / 2.0
+    half_diag_inner = 5.0 * math.sqrt(2.0) / 2.0
+    assert box.y == pytest.approx(-10.0)          # the axis-crossing extreme, not a corner
+    assert box.x == pytest.approx(-half_diag_outer)      # x-extent still comes from the corners
+    assert box.x + box.width == pytest.approx(half_diag_outer)
+    # The bottom edge comes from the two INNER corners (both sit closer to
+    # centre in y than the axis extreme is), not the outer ones -- the two
+    # 45-degree corners of the outer radius are further "up" (more negative
+    # y) than the inner ones, so they never set the box's bottom.
+    assert box.y + box.height == pytest.approx(-half_diag_inner)
+
+
+def test_arc_bbox_with_no_axis_crossing_uses_only_the_corners():
+    """The contrast case for the test above: a sector entirely inside one
+    quadrant (10-30 degrees) never reaches any of the four axis-aligned
+    extremes, so the box is exactly the four corner points -- proving the
+    axis-crossing logic is conditional, not "always add all four."""
+    box = arc_bbox(0.0, 0.0, 5.0, 10.0, 10.0, 30.0)
+    xs, ys = [], []
+    for theta_deg in (10.0, 30.0):
+        theta = math.radians(theta_deg)
+        for r in (5.0, 10.0):
+            xs.append(r * math.cos(theta))
+            ys.append(-r * math.sin(theta))
+    assert box.x == pytest.approx(min(xs))
+    assert box.y == pytest.approx(min(ys))
+    assert box.x + box.width == pytest.approx(max(xs))
+    assert box.y + box.height == pytest.approx(max(ys))
+
+
+def test_arc_bbox_full_turn_is_the_whole_annulus():
+    box = arc_bbox(0.0, 0.0, 5.0, 10.0, 0.0, 360.0)
+    assert box.x == pytest.approx(-10.0)
+    assert box.y == pytest.approx(-10.0)
+    assert box.x + box.width == pytest.approx(10.0)
+    assert box.y + box.height == pytest.approx(10.0)
 
 
 def test_upright_vector_font_text_measures_like_any_other_estimated_text(write_design, bag, db):

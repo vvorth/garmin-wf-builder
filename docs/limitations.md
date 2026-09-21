@@ -245,18 +245,22 @@ radial`). One honest limit on that, not to be glossed over:
 The radial glyph-facing model — `curve: {style: radial, direction:
 clockwise}` faces glyphs outward, `counter_clockwise` faces inward, so text
 running along the bottom of a dial reads right-side up — is confirmed
-against the real simulator, not just inferred: the user built
-`examples/features/vector-text/face.yaml` (its `wordmark`,
-`direction: counter_clockwise`) on `fenix8solar47mm` on their host
-(2026-09-21) and it matches `wfb preview` on facing, angular position and
-the twelve tangent hour numerals — `clockwise` was not
-directly exercised (the example only uses `counter_clockwise`) but follows
-from the same formula's other branch and is corroborated by the same
-shared rotation machinery. Evidence:
-`docs/research/probes/vector-fonts/radial-facing-simulator-vs-preview.png`,
+against the real simulator, not just inferred, for **both directions**: the
+user built `examples/features/vector-text/face.yaml` on `fenix8solar47mm`
+on their host (2026-09-21), which authors `wordmark`/`top_ccw`
+(`counter_clockwise`) and `left_cw`/`top_cw` (`clockwise`) — `top_ccw` and
+`top_cw` share one `angle:`/`radius:` and differ only in `direction:`, the
+controlled comparison that isolates facing from position — and it matches
+`wfb preview` on facing, angular position and the twelve tangent hour
+numerals, in both directions. Evidence:
+`docs/research/probes/vector-fonts/radial-facing-both-directions.png` (full
+dials, simulator vs. preview),
+`docs/research/probes/vector-fonts/radial-facing-top-pair.png` (the
+`top_cw`/`top_ccw` pair magnified),
 `docs/research/probes/vector-fonts/README.md`. Glyph *shape* fidelity
 remains approximate (preview uses a located stand-in face, not the real
-one) — unrelated to and unchanged by this.
+one) — unrelated to and unchanged by this. Still just one device
+(`fenix8solar47mm`) and the simulator, not physical hardware.
 
 It is *not* a memory limitation either way — a baked sheet loads into the
 separate graphics pool, not the watch-face budget (measured in
