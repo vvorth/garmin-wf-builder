@@ -112,6 +112,7 @@ wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain
 wfb preview   design.yaml [-d DEVICE] [--watch] [-q] [-o -]  # render to PNG; no simulator
 wfb simulate  design.yaml          # launch the simulator and push the built face
 wfb devices                        # installed device definitions and their limits
+wfb fonts     [DEVICE]             # fonts per device: scalable (vector) and system (bitmap)
 wfb sources                        # the data-source catalogue, and the icon names
 wfb complications                  # what an element's `on_hold:` may launch
 wfb schema    [--path]             # the JSON Schema, for editor setup

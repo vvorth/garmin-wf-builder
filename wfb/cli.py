@@ -9,8 +9,8 @@ Run `wfb help` for the full command list, or `wfb help <command>` /
 from that command's handler docstring in this file, which is the one place
 its behaviour is documented; nothing here is duplicated into a markdown doc.
 `wfb doctor` reports what is installed and what to do about anything
-missing; `wfb sources` and `wfb devices` list what a design may bind and
-which watches it may target.
+missing; `wfb sources`, `wfb devices` and `wfb fonts` list what a design
+may bind and which watches and fonts it may use.
 
 Every subcommand takes `--color {auto,always,never}` (default auto), either
 before or after the command name -- `wfb --color never build x` and `wfb
@@ -23,6 +23,7 @@ import argparse
 import inspect
 import os
 import sys
+import textwrap
 from pathlib import Path
 
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
@@ -309,6 +310,13 @@ def _parser() -> argparse.ArgumentParser:
 
     devices = _command(sub, "devices", _devices)
     devices.add_argument("--devices-dir")
+
+    fonts_cmd = _command(sub, "fonts", _fonts)
+    fonts_cmd.add_argument("device", nargs="?",
+                           help="device to inspect (default: all installed devices)")
+    fonts_cmd.add_argument("-d", "--device", dest="device_flag",
+                           help="device to inspect (alternative to positional argument)")
+    fonts_cmd.add_argument("--devices-dir", help="device definitions directory")
 
     doctor = _command(sub, "doctor", _doctor)
     doctor.add_argument("--devices-dir")
@@ -926,6 +934,141 @@ def _devices(args) -> int:
         print(f"{device.id:<24} {device.width}x{device.height:<8} {device.shape:<10} "
               f"{device.display_type:<8} {colors:<7} {device.api_level:<8} {limit:<10} "
               f"{device.device_family}")
+    return 0
+
+
+def _print_all_device_fonts_summary(db: DeviceDatabase) -> None:
+    color_out = term.should_color(sys.stdout)
+    device_ids = db.ids()
+    if not device_ids:
+        print("no installed devices found")
+        return
+
+    for i, device_id in enumerate(device_ids):
+        if i > 0:
+            print()
+        device = db.get(device_id)
+        title = term.style(device.id, "bold", enabled=color_out)
+        meta = f"({device.width}x{device.height} {device.shape}, CIQ {device.api_level})"
+        print(f"{title} {meta}")
+
+        if device.scalable_faces:
+            count = len(device.scalable_faces)
+            label = f"  scalable ({count}): "
+            print(textwrap.fill(label + ", ".join(device.scalable_faces), width=88, subsequent_indent="    "))
+        else:
+            dim_none = term.style("none", "dim", enabled=color_out)
+            print(f"  scalable:      {dim_none} (no vector fonts)")
+
+        if device.system_fonts:
+            count = len(device.system_fonts)
+            symbols_str = ", ".join(f"{m.symbol} ({m.size_px}px)" for m in device.system_fonts.values())
+            label = f"  system ({count}):   "
+            print(textwrap.fill(label + symbols_str, width=88, subsequent_indent="    "))
+        else:
+            dim_none = term.style("none", "dim", enabled=color_out)
+            print(f"  system:        {dim_none}")
+
+    hint = term.style(
+        "\nrun `wfb fonts <device>` for full metrics and font files for a specific device",
+        "dim",
+        enabled=color_out,
+    )
+    print(hint)
+
+
+def _print_device_fonts_detailed(device: Device) -> None:
+    color_out = term.should_color(sys.stdout)
+    title = term.style(device.id, "bold", enabled=color_out)
+    parts = [f"{device.width}x{device.height} {device.shape}", f"CIQ {device.api_level}"]
+    if device.display_type:
+        parts.append(device.display_type.upper())
+    if device.display_colors:
+        parts.append(f"{device.display_colors} colors")
+    print(f"{title} ({', '.join(parts)})")
+
+    has_vector = device.has_symbol(device.VECTOR_FONT_SYMBOL)
+    has_radial = device.has_symbol(device.DRAW_RADIAL_TEXT_SYMBOL)
+    has_angled = device.has_symbol(device.DRAW_ANGLED_TEXT_SYMBOL)
+
+    print()
+    scal_header = term.style(
+        f"Scalable (vector) fonts ({len(device.scalable_faces)}):",
+        "bold",
+        enabled=color_out,
+    )
+    print(scal_header)
+    if has_vector:
+        cap_parts = []
+        if has_radial:
+            cap_parts.append("Dc.drawRadialText")
+        if has_angled:
+            cap_parts.append("Dc.drawAngledText")
+        cap_str = ", ".join(cap_parts) if cap_parts else "available"
+        print(f"  Graphics.getVectorFont: yes ({cap_str})")
+        print("  Use in face.yaml: under 'fonts:' with 'face: [<name>, ...]' (required for radial/angled text)")
+    else:
+        print("  Graphics.getVectorFont: not available on this device")
+
+    if device.scalable_faces:
+        print()
+        col_hdr = f"  {'Face Name':<32} {'File / Stem':<30}"
+        print(term.style(col_hdr, "bold", enabled=color_out))
+        print(f"  {'-' * 30:<32} {'-' * 28:<30}")
+        for face in device.scalable_faces:
+            stem = device.scalable_face_files.get(face, "-")
+            print(f"  {face:<32} {stem:<30}")
+    else:
+        dim_none = term.style("none (no vector fonts published)", "dim", enabled=color_out)
+        print(f"  {dim_none}")
+
+    print()
+    sys_header = term.style(
+        f"System fonts ({len(device.system_fonts)}):",
+        "bold",
+        enabled=color_out,
+    )
+    print(sys_header)
+    print("  Use in face.yaml: directly as 'font: <symbol>' (e.g. font: FONT_SMALL)")
+    if device.system_fonts:
+        print()
+        col_hdr = f"  {'Symbol':<24} {'Line Height':<12} {'Em Size':<10} {'File / Stem':<28} {'Face Name':<20}"
+        print(term.style(col_hdr, "bold", enabled=color_out))
+        print(f"  {'-' * 22:<24} {'-' * 11:<12} {'-' * 8:<10} {'-' * 26:<28} {'-' * 18:<20}")
+        for m in device.system_fonts.values():
+            em_str = f"{m.em_px:.1f} px" if m.em_px is not None else "-"
+            sz_str = f"{m.size_px} px"
+            print(f"  {m.symbol:<24} {sz_str:<12} {em_str:<10} {m.font:<28} {m.face:<20}")
+    else:
+        dim_none = term.style("none recorded in reference database", "dim", enabled=color_out)
+        print(f"  {dim_none}")
+
+
+def _fonts(args) -> int:
+    """list fonts available per device, or detailed font metrics for one device
+
+    With no arguments, lists every installed device definition alongside its
+    available scalable (vector) faces and system (bitmap) font symbols.
+
+    When given a device ID (e.g. `wfb fonts fenix8solar47mm`), prints a detailed
+    breakdown for that device:
+      * Scalable (vector) fonts -- faces published to `Graphics.getVectorFont`
+        (for use in `face.yaml` under `fonts:` with `face: [...]`, required by
+        `curve: {style: radial|angled}`);
+      * System (bitmap) fonts -- `Graphics.FONT_*` symbols, their exact line
+        heights (`size_px`), em sizes, file stems, and face names.
+    """
+    db = DeviceDatabase.discover(args.devices_dir)
+    device_name = args.device or args.device_flag
+    if device_name:
+        if device_name not in db.ids():
+            _error(f"unknown device {device_name!r}")
+            print(f"       installed: {', '.join(db.ids())}", file=sys.stderr)
+            return 1
+        _print_device_fonts_detailed(db.get(device_name))
+        return 0
+
+    _print_all_device_fonts_summary(db)
     return 0
 
 

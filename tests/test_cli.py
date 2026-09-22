@@ -129,6 +129,46 @@ def test_schema_path_points_at_a_real_file():
     assert Path(result.stdout.strip()).exists()
 
 
+# -- `wfb fonts` ------------------------------------------------------------
+
+
+def test_fonts_lists_all_installed_devices(db):
+    result = run("fonts")
+    assert result.returncode == 0, result.stderr
+    assert "fenix8solar47mm" in result.stdout
+    assert "scalable" in result.stdout
+    assert "system" in result.stdout
+
+
+def test_fonts_lists_specific_device(db):
+    result = run("fonts", "fenix8solar47mm")
+    assert result.returncode == 0, result.stderr
+    assert "fenix8solar47mm" in result.stdout
+    assert "Scalable (vector) fonts" in result.stdout
+    assert "RobotoCondensedBold" in result.stdout
+    assert "System fonts" in result.stdout
+    assert "FONT_XTINY" in result.stdout
+
+
+def test_fonts_with_dash_d_flag(db):
+    result = run("fonts", "-d", "fenix8solar47mm")
+    assert result.returncode == 0, result.stderr
+    assert "RobotoCondensedBold" in result.stdout
+
+
+def test_fonts_unknown_device(db):
+    result = run("fonts", "non_existent_device_xyz")
+    assert result.returncode == 1
+    assert "unknown device 'non_existent_device_xyz'" in (result.stderr + result.stdout)
+
+
+def test_fonts_help():
+    result = run("fonts", "--help")
+    assert result.returncode == 0
+    assert "list fonts available per device" in result.stdout
+
+
+
 # -- `wfb sources` / `wfb complications` -------------------------------------
 #
 # These invoke the real entry point as a subprocess, same as every other test
