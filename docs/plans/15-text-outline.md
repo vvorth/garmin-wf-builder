@@ -6,8 +6,10 @@ Delete this file when slice 3 lands (`docs/CLAUDE.md`). What slice 1
 shipped is documented in `docs/guide/text.md`, `docs/guide/lints.md`,
 `docs/guide/colors.md`, `docs/limitations.md` §2 and `docs/lore/
 codegen.md`; this file remains only as the design record for the two
-slices still to come, plus one amendment recorded in §16 below (a schema
-correction found during implementation).
+slices still to come, plus two amendments: §16 (a schema correction found
+during implementation) and §17 (`text-outline-interior`/`contrast` made
+colour-aware so the feature's own canonical fixture is warning-free,
+found building it).
 
 `docs/research/13-outline-vector-text.md` found that the platform's own
 outlined-text mode (FreeType's stroker, a real two-pass "ring in one
@@ -314,6 +316,22 @@ does not reveal it — check the interior colour matches what's actually
 there, or move one of them." Added to `SUPPRESSIBLE` and
 `docs/guide/lints.md`'s table.
 
+**Amended 2026-09-22 (§17): the as-built check is not a bare box-overlap
+test.** Building the slice 1 fixture (`tests/fixtures/outline_text/
+face.yaml`) with this rule as originally written fired on every outlined
+element for the trivial, correct reason that a full-screen `background`
+element overlaps everything — including the canonical hollow idiom itself
+(`color:` repeating the background's own colour), which is exactly the
+one case that is *supposed* to be safe. §17 records the fix: a pair is
+now suppressed when it can be *proven* invisible (same build-time colour
+constant, and the earlier element is a filled box-covering shape whose
+box fully contains the later one's), and still reported otherwise — see
+`wfb.lint.check_text_outline_interior`'s own docstring for the full
+reasoning, including why partial coverage never suppresses even with a
+colour match. `check_contrast` needed the matching companion fix (§17)
+since it independently flagged the same correct idiom on the interior
+colour alone.
+
 **Cost: no new lint — the existing ones already see the grown box.**
 `check_partial_update_budget`'s clip-area trigger reads the union of
 `low_power` elements' own boxes, which already includes the ring once §6
@@ -377,16 +395,27 @@ per ADR 0008.
 **The generated shape, per element:**
 
 ```monkeyc
+dc.setColor(<outline.color.code>, Graphics.COLOR_TRANSPARENT);
 var offsets = Layout.OUTLINE_OFFSETS_2;
 var i = 0;
 while (i < offsets.size()) {
-    dc.setColor(<outline.color.code>, Graphics.COLOR_TRANSPARENT);
     dc.drawText(Layout.CLOCK_X + offsets[i], y_expr + offsets[i + 1], font, text, justify);
     i += 2;
 }
 dc.setColor(<color.code>, Graphics.COLOR_TRANSPARENT);
 dc.drawText(Layout.CLOCK_X, y_expr, font, text, justify);
 ```
+
+(**Amended 2026-09-22:** `dc.setColor` moved above the loop, once, rather
+than repeated on every stamp -- `outline.color` is one fixed expression
+per element, never per-offset, and neither `_emit_plain_text_call` nor
+`_emit_vector_draw_call` touches `Dc`'s colour state, so nothing between
+one `setColor` and the next stamp could ever need a different one. Found
+and fixed alongside §17, moving the same line the original snippet showed
+inside the loop to just above it in `_emit_outline_loop`
+(`wfb/emit/monkeyc/shapes.py`); every generated call still ends up in the
+same colour, only issued once per element's ring instead of once per
+stamp.)
 
 `drawAngledText`/`drawRadialText` follow the identical shape with their
 own argument lists (§5's table); a `null`-font vector branch wraps the
@@ -625,6 +654,15 @@ box exposed at lint time in a way nothing else in `wfb/lint.py` currently
 needs, for a check whose own confidence is already "boxes, not ink" —
 diminishing returns for real new plumbing.
 
+**Amended 2026-09-22 (§17):** "box-level" above turned out to mean "boxes
+overlap" was too coarse a trigger on its own — it fired on the safe,
+intended case (the hollow idiom's interior colour matching a fully-
+covering background) just as readily as on a real risk. D10's own
+"boxes, not ink" scoping stands; what changed is that a box overlap now
+also needs to fail a build-time colour-equality-plus-full-containment
+proof before it is reported, rather than being reported unconditionally.
+See §7's own amendment and §17 for the full reasoning.
+
 **D11 — no new cost lint; the existing `partial-update-budget` check
 already sees the grown clip.** Stated as a decision because the
 orchestrator's brief listed "cost" as a lint to consider adding, and the
@@ -846,3 +884,84 @@ fields rather than reading the already-grown `.box`) needed the same
 `pad:` threaded through it for the same reason — not mentioned in §6 at
 all, found only because `visible_reach`'s own docstring says plainly that
 it recomputes rather than trusts `.box`.
+
+---
+
+## 17. Amendments found building the slice 1 fixture (2026-09-22)
+
+Building `tests/fixtures/outline_text/face.yaml` — the golden fixture §14
+slice 1 itself calls for — with `text-outline-interior` and `contrast` as
+shipped in the same commit (`0cebdf0`) produced 12 `text-outline-interior`
+warnings and 9 `contrast` warnings, all false positives on the exact
+hollow-text idiom §3 documents as correct, breaking root `CLAUDE.md` §7's
+"the build bar is warning-free" rule on the feature's own canonical
+example. Both checks are fixed here, not loosened past the point of still
+catching a real mistake — every pre-existing red/green pair in
+`tests/test_lint.py` for either check still passes unmodified except the
+two noted below, and new red/green pairs were added for the cases that
+motivated the fix.
+
+**`text-outline-interior` (D10) was a pure box-overlap test with no colour
+reasoning at all**, so it fired on *every* outlined element that overlaps
+a full-screen background, regardless of whether the interior colour
+actually matched that background — including the case it exists to
+permit. **Fixed:** a pair is now suppressed only when it can be *proven*
+invisible — see `wfb.lint.check_text_outline_interior`'s own (rewritten)
+docstring for the exact three-part test (build-time colour equality, a
+filled box-covering shape, full box containment) and the worked reasoning
+for why a colour match against a *partially* covering earlier element
+(research 14's own "crosses a tick ring" example) still does not suppress.
+`_same_provable_color`, `_is_solid_backdrop_shape` and `_fully_contains`
+are the three new helpers this decomposes into. Two of the slice 1 tests
+in `tests/test_lint.py` asserted the old, over-broad behaviour on exactly
+the now-safe case (`clock`'s interior and the `check` fixture's
+`background` both `palette.bg`) and were rewritten to assert the new,
+correct behaviour instead
+(`test_outline_interior_matching_a_fully_covering_backdrop_is_silent`,
+and `test_outline_interior_can_be_suppressed`'s base case switched to a
+genuinely non-matching colour so suppression has something to suppress);
+every other slice 1 test for this check already used non-matching
+colours and needed no change. New tests cover the partial-coverage case
+and a data-conditional colour that can never be proven equal
+(`test_outline_interior_matching_colour_but_only_partial_coverage_still_
+warns`, `test_outline_interior_data_driven_colour_still_warns`).
+
+**`contrast` (unrelated to any plan 15 decision — it predates this
+plan) judged every element, outlined or not, on its own `color:`
+against the backdrop**, so an outlined element's *interior* — which the
+hollow idiom deliberately sets equal to the backdrop — was judged for
+legibility on exactly the colour that carries none: the ring is what
+actually reads. **Fixed:** `check_contrast` now special-cases an
+`outline:`-bearing element, judging its ring colour instead, against two
+independent neighbours (ring-vs-backdrop, ring-vs-interior) rather than
+the interior — see that function's own (rewritten) docstring for what a
+failure of each one looks like to an author. This was not a plan 15
+design gap so much as `contrast` simply predating `outline:` and never
+being taught about it; no plan decision (§13) is revised by this, only
+the implementation. Three new tests
+(`test_outline_interior_matching_the_backdrop_is_not_judged_for_contrast`,
+`test_outline_ring_with_poor_contrast_against_the_backdrop_warns`,
+`test_outline_ring_with_poor_contrast_against_its_own_interior_warns`)
+drive both the silent and both warning paths red-then-green.
+
+**The fixture itself needed one real fix, not a suppression.** Once both
+checks above were corrected, one warning remained: `brand`'s (ring-grown)
+box genuinely overlapped `clock`'s box on all three targets, and neither
+element's interior colour matches the other's — a real, unresolved risk
+(if `brand`'s black interior sits on top of part of `clock`'s visible
+orange ring, that part of the ring is erased), not a false positive of
+either check. Per the orchestrator's brief ("fix the fixture... if some
+warning is genuinely correct"), `brand`'s position moved (`dy: -30%r` →
+`dy: -55%r`) so the two elements no longer overlap on any of the three
+verification targets, rather than adding a `lint: {allow: ...}` to paper
+over a genuine geometry problem in the fixture's own layout. `clock`'s
+`color:` also changed from `palette.text` to `palette.bg`, matching the
+other three elements and actually demonstrating the canonical hollow
+idiom §12 calls for (a leftover `palette.text` interior meant `clock` was
+never hollow to begin with, despite the fixture's own header comment
+describing it as one); the now-unused `palette.text` entry was removed
+from the fixture's `palette:` block. `tests/golden/outline_text__*`
+were regenerated for the resulting position/colour changes (`BRAND_Y`
+and `Palette.TEXT`→`Palette.BG` only — no other generated line changed).
+`./.venv/bin/python wfb.py build tests/fixtures/outline_text/face.yaml`
+is warning-free after all three fixes.

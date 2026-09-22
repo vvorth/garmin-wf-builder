@@ -1292,11 +1292,45 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
 
     The arithmetic is exact; the 3.0 threshold is a judgement call, which is why
     this is a warning and is suppressible.
+
+    **An `outline:`-bearing element (plan 15) is judged on its ring colour,
+    never its interior `color:`.** The interior is *supposed* to match
+    whatever is underneath it -- that is the entire hollow-text idiom
+    `outline:` exists for (`docs/guide/text.md`) -- so running the ordinary
+    interior-vs-backdrop check on it would flag the idiom itself as a
+    defect every time an author uses it correctly (this is exactly the
+    false positive `text-outline-interior` above independently proves is
+    *safe* when it can show the interior colour equals a fully-covering
+    earlier element's own colour). For a hollow design the ring is the
+    *only* ink that actually reads, so `_check_outline_contrast` below
+    judges it in the ring's place, against two different neighbours,
+    because a poor ring can fail either one independently:
+
+    * **ring vs. backdrop.** If this fails, the whole character can vanish
+      into the page: with a hollow interior, the ring is the only mark
+      drawn at all, so "the ring blends into the backdrop" *is* "the text
+      is unreadable," not a milder version of it. This is what an author
+      sees: the glyph looks like it was never drawn.
+    * **ring vs. interior.** If this fails (independently of the check
+      above -- a design can pass one and fail the other), the ring's
+      *outer* edge may read fine against the backdrop while its *inner*
+      edge, against the fill, does not: the glyph reads as one soft-edged
+      blob in the fill colour rather than a crisp ring-plus-fill shape.
+      This is what an author sees: the outline looks like it never
+      rendered, even though the text itself is perfectly legible.
+
+    A design with no `outline:` is entirely unaffected -- the branch below
+    is the only new code path, and every pre-existing call/message for a
+    plain `color:` element is untouched.
     """
     backdrop = _backdrop(resolved)
     if backdrop is None:
         return
     for placed in resolved.items:
+        outline = getattr(placed.element, "outline", None)
+        if outline is not None:
+            _check_outline_contrast(bag, placed, outline, backdrop)
+            continue
         color_expression = getattr(placed.element, "color", None)
         if color_expression is None or color_expression.constant is None:
             continue
@@ -1314,6 +1348,51 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
                        "low light"],
                 confidence="exact arithmetic; the 3.0 threshold is a judgement call",
             ))
+
+
+def _check_outline_contrast(bag: Bag, placed, outline, backdrop: Color) -> None:
+    """The two ring-based comparisons `check_contrast` uses in place of the
+    ordinary interior-vs-backdrop check, for one `outline:`-bearing element.
+
+    Both comparisons are independent and either, both, or neither may fire --
+    see `check_contrast`'s own docstring for what each failure looks like to
+    an author. Silent (like the plain check) whenever a colour involved is
+    not a build-time constant (`config.*`, or a data-conditional that never
+    folded): there is nothing to compute a ratio from.
+    """
+    ring_expression = outline.color  # required in the schema -- never None itself
+    ring = None
+    if ring_expression.constant is not None:
+        ring = Color.parse(int(ring_expression.constant))
+        ratio = ring.contrast_ratio(backdrop)
+        if ratio < 3.0:
+            _emit(bag, placed, Diagnostic(
+                Severity.WARNING,
+                "contrast",
+                f"{placed.id}: outline ring {ring} on {backdrop} has a contrast "
+                f"ratio of {ratio:.1f}",
+                placed.element.span,
+                notes=["with a hollow interior the ring is the only ink drawn -- "
+                       "below 3.0 the whole character can disappear into the page"],
+                confidence="exact arithmetic; the 3.0 threshold is a judgement call",
+            ))
+    interior_expression = getattr(placed.element, "color", None)
+    if ring is None or interior_expression is None or interior_expression.constant is None:
+        return
+    interior = Color.parse(int(interior_expression.constant))
+    inner_ratio = ring.contrast_ratio(interior)
+    if inner_ratio < 3.0:
+        _emit(bag, placed, Diagnostic(
+            Severity.WARNING,
+            "contrast",
+            f"{placed.id}: outline ring {ring} on its own interior {interior} has a "
+            f"contrast ratio of {inner_ratio:.1f}",
+            placed.element.span,
+            notes=["the ring's inner edge is invisible against its own fill -- the "
+                   "glyph reads as one soft-edged blob in the fill colour instead of "
+                   "a crisp outline"],
+            confidence="exact arithmetic; the 3.0 threshold is a judgement call",
+        ))
 
 
 #: Shapes whose *ink* fills their bounding box closely enough to be the thing
@@ -2047,11 +2126,58 @@ def check_static_overlap(resolved: ResolvedFace, bag: Bag) -> None:
         ))
 
 
+def _same_provable_color(a, b) -> bool:
+    """True only when both expressions are known, at build time, to always
+    evaluate to the identical colour value.
+
+    Both sides must have folded to a build-time constant (`Expression.
+    constant`): a palette entry's own constant *is* its resolved colour
+    (`Builder._define_palette_color`), so comparing `.constant` already
+    covers "the same palette role" and "equal literals" in one test --
+    there is no separate "same role" check to write, because a role is
+    just a name for a constant this project already resolves before this
+    check ever runs. `config.*` colours bind with `constant=None`
+    (`Builder._define_config_color` -- deliberately, since a config colour
+    is user-editable at runtime) and any expression that stayed
+    data-conditional after folding also has `constant=None`
+    (`expr.fold`'s Ref-substitution rule only fires when the referenced
+    binding itself is constant) -- either side being one of those makes
+    this `False`, per plan 15's own instruction: provably equal means
+    provably equal at build time, not "probably matches in practice."
+    """
+    if a is None or b is None:
+        return False
+    if a.constant is None or b.constant is None:
+        return False
+    return a.constant == b.constant
+
+
+def _fully_contains(outer: IntBox, inner: IntBox) -> bool:
+    return (outer.x <= inner.x and outer.y <= inner.y
+            and outer.right >= inner.right and outer.bottom >= inner.bottom)
+
+
+def _is_solid_backdrop_shape(placed) -> bool:
+    """True for an earlier element this check is willing to trust to paint
+    *every* pixel of its own bounding box -- the same `_BACKDROP_SHAPES`
+    vocabulary `check_contrast`'s own `_backdrop()` already uses, for the
+    same reason: an arc, a polygon, an unfilled shape or a line of text can
+    each have a bounding box far larger than what they actually ink, so
+    "the box matches" proves nothing about what a pixel inside it actually
+    shows once that box is only *part* of what covers the outlined
+    element's own box (see `check_text_outline_interior`'s docstring).
+    """
+    element = placed.element
+    return (placed.kind == "shape" and getattr(element, "shape", None) in _BACKDROP_SHAPES
+            and getattr(element, "filled", True))
+
+
 def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
     """`outline:`'s interior pass paints over whatever is beneath it -- it
     does not reveal it (research 14 §6.4, plan 15 §3/§7). Fires when an
     `outline:`-bearing element's own (ring-grown) box overlaps an
-    **earlier-drawn** element's box, in the same modes and layout -- the
+    **earlier-drawn** element's box, in the same modes and layout, *unless*
+    this check can prove that particular overlap is invisible -- the
     mechanical half of that authoring trap, modelled on
     `check_static_overlap`'s own `_intersects` box test (`wfb/lint.py`
     above), generic over `Placed` (any element kind: `getattr(...,
@@ -2059,13 +2185,57 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
     a pattern's own bounding box needs no separate code path here once
     `outline:` reaches pattern text parts, plan 15 slice 2, D10 §13).
 
+    **When a pair is provably safe.** Repainting a pixel in the exact
+    colour it already is changes nothing, so a pair is suppressed only when
+    *every* one of these holds for that specific earlier element:
+
+    1. `_same_provable_color` says the interior colour and the earlier
+       element's own colour are the same build-time constant (see that
+       function's own docstring for exactly what counts).
+    2. The earlier element is a filled `rectangle`/`rounded_rectangle`/
+       `circle`/`ellipse` (`_is_solid_backdrop_shape`) -- the same
+       "reliably fills its own box" vocabulary `check_contrast` already
+       trusts, and for the same reason: nothing else in this format
+       promises to paint every pixel of its own bounding box.
+    3. The earlier element's box **fully contains** the outlined element's
+       own (ring-grown) box (`_fully_contains`) -- not merely intersects it.
+
+    **Why full containment, not just a colour match, and why this is
+    decided per earlier element rather than once for the whole pair list.**
+    A colour match alone does not prove invisibility for a *partially*
+    covering earlier element -- research 14's own example is exactly this:
+    a decorative ring that only partly crosses the outlined text's box.
+    Suppose that ring's own colour happens to equal the interior colour:
+    the pixels the ring actually covers would indeed repaint invisibly, but
+    the *rest* of the outlined box -- wherever the ring does not reach --
+    is not shown to be anything in particular. It could be the plain
+    background (fine), but it could just as easily be a third element this
+    check has not looked at, or bare unpainted framebuffer, and nothing
+    here would know the difference from a box comparison alone. So a
+    partially-overlapping earlier element is *never* treated as safe,
+    matching colour or not, and stays in the reported list -- only an
+    earlier element whose own box is a superset of the outlined box can
+    stand in for "everything under here is accounted for." This is also
+    why the check is per *earlier element*, not "does at least one
+    provably-matching element exist somewhere": two earlier elements can
+    each cover only part of the box, in different, individually-matching
+    colours, without their union being provably identical to a single
+    interior colour at every point -- so each one is judged solely against
+    whether *it alone* proves the pixels it actually covers, and every
+    other earlier element covering any pixel is still worth naming to the
+    author, whether or not another element in the same list already is safe.
+
     Unlike `check_static_overlap`, there is no hoist to detect: draw order
     (`resolved.items`, already sorted) already says which element ends up
     on top, so every earlier-drawn element intersecting an outlined one's
-    box is reported, not only a pair the static hoist swapped. A WARNING,
-    suppressible, "exact -- resolved geometry, but boxes rather than ink"
-    (the same honesty `check_static_overlap` states for itself): two boxes
-    can intersect while the glyphs never actually touch.
+    box is reported (except a provably-safe one, above), not only a pair
+    the static hoist swapped. A WARNING, suppressible, "exact -- resolved
+    geometry, but boxes rather than ink" (the same honesty
+    `check_static_overlap` states for itself): two boxes can intersect
+    while the glyphs never actually touch -- and, symmetrically, this
+    check's own *suppression* is "boxes, not ink" too: it trusts a filled
+    backdrop shape to ink every pixel of its box, which is a geometric
+    fact about the shape, not a guarantee about what glyphs draw inside it.
 
     Scope (D10): box-level, element-level for a pattern (not per-copy) --
     left for slice 2 to wire up, since no pattern part carries `outline:`
@@ -2076,6 +2246,7 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
         outline = getattr(later.element, "outline", None)
         if outline is None:
             continue
+        interior = getattr(later.element, "color", None)
         under: list[str] = []
         for earlier in drawn[:index]:
             if not set(later.element.modes) & set(earlier.element.modes):
@@ -2084,6 +2255,10 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
                 continue  # different layouts -- never on screen together either
             if not _intersects(later.box, earlier.box):
                 continue
+            if (_same_provable_color(interior, getattr(earlier.element, "color", None))
+                    and _is_solid_backdrop_shape(earlier)
+                    and _fully_contains(earlier.box, later.box)):
+                continue  # provably repaints in the same colour that's already there
             under.append(earlier.id)
         if not under:
             continue

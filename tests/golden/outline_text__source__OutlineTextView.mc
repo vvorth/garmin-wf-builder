@@ -82,17 +82,17 @@ class OutlineTextView extends WatchUi.WatchFace {
             return;  // the font resource failed to load
         }
 
+        dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
         var offsets = Layout.OUTLINE_OFFSETS_2;
         var i = 0;
         while (i < offsets.size()) {
-            dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
             dc.drawText(Layout.CLOCK_X + offsets[i], Layout.CLOCK_Y + offsets[i + 1], font,
                         WfbTime.displayHour(clock.hour, settings.is24Hour) + ":" + clock.min.format("%02d"),
                         Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             i += 2;
         }
 
-        dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
         dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y, font,
                     WfbTime.displayHour(clock.hour, settings.is24Hour) + ":" + clock.min.format("%02d"),
                     Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
@@ -103,10 +103,10 @@ class OutlineTextView extends WatchUi.WatchFace {
     private function drawUprightVector(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {
+            dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
             var offsets = Layout.OUTLINE_OFFSETS_2;
             var i = 0;
             while (i < offsets.size()) {
-                dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(Layout.UPRIGHT_VECTOR_X + offsets[i], Layout.UPRIGHT_VECTOR_Y + offsets[i + 1], font,
                             "UPRIGHT",
                             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
@@ -125,10 +125,10 @@ class OutlineTextView extends WatchUi.WatchFace {
     private function drawBrand(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {
+            dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
             var offsets = Layout.OUTLINE_OFFSETS_1;
             var i = 0;
             while (i < offsets.size()) {
-                dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
                 dc.drawAngledText(Layout.BRAND_X + offsets[i], Layout.BRAND_Y + offsets[i + 1], font, "GARMIN",
                                   Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BRAND_ANGLE);
                 i += 2;
@@ -145,10 +145,10 @@ class OutlineTextView extends WatchUi.WatchFace {
     private function drawBezelText(dc as Dc) as Void {
         var font = _fontBezel;
         if (font != null) {
+            dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
             var offsets = Layout.OUTLINE_OFFSETS_3;
             var i = 0;
             while (i < offsets.size()) {
-                dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
                 dc.drawRadialText(Layout.BEZEL_TEXT_X + offsets[i], Layout.BEZEL_TEXT_Y + offsets[i + 1], font, "BEZEL",
                                   Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
                                   Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);

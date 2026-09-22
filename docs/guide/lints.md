@@ -18,7 +18,7 @@ messages; see `wfb/lint.py` if unsure.
 | `safe-area` | the element's box falls outside the round screen's visible area |
 | `off-screen` | the element's box falls partly or fully outside the framebuffer |
 | `text-overflow` | the rendered text is wider than its box |
-| `contrast` | the element's colour against its backdrop is below the contrast threshold |
+| `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring colour instead (against the backdrop, and against the element's own interior), never the interior colour |
 | `partial-update-budget` | an element drawn in `low_power` mode risks overrunning the partial-update budget, whose overrun is permanent |
 | `hold-overlap` | two elements' `on_hold:` regions overlap, so a touch in the shared area only ever reaches the first |
 | `hold-unsupported` | the device has no `WatchFaceDelegate.onPress`, so this `on_hold:` can never fire there |
@@ -32,7 +32,7 @@ messages; see `wfb/lint.py` if unsure.
 | `unreachable-layout` | a `layouts:` entry that no `config: style:` entry names as its `layout:`, so it can never be drawn |
 | `sub-pixel-length` | a `%`/`%r` length resolves below 1 px on this device, with `min_1px:` off |
 | `font-unavailable` | a `face:` font (or an element using one) with `if_unavailable: hide` fails to resolve a usable face on this device |
-| `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element -- the interior pass paints over it, it does not reveal it |
+| `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
 
 ## Lint suppression
 
@@ -100,7 +100,23 @@ when the part declares none of its own: a part has no `lint:` block to
 hang an `allow:` on.
 `text-outline-interior` is reported on the `outline:`-bearing element
 itself (the one whose interior pass might paint over something), never on
-the earlier-drawn element(s) it may overlap.
+the earlier-drawn element(s) it may overlap. It does not fire on every
+overlap: a specific earlier element is left out of the finding when it
+provably repaints in the exact colour that's already there — the interior
+colour and that element's own colour are the same build-time constant
+(the same palette entry, or otherwise equal after resolution; a
+`config.*` colour or anything that stayed data-conditional can never
+prove this), **and** that element is a filled `rectangle`/
+`rounded_rectangle`/`circle`/`ellipse` whose own box fully contains the
+outlined element's (ring-grown) box — not merely intersects it, since a
+colour match with only a *partially* overlapping earlier element (a ring
+that crosses just part of the box, say) proves nothing about what the
+rest of the box sits on. The common case this quiets is the hollow-text
+idiom itself: `color:` repeating the same palette entry as the full-screen
+background underneath it (`docs/guide/text.md`'s "hollow text" section).
+`contrast` similarly treats an `outline:`-bearing element differently: see
+`wfb.lint.check_contrast`'s own docstring for the two ring comparisons it
+makes in place of judging the interior.
 See `docs/limitations.md` 3.
 
 ## What gets checked

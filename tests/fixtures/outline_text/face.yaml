@@ -4,6 +4,16 @@
 # spelling), and one of each `curve:` style with an outline -- every draw
 # shape a standalone element can take (plan 15 §14 slice 1).
 #
+# Every text element below demonstrates the canonical hollow idiom (plan
+# 15 §3/§12): `color:` repeats `palette.bg` verbatim, so the interior reads
+# as empty against the full-screen `background` element and `outline.color`
+# carries the only visible ink. This is deliberate, not incidental: it is
+# what makes the design warning-free under `text-outline-interior` (the
+# interior colour is provably the *same* build-time constant as the
+# fully-covering `background` element's own `color:`) and under `contrast`
+# (judged on the ring against the backdrop, per `wfb.lint.check_contrast`'s
+# own docstring) rather than an accident of picking any old visible colour.
+#
 # A test fixture, not an example: tests/test_text_outline_golden.py's
 # goldens in tests/golden/ (outline_text__*) read it, and it is what
 # tests/test_text_outline_codegen.py-equivalent assertions generate from
@@ -27,7 +37,6 @@ targets:
 
 palette:
   bg: "#000000"
-  text: "#FFFFFF"
   ring: "#FF5500"
 
 fonts:
@@ -53,7 +62,7 @@ elements:
     format: "{:%h:%M}"
     font: font.clock
     at: { anchor: center, dy: -10% }
-    color: palette.text
+    color: palette.bg
     outline: { color: palette.ring, width: 2 }
 
   - id: upright_vector
@@ -69,7 +78,7 @@ elements:
     text: "GARMIN"
     font: font.bezel
     color: palette.bg
-    at: { anchor: center, dy: -30%r }
+    at: { anchor: center, dy: -55%r }
     outline: { color: palette.ring, width: 1 }
     curve:
       style: angled

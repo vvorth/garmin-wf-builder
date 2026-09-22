@@ -57,7 +57,7 @@ module Layout {
 
     //! `brand` -- fixed text
     const BRAND_X as Number = 130;
-    const BRAND_Y as Number = 91;
+    const BRAND_Y as Number = 58;
     const BRAND_WIDTH as Number = 23;  // widest rendering "GARMIN" is 23 px (estimated)
     const BRAND_ANGLE as Float = 315.0f;  // 45deg clockwise rotation from upright, in Garmin's convention
 

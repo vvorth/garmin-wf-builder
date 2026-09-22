@@ -591,6 +591,71 @@ def test_low_contrast_warns_and_labels_the_threshold_as_a_judgement(check):
     assert "judgement call" in warning.confidence
 
 
+def test_outline_interior_matching_the_backdrop_is_not_judged_for_contrast(check):
+    """The hollow idiom's whole point is interior == backdrop
+    (`docs/guide/text.md`) -- judging contrast on the interior (the old
+    behaviour) would flag every correctly-built `outline:` element as
+    illegible. The ring, which is what actually reads, has plenty of
+    contrast against the backdrop and against the interior here, so this
+    must be silent."""
+    bag = check(
+        """
+  - id: label
+    type: text
+    text: "hi"
+    at: {anchor: center}
+    color: palette.bg
+    outline: {color: palette.fg, width: 2}
+""",
+        palette='  bg: "#000000"\n  fg: "#FFFFFF"',
+    )
+    assert "contrast" not in codes(bag)
+
+
+def test_outline_ring_with_poor_contrast_against_the_backdrop_warns(check):
+    """Red half of the pair above: a ring colour close to the backdrop is
+    exactly the "whole character can disappear" case `check_contrast`'s
+    own docstring describes -- the message must name the *ring*, not the
+    (correct, by-design) interior, which still equals the backdrop here."""
+    bag = check(
+        """
+  - id: label
+    type: text
+    text: "hi"
+    at: {anchor: center}
+    color: palette.bg
+    outline: {color: palette.dim, width: 2}
+""",
+        palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#0A0A0A"',
+    )
+    warning = next(d for d in bag.items if d.code == "contrast")
+    assert "outline ring" in warning.message
+    assert "judgement call" in warning.confidence
+
+
+def test_outline_ring_with_poor_contrast_against_its_own_interior_warns(check):
+    """A ring can pass against the backdrop yet still fail against its own
+    fill -- a separate, independent failure mode: the outer edge reads
+    fine against the page, but the inner edge, against the interior, does
+    not, so the glyph looks like one soft-edged blob in the fill colour
+    rather than a crisp ring-plus-fill shape."""
+    bag = check(
+        """
+  - id: label
+    type: text
+    text: "hi"
+    at: {anchor: center}
+    color: palette.mid
+    outline: {color: palette.fg, width: 2}
+""",
+        palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  mid: "#DADADA"',
+    )
+    warnings = [d for d in bag.items if d.code == "contrast"]
+    assert any("its own interior" in w.message for w in warnings)
+    assert not any("outline ring" in w.message and "its own interior" not in w.message
+                   for w in warnings)
+
+
 # -- check 9 ---------------------------------------------------------------
 
 
@@ -1574,7 +1639,7 @@ _OUTLINE_TEXT = """\
   - id: clock
     type: text
     text: "12:34"
-    color: palette.bg
+    color: {color}
     at: {{anchor: center}}
     font: FONT_MEDIUM{outline}
 """
@@ -1586,15 +1651,19 @@ def test_no_outline_is_silent(check):
     `outline:`-bearing element (the check `check` fixture's `background`
     element is a full-screen rectangle, drawn first, so `clock` always
     overlaps it -- the overlap alone is not the trigger)."""
-    bag = check(_OUTLINE_TEXT.format(outline=""))
+    bag = check(_OUTLINE_TEXT.format(color="palette.fg", outline=""))
     assert "text-outline-interior" not in codes(bag)
 
 
-def test_outline_over_an_earlier_element_warns(check):
-    """Green: the same design, `outline:` added -- now it fires, naming the
-    element it may paint over and stating the "boxes, not ink" confidence
-    every geometry-overlap check in this project states for itself."""
+def test_outline_over_an_earlier_element_with_a_different_colour_warns(check):
+    """Green: `clock`'s interior (`palette.fg`) cannot be shown to match
+    `background`'s own colour (`palette.bg`) -- a real, unresolved risk,
+    not the false positive the next test is about -- so this fires, naming
+    the element it may paint over and stating the "boxes, not ink"
+    confidence every geometry-overlap check in this project states for
+    itself."""
     bag = check(_OUTLINE_TEXT.format(
+        color="palette.fg",
         outline="\n    outline: {color: palette.fg, width: 2}"))
     warnings = [d for d in bag.items if d.code == "text-outline-interior"]
     assert len(warnings) == 1
@@ -1604,13 +1673,88 @@ def test_outline_over_an_earlier_element_warns(check):
     assert "boxes rather than ink" in warnings[0].confidence
 
 
-def test_outline_interior_can_be_suppressed(check):
-    """Watched red (the test above) against the same design plus
-    `lint: {allow: [...], reason: ...}}` -- the finding disappears."""
+def test_outline_interior_matching_a_fully_covering_backdrop_is_silent(check):
+    """The false positive this fix removes: `clock`'s interior
+    (`palette.bg`) is the *same* build-time constant as the earlier,
+    full-screen `background` element's own colour, and a filled rectangle
+    is trusted to paint every pixel of its own box -- repainting it in the
+    colour it already is changes nothing on screen, so there is nothing
+    to warn about, even though the boxes plainly overlap."""
     bag = check(_OUTLINE_TEXT.format(
+        color="palette.bg",
+        outline="\n    outline: {color: palette.fg, width: 2}"))
+    assert "text-outline-interior" not in codes(bag)
+
+
+def test_outline_interior_can_be_suppressed(check):
+    """Watched red (the still-warns test above, non-matching colours)
+    against the same design plus `lint: {allow: [...], reason: ...}}` --
+    the finding disappears."""
+    bag = check(_OUTLINE_TEXT.format(
+        color="palette.fg",
         outline="\n    outline: {color: palette.fg, width: 2}"
                 '\n    lint: {allow: [text-outline-interior], reason: "deliberate stamp"}'))
     assert "text-outline-interior" not in codes(bag)
+
+
+_PARTIAL_OVERLAP_DESIGN = """\
+  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center, dx: 20px}
+    radius: 10px
+    color: palette.bg
+  - id: clock
+    type: text
+    text: "12:34"
+    color: palette.bg
+    at: {anchor: center}
+    font: FONT_MEDIUM
+    outline: {color: palette.fg, width: 2}
+"""
+
+
+def test_outline_interior_matching_colour_but_only_partial_coverage_still_warns(check):
+    """A colour match alone does not prove invisibility for a *partially*
+    covering earlier element (see `check_text_outline_interior`'s own
+    docstring, "why full containment"): `dot` shares `clock`'s interior
+    colour exactly, but its small circle does not reach every pixel of
+    `clock`'s box, so whatever the rest of that box actually sits on has
+    never been checked -- the warning still fires, naming `dot`, even
+    though the full-screen `background` (also `palette.bg`, also
+    overlapping, and this time *fully* covering) is correctly not named
+    at all."""
+    bag = check(_PARTIAL_OVERLAP_DESIGN)
+    warnings = [d for d in bag.items if d.code == "text-outline-interior"]
+    assert len(warnings) == 1
+    assert "'dot'" in warnings[0].message
+    assert "'background'" not in warnings[0].message
+
+
+_DATA_DRIVEN_COLOR_DESIGN = """\
+  - id: clock
+    type: text
+    text: "12:34"
+    color: "heart_rate.current > 100 ? palette.bg : palette.fg"
+    when_absent: hide
+    at: {anchor: center}
+    font: FONT_MEDIUM
+    outline: {color: palette.fg, width: 2}
+"""
+
+
+def test_outline_interior_data_driven_colour_still_warns(check):
+    """Provably equal means provably equal at build time -- a data-
+    conditional interior colour never folds to one (`Expression.constant`
+    stays `None` for a real conditional over a catalogue reading), so even
+    though one branch of this ternary reads the exact same `palette.bg`
+    the fully-covering `background` element paints, the check cannot show
+    the two are *always* the same colour and must keep warning rather than
+    gamble on which branch runs at any given moment."""
+    bag = check(_DATA_DRIVEN_COLOR_DESIGN)
+    warnings = [d for d in bag.items if d.code == "text-outline-interior"]
+    assert len(warnings) == 1
+    assert "'background'" in warnings[0].message
 
 
 _NO_OVERLAP_DESIGN = """

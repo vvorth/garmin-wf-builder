@@ -189,10 +189,29 @@ text crosses a tick ring, a bezel, or another element, the interior paints a
 flat-coloured patch shaped like the letterforms on top of it, never like the
 earlier content showing through. Choose an interior colour that matches what
 is actually underneath *at that position*, not just the face's overall
-background — and see the `text-outline-interior` lint
-([Lints](lints.md)), which catches the mechanical half of this (an
-outlined element's box overlapping an earlier one) without pretending to
-check the colour match itself.
+background — and see the `text-outline-interior` lint ([Lints](lints.md)),
+which catches the mechanical half of this. It fires whenever the outlined
+element's box overlaps an earlier-drawn one it cannot *prove* is safe: proof
+needs the interior colour to be the exact same build-time constant as that
+earlier element's own colour, *and* that element to be a filled, box-filling
+shape (a `rectangle`/`circle`/…, not another line of text) whose box fully
+contains the outlined one's — a colour match against something that only
+partly crosses the box (that tick ring) still leaves the rest of the box
+unaccounted for, so it still warns. The idiom above (`color:` repeating the
+full-screen background's own `color:`) is exactly the case this proves safe
+and stays silent about.
+
+**Contrast is judged on the ring, not the interior.** The `contrast` lint
+treats an `outline:`-bearing element differently from a plain one: since the
+interior is *supposed* to match whatever is underneath it — that is the
+entire point of the idiom above — checking *it* for contrast would flag
+every correctly hollow element as illegible. Instead the ring is compared
+against the backdrop (a poor ring here means the whole character can vanish
+into the page, since a hollow interior draws no other ink at all) and
+against the element's own interior (a poor ring here means its inner edge
+disappears into the fill, so the glyph reads as one soft blob rather than a
+crisp outline) — two independent comparisons, either of which can warn on
+its own.
 
 **Stamp a non-anti-aliased (1-bit) font.** `outline:` stamps whatever the
 referenced font already is, unconditionally — there is no way to force

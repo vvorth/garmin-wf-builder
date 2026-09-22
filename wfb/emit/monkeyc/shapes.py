@@ -169,11 +169,28 @@ def _emit_outline_loop(
     shift commutes with whatever the call does with the rest of its
     arguments (research 14 §3.2), so the very same callback the caller
     already built for its own interior draw serves every stamp too.
+
+    **The ring colour is set once, before the loop, not once per stamp.**
+    Every stamp draws in the same `color_code` -- `width:`/the offset table
+    change *where* each stamp lands, never *what colour* it lands in
+    (§2.3/§8: `outline.color` is one fixed expression per element, not a
+    per-offset one) -- and `draw` itself is always one of
+    `_emit_plain_text_call`/`_emit_vector_draw_call`, both pure `dc.
+    drawText`/`drawAngledText`/`drawRadialText` calls that never touch
+    `dc`'s colour state themselves. So nothing between one `dc.setColor`
+    and the next stamp can change it, and re-issuing the identical call on
+    every iteration was pure waste -- `Dc`'s colour is state that persists
+    across calls, not a per-draw argument, so setting it once before the
+    `while` is behaviourally identical and strictly fewer device-side
+    calls. (The *interior* pass's own `dc.setColor`, at each call site
+    below, is untouched: it sets a different colour and runs only once,
+    after this loop, not inside it, so there was never a duplicate there
+    to remove.)
     """
+    w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     w.line(f"var offsets = Layout.OUTLINE_OFFSETS_{width};")
     w.line("var i = 0;")
     with w.block("while (i < offsets.size())"):
-        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
         draw(f"{x_expr} + offsets[i]", f"{y_expr} + offsets[i + 1]")
         w.line("i += 2;")
     w.blank()
