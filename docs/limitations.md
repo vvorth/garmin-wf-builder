@@ -803,6 +803,20 @@ test_an_antialiased_icon_previews_with_intermediate_grey` confirms this end
 to end, through a real design rather than against the baked sheet alone). For
 the primitive gap, the simulator is authoritative.
 
+**Where an outline's pen lands is an open question, and the preview and the
+linter disagree about it.** `wfb/preview.py` strokes a `filled: false`
+circle, ellipse or rectangle, and an arc, with Pillow's `width=`, which puts
+the whole pen *inside* the declared edge. `wfb/layout.py` (`_arc_box`, the
+outline branches of the shape resolver) assumes the pen *straddles* the
+edge, half a pen either side, and the `safe-area`/`off-screen` checks use
+that wider box. So a thick ring at `radius: 99%r` looks clipped-free in the
+preview and still warns. What `Dc.drawCircle`/`drawArc` do with a pen wider
+than 1 px is not documented in `$CIQ_SDK/doc/Toybox/Graphics/Dc.html` and
+has not been observed on a watch or the simulator. UNVERIFIED either way.
+Found 2026-09-22 by a Sonnet run of the image-to-watchface skill, whose
+bezel ring depended on it; until one of the two is confirmed, filled shapes
+are the exact way to put ink on a given radius.
+
 ---
 
 ## 3. What the linter does not check

@@ -81,7 +81,6 @@ listed as shipped.
   same way its own `arc` part's `start_angle:` already composes with
   `start:`/`step:` — rotated hour numerals around a dial, each tangent to
   its own radius, is one authored angle, not twelve (plan 11 §5 slice 2).
-
 - **`outline:` on `text` and on a pattern's own `shape: text` part** (plan
   15, all three slices): the stamped-ring substitute for a filled-outline
   draw mode this platform does not have (research 13/14) -- a string drawn
@@ -117,6 +116,10 @@ listed as shipped.
   `wfb/conversion.py`), since one unit can mean two quantities. The
   builder rewrites the value into an ordinary expression, so codegen,
   preview (`--units statute`) and the read plan need no second path.
+- **The image-to-watchface skill** (`skills/watchface-builder.md`,
+  `skills/face-compare.py`, adapter `.claude/skills/watchface-from-image/`):
+  revived 2026-09-22 with a compare-and-fix loop; untested by design (the
+  user's call), exercised by hand with a Sonnet run.
 
 Nothing config-, hands- or pattern-related is verified on a watch or in the
 simulator. What is verified is a warning-free real `monkeyc` build and
