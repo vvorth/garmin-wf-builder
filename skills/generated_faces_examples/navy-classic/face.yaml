@@ -1,0 +1,212 @@
+# Navy Classic -- a three-hand dress face with a day-date window at 3,
+# modelled on a photo of a navy sunray-dial automatic (build/preview/test.png).
+# The original's brand wordmarks and shield are left out; the face's own
+# name sits where the model name was.
+#
+# Preview:  ./wfb.py preview faces/navy-classic/face.yaml --time 10:10:37
+# Build:    ./wfb.py build faces/navy-classic/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 5eb11642-3050-493b-958a-dd82d4a61df4
+  name: Navy Classic
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:                          # every channel 00 / 55 / AA / FF
+  dial: "#000055"
+  flange: "#000055"
+  silver: "#AAAAAA"
+  steel: "#555555"
+  white: "#FFFFFF"
+  black: "#000000"
+
+fonts:
+  label: { face: [RobotoCondensedBold], size: 10%r }
+
+hands:
+  main:
+    hour:
+      parts:
+        - shape: polygon
+          color: palette.white
+          points:
+            - { dx: -3%r, dy: 19%r }
+            - { dx: -3%r, dy: -53%r }
+            - { dy: -57%r }
+            - { dx: 3%r, dy: -53%r }
+            - { dx: 3%r, dy: 19%r }
+        - { shape: line, at: { dy: 17%r }, to: { dy: -52%r }, thickness: 1px, color: palette.silver }
+    minute:
+      parts:
+        - shape: polygon
+          color: palette.white
+          points:
+            - { dx: -2%r, dy: 12%r }
+            - { dx: -2%r, dy: -80%r }
+            - { dy: -83%r }
+            - { dx: 2%r, dy: -80%r }
+            - { dx: 2%r, dy: 12%r }
+        - { shape: line, at: { dy: 10%r }, to: { dy: -80%r }, thickness: 1px, color: palette.silver }
+    second:
+      color: palette.silver
+      parts:
+        - shape: polygon
+          points:
+            - { dx: 0%r, dy: -90%r }
+            - { dx: -3%r, dy: 30%r }
+            - { dx: 3%r, dy: 30%r }
+            - { dx: 1%r, dy: -90%r }
+        # - { shape: line, at: { dy: 12%r }, to: { dy: -89%r }, thickness: 3px }
+        # - shape: polygon
+        #   points:
+        #     - { dx: -1%r, dy: 8%r }
+        #     - { dx: -3%r, dy: 30%r }
+        #     - { dx: 3%r, dy: 30%r }
+        #     - { dx: 1%r, dy: 8%r }
+        - { shape: circle, radius: 2.5%r }
+
+static:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.flange
+  - id: dial
+    type: shape
+    shape: circle
+    at: { anchor: center }
+    radius: 88%r
+    color: palette.dial
+  - id: flange_edge
+    lint: { allow: [contrast], reason: "a deliberately faint rehaut edge, as on the original dial" }
+    type: shape
+    shape: circle
+    filled: false
+    at: { anchor: center }
+    radius: 88%r
+    thickness: 1px
+    color: palette.steel
+  - id: minute_ticks
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 60
+    skip_every: 5
+    color: palette.silver
+    parts: [{ shape: line, at: { dy: -94%r }, to: { dy: -89%r }, thickness: 1px }]
+  - id: rim_serration
+    lint: { allow: [contrast], reason: "deliberately faint flange serration, as on the original dial" }
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 120
+    color: palette.steel
+    parts: [{ shape: line, at: { dy: -99%r }, to: { dy: -96%r }, thickness: 1px }]
+  - id: hour_dots
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    skip: [3]
+    color: palette.white
+    parts: [{ shape: circle, at: { dy: -92%r }, radius: 1.2%r }]
+  - id: hour_batons
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    skip: [0, 3]
+    color: palette.white
+    parts:
+      - { shape: rectangle, at: { dy: -78%r }, size: { width: 6%r, height: 19%r }, color: palette.silver }
+      - { shape: rectangle, at: { dy: -78%r }, size: { width: 3.5%r, height: 17%r } }
+  - id: baton_12
+    type: group
+    at: { anchor: center }
+    children:
+      - { id: b12_b, type: shape, shape: rectangle, at: { anchor: center,            dy: -78%r }, size: { width: 12%r,  height: 19%r }, color: palette.silver }
+      - { id: b12_l, type: shape, shape: rectangle, at: { anchor: center, dx: -3%r,  dy: -78%r }, size: { width: 3.5%r, height: 17%r }, color: palette.white }
+      - { id: b12_r, type: shape, shape: rectangle, at: { anchor: center, dx:  3%r,  dy: -78%r }, size: { width: 3.5%r, height: 17%r }, color: palette.white }
+  - id: marker_3
+    type: shape
+    shape: polygon
+    color: palette.white
+    points:
+      - { anchor: center, dx: 86%r }
+      - { anchor: center, dx: 91%r, dy: -2%r }
+      - { anchor: center, dx: 91%r, dy: 2%r }
+  - id: name_label
+    type: text
+    text: "CLASSIC"
+    font: font.label
+    at: { anchor: center, dy: -45%r }
+    color: palette.white
+  - id: auto_label
+    type: text
+    text: "AUTOMATIC"
+    font: font.label
+    at: { anchor: center, dy: 38%r }
+    color: palette.white
+  - id: auto_dash
+    type: shape
+    shape: line
+    at: { anchor: center, dx: -2%r, dy: 47%r }
+    to: { anchor: center, dx: 2%r, dy: 47%r }
+    thickness: 1px
+    color: palette.white
+  - id: date_frame
+    type: shape
+    shape: rectangle
+    at: { anchor: center, dx: 51%r, dy: 2%r }
+    size: { width: 59%r, height: 19%r }
+    color: palette.silver
+  - id: day_window
+    lint: { allow: [contrast], reason: "drawn inside the silver date_frame, not on the dial" }
+    type: shape
+    shape: rectangle
+    at: { anchor: center, dx: 40%r, dy: 2%r }
+    size: { width: 34%r, height: 16%r }
+    color: palette.black
+  - id: date_window
+    lint: { allow: [contrast], reason: "drawn inside the silver date_frame, not on the dial" }
+    type: shape
+    shape: rectangle
+    at: { anchor: center, dx: 69.5%r, dy: 2%r }
+    size: { width: 19%r, height: 16%r }
+    color: palette.black
+
+elements:
+  - id: weekday
+    type: text
+    value: >-
+      date.weekday == 1 ? "SUN" : date.weekday == 2 ? "MON" :
+      date.weekday == 3 ? "TUE" : date.weekday == 4 ? "WED" :
+      date.weekday == 5 ? "THU" : date.weekday == 6 ? "FRI" : "SAT"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 40%r, dy: 2%r }
+    color: palette.white
+  - id: day
+    type: text
+    value: date.day
+    format: "{:d}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 69.5%r, dy: 2%r }
+    color: palette.white
+  - id: hands
+    type: hands
+    hands: main
+    at: { anchor: center }
+    seconds: awake
+  - id: hub
+    lint: { allow: [contrast], reason: "the axle sits on the silver second-hand disc, not on the dial" }
+    type: shape
+    shape: circle
+    at: { anchor: center }
+    radius: 1%r
+    color: palette.steel
