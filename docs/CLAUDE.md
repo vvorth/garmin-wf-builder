@@ -33,6 +33,7 @@ they record when and why a decision changed.
 | 11 vector fonts, `curve:` | `git show 35217d1:docs/plans/11-vector-text.md` (§5 "Slices" is what shipped; slice 1 is `e744913`, slice 2 `35217d1`, slice 3 the example/screenshots) |
 | 12 preview font fidelity | `git show 28638ca:docs/plans/12-preview-font-fidelity.md` (§1 is the measured diagnosis — read it before re-investigating "the preview's typeface is wrong"; slice 1 R1/R3 is `28638ca`, slice 2 R2 the commit after it) |
 | 13 showcase `roman` layout | `git show 28638ca:docs/plans/13-showcase-roman-layout.md` (as proposed; built with two deliberate departures recorded in `examples/showcase/face.yaml`'s own comments — `skip: [2, 10]` because the shared registers sit on those spokes, and both apertures on `FONT_XTINY` so each is wider than tall) |
+| 15 `outline:`, the stamped ring | `git show e31117b:docs/plans/15-text-outline.md` (§14 "Slices" is what shipped; slice 1 is `0cebdf0` (amended by `65b8f2a`), slice 2 `e31117b`, slice 3 the example/screenshots/doc-sweep, commit `<PLAN15_SLICE3_COMMIT>` — placeholder: substitute the hash of the commit that deletes this file, which this row cannot know at the time it is written) |
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or

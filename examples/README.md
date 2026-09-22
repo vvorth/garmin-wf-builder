@@ -56,6 +56,7 @@ says what it is on the watch.
 | [`features/analog/`](features/analog/face.yaml) | `hands:` sets, `type: hands`, a subdial, switched by style | [Analog hands](../docs/guide/analog-hands.md) |
 | [`features/patterns/`](features/patterns/face.yaml) | radial and linear `pattern` repeats | [Patterns](../docs/guide/patterns.md) |
 | [`features/vector-text/`](features/vector-text/face.yaml) | vector (`face:`) fonts and `curve:` | [Fonts](../docs/guide/fonts.md), [Text](../docs/guide/text.md) |
+| [`features/outline/`](features/outline/face.yaml) | `outline:` on a `text` element and a pattern `shape: text` part -- the hollow idiom, a solid-interior ring, and outlined upright/angled/radial text | [Text](../docs/guide/text.md), [Patterns](../docs/guide/patterns.md) |
 | [`features/complications/`](features/complications/face.yaml) | `complication.*` bindings and `on_hold: auto` | [Data](../docs/guide/data.md) |
 | [`features/sun/`](features/sun/face.yaml) | a daylight `progress` bar computed from `complication.sunrise`/`sunset` expressions (blank in `wfb preview`: no sample data) | [Data](../docs/guide/data.md) |
 | [`features/config/`](features/config/face.yaml) | accent/data colour and colour-scheme settings | [Configuration](../docs/guide/configuration.md) |

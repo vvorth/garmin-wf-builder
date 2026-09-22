@@ -139,6 +139,10 @@ error naming `bottom`.
 
 #### `outline:` — the stamped ring
 
+![outline example](../screenshots/outline.png)
+*The hollow idiom, a solid-interior ring, and outlined upright, angled,
+radial and pattern text, from `examples/features/outline/face.yaml`.*
+
 ```yaml
 - id: clock
   type: text

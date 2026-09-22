@@ -12,11 +12,12 @@ lit pixels, code size and (as far as anything in this project can say) CPU;
 how it compares to a `BufferedBitmap` mask and a build-time baked outline
 sheet; whether the interior pass can be a true transparency mask instead
 of a flat paint (§6); how `wfb/preview.py` would reproduce it; and a
-proposed, unbuilt `outline:` format -- since resolved into a concrete,
-unbuilt design, `docs/plans/15-text-outline.md`, which answers every open
-question §8.2 leaves below under its own "Decisions (orchestrator, on
-user's go-ahead)" heading. Read that plan for the format as it will
-actually ship; this document remains the measurement record behind it.
+proposed `outline:` format -- since resolved into a concrete design and
+**built, not merely sketched: `git show e31117b:docs/plans/15-text-outline.md`
+is the design record (deleted once slice 3 landed, `docs/CLAUDE.md`), and
+`docs/guide/text.md` (`outline:`) and `docs/guide/patterns.md` ("Text
+parts") are the shipped reference.** This document remains the measurement
+record behind it.
 
 Every behavioural claim is marked **VERIFIED** or **UNVERIFIED**, per
 `docs/CLAUDE.md`. "VERIFIED" here mostly means *measured in this probe*,
@@ -737,15 +738,14 @@ change, not a new rendering path.
 
 ## 8. Recommendation for the format
 
-**Not implemented. Proposal only, for the user to weigh in on (root
-`CLAUDE.md` §7: a format-shape decision needs options, tradeoffs and a
-recommendation, then a wait for sign-off — this section is that
-proposal.) Superseded in shape, not in substance, by `docs/plans/
-15-text-outline.md`: every recommendation below was carried into that
-plan, and §8.2's five open questions were each resolved there (D1–D5 in
-its own "Decisions" section), so that plan is the current, citable
-design — this section is left as-is as the record of what was proposed
-before those decisions were made.**
+**Built. What follows was the proposal (root `CLAUDE.md` §7: a format-shape
+decision needs options, tradeoffs and a recommendation, then a wait for
+sign-off — this section was that proposal); every recommendation below was
+carried into `git show e31117b:docs/plans/15-text-outline.md` (deleted once
+built, `docs/CLAUDE.md`), and §8.2's five open questions were each resolved
+there (D1–D5 in its own "Decisions" section) and shipped, `docs/guide/
+text.md`/`patterns.md` the reference — this section is left as-is as the
+record of what was proposed before those decisions were made.**
 
 ### 8.1 Shape
 

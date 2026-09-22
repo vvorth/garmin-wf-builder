@@ -73,6 +73,19 @@ listed as shipped.
   `start:`/`step:` — rotated hour numerals around a dial, each tangent to
   its own radius, is one authored angle, not twelve (plan 11 §5 slice 2).
 
+- **`outline:` on `text` and on a pattern's own `shape: text` part** (plan
+  15, all three slices): the stamped-ring substitute for a filled-outline
+  draw mode this platform does not have (research 13/14) -- a string drawn
+  a handful of times at small pixel offsets in a ring colour, then once
+  more, unshifted, in the element's own `color:`. Reaches every draw shape
+  a `text` element or pattern text part can take (upright, `curve:
+  {style: angled}`, `curve: {style: radial}`), composes with a radial
+  pattern's own per-copy rotation the same way `curve:` alone already does,
+  and is checked by a new suppressible lint, `text-outline-interior`
+  (the interior pass paints over what's beneath it, it does not reveal
+  it). Out of scope: `hands`/`icon` parts (plan 15 §13 D5) -- text and
+  pattern `shape: text` parts only.
+
 Nothing config-, hands- or pattern-related is verified on a watch or in the
 simulator. What is verified is a warning-free real `monkeyc` build and
 `wfb preview`.

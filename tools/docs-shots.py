@@ -46,6 +46,7 @@ EXAMPLES = {
     "shapes": ("features/shapes", [], None),
     "analog-styles": ("features/analog", ["--all-styles"], None),
     "vector-text": ("features/vector-text", [], None),
+    "outline": ("features/outline", [], None),
     "styles": ("features/styles", ["--all-styles"], None),
     "slots": ("features/slots", [], None),
     # Cropped to the five system-font-size rows; the two extra vertical_align

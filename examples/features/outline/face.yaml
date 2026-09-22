@@ -1,0 +1,212 @@
+# `outline:` (docs/guide/text.md "outline: -- the stamped ring", and
+# docs/guide/patterns.md "Text parts"; built as plan 15, all three slices --
+# git show e31117b:docs/plans/15-text-outline.md is the design record).
+#
+# There is no filled-outline draw mode on this platform (no destination-out
+# blend, no font-engine switch Connect IQ can reach -- docs/research/
+# 13-outline-vector-text.md).  `outline:` is the workable substitute this
+# project measured instead: the string stamped a handful of times at small
+# pixel offsets in a ring colour, then once more, unshifted, in the
+# element's own `color:`.  What this design exercises:
+#
+# * **The canonical hollow idiom** (`clock`): `color:` repeats the
+#   background's own `palette.bg`, so the interior reads as empty and
+#   `outline:`'s ring colour is the only visible ink -- the object form,
+#   `{color, width}`.
+# * **The shorthand spelling** (`today`): `outline: palette.ring` alone,
+#   `width: 2` implied -- the same hollow idiom, written the short way.
+# * **A solid-interior ring** (`label`): the interior is a real, visible
+#   fill (`palette.slate`, not the background), so this is NOT the hollow
+#   idiom -- both the ring and the interior read as ink.  Because it still
+#   overlaps the full-screen `background` element and its interior colour
+#   does not match it, `text-outline-interior` fires here for real (the
+#   check has no way to know an opaque label was intended, only that the
+#   interior colour it sees doesn't match what's underneath) -- suppressed
+#   below with `lint: allow`, the deliberate case that proves the lint both
+#   fires and can be suppressed (`docs/guide/lints.md`).
+# * **`curve: {style: angled}` with `outline:`** (`badge`): a tilted
+#   ribbon, hollow, showing the ring survives rotation.
+# * **`curve: {style: radial}` with `outline:`** (`wordmark`): a hollow
+#   wordmark bent along the bottom rim.
+# * **A pattern `shape: text` part with `outline:`, upright** (`ticks`):
+#   three outlined numerals, no `curve:` at all -- only each copy's anchor
+#   turns.
+# * **A pattern `shape: text` part with `outline:` and `curve:`**
+#   (`dial_ring`): three more numerals, this time bent tangent to their own
+#   radius -- the per-copy rotation composes with the outline the same way
+#   it already composes with `curve:` alone (`docs/guide/patterns.md`).
+#
+# **Fonts and fr955:** every curved/radial element here uses `bezel`,
+# `face: [RobotoCondensedBold, RobotoCondensedRegular]` -- deliberately a
+# candidate list every one of the three verification targets resolves to
+# the *same* name (`RobotoCondensedBold`), unlike `features/vector-text/`'s
+# own `dial` font, which is chosen to diverge on fr955 on purpose.  There is
+# nothing about `outline:` itself that needs a divergent face; picking one
+# every target shares keeps this example about the ring, not the font
+# fallback -- see `features/vector-text/` for the divergent case.
+#
+# **Antialiasing:** neither font here sets `antialias: true` -- the guide's
+# own guidance (`docs/guide/text.md`) is not to, since stamping several
+# opaque copies of an anti-aliased glyph hardens its edge and dithers
+# harder on the 64-colour MIP palette, never softens it.
+#
+# Build it with:    ./wfb.py build examples/features/outline/face.yaml
+# Preview it with:  ./wfb.py preview examples/features/outline/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: f3a8c1d6-9e2b-4a7c-8d5f-6b1e2c9a4d7f
+  name: Feature Outline
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+# Every colour is one the 64-colour MIP panel shows without dithering: each
+# channel is 0x00, 0x55, 0xAA or 0xFF (CLAUDE.md constraint 13).
+palette:
+  bg: "#000000"
+  white: "#FFFFFF"
+  ring: "#FF5500"
+  cyan: "#00AAFF"
+  slate: "#5555AA"
+
+fonts:
+  clock:
+    source: assets/ChivoMono-Bold.ttf
+    size: 22%r
+    monospace: true
+
+  label:
+    source: assets/ChivoMono-Bold.ttf
+    size: 9%r
+
+  bezel:
+    # A candidate every one of the three verification targets resolves to
+    # the same name -- see the header comment.
+    face: [RobotoCondensedBold, RobotoCondensedRegular]
+    size: 7%r
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  # The canonical hollow idiom: the interior repeats the background's own
+  # colour, so `text-outline-interior` can prove it invisible and stays
+  # silent -- object-form `outline:`.
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: font.clock
+    at: { anchor: center, dy: -6% }
+    color: palette.bg
+    outline: { color: palette.ring, width: 2 }
+
+  # Same hollow idiom, shorthand spelling: `outline: <colour>` alone is
+  # `{color: <colour>, width: 2}`.
+  - id: today
+    type: text
+    value: date.today
+    format: "{:%a %e}"
+    font: font.label
+    at: { anchor: center, dy: 12% }
+    color: palette.bg
+    outline: palette.ring
+
+  # A solid-interior ring: the interior is real, visible ink
+  # (`palette.slate`), not the background -- see the header comment for why
+  # this is the deliberate `text-outline-interior` case.
+  - id: label
+    type: text
+    text: "OUTLINE"
+    font: font.label
+    at: { anchor: center, dy: 26% }
+    color: palette.slate
+    outline: { color: palette.white, width: 2 }
+    lint:
+      allow: [text-outline-interior]
+      reason: "Deliberately not the hollow idiom -- palette.slate is a real,
+        visible fill, not the backdrop, so this is an opaque label the ring
+        decorates, not a cutout meant to disappear.  The lint cannot tell
+        that apart from a hollow idiom with the wrong interior colour, so
+        it fires (correctly, mechanically) on the overlap with the
+        full-screen `background` and is suppressed here on purpose --
+        proves the lint both fires and can be suppressed."
+
+  # curve: angled with outline:, hollow -- the ring survives rotation.
+  - id: badge
+    type: text
+    text: "DEMO"
+    font: font.bezel
+    color: palette.bg
+    at: { anchor: center, dx: 34%r, dy: -50%r }
+    outline: { color: palette.white, width: 1 }
+    curve:
+      style: angled
+      angle: 35deg
+
+  # curve: radial with outline:, hollow -- bent along the bottom rim.
+  - id: wordmark
+    type: text
+    text: "STAMPED RING"
+    font: font.bezel
+    color: palette.bg
+    at: { anchor: center }
+    outline: { color: palette.cyan, width: 2 }
+    curve:
+      style: radial
+      angle: 165deg
+      radius: 82%r
+      direction: counter_clockwise
+
+  # A pattern `shape: text` part with outline:, upright (no curve: at all --
+  # only each copy's anchor turns).  A small, clustered arc rather than a
+  # full ring, so its own bounding box stays clear of every other element
+  # here (docs/lore/codegen.md's own note on why plan 15's golden fixture
+  # keeps its pattern clusters small).
+  - id: ticks
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 3
+    start: 235deg
+    step: 12deg
+    parts:
+      - shape: text
+        value: "copy + 1"
+        font: font.bezel
+        color: palette.bg
+        at: { dy: -80%r }
+        outline: { color: palette.ring, width: 2 }
+
+  # A pattern `shape: text` part with outline: AND curve: -- the per-copy
+  # rotation composes with the ring exactly as it already composes with
+  # curve: alone, so every copy's ring turns with its own numeral.
+  - id: dial_ring
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 3
+    start: 100deg
+    step: 12deg
+    parts:
+      - shape: text
+        value: "copy + 1"
+        font: font.bezel
+        color: palette.bg
+        outline: { color: palette.white, width: 1 }
+        curve:
+          style: radial
+          angle: 0deg
+          radius: 62%r
+          direction: clockwise

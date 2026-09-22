@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/` (open: `14-aod.md`, `15-text-outline.md`; built plans are deleted — see `docs/CLAUDE.md`) |
+| proposals written but not built | `docs/plans/` (open: `14-aod.md`; built plans are deleted — see `docs/CLAUDE.md`) |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -289,7 +289,12 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     devices, `if_unavailable: error|hide` (plan 11, both slices); a
     pattern part's own `curve.angle` composes with a radial pattern's
     per-copy rotation, so hour numerals tangent to their own radius are
-    one authored angle, not one per copy.
+    one authored angle, not one per copy;
+  - `outline:` on a `text` element and on a pattern's own `shape: text`
+    part — the stamped-ring substitute for a filled-outline mode this
+    platform lacks (plan 15, all three slices), reaching every draw shape
+    those elements can take and checked by a new suppressible lint,
+    `text-outline-interior`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.

@@ -263,7 +263,9 @@ fails the font's availability gates, leaving every other part of the same
 pattern (and every other element sharing the font) unaffected.
 
 **`outline:`** (plan 15) works exactly as on a standalone [`text`
-element](text.md#outline--the-stamped-ring), one level down: the part's
+element](text.md#outline--the-stamped-ring) — see that section's own
+screenshot, which includes an outlined pattern text part both plain and
+curved (`examples/features/outline/face.yaml`) — one level down: the part's
 own string, drawn N times at small screen-space pixel offsets in the ring
 colour, then once more, unshifted, in the part's own (effective) `color:`.
 Both spellings (a bare colour, or `{color, width}`, 1–3px, default 2)
