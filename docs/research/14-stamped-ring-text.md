@@ -12,7 +12,11 @@ lit pixels, code size and (as far as anything in this project can say) CPU;
 how it compares to a `BufferedBitmap` mask and a build-time baked outline
 sheet; whether the interior pass can be a true transparency mask instead
 of a flat paint (§6); how `wfb/preview.py` would reproduce it; and a
-proposed, unbuilt `outline:` format.
+proposed, unbuilt `outline:` format -- since resolved into a concrete,
+unbuilt design, `docs/plans/15-text-outline.md`, which answers every open
+question §8.2 leaves below under its own "Decisions (orchestrator, on
+user's go-ahead)" heading. Read that plan for the format as it will
+actually ship; this document remains the measurement record behind it.
 
 Every behavioural claim is marked **VERIFIED** or **UNVERIFIED**, per
 `docs/CLAUDE.md`. "VERIFIED" here mostly means *measured in this probe*,
@@ -736,7 +740,12 @@ change, not a new rendering path.
 **Not implemented. Proposal only, for the user to weigh in on (root
 `CLAUDE.md` §7: a format-shape decision needs options, tradeoffs and a
 recommendation, then a wait for sign-off — this section is that
-proposal.)**
+proposal.) Superseded in shape, not in substance, by `docs/plans/
+15-text-outline.md`: every recommendation below was carried into that
+plan, and §8.2's five open questions were each resolved there (D1–D5 in
+its own "Decisions" section), so that plan is the current, citable
+design — this section is left as-is as the record of what was proposed
+before those decisions were made.**
 
 ### 8.1 Shape
 
