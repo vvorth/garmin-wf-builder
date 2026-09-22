@@ -26,6 +26,7 @@ when any of them was a `"substitute"`/`"none"` match.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, replace as dataclass_replace
 from functools import lru_cache
 from pathlib import Path
@@ -37,6 +38,7 @@ from .catalog import Type
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
 from .fonts import cft as cft_fonts
+from .ir import disc_perimeter_offsets
 from .layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
     PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
@@ -718,6 +720,25 @@ class _Renderer:
         )
         self._draw_text(font, text, anchor, part.align, part.vertical_align, part.font_metric, color)
 
+    def _stamp_outline(
+        self, anchor: tuple[int, int], width: int, draw: Callable[[tuple[int, int]], None],
+    ) -> None:
+        """The host-side twin of the codegen stamp loop (plan 15 §9): the
+        same disc-perimeter offset table (`wfb.ir.disc_perimeter_offsets`)
+        codegen emits as `Layout.OUTLINE_OFFSETS_<width>`, drawn at each
+        shifted anchor through `draw` -- whichever of `_draw_text`/
+        `_draw_vector_text` the caller already resolved to, called with
+        `color` already bound to the ring colour -- so the preview and the
+        generated Monkey C cannot silently stamp different pixels. `anchor`
+        is in real device pixels, matching every other anchor this
+        renderer's draw methods take; `_draw_text`/`_draw_vector_text`
+        themselves apply the preview's own upscale (`self.scale`) to
+        whatever anchor they are given, offset included.
+        """
+        ax, ay = anchor
+        for dx, dy in disc_perimeter_offsets(width):
+            draw((ax + dx, ay + dy))
+
     def _text(self, placed: PlacedText) -> None:
         element = placed.element
         text = self._text_value(placed)
@@ -733,6 +754,16 @@ class _Renderer:
             # same as the real watch.
             if not placed.font_available:
                 return
+            if element.outline is not None:
+                ring_color = self._color(element.outline.color)
+                self._stamp_outline(
+                    placed.anchor_point, element.outline.width,
+                    lambda anchor: self._draw_vector_text(
+                        text, anchor, element.align, element.vertical_align,
+                        placed.font_metric, ring_color, placed.curve_style,
+                        placed.curve_angle_garmin, placed.curve_radius_px,
+                        placed.curve_direction),
+                )
             self._draw_vector_text(
                 text, placed.anchor_point, element.align, element.vertical_align,
                 placed.font_metric, color, placed.curve_style, placed.curve_angle_garmin,
@@ -741,6 +772,14 @@ class _Renderer:
         font: BakedFont | None = (
             self.resolved.fonts.get(placed.font_reference) if placed.font_is_custom else None
         )
+        if element.outline is not None:
+            ring_color = self._color(element.outline.color)
+            self._stamp_outline(
+                placed.anchor_point, element.outline.width,
+                lambda anchor: self._draw_text(
+                    font, text, anchor, element.align, element.vertical_align,
+                    placed.font_metric, ring_color),
+            )
         self._draw_text(font, text, placed.anchor_point, element.align, element.vertical_align,
                         placed.font_metric, color, box=placed.box)
 

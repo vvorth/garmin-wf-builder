@@ -8,7 +8,7 @@ platform limits and can never be suppressed.
 
 ## At a glance
 
-Eighteen codes are suppressible. One line each, derived from this chapter,
+Nineteen codes are suppressible. One line each, derived from this chapter,
 [`docs/limitations.md`](../limitations.md) §3 and `wfb/lint.py`'s own
 messages; see `wfb/lint.py` if unsure.
 
@@ -32,6 +32,7 @@ messages; see `wfb/lint.py` if unsure.
 | `unreachable-layout` | a `layouts:` entry that no `config: style:` entry names as its `layout:`, so it can never be drawn |
 | `sub-pixel-length` | a `%`/`%r` length resolves below 1 px on this device, with `min_1px:` off |
 | `font-unavailable` | a `face:` font (or an element using one) with `if_unavailable: hide` fails to resolve a usable face on this device |
+| `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element -- the interior pass paints over it, it does not reveal it |
 
 ## Lint suppression
 
@@ -50,11 +51,12 @@ an out-of-range draw call, it clips silently the same way `setClip` does, so
 drawing partly or fully off the framebuffer is a cropped design, not a broken
 one, and the check is a warning like `safe-area`.
 
-Eighteen codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
+Nineteen codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
 `text-overflow`, `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
-`duplicate-style`, `unreachable-layout`, `sub-pixel-length` and
+`duplicate-style`, `unreachable-layout`, `sub-pixel-length`,
+`text-outline-interior` and
 `font-unavailable` — a `face:` font, or an element using one, that has
 `if_unavailable: hide` and fails to resolve a usable face on some target
 device (["Vector (`face:`) fonts"](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)). Under the default
@@ -96,6 +98,9 @@ own** `lint:` -- neither is an element.
 part's **owning element**, the same element `min_1px:` inherits through
 when the part declares none of its own: a part has no `lint:` block to
 hang an `allow:` on.
+`text-outline-interior` is reported on the `outline:`-bearing element
+itself (the one whose interior pass might paint over something), never on
+the earlier-drawn element(s) it may overlap.
 See `docs/limitations.md` 3.
 
 ## What gets checked

@@ -42,6 +42,14 @@ PATTERN_LOOP_INDEX = "i"
 GRAPH_AREA_MAX_SAMPLES = 62
 
 
+#: `outline:`'s own cap (plan 15 D6) -- every offset set research 14
+#: measured (`docs/research/14-stamped-ring-text.md` §1, §4.1) stops at
+#: r=3, and the ring/solid pixel ratio keeps climbing past it with no
+#: further evidence gathered.  `Builder._build_outline` rejects a wider
+#: ring with a build error citing that evidence -- deliberately not a
+#: schema `maximum`, so the message can say *why*, not just *that*.
+MAX_OUTLINE_WIDTH = 3
+
 #: System fonts an author may name directly, instead of a baked custom font.
 SYSTEM_FONTS = (
     "FONT_XTINY", "FONT_TINY", "FONT_SMALL", "FONT_MEDIUM", "FONT_LARGE",
@@ -261,6 +269,51 @@ class Curve:
     #: which way the text runs around the circle starting at `angle:`.
     #: `None` on `angled`, rejected there the same way `radius` is.
     direction: str | None = None
+
+
+@dataclass(frozen=True)
+class Outline:
+    """`outline:` on a `text` element (plan 15 §2.4), and -- once slice 2
+    lands -- a pattern's own `shape: text` part: the stamped ring research
+    14 measured.  `color` follows `Text.color`'s own grammar exactly
+    (palette/config/data, `Builder._color_expression`, D8 §13 of plan 15);
+    `width` is a plain pixel integer, 1-3 (`Builder._build_outline` rejects
+    a wider ring with a build error citing research 14's own numbers --
+    not a schema bound, D6, :data:`MAX_OUTLINE_WIDTH`).
+    """
+
+    color: Expression
+    width: int = 2
+
+
+def disc_perimeter_offsets(radius: int) -> tuple[tuple[int, int], ...]:
+    """The stamped-ring offset table for one ring width, in pixels
+    (research 14 §1, plan 15 §8, D3 §13): every integer `(dx, dy)` on the
+    outer integer shell of a disc of this radius -- `(r-1)**2 < dx**2 +
+    dy**2 <= r**2` -- the exact algorithm `docs/research/probes/
+    stamped-ring/stamp_experiment.py`'s own `offsets_disc_perimeter` uses,
+    reused verbatim rather than re-derived.  Exactly 4/8/16 points at
+    r=1/2/3, matching research 14 §1's own measured table.  `disc-
+    perimeter` is the *only* offset set this format ever emits (D3): no
+    `offsets:` escape hatch, because `square8` overshoots and `cross4`
+    undershoots with a quality gap that widens as the ring grows and is
+    rotation-variant around a radial run (research 14 §1, §3.2).
+
+    Shared, verbatim, by `wfb.emit.monkeyc.layout_constants` (the device-
+    side `OUTLINE_OFFSETS_<W>` constant) and `wfb.preview` (the host-side
+    stamp loop) -- one source of truth, so the two cannot silently stamp
+    different pixels, the same discipline `wfb.layout`/`wfb.preview`
+    already keep for every other rendering fact.
+    """
+    lo = (radius - 1) * (radius - 1)
+    hi = radius * radius
+    out: list[tuple[int, int]] = []
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+            d2 = dx * dx + dy * dy
+            if lo < d2 <= hi:
+                out.append((dx, dy))
+    return tuple(out)
 
 
 # --------------------------------------------------------------------------
@@ -923,9 +976,21 @@ class Text(Element):
     #: font (`Builder._build_text`): nothing there can ever be unavailable,
     #: so accepting it would promise a check that never runs.
     if_unavailable: str | None = None
+    #: `outline:` as authored, or `None` for today's plain fill (plan 15).
+    #: The stamped ring: this element's string drawn N times at small pixel
+    #: offsets in `outline.color`, then once more, unshifted, in this
+    #: element's own `color:` -- the interior pass it already had.  Reaches
+    #: every draw shape a standalone element can take (upright, `curve:
+    #: {style: angled}`, `curve: {style: radial}`) -- `curve:` itself
+    #: decides which draw call runs; `outline:` only wraps whichever one
+    #: that already is.
+    outline: "Outline | None" = None
 
     def _own_expressions(self) -> list[Expression]:
-        return [e for e in (self.value, self.color, self.fallback) if e]
+        out = [e for e in (self.value, self.color, self.fallback) if e]
+        if self.outline is not None:
+            out.append(self.outline.color)
+        return out
 
 
 @dataclass

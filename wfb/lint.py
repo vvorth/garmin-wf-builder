@@ -38,7 +38,7 @@ SUPPRESSIBLE = frozenset({
     "hold-unsupported", "hold-overlap", "api-gated",
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
-    "sub-pixel-length", "font-unavailable", "off-screen",
+    "sub-pixel-length", "font-unavailable", "off-screen", "text-outline-interior",
 })
 #: `api-gated-unguardable` is deliberately absent here -- see
 #: `check_api_gated`'s case 5: it means the generator would emit an unguarded
@@ -73,7 +73,8 @@ ALL_CODES = frozenset({
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
     "sub-pixel-length", "target",
     "static", "static-overlap", "string-label",
-    "text-antialias", "text-curve", "unreachable-layout",
+    "text-antialias", "text-curve", "text-outline", "text-outline-interior",
+    "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
 })
 
@@ -96,6 +97,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_api_gated(resolved, bag)
     check_graphics_pool(resolved, bag)
     check_static_overlap(resolved, bag)
+    check_text_outline_interior(resolved, bag)
     check_pattern_step(resolved, bag)
     for warning in resolved.warnings:
         bag.note("metrics", warning, confidence="not checked -- no metrics available")
@@ -2040,6 +2042,66 @@ def check_static_overlap(resolved: ResolvedFace, bag: Bag) -> None:
                    "write them in the order they should paint, static content "
                    "first, to say so explicitly -- or accept it with "
                    "lint: {allow: [static-overlap], reason: \"...\"}"],
+            confidence="exact -- resolved geometry, but boxes rather than ink: the "
+                       "elements may not overlap where they actually draw",
+        ))
+
+
+def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
+    """`outline:`'s interior pass paints over whatever is beneath it -- it
+    does not reveal it (research 14 §6.4, plan 15 §3/§7). Fires when an
+    `outline:`-bearing element's own (ring-grown) box overlaps an
+    **earlier-drawn** element's box, in the same modes and layout -- the
+    mechanical half of that authoring trap, modelled on
+    `check_static_overlap`'s own `_intersects` box test (`wfb/lint.py`
+    above), generic over `Placed` (any element kind: `getattr(...,
+    "outline", None)` rather than an `isinstance(element, Text)` check, so
+    a pattern's own bounding box needs no separate code path here once
+    `outline:` reaches pattern text parts, plan 15 slice 2, D10 §13).
+
+    Unlike `check_static_overlap`, there is no hoist to detect: draw order
+    (`resolved.items`, already sorted) already says which element ends up
+    on top, so every earlier-drawn element intersecting an outlined one's
+    box is reported, not only a pair the static hoist swapped. A WARNING,
+    suppressible, "exact -- resolved geometry, but boxes rather than ink"
+    (the same honesty `check_static_overlap` states for itself): two boxes
+    can intersect while the glyphs never actually touch.
+
+    Scope (D10): box-level, element-level for a pattern (not per-copy) --
+    left for slice 2 to wire up, since no pattern part carries `outline:`
+    yet in this slice.
+    """
+    drawn = [p for p in resolved.items if p.kind != "group"]
+    for index, later in enumerate(drawn):
+        outline = getattr(later.element, "outline", None)
+        if outline is None:
+            continue
+        under: list[str] = []
+        for earlier in drawn[:index]:
+            if not set(later.element.modes) & set(earlier.element.modes):
+                continue  # never on screen at the same time
+            if never_together(later.element, earlier.element):
+                continue  # different layouts -- never on screen together either
+            if not _intersects(later.box, earlier.box):
+                continue
+            under.append(earlier.id)
+        if not under:
+            continue
+        names = ", ".join(repr(name) for name in under)
+        _emit(bag, later, Diagnostic(
+            Severity.WARNING,
+            "text-outline-interior",
+            f"{later.id!r}'s outline interior may paint over {names} on "
+            f"{resolved.device.id}: the interior pass paints over what's "
+            f"beneath it, it does not reveal it -- check the interior colour "
+            f"matches what's actually there, or move one of them",
+            later.element.span,
+            notes=["'outline:' has no transparency of any kind -- "
+                   "Graphics.BlendMode has no destination-out formula reachable "
+                   "from drawText (docs/research/14-stamped-ring-text.md §6)",
+                   "write lint: {allow: [text-outline-interior], reason: \"...\"} "
+                   "once the interior colour is confirmed correct for what's "
+                   "actually underneath"],
             confidence="exact -- resolved geometry, but boxes rather than ink: the "
                        "elements may not overlap where they actually draw",
         ))

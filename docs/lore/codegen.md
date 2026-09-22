@@ -305,3 +305,36 @@ These cost real time to discover; do not rediscover them.
   and needs a per-copy runtime term, so it is inlined straight into the
   shared view instead of a per-device `Layout` constant nothing would
   differ across devices for anyway.
+
+- **`outline:`'s stamp offsets (plan 15 slice 1): a build-time-computed,
+  loop-not-unroll array, the same "a runtime loop's cost is in the array,
+  not the loop body" finding `docs/research/probes/pattern-cost/README.md`
+  already established for `drawLine`/`fillPolygon`, now confirmed for
+  `drawText` too (`docs/research/14-stamped-ring-text.md` §4.3, a real
+  `monkeyc --build-stats` run, warning-free on `fenix8solar47mm`).** The
+  offsets themselves (`wfb.ir.disc_perimeter_offsets`) are pure Python,
+  never authored: `disc-perimeter` at radius `r` is every integer `(dx,
+  dy)` with `(r-1)² < dx²+dy² <= r²`, exactly 4/8/16 points at r=1/2/3 --
+  the *only* offset set this format ever emits (no `offsets:` escape
+  hatch, D3 of plan 15 §13: `square8` overshoots, `cross4` undershoots
+  with a gap that widens as the ring grows and is rotation-variant around
+  a radial run). Emitted once per **distinct width actually used
+  anywhere in the design** (`OUTLINE_OFFSETS_<W>`, an `Array<Number>`
+  flattened `[dx0, dy0, dx1, dy1, ...]`, not `Array<Graphics.Point2D>` --
+  `Dc.drawText`'s own `(x, y)` are two separate `Number` arguments, not a
+  tuple), the same "keyed by what's declared, deduplicated across
+  elements" shape a `face:` font's `_FACE`/`_SIZE` constants and a
+  polygon's own `_POINTS` constant already use. Research 14 §4.3 measured
+  the loop form as flat in code size at both N=8 and N=16 (only the data
+  growing, ~5 B/`Number`) and close to a wash against unrolling at N=8,
+  pulling ahead at N=16 -- the loop is the unconditional default, both
+  because it is never worse at the sizes this format actually needs and
+  because it is the one shape that lets `width:` be a data value rather
+  than a rewrite of call sites. The stamp loop (`wfb.emit.monkeyc.shapes.
+  _emit_outline_loop`) wraps a caller-supplied per-anchor draw callback,
+  shared verbatim between the interior pass and every stamp -- so a
+  screen-space anchor shift is the *only* thing that differs between a
+  stamp and the interior draw, for every draw-call shape a standalone
+  `text` element can take (plain `drawText`, `drawAngledText`,
+  `drawRadialText`), exactly research 14 §3.2's "commutes with rotation"
+  derivation.

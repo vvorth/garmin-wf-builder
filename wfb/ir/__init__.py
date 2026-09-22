@@ -28,7 +28,9 @@ from .naming import (
 )
 from .model import (
     MODES, HOLD_AUTO, PATTERN_LOOP_INDEX, GRAPH_AREA_MAX_SAMPLES, SYSTEM_FONTS,
-    Position, Size, Expression, FontSpec, Curve, CONFIG_SYMBOL, ConfigChoice, ConfigAxis,
+    MAX_OUTLINE_WIDTH,
+    Position, Size, Expression, FontSpec, Curve, Outline, disc_perimeter_offsets,
+    CONFIG_SYMBOL, ConfigChoice, ConfigAxis,
     CONFIG_AXES, ConfigColor, ColorScheme, LayoutDecl, StyleEntry, ConfigStyle,
     ConfigDataSlot, Element, Group, Shape, HandPart, Hand, HandSet, HandsElement,
     PatternElement, Text, Progress, IconElement, ComplicationSlot, Graph, Face,
@@ -53,7 +55,9 @@ __all__ = [
     "graph_max_field", "graph_built_field", "graph_rebuild_method", "_element_suffix",
     "_lower_first", "_pascal", "font_resource_id", "config_label_id", "config_style_label_id",
     "MODES", "HOLD_AUTO", "PATTERN_LOOP_INDEX", "GRAPH_AREA_MAX_SAMPLES", "SYSTEM_FONTS",
-    "Position", "Size", "Expression", "FontSpec", "Curve", "CONFIG_SYMBOL", "ConfigChoice", "ConfigAxis",
+    "MAX_OUTLINE_WIDTH",
+    "Position", "Size", "Expression", "FontSpec", "Curve", "Outline", "disc_perimeter_offsets",
+    "CONFIG_SYMBOL", "ConfigChoice", "ConfigAxis",
     "CONFIG_AXES", "ConfigColor", "ColorScheme", "LayoutDecl", "StyleEntry", "ConfigStyle",
     "ConfigDataSlot", "Element", "Group", "Shape", "HandPart", "Hand", "HandSet", "HandsElement",
     "PatternElement", "Text", "Progress", "IconElement", "ComplicationSlot", "Graph", "Face",

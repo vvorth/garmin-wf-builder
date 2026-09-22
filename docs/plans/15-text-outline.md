@@ -1,22 +1,29 @@
 # 15 — `outline:`: the stamped ring as an author-facing text feature
 
-**Status: proposed, not built.** `docs/research/13-outline-vector-text.md`
-found that the platform's own outlined-text mode (FreeType's stroker, a
-real two-pass "ring in one colour, glyph in another" run) exists in
-Garmin's engine but is switched on by a font-record bit no Connect IQ API
-can ever set — outline text is not a draw-time switch, on this platform,
-full stop. `docs/research/14-stamped-ring-text.md` measured the one
-workable substitute research 13 §5 named — draw the string N times at
-small offsets in a ring colour, then once more at the centre in a fill
-colour — and closed every question needed to build it, **except** the
-format itself, which research 14 §8 left as an unbuilt proposal with five
-open questions. The user told the orchestrator to proceed through
-research, plan and implementation; this plan resolves those five (plus a
-few the orchestrator's own brief raised) under **"Decisions (orchestrator,
-on user's go-ahead)"** (§13) — each recorded with its reasoning so the user
-can overturn any single one without unwinding the rest, the same way plan
-14 §7 records D1–D5. Nothing here is built. Delete this file once it is
-(`docs/CLAUDE.md`).
+**Status: slice 1 built (§14) — `outline:` on a standalone `text` element,
+warning-free on all three verification targets. Slices 2 and 3 open.**
+Delete this file when slice 3 lands (`docs/CLAUDE.md`). What slice 1
+shipped is documented in `docs/guide/text.md`, `docs/guide/lints.md`,
+`docs/guide/colors.md`, `docs/limitations.md` §2 and `docs/lore/
+codegen.md`; this file remains only as the design record for the two
+slices still to come, plus one amendment recorded in §16 below (a schema
+correction found during implementation).
+
+`docs/research/13-outline-vector-text.md` found that the platform's own
+outlined-text mode (FreeType's stroker, a real two-pass "ring in one
+colour, glyph in another" run) exists in Garmin's engine but is switched on
+by a font-record bit no Connect IQ API can ever set — outline text is not a
+draw-time switch, on this platform, full stop. `docs/research/
+14-stamped-ring-text.md` measured the one workable substitute research 13
+§5 named — draw the string N times at small offsets in a ring colour, then
+once more at the centre in a fill colour — and closed every question
+needed to build it, **except** the format itself, which research 14 §8
+left as an unbuilt proposal with five open questions. The user told the
+orchestrator to proceed through research, plan and implementation; this
+plan resolves those five (plus a few the orchestrator's own brief raised)
+under **"Decisions (orchestrator, on user's go-ahead)"** (§13) — each
+recorded with its reasoning so the user can overturn any single one
+without unwinding the rest, the same way plan 14 §7 records D1–D5.
 
 ---
 
@@ -776,3 +783,66 @@ to be worth a second look:
   at 2 and 3 respectively, but "what looks right on a wrist" was never
   measured (research 14 says so plainly, §4.2/§8.2 item 2) and only the
   user has seen a real watch.
+
+---
+
+## 16. Amendments found during slice 1 implementation (2026-09-22)
+
+Two places where the plan's own text, taken literally, would not have
+produced a correct or even a valid implementation — recorded here per the
+orchestrator's brief ("choose the closest faithful alternative, amend the
+plan in place with a short note explaining why") rather than silently
+diverging from what is written above.
+
+**§2.3's schema `oneOf` is ambiguous as written, and was fixed at
+implementation time.** The literal three-branch `oneOf` (`{const: "none"}`,
+`colorExpression`, the object form) rejects the value `outline: none`
+outright under JSON Schema's own semantics: `colorExpression` is `{type:
+string, minLength: 1}`, which the bare string `"none"` also satisfies, so
+`"none"` matches *two* of the three `oneOf` branches and `oneOf` requires
+exactly one. The schema actually shipped (`schema/wfb-face-1.schema.json`
+`$defs/outline`) wraps the colour-expression branch in `allOf: [
+colorExpression, {not: {const: "none"}} ]` instead, so a bare `"none"`
+matches only the first branch and everything else matches only the second
+— verified directly against the real schema with `jsonschema` before and
+after (the unpatched draft fails to validate `outline: none` at all; the
+shipped one accepts it, and rejects nothing else the plan's own examples
+use). No format-level change: the three spellings (`none`, a bare colour,
+the object form) behave exactly as §2.1/§2.2 describe; only the schema
+*text* needed the fix.
+
+**§6/D9's layout-growth description ("feed `width + 2 * ring_px` into
+whichever box function `curve_style` already selects") is under-specified
+in a way that would have produced an incorrect, *unsafe* (under-reporting)
+box for a non-centred `align:`/`vertical_align:`, and was implemented via
+an explicit `pad:` parameter instead of literal value substitution.** The
+issue: `_rotated_text_box`/`radial_text_angle_span`/`radial_text_band` (and
+the plain-box branch) all compute the box's *placement* (the `align`
+shift, or — for radial — the angular start/end) from the same `width`/
+`line_height` value that also sets the box's *size*. Substituting a grown
+`width + 2*ring_px` into both uses at once does not dilate the box
+symmetrically about its own centre (a true Minkowski dilation, and what
+D9's own prose claims): for `align: left`, it leaves the box's already-at-
+the-anchor left edge exactly where the *unringed* box's left edge was, and
+pushes all of the growth onto the right edge — silently under-reporting
+the ring's real reach on the aligned side, where an actual stamped ring's
+left-shifted copies (offset `(-r, 0)`, drawn with the same left-justify
+re-applied at the shifted anchor) genuinely do extend `ring_px` further
+left than the anchor. This is not a hypothetical: `tests/
+test_text_outline_layout.py::test_upright_box_grows_past_the_align_edge_
+too` drives exactly this case red against a literal-substitution
+implementation and green against the one shipped. The fix: `rotated_rect_
+corners`/`_rotated_text_box`/`radial_text_angle_span`/`radial_text_band`
+each grew a new `pad: float = 0.0` parameter (default `0.0`, so every
+pre-existing call site is byte-for-byte unaffected) that pads the box's
+*half-extent*/*angular reach* by `ring_px` **after** its placement is
+computed from the unpadded dimensions — the "Minkowski-dilate the pre-
+transform box, *keeping its own centre*, then apply the same transform"
+construction D9's prose actually intends, just not the literal value-
+substitution its own worked description would produce. `_placed_text_
+curve_reach` (the round-screen `safe-area` shape-aware reach function,
+which independently re-derives its geometry from `PlacedText`'s stored
+fields rather than reading the already-grown `.box`) needed the same
+`pad:` threaded through it for the same reason — not mentioned in §6 at
+all, found only because `visible_reach`'s own docstring says plainly that
+it recomputes rather than trusts `.box`.

@@ -670,6 +670,44 @@
         }
       ]
     },
+    "outline": {
+      "description": "The stamped-ring outline (research 13/14, plan 15): draws the text N times at small pixel offsets in this colour, then once more, unshifted, in the element's own 'color:' -- the fill pass every text element already has. 'none' (the default) draws no ring at all, byte-identical to today. The shorthand form (a bare colour expression) is 'width: 2' with that colour.",
+      "oneOf": [
+        {
+          "const": "none"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/colorExpression"
+            },
+            {
+              "not": {
+                "const": "none"
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "color"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Ring width in pixels, not a Length -- always pixels, on every device, the same way a pattern's own 'count:' is a bare integer with no unit (docs/guide/patterns.md). Capped at 3 -- a build error above that, not a schema bound, so the message can cite research 14's own numbers (D6, plan 15 §13). Never %/%r: the ring is a fixed visual stroke weight, the same way Garmin's own engine strokes at a fixed 2.0px regardless of device (research 13 §2.1)."
+            }
+          }
+        }
+      ]
+    },
     "position": {
       "description": "A position relative to an anchor on the parent box. Either cartesian (dx/dy) or polar (angle/radius) -- polar is first-class because 115 of 164 devices are round.",
       "type": "object",
@@ -1064,6 +1102,10 @@
         "curve": {
           "description": "Bends this text along a line or around an arc, instead of drawing it upright with plain Dc.drawText. Requires 'font:' to name a 'face:' (vector) 'fonts:' entry -- a baked or system font here is a build error, since Dc.drawAngledText/drawRadialText refuse a resource font outright.",
           "$ref": "#/$defs/curve"
+        },
+        "outline": {
+          "description": "Draws this text's string N times at small pixel offsets in a ring colour, then once more, unshifted, in 'color:' -- the stamped ring (research 13/14, plan 15). 'none' (the default) draws no ring at all, byte-identical to today.",
+          "$ref": "#/$defs/outline"
         },
         "if_unavailable": {
           "description": "Overrides this element's font's own 'if_unavailable:' outright -- only meaningful when 'font:' names a 'face:' (vector) font; a build error on a baked or system font, since nothing there can ever be unavailable. 'error' fails the build naming the device and the face(s) it lacks; 'hide' makes this one element not draw on a device that fails the font's availability gates, leaving every other element that shares the font unaffected. Omit to inherit the font's own 'if_unavailable:' (itself 'error' by default).",

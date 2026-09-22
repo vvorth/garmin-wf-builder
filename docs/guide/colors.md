@@ -155,3 +155,4 @@ the wearer pick between author-named entries, each naming a declared scheme.
 - [Configuration](configuration.md) — `config: style:`, `config.accent_color`, `config.colors.*`.
 - [Data binding, expressions and formats](data.md) — the expression language a `color:` key uses.
 - [Progress bars, arcs and graphs](progress-and-graphs.md) — `type: progress`, `style: arc`.
+- [Text](text.md#outline--the-stamped-ring) — see `outline:`'s own colour rules; `outline.color` is exactly this same grammar.

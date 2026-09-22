@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from ... import formatting
 from ...ir import Progress, local_name
 from ...layout import PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace
@@ -150,6 +152,48 @@ def _radial_radius_expr(radius_expr: str, vertical_align: str, direction: str | 
     return f"{radius_expr} {sign} Graphics.getFontAscent({font_expr})"
 
 
+def _emit_outline_loop(
+    w: Writer, width: int, color_code: str, x_expr: str, y_expr: str,
+    draw: Callable[[str, str], None],
+) -> None:
+    """The stamp loop `outline:` runs ahead of a text draw call's own
+    (unshifted) interior pass (plan 15 §5, §8): loops over
+    `Layout.OUTLINE_OFFSETS_<width>` (the disc-perimeter table
+    `wfb.emit.monkeyc.layout_constants` already emitted for this width),
+    calling `draw` at each shifted screen-space anchor in the ring colour.
+
+    `draw(x_expr, y_expr)` emits exactly the draw-call line(s) the interior
+    pass would emit at that anchor -- everything else about the call
+    (font, value, justify, angle, radius, direction) is left to `draw`
+    itself, unaffected by which anchor it was given: a screen-space anchor
+    shift commutes with whatever the call does with the rest of its
+    arguments (research 14 §3.2), so the very same callback the caller
+    already built for its own interior draw serves every stamp too.
+    """
+    w.line(f"var offsets = Layout.OUTLINE_OFFSETS_{width};")
+    w.line("var i = 0;")
+    with w.block("while (i < offsets.size())"):
+        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+        draw(f"{x_expr} + offsets[i]", f"{y_expr} + offsets[i + 1]")
+        w.line("i += 2;")
+    w.blank()
+
+
+def _emit_plain_text_call(
+    w: Writer, x_expr: str, y_expr: str, font_expr: str, value_code: str, justify: str,
+    vertical_align: str,
+) -> None:
+    """One `dc.drawText` call against a baked or system font, at the given
+    screen-space anchor -- shared by the interior pass and every
+    `outline:` stamp (plan 15 §5, §8), the only difference between them
+    being which anchor is passed in.
+    """
+    y = _glyph_y_expr(y_expr, vertical_align, font_expr)
+    w.line(f"dc.drawText({x_expr}, {y}, {font_expr},")
+    w.line(f"            {value_code},")
+    w.line(f"            {justify});")
+
+
 def _emit_text_draw(w: Writer, placed: PlacedText, value_code: str) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -165,11 +209,47 @@ def _emit_text_draw(w: Writer, placed: PlacedText, value_code: str) -> None:
         font_expr = "font"
     else:
         font_expr = f"Graphics.{placed.font_reference}"
-    y_expr = _glyph_y_expr(f"Layout.{prefix}_Y", element.vertical_align, font_expr)
+    if element.outline is not None:
+        _emit_outline_loop(
+            w, element.outline.width, _color(element.outline.color),
+            f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
+            lambda x, y: _emit_plain_text_call(
+                w, x, y, font_expr, value_code, justify, element.vertical_align),
+        )
     w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"dc.drawText(Layout.{prefix}_X, {y_expr}, {font_expr},")
-    w.line(f"            {value_code},")
-    w.line(f"            {justify});")
+    _emit_plain_text_call(
+        w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", font_expr, value_code, justify,
+        element.vertical_align)
+
+
+def _emit_vector_draw_call(
+    w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str,
+    x_expr: str, y_expr: str,
+) -> None:
+    """One `dc.drawText`/`drawAngledText`/`drawRadialText` call against a
+    `face:` (vector) font, at the given screen-space anchor -- shared by
+    the interior pass and every `outline:` stamp (plan 15 §5, §8): `angle`/
+    `radius`/`direction`/justify stay exactly what the interior pass would
+    have used regardless of which anchor `x_expr`/`y_expr` name, since a
+    screen-space anchor shift commutes with the rest of the call's
+    arguments (research 14 §3.2, §5's own table).
+    """
+    element = placed.element
+    if placed.curve_style == "angled":
+        w.line(f"dc.drawAngledText({x_expr}, {y_expr}, font, {value_code},")
+        w.line(f"                  {justify}, Layout.{prefix}_ANGLE);")
+    elif placed.curve_style == "radial":
+        direction = _RADIAL_DIRECTION[placed.curve_direction or "clockwise"]
+        radius = _radial_radius_expr(f"Layout.{prefix}_RADIUS", element.vertical_align,
+                                     placed.curve_direction, "font")
+        w.line(f"dc.drawRadialText({x_expr}, {y_expr}, font, {value_code},")
+        w.line(f"                  {justify}, Layout.{prefix}_ANGLE, {radius},")
+        w.line(f"                  Graphics.{direction});")
+    else:
+        y = _glyph_y_expr(y_expr, element.vertical_align, "font")
+        w.line(f"dc.drawText({x_expr}, {y}, font,")
+        w.line(f"            {value_code},")
+        w.line(f"            {justify});")
 
 
 def _emit_vector_text_draw(
@@ -192,27 +272,24 @@ def _emit_vector_text_draw(
     element reads as "an ordinarily-missing thing, drawn as nothing" rather
     than "a load failure", matching how plan 11 §3's own generated-code
     example presents it.
+
+    **`outline:`'s stamp loop moves inside this same guard** (plan 15 §5):
+    a missing vector font draws nothing at all, ring included, exactly as
+    it draws nothing today -- one `if (font != null)`, never two.
     """
     element = placed.element
     field = f"_{_field(placed.font_reference)}"
     w.line(f"var font = {field};")
     with w.block("if (font != null)"):
+        if element.outline is not None:
+            _emit_outline_loop(
+                w, element.outline.width, _color(element.outline.color),
+                f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
+                lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
+            )
         w.line(f"dc.setColor({_color(element.color)}, Graphics.COLOR_TRANSPARENT);")
-        if placed.curve_style == "angled":
-            w.line(f"dc.drawAngledText(Layout.{prefix}_X, Layout.{prefix}_Y, font, {value_code},")
-            w.line(f"                  {justify}, Layout.{prefix}_ANGLE);")
-        elif placed.curve_style == "radial":
-            direction = _RADIAL_DIRECTION[placed.curve_direction or "clockwise"]
-            w.line(f"dc.drawRadialText(Layout.{prefix}_X, Layout.{prefix}_Y, font, {value_code},")
-            radius = _radial_radius_expr(f"Layout.{prefix}_RADIUS", element.vertical_align,
-                                         placed.curve_direction, "font")
-            w.line(f"                  {justify}, Layout.{prefix}_ANGLE, {radius},")
-            w.line(f"                  Graphics.{direction});")
-        else:
-            y_expr = _glyph_y_expr(f"Layout.{prefix}_Y", element.vertical_align, "font")
-            w.line(f"dc.drawText(Layout.{prefix}_X, {y_expr}, font,")
-            w.line(f"            {value_code},")
-            w.line(f"            {justify});")
+        _emit_vector_draw_call(
+            w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
 def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str]) -> None:

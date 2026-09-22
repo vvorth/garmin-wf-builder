@@ -26,6 +26,7 @@ wordmark on this platform.
 | `curve.radius:` | `Length` | — | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
 | `curve.direction:` | `clockwise`/`counter_clockwise` | `clockwise` | `radial` only — [`curve:`](#curve--rotated-and-radial-text) |
 | `if_unavailable:` | `error`/`hide` | inherits the font's own | [Fonts](fonts.md#if_unavailable--and-what-error-actually-promises) |
+| `outline:` | `none`, a colour expression, or `{color, width}` | `none` | [`outline:`](#outline--the-stamped-ring) |
 
 ## Example
 
@@ -135,6 +136,88 @@ even for a system font, whose pixel height this compiler only knows at build
 time from the SDK's published device reference, the installed device's
 `simulator.json`, or its `.cft` font. `vertical_align: baseline` is a build
 error naming `bottom`.
+
+#### `outline:` — the stamped ring
+
+```yaml
+- id: clock
+  type: text
+  value: time.clock
+  format: "{:%h:%M}"
+  font: font.clock
+  color: palette.bg              # interior -- reads as empty against a flat background
+  outline: { color: palette.text_outline, width: 2 }
+```
+
+There is no filled-outline draw mode on this platform (`Dc.drawText` has no
+switch for it, and the one that exists in Garmin's own font engine is not
+reachable from Connect IQ — `docs/research/13-outline-vector-text.md`).
+`outline:` is the workable substitute this project measured instead: the
+string drawn a handful of times at small pixel offsets in the ring colour,
+then once more, unshifted, in the element's existing `color:` — the ordinary
+fill pass every `text` element already has, doing double duty as the
+interior. `none` (the default, and simply omitting the key) draws no ring at
+all, byte-identical to plain text.
+
+```yaml
+outline: none                        # default -- no ring, today's plain fill
+
+outline: palette.text_outline        # shorthand -- colour only, width: 2 implied
+
+outline:
+  color: palette.text_outline        # required in object form -- same grammar as color:
+  width: 2                           # px, 1-3, default 2
+```
+
+`width:` is always pixels, never `%`/`%r` — a fixed visual stroke weight,
+the same way Garmin's own font engine strokes at a fixed 2.0px regardless of
+device. It is capped at **3px**: a build error above that, citing the
+measured evidence (`docs/research/14-stamped-ring-text.md` §1, §4.1), not a
+bare schema bound. `outline.color` follows exactly the same rules as
+`color:` — a palette entry, a literal, `config.*`, or a full conditional
+expression over any of those, data sources included.
+
+**The interior pass paints over whatever is beneath it — it does not reveal
+it.** There is no `background` colour role in this format (a face's
+background is an ordinary `shape: rectangle` element with its own `color:`),
+so "hollow, reads as the background" means repeating that same palette
+reference in `color:`, as the example above does. This works perfectly
+wherever the element sits over nothing but that one flat colour — but
+`Graphics.BlendMode` has no destination-out formula reachable from
+`drawText` (checked directly against the SDK docs), so the moment the same
+text crosses a tick ring, a bezel, or another element, the interior paints a
+flat-coloured patch shaped like the letterforms on top of it, never like the
+earlier content showing through. Choose an interior colour that matches what
+is actually underneath *at that position*, not just the face's overall
+background — and see the `text-outline-interior` lint
+([Lints](lints.md)), which catches the mechanical half of this (an
+outlined element's box overlapping an earlier one) without pretending to
+check the colour match itself.
+
+**Stamp a non-anti-aliased (1-bit) font.** `outline:` stamps whatever the
+referenced font already is, unconditionally — there is no way to force
+anti-aliasing off for one element, since a custom font's anti-aliasing is a
+*resource* attribute shared by every element that references it (the same
+reason `antialias:` itself is not a `text` element key at all). Stacking
+several opaque, non-blended stamps of an anti-aliased glyph
+(`alphaBlendingSupport: false` on every MIP target) **hardens and thickens
+the edge, never softens it**, and then dithers harder on the 64-colour
+palette on top of that. This project's own baked-font default is already
+1-bit (`antialias: false`), which is exactly the cheap, dither-free input
+`outline:` wants — so the practical guidance is simply: don't turn
+`antialias:` on for a font you plan to stamp.
+
+`outline:` reaches every draw shape a `text` element can take — plain
+upright text, `curve: {style: angled}`, and `curve: {style: radial}` alike
+— wrapping whichever single draw call `curve:`/`if_unavailable:` already
+selected in one more loop, ahead of the interior pass; it changes nothing
+about which call runs or which string is drawn. The element's own
+placement box grows by `width:` on every side to cover the ring, so
+`off-screen`/`safe-area`/`static-overlap`/the partial-update clip are all
+already correct for a ringed element with no separate check of their own.
+
+See [`docs/research/14-stamped-ring-text.md`](../research/14-stamped-ring-text.md)
+for the full measurement record this feature is built from.
 
 #### `curve:` — rotated and radial text
 
@@ -265,8 +348,8 @@ AABB is the right shape to test there.
 > `docs/research/probes/vector-fonts/README.md`.
 
 Everything else on `text` keeps working untouched under `curve:` —
-`value:`/`text:`, `format:`, `color:`, `visible:`, `when_absent:`,
-`fallback:`, `modes:`, `on_hold:`, `static:`.
+`value:`/`text:`, `format:`, `color:`, `outline:`, `visible:`,
+`when_absent:`, `fallback:`, `modes:`, `on_hold:`, `static:`.
 
 A `pattern`'s own `shape: text` part accepts `curve:` too (plan 11 slice 2) —
 see [Text parts](patterns.md#text-parts) for how the authored angle composes with
@@ -278,3 +361,5 @@ the copy's own rotation.
 - [Fonts](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable) — `face:` fonts, required for `curve:`.
 - [Patterns](patterns.md#text-parts) — a pattern's own `shape: text` part, which accepts `curve:` too.
 - [Placement](placement.md#placement-at-and-align) — `at:`, `align:` and `vertical_align:` for every element kind.
+- [Colours](colors.md) — `outline.color`'s own colour rules, identical to `color:`'s.
+- [Lints](lints.md) — `text-outline-interior`, the overlap check `outline:` gets for free.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ...availability import Guards, vector_font_face
+from ...ir import disc_perimeter_offsets
 from ...layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon, PlacedPattern,
     PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
@@ -73,6 +74,46 @@ def _vector_font_constants(
     return out
 
 
+def _outline_widths_used(resolved: ResolvedFace) -> list[int]:
+    """Every distinct `outline.width` a `text` element (or, once slice 2
+    lands, a pattern's own `shape: text` part) actually draws with in this
+    design, in first-appearance draw order -- the same "only what's
+    actually used generates code" rule `_vector_fonts_used`/`_loaded_fonts`
+    already follow (`wfb.emit.monkeyc.common`). `getattr(..., "outline",
+    None)` rather than `isinstance(placed, PlacedText)` so a future kind
+    (a pattern text part) that grows its own `.outline` needs no change
+    here.
+    """
+    out: list[int] = []
+    for placed in resolved.items:
+        outline = getattr(placed.element, "outline", None)
+        if outline is not None and outline.width not in out:
+            out.append(outline.width)
+    return out
+
+
+def _outline_offsets_constants(width: int) -> list[tuple[str, McLiteral, str]]:
+    """`OUTLINE_OFFSETS_<W>` -- the flat `Array<Number>` (`[dx0, dy0, dx1,
+    dy1, ...]`) the stamp loop iterates over (plan 15 §8), one per distinct
+    ring width actually used anywhere in the design, deduplicated the same
+    way a `face:` font's `_FACE`/`_SIZE` constants are emitted once per
+    font name rather than once per element. The `_POINTS` precedent (a
+    polygon's own vertex array, above) is the reason this is an
+    `Array<Graphics.Point2D>`-shaped exception rather than a plain
+    `Number`: `Dc.drawText`'s own `(x, y)` are two separate `Number`
+    arguments, not a `Point2D`, so a flat `Array<Number>` (index `i`/`i+1`
+    per stamp) is what the call site actually wants, not a tuple array.
+    """
+    offsets = disc_perimeter_offsets(width)
+    flat = ", ".join(str(v) for pair in offsets for v in pair)
+    return [(
+        f"OUTLINE_OFFSETS_{width}",
+        McLiteral("Array<Number>", f"[{flat}]"),
+        f"{len(offsets)} disc-perimeter points, {width}px ring (plan 15, "
+        "docs/research/14-stamped-ring-text.md §1)",
+    )]
+
+
 def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> SourceFile:
     face, device = resolved.face, resolved.device
     w = Writer()
@@ -126,6 +167,17 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
                 w.blank()
                 w.doc(f"`font.{name}`")
                 _emit_constants(w, _vector_font_constants(resolved, name, guards))
+        outline_widths = _outline_widths_used(resolved)
+        if outline_widths:
+            w.blank()
+            w.doc(
+                "'outline:' stamp offsets (plan 15): the disc-perimeter table for\n"
+                "each ring width this design actually uses, shared by every element\n"
+                "drawing with that width -- the array the generated stamp loop\n"
+                "iterates over, index i/i+1 per (dx, dy) pair."
+            )
+            for width in outline_widths:
+                _emit_constants(w, _outline_offsets_constants(width))
         for placed in resolved.items:
             constants = _layout_constants(placed) + _hold_constants(placed)
             if not constants:

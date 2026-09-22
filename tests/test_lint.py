@@ -1567,6 +1567,179 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     assert "stressScore" in guards.fields
 
 
+# -- check_text_outline_interior (plan 15 §7, D10) --------------------------
+
+
+_OUTLINE_TEXT = """\
+  - id: clock
+    type: text
+    text: "12:34"
+    color: palette.bg
+    at: {{anchor: center}}
+    font: FONT_MEDIUM{outline}
+"""
+
+
+def test_no_outline_is_silent(check):
+    """Red baseline: the same overlapping element, no `outline:` at all --
+    nothing to report, since `text-outline-interior` only ever fires on an
+    `outline:`-bearing element (the check `check` fixture's `background`
+    element is a full-screen rectangle, drawn first, so `clock` always
+    overlaps it -- the overlap alone is not the trigger)."""
+    bag = check(_OUTLINE_TEXT.format(outline=""))
+    assert "text-outline-interior" not in codes(bag)
+
+
+def test_outline_over_an_earlier_element_warns(check):
+    """Green: the same design, `outline:` added -- now it fires, naming the
+    element it may paint over and stating the "boxes, not ink" confidence
+    every geometry-overlap check in this project states for itself."""
+    bag = check(_OUTLINE_TEXT.format(
+        outline="\n    outline: {color: palette.fg, width: 2}"))
+    warnings = [d for d in bag.items if d.code == "text-outline-interior"]
+    assert len(warnings) == 1
+    assert "'clock'" in warnings[0].message
+    assert "'background'" in warnings[0].message
+    assert "does not reveal it" in warnings[0].message
+    assert "boxes rather than ink" in warnings[0].confidence
+
+
+def test_outline_interior_can_be_suppressed(check):
+    """Watched red (the test above) against the same design plus
+    `lint: {allow: [...], reason: ...}}` -- the finding disappears."""
+    bag = check(_OUTLINE_TEXT.format(
+        outline="\n    outline: {color: palette.fg, width: 2}"
+                '\n    lint: {allow: [text-outline-interior], reason: "deliberate stamp"}'))
+    assert "text-outline-interior" not in codes(bag)
+
+
+_NO_OVERLAP_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: corner
+    type: text
+    text: "AB"
+    color: palette.fg
+    at: {{anchor: top_left, dx: 0px, dy: 0px}}
+    align: left
+    vertical_align: top
+    font: FONT_XTINY
+  - id: clock
+    type: text
+    text: "12:34"
+    color: palette.bg
+    at: {{anchor: bottom_right, dx: 0px, dy: 0px}}
+    align: right
+    vertical_align: bottom
+    font: FONT_XTINY{outline}
+"""
+
+
+def test_outline_interior_is_silent_when_boxes_do_not_overlap(write_design, bag, db):
+    """No forced full-screen backdrop here (unlike the `check` fixture) --
+    `corner` sits at the top-left, `clock` at the bottom-right, an
+    unrelated pair of small `FONT_XTINY` labels nowhere near each other, so
+    an `outline:` on `clock` must not warn -- the check is about actual box
+    overlap, not merely "this element has an outline" (a bug that fired
+    unconditionally on any `outline:` would still pass the earlier tests,
+    which always overlap the `check` fixture's own full-screen
+    `background`)."""
+    resolved = _resolved_for(
+        write_design, bag, db,
+        _NO_OVERLAP_DESIGN.format(outline="\n    outline: {color: palette.fg, width: 2}"),
+        "fenix8solar47mm",
+    )
+    lint.check_text_outline_interior(resolved, bag)
+    assert "text-outline-interior" not in codes(bag), bag.render()
+
+
+def test_outline_interior_fires_once_the_pair_is_moved_to_overlap(write_design, bag, db):
+    """Same design, `clock` moved on top of `corner` instead -- the red
+    half of the contrast the previous test's green half relies on: without
+    this, a check that never fires at all would also pass the "silent"
+    test above."""
+    overlapping = _NO_OVERLAP_DESIGN.replace(
+        "at: {{anchor: bottom_right, dx: 0px, dy: 0px}}\n    align: right\n"
+        "    vertical_align: bottom\n",
+        "at: {{anchor: top_left, dx: 0px, dy: 0px}}\n    align: left\n"
+        "    vertical_align: top\n",
+    )
+    resolved = _resolved_for(
+        write_design, bag, db,
+        overlapping.format(outline="\n    outline: {color: palette.fg, width: 2}"),
+        "fenix8solar47mm",
+    )
+    lint.check_text_outline_interior(resolved, bag)
+    hits = [d for d in bag.items if d.code == "text-outline-interior"]
+    assert hits, bag.render()
+    assert "'clock'" in hits[0].message and "'corner'" in hits[0].message
+
+
+_DISJOINT_MODES_DESIGN = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+elements:
+  - id: always_on_text
+    type: text
+    text: "AOD"
+    color: palette.fg
+    modes: [{first_modes}]
+    at: {{anchor: center}}
+    font: FONT_MEDIUM
+  - id: clock
+    type: text
+    text: "12:34"
+    color: palette.bg
+    modes: [{second_modes}]
+    at: {{anchor: center}}
+    font: FONT_MEDIUM
+    outline: {{color: palette.fg, width: 2}}
+"""
+
+
+def test_outline_interior_is_silent_across_disjoint_modes(write_design, bag, db):
+    """Two elements at the *same* position (boxes definitely overlap), but
+    never on screen at the same time (disjoint `modes:`) -- must not warn,
+    the same "never on screen together" guard `check_static_overlap`
+    already applies, reused here rather than re-derived."""
+    resolved = _resolved_for(
+        write_design, bag, db,
+        _DISJOINT_MODES_DESIGN.format(first_modes="always_on", second_modes="active"),
+        "fenix8solar47mm",
+    )
+    lint.check_text_outline_interior(resolved, bag)
+    assert "text-outline-interior" not in codes(bag), bag.render()
+
+
+def test_outline_interior_fires_once_modes_overlap(write_design, bag, db):
+    """Same overlapping position, `modes:` widened so the two elements
+    genuinely share at least one mode -- the red half of the contrast the
+    previous test's green half relies on (a check that ignored `modes:`
+    entirely would also pass the "silent" test above)."""
+    resolved = _resolved_for(
+        write_design, bag, db,
+        _DISJOINT_MODES_DESIGN.format(
+            first_modes="active, always_on", second_modes="active"),
+        "fenix8solar47mm",
+    )
+    lint.check_text_outline_interior(resolved, bag)
+    hits = [d for d in bag.items if d.code == "text-outline-interior"]
+    assert hits, bag.render()
+
+
 def test_format_doc_lists_every_suppressible_code():
     """`docs/guide/lints.md` names the suppressible codes; `lint.SUPPRESSIBLE`
     is the real list.

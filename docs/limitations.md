@@ -669,6 +669,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `rounded_rectangle`/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |
 | A true typographic-baseline value for `vertical_align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | plan 07 §6 choice 1 -- `bottom` is the line box's bottom (ascent + descent); a real typographic baseline would need a new value |
 | Element-level alignment of a *linear* `pattern`'s drawn-ink box (as opposed to its `at:`, which is a pivot every copy steps from, and already refuses `align:`/`vertical_align:` outright) | plan 07 §6 choice 2's alternative -- useful for aligning a whole row, but left unbuilt because it would make a pattern's `at:` mean two different things (the step origin, and the row's own box) |
+| `outline:` on a pattern `shape: text` part | plan 15 §14 slice 2 -- standalone `text` elements ship in slice 1 |
 
 **None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
 verified anywhere in this project** (plan 02 §9,
@@ -922,7 +923,10 @@ them rather than to an arbitrary one:
 the element itself reaches them -- for `static-overlap`, on the element
 that ends up on top; for `sub-pixel-length`, on the element even when the
 finding is actually about one of its hand/pattern **parts**, since a part
-has no `lint:` block of its own to hang an `allow:` on.
+has no `lint:` block of its own to hang an `allow:` on. `text-outline-
+interior` (plan 15) is scoped the same way as `static-overlap` -- on the
+`outline:`-bearing element itself, never the earlier-drawn element(s) it
+may overlap.
 
 A code in `allow:` that this compiler does not emit, or that is deliberately not
 suppressible, is now an **error** naming which of the two it is. Before that, both

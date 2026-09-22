@@ -29,7 +29,8 @@ from ..yamlsrc import YamlDocument
 from .model import (
     ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle,
     Curve, Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group, HOLD_AUTO,
-    Hand, HandPart, HandSet, HandsElement, IconElement, LayoutDecl, PATTERN_LOOP_INDEX,
+    Hand, HandPart, HandSet, HandsElement, IconElement, LayoutDecl, MAX_OUTLINE_WIDTH,
+    Outline, PATTERN_LOOP_INDEX,
     PatternElement, Position, Progress, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
     _drawn_copies, authored_draw_order, walk_elements,
 )
@@ -2985,6 +2986,8 @@ class Builder:
             element.curve = self._build_curve(node, element, font_ok)
         if font_ok and "if_unavailable" in node:
             self._check_text_if_unavailable(node, element)
+        if "outline" in node:
+            element.outline = self._build_outline(node, "outline", element)
         if value is not None:
             self._check_absence(node, element, value, element.when_absent, element.placeholder,
                                 element.fallback)
@@ -2993,6 +2996,60 @@ class Builder:
         self._check_reachable_substitute(node, element, "'color'",
                                          (element.value,), (element.color,))
         return element
+
+    def _build_outline(self, node: dict, key: str, element: Text) -> Outline | None:
+        """`outline:` on a `text` element (plan 15 §2.3-2.4, §14 slice 1) --
+        the stamped ring research 14 measured: the element's string drawn N
+        times at small pixel offsets in `outline.color`, then once more,
+        unshifted, in the element's own `color:` -- the interior pass it
+        already had.
+
+        Two spellings collapse to one `Outline` here (D7, plan 15 §13): a
+        bare colour expression (shorthand -- `width: 2` implied, the same
+        "the colour is the field that matters most of the time" precedent
+        `$defs/configChoice` already gives a `config:` `choices:` entry) or
+        an explicit `{color, width}` mapping. `outline.color` goes through
+        the very same `_color_expression` `color:` itself uses (D8) -- full
+        parity by construction, not a second, narrower implementation.
+        `width` is capped at `MAX_OUTLINE_WIDTH` with a build error, not a
+        schema `maximum`, so the message can cite the measured evidence the
+        cap rests on (D6) the way `_check_curve_font` cites the SDK
+        sentence it enforces.
+        """
+        raw = node.get(key)
+        if raw is None or raw == "none":
+            return None
+        span = self.doc.span(node, key)
+        if isinstance(raw, dict):
+            color = self._color_expression(raw, "color")
+            color_span = self.doc.span(raw, "color") or span
+            width = raw.get("width", 2)
+            width_span = self.doc.span(raw, "width") or span
+        else:
+            color = self._color_expression(node, key)
+            color_span = span
+            width = 2
+            width_span = span
+        if color is None:
+            return None
+        if width > MAX_OUTLINE_WIDTH:
+            self.bag.error(
+                "text-outline",
+                f"{element.id}: 'outline: width: {width}' is more than "
+                f"{MAX_OUTLINE_WIDTH}px",
+                width_span,
+                notes=[
+                    "every offset set research 14 measured stops at "
+                    f"{MAX_OUTLINE_WIDTH}px -- a wider ring was never evidenced "
+                    "(docs/research/14-stamped-ring-text.md §1)",
+                    "the ring/solid pixel ratio keeps climbing past this width "
+                    "with no measurement to say it still reads as an outline "
+                    "rather than a second, blockier glyph (§4.1)",
+                ],
+            )
+            return None
+        self._check_other_absence(node, element, "outline.color", color, span=color_span)
+        return Outline(color=color, width=width)
 
     def _reject_text_antialias(self, node: dict, element: Text) -> None:
         """`antialias:` on a `text` element -- a per-element key on a shared resource.
@@ -3946,7 +4003,7 @@ class Builder:
             )
 
     def _check_other_absence(self, node: dict, element: Element, key: str,
-                             bound: Expression | None) -> None:
+                             bound: Expression | None, span: Span | None = None) -> None:
         """A nullable binding outside `value` still needs an explicit `when_absent:`.
 
         `_check_absence` above only ever runs for `value` -- without this
@@ -3959,6 +4016,13 @@ class Builder:
         *something*, the same ADR 0005 3 contract `value` already has -- not
         that the chosen policy's exact semantics (placeholder text, a
         substitute number) apply to a colour, which they do not.
+
+        `span` overrides `self.doc.span(node, key)` -- needed for a binding
+        that does not live at `node[key]` directly, such as `outline.color`
+        (`key` is `'outline.color'` for the message, but the real YAML node
+        is `outline:`'s own sub-mapping, or `node['outline']` itself under
+        the shorthand spelling; `Builder._build_outline` works out which and
+        passes the right span in).
         """
         if bound is None or not bound.nullable:
             return
@@ -3968,7 +4032,7 @@ class Builder:
             "when-absent",
             f"{element.id}: {key!r} reads {bound.text!r}, which can be absent, so "
             "'when_absent:' is required",
-            self.doc.span(node, key),
+            span if span is not None else self.doc.span(node, key),
             notes=[
                 "every ActivityMonitor field is nullable and sensors are simply missing on "
                 "some devices, so absence is the normal case, not an error",

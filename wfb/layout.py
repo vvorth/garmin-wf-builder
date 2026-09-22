@@ -156,7 +156,7 @@ def garmin_curve_angle(style: str, angle: Angle) -> float:
 
 def radial_text_angle_span(
     curve_angle_garmin: float, direction: str | None, align: str,
-    total_advance: float, radius: float,
+    total_advance: float, radius: float, pad: float = 0.0,
 ) -> tuple[float, float]:
     """The Garmin-degree interval a `curve: {style: radial}` run actually
     sweeps -- derived the same way `wfb.preview._draw_radial_vector_text`
@@ -175,18 +175,29 @@ def radial_text_angle_span(
     (`direction_sign` there: `+1` for `counter_clockwise`, `-1` for
     `clockwise`).  Returned as `(theta_a, theta_b)`, **not** ordered
     min-before-max -- `arc_bbox` below takes them either order.
+
+    `pad` (plan 15 §6, D9) extends *both* ends of the run by this many
+    pixels along the arc, before converting to degrees -- deliberately
+    computed from the unpadded `align_offset` (so which end grows more
+    never depends on `align`, the same "pad the already-placed box outward,
+    do not re-derive the placement from a padded width" reasoning
+    `rotated_rect_corners`' own `pad` follows) rather than by literally
+    substituting `total_advance + 2 * pad`, which would pad only the far
+    end for `align: left` (and only the near end for `align: right`) since
+    `align_offset` itself scales with `total_advance`.
     """
     counter_clockwise = direction == "counter_clockwise"
     direction_sign = 1.0 if counter_clockwise else -1.0
     align_offset = {"left": 0.0, "center": total_advance / 2.0, "right": total_advance}[align]
-    theta_a = curve_angle_garmin - direction_sign * math.degrees(align_offset / radius)
-    theta_b = curve_angle_garmin + direction_sign * math.degrees((total_advance - align_offset) / radius)
+    theta_a = curve_angle_garmin - direction_sign * math.degrees((align_offset + pad) / radius)
+    theta_b = curve_angle_garmin + direction_sign * math.degrees(
+        (total_advance - align_offset + pad) / radius)
     return theta_a, theta_b
 
 
 def radial_text_band(
     radius: float, line_height: float, vertical_align: str, direction: str | None,
-    ascent: float,
+    ascent: float, pad: float = 0.0,
 ) -> tuple[float, float]:
     """The radii (`r_inner`, `r_outer`) a `curve: {style: radial}` run's
     lint band actually spans -- the ONE place both `Resolver._resolve_text`
@@ -215,15 +226,27 @@ def radial_text_band(
     `ascent` is `wfb.fonts.fallback.ascent` -- the preview's own baseline,
     the stand-in for the device's `getFontAscent`.
 
+    `pad` (plan 15 §6, D9) grows the returned band by this many pixels on
+    *both* radii -- applied uniformly at the very end, after the
+    up/down split above, rather than by folding it into `line_height`
+    beforehand: `up`/`down` are not symmetric under `vertical_align:
+    bottom` (`ascent` vs. `line_height - ascent`), so growing `line_height`
+    itself would only widen whichever side `down` names, never `up`. A
+    uniform `-pad`/`+pad` at the end is correct regardless of that split,
+    the same "pad the already-placed reach outward" reasoning
+    `radial_text_angle_span`'s own `pad` follows. `arc_bbox` already clamps
+    a negative `r_inner` to 0, so `r_inner - pad` going negative here (a
+    wide ring on a small radius) is safe.
+
     Returned `(r_inner, r_outer)` with `r_inner <= r_outer` always.
     """
     if vertical_align == "center":
         half = line_height / 2.0
-        return radius - half, radius + half
+        return radius - half - pad, radius + half + pad
     up, down = (ascent, line_height - ascent) if vertical_align == "bottom" else (0.0, line_height)
     if direction != "counter_clockwise":  # clockwise (default): "up" is outward
-        return radius - down, radius + up
-    return radius - up, radius + down
+        return radius - down - pad, radius + up + pad
+    return radius - up - pad, radius + down + pad
 
 
 def _curve_ascent(metric: FontMetric | None, line_height: float) -> float:
@@ -284,7 +307,7 @@ def arc_bbox(
 
 def rotated_rect_corners(
     x: float, y: float, width: float, height: float, align: str, vertical_align: str,
-    garmin_angle_degrees: float,
+    garmin_angle_degrees: float, pad: float = 0.0,
 ) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]:
     """The four REAL corners of a `width`x`height` text box, anchored at
     `(x, y)`, shifted by `align`/`vertical_align` in its own unrotated frame
@@ -303,13 +326,28 @@ def rotated_rect_corners(
     sector -- so the AABB stays the right shape for the framebuffer
     (`off-screen`) check, but the round-screen (`safe-area`) reach check
     needs these actual corners instead.
+
+    `pad` (plan 15 §6, D9) grows the box's own half-extents by this much on
+    every side, in the box's *local* (pre-rotation) frame, **without**
+    moving its centre: `align`/`vertical_align` still shift the *unpadded*
+    box (`dx`/`dy` below reads `width`/`height`, never `width + 2*pad`), so
+    an `outline:` ring is centred on the same point the plain ink box
+    already was, then grown outward by `pad` in every local direction --
+    the "Minkowski-dilate the pre-transform box, then apply the same
+    transform" construction `_resolve_text`'s own D9 note describes,
+    conservative by construction (it bounds, but does not exactly trace,
+    the true screen-space disc dilation a stamped ring produces -- research
+    14 §3.2's own commuting-with-rotation argument, at a corner a locally
+    padded rectangle reaches up to `pad * sqrt(2)` past the true disc's own
+    `pad`, never less). `pad=0.0` (every pre-existing caller) reproduces
+    today's corners exactly.
     """
     theta = math.radians(garmin_angle_degrees)
     cos_t, sin_t = math.cos(theta), math.sin(theta)
     dx, dy = alignment_shift(width, height, align, vertical_align)
     cx = x + dx * cos_t + dy * sin_t
     cy = y - dx * sin_t + dy * cos_t
-    hw, hh = width / 2.0, height / 2.0
+    hw, hh = width / 2.0 + pad, height / 2.0 + pad
     corners = []
     for lx, ly in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
         corners.append((cx + lx * cos_t + ly * sin_t, cy - lx * sin_t + ly * cos_t))
@@ -1370,6 +1408,15 @@ class Resolver:
         if curve_style == "radial" and curve.radius is not None:
             curve_radius_px = round(self._len(curve.radius, parent, Axis.MINOR, 0))
 
+        # `outline:`'s own ring width (plan 15 §6, D9) -- 0 on every element
+        # without one, which is what keeps every pre-existing box byte-
+        # identical.  Grows whichever of the three box shapes below
+        # `curve_style` already selects, rather than re-deriving padding
+        # logic three times: `_rotated_text_box`/`radial_text_angle_span`/
+        # `radial_text_band` all take the same `pad` and apply it
+        # conservatively in their own frame (their own docstrings).
+        ring_px = float(element.outline.width) if element.outline is not None else 0.0
+
         if curve_style == "angled":
             # The rotated bounding box of the measured extent about the
             # anchor (plan 11 §4) -- conservative, never optimistic: it is
@@ -1378,7 +1425,7 @@ class Resolver:
             # the real glyph ink would occupy.
             box = self._rotated_text_box(x, y, width, line_height,
                                          element.align, element.vertical_align,
-                                         curve_angle_garmin)
+                                         curve_angle_garmin, pad=ring_px)
         elif curve_style == "radial":
             # The tight arc-shaped box (2026-09-21 follow-up to plan 11 §4):
             # a SQUARE centred on the circle over-reports badly on a round
@@ -1402,24 +1449,30 @@ class Resolver:
             # (`Text.curve`'s `at:` reinterpretation, §2.2).
             if curve_radius_px > 0:
                 theta_a, theta_b = radial_text_angle_span(
-                    curve_angle_garmin, curve_direction, element.align, width, curve_radius_px)
+                    curve_angle_garmin, curve_direction, element.align, width, curve_radius_px,
+                    pad=ring_px)
                 r_inner, r_outer = radial_text_band(
                     curve_radius_px, line_height, element.vertical_align, curve_direction,
-                    _curve_ascent(metric, line_height))
+                    _curve_ascent(metric, line_height), pad=ring_px)
                 box = arc_bbox(x, y, r_inner, r_outer, theta_a, theta_b)
             else:
                 # No usable radius -- schema requires `radius:` > 0 with
                 # `style: radial`, so this is unreachable in practice, but
                 # stay conservative rather than divide by zero.
-                reach = curve_radius_px + line_height
+                reach = curve_radius_px + line_height + ring_px
                 box = Box(x - reach, y - reach, 2 * reach, 2 * reach)
         else:
             # The lint box only -- the runtime `drawText` anchor stays `(x, y)`
             # unshifted: a glyph kind's alignment is a device-side justify, not
             # a build-time box move. `bottom` puts this box's top at
             # `y - line_height`, matching the actual draw call and the preview.
+            # `dx`/`dy` (the align shift) are computed from the *unringed*
+            # width/height -- an `outline:` ring is centred on the same point
+            # the plain ink box already was, then grown by `ring_px` on every
+            # side (plan 15 §6, D9), not re-anchored by a wider box.
             dx, dy = alignment_shift(width, line_height, element.align, element.vertical_align)
-            box = Box(x + dx - width / 2, y + dy - line_height / 2, width, line_height)
+            box_width, box_height = width + 2 * ring_px, line_height + 2 * ring_px
+            box = Box(x + dx - box_width / 2, y + dy - box_height / 2, box_width, box_height)
 
         return PlacedText(
             element, box.rounded(), (round(x), round(y)), depth,
@@ -1517,7 +1570,7 @@ class Resolver:
     @staticmethod
     def _rotated_text_box(
         x: float, y: float, width: float, height: float, align: str, vertical_align: str,
-        garmin_angle_degrees: float,
+        garmin_angle_degrees: float, pad: float = 0.0,
     ) -> Box:
         """`curve: {style: angled}`'s lint box (plan 11 §4): the axis-aligned
         bounding box of the `width`x`height` text box, rotated about the
@@ -1543,9 +1596,13 @@ class Resolver:
         rectangular, so its own AABB is the right shape); the round-screen
         `safe-area` test wants the real corners instead, straight from that
         function (`visible_reach` below).
+
+        `pad` (plan 15 §6, D9) grows the box by an `outline:` ring's own
+        width -- forwarded straight to `rotated_rect_corners`' own `pad`,
+        `0.0` (today's exact box) when the element carries no `outline:`.
         """
         xs_ys = rotated_rect_corners(x, y, width, height, align, vertical_align,
-                                     garmin_angle_degrees)
+                                     garmin_angle_degrees, pad=pad)
         xs = [p[0] for p in xs_ys]
         ys = [p[1] for p in xs_ys]
         return Box(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
@@ -2360,15 +2417,24 @@ def _placed_text_curve_reach(placed: "PlacedText", from_x: float, from_y: float)
     Only ever called with `placed.curve_style` set (`visible_reach`'s own
     gate); upright text has no need of this -- its `box`'s own AABB corners
     already are its real corners.
+
+    Reads `placed.element.outline` for the same `ring_px` pad
+    `Resolver._resolve_text` already grew `.box` by (plan 15 §6, D9): this
+    function recomputes its own geometry independently of `.box` (its own
+    docstring above), so it has to grow by the ring itself too, or a curved
+    `outline:` element's real safe-area reach would silently disagree with
+    the one `.box` already reports.
     """
     x, y = placed.anchor_point
     width = float(placed.measured_width)
     height = placed.line_height
     align = placed.element.align
     vertical_align = placed.element.vertical_align
+    outline = placed.element.outline if isinstance(placed.element, Text) else None
+    ring_px = float(outline.width) if outline is not None else 0.0
     if placed.curve_style == "angled":
         corners = rotated_rect_corners(
-            x, y, width, height, align, vertical_align, placed.curve_angle_garmin)
+            x, y, width, height, align, vertical_align, placed.curve_angle_garmin, pad=ring_px)
         return max(math.hypot(px - from_x, py - from_y) for px, py in corners)
     # radial -- `(x, y)` is already the circle's own centre here (`Text.
     # curve`'s `at:` reinterpretation, plan 11 §2.2).
@@ -2376,13 +2442,14 @@ def _placed_text_curve_reach(placed: "PlacedText", from_x: float, from_y: float)
         # Schema-unreachable (`radius:` > 0 is required with `style:
         # radial`) -- `Resolver._resolve_text`'s own conservative square
         # fallback for this case, mirrored here rather than left unhandled.
-        reach = placed.curve_radius_px + height
+        reach = placed.curve_radius_px + height + ring_px
         return math.hypot(x - from_x, y - from_y) + reach
     theta_a, theta_b = radial_text_angle_span(
-        placed.curve_angle_garmin, placed.curve_direction, align, width, placed.curve_radius_px)
+        placed.curve_angle_garmin, placed.curve_direction, align, width, placed.curve_radius_px,
+        pad=ring_px)
     r_inner, r_outer = radial_text_band(
         placed.curve_radius_px, height, vertical_align, placed.curve_direction,
-        _curve_ascent(placed.font_metric, height))
+        _curve_ascent(placed.font_metric, height), pad=ring_px)
     return annulus_sector_reach(x, y, r_inner, r_outer, theta_a, theta_b, from_x, from_y)
 
 
