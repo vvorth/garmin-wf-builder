@@ -91,7 +91,7 @@ aod:                  # top-level, beside elements:
   the sleep frame reads, and so its cost.
 
 `filled: false` deserves a note. Text can't be drawn as an outline
-(research 11 §1.4), but a shape can. A solid bezel disc becomes a thin ring,
+(research 11 §1.4; for vector fonts, research 13), but a shape can. A solid bezel disc becomes a thin ring,
 which is the AOD guidance applied to the largest lit areas a face usually
 has.
 

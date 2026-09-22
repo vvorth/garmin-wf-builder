@@ -88,6 +88,12 @@ drawing primitives, taking precedence over `setColor()`. Its alpha channel
 is interesting for AOD in its own right (see option C), but only on AMOLED,
 where `alphaBlendingSupport` is true (§3.7).
 
+Vector fonts do not change this. Garmin's text engine *does* have an
+outlined-glyph mode on its TrueType path: a fixed 2 px FreeType stroke, drawn
+as a ring in the fill colour under the glyph. But the mode is keyed on the font
+record, and nothing a Connect IQ app passes in can set it. The evidence and
+the workarounds are in `docs/research/13-outline-vector-text.md`.
+
 Consequently "draw only the outline of the font" is **not implementable as a
 draw-time switch**. The two things that *are* implementable here:
 

@@ -23,6 +23,7 @@ Detail lives in:
 | `10-system-fonts.md` | system-font names, free stand-ins, metrics, `.cft` bitmap fonts |
 | `11-always-on-display.md` | AMOLED always-on: burn-in rules, the API per device, and how to build AOD on the existing element model |
 | `12-vector-fonts.md` | can a face ship its own TTF? No — the two font paths, `getVectorFont`'s four availability gates, 44/136 devices, and measured costs |
+| `13-outline-vector-text.md` | outlined vector text: the engine has a 2 px stroked-glyph mode, but it is keyed on the font record and no app input reaches it |
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
 | `data/capability-matrix.json` | feature × device support, machine-readable |
 
