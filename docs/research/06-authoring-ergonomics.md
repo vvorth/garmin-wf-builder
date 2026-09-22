@@ -301,6 +301,11 @@ of them improves both proposed options.
 > 2026-09-12 (`3293dbb`). Read the skill with
 > `git show 9a8fc53:skills/watchface-builder.md`. The analysis below is kept
 > as written.
+>
+> **2026-09-22:** Revived at the user's request, rewritten for the current
+> format, and built around a preview-against-target feedback loop
+> (`skills/face-compare.py`) now that the preview draws Garmin's own fonts.
+> Still deliberately without a test suite, at the user's request.
 
 **Do B, after doing 1–5. Defer A until the schema stops moving.**
 

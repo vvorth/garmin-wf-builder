@@ -146,6 +146,9 @@ format 2 is lowered into it, `wfb/lower.py`.)
 ## Layout
 
 ```
+skills/               the image-to-watchface skill: watchface-builder.md (model-agnostic)
+                      and face-compare.py (target vs preview sheet); Claude Code
+                      adapter in .claude/skills/watchface-from-image/
 wfb/                  the compiler
   yamlsrc.py            YAML loading that keeps source spans
   validate.py           JSON Schema, reported against the author's lines
