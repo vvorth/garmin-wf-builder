@@ -69,6 +69,24 @@ Every build is also **checked against each watch**: text that won't fit,
 colours the screen can only dither, shapes outside the visible area, APIs a
 watch lacks, and the memory budget. → [Lints](docs/guide/lints.md)
 
+## Building a face with an AI assistant
+
+[`skills/watchface-builder.md`](skills/watchface-builder.md) lets any
+assistant with file access and a shell build a face from a picture, a sketch
+or a description:
+
+> Read `skills/watchface-builder.md` and follow it to build me this watch face.
+> [attach an image]
+
+It measures the picture in `%r`, writes the YAML, then loops: preview,
+compare with the picture using
+[`skills/face-compare.py`](skills/face-compare.py) (target, preview, overlay
+and difference side by side, with a score per region), fix, repeat. That
+works because the preview uses the compiled face's own geometry and Garmin's
+own fonts, so what differs in the comparison differs on the watch. In Claude
+Code the skill is registered as `watchface-from-image` and triggers when you
+share a picture and ask for a face like it.
+
 ## Documentation
 
 | | |

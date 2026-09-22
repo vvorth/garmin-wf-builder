@@ -76,6 +76,10 @@ or AOD-related has been observed on a watch or in the simulator.
   the simulator skin the device files ship, at its `display.location`
   (`wfb.preview.frame_in_skin`); a device without a skin renders the bare
   screen with one warning. `docs/guide/preview-and-cli.md`.
+- **The image-to-watchface skill** — `skills/watchface-builder.md`,
+  `skills/face-compare.py`, adapter `.claude/skills/watchface-from-image/`;
+  a compare-and-fix loop over `wfb preview`. Untested by design (the
+  user's call), exercised by hand.
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 

@@ -52,7 +52,8 @@ Hosts: macOS and Linux (containerised). Language: Python (ADR 0001).
 | 3 breadth | in progress: all 9 element types (analog hands and patterns added 2026-09-14, plans 04–05), `static:`, `antialias:`, all four `config:` axes, `on_hold:`, `align:`/`vertical_align:` everywhere (plan 07) shipped — see §6 |
 
 Where things live: `wfb/` is the compiler, `runtime-lib/` the Monkey C support
-barrel, `schema/` the published schema, and `examples/` the example faces.
+barrel, `schema/` the published schema, `examples/` the example faces, and
+`skills/` the image-to-watchface skill (untested by design; the user's call).
 `docs/guide/` is the format reference, `docs/limitations.md` records the
 platform and linter limits, and `docs/container.md` covers the Docker image.
 `README.md` is the short landing page with a feature gallery, and
