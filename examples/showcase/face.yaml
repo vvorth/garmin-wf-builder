@@ -44,8 +44,9 @@ fonts:
   # `if_unavailable:` -- the roman layout's numeral ring turns it with
   # `curve:`, which only a `face:` font can do (a baked sheet cannot rotate).
   romandial:
-    face: [RobotoCondensedBold]
-    size: 30%r
+    # face: [RobotoCondensedBold]
+    face: [RobotoCondensedRegular]
+    size: 32%r
 
 palette:
   black: { value: "#000000", label: "Black" }
@@ -890,7 +891,7 @@ layouts:
             font: font.romandial
             # at: { dy: -69%r }
             # curve: { style: angled, angle: 0deg }
-            curve: { style: radial, angle: 0deg, radius: 90%r }
+            curve: { style: radial, angle: 0deg, radius: 80%r }
             vertical_align: bottom
 
       # A "mechanical opening" without alpha (plan 13 R3.2):
