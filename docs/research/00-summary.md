@@ -24,6 +24,7 @@ Detail lives in:
 | `11-always-on-display.md` | AMOLED always-on: burn-in rules, the API per device, and how to build AOD on the existing element model |
 | `12-vector-fonts.md` | can a face ship its own TTF? No — the two font paths, `getVectorFont`'s four availability gates, 44/136 devices, and measured costs |
 | `13-outline-vector-text.md` | outlined vector text: the engine has a 2 px stroked-glyph mode, but it is keyed on the font record and no app input reaches it |
+| `14-stamped-ring-text.md` | the "stamped ring" workaround, measured: offset sets at r=1/2/3 against a true dilation and FreeType's stroker, per-font-kind validity (including the radial-text geometry), lit-pixel and code-size cost, alternatives, a proposed `outline:` format |
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
 | `data/capability-matrix.json` | feature × device support, machine-readable |
 

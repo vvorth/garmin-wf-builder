@@ -223,13 +223,34 @@ All of these are compositions of documented calls. None is a platform outline.
 | approach | how | AOD suitability | cost |
 |---|---|---|---|
 | **Thin face** | a light vector face (`RobotoCondensedRegular` rather than `…Bold`) or a baked thin weight | good: this is what the FAQ and the guidelines actually ask for | none |
-| **Stamped ring** | draw the string N times, offset by ±r px in colour A (8 offsets for r = 1, more for r ≥ 2), then once in the background colour on top | the true hollow look, on any font kind, rotated or radial too | N+1 text draws per frame. At the 1-minute AOD cadence that is cheap. Offsets on a curved run move along x/y, not along the curve, so a thick ring on radial text looks uneven |
+| **Stamped ring** | draw the string N times, offset by ±r px in colour A (measured: `disc-perimeter`, 4/8/16 offsets for r = 1/2/3), then once in the fill colour on top | the true hollow look, on any font kind, rotated or radial too | N+1 text draws per frame. At the 1-minute AOD cadence that is cheap in wall-clock terms (no CPU figure exists either way, research 14 §4.2); measured code size is 0.2–0.3% of the 128 KB budget (research 14 §4.3) |
 | **Baked outline sheet** | bake an outline-design TTF, or stroke the glyphs at build time in `wfb/fonts/bmfont.py` (FreeType's stroker is available on the host too) | exact, the cheapest per frame | bitmap only: no `curve:`, no scaling, one more sheet (in the graphics pool, research 12) |
 
 The stamped ring is the only option that works with `curve:` text. If plan 14
 (`aod:`) wants "outlined digits", this is the one to model. It needs no new
 platform facts: only `drawText`/`drawAngledText`/`drawRadialText` and
 `setColor`, all already gated in `wfb/availability.py`.
+
+**2026-09-22 update, measured in `docs/research/14-stamped-ring-text.md`:**
+the one-line radial claim above ("offsets on a curved run move along x/y,
+not along the curve, so a thick ring on radial text looks uneven") was
+imprecise and is corrected here. `drawRadialText(x, y, font, text,
+justification, angle, radius, direction)` takes the circle's centre as a
+plain screen-space `(x, y)` argument, separate from `angle`/`radius`; since
+`drawRadialText`'s per-glyph rotation is a function of arc position alone
+(verified in `wfb/preview.py`'s own model, `_draw_radial_vector_text`),
+shifting `(x, y)` by a stamp offset is a **rigid translation of the whole
+composed raster** — exactly as valid a dilation contribution as it is for
+straight or angled text, at any angle, with no correction needed. What
+*is* true, and is what that line was gesturing at: a coarse,
+direction-limited offset set (`square8`, the common 8-point game/UI trick)
+has rotation-**variant** approximation quality (measured spread of 0.39
+ring-IoU across a 90° sweep, research 14 §3.2), and a radial run puts each
+glyph at a different rotation by construction — so a `square8` ring can
+look uneven around a dial. A disc-shaped set (`disc-perimeter`,
+`disc-filled`) is exactly rotation-**invariant** (measured spread 0.000),
+so the fix is the same one research 14 §1 already recommends for straight
+text on other grounds: use `disc-perimeter`, not `square8`.
 
 ## Sources
 
