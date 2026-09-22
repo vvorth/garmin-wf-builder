@@ -1,4 +1,4 @@
-# Analog hands (docs/format.md "Analog hands"): `hands:` sets and `type:
+# Analog hands (docs/guide/analog-hands.md): `hands:` sets and `type:
 # hands` elements, switched by Styles the same way `examples/features/styles/face.yaml`
 # switches widget layouts.
 #
@@ -9,7 +9,7 @@
 #   second) and `sport` (hour and minute only -- `sport` therefore has **no
 #   second hand drawn at all** -- any subset of the three may be present) --
 #   switched by **three `config: style:` entries** over **two colour
-#   schemes**, the pattern docs/format.md "Analog hands" describes.
+#   schemes**, the pattern docs/guide/analog-hands.md describes.
 # * **All four rotatable part shapes** on one hand set: `classic`'s hour is a
 #   tapered `polygon`, its minute is a `rectangle` (folded into a polygon at
 #   build time) plus a `circle` hub, and its second is a `line` with a
@@ -35,7 +35,7 @@
 # The shared dial -- a background, an outer ring and four cardinal ticks,
 # none of it bound to anything -- sits in the design's own top-level
 # `static:`, drawn in every style beneath whichever layout is active
-# (docs/format.md "Styles and layouts": layout content always draws above
+# (docs/guide/styles-and-layouts.md: layout content always draws above
 # shared content).
 #
 # `fr955` has no native editor at all (CLAUDE.md constraint 6): it simply
@@ -103,7 +103,7 @@ config:
       sport: { label: "Sport", layout: sport, colors: dark }
 
 # One named set per style, drawn pointing at 12 o'clock in a frame whose
-# origin is the axis (docs/format.md "Analog hands").
+# origin is the axis (docs/guide/analog-hands.md).
 hands:
   classic:
     hour:

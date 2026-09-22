@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Regenerate the screenshots in docs/screenshots/ that README.md shows.
+"""Regenerate the screenshots in docs/screenshots/ that README.md and
+docs/guide/ show.
 
 Renders examples/showcase with ``wfb preview`` for one device and crops the
 per-feature details, then renders the topic examples that cover what the
 showcase does not.  Run from the repo root:
 
-    ./.venv/bin/python tools/readme-shots.py
+    ./.venv/bin/python tools/docs-shots.py
 """
 import io
 import shutil
@@ -35,14 +36,27 @@ SHOTS = {
 }
 
 
-# Topic examples, rendered whole: name -> (example directory, extra args).
+# Topic examples, rendered whole: name -> (example directory, extra args,
+# an optional (crop box in device pixels, scale) -- the render then adds
+# ``--scale`` itself, so it need not be repeated in extra args).
 EXAMPLES = {
-    "align": ("features/align", []),
-    "patterns": ("features/patterns", []),
-    "graph": ("features/graph", []),
-    "shapes": ("features/shapes", []),
-    "analog-styles": ("features/analog", ["--all-styles"]),
-    "vector-text": ("features/vector-text", []),
+    "align": ("features/align", [], None),
+    "patterns": ("features/patterns", [], None),
+    "graph": ("features/graph", [], None),
+    "shapes": ("features/shapes", [], None),
+    "analog-styles": ("features/analog", ["--all-styles"], None),
+    "vector-text": ("features/vector-text", [], None),
+    "styles": ("features/styles", ["--all-styles"], None),
+    "slots": ("features/slots", [], None),
+    # Cropped to the five system-font-size rows; the two extra vertical_align
+    # demo rows below them are calibration detail, not gallery material.
+    "system-fonts": ("system-fonts/text", [], ((0, 0, 260, 195), SCALE)),
+}
+
+# `wfb new` templates: name -> (-t value or None for the default, face name).
+NEW_TEMPLATES = {
+    "new-template": (None, "My Face"),
+    "new-minimal": ("minimal", "My Face"),
 }
 
 # On-device editor variants: each sets `config:` defaults, by key, in a
@@ -134,16 +148,54 @@ def main():
             strip.paste(panel, (i * panel.width, 0))
         strip.save(OUT / "showcase-config.png", optimize=True)
         print(f"wrote {OUT.relative_to(ROOT)}/showcase-config.png")
-        for name, (example, extra) in EXAMPLES.items():
+        for name, (example, extra, crop) in EXAMPLES.items():
             dest = Path(tmp) / f"example-{name}"
+            args = list(extra)
+            if crop:
+                _, crop_scale = crop
+                args = args + ["--scale", str(crop_scale)]
             subprocess.run(
                 [sys.executable, str(ROOT / "wfb.py"), "preview",
                  str(ROOT / "examples" / example / "face.yaml"),
-                 "-d", DEVICE, "-o", str(dest), *extra],
+                 "-d", DEVICE, "-o", str(dest), *args],
                 check=True, capture_output=True,
             )
             (rendered,) = dest.glob("*.png")
-            Image.open(rendered).save(OUT / f"{name}.png", optimize=True)
+            image = Image.open(rendered)
+            if crop:
+                box, crop_scale = crop
+                image = image.crop(tuple(v * crop_scale for v in box))
+            image.save(OUT / f"{name}.png", optimize=True)
+            print(f"wrote {OUT.relative_to(ROOT)}/{name}.png")
+
+        # A polished single-style analog hero, for the README gallery and
+        # the analog-hands chapter.
+        analog_custom = ROOT / "examples/analog-custom/face.yaml"
+        image = Image.open(render(
+            "classic_dark", ["--time", "10:09:42"], Path(tmp) / "analog-custom",
+            design=analog_custom))
+        image.save(OUT / "analog-custom.png", optimize=True)
+        print(f"wrote {OUT.relative_to(ROOT)}/analog-custom.png")
+
+        # `wfb new` templates, for getting-started: generate into a throwaway
+        # directory (face.yaml itself is never written into the repo) and
+        # preview the result exactly as a first-time author would see it.
+        for name, (template, face_name) in NEW_TEMPLATES.items():
+            work = Path(tmp) / name
+            work.mkdir()
+            design = work / "face.yaml"
+            new_args = [sys.executable, str(ROOT / "wfb.py"), "new", face_name,
+                        "-o", str(design)]
+            if template:
+                new_args += ["-t", template]
+            subprocess.run(new_args, check=True, capture_output=True)
+            dest = work / "out"
+            subprocess.run(
+                [sys.executable, str(ROOT / "wfb.py"), "preview", str(design),
+                 "-d", DEVICE, "--scale", str(SCALE), "-o", str(dest)],
+                check=True, capture_output=True,
+            )
+            Image.open(dest / f"{DEVICE}.png").save(OUT / f"{name}.png", optimize=True)
             print(f"wrote {OUT.relative_to(ROOT)}/{name}.png")
 
 

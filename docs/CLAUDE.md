@@ -10,7 +10,8 @@ deliverable: the user asked for readable reasoning, not just code.
 | `adr/NNNN-*.md` | accepted decisions; index in `adr/README.md` | amend with a dated note, never silently rewrite |
 | `plans/NN-*.md` | proposals written but not built | status at the top; record user decisions there; **delete once built** (below) |
 | `lore/*.md` | durable facts moved out of the root `CLAUDE.md` | add new lore here, not to the root `CLAUDE.md` |
-| `format.md` | the author-facing format reference | keep in step with `schema/`; the schema is normative, the prose explains why |
+| `README.md` | the documentation hub: the guide's table of contents, then everything else | add a row when a chapter is added or renamed |
+| `guide/*.md` | the author-facing guide and format reference, one chapter per feature | keep in step with `schema/`; the schema is normative, the prose explains why |
 | `limitations.md` | platform/linter limits; §2 is the authoritative "not implemented" list | update in the same commit as the change |
 
 **House style:** state the current truth. When something is superseded,
@@ -35,4 +36,4 @@ they record when and why a decision changed.
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or
-`format.md`/schema stale updates them in the same commit.
+`guide/`/schema stale updates them in the same commit.

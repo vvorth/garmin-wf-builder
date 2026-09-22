@@ -219,7 +219,7 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
             # The default choice's own icon normalises the shared nominal
             # size, the same "pick one reference glyph" trade-off
             # `WEATHER_BAKE_REFERENCE_GLYPH` makes for the weather set --
-            # documented in `docs/format.md`'s `complication_slot` section.
+            # documented in `docs/guide/configuration.md`'s `complication_slot` section.
             default_icon = mapped.get(slot.default)
             reference_icon = default_icon or sorted(mapped.values(), key=lambda si: si.key)[0]
             reference = reference_icon.codepoint

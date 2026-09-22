@@ -1,6 +1,6 @@
 # `layouts:` -- named widget sets the wearer switches between on-device,
 # riding the same Styles axis `examples/features/config/face.yaml` already uses for
-# colour alone (docs/format.md "Styles and layouts"). Form A only: a layout is a
+# colour alone (docs/guide/styles-and-layouts.md). Form A only: a layout is a
 # container (`layouts: <name>: {static, elements}`), never an element-level
 # membership key.
 #
@@ -15,7 +15,7 @@
 #   of it, the same "static furniture, dynamic reading" split
 #   `tests/fixtures/slice/face.yaml` uses for one ring, done here per layout.
 #   Both layouts' own content draws *above* the shared content, in its own
-#   layer, by the fixed z rule (`docs/format.md` "Styles and layouts") --
+#   layer, by the fixed z rule (`docs/guide/styles-and-layouts.md`) --
 #   there is nothing to interleave here, but nothing stops it looking that
 #   way either.
 # * **Three `config: style:` entries over two layouts and two schemes**:

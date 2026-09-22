@@ -213,6 +213,6 @@ reach and the limit it compared against, not just "outside the visible
 area", so the finding can be checked, not just trusted (`ADR 0008`'s own
 confidence discipline). Full design: `wfb/layout.py`'s own docstrings
 (`annulus_sector_reach`, `rotated_rect_corners`, `visible_reach`,
-`circular_extent`), and `docs/format.md`'s "`curve:` — rotated and radial
+`circular_extent`), and `docs/guide/text.md`'s "`curve:` — rotated and radial
 text" section. Tests: `tests/test_pattern_text_curve.py`,
 `tests/test_vector_text_layout.py`, `tests/test_patterns.py`.

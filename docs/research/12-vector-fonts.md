@@ -325,7 +325,7 @@ What it costs: the author gives up the typeface. Fourteen Latin faces exist,
 
 **Built, not merely sketched: `git show e744913:docs/plans/11-vector-text.md`
 is the design record (deleted once slice 3 landed, `docs/CLAUDE.md`), and
-`docs/format.md`'s `fonts:`/`curve:` sections are the shipped
+`docs/guide/fonts.md` (`fonts:`) and `docs/guide/text.md` (`curve:`) sections are the shipped
 reference.** A `fonts:` entry can now name a **second kind of font**,
 resolved per device: `face:` instead of `source:`, reached through
 `Graphics.getVectorFont` at draw time with nothing rasterised for it at
@@ -409,7 +409,7 @@ dials, simulator vs. preview) and
 device other than `fenix8solar47mm`, and physical hardware (this is the
 simulator). Glyph *shape* fidelity (preview's stand-in face vs. the
 simulator's real `BionicSemiBold`) remains the pre-existing "approximate"
-caveat and is unaffected by this. `docs/format.md` and `docs/limitations.md`
+caveat and is unaffected by this. `docs/guide/fonts.md` and `docs/limitations.md`
 now state the facing model as fact rather than an open question, for both
 directions.
 

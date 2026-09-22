@@ -38,7 +38,7 @@ fonts:
     source: assets/Dynalight-Regular.ttf
     size: 13%r
     antialias: true
-  # Device-resident, scalable -- `docs/format.md` "Vector (`face:`) fonts".
+  # Device-resident, scalable -- `docs/guide/fonts.md` "Vector (`face:`) fonts".
   # RobotoCondensedBold is the one Latin face all three targets publish
   # (checked against each device's `scalable_faces`), so this needs no
   # `if_unavailable:` -- the roman layout's numeral ring turns it with
@@ -126,7 +126,7 @@ config:
       choices: any
 
 # One named hand set, authored pointing at 12 o'clock, origin = the axis
-# (docs/format.md "Analog hands"). Tapered hour/minute polygons plus a
+# (docs/guide/analog-hands.md). Tapered hour/minute polygons plus a
 # needle-thin second hand whose tip is the one native accent-colour axis.
 hands:
   classic:
@@ -158,7 +158,7 @@ hands:
   # (moon) hour/minute hands: a tapered shaft, an open ring set near the tip,
   # and a short point beyond it -- the read a period dress watch's hands
   # give -- without inventing any part kind a hand does not already have
-  # (`docs/format.md` "Analog hands" -- polygon/rectangle/line/circle only).
+  # (`docs/guide/analog-hands.md` -- polygon/rectangle/line/circle only).
   # The hour hand is both shorter AND visibly heavier (a 4%r-wide shaft
   # against the minute's 2.4%r) than the minute hand, per plan 13 R2.3, and
   # both stay clear of the numeral ring, which starts well past the minute
@@ -171,7 +171,7 @@ hands:
   # bigger than those thin tails -- fine on `classic`'s much thicker hands
   # (a deliberate "drilled screw" look there), but on these it erased the
   # joint, and the second hand's own accent-coloured pivot jewel, instead
-  # of covering it. `docs/format.md`'s own idiom for this ("a hub *between*
+  # of covering it. `docs/guide/analog-hands.md`'s own idiom for this ("a hub *between*
   # hands is a circle part at the origin of the hand below it") is what
   # `classic`'s `minute` already does -- a plain filled circle at the
   # origin, drawn as part of `minute` so it sits over `hour`'s shaft below
@@ -328,7 +328,7 @@ static:
   #     reason: "the digital layout's bottom status row (dnd/notification/alarm)
   #       draws well clear of this window on every target; the overlap the
   #       linter flags is between the two elements' declared boxes, not their
-  #       ink -- see docs/format.md 'static:'"
+  #       ink -- see docs/guide/elements.md 'static:'"
 
 elements:
   left_register:
@@ -449,7 +449,7 @@ layouts:
           - { shape: rectangle, at: { dy: -87%r }, size: { width: 2%r, height: 6%r } }
 
       # Twelve numerals as one radial `shape: text` pattern part, rather
-      # than twelve polar `text` elements (docs/format.md "Text parts").
+      # than twelve polar `text` elements (docs/guide/patterns.md "Text parts").
       hour_numerals:
         type: pattern
         pattern: radial
@@ -841,7 +841,7 @@ layouts:
     static:
       # Twelve numerals as one radial `shape: text` pattern part, the same
       # device-resident-font route `analog`'s own `hour_numerals` uses for
-      # plain digits (docs/format.md "Text parts") -- except this one turns
+      # plain digits (docs/guide/patterns.md "Text parts") -- except this one turns
       # each numeral with `curve:` so its own bottom faces the centre
       # (level at XII, on its side at III/IX, inverted at VI), which only a
       # `face:` (vector) font can do; a baked sheet cannot rotate at all
@@ -862,7 +862,7 @@ layouts:
       # chapter ring.
       # `skip: [2, 10]` leaves out II and X. This is not decoration -- a
       # `complication_slot` cannot appear inside a `layouts:` body
-      # (docs/format.md), so the two shared registers are fixed at
+      # (docs/guide/configuration.md), so the two shared registers are fixed at
       # `dx: ±50%r, dy: -30%r` for every layout, which resolves to ~58%r
       # from the axis at ~59° either side of 12 -- almost exactly where II
       # and X land on a 12-count ring. Rendered without the skip, the
@@ -962,7 +962,7 @@ layouts:
     elements:
       # The day/date readings themselves are data-bound, so they cannot
       # live in `static:` above (any data binding in a static subtree is
-      # rejected outright -- docs/format.md "static:") -- only their wells
+      # rejected outright -- docs/guide/elements.md "static:") -- only their wells
       # and frames can. Document order puts them after the wells/frames
       # (already drawn first, being static) and before the hands below, so
       # a real watch's own draw order falls out for free: hands are drawn

@@ -2393,7 +2393,7 @@ def visible_reach(placed: "Placed", screen_cx: float, screen_cy: float) -> float
     shape-aware answer for this kind" -- the caller falls back to the plain
     AABB-corners test (`inside_visible_area`), the same test every kind
     used before this function existed, and still the right one for the
-    rectangular *framebuffer* `off-screen` check (`docs/format.md`'s
+    rectangular *framebuffer* `off-screen` check (`docs/guide/lints.md`'s
     "off-screen uses the box, safe-area uses the shape" split -- shape
     genuinely does not matter there, `inside_screen`'s own docstring).
 

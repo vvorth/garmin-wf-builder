@@ -58,7 +58,8 @@ lore here, not to `CLAUDE.md`.
 
 Prose is part of the deliverable. When a change makes any of these stale, update
 it **in the same commit**: `docs/research/*`, `docs/adr/*`, this file,
-`README.md`, `docs/limitations.md`, and the format reference.
+`README.md`, `docs/README.md`, `docs/limitations.md`, and the format
+reference (`docs/guide/`).
 
 `docs/limitations.md` exists and is current. It records: no filled arc; the
 four-axis / four-configuration on-device config cap; the fr955 exclusions;
@@ -67,5 +68,5 @@ is not implemented yet; and — separately — **what the linter does not check*
 including the two checks (memory and the partial-update budget) that are
 deliberately not allowed to sound exact.
 
-`docs/format.md` is the author-facing format reference. Keep it and the JSON
+`docs/guide/` is the author-facing format reference. Keep it and the JSON
 Schema in step: the schema is normative, the prose explains why.

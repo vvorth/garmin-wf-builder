@@ -124,7 +124,7 @@
       "$ref": "#/$defs/elementListOrMapping"
     },
     "layouts": {
-      "description": "Named widget sets the wearer switches between on-device, form A only (docs/format.md, 'Styles and layouts') -- there is no element-level membership key. Each entry's 'static:'/'elements:' are folded at build time into two synthetic groups appended to the top-level 'elements:' (see 'wfb/desugar.py'); this compiler's own schema check runs after that fold, so by then each body here is just '{}' or '{lint: ...}'. A declared entry that no 'config: style:' choice names as its 'layout:' is an error -- nothing would let the wearer pick it -- and a 'complication_slot' may not appear inside one (the Data axis is face-wide; it belongs in the shared top-level 'elements:').",
+      "description": "Named widget sets the wearer switches between on-device, form A only (docs/guide/styles-and-layouts.md) -- there is no element-level membership key. Each entry's 'static:'/'elements:' are folded at build time into two synthetic groups appended to the top-level 'elements:' (see 'wfb/desugar.py'); this compiler's own schema check runs after that fold, so by then each body here is just '{}' or '{lint: ...}'. A declared entry that no 'config: style:' choice names as its 'layout:' is an error -- nothing would let the wearer pick it -- and a 'complication_slot' may not appear inside one (the Data axis is face-wide; it belongs in the shared top-level 'elements:').",
       "type": "object",
       "minProperties": 1,
       "propertyNames": {
@@ -152,7 +152,7 @@
       "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
     },
     "align": {
-      "description": "Which horizontal edge of this element's placement box sits at the point 'at:' resolves to (left/right), or its centre (docs/format.md, \"Placement: at: and align:\").",
+      "description": "Which horizontal edge of this element's placement box sits at the point 'at:' resolves to (left/right), or its centre (docs/guide/placement.md, \"Placement: at: and align:\").",
       "enum": [
         "left",
         "center",
@@ -161,7 +161,7 @@
       "default": "center"
     },
     "verticalAlign": {
-      "description": "Which vertical edge of this element's placement box sits at the point 'at:' resolves to (top/bottom), or its centre (docs/format.md, \"Placement: at: and align:\"). 'baseline' was renamed 'bottom' -- it always meant the box's bottom edge, never a typographic baseline.",
+      "description": "Which vertical edge of this element's placement box sits at the point 'at:' resolves to (top/bottom), or its centre (docs/guide/placement.md, \"Placement: at: and align:\"). 'baseline' was renamed 'bottom' -- it always meant the box's bottom edge, never a typographic baseline.",
       "enum": [
         "top",
         "center",
@@ -186,7 +186,7 @@
       ]
     },
     "layout": {
-      "description": "One 'layouts:' entry: this layout's own fixed and per-frame content, drawn on top of the design's shared 'static:'/'elements:' while this layout is the active one (docs/format.md, 'Styles and layouts'). A 'complication_slot' may not appear in either -- the Data axis is face-wide, so a slot belongs in the shared top-level 'elements:'.",
+      "description": "One 'layouts:' entry: this layout's own fixed and per-frame content, drawn on top of the design's shared 'static:'/'elements:' while this layout is the active one (docs/guide/styles-and-layouts.md). A 'complication_slot' may not appear in either -- the Data axis is face-wide, so a slot belongs in the shared top-level 'elements:'.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -393,7 +393,7 @@
       }
     },
     "styleEntry": {
-      "description": "One 'config: style:' entry: at least one of 'layout:'/'colors:', plus an optional 'label:' and 'lint:' (docs/format.md, 'Styles and layouts').",
+      "description": "One 'config: style:' entry: at least one of 'layout:'/'colors:', plus an optional 'label:' and 'lint:' (docs/guide/styles-and-layouts.md).",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -972,11 +972,11 @@
           "default": true
         },
         "align": {
-          "description": "rectangle, rounded_rectangle, ellipse, circle, arc only -- not polygon or line (docs/format.md, \"Placement: at: and align:\").",
+          "description": "rectangle, rounded_rectangle, ellipse, circle, arc only -- not polygon or line (docs/guide/placement.md, \"Placement: at: and align:\").",
           "$ref": "#/$defs/align"
         },
         "vertical_align": {
-          "description": "rectangle, rounded_rectangle, ellipse, circle, arc only -- not polygon or line (docs/format.md, \"Placement: at: and align:\").",
+          "description": "rectangle, rounded_rectangle, ellipse, circle, arc only -- not polygon or line (docs/guide/placement.md, \"Placement: at: and align:\").",
           "$ref": "#/$defs/verticalAlign"
         },
         "modes": {
@@ -1168,11 +1168,11 @@
           "$ref": "#/$defs/colorExpression"
         },
         "align": {
-          "description": "Both styles (docs/format.md, \"Placement: at: and align:\").",
+          "description": "Both styles (docs/guide/placement.md, \"Placement: at: and align:\").",
           "$ref": "#/$defs/align"
         },
         "vertical_align": {
-          "description": "Both styles (docs/format.md, \"Placement: at: and align:\").",
+          "description": "Both styles (docs/guide/placement.md, \"Placement: at: and align:\").",
           "$ref": "#/$defs/verticalAlign"
         },
         "when_absent": {
@@ -1658,7 +1658,7 @@
       }
     },
     "handPart": {
-      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the axis), 'size', 'align' and 'vertical_align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' (plan 07 phase D) place the box in the part's own frame, before it turns with the hand -- see docs/format.md, \"Placement: at: and align:\"; not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends).",
+      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the axis), 'size', 'align' and 'vertical_align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' (plan 07 phase D) place the box in the part's own frame, before it turns with the hand -- see docs/guide/placement.md, \"Placement: at: and align:\"; not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends).",
       "type": "object",
       "required": [
         "shape"
@@ -1666,7 +1666,7 @@
       "additionalProperties": false,
       "properties": {
         "shape": {
-          "description": "The four rotatable primitives are polygon/rectangle/line/circle. rounded_rectangle, ellipse, arc, text and icon are recognised here only so the compiler can reject each with its own platform reason (docs/format.md, 'Analog hands') instead of a bare 'not one of ...'.",
+          "description": "The four rotatable primitives are polygon/rectangle/line/circle. rounded_rectangle, ellipse, arc, text and icon are recognised here only so the compiler can reject each with its own platform reason (docs/guide/analog-hands.md) instead of a bare 'not one of ...'.",
           "enum": [
             "polygon",
             "rectangle",
@@ -1954,7 +1954,7 @@
       }
     },
     "patternPart": {
-      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin), 'size', 'align' and 'vertical_align'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'; arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:' or alignment, because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align', 'vertical_align', 'curve' and 'if_unavailable' (plan 06 §3, plan 11 slice 2) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy, unlike a rectangle/circle part's box, which turns with the part (plan 07 phase D); with 'curve:' and a 'face:' (vector) 'font:', the glyphs themselves turn too, tangent to (or around) the copy's own position, not just the anchor. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' are not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends) -- see docs/format.md, \"Placement: at: and align:\".",
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin), 'size', 'align' and 'vertical_align'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'; arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:' or alignment, because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align', 'vertical_align', 'curve' and 'if_unavailable' (plan 06 §3, plan 11 slice 2) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy, unlike a rectangle/circle part's box, which turns with the part (plan 07 phase D); with 'curve:' and a 'face:' (vector) 'font:', the glyphs themselves turn too, tangent to (or around) the copy's own position, not just the anchor. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' are not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends) -- see docs/guide/placement.md, \"Placement: at: and align:\".",
       "type": "object",
       "required": [
         "shape"
@@ -1962,7 +1962,7 @@
       "additionalProperties": false,
       "properties": {
         "shape": {
-          "description": "polygon/rectangle/line/circle/arc/text are the six primitives a pattern can repeat -- text is upright glyphs at an anchor point that turns (radial) or steps (linear) with the copy (plan 06 §3), unlike a hand part, which still rejects it (a bitmap font cannot rotate); with 'curve:' and a 'face:' font, a pattern's own text part can turn its glyphs too (plan 11 slice 2). rounded_rectangle, ellipse and icon are recognised here only so the compiler can reject each with its own platform reason (docs/format.md, 'pattern') instead of a bare 'not one of ...'.",
+          "description": "polygon/rectangle/line/circle/arc/text are the six primitives a pattern can repeat -- text is upright glyphs at an anchor point that turns (radial) or steps (linear) with the copy (plan 06 §3), unlike a hand part, which still rejects it (a bitmap font cannot rotate); with 'curve:' and a 'face:' font, a pattern's own text part can turn its glyphs too (plan 11 slice 2). rounded_rectangle, ellipse and icon are recognised here only so the compiler can reject each with its own platform reason (docs/guide/patterns.md) instead of a bare 'not one of ...'.",
           "enum": [
             "polygon",
             "rectangle",
@@ -2094,7 +2094,7 @@
     },
     "staticFlag": {
       "default": false,
-      "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a graph or complication_slot may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, and every element in a static subtree must declare the same 'modes:'. Static content is always drawn first, wherever it is written: the buffer is opaque and full-screen, so nothing can be under it, and the compiler hoists it to the front of draw order rather than rejecting the design -- where that swaps two overlapping elements round it warns (suppressible 'static-overlap'). See docs/format.md and docs/research/probes/static-buffer/.",
+      "description": "Draw this element once into an offscreen Graphics.BufferedBitmap and blit the buffer every frame instead of redrawing it. On a 'group' this covers the whole subtree; on a leaf it is one element on its own. The buffer comes from the separate graphics pool (1 MB on every supported target), not the 128 KB app budget, and a device without createBufferedBitmap -- or a failed allocation -- falls back to drawing the same content directly, so the face always renders. Constraints, all build-time errors: nothing in a static subtree may be bound to a data source (including 'visible:'), a graph or complication_slot may not be static, 'modes:' may not include 'low_power', 'static:' may not nest, and every element in a static subtree must declare the same 'modes:'. Static content is always drawn first, wherever it is written: the buffer is opaque and full-screen, so nothing can be under it, and the compiler hoists it to the front of draw order rather than rejecting the design -- where that swaps two overlapping elements round it warns (suppressible 'static-overlap'). See docs/guide/elements.md and docs/research/probes/static-buffer/.",
       "type": "boolean"
     },
     "antialias": {

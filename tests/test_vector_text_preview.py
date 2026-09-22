@@ -229,7 +229,7 @@ def test_angled_quarter_turn_swaps_width_and_height(write_design, db, bag):
 
 def test_angled_45deg_tilts_down_and_to_the_right_not_the_mirror_image(write_design, db, bag):
     """`angle: 45deg` is a *rotation*, positive = clockwise from level
-    (`docs/format.md` "Angles"): Garmin `315deg` (`wfb.layout.
+    (`docs/guide/placement.md` "Angles"): Garmin `315deg` (`wfb.layout.
     garmin_curve_angle`: `(-45) % 360 == 315`). Visually, rotating a
     level, rightward-reading baseline clockwise tips its far end *down* --
     the same sense a clock hand sweeps from 3 toward 4-5 o'clock. `align:

@@ -232,7 +232,7 @@ class Curve:
     #: `"angled"` | `"radial"` -- the discriminator, following `progress`'s
     #: own precedent of one element with a `style:` key because the
     #: *binding* stays identical and only the rendering differs
-    #: (`docs/format.md` §`progress`).
+    #: (`docs/guide/progress-and-graphs.md` §`progress`).
     style: str
     #: (:class:`~wfb.units.Angle`) -- **not one convention**, since the two
     #: styles answer different kinds of question despite sharing units.

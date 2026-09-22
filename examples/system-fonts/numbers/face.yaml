@@ -26,7 +26,7 @@
 # mechanic goes unverified project-wide -- this face just cannot repeat the
 # demonstration a second time in the space these fonts leave.
 #
-# All positions are `px` (docs/format.md "Lengths": "device pixels,
+# All positions are `px` (docs/guide/placement.md "Lengths": "device pixels,
 # verbatim"), so every row lands on the same pixel row on all three
 # targets. Row spacing uses the tallest of the three targets' own line
 # height per font, so nothing overlaps on any of them. Every row's four box

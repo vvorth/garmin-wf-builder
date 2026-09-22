@@ -44,9 +44,23 @@ on the Enduro 3. Hand-written and still being shaped.
 patterns, graphs, shapes, alignment, the on-device config axes, complication
 slots and layouts. Each was written when that feature landed, so it
 demonstrates the feature rather than being a design. Its header comment says
-what it exercises, and [`docs/format.md`](../docs/format.md) is the
+what it exercises, and the [guide](../docs/README.md) is the
 reference. Each one's `name:` is `Feature <thing>`, so a sideloaded build
 says what it is on the watch.
+
+| Face | Exercises | Guide chapter |
+|---|---|---|
+| [`features/align/`](features/align/face.yaml) | `align:`/`vertical_align:` on every element kind that takes them | [Placement](../docs/guide/placement.md) |
+| [`features/shapes/`](features/shapes/face.yaml) | every native `shape` primitive | [Shapes](../docs/guide/shapes.md) |
+| [`features/graph/`](features/graph/face.yaml) | `graph` styles (line, area, bars) and series | [Progress and graphs](../docs/guide/progress-and-graphs.md) |
+| [`features/analog/`](features/analog/face.yaml) | `hands:` sets, `type: hands`, a subdial, switched by style | [Analog hands](../docs/guide/analog-hands.md) |
+| [`features/patterns/`](features/patterns/face.yaml) | radial and linear `pattern` repeats | [Patterns](../docs/guide/patterns.md) |
+| [`features/vector-text/`](features/vector-text/face.yaml) | vector (`face:`) fonts and `curve:` | [Fonts](../docs/guide/fonts.md), [Text](../docs/guide/text.md) |
+| [`features/complications/`](features/complications/face.yaml) | `complication.*` bindings and `on_hold: auto` | [Data](../docs/guide/data.md) |
+| [`features/sun/`](features/sun/face.yaml) | a daylight `progress` bar computed from `complication.sunrise`/`sunset` expressions (blank in `wfb preview`: no sample data) | [Data](../docs/guide/data.md) |
+| [`features/config/`](features/config/face.yaml) | accent/data colour and colour-scheme settings | [Configuration](../docs/guide/configuration.md) |
+| [`features/slots/`](features/slots/face.yaml) | the Data setting: `complication_slot`s the wearer re-points | [Configuration](../docs/guide/configuration.md) |
+| [`features/styles/`](features/styles/face.yaml) | `layouts:` switched by style | [Styles and layouts](../docs/guide/styles-and-layouts.md) |
 
 [`system-fonts/`](system-fonts/) holds three calibration faces (`text/`,
 `numbers/`, `numbers-large/`). They draw every system font as a fixed sample

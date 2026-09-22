@@ -12,7 +12,7 @@
 # on its own guide at its own anchor y, to show the other two anchors the
 # same way. A short vertical guide at the common x ties the column together.
 #
-# All positions are `px` (docs/format.md "Lengths": "device pixels,
+# All positions are `px` (docs/guide/placement.md "Lengths": "device pixels,
 # verbatim"), not `%`/`%r`, so every row lands on the exact same pixel row
 # on all three targets -- the point of a calibration face. Row spacing uses
 # the *tallest* of the three targets' own published line height per font

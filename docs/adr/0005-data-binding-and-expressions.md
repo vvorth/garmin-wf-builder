@@ -251,7 +251,7 @@ form; the old path now raises a `source-renamed` build error rather than
 "unknown data source". One rule governs the whole catalogue with no
 exceptions: `complication.<type>` is *always* read through `Toybox.
 Complications`; every other path is *always* a direct API read — see
-`docs/format.md`'s "The `complication.*` namespace" section and
+`docs/guide/data.md`'s "The `complication.*` namespace" section and
 `docs/limitations.md` §2/§3 for the per-device gating gap this widened.
 
 **What of the original still stands.** Section 1 (typed, namespaced
@@ -426,7 +426,7 @@ wherever Python and Monkey C arithmetic agree. **UNVERIFIED:** the sign of
 Java-style truncation would give `-1`, and the SDK's `Basic_Syntax.html`
 does not say which Monkey C does. This is not specific to text parts, since
 constant folding and the preview already rely on Python's `%`.
-`docs/format.md` tells authors to keep the left side non-negative.
+`docs/guide/patterns.md` tells authors to keep the left side non-negative.
 
 **Why data is still refused there.** A string that depends on a reading
 cannot be known at build time. Its glyph subset and extent would then have

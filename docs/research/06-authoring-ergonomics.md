@@ -240,7 +240,7 @@ plausible.
 |---|---|
 | Can a cold model converge from a naive draft? | Yes — four rounds, on error messages alone (§3) |
 | Is a sketch expressible in the format? | Yes, and `%r` maps onto sketch proportions almost mechanically (§5) |
-| How much reference material must it carry? | **~3.7 k tokens**: `docs/format.md` (2.7 k) + `wfb sources` (0.4 k) + one worked example (0.6 k). The schema (3.4 k) substitutes for the format doc |
+| How much reference material must it carry? | **~3.7 k tokens**: `docs/guide/` (2.7 k) + `wfb sources` (0.4 k) + one worked example (0.6 k). The schema (3.4 k) substitutes for the format doc |
 | How fast is the loop? | validate 413 ms · preview 615 ms · build 1.7 s |
 | Does it need special tooling? | No — a shell and the ability to view a PNG |
 

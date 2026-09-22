@@ -44,7 +44,7 @@
 #
 # Layout mechanic (same as the sibling faces): a 1px grey `shape: line`
 # guide at each row's anchor y, `vertical_align: top`, `align: left` at a
-# common x (90px). All positions are `px` (docs/format.md "Lengths":
+# common x (90px). All positions are `px` (docs/guide/placement.md "Lengths":
 # "device pixels, verbatim"), so every row lands on the same pixel row on
 # all three targets.
 #

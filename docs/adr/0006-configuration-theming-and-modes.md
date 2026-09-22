@@ -92,7 +92,7 @@ fr955** — the compiler generates both paths from one declaration.
 > consequence of §2 below rather than a defect -- and the suppressible
 > `config-unsupported` warning says so at build time. See
 > `docs/research/probes/watchface-config/` for the probe this rests on, and
-> `docs/format.md`'s "Configuration" section for the full author-facing
+> `docs/guide/configuration.md`'s "Configuration" section for the full author-facing
 > reference.
 >
 > Styles, the Data axis, and phone-side settings are still exactly as
@@ -164,7 +164,7 @@ fr955** — the compiler generates both paths from one declaration.
 > (turning the feature on: fields, `resolveColorScheme`, `applyConfig`, the
 > delegate, the `<styles>` resource); one *additional* scheme on top of that
 > costs **+9 B data, +28 B code** -- consistent with the probe's own
-> per-style figure. `docs/format.md`'s "Color scheme" section is the
+> per-style figure. `docs/guide/colors.md`'s "Color scheme" section is the
 > author-facing reference; `examples/features/config/face.yaml` now exercises it,
 > including the static-buffer repaint case (two roles moving together inside
 > a `static:` block, confirmed by a real build rather than assumed).
@@ -233,7 +233,7 @@ fr955** — the compiler generates both paths from one declaration.
 > even though the design binds no ordinary `complication.<name>` catalogue
 > source at all -- a slot is not a catalogue reader, so `_features()`/
 > `permissions()` had to add it as a second, independent trigger alongside
-> "reads a `complication.*` source". `docs/format.md`'s "Configuration → The
+> "reads a `complication.*` source". `docs/guide/configuration.md`'s "Configuration → The
 > Data axis" is the full author-facing reference; `examples/features/slots/face.yaml`
 > exercises both slot shapes.
 >
@@ -287,7 +287,7 @@ fr955** — the compiler generates both paths from one declaration.
 > which has no editor at all and never calls any of `onStart`'s flag,
 > `onTap` or `getComplicationDrawable`.
 >
-> `docs/format.md`'s "Configuration → The Data axis" carries the full
+> `docs/guide/configuration.md`'s "Configuration → The Data axis" carries the full
 > author-facing description; `examples/features/slots/face.yaml` now declares
 > `on_hold: auto` on one of its two slots.
 
@@ -370,7 +370,7 @@ fr955** — the compiler generates both paths from one declaration.
 > only, no `layouts:`) is 2,477-2,478 B (1.9%). The two designs are not a
 > clean isolated delta for "what layouts cost" -- `styles` simply draws more
 > content -- so this is reported as the two absolute, measured figures
-> rather than a subtraction dressed up as one. `docs/format.md`'s "Styles
+> rather than a subtraction dressed up as one. `docs/guide/styles-and-layouts.md`'s "Styles
 > and layouts" section is the full author-facing reference.
 >
 > **Not built, deliberately out of scope (docs/limitations.md §2 is
@@ -520,7 +520,7 @@ The third bullet above is now a feature rather than a possibility.
 `static: true` on any element, and a top-level `static:` block beside
 `elements:`, mark content that never changes; the compiler paints it once into a
 full-screen `Graphics.BufferedBitmap` in `onLayout` and blits it each
-`onUpdate`. `docs/format.md` is the author-facing reference and
+`onUpdate`. `docs/guide/` is the author-facing reference and
 `docs/research/probes/static-buffer/` is the probe that settled the design.
 
 Three things about it belong in this ADR rather than only in the reference,
@@ -584,7 +584,7 @@ generates exactly what it did before this amendment: `_sleeping` reduces to
 The second hand's own `if (!_sleeping)` wraps only that hand's parts,
 inside its own element's draw method — the hour and minute hands, and any
 `always_on` element set elsewhere in the same design, are unaffected. See
-`docs/format.md` "Analog hands" and `wfb/emit/monkeyc/view.py`'s
+`docs/guide/analog-hands.md` and `wfb/emit/monkeyc/view.py`'s
 `_sleep_flag_doc`/`_emit_sleep_hooks`.
 
 ### 6. Interactivity
@@ -648,7 +648,7 @@ nothing. See research 07 §2.
 > wearer's saved configurations** — so the selected item leaked between
 > saved faces, a real behavioural wart with no fix available on this
 > platform. Every one of those special cases is now simply gone rather than
-> maintained for one element. `docs/format.md`'s `carousel` section, the
+> maintained for one element. The old `carousel` format section (removed; see `docs/limitations.md`), the
 > `carousel-zone` lint, `examples/carousel/`, and the runtime barrel file are
 > all deleted; `on_hold:` (§6 above, unaffected) remains every other
 > element's whole interactivity story. See CLAUDE.md's Phase 3 notes for the
@@ -747,23 +747,23 @@ both map to `onPress`, rather than silently preferring one.
   cap, and the fr955 exclusion.
 - (§1 amendment) The two colour axes shipped as `config:`, narrower than the
   arbitrary-property design this ADR originally described — see the amendment
-  for what changed and why. `docs/format.md` "Configuration" is the
+  for what changed and why. `docs/guide/configuration.md` "Configuration" is the
   author-facing reference; `docs/limitations.md` states that no behaviour of
   the editor itself is verified anywhere in this project.
 - (§1 second amendment) The Styles axis shipped as `color_scheme:` +
   `config: colors:` — the "is Styles worth exposing" question the Open
-  section below used to ask is answered, and closed. `docs/format.md` "Color
+  section below used to ask is answered, and closed. `docs/guide/colors.md` "Color
   scheme" is the author-facing reference.
 - (§1 third amendment) The Data axis shipped as `config: data:` +
   `type: complication_slot` — all four of Garmin's axes are now declared.
-  `docs/format.md` "Configuration → The Data axis" is the author-facing
+  `docs/guide/configuration.md` "Configuration → The Data axis" is the author-facing
   reference; the editor's own animated highlight on a slot was, at that
   point, a separate, unbuilt task (see the amendment and
   `docs/limitations.md`).
 - (§1 fourth amendment) `on_hold: auto` and the editor's own animated
   highlight (`AppBase.onStart`/`WatchFaceDelegate.onTap`+
   `getComplicationDrawable`) both shipped on `complication_slot`, closing the
-  gap the third amendment left open. `docs/format.md` "Configuration → The
+  gap the third amendment left open. `docs/guide/configuration.md` "Configuration → The
   Data axis" carries the update; no behaviour of the editor is verified,
   same as every other `config:` claim.
 - (§6 fifth amendment) `type: carousel`, the cycling element §6's geometry

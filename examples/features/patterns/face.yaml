@@ -1,4 +1,4 @@
-# Patterns (docs/format.md "`pattern`"): one template of primitives, drawn
+# Patterns (docs/guide/patterns.md): one template of primitives, drawn
 # many times -- turned about a centre (`pattern: radial`) or stepped along a
 # line (`pattern: linear`).
 #
@@ -173,7 +173,7 @@ static:
       - shape: text
         # copy 0 -> "12", copy 1 -> "1", ... copy 11 -> "11" (the safe
         # spelling for Monkey C's unverified negative-`%` behaviour,
-        # docs/format.md "Text parts").
+        # docs/guide/patterns.md "Text parts").
         value: "(copy + 11) % 12 + 1"
         font: font.hourfont
         at: { dy: -64%r }

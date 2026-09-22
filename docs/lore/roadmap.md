@@ -2,7 +2,7 @@
 
 `docs/limitations.md` §2 is the **authoritative** list of what is missing.
 This file is a turn-one summary; if the two disagree, `limitations.md` is
-right and this file needs updating. `docs/format.md` documents everything
+right and this file needs updating. `docs/guide/` documents everything
 listed as shipped.
 
 ## Shipped

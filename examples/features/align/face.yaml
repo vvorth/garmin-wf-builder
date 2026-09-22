@@ -1,4 +1,4 @@
-# `align:`/`vertical_align:` (docs/format.md "Placement: `at:` and `align:`",
+# `align:`/`vertical_align:` (docs/guide/placement.md "Placement: `at:` and `align:`",
 # plan 07): every accepting kind, with non-default alignment on both axes,
 # on one legible analog face rather than a test dump.
 #
@@ -123,7 +123,7 @@ hands:
       parts:
         # `at: {dy: 0}` + `vertical_align: bottom`: the box's bottom edge
         # sits on the axis, so the rectangle runs from the axis to the tip
-        # without computing `dy: -length/2` by hand (docs/format.md
+        # without computing `dy: -length/2` by hand (docs/guide/placement.md
         # "Analog hands", plan 07 phase D).
         - shape: rectangle
           at: { dy: 0 }
@@ -164,7 +164,7 @@ static:
 
   # Hour numerals, one radial `shape: text` part: `vertical_align: bottom`
   # puts each numeral's bottom edge on its turned anchor (the glyphs stay
-  # upright; only the anchor turns -- docs/format.md "Text parts").
+  # upright; only the anchor turns -- docs/guide/patterns.md "Text parts").
   hour_numerals:
     type: pattern
     pattern: radial

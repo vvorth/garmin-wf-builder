@@ -261,7 +261,7 @@ def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
     spelling. Every other kind that accepts `vertical_align:` (`group`,
     `shape`, `progress`, `graph`, `icon`, `complication_slot`, a hand or
     pattern `rectangle`/`circle` part) never accepted `baseline` as a value,
-    so needs no check here (`docs/format.md`'s "Placement" section).
+    so needs no check here (`docs/guide/placement.md`'s "Placement" section).
 
     Follows `_check_hands_seconds_always`'s precedent: the friendly
     explanation goes through this hand-written check, the schema stays

@@ -1568,8 +1568,8 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
 
 
 def test_format_doc_lists_every_suppressible_code():
-    """`docs/format.md` names the suppressible codes; `lint.SUPPRESSIBLE` is
-    the real list.
+    """`docs/guide/lints.md` names the suppressible codes; `lint.SUPPRESSIBLE`
+    is the real list.
 
     These drifted once already -- the prose said "exactly five" long after
     `carousel-zone`, `hold-overlap` and `hold-unsupported` had joined -- so
@@ -1580,10 +1580,10 @@ def test_format_doc_lists_every_suppressible_code():
     """
     import pathlib
 
-    doc = pathlib.Path(__file__).resolve().parent.parent / "docs" / "format.md"
+    doc = pathlib.Path(__file__).resolve().parent.parent / "docs" / "guide" / "lints.md"
     text = doc.read_text(encoding="utf-8")
     missing = [code for code in sorted(lint.SUPPRESSIBLE) if f"`{code}`" not in text]
     assert not missing, (
-        "docs/format.md does not mention these suppressible codes: "
+        "docs/guide/lints.md does not mention these suppressible codes: "
         + ", ".join(missing)
     )

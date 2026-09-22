@@ -13,7 +13,7 @@
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host
-# SDK Manager installation. See README.md, "Step 1: get the device definitions".
+# SDK Manager installation. See docs/guide/getting-started.md, "Step 1: get the device definitions".
 
 set -euo pipefail
 
@@ -122,7 +122,7 @@ requires you to sign in. Get them once by hand:
      ${REPO_ROOT}/vendor/devices/
   3. Re-run this script.
 
-See README.md, "Step 1: get the device definitions".
+See docs/guide/getting-started.md, "Step 1: get the device definitions".
 EOF
         exit 1
     fi

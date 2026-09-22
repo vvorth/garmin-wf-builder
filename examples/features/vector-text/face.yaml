@@ -1,5 +1,5 @@
-# Vector fonts and `curve:` (docs/format.md "Vector (`face:`) fonts", and
-# "`curve:` -- rotated and radial text"; built as plan 11, both slices --
+# Vector fonts and `curve:` (docs/guide/fonts.md "Vector (`face:`) fonts", and
+# docs/guide/text.md "`curve:` -- rotated and radial text"; built as plan 11, both slices --
 # git show 35217d1:docs/plans/11-vector-text.md is the design record).
 #
 # A rugged field-watch dial: twelve numerals turn to sit tangent to their
@@ -7,7 +7,7 @@
 # bottom rim, and a diagonal "SOLAR" ribbon marks the two solar-charging
 # targets. What this exercises:
 #
-# * **Two kinds of `fonts:` entry, coexisting** (`docs/format.md` "Fonts"):
+# * **Two kinds of `fonts:` entry, coexisting** (`docs/guide/fonts.md`):
 #   `clock` bakes a bitmap sheet from `assets/ChivoMono-Bold.ttf`, the way
 #   every other example's fonts do; `dial` instead names a **device-resident
 #   scalable face** with `face:` -- nothing is rasterised for it at build
@@ -32,7 +32,7 @@
 #   other angle in the format.
 # * **`curve: {style: angled}` on a `text` element** (`solar_badge`): a
 #   tilted ribbon, the plain rotated-baseline case. `angled`'s `angle:` is a
-#   ROTATION, not a position (`docs/format.md` "Angles"): `0deg` is level,
+#   ROTATION, not a position (`docs/guide/placement.md` "Angles"): `0deg` is level,
 #   unrotated text, and this ribbon's `35deg` is 35 degrees clockwise from
 #   level -- not "35 degrees clockwise from 12 o'clock" the way a `radial`
 #   angle or an arc's `start_angle:` would read it.
@@ -124,7 +124,7 @@ elements:
     color: palette.gray
 
   # Twelve hour numerals, each rotated to sit tangent to its own radius --
-  # docs/format.md "Text parts". One authored angle, not twelve.
+  # docs/guide/patterns.md "Text parts". One authored angle, not twelve.
   - id: hour_numerals
     type: pattern
     pattern: radial
@@ -157,7 +157,7 @@ elements:
     color: palette.gray
 
   # A wordmark bent along the bottom rim. curve: radial's `at:` is the
-  # CENTRE of the circle, not a point the text sits on -- docs/format.md.
+  # CENTRE of the circle, not a point the text sits on -- docs/guide/text.md.
   # counter_clockwise faces the glyphs inward, so text along the bottom of
   # the dial still reads right-side up.
   - id: wordmark

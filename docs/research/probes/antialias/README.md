@@ -214,7 +214,7 @@ themselves (a `progress` arc's internal early `return` happens **after** it
 has already drawn both the track and the fill, not before), so wrapping only
 the call site -- after every guard, immediately around the actual drawing --
 is equivalent to "start/end of the drawing" and never leaves a dangling
-override behind a guard's `return`. This is why `docs/format.md`'s section on
+override behind a guard's `return`. This is why `docs/guide/elements.md`'s section on
 this says "sets and restores... around its own drawing", not "around its own
 method".
 
@@ -275,7 +275,7 @@ rather than the one `resolved.items` lists first) and the warning fired
 anyway -- correctly, per the documented contract, but a reminder that
 `check_graphics_pool`'s "report against the first representative, in draw
 order" shape is a real contract an author has to follow, not an arbitrary
-implementation detail. `docs/format.md` and `docs/limitations.md` both say
+implementation detail. `docs/guide/elements.md` and `docs/limitations.md` both say
 "first element, in draw order" explicitly for this reason.
 
 

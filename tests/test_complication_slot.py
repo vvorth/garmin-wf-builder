@@ -673,7 +673,7 @@ def test_config_unsupported_is_silenced_by_lint_allow_on_any_relevant_element(wr
 
 def test_complication_gated_fires_for_a_slots_default_on_fr955(write_design, db):
     """`sleep_score` needs ConnectIQ 6.0.2; fr955 tops out at 5.2.0 -- the
-    same fact `docs/format.md`'s own `on_hold:`/`complication.*` examples
+    same fact `docs/guide/data.md`'s own `complication.*` and `docs/guide/modes-and-interaction.md`'s `on_hold:` examples
     already rely on, reused here for a slot's own `default:`."""
     assert complications.TYPES["sleep_score"].since == "6.0.2"
     text = HEAD + """config:
@@ -806,7 +806,7 @@ def test_complication_slot_hold_method_symbol_is_reserved_against_collision(writ
 
 
 def test_only_a_mapped_choice_appears_in_the_icon_switch(write_design, bag, db):
-    """Not every complication type has a catalogue icon (docs/format.md) --
+    """Not every complication type has a catalogue icon (docs/guide/configuration.md) --
     `calories` maps to `flame`; an unmapped type simply is not one of the
     switch's cases."""
     from wfb.emit import monkeyc

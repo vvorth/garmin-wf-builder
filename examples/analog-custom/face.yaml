@@ -91,7 +91,7 @@ config:
       classic_light: { label: "Classic AI · Dark", layout: classic_generated, colors: dark }
 
 # One named set per style, drawn pointing at 12 o'clock in a frame whose
-# origin is the axis (docs/format.md "Analog hands").
+# origin is the axis (docs/guide/analog-hands.md).
 hands:
   classic:
     hour:

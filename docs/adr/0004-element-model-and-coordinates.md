@@ -239,7 +239,7 @@ renderer can be trusted. It is a capability hand authors do not have.
 >
 > `hands:` (a named-set block, exactly like `fonts:`) and `type: hands` (the
 > eighth element type, alongside §1's table) are documented in full in
-> `docs/format.md` under "Analog hands". `wfb/layout.py`'s `PlacedHands`
+> `docs/guide/analog-hands.md`. `wfb/layout.py`'s `PlacedHands`
 > carries the resolved, per-hand geometry the same way every other `Placed`
 > subclass carries a shape's; its own private `_round_away` rounds a
 > hand-frame coordinate **half away from zero**, not the plain `round()`
@@ -286,7 +286,7 @@ renderer can be trusted. It is a capability hand authors do not have.
 > The preview and the extent computation apply the same transform to the
 > same resolved template (`PlacedPattern.transform`), so this section's
 > anti-drift argument (Consequences, second bullet) still holds. The format
-> is documented in `docs/format.md` under "`pattern`".
+> is documented in `docs/guide/patterns.md`.
 
 ### 8. Placement — `align`/`vertical_align` as one rule for every kind
 
@@ -294,7 +294,7 @@ renderer can be trusted. It is a capability hand authors do not have.
 > box**, computed from its own declared geometry and never its ink, and
 > `align`/`vertical_align` say which edge of that box — or its centre — sits
 > on the point `at:` resolves to, independently per axis, both defaulting to
-> `center` (`docs/format.md`, "Placement: `at:` and `align:`"). Plan 06
+> `center` (`docs/guide/placement.md`, "Placement: `at:` and `align:`"). Plan 06
 > (2026-09-15, `git show
 > f5155d7:docs/plans/06-pattern-text-and-group-align.md`) had already put the
 > two keys on `group` alone, alongside `text`'s own long-standing pair; plan
@@ -386,7 +386,7 @@ renderer can be trusted. It is a capability hand authors do not have.
 > section lists as accepting the two keys does; the rejections above are
 > the whole set that refuses them. `examples/features/align/face.yaml` is the
 > reference design exercising every accepting kind with non-default
-> alignment on both axes, and `docs/format.md`'s "Placement: `at:` and
+> alignment on both axes, and `docs/guide/placement.md`'s "Placement: `at:` and
 > `align:`" section is the one place the rule is written down in full.
 
 ## Consequences
@@ -411,7 +411,7 @@ renderer can be trusted. It is a capability hand authors do not have.
   its icon+reading pair is centred via `Dc.getTextWidthInPixels`/
   `Dc.getFontHeight` because the wearer's pick, and so the actual text, is not
   known until the value is pulled (§8's `icon_size:`/`icon_position:`
-  discussion in `docs/format.md`). **Amended 2026-09-15, plan 07 phase C**:
+  discussion in `docs/guide/placement.md`). **Amended 2026-09-15, plan 07 phase C**:
   a non-default `align`/`vertical_align` on it moves that same runtime
   centring, with the equivalent arithmetic (`startX`/`startY` shifted by
   `0`/half/all of the pair's measured extent) computed on the device for

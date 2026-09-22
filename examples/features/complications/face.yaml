@@ -7,7 +7,7 @@
 #
 # `complication.*` is always read through Toybox.Complications; every other
 # path here (`heart_rate.current`, `activity.*`, `system.battery`) is always
-# a direct API read -- see docs/format.md's "The complication.* namespace"
+# a direct API read -- see docs/guide/data.md's "The complication.* namespace"
 # section for when to prefer one over the other. Both `complication.*`
 # sources below (body_battery, solar_input) have no direct-read alternative
 # at all, which is exactly the case the namespace exists for.
@@ -16,7 +16,7 @@
 # element id. It means exactly the same thing as the list form
 # (`- id: background`) every other example uses: the compiler rewrites it into
 # that form before anything else runs, and a design written both ways generates
-# byte-identical output. See docs/format.md, "Two ways to write a list of
+# byte-identical output. See docs/guide/elements.md, "Two ways to write a list of
 # elements", for which to prefer and why.
 #
 # There is deliberately no `yaml-language-server:` modeline here, unlike the

@@ -117,8 +117,8 @@ hands have.
   composes with `start:`/`step:` — so twelve hour numerals, each tangent to
   its own radius, are one authored angle (`curve: {style: angled, angle:
   0deg}`), not twelve. A linear pattern never rotates, so its copies simply
-  keep the part's own angle unchanged. `docs/format.md`'s ["Text
-  parts"](format.md#text-parts) has the full rules and the worked example.
+  keep the part's own angle unchanged. `docs/guide/patterns.md`'s ["Text
+  parts"](guide/patterns.md#text-parts) has the full rules and the worked example.
 - **Colours** may read `copy` (the index of the copy being drawn) and any
   source that is never absent, such as `date.weekday`. `examples/features/patterns/`'s
   row of dots lights today's this way. They may read a source that **can**
@@ -228,7 +228,7 @@ it chooses.
 explicitly refuse resource fonts, so **text drawn with an author's baked
 font still cannot be rotated or curved, and never will be** — that part of
 the practical consequence is permanent. What *is* built (plan 11,
-`docs/format.md`'s `curve:` section): a `fonts:` entry can name a
+`docs/guide/text.md`'s `curve:` section): a `fonts:` entry can name a
 device-resident face instead of baking one (`face:` instead of `source:`),
 and a `text` **element**, or a pattern's own `shape: text` part (slice 2),
 can bend it along a line (`style: angled`) or around a circle (`style:
@@ -294,7 +294,7 @@ splitting it into two overlaid glyphs, the same as two-colour text.
 
 ### `monospace:` only reaches a font the compiler bakes
 
-`fonts.<name>.monospace` (`docs/format.md` §Fonts) gives every glyph in a
+`fonts.<name>.monospace` (`docs/guide/fonts.md`) gives every glyph in a
 **custom** font one shared advance, which is what stops a digital clock
 shifting as its digits change. A **system** font — `FONT_MEDIUM`,
 `FONT_NUMBER_HOT` and the rest — is already rasterised on the device, so there
@@ -312,7 +312,7 @@ where that line goes.
 
 ### A font's `size:` cannot be `%` or `pt`, and is not normalised to ink height
 
-`fonts.<name>.size` takes a `px`/`%r` length (`docs/format.md` §Fonts), and not
+`fonts.<name>.size` takes a `px`/`%r` length (`docs/guide/fonts.md`), and not
 the other two units the coordinate model has. This is a real
 restriction, and it is structural rather than an omission: a bitmap sheet is
 rasterised **before** any element is placed, so a `%` has no parent box to be a
@@ -336,7 +336,7 @@ in general.
 ### The JSON Schema does not describe the mapping form of `elements:`
 
 An element list may be written as a sequence or as a mapping keyed by element id
-(`docs/format.md` §"Two ways to write a list of elements"). Both are accepted;
+(`docs/guide/elements.md` §"Two ways to write a list of elements"). Both are accepted;
 only the sequence is in `schema/wfb-face-1.schema.json`, because the mapping is
 rewritten into the sequence by `wfb/desugar.py` **before** validation, which is
 exactly what keeps the schema, the IR, the linter, the preview and codegen from
@@ -379,7 +379,7 @@ not paint the background", not "blend".
 
 ### A `BufferedBitmap` is opaque here, because transparency could not be established
 
-`static:` (see [`docs/format.md`](format.md)) draws fixed content once into a
+`static:` (see [`docs/guide/elements.md`](guide/elements.md)) draws fixed content once into a
 `Graphics.BufferedBitmap` and blits it every frame. The attractive version of
 that feature lets a static group sit **anywhere** in draw order: clear the buffer
 to `COLOR_TRANSPARENT` and its untouched pixels leave what is under them alone.
@@ -442,7 +442,7 @@ Each channel must be `0x00`, `0x55`, `0xAA` or `0xFF`. Anything else is dithered
 by the firmware and looks grainy at close range.
 
 Anti-aliasing a `shape`, `progress`, `graph` or `hands` element (`antialias:`,
-`docs/format.md`)
+`docs/guide/elements.md`)
 manufactures exactly the intermediate values this rule is about: a soft edge
 is a blend, by construction, and every value in between is off the 64-colour
 grid. `lint.check_antialias_palette` (`antialias-dither`) says so once per
@@ -461,7 +461,7 @@ exactly four axes: Styles, complication slots, **one** data colour and **one**
 accent colour. At most **four saved configurations** per face. There is no
 per-element colour editing and no arbitrary data rebinding.
 
-**All four axes are implemented, as `config:`** (`docs/format.md`
+**All four axes are implemented, as `config:`** (`docs/guide/configuration.md`
 "Configuration"; ADR 0006 §1): the two colour axes,
 **Styles**, which carries no colour of its own but is the only axis Garmin
 gives no meaning to at all — a declared `color_scheme:` (a named role ->
@@ -494,7 +494,7 @@ own "What it deliberately does NOT settle" section is explicit about the same
 boundary.
 
 **The Data axis shipped as `config: data:` + `type: complication_slot`**
-(`docs/format.md` "Configuration → The Data axis";
+(`docs/guide/configuration.md` "Configuration → The Data axis";
 `docs/research/09-data-library-and-config-axes.md`,
 `docs/research/probes/config-axes/`). What the research settled, and what is
 still true of the shipped feature:
@@ -540,7 +540,7 @@ still true of the shipped feature:
   author can override any choice's icon per-design (`choices:`'s
   mapping-form `icon:`/`glyph:`/`icon: none`, plan 03 §6.1/§6.2), and
   `icon_position:`/`icon_gap:`/`icon_color:` place, space and colour it (plan
-  03 §6.1/§6.3) -- `docs/format.md`'s "The Data axis" has the full account.
+  03 §6.1/§6.3) -- `docs/guide/configuration.md`'s "The Data axis" has the full account.
 * **`choices: any` + `icon_size:` is accepted.** A Connect IQ-app
   complication picked there draws no icon.
 * **monkeyc 9.2.0 crashes on two different string literals with the same
@@ -555,7 +555,7 @@ still true of the shipped feature:
   `unit:`.** Both are localised device strings with no documented upper
   bound; padding for them was tried and produced a spurious `off-screen`
   warning on an ordinary slot (confirmed directly), which is worse than the
-  gap it would have closed. `docs/format.md`'s "What this compiler cannot
+  gap it would have closed. `docs/guide/configuration.md`'s "What this compiler cannot
   tell you" records this the same way this file does.
 
 ### A live watch face receives exactly one gesture: touch and hold
@@ -628,11 +628,11 @@ Weather's condition icon (`icon_for: weather.condition`, resolved on-device
 through `WfbWeather.mc`, mirroring `wfb.icons.weather_icon_for_condition()`)
 and its full reading set -- temperature, feels-like, today's high/low and
 precipitation chance, humidity, wind speed -- both shipped; see
-`docs/format.md`'s `icon_for` and "Data binding" sections. Body Battery
+`docs/guide/icons.md`'s `icon_for` section and `docs/guide/data.md`'s "Data binding" section. Body Battery
 (`complication.body_battery`) and a daylight arc's sunrise/sunset data
 (`complication.sunrise`/`complication.sunset`) also both shipped, all three
 through `Toybox.Complications`, read the same way every other source is now
-read -- a plain per-frame pull, see `docs/format.md`'s "Data binding" section
+read -- a plain per-frame pull, see `docs/guide/data.md`'s "Data binding" section
 -- not a direct API field. Nothing in `examples/dashboard/` binds any of
 these yet, the graph included; that is an example-content update the user
 makes on their own playground (see "`examples/dashboard/face.yaml` is the
@@ -687,10 +687,10 @@ generated code draws from.
 caches.** Every value comes from a Garmin API that caches on its own side
 (`Toybox/Weather.html`'s `getCurrentConditions()` is "get the most
 **recently cached** weather conditions"), so a cache inside the 128 KB budget
-would buy nothing (`docs/format.md`'s "How data is read"). So a `weather.*` or
+would buy nothing (`docs/guide/data.md`'s "How data is read"). So a `weather.*` or
 `complication.*` binding may be used from a `low_power`/`always_on` element;
 that is the author's responsibility, backed only by the suppressible
-`partial-update-budget` warning (§3 below, `docs/format.md`'s "Modes").
+`partial-update-budget` warning (§3 below, `docs/guide/modes-and-interaction.md`'s "Modes").
 
 **Complications are read by pull, not by subscription callback**:
 `WfbComplications.valueOf` is called from `onUpdate` exactly like any other
@@ -701,7 +701,7 @@ a cache. Whether a pulled value would *stay* fresh with no subscription at all
 is **unverified** (no working simulator, "The simulator crashes when an app is
 pushed" below). All 42 `COMPLICATION_TYPE_*` values are data sources under
 `complication.*`; nine older path names (`body_battery.current` and others)
-raise a `source-renamed` build error naming the replacement (`docs/format.md`'s
+raise a `source-renamed` build error naming the replacement (`docs/guide/data.md`'s
 "The `complication.*` namespace", `WfbComplications.mc`).
 `complication.sleep_score` needs ConnectIQ 6.0.2, above `fr955`'s 5.2.0
 ceiling, so it never updates there (below, "device gating for a source is not
@@ -752,7 +752,7 @@ generated code uses, so the two cannot disagree about position. What it does
 `.cft` bitmap fonts, drawn from the device's own glyphs), arc cap shape, the
 transflective panel's real appearance, or — a deliberate scope decision —
 **a `shape`/`progress`/`graph`/`hands` element's own anti-aliasing**
-(`antialias:`, `docs/format.md`):
+(`antialias:`, `docs/guide/elements.md`):
 that side of the feature is a runtime `Dc.setAntiAlias` call, and
 `wfb/preview.py` draws every primitive with plain `PIL.ImageDraw` calls
 (`rectangle`, `ellipse`, `arc`, `polygon`, `line`), which are aliased by

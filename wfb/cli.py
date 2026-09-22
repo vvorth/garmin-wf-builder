@@ -1190,7 +1190,7 @@ def _sources(args) -> int:
             ref = f"  ({source.source_ref})" if source.source_ref else ""
             print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}{ref}")
     print(f"\n{term.style('config', 'bold', enabled=color_out)}  (declared per design in "
-          "'config:' -- fēnix 8 Solar's native editor only, see docs/format.md)")
+          "'config:' -- fēnix 8 Solar's native editor only, see docs/guide/configuration.md)")
     print(f"  {'config.accent_color':<34} {'color':<8} the one accent-colour axis "
           "(<accentColors>, Settings.accentColor)")
     print(f"  {'config.data_color':<34} {'color':<8} the one data-colour axis "
@@ -1227,7 +1227,7 @@ def _complications(args) -> int:
     level is not a promise the watch has it; a hold on a type the watch
     does not know simply does nothing, which is why `wfb validate` also
     checks each target's own symbol table (and, for a slot, each target's
-    own ConnectIQ ceiling -- see `api-gated` in docs/format.md).
+    own ConnectIQ ceiling -- see `api-gated` in docs/guide/configuration.md).
 
     Binding one of these -- as `on_hold:`, as `complication.<name>`, or via
     `on_hold: auto` -- adds the ComplicationSubscriber permission
@@ -1262,7 +1262,7 @@ def _series(args) -> int:
 
     A `graph` plots a series, not a scalar -- a different kind of binding
     from `wfb sources`' data-source catalogue, acquired and cached on-device
-    rather than read fresh every frame (`docs/format.md`'s `graph` section).
+    rather than read fresh every frame (`docs/guide/progress-and-graphs.md`'s `graph` section).
     Four families, and neither solar nor anything backed by
     `Toybox.SensorHistory` (pressure, stress, elevation, Body Battery) is one
     of them -- see `docs/limitations.md`.

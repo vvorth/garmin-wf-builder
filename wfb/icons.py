@@ -366,7 +366,7 @@ def font_key(length: Length | None, glyph_key: str, antialias: bool = False) -> 
 # Not wired to a live data source at binding time in every sense -- an author
 # can already write `icon: weather_rain` today as a static placeholder, and
 # `icon_for: weather.condition` (wfb/ir.py) binds one of these dynamically, at
-# runtime -- see docs/format.md's `icon_for` section.
+# runtime -- see docs/guide/icons.md's `icon_for` section.
 #
 # The raw values are `Toybox.Weather.CONDITION_*`, cited from
 # `doc/Toybox/Weather.html` in the SDK (API level 3.2.0, all of them). Spelled

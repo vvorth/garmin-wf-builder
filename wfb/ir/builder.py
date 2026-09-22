@@ -521,7 +521,7 @@ class Builder:
                         "id=...> however many layouts read it -- so a slot "
                         "belongs in the shared top-level 'elements:', not "
                         "inside a 'layouts:' body",
-                        "docs/format.md, 'Styles and layouts'",
+                        "docs/guide/styles-and-layouts.md",
                     ],
                 )
 
