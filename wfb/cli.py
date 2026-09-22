@@ -29,7 +29,7 @@ from pathlib import Path
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
 from .build import Toolchain, build as run_build, load, resolve_all, select_devices, slug
 from .simulate import SimulatorError, push, screenshot
-from .devices import DeviceDatabase, DeviceError
+from .devices import Device, DeviceDatabase, DeviceError
 from .diagnostics import Bag
 
 DEFAULT_OUTPUT = Path("build")
@@ -312,10 +312,13 @@ def _parser() -> argparse.ArgumentParser:
     devices.add_argument("--devices-dir")
 
     fonts_cmd = _command(sub, "fonts", _fonts)
-    fonts_cmd.add_argument("device", nargs="?",
-                           help="device to inspect (default: all installed devices)")
-    fonts_cmd.add_argument("-d", "--device", dest="device_flag",
-                           help="device to inspect (alternative to positional argument)")
+    fonts_cmd.add_argument("devices", nargs="*", metavar="DEVICE",
+                           help="device(s) to inspect (repeatable; default: all installed "
+                                "devices, summarised)")
+    fonts_cmd.add_argument("-d", "--device", action="append", dest="device_flags",
+                           metavar="DEVICE",
+                           help="another device to inspect (repeatable; alternative or "
+                                "addition to the positional form)")
     fonts_cmd.add_argument("--devices-dir", help="device definitions directory")
 
     doctor = _command(sub, "doctor", _doctor)
@@ -937,7 +940,23 @@ def _devices(args) -> int:
     return 0
 
 
+def _dim(text: str, *, color: bool) -> str:
+    """Style ``text`` the muted way every "none"/"not published" line in
+    `wfb fonts` uses -- centralised so the summary and detailed views cannot
+    drift on how they grey out an absence."""
+    return term.style(text, "dim", enabled=color)
+
+
 def _print_all_device_fonts_summary(db: DeviceDatabase) -> None:
+    """Print every installed device's id, vector-text API gates, scalable
+    (vector) faces and system (bitmap) font symbols, one paragraph each.
+
+    A device that cannot run a watch face at all (`Device.supports_
+    watchface`) gets a one-line note instead of font data -- there is
+    nothing to show. A device that publishes scalable faces but lacks
+    `Graphics.getVectorFont` says so explicitly rather than listing them as
+    usable: without that symbol, nothing in `face.yaml` can reach them.
+    """
     color_out = term.should_color(sys.stdout)
     device_ids = db.ids()
     if not device_ids:
@@ -952,22 +971,41 @@ def _print_all_device_fonts_summary(db: DeviceDatabase) -> None:
         meta = f"({device.width}x{device.height} {device.shape}, CIQ {device.api_level})"
         print(f"{title} {meta}")
 
-        if device.scalable_faces:
+        if not device.supports_watchface:
+            print("  cannot run a watch face")
+            continue
+
+        has_vector = device.has_symbol(Device.VECTOR_FONT_SYMBOL)
+        gates = []
+        if has_vector:
+            gates.append("getVectorFont")
+        if device.has_symbol(Device.DRAW_RADIAL_TEXT_SYMBOL):
+            gates.append("drawRadialText")
+        if device.has_symbol(Device.DRAW_ANGLED_TEXT_SYMBOL):
+            gates.append("drawAngledText")
+        gates_str = ", ".join(gates) if gates else _dim("none", color=color_out)
+        print(f"  vector text:   {gates_str}")
+
+        if device.scalable_faces and has_vector:
             count = len(device.scalable_faces)
             label = f"  scalable ({count}): "
-            print(textwrap.fill(label + ", ".join(device.scalable_faces), width=88, subsequent_indent="    "))
+            print(textwrap.fill(label + ", ".join(device.scalable_faces), width=88,
+                                subsequent_indent="    "))
+        elif device.scalable_faces:
+            count = len(device.scalable_faces)
+            print(f"  scalable:      {_dim('none', color=color_out)} usable "
+                  f"({count} published, no Graphics.getVectorFont)")
         else:
-            dim_none = term.style("none", "dim", enabled=color_out)
-            print(f"  scalable:      {dim_none} (no vector fonts)")
+            print(f"  scalable:      {_dim('none', color=color_out)} (no vector fonts)")
 
         if device.system_fonts:
             count = len(device.system_fonts)
-            symbols_str = ", ".join(f"{m.symbol} ({m.size_px}px)" for m in device.system_fonts.values())
+            symbols_str = ", ".join(
+                f"{m.symbol} ({m.size_px}px)" for m in device.system_fonts.values())
             label = f"  system ({count}):   "
             print(textwrap.fill(label + symbols_str, width=88, subsequent_indent="    "))
         else:
-            dim_none = term.style("none", "dim", enabled=color_out)
-            print(f"  system:        {dim_none}")
+            print(f"  system:        {_dim('none', color=color_out)}")
 
     hint = term.style(
         "\nrun `wfb fonts <device>` for full metrics and font files for a specific device",
@@ -978,6 +1016,18 @@ def _print_all_device_fonts_summary(db: DeviceDatabase) -> None:
 
 
 def _print_device_fonts_detailed(device: Device) -> None:
+    """Print one device's full font breakdown: scalable (vector) faces with
+    their `Graphics.getVectorFont`/`curve:` gating, then system (bitmap)
+    font symbols with their measured metrics.
+
+    A device that cannot run a watch face at all prints only the header and
+    a one-line note. Otherwise, the scalable section states not just
+    whether `Graphics.getVectorFont` exists but which of `Dc.drawRadialText`
+    /`Dc.drawAngledText` it can pair with -- getVectorFont alone does not
+    promise either, so a `curve:` element needs the gate checked
+    independently -- and the face table is only shown as usable when
+    getVectorFont itself is present.
+    """
     color_out = term.should_color(sys.stdout)
     title = term.style(device.id, "bold", enabled=color_out)
     parts = [f"{device.width}x{device.height} {device.shape}", f"CIQ {device.api_level}"]
@@ -987,9 +1037,14 @@ def _print_device_fonts_detailed(device: Device) -> None:
         parts.append(f"{device.display_colors} colors")
     print(f"{title} ({', '.join(parts)})")
 
-    has_vector = device.has_symbol(device.VECTOR_FONT_SYMBOL)
-    has_radial = device.has_symbol(device.DRAW_RADIAL_TEXT_SYMBOL)
-    has_angled = device.has_symbol(device.DRAW_ANGLED_TEXT_SYMBOL)
+    if not device.supports_watchface:
+        print()
+        print("  cannot run a watch face")
+        return
+
+    has_vector = device.has_symbol(Device.VECTOR_FONT_SYMBOL)
+    has_radial = device.has_symbol(Device.DRAW_RADIAL_TEXT_SYMBOL)
+    has_angled = device.has_symbol(Device.DRAW_ANGLED_TEXT_SYMBOL)
 
     print()
     scal_header = term.style(
@@ -999,28 +1054,36 @@ def _print_device_fonts_detailed(device: Device) -> None:
     )
     print(scal_header)
     if has_vector:
-        cap_parts = []
-        if has_radial:
-            cap_parts.append("Dc.drawRadialText")
-        if has_angled:
-            cap_parts.append("Dc.drawAngledText")
-        cap_str = ", ".join(cap_parts) if cap_parts else "available"
-        print(f"  Graphics.getVectorFont: yes ({cap_str})")
-        print("  Use in face.yaml: under 'fonts:' with 'face: [<name>, ...]' (required for radial/angled text)")
+        if has_radial and has_angled:
+            print("  Graphics.getVectorFont: yes (Dc.drawRadialText, Dc.drawAngledText)")
+        elif has_radial:
+            print("  Graphics.getVectorFont: yes; curve: {style: radial} available "
+                  "(Dc.drawRadialText); angled unavailable (no Dc.drawAngledText)")
+        elif has_angled:
+            print("  Graphics.getVectorFont: yes; curve: {style: angled} available "
+                  "(Dc.drawAngledText); radial unavailable (no Dc.drawRadialText)")
+        else:
+            print("  Graphics.getVectorFont: yes, but curve: (radial/angled text) is "
+                  "unavailable on this device")
+        print("  Use in face.yaml: under 'fonts:' with 'face: [<name>, ...]' "
+              "(required for radial/angled text)")
     else:
         print("  Graphics.getVectorFont: not available on this device")
 
-    if device.scalable_faces:
+    if device.scalable_faces and has_vector:
         print()
-        col_hdr = f"  {'Face Name':<32} {'File / Stem':<30}"
+        col_hdr = f"  {'Face Name':<32} {'File / Stem':<30}".rstrip()
         print(term.style(col_hdr, "bold", enabled=color_out))
-        print(f"  {'-' * 30:<32} {'-' * 28:<30}")
+        print(f"  {'-' * 30:<32} {'-' * 28:<30}".rstrip())
         for face in device.scalable_faces:
             stem = device.scalable_face_files.get(face, "-")
-            print(f"  {face:<32} {stem:<30}")
+            print(f"  {face:<32} {stem:<30}".rstrip())
+    elif device.scalable_faces:
+        count = len(device.scalable_faces)
+        print(f"  {_dim('none usable', color=color_out)} ({count} published, "
+              "no Graphics.getVectorFont)")
     else:
-        dim_none = term.style("none (no vector fonts published)", "dim", enabled=color_out)
-        print(f"  {dim_none}")
+        print(f"  {_dim('none (no vector fonts published)', color=color_out)}")
 
     print()
     sys_header = term.style(
@@ -1032,43 +1095,65 @@ def _print_device_fonts_detailed(device: Device) -> None:
     print("  Use in face.yaml: directly as 'font: <symbol>' (e.g. font: FONT_SMALL)")
     if device.system_fonts:
         print()
-        col_hdr = f"  {'Symbol':<24} {'Line Height':<12} {'Em Size':<10} {'File / Stem':<28} {'Face Name':<20}"
+        col_hdr = (f"  {'Symbol':<24} {'Line Height':<12} {'Em Size':<10} "
+                  f"{'File / Stem':<28} {'Face Name':<20}").rstrip()
         print(term.style(col_hdr, "bold", enabled=color_out))
-        print(f"  {'-' * 22:<24} {'-' * 11:<12} {'-' * 8:<10} {'-' * 26:<28} {'-' * 18:<20}")
+        dashes = (f"  {'-' * 22:<24} {'-' * 11:<12} {'-' * 8:<10} "
+                 f"{'-' * 26:<28} {'-' * 18:<20}").rstrip()
+        print(dashes)
         for m in device.system_fonts.values():
             em_str = f"{m.em_px:.1f} px" if m.em_px is not None else "-"
             sz_str = f"{m.size_px} px"
-            print(f"  {m.symbol:<24} {sz_str:<12} {em_str:<10} {m.font:<28} {m.face:<20}")
+            row = f"  {m.symbol:<24} {sz_str:<12} {em_str:<10} {m.font:<28} {m.face:<20}"
+            print(row.rstrip())
     else:
-        dim_none = term.style("none recorded in reference database", "dim", enabled=color_out)
-        print(f"  {dim_none}")
+        print(f"  {_dim('none recorded in reference database', color=color_out)}")
 
 
 def _fonts(args) -> int:
-    """list fonts available per device, or detailed font metrics for one device
+    """list fonts available per device, or a detailed font breakdown for one or more
 
-    With no arguments, lists every installed device definition alongside its
-    available scalable (vector) faces and system (bitmap) font symbols.
+    With no device named, lists every installed device definition alongside
+    its scalable (vector) faces, system (bitmap) font symbols, and which of
+    `Graphics.getVectorFont`/`Dc.drawRadialText`/`Dc.drawAngledText` it
+    publishes -- a face is only usable when `Graphics.getVectorFont` itself
+    is present, called out explicitly whenever a device publishes faces
+    without it.
 
-    When given a device ID (e.g. `wfb fonts fenix8solar47mm`), prints a detailed
-    breakdown for that device:
+    Naming one or more devices -- as positional arguments, `-d/--device`
+    (repeatable), or both mixed together, merged in the order given and
+    de-duplicated -- prints a detailed breakdown for each instead (e.g. `wfb
+    fonts fenix8solar47mm fr955`), separated by a blank line:
       * Scalable (vector) fonts -- faces published to `Graphics.getVectorFont`
-        (for use in `face.yaml` under `fonts:` with `face: [...]`, required by
-        `curve: {style: radial|angled}`);
+        (for use in `face.yaml` under `fonts:` with `face: [...]`), plus
+        which of `curve: {style: radial|angled}` the device can pair it
+        with, since getVectorFont alone does not guarantee either;
       * System (bitmap) fonts -- `Graphics.FONT_*` symbols, their exact line
         heights (`size_px`), em sizes, file stems, and face names.
+
+    A device that cannot run a watch face at all (`wfb devices`) is named
+    with a one-line note instead of font data, in either view. Naming an
+    unknown device is a clean error (`wfb devices` lists what is installed)
+    and nothing is printed, even when an earlier name on the command line
+    is valid -- every name is resolved before anything is shown.
     """
     db = DeviceDatabase.discover(args.devices_dir)
-    device_name = args.device or args.device_flag
-    if device_name:
-        if device_name not in db.ids():
-            _error(f"unknown device {device_name!r}")
-            print(f"       installed: {', '.join(db.ids())}", file=sys.stderr)
-            return 1
-        _print_device_fonts_detailed(db.get(device_name))
+    names: list[str] = []
+    for name in list(args.devices) + list(args.device_flags or []):
+        if name not in names:
+            names.append(name)
+
+    if not names:
+        _print_all_device_fonts_summary(db)
         return 0
 
-    _print_all_device_fonts_summary(db)
+    # Resolve every name before printing anything, so a typo in the second
+    # name cannot leave the first device's output already on stdout.
+    devices = [db.get(name) for name in names]
+    for i, resolved in enumerate(devices):
+        if i > 0:
+            print()
+        _print_device_fonts_detailed(resolved)
     return 0
 
 

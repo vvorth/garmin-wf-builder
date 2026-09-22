@@ -129,7 +129,8 @@ built      my-face-fr955.prg            2,775 B / 131,072 B (2.1%)
 watches you name. It takes any watch you have definitions for, not only the
 ones under `targets:`, so you can try a face on another model without editing
 it: `wfb build my-face.yaml -d fenix7pro` builds just that one, with a note
-that it isn't a listed target. `wfb devices` lists the watches you can name.
+that it isn't a listed target. `wfb devices` lists the watches you can name,
+and `wfb fonts [DEVICE...]` lists each one's scalable and system fonts.
 
 While you edit, `wfb preview my-face.yaml --watch` redraws the PNG every time
 you save; it keeps running until you press Ctrl-C. Three commands list what a

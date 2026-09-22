@@ -132,34 +132,110 @@ def test_schema_path_points_at_a_real_file():
 # -- `wfb fonts` ------------------------------------------------------------
 
 
-def test_fonts_lists_all_installed_devices(db):
-    result = run("fonts")
-    assert result.returncode == 0, result.stderr
-    assert "fenix8solar47mm" in result.stdout
-    assert "scalable" in result.stdout
-    assert "system" in result.stdout
+def _header_line(stdout: str, device_id: str) -> str:
+    """The one line in ``stdout`` that starts a device's own paragraph --
+    ``"<id> (...)"`` -- never a mention of the id somewhere inside another
+    device's data (a file stem, a face name, ...)."""
+    for line in stdout.splitlines():
+        if line.startswith(f"{device_id} ("):
+            return line
+    raise AssertionError(f"no header line for {device_id!r} in:\n{stdout}")
 
 
-def test_fonts_lists_specific_device(db):
-    result = run("fonts", "fenix8solar47mm")
+def _device_block(stdout: str, device_id: str) -> str:
+    """The lines of ``stdout`` from a device's own header up to (not
+    including) the next blank line -- one device's paragraph in the summary
+    view, isolated so an assertion cannot accidentally match a sibling
+    device's block instead."""
+    lines = stdout.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith(f"{device_id} ("))
+    end = next((i for i in range(start + 1, len(lines)) if not lines[i].strip()), len(lines))
+    return "\n".join(lines[start:end])
+
+
+def test_fonts_summary_lists_every_device_with_its_own_gates(db, device):
+    """Every installed id appears, and the golden device's own block -- not
+    just the whole output -- names one of its real scalable faces alongside
+    a `vector text:` line naming `drawRadialText`.  A bare `"scalable" in
+    stdout` check would also pass on a `scalable: none` line, so this reads
+    the actual face name and the actual gate name out of that one block."""
+    result = run("fonts", "--color", "never")
     assert result.returncode == 0, result.stderr
-    assert "fenix8solar47mm" in result.stdout
+    for device_id in db.ids():
+        assert _header_line(result.stdout, device_id)
+
+    block = _device_block(result.stdout, device.id)
+    assert "vector text:" in block
+    assert "drawRadialText" in block
+    assert any(face in block for face in device.scalable_faces)
+
+
+def test_fonts_detailed_positional_shows_only_that_device(db, device):
+    result = run("fonts", device.id, "--color", "never")
+    assert result.returncode == 0, result.stderr
     assert "Scalable (vector) fonts" in result.stdout
-    assert "RobotoCondensedBold" in result.stdout
-    assert "System fonts" in result.stdout
-    assert "FONT_XTINY" in result.stdout
+    for face in device.scalable_faces:
+        assert face in result.stdout
+    for metric in device.system_fonts.values():
+        assert metric.symbol in result.stdout
+    for other_id in db.ids():
+        if other_id != device.id:
+            assert f"{other_id} (" not in result.stdout
 
 
-def test_fonts_with_dash_d_flag(db):
-    result = run("fonts", "-d", "fenix8solar47mm")
+def test_fonts_dash_d_shows_only_that_device(db, device):
+    """The old version of this test only asserted a face name the summary
+    view also prints, so it would have passed even with `-d` silently
+    ignored.  Asserting the detailed-only marker and the absence of any
+    other device's header proves `-d` actually selected the detailed view
+    for the right device."""
+    result = run("fonts", "-d", device.id, "--color", "never")
     assert result.returncode == 0, result.stderr
-    assert "RobotoCondensedBold" in result.stdout
+    assert "Scalable (vector) fonts" in result.stdout
+    for face in device.scalable_faces:
+        assert face in result.stdout
+    for other_id in db.ids():
+        if other_id != device.id:
+            assert f"{other_id} (" not in result.stdout
 
 
-def test_fonts_unknown_device(db):
-    result = run("fonts", "non_existent_device_xyz")
+def test_fonts_positional_and_dash_d_both_print(db, device):
+    others = [d for d in db.ids() if d != device.id]
+    if not others:
+        pytest.skip("only one device installed")
+    other_id = others[0]
+    result = run("fonts", device.id, "-d", other_id, "--color", "never")
+    assert result.returncode == 0, result.stderr
+    assert _header_line(result.stdout, device.id)
+    assert _header_line(result.stdout, other_id)
+
+
+def test_fonts_duplicate_device_name_prints_once(device):
+    result = run("fonts", device.id, "-d", device.id, "--color", "never")
+    assert result.returncode == 0, result.stderr
+    headers = [line for line in result.stdout.splitlines() if line.startswith(f"{device.id} (")]
+    assert len(headers) == 1
+
+
+def test_fonts_device_without_vector_fonts_says_so_and_skips_the_table(db):
+    from wfb.devices import Device
+
+    candidates = [d for d in db.ids() if not db.get(d).has_symbol(Device.VECTOR_FONT_SYMBOL)]
+    if not candidates:
+        pytest.skip("every installed device publishes vector fonts")
+    target = candidates[0]
+    result = run("fonts", target, "--color", "never")
+    assert result.returncode == 0, result.stderr
+    assert "Graphics.getVectorFont: not available on this device" in result.stdout
+    scalable_section = result.stdout.split("Scalable (vector) fonts")[1].split("System fonts")[0]
+    assert "Face Name" not in scalable_section
+
+
+def test_fonts_unknown_device_prints_nothing_even_with_a_valid_name_first(device):
+    result = run("fonts", device.id, "non_existent_device_xyz", "--color", "never")
     assert result.returncode == 1
-    assert "unknown device 'non_existent_device_xyz'" in (result.stderr + result.stdout)
+    assert "unknown device 'non_existent_device_xyz'" in result.stderr
+    assert result.stdout == ""
 
 
 def test_fonts_help():
@@ -167,6 +243,54 @@ def test_fonts_help():
     assert result.returncode == 0
     assert "list fonts available per device" in result.stdout
 
+
+def test_print_device_fonts_detailed_reports_curve_unavailable(monkeypatch, capsys, device):
+    """`getVectorFont` present but neither draw symbol is. No verified device
+    has this split (the three symbols move together, per `Device.VECTOR_
+    FONT_SYMBOL`'s own note), but nothing in the SDK promises it, so it is
+    driven from a monkeypatched `has_symbol` on a real device."""
+    from wfb import cli
+    from wfb.devices import Device
+
+    real_has_symbol = type(device).has_symbol
+
+    def fake_has_symbol(self, qualified):
+        if qualified in (Device.DRAW_RADIAL_TEXT_SYMBOL, Device.DRAW_ANGLED_TEXT_SYMBOL):
+            return False
+        return real_has_symbol(self, qualified)
+
+    monkeypatch.setattr(type(device), "has_symbol", fake_has_symbol)
+    assert device.has_symbol(Device.VECTOR_FONT_SYMBOL) is True
+
+    cli._print_device_fonts_detailed(device)
+    out = capsys.readouterr().out
+    assert "yes, but curve: (radial/angled text) is unavailable" in out
+    assert "yes (available)" not in out
+
+
+def test_print_device_fonts_detailed_skips_fonts_for_non_watchface_device(monkeypatch, capsys, device):
+    from wfb import cli
+
+    monkeypatch.setattr(type(device), "supports_watchface", property(lambda self: False))
+
+    cli._print_device_fonts_detailed(device)
+    out = capsys.readouterr().out
+    assert "cannot run a watch face" in out
+    assert "Scalable" not in out
+    assert "System fonts" not in out
+
+
+def test_print_all_device_fonts_summary_skips_fonts_for_non_watchface_device(monkeypatch, capsys,
+                                                                             db, device):
+    from wfb import cli
+
+    monkeypatch.setattr(type(device), "supports_watchface", property(lambda self: False))
+
+    cli._print_all_device_fonts_summary(db)
+    out = capsys.readouterr().out
+    block = _device_block(out, device.id)
+    assert "cannot run a watch face" in block
+    assert "vector text:" not in block
 
 
 # -- `wfb sources` / `wfb complications` -------------------------------------
