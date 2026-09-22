@@ -67,4 +67,17 @@ module Layout {
     const BEZEL_TEXT_WIDTH as Number = 17;  // widest rendering "BEZEL" is 17 px (estimated)
     const BEZEL_TEXT_ANGLE as Float = 0.0f;  // 90deg clockwise from 12 o'clock, in Garmin's convention
     const BEZEL_TEXT_RADIUS as Number = 57;
+
+    //! `dial_numbers` -- a radial pattern: 3 copies, 12 degrees apart
+    const DIAL_NUMBERS_X as Number = 130;  // the centre every copy turns about
+    const DIAL_NUMBERS_Y as Number = 130;
+    const DIAL_NUMBERS_0_X as Number = 0;  // template, part 0: text (the anchor)
+    const DIAL_NUMBERS_0_Y as Number = -104;
+
+    //! `dial_ring` -- a radial pattern: 3 copies, 12 degrees apart
+    const DIAL_RING_X as Number = 130;  // the centre every copy turns about
+    const DIAL_RING_Y as Number = 130;
+    const DIAL_RING_0_X as Number = 0;  // template, part 0: text (the anchor)
+    const DIAL_RING_0_Y as Number = 0;
+    const DIAL_RING_0_RADIUS as Number = 78;  // curve: radial's own circle radius
 }

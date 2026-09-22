@@ -75,20 +75,26 @@ def _vector_font_constants(
 
 
 def _outline_widths_used(resolved: ResolvedFace) -> list[int]:
-    """Every distinct `outline.width` a `text` element (or, once slice 2
-    lands, a pattern's own `shape: text` part) actually draws with in this
+    """Every distinct `outline.width` a `text` element or a pattern's own
+    `shape: text` part (plan 15 §14 slice 2) actually draws with in this
     design, in first-appearance draw order -- the same "only what's
     actually used generates code" rule `_vector_fonts_used`/`_loaded_fonts`
     already follow (`wfb.emit.monkeyc.common`). `getattr(..., "outline",
-    None)` rather than `isinstance(placed, PlacedText)` so a future kind
-    (a pattern text part) that grows its own `.outline` needs no change
-    here.
+    None)` rather than `isinstance(placed, PlacedText)` so a standalone
+    element needs no special-casing; a `PatternElement`'s own `parts`
+    (`getattr(..., "parts", None)`, true only for a pattern -- neither
+    `Text` nor `HandsElement` has one) are walked too, since `outline:`
+    lives per-part there, not on the element itself.
     """
     out: list[int] = []
     for placed in resolved.items:
         outline = getattr(placed.element, "outline", None)
         if outline is not None and outline.width not in out:
             out.append(outline.width)
+        for part in getattr(placed.element, "parts", None) or ():
+            part_outline = getattr(part, "outline", None)
+            if part_outline is not None and part_outline.width not in out:
+                out.append(part_outline.width)
     return out
 
 

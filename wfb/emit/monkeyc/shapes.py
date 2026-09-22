@@ -154,7 +154,7 @@ def _radial_radius_expr(radius_expr: str, vertical_align: str, direction: str | 
 
 def _emit_outline_loop(
     w: Writer, width: int, color_code: str, x_expr: str, y_expr: str,
-    draw: Callable[[str, str], None],
+    draw: Callable[[str, str], None], *, index_var: str = "i", offsets_var: str = "offsets",
 ) -> None:
     """The stamp loop `outline:` runs ahead of a text draw call's own
     (unshifted) interior pass (plan 15 §5, §8): loops over
@@ -186,13 +186,26 @@ def _emit_outline_loop(
     below, is untouched: it sets a different colour and runs only once,
     after this loop, not inside it, so there was never a duplicate there
     to remove.)
+
+    `index_var`/`offsets_var` default to `"i"`/`"offsets"` -- the exact
+    names slice 1 always used, so every pre-slice-2 caller (a standalone
+    `text` element, one generated method per element) is byte-for-byte
+    unaffected. A pattern's own `shape: text` part (plan 15 §14 slice 2)
+    passes distinct names instead: every part of one pattern shares a
+    single generated method (`_emit_pattern`'s per-copy loop body), which
+    already declares its own `var i` for the copy index, and more than one
+    outlined text part in the same pattern would otherwise also collide
+    with each other's `offsets`/`i` -- Monkey C rejects redefining a
+    variable even across what look like separate straight-line statements
+    in the same method, confirmed by a real `monkeyc` run
+    (`Redefinition of variable 'i'`) before this parameter existed.
     """
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"var offsets = Layout.OUTLINE_OFFSETS_{width};")
-    w.line("var i = 0;")
-    with w.block("while (i < offsets.size())"):
-        draw(f"{x_expr} + offsets[i]", f"{y_expr} + offsets[i + 1]")
-        w.line("i += 2;")
+    w.line(f"var {offsets_var} = Layout.OUTLINE_OFFSETS_{width};")
+    w.line(f"var {index_var} = 0;")
+    with w.block(f"while ({index_var} < {offsets_var}.size())"):
+        draw(f"{x_expr} + {offsets_var}[{index_var}]", f"{y_expr} + {offsets_var}[{index_var} + 1]")
+        w.line(f"{index_var} += 2;")
     w.blank()
 
 

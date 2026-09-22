@@ -1,15 +1,18 @@
 # 15 — `outline:`: the stamped ring as an author-facing text feature
 
-**Status: slice 1 built (§14) — `outline:` on a standalone `text` element,
-warning-free on all three verification targets. Slices 2 and 3 open.**
-Delete this file when slice 3 lands (`docs/CLAUDE.md`). What slice 1
-shipped is documented in `docs/guide/text.md`, `docs/guide/lints.md`,
-`docs/guide/colors.md`, `docs/limitations.md` §2 and `docs/lore/
-codegen.md`; this file remains only as the design record for the two
-slices still to come, plus two amendments: §16 (a schema correction found
-during implementation) and §17 (`text-outline-interior`/`contrast` made
-colour-aware so the feature's own canonical fixture is warning-free,
-found building it).
+**Status: slices 1 and 2 built (§14) — `outline:` on a standalone `text`
+element and on a pattern's own `shape: text` part, warning-free on all
+three verification targets. Slice 3 (examples/screenshots) open.**
+Delete this file when slice 3 lands (`docs/CLAUDE.md`). What slices 1-2
+shipped is documented in `docs/guide/text.md`, `docs/guide/patterns.md`,
+`docs/guide/lints.md`, `docs/guide/colors.md`, `docs/limitations.md` §2
+and `docs/lore/codegen.md`; this file remains only as the design record
+for the slice still to come, plus four amendments: §16 (a schema
+correction found during slice 1 implementation), §17 (`text-outline-
+interior`/`contrast` made colour-aware so slice 1's own canonical fixture
+is warning-free, found building it), and §18 (two places slice 2's own
+text, taken literally, did not match what was actually built, plus a
+real `monkeyc` finding neither slice 1 nor the plan anticipated).
 
 `docs/research/13-outline-vector-text.md` found that the platform's own
 outlined-text mode (FreeType's stroker, a real two-pass "ring in one
@@ -965,3 +968,121 @@ were regenerated for the resulting position/colour changes (`BRAND_Y`
 and `Palette.TEXT`→`Palette.BG` only — no other generated line changed).
 `./.venv/bin/python wfb.py build tests/fixtures/outline_text/face.yaml`
 is warning-free after all three fixes.
+
+---
+
+## 18. Amendments found building slice 2 (2026-09-22)
+
+Three places where §14 slice 2's own text, taken literally, would not have
+produced a correct or even a compiling implementation, plus one real
+`monkeyc` finding neither slice 1 nor the plan's own worked description
+anticipated — recorded per the orchestrator's brief rather than silently
+diverging from what §14 says.
+
+**§14 slice 2's file list says `outline` is added "to the `text`-shaped
+branch of `handPart`" — the actual schema location is `patternPart`, a
+separate `$defs` entry.** `handPart` (`schema/wfb-face-1.schema.json`) is
+the schema for an actual `hands:` set's parts, which reject `shape: text`
+outright (`HAND_PART_REJECTED_SHAPES`, "a bitmap font cannot rotate") — a
+hand part can never carry `outline:` at all. The pattern-template
+vocabulary that *does* accept `shape: text` is the sibling `patternPart`
+def. §14's own text conflates the two because the **code-level** dataclass
+both share is named `HandPart` (`wfb/ir/model.py`) and both go through the
+same builder method, `Builder._build_hand_part` (parameterised by
+`context="hand"`/`"pattern"`) — a real, deliberate sharing at the IR/
+builder layer that has no counterpart in the JSON Schema, which keeps two
+separate, independently-`additionalProperties:-false` definitions. No
+format-level change: `outline:` reaches exactly the same one place (a
+pattern's own `shape: text` part) either way; only the plan's own
+schema-location description was imprecise. Built: `outline` added to
+`patternPart`'s own properties (`schema/wfb-face-1.schema.json`), and
+`"outline"` joined the `"text"` row of `PATTERN_PART_GEOMETRY_KEYS`
+(`wfb/ir/builder.py`) — the code-level table that *is* named after the
+shared `HandPart` type, which is the one place §14's "handPart" language
+is actually correct.
+
+**§14 slice 2's file list says `check_text_outline_interior` "needs no
+code change (already generic over `Placed`)" — this undersold what a
+`PatternElement` actually needed.** The check (as slice 1 shipped it)
+reads `getattr(later.element, "outline", None)` and `getattr(later.
+element, "color", None)` directly off the element — correct for a `Text`
+element, whose `outline`/`color` really do live at that level, but a
+`PatternElement` has neither: `outline:` (and its own interior `color:`)
+live on each **part** (D10 already says the check stays element-level,
+not per-copy, but that is a statement about *copies*, not about where
+`outline:` is authored on the element graph). Left as `getattr(...,
+"outline", None)` alone, the check would simply never fire for any
+pattern, silently — a false "no code change" that would have shipped a
+gap rather than a suppressible warning. Built: a new `_outlined_
+interiors(element)` helper (`wfb/lint.py`) returns every `(outline,
+interior colour)` pair an element draws with — a `Text` element's own
+single pair, or, for a `PatternElement`, one pair per outlined part — and
+`check_text_outline_interior` iterates that instead of the element's own
+two attributes directly. The suppression rule itself needed one further
+generalisation, beyond D10's own text: for a pattern with more than one
+outlined part, a given earlier element is provably safe only when **every**
+outlined part's own interior colour independently matches it (`all(...)`
+over `_outlined_interiors`' pairs) — a pattern with two outlined parts in
+two different interior colours, only one of which happens to match a
+fully-covering backdrop, is not safe, because the other part's own patch
+is still unaccounted for. `tests/test_lint.py::test_pattern_outline_
+interior_all_outlined_parts_must_match_to_suppress` drives this red
+against an "any one match suppresses" implementation and green against the
+"all must match" one actually built.
+
+**Real `monkeyc` finding, not anticipated by §8's worked codegen shape:
+a pattern's own copy loop already owns the local name `i`, so `_emit_
+outline_loop`'s slice-1 hardcoded `var i = 0;`/`var offsets = ...;`
+does not compile once nested inside it.** `wfb.emit.monkeyc.rotated.
+_emit_pattern` already declares `for (var i = 0; i < element.count; i++)`
+as the per-copy loop's own index — the exact same generated method every
+part of one pattern shares. Nesting an outlined text part's stamp loop
+inside that body with slice 1's own bare `var i = 0;` produced a real,
+reproducible `monkeyc` error, `Redefinition of variable 'i'`, the moment
+`tests/fixtures/outline_text/face.yaml` gained its first pattern-with-
+outline element — Monkey C does not scope a `var` to the block it is
+declared in the way this might suggest; a straight-line re-declaration
+later in the same method is rejected outright, even nested inside an
+unrelated `if`/`while`. Two outlined text parts in the *same* pattern
+would collide with each other the same way, for the same reason, once
+one bug was fixed superficially (e.g. by simply renaming the loop
+variable once, globally). Fixed by giving `_emit_outline_loop`
+(`wfb/emit/monkeyc/shapes.py`) two new keyword parameters, `index_var`/
+`offsets_var`, defaulting to `"i"`/`"offsets"` — so every slice-1 call
+site (one generated method per standalone element, no collision possible)
+is byte-for-byte unaffected — with the pattern caller
+(`wfb.emit.monkeyc.rotated._emit_pattern_text_draw`) deriving unique
+names per part from its own `part_prefix` (`f"outlineI{part_prefix}"`/
+`f"outlineOffsets{part_prefix}"`), the same per-part uniqueness every
+other generated constant name for that part already relies on. Caught
+only by a real `monkeyc` build (`./.venv/bin/python wfb.py build
+tests/fixtures/outline_text/face.yaml`), not by any Python-level test —
+`tests/test_pattern_text_outline_codegen.py::test_pattern_outline_uses_
+unique_variable_names_per_part` and `::test_golden_fixture_pattern_
+methods_have_no_redefinition_regressions` now pin the fixed shape so a
+future change cannot silently reintroduce a bare `var i =`/`var offsets =`
+inside a pattern's own draw method.
+
+**The golden fixture itself.** `tests/fixtures/outline_text/face.yaml`
+gained `dial_numbers` (`curve: {style: angled}`) and `dial_ring`
+(`curve: {style: radial}`), both small (3-copy, ~12° apart) radial
+patterns of outlined `shape: text` parts, chosen deliberately small and
+clustered rather than a full 12-copy ring: a full ring's own bounding box
+(the union of every copy's ink) inherently spans from edge to edge of the
+disc through the centre, which would overlap every other element already
+on the fixture (none of them solid backdrop shapes) and warn
+`text-outline-interior` for a real, not false-positive, reason — the same
+"why full containment, not just a colour match" logic §17 already
+documents, just newly visible once a pattern's own (much larger) box
+enters the picture. Each part's own `color:` is set directly on the
+**part**, not the pattern element's own default: `check_contrast`
+(unextended by this plan, and not in §14 slice 2's own file list) reads
+only a `PatternElement`'s own top-level `color:` and has no notion of
+per-part outline at all, so leaving the element-level default unset is
+what keeps that pre-existing, unrelated-to-this-plan gap from firing a
+false "contrast ratio 1.0" against the very colour meant to be invisible
+against the backdrop — extending `check_contrast` to patterns is a
+real, separate gap, not something this plan's own evidence asks to fix.
+`./.venv/bin/python wfb.py build tests/fixtures/outline_text/face.yaml`
+is warning-free on all three verification targets with both new elements
+in place.

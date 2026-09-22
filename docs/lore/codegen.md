@@ -338,3 +338,62 @@ These cost real time to discover; do not rediscover them.
   `text` element can take (plain `drawText`, `drawAngledText`,
   `drawRadialText`), exactly research 14 §3.2's "commutes with rotation"
   derivation.
+
+- **`outline:` on a pattern's own `shape: text` part (plan 15 §14 slice
+  2): the same stamp loop, one level down, plus a real `monkeyc` finding
+  slice 1 never hit.** `HandPart.outline` and `Builder._build_outline`
+  are shared verbatim with a standalone `Text.outline` -- the only new
+  builder work is threading a pattern's own absence policy through
+  (`_build_outline(..., element=None)` for a part: no immediate
+  `_check_other_absence`, because a pattern polices absence once for the
+  whole element over `PatternElement.colors`, which a part's own
+  `outline.color` now feeds into alongside `part.color`). `ResolvedHandPart`
+  grows two exploded fields, `outline_width`/`outline_color`, carried
+  through from `HandPart.outline` unchanged (the same "explode, don't
+  nest" shape `curve_style`/`curve_angle_garmin`/... already use for
+  `HandPart.curve`) -- `wfb.layout._pattern_part_ink`/`_pattern_text_ink_
+  geometry` read `outline_width` as the same `pad` parameter D9 already
+  threads through `rotated_rect_corners`/`radial_text_angle_span`/
+  `radial_text_band` for a standalone element's own box growth, and
+  `wfb.emit.monkeyc.rotated._emit_pattern_text_draw` reads both fields
+  directly, the same way it already reads `part.color`.
+
+  **Screen-space offsets survive both transforms a pattern text part can
+  have, because neither is touched by the stamp.** A radial pattern's own
+  per-copy rotation is already baked into the anchor by the time
+  `_emit_pattern_text_draw` builds `x_expr`/`y_expr` (`WfbGeom.rotatedX`/
+  `rotatedY(...)`, or `ox + Layout..._X` for a linear pattern); a part's
+  own `curve:` angle is a *separate* argument (`_emit_pattern_text_angle_
+  expr`), never folded into `x_expr`/`y_expr` either. So appending
+  `+ offsets[i]` to the already-fully-transformed anchor string -- exactly
+  what `_emit_pattern_text_call` (split out of the old `_emit_pattern_
+  text_draw` so the interior pass and every stamp share one "anchor in,
+  draw lines out" callback, the pattern-level twin of `wfb.emit.monkeyc.
+  shapes._emit_plain_text_call`/`_emit_vector_draw_call`) does -- lands
+  the ring in screen space at every copy, at whatever angle that copy's
+  own rotation and curve already put it at, with no correction needed.
+  Confirmed both by codegen tests reading the actual generated expression
+  and by a preview test that samples pixels near each of four rotated
+  copies' own independently-computed anchors (`tests/test_pattern_text_
+  outline_preview.py::test_every_copy_gets_its_own_ring_not_just_copy_0`).
+
+  **Real `monkeyc` finding: a pattern's own copy loop already owns the
+  name `i`, and Monkey C rejects redefining a variable even across
+  separate straight-line statements in the same method.** Slice 1's
+  `_emit_outline_loop` hardcoded `var i = 0;`/`var offsets = ...;` --
+  fine for a standalone element (one generated method per element), but
+  every part of one pattern shares a *single* generated method, whose own
+  `for (var i = 0; i < element.count; i++)` already claims `i`. Nesting an
+  outlined text part's stamp loop inside that failed to compile
+  (`Redefinition of variable 'i'`) the moment `tests/fixtures/outline_
+  text/face.yaml` gained its first pattern-with-outline element -- caught
+  by a real build, not by any Python-level test, since nothing before
+  `monkeyc` itself understands Monkey C scoping rules. Fixed by giving
+  `_emit_outline_loop` `index_var`/`offsets_var` parameters (default
+  `"i"`/`"offsets"`, so every slice-1 caller is byte-for-byte unaffected),
+  with the pattern caller deriving unique names from the part's own
+  `part_prefix` (`f"outlineI{part_prefix}"`/`f"outlineOffsets{part_
+  prefix}"`) -- the same per-part uniqueness `Layout.{part_prefix}_X`
+  already relies on, which is also what keeps two outlined text parts in
+  the *same* pattern from colliding with each other, not just with the
+  copy loop's own `i`.

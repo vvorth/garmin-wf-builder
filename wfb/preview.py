@@ -702,15 +702,41 @@ class _Renderer:
         available is False` is `if_unavailable: hide` acting on this one
         device (gates 1-3 failed) -- the honest preview is to draw nothing,
         the same as `_text` does for a standalone element.
+
+        **`outline:` (plan 15 §14 slice 2)** stamps this copy's own already-
+        rotated/translated `anchor` through `_stamp_outline` -- the exact
+        same helper `_text` uses for a standalone element -- before the
+        interior call, whichever of `_draw_vector_text`/`_draw_text` this
+        part resolves to. `part.outline_color`/`.outline_width` are
+        `ResolvedHandPart` fields carried through unchanged from `HandPart.
+        outline` (`wfb.layout.Resolver._resolve_hand_part`), the same way
+        `part.color` already is. Since the offset is applied to `anchor`
+        (already this copy's own transformed point) rather than to any
+        pre-transform coordinate, and the *angle* passed to `_draw_vector_
+        text` is unaffected by which anchor is given, the ring is a plain
+        screen-space translation at every copy -- never smeared by the
+        pattern's own rotation or by this part's own `curve:` (research 14
+        §3.2's "commutes with rotation" argument, the same one the codegen
+        stamp loop relies on).
         """
         text = part.texts[index]
         color = self._color(part.color, values)
         anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
+        ring_color = (
+            self._color(part.outline_color, values) if part.outline_color is not None else None
+        )
         if part.font_is_vector:
             if not part.font_available:
                 return
             angle = ((part.curve_angle_garmin - copy_angle_degrees) % 360.0
                      if part.curve_style is not None else 0.0)
+            if ring_color is not None:
+                self._stamp_outline(
+                    anchor, part.outline_width,
+                    lambda a: self._draw_vector_text(
+                        text, a, part.align, part.vertical_align, part.font_metric, ring_color,
+                        part.curve_style, angle, part.curve_radius_px, part.curve_direction),
+                )
             self._draw_vector_text(
                 text, anchor, part.align, part.vertical_align, part.font_metric, color,
                 part.curve_style, angle, part.curve_radius_px, part.curve_direction)
@@ -718,6 +744,12 @@ class _Renderer:
         font: BakedFont | None = (
             self.resolved.fonts.get(part.font_reference) if part.font_is_custom else None
         )
+        if ring_color is not None:
+            self._stamp_outline(
+                anchor, part.outline_width,
+                lambda a: self._draw_text(
+                    font, text, a, part.align, part.vertical_align, part.font_metric, ring_color),
+            )
         self._draw_text(font, text, anchor, part.align, part.vertical_align, part.font_metric, color)
 
     def _stamp_outline(

@@ -823,6 +823,28 @@ class HandPart:
     #: template can have more than one `shape: text` part, each naming a
     #: different font), so it lives on the part, not on `PatternElement`.
     if_unavailable: str | None = None
+    #: `shape: text` template parts only (plan 15 §14 slice 2) -- the same
+    #: stamped ring `Text.outline` draws on a standalone element, one level
+    #: down: this copy's string drawn N times at small screen-space pixel
+    #: offsets in `outline.color`, then once more, unshifted, in the part's
+    #: own (effective) `color:`.  The offsets are applied to this copy's
+    #: own already-rotated/translated anchor (`wfb.emit.monkeyc.rotated.
+    #: _emit_pattern_text_draw`) -- *after* both the pattern's own per-copy
+    #: rotation and this part's own `curve:` angle, never composed into
+    #: either -- so the ring is a plain screen-space translation at every
+    #: copy, exactly the "commutes with rotation" argument research 14
+    #: §3.2 makes for a standalone element, not smeared by either
+    #: transform.  `None` for a part with no `outline:` (or `outline:
+    #: none`), or any shape other than `text`.  `Builder._build_hand_part`
+    #: builds this the same way `Builder._build_text` builds `Text.outline`
+    #: (`Builder._build_outline`, shared verbatim), except a pattern part's
+    #: absence check is deferred to `Builder._check_pattern_absence`
+    #: (`outline.color` folds into `PatternElement.colors` alongside
+    #: `part.color`, `_build_pattern_element`) rather than an immediate
+    #: per-key check, since a pattern has no per-part policy -- absence of
+    #: any colour (or any part's `visible:`) requires one `when_absent:
+    #: hide` for the whole element.
+    outline: "Outline | None" = None
     #: `min_1px:` as authored, or `None` to inherit the owning `type: hands`/
     #: `type: pattern` element's own resolved value -- **authored only**,
     #: deliberately with no `resolved_` twin the way `Element.min_1px` gets
@@ -923,8 +945,9 @@ class PatternElement(Element):
     #: The element's own `color:` -- the default every part without one of
     #: its own inherits, before overrides (mirrors `Hand.color`).
     color: Expression | None = None
-    #: Every effective colour (the element default, and each part's own
-    #: override) this pattern uses, deduplicated in first-use order --
+    #: Every effective colour (the element default, each part's own
+    #: override, and each part's own `outline.color` -- plan 15 §14 slice
+    #: 2) this pattern uses, deduplicated in first-use order --
     #: `HandsElement.colors`'s own precedent.
     colors: tuple[Expression, ...] = ()
     #: `when_absent: hide` as authored, or `None` (schema: `enum: ["hide"]`,

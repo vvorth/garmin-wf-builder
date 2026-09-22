@@ -235,6 +235,12 @@ placement box grows by `width:` on every side to cover the ring, so
 `off-screen`/`safe-area`/`static-overlap`/the partial-update clip are all
 already correct for a ringed element with no separate check of their own.
 
+A pattern's own `shape: text` part accepts `outline:` too (plan 15 slice
+2) — see [Text parts](patterns.md#text-parts) for the one thing that
+differs there: a radial pattern's per-copy rotation composes with the
+ring the same way it already composes with `curve:`, and `outline.color`
+may additionally read `copy`.
+
 See [`docs/research/14-stamped-ring-text.md`](../research/14-stamped-ring-text.md)
 for the full measurement record this feature is built from.
 

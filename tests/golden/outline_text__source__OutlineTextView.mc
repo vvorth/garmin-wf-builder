@@ -7,6 +7,7 @@
 
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.Math;
 import Toybox.System;
 import Toybox.WatchUi;
 
@@ -52,6 +53,8 @@ class OutlineTextView extends WatchUi.WatchFace {
         drawUprightVector(dc);
         drawBrand(dc);
         drawBezelText(dc);
+        drawDialNumbers(dc);
+        drawDialRing(dc);
     }
 
     //! Awake: full-power updates resume.
@@ -159,6 +162,70 @@ class OutlineTextView extends WatchUi.WatchFace {
             dc.drawRadialText(Layout.BEZEL_TEXT_X, Layout.BEZEL_TEXT_Y, font, "BEZEL",
                               Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, Layout.BEZEL_TEXT_ANGLE, Layout.BEZEL_TEXT_RADIUS,
                               Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+        }
+    }
+
+    //! `dial_numbers` -- a radial pattern: 3 copies, 12 degrees apart.
+    //! Drawn in: active.
+    private function drawDialNumbers(dc as Dc) as Void {
+        var cx = Layout.DIAL_NUMBERS_X;
+        var cy = Layout.DIAL_NUMBERS_Y;
+        var font0 = _fontBezel;
+
+        dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);  // hoisted: one colour
+        for (var i = 0; i < 3; i++) {
+            var angle = 3.9269908169872414 + i * 0.20943951023931956;  // (225 + 12 i) degrees
+            var sin = Math.sin(angle);
+            var cos = Math.cos(angle);
+            if (font0 != null) {
+                dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
+                var outlineOffsetsDIAL_NUMBERS_0 = Layout.OUTLINE_OFFSETS_2;
+                var outlineIDIAL_NUMBERS_0 = 0;
+                while (outlineIDIAL_NUMBERS_0 < outlineOffsetsDIAL_NUMBERS_0.size()) {
+                    dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos) + outlineOffsetsDIAL_NUMBERS_0[outlineIDIAL_NUMBERS_0],
+                                      WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos) + outlineOffsetsDIAL_NUMBERS_0[outlineIDIAL_NUMBERS_0 + 1], font0, (i + 1).toString(),
+                                      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+                    outlineIDIAL_NUMBERS_0 += 2;
+                }
+
+                dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
+                dc.drawAngledText(WfbGeom.rotatedX(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cx, sin, cos),
+                                  WfbGeom.rotatedY(Layout.DIAL_NUMBERS_0_X, Layout.DIAL_NUMBERS_0_Y, cy, sin, cos), font0, (i + 1).toString(),
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -225.0 - i * 12.0);
+            }
+        }
+    }
+
+    //! `dial_ring` -- a radial pattern: 3 copies, 12 degrees apart.
+    //! Drawn in: active.
+    private function drawDialRing(dc as Dc) as Void {
+        var cx = Layout.DIAL_RING_X;
+        var cy = Layout.DIAL_RING_Y;
+        var font0 = _fontBezel;
+
+        dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);  // hoisted: one colour
+        for (var i = 0; i < 3; i++) {
+            var angle = 4.4505895925855405 + i * 0.20943951023931956;  // (255 + 12 i) degrees
+            var sin = Math.sin(angle);
+            var cos = Math.cos(angle);
+            if (font0 != null) {
+                dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
+                var outlineOffsetsDIAL_RING_0 = Layout.OUTLINE_OFFSETS_1;
+                var outlineIDIAL_RING_0 = 0;
+                while (outlineIDIAL_RING_0 < outlineOffsetsDIAL_RING_0.size()) {
+                    dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos) + outlineOffsetsDIAL_RING_0[outlineIDIAL_RING_0],
+                                      WfbGeom.rotatedY(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cy, sin, cos) + outlineOffsetsDIAL_RING_0[outlineIDIAL_RING_0 + 1], font0, "I",
+                                      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -165.0 - i * 12.0, Layout.DIAL_RING_0_RADIUS,
+                                      Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+                    outlineIDIAL_RING_0 += 2;
+                }
+
+                dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
+                dc.drawRadialText(WfbGeom.rotatedX(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cx, sin, cos),
+                                  WfbGeom.rotatedY(Layout.DIAL_RING_0_X, Layout.DIAL_RING_0_Y, cy, sin, cos), font0, "I",
+                                  Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER, -165.0 - i * 12.0, Layout.DIAL_RING_0_RADIUS,
+                                  Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+            }
         }
     }
 }

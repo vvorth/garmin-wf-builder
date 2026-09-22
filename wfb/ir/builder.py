@@ -175,7 +175,7 @@ PATTERN_PART_GEOMETRY_KEYS = {
     #: `value` xor `text` is enforced by `Builder._build_hand_part`, not this
     #: table (a better message than a schema `oneOf` would give).
     "text": frozenset({"at", "value", "text", "format", "font", "align", "vertical_align",
-                       "curve", "if_unavailable"}),
+                       "curve", "if_unavailable", "outline"}),
 }
 _ALL_PATTERN_PART_GEOMETRY_KEYS = frozenset().union(*PATTERN_PART_GEOMETRY_KEYS.values())
 
@@ -1546,6 +1546,7 @@ class Builder:
         text_font_is_custom = False
         text_curve: Curve | None = None
         text_if_unavailable: str | None = None
+        text_outline: Outline | None = None
         if shape == "text":
             has_value = "value" in node
             has_text = "text" in node
@@ -1630,6 +1631,25 @@ class Builder:
                 self._check_pattern_text_if_unavailable(node, part_where, font_is_vector)
             text_if_unavailable = node.get("if_unavailable")
 
+            # `outline:` (plan 15 §14 slice 2) -- the same stamped ring a
+            # standalone `text` element's own `outline:` draws, one level
+            # down. `_build_outline` is shared verbatim with `_build_text`
+            # (`element=None` here: a pattern part has no `Element` of its
+            # own to hang an immediate absence check on -- see that
+            # method's own docstring for why absence is deferred to
+            # `_check_pattern_absence` instead, via the `colors` collection
+            # `_build_pattern_element` grows below). `raw_outline` mirrors
+            # `_build_pattern_curve`'s own "did this fail, or was it simply
+            # not authored/'none'" distinction, so a real cap-exceeded or
+            # bad-colour error aborts this part exactly as a bad `curve:`
+            # already does, without treating the ordinary `outline: none`
+            # spelling (or omitting the key) as a failure.
+            if "outline" in node:
+                raw_outline = node.get("outline")
+                text_outline = self._build_outline(node, "outline", part_where)
+                if text_outline is None and raw_outline is not None and raw_outline != "none":
+                    ok = False
+
         if not ok:
             return None
         return HandPart(
@@ -1641,6 +1661,7 @@ class Builder:
             text_value=text_value, text_literal=text_literal, format=text_format,
             font=text_font, font_is_custom=text_font_is_custom,
             curve=text_curve, if_unavailable=text_if_unavailable,
+            outline=text_outline,
             align=align, vertical_align=vertical_align,
             min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
         )
@@ -2880,6 +2901,8 @@ class Builder:
         _dedup_append(colors, element_color)
         for part in parts:
             _dedup_append(colors, part.color)
+            if part.outline is not None:
+                _dedup_append(colors, part.outline.color)
 
         element = PatternElement(
             **common,
@@ -2987,7 +3010,7 @@ class Builder:
         if font_ok and "if_unavailable" in node:
             self._check_text_if_unavailable(node, element)
         if "outline" in node:
-            element.outline = self._build_outline(node, "outline", element)
+            element.outline = self._build_outline(node, "outline", element.id, element=element)
         if value is not None:
             self._check_absence(node, element, value, element.when_absent, element.placeholder,
                                 element.fallback)
@@ -2997,11 +3020,14 @@ class Builder:
                                          (element.value,), (element.color,))
         return element
 
-    def _build_outline(self, node: dict, key: str, element: Text) -> Outline | None:
-        """`outline:` on a `text` element (plan 15 §2.3-2.4, §14 slice 1) --
-        the stamped ring research 14 measured: the element's string drawn N
-        times at small pixel offsets in `outline.color`, then once more,
-        unshifted, in the element's own `color:` -- the interior pass it
+    def _build_outline(
+        self, node: dict, key: str, label: str, *, element: Element | None = None,
+    ) -> Outline | None:
+        """`outline:` on a `text` element (plan 15 §2.3-2.4, §14 slice 1), or
+        -- with `element=None` -- on a pattern's own `shape: text` part
+        (plan 15 §14 slice 2): the stamped ring research 14 measured, drawn
+        N times at small pixel offsets in `outline.color`, then once more,
+        unshifted, in the fill colour (`Text.color`/`HandPart.color`) it
         already had.
 
         Two spellings collapse to one `Outline` here (D7, plan 15 §13): a
@@ -3014,7 +3040,21 @@ class Builder:
         `width` is capped at `MAX_OUTLINE_WIDTH` with a build error, not a
         schema `maximum`, so the message can cite the measured evidence the
         cap rests on (D6) the way `_check_curve_font` cites the SDK
-        sentence it enforces.
+        sentence it enforces. `label` is what the width-cap error names --
+        `element.id` for a `text` element, `part_where` (e.g.
+        `"clock.parts[0]"`) for a pattern part, mirroring `_build_pattern_
+        curve`'s own `part_where` parameter, since a pattern part has no
+        `Element` of its own yet at the point `_build_hand_part` calls this.
+
+        **Absence.** A `text` element (`element` given) gets its own
+        immediate `_check_other_absence` call here, exactly as slice 1
+        always did. A pattern part (`element=None`) does not: a pattern
+        polices absence once for the *whole* element
+        (`Builder._check_pattern_absence`), over every colour it collects
+        into `PatternElement.colors` -- calling `_check_other_absence` here
+        too would double-report the same nullable source. The caller
+        (`_build_hand_part`) is responsible for folding `part.outline.color`
+        into that collection the same way it already does for `part.color`.
         """
         raw = node.get(key)
         if raw is None or raw == "none":
@@ -3035,7 +3075,7 @@ class Builder:
         if width > MAX_OUTLINE_WIDTH:
             self.bag.error(
                 "text-outline",
-                f"{element.id}: 'outline: width: {width}' is more than "
+                f"{label}: 'outline: width: {width}' is more than "
                 f"{MAX_OUTLINE_WIDTH}px",
                 width_span,
                 notes=[
@@ -3048,7 +3088,8 @@ class Builder:
                 ],
             )
             return None
-        self._check_other_absence(node, element, "outline.color", color, span=color_span)
+        if element is not None:
+            self._check_other_absence(node, element, "outline.color", color, span=color_span)
         return Outline(color=color, width=width)
 
     def _reject_text_antialias(self, node: dict, element: Text) -> None:

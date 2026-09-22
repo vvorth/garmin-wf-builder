@@ -715,6 +715,18 @@ class ResolvedHandPart:
     curve_angle_garmin: float = 0.0
     curve_radius_px: int = 0
     curve_direction: str | None = None
+    #: `shape: text` pattern part only (plan 15 §14 slice 2) -- carried
+    #: through from `HandPart.outline` unchanged (`color`/`width` are
+    #: device-independent, exactly the reason `color` above is just
+    #: `part.color` unchanged too), exploded into two primitive fields
+    #: rather than one nested `Outline`, the same "explode, don't nest"
+    #: shape `curve_style`/`curve_angle_garmin`/... already use for
+    #: `HandPart.curve`. `outline_color is None` is the "no outline" test
+    #: both codegen (`wfb.emit.monkeyc.rotated`) and layout
+    #: (`_pattern_part_ink`/`_pattern_text_ink_geometry`) use -- `outline_
+    #: width` is meaningless without it and stays `0`.
+    outline_width: int = 0
+    outline_color: Expression | None = None
 
 
 @dataclass(frozen=True)
@@ -817,6 +829,10 @@ def _pattern_part_ink(
     (:func:`pattern_text_anchor`) and this copy's own measured width
     (``part.widths[index]``) -- the one shape here that needs
     to know *which* copy it is, since upright text is not rotation-invariant.
+    A text part's own `outline:` (plan 15 §14 slice 2) grows that box by
+    `part.outline_width` on every side, via `_pattern_text_ink_geometry`'s
+    own `pad` parameter -- the "shape: text" branch below always passes
+    `float(part.outline_width)` (`0.0` on a part with no `outline:`).
 
     `copy_angle_degrees` is this copy's own rotation, in the design's
     clockwise-from-12 convention (`element.start_angle + index *
@@ -859,7 +875,8 @@ def _pattern_part_ink(
         ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
         width = part.widths[index] if part.widths else 0
         height = part.line_height
-        kind, geo = _pattern_text_ink_geometry(part, ax, ay, width, height, copy_angle_degrees)
+        kind, geo = _pattern_text_ink_geometry(
+            part, ax, ay, width, height, copy_angle_degrees, pad=float(part.outline_width))
         if kind == "sector":
             cx, cy, r_inner, r_outer, theta_a, theta_b = geo
             box = arc_bbox(cx, cy, r_inner, r_outer, theta_a, theta_b)
@@ -878,7 +895,7 @@ def _pattern_part_ink(
 
 def _pattern_text_ink_geometry(
     part: ResolvedHandPart, ax: float, ay: float, width: float, height: float,
-    copy_angle_degrees: float,
+    copy_angle_degrees: float, pad: float = 0.0,
 ) -> tuple[str, tuple]:
     """The real ink shape of one pattern text part, for one copy, already
     anchored (`ax`, `ay`) and measured (`width`, `height`) -- the one place
@@ -901,27 +918,46 @@ def _pattern_text_ink_geometry(
       schema-unreachable `radial`-with-no-radius fallback: an unrotated,
       screen-aligned rectangle's AABB corners already ARE its real
       corners, so this needs no further tightening either way.
+
+    `pad` (plan 15 §14 slice 2, D9's own construction) is this part's own
+    `outline.width` in pixels, `0.0` on a part with no `outline:` -- both
+    callers pass `float(part.outline_width)`, never a literal. Threaded
+    straight into `rotated_rect_corners`/`radial_text_angle_span`/
+    `radial_text_band`, exactly the way `Resolver._resolve_text` already
+    grows a standalone element's own three box shapes (§6): a Minkowski
+    dilation of the pre-transform box, about its own centre, then the same
+    transform -- never a literal `width + 2*pad` substitution, which
+    `docs/plans/15-text-outline.md` §16 found unsafe for a non-centred
+    `align:`/`vertical_align:`. The upright `"box"` branch below applies
+    the identical construction by hand (`rotated_rect_corners`/`radial_
+    text_*` do it internally): `dx`/`dy` are computed from the *unpadded*
+    `width`/`height` (so `align:`/`vertical_align:` still shift the
+    unringed box), then the returned box is grown by `pad` on every side
+    about that same shifted centre, not re-anchored by a wider box.
     """
     if part.curve_style == "angled":
         effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
         corners = rotated_rect_corners(
-            ax, ay, width, height, part.align, part.vertical_align, effective_garmin)
+            ax, ay, width, height, part.align, part.vertical_align, effective_garmin, pad=pad)
         return "rotated", corners
     if part.curve_style == "radial":
         if part.curve_radius_px > 0:
             effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
             theta_a, theta_b = radial_text_angle_span(
-                effective_garmin, part.curve_direction, part.align, width, part.curve_radius_px)
+                effective_garmin, part.curve_direction, part.align, width, part.curve_radius_px,
+                pad=pad)
             r_inner, r_outer = radial_text_band(
                 part.curve_radius_px, height, part.vertical_align, part.curve_direction,
-                _curve_ascent(part.font_metric, height))
+                _curve_ascent(part.font_metric, height), pad=pad)
             return "sector", (ax, ay, r_inner, r_outer, theta_a, theta_b)
-        reach = part.curve_radius_px + height
+        reach = part.curve_radius_px + height + pad
         return "box", (ax - reach, ay - reach, ax + reach, ay + reach)
     dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
-    left = ax + dx - width / 2.0
-    top = ay + dy - height / 2.0
-    return "box", (left, top, left + width, top + height)
+    cx, cy = ax + dx, ay + dy
+    box_width, box_height = width + 2 * pad, height + 2 * pad
+    left = cx - box_width / 2.0
+    top = cy - box_height / 2.0
+    return "box", (left, top, left + box_width, top + box_height)
 
 
 def _pattern_text_ink_reach(kind: str, geo: tuple, from_x: float, from_y: float) -> float:
@@ -2006,6 +2042,8 @@ class Resolver:
                 # gets, not a silent, unrecorded rounding.
                 curve_radius_px = round_half_away(self._hand_extent(
                     curve.radius, min_1px=effective_min_1px, what="curve.radius"))
+            outline_width = part.outline.width if part.outline is not None else 0
+            outline_color = part.outline.color if part.outline is not None else None
             return ResolvedHandPart(
                 "text", part.color, x=x, y=y,
                 font_reference=reference, font_is_custom=is_custom, font_px=font_px,
@@ -2017,6 +2055,7 @@ class Resolver:
                 curve_style=curve_style, curve_angle_degrees=curve_angle_degrees,
                 curve_angle_garmin=curve_angle_garmin, curve_radius_px=curve_radius_px,
                 curve_direction=curve_direction,
+                outline_width=outline_width, outline_color=outline_color,
             ), 0.0
 
         # circle
@@ -2130,7 +2169,8 @@ class Resolver:
                     width = part.widths[index] if part.widths else 0
                     height = part.line_height
                     kind, geo = _pattern_text_ink_geometry(
-                        part, ax, ay, width, height, copy_angle_degrees)
+                        part, ax, ay, width, height, copy_angle_degrees,
+                        pad=float(part.outline_width))
                     text_reach = max(text_reach, _pattern_text_ink_reach(kind, geo, cx_f, cy_f))
         if min_x > max_x:
             # Unreachable once the schema and `wfb.ir` have run (`parts:`

@@ -1,8 +1,13 @@
-# Golden coverage for plan 15 slice 1 (`outline:` on a standalone `text`
-# element) -- a background, a baked-font clock with a plain (upright)
-# outline, an upright vector-font text with an outline (shorthand
-# spelling), and one of each `curve:` style with an outline -- every draw
-# shape a standalone element can take (plan 15 §14 slice 1).
+# Golden coverage for plan 15 slices 1 and 2 (`outline:` on a standalone
+# `text` element, and on a pattern's own `shape: text` part) -- a
+# background, a baked-font clock with a plain (upright) outline, an
+# upright vector-font text with an outline (shorthand spelling), one of
+# each `curve:` style with an outline (every draw shape a standalone
+# element can take, plan 15 §14 slice 1), a radial pattern of rotated
+# numerals with an outline (`curve: {style: angled}`, per-copy rotation
+# composed with the outline's own screen-space offsets, plan 15 §14 slice
+# 2), and a radial pattern of numerals bent along the dial with an
+# outline (`curve: {style: radial}`, the other pattern-part curve style).
 #
 # Every text element below demonstrates the canonical hollow idiom (plan
 # 15 §3/§12): `color:` repeats `palette.bg` verbatim, so the interior reads
@@ -96,3 +101,40 @@ elements:
       angle: 90deg
       radius: 44%r
       direction: clockwise
+
+  - id: dial_numbers
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 3
+    start: 225deg
+    step: 12deg
+    parts:
+      - shape: text
+        value: "copy + 1"
+        font: font.bezel
+        color: palette.bg
+        at: { dy: -80%r }
+        outline: { color: palette.ring, width: 2 }
+        curve:
+          style: angled
+          angle: 0deg
+
+  - id: dial_ring
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 3
+    start: 255deg
+    step: 12deg
+    parts:
+      - shape: text
+        text: "I"
+        font: font.bezel
+        color: palette.bg
+        outline: { color: palette.ring, width: 1 }
+        curve:
+          style: radial
+          angle: 0deg
+          radius: 60%r
+          direction: clockwise

@@ -1884,6 +1884,103 @@ def test_outline_interior_fires_once_modes_overlap(write_design, bag, db):
     assert hits, bag.render()
 
 
+# -- check_text_outline_interior on a pattern's own text part (plan 15 §14
+# slice 2, D10: element-level, via `_outlined_interiors`) ------------------
+
+
+_PATTERN_OUTLINE = """\
+  - id: ring
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: 1
+    parts:
+      - shape: text
+        text: "12"
+        font: FONT_MEDIUM
+        color: {color}
+        outline: {{color: palette.fg, width: 2}}{lint}
+"""
+
+
+def test_pattern_outline_interior_matching_a_fully_covering_backdrop_is_silent(check):
+    """The same false positive `text-outline-interior`'s own docstring
+    describes for a `text` element, for a pattern's `shape: text` part
+    instead: the part's own interior (`palette.bg`) is the same build-time
+    constant as the full-screen `background` element's own colour, and
+    `background` is a filled rectangle trusted to paint every pixel of its
+    own box -- nothing to warn about even though the pattern's own
+    (ring-grown) box plainly overlaps it."""
+    bag = check(_PATTERN_OUTLINE.format(color="palette.bg", lint=""))
+    assert "text-outline-interior" not in codes(bag), bag.render()
+
+
+def test_pattern_outline_over_an_earlier_element_with_a_different_colour_warns(check):
+    """Green: the part's interior (`palette.fg`) cannot be shown to match
+    `background`'s own colour (`palette.bg`) -- a real, unresolved risk --
+    so this fires, naming the *pattern* element (not a per-copy id) and
+    the element it may paint over."""
+    bag = check(_PATTERN_OUTLINE.format(color="palette.fg", lint=""))
+    warnings = [d for d in bag.items if d.code == "text-outline-interior"]
+    assert len(warnings) == 1
+    assert "'ring'" in warnings[0].message
+    assert "'background'" in warnings[0].message
+
+
+def test_pattern_outline_interior_can_be_suppressed(check):
+    bag = check(_PATTERN_OUTLINE.format(
+        color="palette.fg",
+        lint='\n    lint: {allow: [text-outline-interior], reason: "deliberate stamp"}'))
+    assert "text-outline-interior" not in codes(bag), bag.render()
+
+
+_PATTERN_TWO_PARTS_OUTLINE = """\
+  - id: ring
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: 1
+    parts:
+      - shape: text
+        text: "12"
+        font: FONT_MEDIUM
+        color: palette.bg
+        outline: {{color: palette.fg, width: 2}}
+      - shape: text
+        text: "34"
+        font: FONT_MEDIUM
+        at: {{dy: 20px}}
+        color: {second_color}
+        outline: {{color: palette.fg, width: 2}}
+"""
+
+
+def test_pattern_outline_interior_all_outlined_parts_must_match_to_suppress(check):
+    """D10's own scope is element-level, not per-copy or per-part: the
+    element's one (ring-grown) box is judged once against each earlier
+    element. `_outlined_interiors` collects *every* outlined part's own
+    interior colour, and every one of them must independently prove safe
+    against a given earlier element for that pair to be suppressed -- a
+    pattern with two outlined parts, only one of which matches the
+    fully-covering backdrop, still leaves the other part's own patch
+    unaccounted for, so this must still warn (the contrast this test
+    claims: an implementation that suppressed on *any* matching part,
+    rather than *every* one, would wrongly pass this design silent)."""
+    bag = check(_PATTERN_TWO_PARTS_OUTLINE.format(second_color="palette.fg"))
+    warnings = [d for d in bag.items if d.code == "text-outline-interior"]
+    assert len(warnings) == 1
+    assert "'ring'" in warnings[0].message
+    assert "'background'" in warnings[0].message
+
+
+def test_pattern_outline_interior_silent_when_every_outlined_part_matches(check):
+    """The green half of the previous test's contrast: both parts' own
+    interior colours match the fully-covering backdrop, so the pair is
+    provably safe and the warning disappears."""
+    bag = check(_PATTERN_TWO_PARTS_OUTLINE.format(second_color="palette.bg"))
+    assert "text-outline-interior" not in codes(bag), bag.render()
+
+
 def test_format_doc_lists_every_suppressible_code():
     """`docs/guide/lints.md` names the suppressible codes; `lint.SUPPRESSIBLE`
     is the real list.

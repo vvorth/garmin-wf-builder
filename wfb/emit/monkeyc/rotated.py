@@ -8,7 +8,7 @@ from ... import expr, formatting
 from ...ir import PatternElement
 from ...layout import PlacedHands, PlacedPattern
 from .common import _color, _const_prefix, _field, _glyph_y_expr, _mc_float, _pattern_needs_math
-from .shapes import _RADIAL_DIRECTION, _radial_radius_expr
+from .shapes import _RADIAL_DIRECTION, _emit_outline_loop, _radial_radius_expr
 from ..writer import Writer
 
 
@@ -189,57 +189,29 @@ def _emit_pattern_text_angle_expr(element: "PatternElement", part) -> str:
     return g0
 
 
-def _emit_pattern_text_draw(
+def _emit_pattern_text_call(
     w: Writer, element: "PatternElement", part, part_prefix: str, radial: bool,
-    font_expr: str, value_code: str, justify: str,
+    font_expr: str, value_code: str, justify: str, x_expr: str, y_expr: str,
 ) -> None:
-    """One copy's `shape: text` part draw call: plain `dc.drawText` for an
-    upright part -- byte-identical to the code this project generated
-    before plan 11 slice 2 -- or `dc.drawAngledText`/`dc.drawRadialText`
-    under the part's own `curve:`.
+    """One `dc.drawText`/`drawAngledText`/`drawRadialText` call for one copy
+    of a `shape: text` pattern part, at the given screen-space anchor --
+    plain `dc.drawText` for an upright part (byte-identical to the code
+    this project generated before plan 11 slice 2) or `dc.drawAngledText`/
+    `dc.drawRadialText` under the part's own `curve:`.
 
-    **Gate 4 is never omitted, on any device, in either `if_unavailable:`
-    mode** (`docs/research/12-vector-fonts.md` §1, `wfb.emit.monkeyc.
-    shapes._emit_vector_text_draw`'s own precedent): a vector font's draw
-    call is wrapped `if (<font local> != null)` regardless of `curve_style`
-    -- an upright vector-font pattern text part needs the same null guard a
-    curved one does, since `Graphics.getVectorFont` can return null even
-    when every build-time gate passed. `font_expr` is already a *local*,
-    loaded once before the copy loop by `_emit_pattern` (never a repeated
-    field access), so this is a plain local `if`, not the field-narrowing
-    trap `docs/lore/monkeyc.md` warns about. A baked custom font never
-    reaches this guard: `_emit_pattern`'s own pre-loop loading early-returns
-    on a null baked font instead (a structural resource-load failure, not
-    the ordinary case a vector font's null is), so `part.font_is_vector`
-    alone decides which of the two this part gets.
+    Split out of what was `_emit_pattern_text_draw` in its entirety before
+    plan 15 §14 slice 2, so the interior pass and every `outline:` stamp
+    can share one "anchor in, draw lines out" callback -- the same split
+    `wfb.emit.monkeyc.shapes._emit_plain_text_call`/`_emit_vector_draw_call`
+    already give a standalone element. `x_expr`/`y_expr` are always the
+    caller's own already-rotated/translated (and, for a stamp, further
+    offset) screen-space anchor -- never re-derived here -- which is what
+    lets a screen-space `outline:` offset commute with the pattern's own
+    rotation and the part's own `curve:` angle alike (research 14 §3.2):
+    neither is touched by this function, only the two numbers plugged into
+    `x_expr`/`y_expr` change between a stamp and the interior draw.
     """
     curve_style = part.curve_style
-    if radial:
-        # `bottom` shifts the shared `cy` translation term only for this
-        # call, not the variable itself (other parts of the same copy
-        # still rotate about the unshifted origin) -- the subtraction
-        # lands outside the rotation, so it moves the drawn point
-        # straight up on screen regardless of `theta`. Skipped entirely
-        # under `curve:`: `vertical_align: bottom` is rejected there
-        # (`Builder._build_pattern_curve`), and `center`/`top` need no
-        # y-shift -- `curve:`'s own vertical alignment is a `justify` flag,
-        # never a coordinate shift (plan 11 §2.3).
-        cy_expr = "cy" if curve_style is not None else _glyph_y_expr(
-            "cy", part.vertical_align, font_expr)
-        x_expr = (
-            f"WfbGeom.rotatedX(Layout.{part_prefix}_X, "
-            f"Layout.{part_prefix}_Y, cx, sin, cos)"
-        )
-        y_expr = (
-            f"WfbGeom.rotatedY(Layout.{part_prefix}_X, "
-            f"Layout.{part_prefix}_Y, {cy_expr}, sin, cos)"
-        )
-    else:
-        x_expr = f"ox + Layout.{part_prefix}_X"
-        oy_expr = f"oy + Layout.{part_prefix}_Y"
-        y_expr = oy_expr if curve_style is not None else _glyph_y_expr(
-            oy_expr, part.vertical_align, font_expr)
-
     if curve_style is None and not radial:
         # Byte-identical to the pre-slice-2 shape: x, y and font share one
         # line, the value its own, justify its own.
@@ -275,14 +247,100 @@ def _emit_pattern_text_draw(
             f"{pad}{justify}, {angle_expr}, {radius_expr},",
             f"{pad}Graphics.{direction});",
         ]
+    for line in lines:
+        w.line(line)
+
+
+def _emit_pattern_text_draw(
+    w: Writer, element: "PatternElement", part, part_prefix: str, radial: bool,
+    font_expr: str, value_code: str, justify: str,
+) -> None:
+    """One copy's `shape: text` part: this copy's own anchor, then --
+    ahead of the interior pass, inside the same vector-font null guard --
+    the part's own `outline:` stamp loop, if it has one (plan 15 §14
+    slice 2), then the interior call itself (`_emit_pattern_text_call`).
+
+    **Gate 4 is never omitted, on any device, in either `if_unavailable:`
+    mode** (`docs/research/12-vector-fonts.md` §1, `wfb.emit.monkeyc.
+    shapes._emit_vector_text_draw`'s own precedent): a vector font's draw
+    call is wrapped `if (<font local> != null)` regardless of `curve_style`
+    -- an upright vector-font pattern text part needs the same null guard a
+    curved one does, since `Graphics.getVectorFont` can return null even
+    when every build-time gate passed. `font_expr` is already a *local*,
+    loaded once before the copy loop by `_emit_pattern` (never a repeated
+    field access), so this is a plain local `if`, not the field-narrowing
+    trap `docs/lore/monkeyc.md` warns about. A baked custom font never
+    reaches this guard: `_emit_pattern`'s own pre-loop loading early-returns
+    on a null baked font instead (a structural resource-load failure, not
+    the ordinary case a vector font's null is), so `part.font_is_vector`
+    alone decides which of the two this part gets. `outline:`'s stamp loop
+    and the interior call both move inside this one guard together, never
+    two guards -- the same shape `_emit_vector_text_draw` already uses for
+    a standalone element (plan 15 §5/§8).
+
+    **The ring colour, and its own `dc.setColor` restore, are entirely
+    local to this one part's own draw sequence** -- they do not interact
+    with `_emit_pattern`'s own colour hoisting (`hoist_color`/
+    `current_color`, tracking each part's *interior* `color:` across the
+    whole per-copy loop): the sequence below always leaves `dc`'s colour
+    state at `part.color`'s own value by the time it returns, exactly the
+    value the outer loop already believed was current both before and
+    after, so the outer loop's own bookkeeping needs no change.
+    """
+    curve_style = part.curve_style
+    if radial:
+        # `bottom` shifts the shared `cy` translation term only for this
+        # call, not the variable itself (other parts of the same copy
+        # still rotate about the unshifted origin) -- the subtraction
+        # lands outside the rotation, so it moves the drawn point
+        # straight up on screen regardless of `theta`. Skipped entirely
+        # under `curve:`: `vertical_align: bottom` is rejected there
+        # (`Builder._build_pattern_curve`), and `center`/`top` need no
+        # y-shift -- `curve:`'s own vertical alignment is a `justify` flag,
+        # never a coordinate shift (plan 11 §2.3).
+        cy_expr = "cy" if curve_style is not None else _glyph_y_expr(
+            "cy", part.vertical_align, font_expr)
+        x_expr = (
+            f"WfbGeom.rotatedX(Layout.{part_prefix}_X, "
+            f"Layout.{part_prefix}_Y, cx, sin, cos)"
+        )
+        y_expr = (
+            f"WfbGeom.rotatedY(Layout.{part_prefix}_X, "
+            f"Layout.{part_prefix}_Y, {cy_expr}, sin, cos)"
+        )
+    else:
+        x_expr = f"ox + Layout.{part_prefix}_X"
+        oy_expr = f"oy + Layout.{part_prefix}_Y"
+        y_expr = oy_expr if curve_style is not None else _glyph_y_expr(
+            oy_expr, part.vertical_align, font_expr)
+
+    def draw() -> None:
+        if part.outline_color is not None:
+            # `index_var`/`offsets_var` are unique per part (`part_prefix`
+            # already is, `_emit_pattern_part`'s own precedent for every
+            # other per-part constant name) -- the copy loop wrapping this
+            # whole method already declares its own `var i`, and more than
+            # one outlined text part in the same pattern shares this one
+            # generated method too, so the offset loop cannot reuse the
+            # plain `i`/`offsets` names slice 1 uses for a standalone
+            # element (`_emit_outline_loop`'s own docstring).
+            _emit_outline_loop(
+                w, part.outline_width, _color(part.outline_color), x_expr, y_expr,
+                lambda ox_, oy_: _emit_pattern_text_call(
+                    w, element, part, part_prefix, radial, font_expr, value_code, justify,
+                    ox_, oy_),
+                index_var=f"outlineI{part_prefix}", offsets_var=f"outlineOffsets{part_prefix}",
+            )
+            w.line(f"dc.setColor({_color(part.color)}, Graphics.COLOR_TRANSPARENT);")
+        _emit_pattern_text_call(
+            w, element, part, part_prefix, radial, font_expr, value_code, justify,
+            x_expr, y_expr)
 
     if part.font_is_vector:
         with w.block(f"if ({font_expr} != null)"):
-            for line in lines:
-                w.line(line)
+            draw()
     else:
-        for line in lines:
-            w.line(line)
+        draw()
 
 
 def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index: int,

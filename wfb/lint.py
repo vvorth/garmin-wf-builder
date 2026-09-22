@@ -2172,6 +2172,23 @@ def _is_solid_backdrop_shape(placed) -> bool:
             and getattr(element, "filled", True))
 
 
+def _outlined_interiors(element) -> list[tuple]:
+    """Every `(outline, interior colour)` pair this element draws with an
+    `outline:` -- a `text` element has at most one (its own `.outline`/
+    `.color`); a `type: pattern` element (plan 15 §14 slice 2) may have one
+    per `shape: text` part that carries its own `outline:`, since the key
+    lives on the part, not on `PatternElement` itself. Anything else
+    (`getattr` finding neither `outline` nor `parts`) returns `[]`, which is
+    what keeps `check_text_outline_interior` a no-op for every element kind
+    that cannot have one at all.
+    """
+    outline = getattr(element, "outline", None)
+    if outline is not None:
+        return [(outline, getattr(element, "color", None))]
+    parts = getattr(element, "parts", None) or ()
+    return [(part.outline, part.color) for part in parts if part.outline is not None]
+
+
 def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
     """`outline:`'s interior pass paints over whatever is beneath it -- it
     does not reveal it (research 14 §6.4, plan 15 §3/§7). Fires when an
@@ -2180,10 +2197,10 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
     this check can prove that particular overlap is invisible -- the
     mechanical half of that authoring trap, modelled on
     `check_static_overlap`'s own `_intersects` box test (`wfb/lint.py`
-    above), generic over `Placed` (any element kind: `getattr(...,
-    "outline", None)` rather than an `isinstance(element, Text)` check, so
-    a pattern's own bounding box needs no separate code path here once
-    `outline:` reaches pattern text parts, plan 15 slice 2, D10 §13).
+    above), generic over `Placed` (any element kind, via `_outlined_
+    interiors` -- a `text` element's own `.outline`/`.color`, or, since
+    plan 15 §14 slice 2, every outlined part of a `type: pattern` element,
+    since the key lives per-part there rather than on the element itself).
 
     **When a pair is provably safe.** Repainting a pixel in the exact
     colour it already is changes nothing, so a pair is suppressed only when
@@ -2238,15 +2255,23 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
     fact about the shape, not a guarantee about what glyphs draw inside it.
 
     Scope (D10): box-level, element-level for a pattern (not per-copy) --
-    left for slice 2 to wire up, since no pattern part carries `outline:`
-    yet in this slice.
+    a pattern's own (ring-grown) `later.box` is judged as one box, exactly
+    like `off-screen`/`safe-area` already treat a pattern, never per-copy.
+    A pattern has no single element-wide `outline:`/`color:` the way a
+    `text` element does (`outline:` lives per-part, plan 15 §14 slice 2),
+    so `_outlined_interiors` below collects every outlined part's own
+    `(outline, interior colour)` pair instead of the element's own two
+    attributes -- **all** of them must independently prove safe against a
+    given earlier element for that pair to be suppressed: a pattern with
+    two outlined parts in two different interior colours is not safe
+    merely because one of them happens to match the backdrop, since the
+    other still paints an unaccounted-for patch over it.
     """
     drawn = [p for p in resolved.items if p.kind != "group"]
     for index, later in enumerate(drawn):
-        outline = getattr(later.element, "outline", None)
-        if outline is None:
+        outlines = _outlined_interiors(later.element)
+        if not outlines:
             continue
-        interior = getattr(later.element, "color", None)
         under: list[str] = []
         for earlier in drawn[:index]:
             if not set(later.element.modes) & set(earlier.element.modes):
@@ -2255,9 +2280,11 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
                 continue  # different layouts -- never on screen together either
             if not _intersects(later.box, earlier.box):
                 continue
-            if (_same_provable_color(interior, getattr(earlier.element, "color", None))
-                    and _is_solid_backdrop_shape(earlier)
-                    and _fully_contains(earlier.box, later.box)):
+            earlier_color = getattr(earlier.element, "color", None)
+            if (_is_solid_backdrop_shape(earlier)
+                    and _fully_contains(earlier.box, later.box)
+                    and all(_same_provable_color(interior, earlier_color)
+                            for _, interior in outlines)):
                 continue  # provably repaints in the same colour that's already there
             under.append(earlier.id)
         if not under:

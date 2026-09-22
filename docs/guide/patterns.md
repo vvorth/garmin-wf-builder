@@ -130,7 +130,7 @@ second rule.
 | `line` | `at` (start, default the origin), `to`, `thickness` (default 1px) | both ends transformed, `drawLine` |
 | `circle` | `at` (default the origin), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align`, `vertical_align` | the centre transformed, `fillCircle`/`drawCircle` |
 | `arc` | `radius`, `thickness` (default 1px), `start_angle`, `sweep`; **no `at:`, no `align`/`vertical_align`** | centred on the copy's origin. In a radial pattern its start angle turns with the copy, which gives a segmented ring |
-| `text` | `at` (the anchor, default the origin), `value` **or** `text`, `format`, `font`, `align`, `vertical_align`, `curve`, `if_unavailable` | the anchor transformed and rounded half up; the glyphs stay **upright**, unless `curve:` and a `face:` font turn them too (see [Text parts](#text-parts) below) |
+| `text` | `at` (the anchor, default the origin), `value` **or** `text`, `format`, `font`, `align`, `vertical_align`, `curve`, `if_unavailable`, `outline` | the anchor transformed and rounded half up; the glyphs stay **upright**, unless `curve:` and a `face:` font turn them too (see [Text parts](#text-parts) below) |
 
 `rounded_rectangle` and `ellipse` are rejected, because no `Dc` call draws
 either one turned. `icon` is rejected too (see [Not yet
@@ -261,6 +261,30 @@ value outright — `error` fails the whole build naming the device and the
 missing face(s); `hide` makes just that one part not draw on a target that
 fails the font's availability gates, leaving every other part of the same
 pattern (and every other element sharing the font) unaffected.
+
+**`outline:`** (plan 15) works exactly as on a standalone [`text`
+element](text.md#outline--the-stamped-ring), one level down: the part's
+own string, drawn N times at small screen-space pixel offsets in the ring
+colour, then once more, unshifted, in the part's own (effective) `color:`.
+Both spellings (a bare colour, or `{color, width}`, 1–3px, default 2)
+work identically. The one thing a pattern part's `outline.color` can do
+that a standalone element's cannot: it may read **`copy`**, exactly as the
+part's own `color:` does, so the ring can alternate by copy the same way
+the fill can. Reaches every draw shape a part can take — upright,
+`curve: {style: angled}`, `curve: {style: radial}` — and composes
+correctly with a radial pattern's own per-copy rotation: the offset is
+applied to the copy's own already-turned anchor, in screen space, exactly
+like the interior draw, so the ring turns with the numeral instead of
+smearing across the disc as the pattern rotates. Twelve numerals with an
+outline cost N+1 draws each — the same per-element multiplier plan 15
+measures for a standalone element, now paid once per copy: width 1 (4
+offsets) means 5 draws per copy instead of 1, so a 12-copy ring costs 60
+draws a frame instead of 12 — cheap in generated code (the loop body is
+emitted once regardless of copy count), unmeasured in CPU (no
+per-operation figure exists on this platform to weigh it against). The
+`text-outline-interior` lint (below) judges the whole pattern's own
+(ring-grown) bounding box, the same granularity `off-screen`/`safe-area`
+already use for a pattern — not a separate check per copy.
 
 The keys are those of a `text` element. **`value:`** is an expression in
 which `copy` is bound. **`text:`** is a fixed string, the same on every copy.
