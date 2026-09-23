@@ -1327,45 +1327,159 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
     A design with no `outline:` is entirely unaffected -- the branch below
     is the only new code path, and every pre-existing call/message for a
     plain `color:` element is untouched.
+
+    **`hands`/`pattern` dispatch to their own per-part helpers, not the
+    generic branch below (bug fix).** Neither kind has a plain `color:`
+    field the generic `getattr(element, "color", None)` branch can read:
+    `HandsElement` has none at all (every colour lives on its
+    `hour:`/`minute:`/`second:` hands' own parts, already the *effective*
+    colour -- the part's own override, or its hand's default,
+    `ResolvedHandPart.color`), and `PatternElement.color` is only the
+    *default* a part without its own `color:` inherits, so a part's own
+    override went unchecked too. Before this fix `getattr` silently
+    returned `None` for a `hands` element (skipping it outright) and the
+    element-level default alone for a `pattern` (skipping every per-part
+    override). `_check_hand_parts_contrast`/`_check_pattern_parts_contrast`
+    below check every part directly, named `<id>.<hand>.parts[<i>]`/
+    `<id>.parts[<i>]` the same way `check_sub_pixel_length` already names
+    one -- a pattern's own `shape: text` part additionally routes through
+    the same ring-based `_check_outline_contrast` as a standalone `text`
+    element whenever it carries its own `outline:` (`part.outline_color is
+    not None`, `wfb.layout.ResolvedHandPart.outline_color`'s own "no
+    outline" test).
     """
     backdrop = _backdrop(resolved)
     if backdrop is None:
         return
     for placed in resolved.items:
-        outline = getattr(placed.element, "outline", None)
+        element = placed.element
+        if isinstance(element, HandsElement):
+            _check_hand_parts_contrast(bag, placed, backdrop)
+            continue
+        if isinstance(element, PatternElement):
+            _check_pattern_parts_contrast(bag, placed, backdrop)
+            continue
+        outline = getattr(element, "outline", None)
         if outline is not None:
-            _check_outline_contrast(bag, placed, outline, backdrop)
+            _check_outline_contrast(
+                bag, placed, outline.color, getattr(element, "color", None), backdrop,
+                label=placed.id)
             continue
-        color_expression = getattr(placed.element, "color", None)
-        if color_expression is None or color_expression.constant is None:
-            continue
-        color = Color.parse(int(color_expression.constant))
-        if color.value == backdrop.value and placed.kind == "shape":
-            continue
-        ratio = color.contrast_ratio(backdrop)
-        if ratio < 3.0:
-            _emit(bag, placed, Diagnostic(
-                Severity.WARNING,
-                "contrast",
-                f"{placed.id}: {color} on {backdrop} has a contrast ratio of {ratio:.1f}",
-                placed.element.span,
-                notes=["below 3.0 this is hard to read on a transflective display in "
-                       "low light"],
-                confidence="exact arithmetic; the 3.0 threshold is a judgement call",
-            ))
+        _check_plain_color_contrast(
+            bag, placed, getattr(element, "color", None), backdrop,
+            label=placed.id, allow_backdrop_match=placed.kind == "shape")
 
 
-def _check_outline_contrast(bag: Bag, placed, outline, backdrop: Color) -> None:
+def _check_plain_color_contrast(
+    bag: Bag, placed, color_expression, backdrop: Color, *, label: str,
+    allow_backdrop_match: bool = False,
+) -> None:
+    """The ordinary interior-vs-backdrop comparison `check_contrast` makes
+    for a plain `color:` -- factored out so a `hands`/`pattern` part
+    (`_check_hand_parts_contrast`/`_check_pattern_parts_contrast`) can run
+    exactly the same check the top-level element-scoped branch does,
+    against its own label instead of `placed.id`.
+
+    `allow_backdrop_match` is `check_contrast`'s own pre-existing exemption
+    -- a shape-drawn kind matching the backdrop exactly is presumed
+    deliberate (a "blend into the background" idiom: a punched-out hole, an
+    "off" indicator drawn in the same colour as what is behind it, up to
+    and including the literal backdrop shape itself), the same tolerance a
+    glyph kind (`text`/`icon`, and a `shape: text` pattern part) never gets,
+    because there an exact match usually means invisible content by
+    mistake, not by design. `_check_hand_parts_contrast`/`_check_pattern_
+    parts_contrast` pass this for every non-text part for exactly that
+    reason -- `examples/features/patterns/face.yaml`'s own `test_visibility`
+    draws its "off" bars this way, one rectangle part in the same colour as
+    the face's background.
+    """
+    if color_expression is None or color_expression.constant is None:
+        return
+    color = Color.parse(int(color_expression.constant))
+    if allow_backdrop_match and color.value == backdrop.value:
+        return
+    ratio = color.contrast_ratio(backdrop)
+    if ratio < 3.0:
+        _emit(bag, placed, Diagnostic(
+            Severity.WARNING,
+            "contrast",
+            f"{label}: {color} on {backdrop} has a contrast ratio of {ratio:.1f}",
+            placed.element.span,
+            notes=["below 3.0 this is hard to read on a transflective display in "
+                   "low light"],
+            confidence="exact arithmetic; the 3.0 threshold is a judgement call",
+        ))
+
+
+def _check_hand_parts_contrast(bag: Bag, placed, backdrop: Color) -> None:
+    """`check_contrast`'s own dispatch for a `type: hands` element (bug
+    fix): every part of every declared hand, checked against the backdrop
+    directly -- a hand part never carries its own `outline:` (the schema
+    keeps `shape: text` off a hand's own template, `wfb.layout.Resolver.
+    _resolve_hand_part`'s own `text` branch docstring), so there is only
+    ever the plain ink-vs-backdrop comparison to make, once per part.
+    """
+    for hand, resolved_hand in (
+        ("hour", placed.hour), ("minute", placed.minute), ("second", placed.second),
+    ):
+        if resolved_hand is None:
+            continue
+        for index, part in enumerate(resolved_hand.parts):
+            # A hand part is never `shape: text` (the schema keeps that
+            # shape off a hand's own template), so it is always the
+            # shape-drawn kind the backdrop-match exemption covers.
+            _check_plain_color_contrast(
+                bag, placed, part.color, backdrop,
+                label=f"{placed.id}.{hand}.parts[{index}]", allow_backdrop_match=True)
+
+
+def _check_pattern_parts_contrast(bag: Bag, placed, backdrop: Color) -> None:
+    """`check_contrast`'s own dispatch for a `type: pattern` element (bug
+    fix): every template part, checked once (not once per drawn copy --
+    every copy shares the same colours, so a second copy would only repeat
+    the same finding). A `shape: text` part with its own `outline:`
+    (`part.outline_color is not None`) is judged the same ring-based way a
+    standalone `outline:`-bearing `text` element is, against its own
+    interior (`part.color`) rather than the element's -- any other part
+    gets the plain ink-vs-backdrop comparison.
+    """
+    for index, part in enumerate(placed.parts):
+        label = f"{placed.id}.parts[{index}]"
+        if part.outline_color is not None:
+            _check_outline_contrast(bag, placed, part.outline_color, part.color, backdrop,
+                                    label=label)
+        else:
+            # Exempt a backdrop-matching colour the same way the top-level
+            # branch exempts a shape element, for every non-glyph part
+            # shape -- never for `shape: text`, where an exact match is
+            # ordinarily invisible content by mistake, not by design.
+            _check_plain_color_contrast(
+                bag, placed, part.color, backdrop, label=label,
+                allow_backdrop_match=part.shape != "text")
+
+
+def _check_outline_contrast(
+    bag: Bag, placed, ring_expression, interior_expression, backdrop: Color, *, label: str,
+) -> None:
     """The two ring-based comparisons `check_contrast` uses in place of the
-    ordinary interior-vs-backdrop check, for one `outline:`-bearing element.
+    ordinary interior-vs-backdrop check, for one `outline:`-bearing element
+    or pattern part.
 
     Both comparisons are independent and either, both, or neither may fire --
     see `check_contrast`'s own docstring for what each failure looks like to
     an author. Silent (like the plain check) whenever a colour involved is
     not a build-time constant (`config.*`, or a data-conditional that never
     folded): there is nothing to compute a ratio from.
+
+    `ring_expression`/`interior_expression` are passed in explicitly, not
+    read via `getattr(placed.element, ...)`, so a pattern's own `shape:
+    text` part (`_check_pattern_parts_contrast`) can hand this its own
+    `part.outline_color`/`part.color` -- the element-level attributes a
+    `getattr` would have found do not exist on `PatternElement` (`outline:`
+    and its interior both live per-part there), and even where they did
+    (a standalone `Text` element) they would be the wrong pair for a part
+    with its own override.
     """
-    ring_expression = outline.color  # required in the schema -- never None itself
     ring = None
     if ring_expression.constant is not None:
         ring = Color.parse(int(ring_expression.constant))
@@ -1374,14 +1488,13 @@ def _check_outline_contrast(bag: Bag, placed, outline, backdrop: Color) -> None:
             _emit(bag, placed, Diagnostic(
                 Severity.WARNING,
                 "contrast",
-                f"{placed.id}: outline ring {ring} on {backdrop} has a contrast "
+                f"{label}: outline ring {ring} on {backdrop} has a contrast "
                 f"ratio of {ratio:.1f}",
                 placed.element.span,
                 notes=["with a hollow interior the ring is the only ink drawn -- "
                        "below 3.0 the whole character can disappear into the page"],
                 confidence="exact arithmetic; the 3.0 threshold is a judgement call",
             ))
-    interior_expression = getattr(placed.element, "color", None)
     if ring is None or interior_expression is None or interior_expression.constant is None:
         return
     interior = Color.parse(int(interior_expression.constant))
@@ -1390,7 +1503,7 @@ def _check_outline_contrast(bag: Bag, placed, outline, backdrop: Color) -> None:
         _emit(bag, placed, Diagnostic(
             Severity.WARNING,
             "contrast",
-            f"{placed.id}: outline ring {ring} on its own interior {interior} has a "
+            f"{label}: outline ring {ring} on its own interior {interior} has a "
             f"contrast ratio of {inner_ratio:.1f}",
             placed.element.span,
             notes=["the ring's inner edge is invisible against its own fill -- the "

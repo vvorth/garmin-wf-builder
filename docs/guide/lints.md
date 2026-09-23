@@ -144,7 +144,18 @@ idiom itself: `color:` repeating the same palette entry as the full-screen
 background underneath it (`docs/guide/text.md`'s "hollow text" section).
 `contrast` similarly treats an `outline:`-bearing element differently: see
 `wfb.lint.check_contrast`'s own docstring for the two ring comparisons it
-makes in place of judging the interior.
+makes in place of judging the interior. On a `type: hands`/`type: pattern`
+element, `contrast` is checked per **part**, not once for the whole
+element -- a `HandsElement` has no `color:` of its own at all (every colour
+lives on its hands' own parts) and a `PatternElement`'s `color:` is only
+the default a part without its own override inherits -- named
+`<id>.<hand>.parts[<i>]`/`<id>.parts[<i>]`, the same convention
+`sub-pixel-length` already uses for a part-level finding, and suppressed
+the same way: on the owning element, since a part has no `lint:` of its
+own. A part whose colour exactly matches the backdrop is not warned about
+(the same "deliberately blends in" exemption a `shape` element gets),
+**except** a `shape: text` pattern part, where an exact match is ordinarily
+invisible content by mistake rather than by design.
 See `docs/limitations.md` 3.
 
 ## What gets checked

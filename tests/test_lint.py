@@ -656,6 +656,61 @@ def test_outline_ring_with_poor_contrast_against_its_own_interior_warns(check):
                    for w in warnings)
 
 
+def test_a_hand_parts_low_contrast_color_warns(write_design, bag, db):
+    """`HandsElement` has no `color:` field of its own -- every colour lives
+    on its `hour:`/`minute:`/`second:` hands' own parts -- so before this
+    fix `check_contrast`'s `getattr(element, "color", None)` always read
+    `None` for a `type: hands` element and silently skipped every hand,
+    no matter how badly it blended into the backdrop."""
+    elements = """  - id: hd
+    type: hands
+    hands: h
+    at: {anchor: center}
+"""
+    text = _SUB_PIXEL_DESIGN.format(face_min_1px="", elements=elements)
+    text = text.replace("targets: [fenix8solar47mm]", """targets: [fenix8solar47mm]
+hands:
+  h:
+    hour:
+      color: palette.dim
+      parts:
+        - {shape: circle, radius: 20px}""")
+    text = text.replace('bg: "#000000"', 'bg: "#000000"\n  dim: "#0A0A0A"')
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    lint.run(resolved, bag)
+    warning = next(d for d in bag.items if d.code == "contrast")
+    assert "hd.hour.parts[0]" in warning.message
+
+
+def test_a_pattern_parts_own_override_color_is_checked_not_just_the_default(write_design, bag, db):
+    """`PatternElement.color` is only the *default* every part without its
+    own `color:` inherits -- a part that overrides it draws in a colour
+    `check_contrast`'s old `getattr(element, "color", None)` never looked
+    at.  Here the element default (`fg`) is fine against the backdrop but
+    the one part's own override (`dim`) is not."""
+    elements = """  - id: pat
+    type: pattern
+    pattern: radial
+    at: {anchor: center}
+    count: 1
+    color: palette.fg
+    parts:
+      - {shape: circle, radius: 20px, color: palette.dim}
+"""
+    text = _SUB_PIXEL_DESIGN.format(face_min_1px="", elements=elements)
+    text = text.replace('bg: "#000000"', 'bg: "#000000"\n  dim: "#0A0A0A"')
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    lint.run(resolved, bag)
+    warning = next(d for d in bag.items if d.code == "contrast")
+    assert "pat.parts[0]" in warning.message
+
+
 # -- check 9 ---------------------------------------------------------------
 
 
