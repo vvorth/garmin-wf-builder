@@ -708,3 +708,19 @@ These cost real time to discover; do not rediscover them.
   off a transition away from `DISPLAY_MODE_OFF`, for the cost of one more
   per-device symbol question (`AppBase` gets no override, no test needed
   for one) -- not measured, because nothing was built to measure.
+
+- **`date.today`'s `format:` bug (found 2026-09-23): under `FORMAT_MEDIUM`
+  (the `date` reader), `month` and `day_of_week` are Strings, not Numbers --
+  `%b`/`%a` rely on exactly that, but `%m` (numeric, zero-padded month)
+  needs a Number and has none to read on `date`. It has to come from
+  `date_short` (`dateShort`, `FORMAT_SHORT`) instead, cast `as Number` the
+  same way `date.weekday` already reads `dateShort.day_of_week`. Every
+  `%m`-using face failed `monkeyc` outright (`Cannot find symbol ':format'
+  on type '$.Toybox.Lang.String'`) until this was fixed, because nothing
+  had ever compiled every `DATE_CODES` entry in one build.
+  `wfb.formatting._DATE_CODE_EXTRA_PATH` is the one table "which codes need
+  a second reader" is decided from -- `_emit_date`'s own `m` branch and
+  `date_extra_paths` (which `wfb.emit.monkeyc.readplan.ReadPlan` calls to
+  add the extra reader-local parameter) are both built from it, so an
+  element's generated method and the parameter list supplying it cannot
+  drift apart on this again.

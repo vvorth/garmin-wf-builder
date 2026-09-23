@@ -143,10 +143,11 @@ def is_time_spec(spec: str) -> bool:
 
 
 def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
-         settings: str = "settings", date: str = "date") -> str:
+         settings: str = "settings", date: str = "date",
+         date_short: str = "dateShort") -> str:
     """Compile a format spec to a Monkey C String expression."""
     if value_type is Type.DATE:
-        return _emit_date(spec, date=date)
+        return _emit_date(spec, date=date, date_short=date_short)
     if is_time_spec(spec):
         return _emit_time(spec, clock=clock, settings=settings)
 
@@ -203,11 +204,51 @@ def _emit_time(spec: str, *, clock: str, settings: str) -> str:
     return " + ".join(pieces) if pieces else '""'
 
 
-def _emit_date(spec: str, *, date: str) -> str:
+#: DATE codes whose Monkey C reads a *second* reader (`date_short`,
+#: `Gregorian.info(Time.now(), Time.FORMAT_SHORT)`, local `dateShort`)
+#: instead of the value's own `date` (FORMAT_MEDIUM) reader, keyed by
+#: `DATE_CODES` letter and mapped to the `wfb.catalog.CATALOG` path whose
+#: `.reader` is `date_short` -- currently just ``%m``: FORMAT_MEDIUM's
+#: ``month`` is a localised String ("Sep"), with no numeric form at all, so
+#: the zero-padded *Number* month `%m` only exists under FORMAT_SHORT --
+#: the same reason `date.weekday` (FORMAT_SHORT's Number `day_of_week`)
+#: exists as a second reader rather than a second field on `date`
+#: (`wfb.catalog.READERS` docstring). **The one place this fact lives**:
+#: `_emit_date`'s own ``m`` branch below is hand-written to match exactly
+#: this table's one entry, and `date_extra_paths` reads the table itself to
+#: tell `wfb.emit.monkeyc.readplan.ReadPlan` which extra reader-local
+#: parameter an element using the code needs declared -- so a future code
+#: needing a second reader has one table to add it to, not two ladders that
+#: can silently disagree.
+_DATE_CODE_EXTRA_PATH: dict[str, str] = {"m": "date.weekday"}
+
+
+def date_extra_paths(spec: str) -> tuple[str, ...]:
+    """Extra `wfb.catalog.CATALOG` paths a DATE format spec's own codes
+    need read, beyond the value's own ``date.today`` -- e.g.
+    ``("date.weekday",)`` for a spec using ``%m`` (whose Number month only
+    exists under the `date_short` reader), ``()`` for one that does not.
+    See `_DATE_CODE_EXTRA_PATH`.
+    """
+    paths: list[str] = []
+    for part in parse_time(strip_braces(spec), DATE_CODES):
+        path = _DATE_CODE_EXTRA_PATH.get(part.code) if part.code is not None else None
+        if path is not None and path not in paths:
+            paths.append(path)
+    return tuple(paths)
+
+
+def _emit_date(spec: str, *, date: str, date_short: str = "dateShort") -> str:
     """Compile a date spec.
 
-    ``day_of_week`` and ``month`` are already Strings under ``FORMAT_MEDIUM``, so
-    they need no conversion; the numeric fields do.
+    ``day_of_week`` and ``month`` are already Strings under ``FORMAT_MEDIUM``
+    (the ``date`` reader), so they need no conversion; ``day``/``year`` are
+    Numbers either way. ``%m`` is the one code that cannot be read off
+    ``date`` at all: FORMAT_MEDIUM's ``month`` field is that same localised
+    String, with no numeric form -- the zero-padded Number month has to come
+    from ``date_short`` (FORMAT_SHORT) instead, cast from its declared
+    ``Number or String`` the same way `date.weekday` already is
+    (`wfb.catalog.CATALOG["date.weekday"].cast`). See `_DATE_CODE_EXTRA_PATH`.
     """
     pieces: list[str] = []
     for part in parse_time(strip_braces(spec), DATE_CODES):
@@ -222,7 +263,7 @@ def _emit_date(spec: str, *, date: str) -> str:
         elif part.code == "b":
             pieces.append(f"{date}.month")
         elif part.code == "m":
-            pieces.append(f'{date}.month.format("%02d")')
+            pieces.append(f'({date_short}.month as Number).format("%02d")')
         elif part.code == "Y":
             pieces.append(f'{date}.year.format("%04d")')
         elif part.code == "y":

@@ -109,6 +109,51 @@ def test_a_date_needs_the_whole_alphabet_in_a_subsetted_font():
     assert set("MonTueWedThuFriSatSun") <= glyphs
 
 
+def test_numeric_month_reads_the_short_reader_not_the_medium_one():
+    """`%m` cannot read ``date.month`` at all -- under FORMAT_MEDIUM (the
+    `date` reader) it is a localised String ("Sep"), with no numeric form.
+    The zero-padded Number has to come from `date_short` (FORMAT_SHORT),
+    cast `as Number` the same way `date.weekday` already is. This is the
+    bug: the broken implementation emitted `date.month.format("%02d")`,
+    which fails `monkeyc` outright (`Cannot find symbol ':format' on type
+    '$.Toybox.Lang.String'`)."""
+    code = formatting.emit("{:%m}", "", Type.DATE)
+    assert code == '(dateShort.month as Number).format("%02d")'
+    assert "date.month.format" not in code
+
+
+def test_numeric_month_honours_the_date_short_kwarg():
+    code = formatting.emit("{:%m}", "", Type.DATE, date="d", date_short="ds")
+    assert code == '(ds.month as Number).format("%02d")'
+
+
+def test_other_date_codes_are_unaffected_by_the_month_fix():
+    """Every other DATE_CODES entry still reads off `date` alone -- `%m` is
+    the only one needing a second reader."""
+    code = formatting.emit("{:%a %d %e %b %Y %y %%}", "", Type.DATE)
+    assert "dateShort" not in code
+    assert code == (
+        'date.day_of_week + " " + date.day.format("%02d") + " " '
+        '+ date.day.format("%d") + " " + date.month + " " '
+        '+ date.year.format("%04d") + " " + (date.year % 100).format("%02d") '
+        '+ " " + "%"'
+    )
+
+
+@pytest.mark.parametrize("spec,extra", [
+    ("{:%m}", ("date.weekday",)),
+    ("{:%Y-%m-%d}", ("date.weekday",)),
+    ("{:%a %e %b}", ()),
+    ("{:%Y}", ()),
+])
+def test_date_extra_paths_flags_only_specs_using_percent_m(spec, extra):
+    """The single source of truth `wfb.emit.monkeyc.readplan.ReadPlan`
+    consults to know a `%m` spec needs the `date_short` reader-local
+    declared and passed as a parameter -- `_emit_date` and this helper read
+    the same table, so the two cannot drift apart."""
+    assert formatting.date_extra_paths(spec) == extra
+
+
 # -- width estimation -------------------------------------------------------
 
 

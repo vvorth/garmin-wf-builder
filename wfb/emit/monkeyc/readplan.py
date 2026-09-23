@@ -108,6 +108,23 @@ class ReadPlan:
                     format_paths.append("time.clock")
                     if "%h" in element.format:
                         format_paths.append("device.is_24_hour")
+            if (isinstance(element, Text) and element.value is not None
+                    and element.value.value.type is Type.DATE):
+                # A date code like %m needs a second reader beyond `date`
+                # itself (`formatting.date_extra_paths` -- the single place
+                # that decides this, shared with `_emit_date` so the two
+                # cannot drift). Both the awake `format:` (always present
+                # and coded here, `Builder._check_format`) and an
+                # `aod: {format: ...}` override (plan 14, unvalidated
+                # against the value's own codes) can use such a code
+                # independently of one another, so both are checked.
+                specs = [element.format]
+                if element.aod is not None and element.aod.format is not None:
+                    specs.append(element.aod.format)
+                for spec in specs:
+                    for extra in formatting.date_extra_paths(spec):
+                        if extra not in format_paths:
+                            format_paths.append(extra)
             # A hands element reads the clock too, with no author expression
             # at all -- the same `time.clock` reader a `Text` element's own
             # time format uses, which is what gives every `draw<Id>(dc, ...)`
