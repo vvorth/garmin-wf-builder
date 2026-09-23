@@ -9,13 +9,12 @@ from ...ir import Progress, local_name
 from ...layout import PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace
 from .common import (
     AodDim, _aod_color, _aod_font_field, _aod_value, _color, _const_prefix, _field,
-    _glyph_y_expr, _jitter_terms,
+    _glyph_y_expr,
 )
 from ..writer import Writer
 
 
-def _emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None,
-                   jitter: tuple[str, str] = ("", "")) -> None:
+def _emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) -> None:
     """The two-line `WfbArc.drawSpan(...)` call against one arc's own
     `_CX/_CY/_RADIUS/_THICKNESS/_START/_SWEEP` constants -- identical whether
     it is a plain `shape: arc` or a `progress` arc's unfilled track, which is
@@ -25,14 +24,11 @@ def _emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None,
     to the plain `Layout.<P>_THICKNESS` constant; a `progress` arc's track
     passes its own `aod: {thickness: ...}` ternary instead, so the unfilled
     track and the filled portion always agree on which pen width is current.
-    ``jitter`` (`_jitter_terms`) shifts the centre only -- the radius does
-    not move, an offset is a translation, not a resize.
     """
     if thickness_expr is None:
         thickness_expr = f"Layout.{prefix}_THICKNESS"
-    dx, dy = jitter
     w.line(
-        f"WfbArc.drawSpan(dc, Layout.{prefix}_CX{dx}, Layout.{prefix}_CY{dy}, "
+        f"WfbArc.drawSpan(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, "
         f"Layout.{prefix}_RADIUS,"
     )
     w.line(
@@ -78,20 +74,17 @@ def _emit_shape(w: Writer, placed: PlacedShape, aod: bool = False, dim: AodDim =
     color_code = _aod_color(element, "color", _color(element.color), aod, dim)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     filled_override = _shape_filled_override(element, aod)
-    # `aod: {jitter: ...}` (plan 14 §5.2): '' for both unless this element
-    # resolves into a jittered AOD scope -- see `_jitter_terms`.
-    dx, dy = _jitter_terms(placed, aod)
 
     if element.shape == "rectangle":
         thickness_expr = _thickness_expr(prefix, placed, aod)
 
         def draw_filled() -> None:
-            w.line(f"dc.fillRectangle(Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy},")
+            w.line(f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
             w.line(f"                 Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);")
 
         def draw_outline() -> None:
             w.line(f"dc.setPenWidth({thickness_expr});")
-            w.line(f"dc.drawRectangle(Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy},")
+            w.line(f"dc.drawRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
             w.line(f"                 Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);")
             w.line("dc.setPenWidth(1);")
 
@@ -100,13 +93,13 @@ def _emit_shape(w: Writer, placed: PlacedShape, aod: bool = False, dim: AodDim =
         thickness_expr = _thickness_expr(prefix, placed, aod)
 
         def draw_filled() -> None:
-            w.line(f"dc.fillRoundedRectangle(Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy},")
+            w.line(f"dc.fillRoundedRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
             w.line(f"                        Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
             w.line(f"                        Layout.{prefix}_CORNER);")
 
         def draw_outline() -> None:
             w.line(f"dc.setPenWidth({thickness_expr});")
-            w.line(f"dc.drawRoundedRectangle(Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy},")
+            w.line(f"dc.drawRoundedRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
             w.line(f"                        Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
             w.line(f"                        Layout.{prefix}_CORNER);")
             w.line("dc.setPenWidth(1);")
@@ -116,17 +109,17 @@ def _emit_shape(w: Writer, placed: PlacedShape, aod: bool = False, dim: AodDim =
         # The same barrel call a `progress` track uses, so the two arcs cannot
         # disagree about the angle convention or about the full-circle case
         # (drawArc draws a complete circle when start == end).
-        _emit_arc_span(w, prefix, _thickness_expr(prefix, placed, aod), (dx, dy))
+        _emit_arc_span(w, prefix, _thickness_expr(prefix, placed, aod))
     elif element.shape == "ellipse":
         thickness_expr = _thickness_expr(prefix, placed, aod)
 
         def draw_filled() -> None:
-            w.line(f"dc.fillEllipse(Layout.{prefix}_CX{dx}, Layout.{prefix}_CY{dy},")
+            w.line(f"dc.fillEllipse(Layout.{prefix}_CX, Layout.{prefix}_CY,")
             w.line(f"               Layout.{prefix}_RX, Layout.{prefix}_RY);")
 
         def draw_outline() -> None:
             w.line(f"dc.setPenWidth({thickness_expr});")
-            w.line(f"dc.drawEllipse(Layout.{prefix}_CX{dx}, Layout.{prefix}_CY{dy},")
+            w.line(f"dc.drawEllipse(Layout.{prefix}_CX, Layout.{prefix}_CY,")
             w.line(f"               Layout.{prefix}_RX, Layout.{prefix}_RY);")
             w.line("dc.setPenWidth(1);")
 
@@ -138,36 +131,16 @@ def _emit_shape(w: Writer, placed: PlacedShape, aod: bool = False, dim: AodDim =
         # there too (`Builder._build_aod_authored`, a friendly build error,
         # not a schema restriction: the schema does not discriminate by
         # `shape:` value), so `filled_override` is never true here.
-        if dx or dy:
-            # `_POINTS` is a build-time-constant `Array<Point2D>` -- there is
-            # no single X/Y to append a jitter term to, so each vertex is
-            # rebuilt as its own two-element array instead, one line per
-            # point (the point count is known at build time, from
-            # `placed.points`, so this is exactly as static as the
-            # unjittered call, just spelled out rather than a bare constant
-            # reference).
-            w.line("dc.fillPolygon([")
-            count = len(placed.points)
-            for i in range(count):
-                comma = "," if i < count - 1 else ""
-                w.line(
-                    f"    [Layout.{prefix}_POINTS[{i}][0]{dx}, "
-                    f"Layout.{prefix}_POINTS[{i}][1]{dy}]{comma}"
-                )
-            w.line("]);")
-        else:
-            w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
+        w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
     elif element.shape == "circle":
         thickness_expr = _circle_thickness_expr(placed, aod)
 
         def draw_filled() -> None:
-            w.line(f"dc.fillCircle(Layout.{prefix}_CX{dx}, Layout.{prefix}_CY{dy}, "
-                  f"Layout.{prefix}_RADIUS);")
+            w.line(f"dc.fillCircle(Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS);")
 
         def draw_outline() -> None:
             w.line(f"dc.setPenWidth({thickness_expr});")
-            w.line(f"dc.drawCircle(Layout.{prefix}_CX{dx}, Layout.{prefix}_CY{dy}, "
-                  f"Layout.{prefix}_RADIUS);")
+            w.line(f"dc.drawCircle(Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS);")
             w.line("dc.setPenWidth(1);")
 
         _emit_filled_toggle(w, element.filled, filled_override, draw_filled, draw_outline)
@@ -175,8 +148,8 @@ def _emit_shape(w: Writer, placed: PlacedShape, aod: bool = False, dim: AodDim =
         thickness_expr = _thickness_expr(prefix, placed, aod)
         w.line(f"dc.setPenWidth({thickness_expr});")
         w.line(
-            f"dc.drawLine(Layout.{prefix}_CX{dx}, Layout.{prefix}_CY{dy}, "
-            f"Layout.{prefix}_END_X{dx}, Layout.{prefix}_END_Y{dy});"
+            f"dc.drawLine(Layout.{prefix}_CX, Layout.{prefix}_CY, "
+            f"Layout.{prefix}_END_X, Layout.{prefix}_END_Y);"
         )
         w.line("dc.setPenWidth(1);")
 
@@ -354,11 +327,9 @@ def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value
     prefix = _const_prefix(placed.id)
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
     color_code = _aod_color(element, "color", _color(element.color), aod, dim)
-    jitter = _jitter_terms(placed, aod)
     if placed.font_is_vector:
-        _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code, jitter)
+        _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code)
         return
-    dx, dy = jitter
     override_expr = None
     if aod and element.aod is not None and element.aod.font is not None:
         if not element.aod.font_is_custom:
@@ -393,13 +364,13 @@ def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value
     if element.outline is not None:
         _emit_outline_loop(
             w, element.outline.width, _color(element.outline.color),
-            f"Layout.{prefix}_X{dx}", f"Layout.{prefix}_Y{dy}",
+            f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
             lambda x, y: _emit_plain_text_call(
                 w, x, y, font_expr, value_code, justify, element.vertical_align),
         )
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     _emit_plain_text_call(
-        w, f"Layout.{prefix}_X{dx}", f"Layout.{prefix}_Y{dy}", font_expr, value_code, justify,
+        w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", font_expr, value_code, justify,
         element.vertical_align)
 
 
@@ -435,7 +406,7 @@ def _emit_vector_draw_call(
 
 def _emit_vector_text_draw(
     w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str,
-    color_code: str | None = None, jitter: tuple[str, str] = ("", ""),
+    color_code: str | None = None,
 ) -> None:
     """A `face:` (vector) font's draw call (plan 11 §3-4): plain
     `dc.drawText` with no `curve:`, or `dc.drawAngledText`/`dc.
@@ -461,20 +432,18 @@ def _emit_vector_text_draw(
     """
     element = placed.element
     field = f"_{_field(placed.font_reference)}"
-    dx, dy = jitter
     w.line(f"var font = {field};")
     with w.block("if (font != null)"):
         if element.outline is not None:
             _emit_outline_loop(
                 w, element.outline.width, _color(element.outline.color),
-                f"Layout.{prefix}_X{dx}", f"Layout.{prefix}_Y{dy}",
+                f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
                 lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
             )
         w.line(f"dc.setColor({color_code if color_code is not None else _color(element.color)}, "
               "Graphics.COLOR_TRANSPARENT);")
         _emit_vector_draw_call(
-            w, placed, prefix, justify, value_code, f"Layout.{prefix}_X{dx}",
-            f"Layout.{prefix}_Y{dy}")
+            w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
 def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str], aod: bool = False,
@@ -483,7 +452,6 @@ def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str], aod: bo
     prefix = _const_prefix(placed.id)
     fraction_expr = _fraction(element)
     color_code = _aod_color(element, "color", _color(element.color), aod, dim)
-    dx, dy = _jitter_terms(placed, aod)
     track_color_code = (
         _aod_color(element, "track_color", _color(element.track_color), aod, dim)
         if element.track_color is not None else None
@@ -510,12 +478,12 @@ def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str], aod: bo
         if element.track_color is not None:
             w.comment("the unfilled track")
             w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
-            _emit_arc_span(w, prefix, thickness_expr, (dx, dy))
+            _emit_arc_span(w, prefix, thickness_expr)
             w.blank()
         w.comment("the filled portion")
         w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
         w.line(
-            f"WfbArc.drawProgress(dc, Layout.{prefix}_CX{dx}, Layout.{prefix}_CY{dy}, "
+            f"WfbArc.drawProgress(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, "
             f"Layout.{prefix}_RADIUS,"
         )
         w.line(
@@ -528,15 +496,14 @@ def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str], aod: bo
     if element.track_color is not None:
         w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
         w.line(
-            f"dc.fillRectangle(Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy}, "
+            f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, "
             f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);"
         )
         w.blank()
     w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     w.line(
-        f"dc.fillRectangle(Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy}, filled, "
-        f"Layout.{prefix}_HEIGHT);"
+        f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, Layout.{prefix}_HEIGHT);"
     )
 
 
@@ -598,10 +565,9 @@ def _emit_icon(w: Writer, placed: PlacedIcon, aod: bool = False, dim: AodDim = N
         w.comment(f"{element.icon!r}")
         glyph_expr = f'"{element.codepoint}"'
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
-    dx, dy = _jitter_terms(placed, aod)
-    y_expr = _glyph_y_expr(f"Layout.{prefix}_CY{dy}", element.vertical_align, "font")
+    y_expr = _glyph_y_expr(f"Layout.{prefix}_CY", element.vertical_align, "font")
     color_code = _aod_color(element, "color", _color(element.color), aod, dim)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"dc.drawText(Layout.{prefix}_CX{dx}, {y_expr}, font,")
+    w.line(f"dc.drawText(Layout.{prefix}_CX, {y_expr}, font,")
     w.line(f"            {glyph_expr},")
     w.line(f"            {justify});")

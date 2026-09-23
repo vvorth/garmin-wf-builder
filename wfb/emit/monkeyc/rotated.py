@@ -8,8 +8,8 @@ from ... import expr, formatting
 from ...ir import PatternElement
 from ...layout import PlacedHands, PlacedPattern
 from .common import (
-    AodDim, _aod_part_color, _aod_value, _color, _const_prefix, _field, _glyph_y_expr,
-    _jitter_terms, _mc_float, _pattern_needs_math,
+    AodDim, _aod_part_color, _aod_value, _color, _const_prefix, _field, _glyph_y_expr, _mc_float,
+    _pattern_needs_math,
 )
 from .shapes import _RADIAL_DIRECTION, _emit_outline_loop, _radial_radius_expr
 from ..writer import Writer
@@ -36,13 +36,8 @@ def _emit_hands(w: Writer, placed: "PlacedHands", aod: bool = False, dim: AodDim
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
-    # `aod: {jitter: ...}` (plan 14 §5.2): every part rotates about (cx, cy)
-    # -- shifting only this one declaration moves the whole hand assembly
-    # rigidly, "the centre", with no change needed anywhere else in this
-    # function or in `_emit_one_hand`/`_emit_rotated_part` below.
-    jitter_dx, jitter_dy = _jitter_terms(placed, aod)
-    w.line(f"var cx = Layout.{prefix}_CX{jitter_dx};")
-    w.line(f"var cy = Layout.{prefix}_CY{jitter_dy};")
+    w.line(f"var cx = Layout.{prefix}_CX;")
+    w.line(f"var cy = Layout.{prefix}_CY;")
     color_override = (
         element.aod.color.code if (aod and element.aod is not None
                                    and element.aod.color is not None) else None
@@ -548,12 +543,6 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: bool = False,
     thickness_override = (
         f"Layout.{prefix}_AOD_THICKNESS" if (aod and placed.aod_thickness is not None) else None
     )
-    # `aod: {jitter: ...}` (plan 14 §5.2): every copy's own `cx`/`cy`
-    # (radial) or `ox`/`oy` (linear) derives from this one origin -- shifting
-    # it moves the whole pattern rigidly, with no change needed anywhere
-    # else in this function or in `_emit_pattern_part`/`_emit_pattern_text_
-    # draw` below.
-    jitter_dx, jitter_dy = _jitter_terms(placed, aod)
     # `element.parts[i]` and `placed.parts[i]` are the same template, in the
     # same order (`Resolver._resolve_pattern` builds one `ResolvedHandPart`
     # per `HandPart`, 1:1) -- so the IR part is what carries `visible:`
@@ -567,8 +556,8 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: bool = False,
     needs_trig = _pattern_needs_math(placed)
 
     if radial:
-        w.line(f"var cx = Layout.{prefix}_X{jitter_dx};")
-        w.line(f"var cy = Layout.{prefix}_Y{jitter_dy};")
+        w.line(f"var cx = Layout.{prefix}_X;")
+        w.line(f"var cy = Layout.{prefix}_Y;")
 
     text_fonts: dict[str, str] = {}
     vector_text_fonts: set[str] = set()
@@ -634,8 +623,8 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: bool = False,
                 w.line("var sin = Math.sin(angle);")
                 w.line("var cos = Math.cos(angle);")
         else:
-            w.line(f"var ox = Layout.{prefix}_X{jitter_dx} + i * Layout.{prefix}_DX;")
-            w.line(f"var oy = Layout.{prefix}_Y{jitter_dy} + i * Layout.{prefix}_DY;")
+            w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
+            w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
         current_color = distinct_colors[0] if hoist_color else None
         for color, (index, part) in zip(colors, live):
             if not hoist_color and color != current_color:

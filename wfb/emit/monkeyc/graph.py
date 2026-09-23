@@ -9,7 +9,7 @@ from ...ir import (
 )
 from ...layout import PlacedGraph
 from ...series import Acquisition
-from .common import AodDim, _aod_color, _aod_value, _color, _const_prefix, _jitter_terms
+from .common import AodDim, _aod_color, _aod_value, _color, _const_prefix
 from ..writer import Writer
 
 
@@ -66,7 +66,6 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False, dim: AodDim =
     hi = (f"{graph_max_field(element.id)}.toFloat()" if element.max_auto
           else f"({element.max.code}).toFloat()")
     color_code = _aod_color(element, "color", _color(element.color), aod, dim)
-    dx, dy = _jitter_terms(placed, aod)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     if element.style == "line":
         thickness_base = f"Layout.{prefix}_THICKNESS"
@@ -74,11 +73,11 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False, dim: AodDim =
             f"Layout.{prefix}_AOD_THICKNESS" if placed.aod_thickness is not None else None
         )
         thickness_expr = _aod_value(aod, thickness_override, thickness_base)
-        w.line(f"WfbSeries.drawLine(dc, Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy}, "
+        w.line(f"WfbSeries.drawLine(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
                f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
         w.line(f"                   {thickness_expr}, {values}, {lo}, {hi});")
     elif element.style == "area":
-        w.line(f"WfbSeries.drawArea(dc, Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy}, "
+        w.line(f"WfbSeries.drawArea(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
                f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
         w.line(f"                   {values}, {lo}, {hi});")
     else:  # bars
@@ -87,7 +86,7 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False, dim: AodDim =
             f"Layout.{prefix}_AOD_BAR_WIDTH" if placed.aod_bar_width is not None else None
         )
         bar_expr = _aod_value(aod, bar_override, bar_base)
-        w.line(f"WfbSeries.drawBars(dc, Layout.{prefix}_X{dx}, Layout.{prefix}_Y{dy}, "
+        w.line(f"WfbSeries.drawBars(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
                f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
         w.line(f"                   {bar_expr}, {values}, {lo}, {hi});")
 

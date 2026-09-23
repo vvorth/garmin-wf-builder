@@ -532,6 +532,36 @@ def test_preview_quiet_silences_stdout_but_still_writes(db, tmp_path):
     assert (tmp_path / "fenix8solar47mm.png").exists()
 
 
+def test_preview_heatmap_goes_to_stdout_too(db, tmp_path):
+    """`--heatmap -o -` once wrote `./-/<device>--heatmap.png` instead: the
+    heatmap had its own output branch that ran before the stdout check.
+    Every mode now shares one sink, so this covers the whole class."""
+    from PIL import Image
+    import io
+
+    design = ROOT / "examples" / "features" / "aod" / "face.yaml"
+    result = run_binary("preview", str(design), "-d", "fenix847mm", "--heatmap",
+                        "--scale", "1", "-o", "-", cwd=tmp_path)
+    assert result.returncode == 0, result.stderr.decode()
+    assert result.stdout.count(PNG_MAGIC) == 1
+    assert Image.open(io.BytesIO(result.stdout)).size == (454, 454)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("extra, named", [
+    (["--time", "10:00", "--minute", "5"], "--time and --minute"),
+    (["--heatmap", "--minute", "5"], "--minute and --heatmap"),
+    (["--heatmap", "--time", "10:00"], "--time and --heatmap"),
+    (["--style", "x", "--all-styles"], "--style and --all-styles"),
+    (["--heatmap", "--all-styles"], "--all-styles"),
+    (["--minute", "1440"], "--minute 1440"),
+])
+def test_preview_rejects_conflicting_flags(db, extra, named):
+    result = run("preview", "examples/features/sun/face.yaml", "-o", "--", *extra)
+    assert result.returncode == 1
+    assert named in result.stderr
+
+
 def test_preview_to_stdout_refuses_to_watch(db):
     """`--watch` would write a PNG per re-render into one stream."""
     result = run("preview", "examples/features/sun/face.yaml", "-o", "--", "--watch")

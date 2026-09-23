@@ -1957,8 +1957,8 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
         "checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel "
         "share; Venu 2+: luminance share), since the device files do not say which generation "
         "a target is",
-        "cannot see the 3-minute static-pixel rule, jitter, or any minute but the sampled "
-        "ones -- docs/limitations.md",
+        "cannot see the 3-minute static-pixel rule or any minute but the sampled ones "
+        "(`wfb preview --heatmap` approximates both) -- docs/limitations.md",
         f"share is each element's own lit-pixel count against the full frame's "
         f"{total_lit_pixels:,} lit pixels at {hh:02d}:{mm:02d} -- overlapping elements' shares "
         f"can sum past 100%",

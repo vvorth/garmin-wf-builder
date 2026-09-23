@@ -29,7 +29,6 @@ BARREL_FILES = {
     "WfbHands.mc": "analog hands -- the three clock-to-angle functions",
     "WfbGeom.mc": "rotate/translate-and-draw helpers shared by analog hands and patterns",
     "WfbColor.mc": "aod: {dim: ...} -- dimming a colour not known until the device resolves it",
-    "WfbJitter.mc": "aod: {jitter: ...} -- the deterministic per-minute AOD pixel offset",
 }
 
 
@@ -204,17 +203,6 @@ def _barrel_for(face: Face, resolved: ResolvedFace,
     # label_collisions` already uses one function down.
     if any("WfbColor.dim(" in source.text for source in sources):
         needed.add("WfbColor.mc")
-    # `aod: {jitter: ...}` (plan 14 slice 5): unlike `WfbColor.dim` above,
-    # whether the generated view ever calls `WfbJitter.offsetX`/`offsetY` is
-    # fully decidable from the IR alone -- an AOD-shown element resolving
-    # `aod_jitter` is exactly the condition `wfb.emit.monkeyc.common.
-    # _aod_jitter_ns` (called from `emit_view`) already used to decide
-    # whether to emit any `_aodDxN<n>`/`_aodDyN<n>` fields at all -- so
-    # there is no risk of this guess disagreeing with what codegen actually
-    # emitted, the way dimming's runtime-vs-constant split would have been.
-    if any(placed.kind != "group" and placed.element.aod is not None
-           and placed.element.aod_jitter is not None for placed in resolved.items):
-        needed.add("WfbJitter.mc")
     plan = monkeyc.ReadPlan(resolved)
     if face.barrel_functions():
         needed.add("WfbMath.mc")

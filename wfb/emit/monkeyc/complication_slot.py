@@ -11,7 +11,7 @@ from ...ir import (
 from ...layout import COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, ResolvedFace
 from .common import (
     AodDim, SourceFile, _NO_GUARDS, _aod_color, _color, _const_prefix, _dim_color_code, _field,
-    _jitter_terms, header,
+    header,
 )
 from ..writer import Writer
 
@@ -286,15 +286,6 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     face = resolved.face
     field = config_field(f"data_{element.slot}")
     unique = config_data_ids(face)[element.slot]
-    # `aod: {jitter: ...}` (plan 14 §5.2): every X/Y expression below is
-    # ultimately anchored on this one box centre -- `cx`/`cy` are plain
-    # build-time Python strings (like every other `Layout.*` reference this
-    # function builds), not a Monkey C local, so shifting these two once
-    # carries through every arithmetic expression derived from them below
-    # with no other change.
-    jitter_dx, jitter_dy = _jitter_terms(placed, aod)
-    cx = f"Layout.{prefix}_CX{jitter_dx}"
-    cy = f"Layout.{prefix}_CY{jitter_dy}"
 
     w.comment("the editor is animating this exact slot right now -- skip it, or the")
     w.comment("system draws it twice while it pulses (SDK sample's own comment)")
@@ -417,12 +408,12 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
                     f"{COMPLICATION_SLOT_ICON_GAP};"
                 )
         w.line("var totalWidth = iconWidth + textWidth;")
-        w.line(f"var startX = {cx} - totalWidth / 2;")
+        w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
         if icon_font_expr is not None:
             with w.block(f"if (iconGlyph != null && {icon_font_expr} != null)"):
-                w.line(f"dc.drawText(startX, {cy}, {icon_font_expr}, iconGlyph,")
+                w.line(f"dc.drawText(startX, Layout.{prefix}_CY, {icon_font_expr}, iconGlyph,")
                 w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
-        w.line(f"dc.drawText(startX + iconWidth, {cy}, {font_expr}, text,")
+        w.line(f"dc.drawText(startX + iconWidth, Layout.{prefix}_CY, {font_expr}, text,")
         w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
         return
 
@@ -497,15 +488,15 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
         # 'align:' actually reads it ('left' does not -- an unused local
         # warns under -l 3).
         if element.align == "left":
-            w.line(f"var startX = {cx};")
+            w.line(f"var startX = Layout.{prefix}_CX;")
         elif element.align == "right":
             w.line("var totalWidth = iconGlyphWidth + gap + textWidth;")
-            w.line(f"var startX = {cx} - totalWidth;")
+            w.line(f"var startX = Layout.{prefix}_CX - totalWidth;")
         else:
             w.line("var totalWidth = iconGlyphWidth + gap + textWidth;")
-            w.line(f"var startX = {cx} - totalWidth / 2;")
+            w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
         if element.vertical_align == "center":
-            row_y_expr = f"{cy}"
+            row_y_expr = f"Layout.{prefix}_CY"
         else:
             # 'vertical_align:' shifts the row's own VCENTER axis by half the
             # taller of the two drawn fonts' heights --
@@ -518,9 +509,9 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
                     with w.block("if (iconRowHeight > rowHeight)"):
                         w.line("rowHeight = iconRowHeight;")
             if element.vertical_align == "top":
-                w.line(f"var rowY = {cy} + rowHeight / 2;")
+                w.line(f"var rowY = Layout.{prefix}_CY + rowHeight / 2;")
             else:  # bottom
-                w.line(f"var rowY = {cy} - rowHeight / 2;")
+                w.line(f"var rowY = Layout.{prefix}_CY - rowHeight / 2;")
             row_y_expr = "rowY"
         if placed.icon_position == "left":
             if icon_present_guard is not None:
@@ -571,15 +562,15 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
         # only when 'vertical_align:' actually reads it ('top' does not --
         # an unused local warns under -l 3).
         if element.vertical_align == "top":
-            w.line(f"var startY = {cy};")
+            w.line(f"var startY = Layout.{prefix}_CY;")
         elif element.vertical_align == "bottom":
             w.line("var totalHeight = iconHeight + gap + textHeight;")
-            w.line(f"var startY = {cy} - totalHeight;")
+            w.line(f"var startY = Layout.{prefix}_CY - totalHeight;")
         else:
             w.line("var totalHeight = iconHeight + gap + textHeight;")
-            w.line(f"var startY = {cy} - totalHeight / 2;")
+            w.line(f"var startY = Layout.{prefix}_CY - totalHeight / 2;")
         if element.align == "center":
-            col_x_expr = f"{cx}"
+            col_x_expr = f"Layout.{prefix}_CX"
         else:
             # 'align:' shifts the pair's own TEXT_JUSTIFY_CENTER axis by half
             # the wider of the two drawn pieces -- the same
@@ -592,9 +583,9 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
                     w.line(f"iconGlyphWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr});")
             w.line("var pairWidth = (iconGlyphWidth > textWidth) ? iconGlyphWidth : textWidth;")
             if element.align == "left":
-                w.line(f"var pairX = {cx} + pairWidth / 2;")
+                w.line(f"var pairX = Layout.{prefix}_CX + pairWidth / 2;")
             else:  # right
-                w.line(f"var pairX = {cx} - pairWidth / 2;")
+                w.line(f"var pairX = Layout.{prefix}_CX - pairWidth / 2;")
             col_x_expr = "pairX"
         if placed.icon_position == "top":
             if icon_present_guard is not None:

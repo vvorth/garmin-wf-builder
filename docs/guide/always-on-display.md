@@ -17,7 +17,7 @@ design, not a second layout to maintain.
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
 | `aod:` | any element, `group` | `hide` \| `show` \| an override block | inherited (see [Resolution](#resolution)) | this element's AOD behaviour |
-| `aod:` | top level, beside `elements:` | `{default, dim, jitter, lint}` | — | face-wide AOD defaults |
+| `aod:` | top level, beside `elements:` | `{default, dim, lint}` | — | face-wide AOD defaults |
 
 ## Per element or group
 
@@ -47,16 +47,12 @@ no second vocabulary — restricted to a per-kind allowlist:
 
 An unknown or disallowed key for that kind is a schema error on the
 author's own line — the schema reuses each kind's own property `$ref`s, so
-there is nothing new to typo. `group` also accepts `jitter:` (not listed in
-the table above: it is a *position* key, not a restyling one, resolved
-separately — see "Jitter" below), on top of whatever its descendants allow.
+there is nothing new to typo.
 
-**Out of scope on purpose:** individual geometry (`at:`, `size:`, `radius:`
-— moving one element on its own would break relationships with its
-neighbours, exactly `jitter:`'s own reason for being group/face-only rather
-than per-element; see "Jitter" below for the one geometry change `aod:`
-does allow) and data bindings (`value:`, `series:`, `text:` — they would
-change what the sleep frame reads, and so its cost).
+**Out of scope on purpose:** geometry (`at:`, `size:`, `radius:` — an
+override block restyles an element, it does not move it) and data bindings (`value:`,
+`series:`, `text:` — they would change what the sleep frame reads, and so
+its cost).
 
 **Hands and patterns restyle uniformly, not per part.** `hands.hour.parts[…]`
 and `pattern.parts[…]` are lists, and merging an override into a list by
@@ -73,7 +69,6 @@ other `awake`-only frame.
 aod:                  # top-level, beside elements:
   default: hide        # hide (default) | show — for elements whose ancestry says nothing
   dim: 0.4              # scale every drawn colour's luminance, 0-1 (exclusive of 0) — see "Dimming" below
-  jitter: 4               # shift every still-shown element by up to 4px a minute — see "Jitter" below
   lint:                   # suppress a face-level AOD lint (aod-empty)
     allow: [aod-empty]
     reason: "prototype face, AOD comes later"
@@ -156,8 +151,8 @@ in an override is loaded once, not twice.
 `font:` override, a `complication_slot`'s `font:` override, and any `font:`
 override naming a `face:` (vector) font rather than a baked one — each is
 rejected outright by the builder with a friendly "not implemented yet"
-error, the same house style per-device `overrides:` already follows: never
-a silent no-op. `aod: {filled: ...}` on `shape: polygon` gets
+error, the same house style per-device `overrides:` already
+follow: never a silent no-op. `aod: {filled: ...}` on `shape: polygon` gets
 the same treatment, for the same reason the awake element's own `filled:
 false` already does — there is no outline primitive (Dc has fillPolygon,
 not drawPolygon) for either one to switch to. `wfb preview --aod` matches
@@ -230,136 +225,6 @@ synthetic literal that is never entered into `palette:`/`config:`/
 since `dim` only ever reaches the `_aod` branch, which only ever runs on an
 AMOLED device (constraint 13's rule is MIP-only to begin with), there is
 nothing there to warn about anyway.
-
-## Jitter (`aod: {jitter: ...}`, slice 5)
-
-```yaml
-aod:
-  jitter: 3                  # face-wide: shift everything still shown, ±3px
-elements:
-  - id: ticks
-    type: group
-    aod: {jitter: 1}          # replaces the face default for this subtree only
-    children:
-      - id: tick_0
-        type: shape
-        shape: line
-        aod: show
-  - id: clock
-    type: text
-    value: time.clock
-    aod: show                 # inherits the face-wide jitter: 3
-```
-
-Garmin's own guidance (research 11 §1.3): "consider moving elements up to
-four pixels in any direction every minute while in always-on mode." `jitter:`
-is that shift, deterministic from the clock alone — the host preview and the
-device compute the identical offset with no shared state.
-
-**Where it can be written.** Only at **face level** (beside `elements:`) and
-on a **`group`**'s own `aod:` block. Writing `aod: {jitter: ...}` on any
-other kind is a build error explaining why: per-element jitter would break a
-design's own relationships — a clock hand's own centre against the tick ring
-it has to stay concentric with, for instance — so jitter always moves a whole
-group, or the whole face, as one rigid unit. The schema accepts the key on
-every kind (so the builder, not a generic "unexpected property" message, can
-give the real reason); the schema itself only bounds the *value*, an integer
-1–4 (Garmin's own cap).
-
-**Resolution: nearest wins, and offsets never accumulate.** A group's own
-`jitter:` replaces whatever its ancestry — an enclosing group, or the face's
-own `aod: {jitter: ...}` — would otherwise have supplied, for its *whole*
-subtree. A nested group with its own `jitter:` replaces its parent's again,
-the same way; it never adds to it. In the example above, every part of the
-`ticks` group moves by up to 1px, while `clock`, outside that group, moves by
-up to 3px — never 1 + 3. This is the same "nearest declaration simply wins"
-rule `min_1px:`/`antialias:` already use, applied to a position instead of a
-boolean, and it is independent of `aod:`'s own colour/thickness/etc.
-resolution (§"Resolution" above): a jittered scope reaches every element
-drawn in AOD regardless of whether that element (or its group) also
-restyles anything.
-
-**The sequence.** For a magnitude `n`, the offset walks the `(2n+1)×(2n+1)`
-grid of reachable pixels as a deterministic function of the minute of day
-(`hour * 60 + min`, from `System.getClockTime()` — the same clock reading
-any `time.*`-bound element already uses), in integer arithmetic only:
-
-```
-w = 2n + 1
-stride = 2w + 1
-cell = (m * stride) mod (w * w)      # a bijection: w is odd, so stride is
-dx = (cell mod w) - n                # coprime with w*w -- every cell is
-dy = (cell div w) - n                # visited exactly once per w*w minutes
-```
-
-The 3-minute rule is about *pixels*, not about the `(dx, dy)` pair as a
-number: a 1px horizontal line (a ring's own top/bottom edge, a progress
-bar, a text baseline) only cares about `dy` — a sequence that changes `dx`
-every minute but leaves `dy` sitting still for several minutes at a stretch
-(a plain raster scan, `dx = m mod w - n`, `dy = (m div w) mod w - n`,
-tried and rejected: `docs/lore/codegen.md`) leaves that whole line's own
-interior lit for as long as `dy` stays put — up to `w` minutes, well past
-the rule, even though the pair itself never repeats. The stride above
-moves `dx` **and** `dy` together every single minute (a step of `(+1,
-+2)`, with the usual carry when a column wraps), so a horizontal, vertical
-*or* 45° line all move along their own axis every minute — checked
-directly in `tests/test_aod_jitter.py` with plain set arithmetic on three
-long 1px lines' own offset pixel sets, not just that the pair changes.
-Confirmed a full-period bijection over any `w²`-minute window (never mind
-"no 3 in a row" on any one pixel — this never even repeats 2 in a row on
-the pair itself, and sweeps the whole grid over a day rather than tracing
-a narrow line through it), so a heatmap (below) does not show one pixel
-dominating. One implementation, `wfb/aod_jitter.py`, and one Monkey C twin,
-`runtime-lib/WfbJitter.mc`, kept bit-for-bit identical — `tests/
-test_aod_jitter.py` checks the Python half against a hand-derived table for
-every minute of the day, and a slow test compiles the Monkey C module
-warning-free (there is no simulator in this environment to run it and
-compare — `docs/limitations.md`).
-
-**Codegen.** Every position a jittered element's draw call uses —
-`Layout.FOO_X`/`_Y`, a hand or pattern's own rotation centre, a
-`complication_slot`'s box anchor, a `curve:`d or `outline:`d text
-element's own anchor — gets `+ _aodDxN<n>`/`+ _aodDyN<n>` appended, for the
-one distinct magnitude `n` that element resolves to (one field pair per
-magnitude actually used anywhere in the design, not one per jittered
-group: the offset is a pure function of `(minute, n)`, so two groups
-sharing the same `n` always move identically). The two fields are computed
-once, at the top of the AOD branch, from the current minute of day, and
-reset to `0` in `onExitSleep` — appended **unconditionally**, with no `_aod
-? ... : ...` branch, because the fields are `0` at every moment except
-while that computed frame is the one actually drawing, which makes this
-free while awake (measured: `docs/lore/codegen.md`). A `static:` element
-with a jittered override is no different from any other override here — it
-already bypasses its buffer and draws through this same per-element method
-while `_aod` (`static:` above), so it picks up the offset exactly like an
-unbuffered element does; there is no second buffer to blit at an offset
-because, today, nothing in this codebase's AOD path buffers anything to
-begin with.
-
-**Preview and the heatmap.**
-
-```sh
-wfb preview face.yaml --aod --minute 517     # render minute 517's own offset
-wfb preview face.yaml --aod --heatmap        # sum every minute into one PNG
-```
-
-`--minute N` (0–1439) is sugar for computing `--time` from `N`, so a
-jittered element's offset renders exactly as it would at that minute of the
-day. `--heatmap` sums the jittered AOD frame over all 1,440 minutes into one
-normalised PNG — a pixel lit on every rendered minute is white — and prints
-the max fraction of minutes any single pixel was lit, standing in for the
-simulator's own Screen Heat Map (research 11 §1.5), which is unreachable in
-this environment. This is an *approximation* of a different thing than the
-burn-in lint measures: `aod-burn-in` scores one worst-case frame's own
-lit-pixel/luminance fractions against Garmin's 10% rule; the heatmap scores
-*persistence* — how much of the day any one pixel stays lit — closer to the
-3-minute same-pixel rule than to the 10% one. The burn-in lint keeps using
-one sampled frame and does not fold the heatmap's own figure into its
-message: the two measure different things, at very different cost (two
-renders against 1,440), and conflating them would blur which threshold a
-build actually failed.
-
-![the jittered AOD frame, summed over a day](../screenshots/aod-heatmap.png)
 
 ## When the AOD frame runs
 
@@ -452,8 +317,20 @@ second hand (`seconds: awake`), on any device shape, without touching AOD
 set membership at all — useful for previewing analog hands with no `aod:`
 declared. `--aod` implies it.
 
-`--minute N` and `--heatmap` (both `--aod`-only, plan 14 slice 5) render a
-`jitter:`-shifted frame — see "Jitter" above.
+```sh
+wfb preview face.yaml --aod --minute 517     # render 08:37
+wfb preview face.yaml --heatmap              # sum every minute into one PNG
+```
+
+`--minute N` (0–1439) is `--time` given as a minute of the day. `--heatmap`
+implies `--aod`, renders the AOD frame for all 1,440 minutes and sums them
+into one normalised PNG — a pixel lit every minute is white — and prints
+the largest share of minutes any one pixel was lit. It stands in for the
+simulator's Screen Heat Map, which is unreachable here, and answers the
+3-minute same-pixel question the burn-in lint below cannot: that lint
+scores one sampled frame. The heatmap only varies the clock; every other
+source stays at its sample value. It takes `--style` and `-o -` like any
+other preview, but not `--all-styles`, `--time` or `--minute`.
 
 ## Lints
 
@@ -518,7 +395,8 @@ declared. `--aod` implies it.
   runs at all (D5: `aod:` doesn't apply there).
 
   **What it cannot see:** the 3-minute static-pixel rule (a property of a
-  *sequence* of frames, not the one this renders), any time or data
+  *sequence* of frames, not the one this renders — `--heatmap` above
+  approximates that separately), any time or data
   combination other than the two sampled, and Garmin's actual luminance
   formula, which is unpublished. See
   [`docs/limitations.md`](../limitations.md) §3.

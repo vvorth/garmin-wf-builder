@@ -278,20 +278,15 @@ def _parser() -> argparse.ArgumentParser:
                               "used to do that too, but was removed -- see --aod)")
     preview.add_argument("--aod", action="store_true",
                          help="render the AMOLED always-on-display frame: the resolved "
-                              "'aod:' set, unrestyled, with every awake-only second hand "
+                              "'aod:' set, restyled, with every awake-only second hand "
                               "hidden (plan 14)")
     preview.add_argument("--minute", type=int, metavar="N",
-                         help="with --aod: render minute N of the day (0-1439) -- sugar "
-                              "for '--time HH:MM' computed from N, so a jittered element's "
-                              "'aod: {jitter: ...}' offset renders at exactly this minute "
-                              "(plan 14 slice 5); mutually exclusive with --time")
+                         help="render minute N of the day (0-1439); sugar for --time, "
+                              "and mutually exclusive with it")
     preview.add_argument("--heatmap", action="store_true",
-                         help="with --aod: sum the jittered AOD frame over every minute of "
-                              "the day into one normalised PNG (a pixel lit every minute is "
-                              "white) and print the max fraction of minutes any pixel was "
-                              "lit -- a stand-in for the simulator's own Screen Heat Map "
-                              "(plan 14 slice 5); --style/--all-styles/--minute/-w are not "
-                              "combined with it")
+                         help="sum the AOD frame (implies --aod) over every minute of the "
+                              "day into one PNG where a pixel lit every minute is white, "
+                              "and print the largest share of minutes any pixel was lit")
     preview.add_argument("-w", "--watch", action="store_true",
                          help="re-render whenever the design or a font it uses changes")
     preview.add_argument("--interval", type=float, default=0.4,
@@ -457,27 +452,35 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     marker that implies it, silence stdout completely; diagnostics are
     unaffected either way, because `Bag.print` writes to stderr.
     """
-    from .aod_jitter import MINUTES_PER_DAY
     from .preview import (
-        PreviewOptions, UnknownStyleError, render, render_all_styles, write_aod_heatmap,
+        MINUTES_PER_DAY, PreviewOptions, UnknownStyleError, render, render_all_styles,
+        render_aod_heatmap, save,
     )
     from .preview import stand_in_warning as preview_stand_in_warning
-    from .preview import write as write_preview, write_all_styles
 
     to_stdout = _is_stdout(getattr(args, "output", None))
     quiet = to_stdout or getattr(args, "quiet", False)
     style = getattr(args, "style", None)
     all_styles = getattr(args, "all_styles", False)
     heatmap = getattr(args, "heatmap", False)
-    if style is not None and all_styles:
-        _error("--style and --all-styles are mutually exclusive")
-        return 1, [args.design]
-
     time_arg = getattr(args, "time", None)
     minute_arg = getattr(args, "minute", None)
-    if time_arg is not None and minute_arg is not None:
-        _error("--time and --minute are mutually exclusive")
+    # Each pair names two answers to one question (which panel; which moment),
+    # so exactly one of each may be given.
+    exclusive = (
+        (("--style", style is not None), ("--all-styles", all_styles)),
+        (("--time", time_arg is not None), ("--minute", minute_arg is not None),
+         ("--heatmap", heatmap)),
+    )
+    for flags in exclusive:
+        given = [name for name, on in flags if on]
+        if len(given) > 1:
+            _error(f"{' and '.join(given)} are mutually exclusive")
+            return 1, [args.design]
+    if heatmap and all_styles:
+        _error("--heatmap renders one panel; use --style to pick it, not --all-styles")
         return 1, [args.design]
+
     time: tuple[int, int, int] | None = None
     if time_arg is not None:
         time = _parse_preview_time(time_arg)
@@ -485,17 +488,10 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
             _error(f"--time {time_arg!r} is not HH:MM or HH:MM:SS")
             return 1, [args.design]
     elif minute_arg is not None:
-        if not (0 <= minute_arg < MINUTES_PER_DAY):
-            _error(f"--minute {minute_arg!r} is not 0..{MINUTES_PER_DAY - 1}")
+        if not 0 <= minute_arg < MINUTES_PER_DAY:
+            _error(f"--minute {minute_arg} is not 0..{MINUTES_PER_DAY - 1}")
             return 1, [args.design]
         time = (minute_arg // 60, minute_arg % 60, 0)
-    if heatmap and (style is not None or all_styles or minute_arg is not None
-                    or getattr(args, "watch", False)):
-        _error("--heatmap is not combined with --style/--all-styles/--minute/--watch")
-        return 1, [args.design]
-    if heatmap and not getattr(args, "aod", False):
-        _error("--heatmap only means something with --aod")
-        return 1, [args.design]
 
     bag = Bag()
     face = load(args.design, bag)
@@ -521,7 +517,7 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
 
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
                              time=time, asleep=getattr(args, "asleep", False),
-                             aod=getattr(args, "aod", False),
+                             aod=heatmap or getattr(args, "aod", False),
                              fonts_root=getattr(args, "fonts_dir", None))
     color_out = term.should_color(sys.stdout)
     label = _status("preview", color=color_out)
@@ -531,31 +527,28 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     used_faces: dict = {}
     try:
         for device_id, result in resolved.items():
+            # Every mode produces one image, a file-name suffix and a note;
+            # where the image goes is decided once, below, for all of them.
+            note = f"{result.device.width}x{result.device.height} at {args.scale}x"
             if heatmap:
-                path, max_fraction = write_aod_heatmap(
-                    result, args.output / f"{device_id}--heatmap.png", options,
-                    used_faces=used_faces)
-                if not quiet:
-                    print(f"{label}    {path}  (max {max_fraction * 100:.1f}% of minutes "
-                          f"any one pixel was lit)", flush=True)
-                continue
+                image, peak = render_aod_heatmap(result, options, used_faces=used_faces)
+                suffix = "--heatmap"
+                note += f", max {peak * 100:.1f}% of minutes any one pixel was lit"
+            elif all_styles:
+                image = render_all_styles(result, options, used_faces=used_faces)
+                suffix = "--all-styles"
+            else:
+                image = render(result, options, used_faces=used_faces)
+                suffix = ""
+            if style is not None:
+                suffix = f"--{style}{suffix}"
             if to_stdout:
-                image = (render_all_styles(result, options, used_faces=used_faces) if all_styles
-                         else render(result, options, used_faces=used_faces))
                 image.save(sys.stdout.buffer, format="PNG")
                 sys.stdout.buffer.flush()
                 continue
-            if all_styles:
-                path = write_all_styles(
-                    result, args.output / f"{device_id}--all-styles.png", options,
-                    used_faces=used_faces)
-            else:
-                suffix = f"--{style}" if style is not None else ""
-                path = write_preview(result, args.output / f"{device_id}{suffix}.png", options,
-                                     used_faces=used_faces)
+            path = save(image, args.output / f"{device_id}{suffix}.png")
             if not quiet:
-                print(f"{label}    {path}  ({result.device.width}x{result.device.height} "
-                      f"at {args.scale}x)", flush=True)
+                print(f"{label}    {path}  ({note})", flush=True)
     except UnknownStyleError as exc:
         _error(str(exc))
         return 1, watched
@@ -607,17 +600,17 @@ def _preview(args) -> int:
     every `awake`-only second hand, simulating a sleeping glance, on any
     device shape -- no mode switch, unlike before plan 14 (`always_on` is
     gone). `--aod` renders the AMOLED always-on-display frame -- the
-    resolved `aod:` set, unrestyled -- and implies `--asleep` too, the same
-    choice the generated `_aod` branch makes (plan 14). With `--aod`,
-    `--minute N` (0-1439) renders that exact minute of the day, so a
-    jittered ('aod: {jitter: ...}') element's own offset shows at that
-    minute -- sugar for computing `--time` from `N`, mutually exclusive
-    with it (plan 14 slice 5). `--heatmap` (also with `--aod`) sums the
-    jittered AOD frame over every minute of the day into one normalised PNG
-    -- a pixel lit on every minute is white -- and prints the max fraction
-    of minutes any one pixel was lit; a stand-in for the simulator's own
-    Screen Heat Map (unreachable here, see `docs/limitations.md`), not
-    combined with `--style`/`--all-styles`/`--minute`/`--watch`.
+    resolved `aod:` set, restyled -- and implies `--asleep` too, the same
+    choice the generated `_aod` branch makes (plan 14). `--minute N`
+    (0-1439) is `--time` given as a minute of the day. `--heatmap` implies
+    `--aod`, renders every minute of the day and sums them into one PNG in
+    which a pixel lit every minute is white, printing the largest share of
+    minutes any one pixel was lit -- a stand-in for the simulator's Screen
+    Heat Map. It takes `--style`, but not `--all-styles`, `--time` or
+    `--minute`.
+
+    Every mode writes `<device>[--<style>][--all-styles|--heatmap].png`
+    under `-o`, or its one image to stdout with `-o -`.
 
     `-w/--watch` re-renders whenever the design file or any font it
     references changes, polling every `--interval` seconds (default 0.4).

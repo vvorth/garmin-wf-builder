@@ -758,29 +758,6 @@ class Element:
     #: lint consumer reads this and only this; none of them re-walks the
     #: ancestry.
     aod: "AodOverride | None" = None
-    #: `aod: {jitter: ...}` as authored on *this* element/group alone (plan
-    #: 14 §5.2) -- `None` except on a `Group` with its own `jitter:`, since
-    #: every other kind is rejected by `Builder._build_aod_authored` with a
-    #: friendly error before this field is ever set. Consumed only by
-    #: `Builder._resolve_aod_jitter`, the same "nearest declaration simply
-    #: wins, root to leaf" walk `antialias`/`min_1px` already use
-    #: (`Builder._resolve_inherited_flag`) -- deliberately *not* folded into
-    #: `AodOverride`'s own per-key "nearest ancestor's whole dict applies"
-    #: resolution: jitter is a *position* fact, orthogonal to whether (or
-    #: how) an element is restyled, and it has to reach every element in
-    #: scope, drawn in AOD or not just yet, the same way `min_1px` does.
-    aod_jitter_own: int | None = None
-    #: The resolved jitter magnitude in scope for this element -- the
-    #: nearest ancestor group's own `jitter:`, or the face's `aod: {jitter:
-    #: ...}`, or `None` when nothing in the design ever declares one
-    #: (`Builder._resolve_aod_jitter`). A group's own value *replaces* its
-    #: ancestry's for its whole subtree rather than composing with it, so
-    #: nested groups with different `jitter:` values never accumulate an
-    #: offset -- each element ends up in exactly one jittered scope, never a
-    #: sum of several. Only meaningful for an element actually shown in AOD
-    #: (`aod is not None`); codegen and `wfb preview --aod` both check that
-    #: first.
-    aod_jitter: int | None = None
 
     @property
     def symbol(self) -> str:
@@ -1400,17 +1377,6 @@ class Face:
     #: keeps a `dim: 1` face's generated source byte-identical to one with
     #: no `dim:` at all.
     aod_dim: float | None = None
-    #: Top-level `aod: {jitter: ...}` (plan 14 slice 5, §5.2): the pixel cap
-    #: (1-4, schema-bounded) every element/group inherits unless a nearer
-    #: ancestor group declares its own -- the root `default` a top-down
-    #: "nearest wins" walk starts from (`Builder._resolve_aod_jitter`,
-    #: `Element.aod_jitter`). `None` when the face never writes `jitter:` at
-    #: all, which is also what an all-MIP build's `aod_jitter` collapses to
-    #: reading on every element regardless (no group there could have
-    #: written one either, since `jitter:` needs an AMOLED target to mean
-    #: anything, but nothing stops it being *authored* on a MIP-only face --
-    #: it simply never reaches codegen there).
-    aod_jitter: int | None = None
 
     @property
     def has_config(self) -> bool:

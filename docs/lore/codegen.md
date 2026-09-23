@@ -536,149 +536,6 @@ These cost real time to discover; do not rediscover them.
   `_barrel_for`'s *decision* (not just its Python-level output), because
   that decision only has a real audience once `monkeyc` runs.
 
-- **`aod: {jitter: ...}` (plan 14 slice 5): no `setOrigin` on `Dc` to reach
-  for, confirmed by reading the SDK's own symbol table, not assumed --
-  and an unconditional `+ _aodDxN<n>` really is free while awake, measured
-  on the real example, not just argued from the plan's own prediction.**
-  Research 11 §6 E1 offered three shapes for shifting drawn content: an
-  offset argument at every coordinate (`Layout.FOO_X + _aodDx`), a second
-  `BufferedBitmap` blitted at `(dx, dy)`, or a per-element opt-in. Before
-  picking the first, `$CIQ_SDK/bin/api.debug.xml` was grepped for anything
-  Dc-side resembling a coordinate-system translate (`setOrigin`,
-  `translate`) -- `AffineTransform.translate` exists, but nothing on `Dc`
-  itself, and `Dc has :setOrigin` would have to exist for the "cheapest
-  correct mechanism" question in plan 14 §5.2 to even be a live option, so
-  the plan's own fallback -- `+ _aodDx`/`+ _aodDy` at every coordinate,
-  through every emitter -- is what shipped, exactly as research 11 §6 E1's
-  option 1 describes it, unconditional rather than a second `_aod ? ... :
-  ...` ternary (§5.2's own "acceptable if it's smaller than branching").
-  **The offset is computed once per distinct magnitude actually used in
-  the design, not once per jittered group**: `wfb.emit.monkeyc.common.
-  _aod_jitter_ns` collects every distinct `n` an AOD-shown element resolves
-  to (`Element.aod_jitter`) and `emit_view` declares one
-  `_aodDxN<n>`/`_aodDyN<n>` field pair per magnitude, computed at the top
-  of `_emit_aod_body` from one `System.getClockTime()` read (a *second*
-  read from whatever `plan.emit_reads` may have already declared for an
-  ordinary `time.clock`-bound element -- deliberately not shared, so this
-  computation is correct whether or not the design reads the clock too)
-  and reset to `0` in `onExitSleep`, so the shared per-element draw method
-  (the same one both the active and AOD branches call) can add the field
-  in unconditionally with no runtime cost while awake. **Two groups that
-  happen to declare the same `n` therefore move identically** -- the
-  offset is a pure function of `(minute of day, n)`
-  (`wfb.aod_jitter.offset`), so there is nothing to gain from a second,
-  independently-computed pair for the second group, and this is what keeps
-  the field count bounded by how many distinct magnitudes a design uses,
-  not by how many groups declare `jitter:`.
-
-  **A build-time gate that is easy to get backwards, caught by the
-  byte-identical test, not by inspection.** `Element.aod`/`.aod_jitter` are
-  resolved once per *face* (`Builder._resolve_aod`/`_resolve_aod_jitter`),
-  before any device is chosen -- so they are populated the same way
-  whether or not the *current build's* own targets include an AMOLED
-  device. The first version of `wfb.emit.monkeyc.common._jitter_terms`
-  checked only the IR fact (`element.aod_jitter is not None`) and appended
-  `+ _aodDxN<n>` unconditionally, which is correct on an AMOLED build but
-  references an undeclared field on an all-MIP one (`emit_view`'s own
-  `jitter_ns` is correctly gated on `guards.amoled_target` already, so the
-  *field* never gets declared there -- only the *reference* to it was
-  missing its own gate). `tests/test_aod_jitter.py::
-  test_an_all_mip_build_is_byte_identical_with_jitter_declared` failed
-  immediately, showing the exact `_aodDxN4`-in-source diff -- fixed by
-  threading the same `aod: bool` build-time flag every other `_aod_*`
-  helper in this module already takes into `_jitter_terms` too, the same
-  fix shape `docs/lore/working-agreement.md`'s own "a guard nobody has
-  watched fail is not a guard" rule predicts: the guard existed in
-  `_aod_jitter_ns` but not in the one place that actually needed it.
-
-  **Two shapes fell out of the codebase for free, without extra codegen
-  work.** `hands`/`pattern` already compute a local origin once per method
-  (`var cx = Layout.<P>_CX; var cy = Layout.<P>_CY;` for hands; `cx`/`cy`
-  or `ox`/`oy` per copy for a pattern) and every part's own geometry
-  derives from that one local -- so jittering only that one declaration
-  (`wfb.emit.monkeyc.rotated._emit_hands`/`_emit_pattern`) moves the whole
-  hand or pattern assembly rigidly, "the centre", with zero change to
-  `_emit_one_hand`/`_emit_rotated_part`/`_emit_pattern_part`/
-  `_emit_pattern_text_draw`. `complication_slot`'s own multi-line/stacked
-  layout arithmetic (`wfb.emit.monkeyc.complication_slot.
-  _emit_complication_slot`) similarly derives every `startX`/`rowY`/`pairX`
-  from one `Layout.<P>_CX`/`_CY` pair, so replacing those two Python
-  f-string sources once (`cx`/`cy`, plain build-time strings carrying the
-  jitter suffix -- not a Monkey C local, since the surrounding arithmetic
-  is already a compile-time string) reaches every layout branch (fast path
-  and the four icon-position variants) with one textual substitution
-  rather than editing 14 separate call sites individually. `outline:`'s
-  stamp loop and a `curve:`-drawn/rotated text element are the same story
-  one level down: both already take their anchor as an `x_expr`/`y_expr`
-  string parameter built once at the *interior* pass's own call site
-  (`shapes._emit_text_draw`/`_emit_vector_text_draw`,
-  `rotated._emit_pattern_text_draw`), so jittering that one string reaches
-  every stamp too, with no change to `_emit_outline_loop` itself. The one
-  shape needing a real per-emitter mechanical diff was the family of
-  direct `Layout.<P>_X`/`_Y`/`_CX`/`_CY`/`_END_X`/`_END_Y` references
-  `shapes.py`/`graph.py` build inline at each individual draw call --
-  `shape` (all six sub-shapes), `text` (plain and vector, including an
-  `outline:` and `curve:` element's own anchor), `progress` (both styles),
-  `icon` and `graph`. A `shape: polygon`'s `_POINTS` is the one constant
-  that cannot simply grow a suffix (it is a whole `Array<Point2D>`, not one
-  X/Y pair): a jittered polygon rebuilds its literal as one two-element
-  array per vertex instead (`[Layout.P_POINTS[i][0] + _aodDx, ...]`), the
-  vertex count already known at build time from `placed.points`, so this
-  stays exactly as static as the unjittered `Layout.P_POINTS` reference,
-  just spelled out.
-
-  **The sequence itself was wrong in its first cut, caught by review, not
-  by any test that existed at the time.** The original design (`wfb.
-  aod_jitter.offset`'s first version) was a plain raster scan: `dx` steps
-  by 1 every minute, `dy` only every `w = 2n+1` minutes. Every property
-  test written against it passed -- bounded, deterministic, full grid
-  coverage, and even "the `(dx, dy)` pair never repeats for 2+ consecutive
-  minutes" -- because the *pair* genuinely does change every minute. What
-  those tests never checked is what a *line's own pixels* do: a 1px
-  horizontal line (a ring's own top/bottom edge, a progress bar, a text
-  baseline) only cares about `dy`, and with `dy` held constant for up to
-  `w` (9, at `n = 4`) consecutive minutes, that line's whole interior sat
-  lit for up to 9 minutes running -- a direct violation of Garmin's own
-  3-minute rule, on exactly the shapes (thin static ink) that rule exists
-  to protect, despite every existing test passing. Caught in review before
-  it shipped, not by a test: "the pair changes every minute" was the wrong
-  property to check, and the fix is a different sequence entirely (a
-  constant stride, `stride = 2w + 1`, through the flattened `w x w` grid --
-  coprime with `w * w` because `w` is odd, so it is still a full-period
-  bijection -- moving `dx` **and** `dy` together every step, which is what
-  a horizontal, vertical or 45-degree line all needs to keep moving along
-  their own axis). The replacement test
-  (`tests/test_aod_jitter.py::test_no_pixel_of_a_long_line_stays_lit_for_
-  3_consecutive_minutes`) computes three long 1px lines' own offset pixel
-  sets for all 1,440 minutes with plain set arithmetic (no rendering) and
-  checks no pixel is common to three consecutive minutes -- confirmed to
-  fail against the raster scan and pass against the stride sequence, so
-  this is now the test that actually exercises the contrast the whole
-  feature exists for, not just "the offset itself has nice properties."
-  The old "pair never repeats" test is kept, renamed, as a **necessary but
-  not sufficient** floor underneath it, precisely so a future change
-  cannot reintroduce this exact gap and have that older, weaker test stay
-  green while the real one goes red.
-
-  **Measured** (`examples/features/aod/face.yaml`, `fenix847mm`, a real
-  `monkeyc` build): face-level `jitter: 3` reaching `clock`/`accent_dot`/
-  `battery_ring` (one magnitude, `n = 3`, so one `_aodDxN3`/`_aodDyN3`
-  field pair and one `WfbJitter.offsetX`/`offsetY` call pair) grew the
-  example from 2,415 B (slice 3's own figure) to **2,753 B** -- **338 B**
-  (0.3% of the 131,072 B budget) for `WfbJitter.mc`, the two fields, the
-  per-frame `aodClock`/`aodMinuteOfDay`/two-assignment computation, and the
-  `+ _aodDxN3`/`+ _aodDyN3` term at every coordinate the three jittered
-  elements' draw methods reference. (Revised up from an initial 295 B/
-  2,710 B figure once the sequence itself changed to the stride above --
-  one extra `stride`/`cell` local each in `offsetX`/`offsetY`, in place of
-  one modulo each.) The three MIP verification targets in
-  the same build (unaffected by `_aod` at runtime, D5) grew by the same
-  ~338 B too, since the generated view is shared across every device in
-  one build (root `CLAUDE.md` §1) -- this is not the separate all-MIP-only
-  byte-identical guarantee (which only holds when *no* target in the build
-  is AMOLED at all, `tests/test_aod_jitter.py::
-  test_an_all_mip_build_is_byte_identical_with_jitter_declared`).
-
 - **The `getDisplayMode` ladder (plan 14 slice 6): one `has`-guarded `if`
   at the top of the AOD branch, cheap enough that no ternary-vs-method
   comparison was needed -- unlike slice 2's own restyling decision, there
@@ -692,12 +549,13 @@ These cost real time to discover; do not rediscover them.
   computed the same way as `Guards.burn_in_field_guarded`) and one `return;`,
   placed before the frame's own black clear so an off panel never pays for
   either. Measured on `examples/features/aod/face.yaml`
-  (`fenix847mm`, `monkeyc --build-stats`, real build): **2,785 B** total
-  (857 B data + 1,928 B code), up from slice 5's own recorded **2,753 B** --
-  **+32 B** for the guarded form (the `has` check, the comparison, and the
-  early return), on a design that also uses `dim:`/`jitter:` together so
-  this is the cost against an already-loaded AOD frame, not a from-scratch
-  design. No new barrel file, no new resource, no new field: the check
+  (`fenix847mm`, `monkeyc --build-stats`, real build): **+32 B** for the
+  guarded form (the `has` check, the comparison, and the early return),
+  measured while the example also used `dim:` and the since-removed
+  `jitter:`, so this is the cost against an already-loaded AOD frame, not a
+  from-scratch design. With jitter removed the example builds to
+  **2,447 B** on `fenix847mm` (2026-09-23), 338 B less, matching jitter's
+  own measured cost. No new barrel file, no new resource, no new field: the check
   reads two SDK-wide symbols the view already imports `Toybox.System` for
   (`requiresBurnInProtection`'s own import, `emit_view`'s `aod` branch).
   `DISPLAY_MODE_*`'s three constants needed no separate guard of their own

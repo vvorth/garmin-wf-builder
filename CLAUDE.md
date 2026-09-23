@@ -308,14 +308,16 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     the *one* design (`hide`/`show`/an override block reusing each kind's
     own property names), resolved element > nearest ancestor group > face
     default, restyled by inline ternaries at the draw call site; `dim:`
-    (luminance scaling), `jitter:` (a deterministic 1–4px per-minute
-    offset), and a measured burn-in lint (`aod-burn-in`, lit-pixel/
-    luminance fractions from the real render, ADR 0008 check 8) round it
+    (luminance scaling) and a measured burn-in lint (`aod-burn-in`,
+    lit-pixel/luminance fractions from the real render, ADR 0008 check 8) round it
     out. `_aod` — and, since slice 6, a `getDisplayMode`/`DISPLAY_MODE_OFF`
     early exit, per-device `has`-guarded — is emitted only when a target is
     AMOLED, so an all-MIP build is byte-identical. Three suppressible
     lints (`aod-unreachable`, `aod-empty`, `aod-burn-in`). `wfb preview
-    --aod` (`--minute N`/`--heatmap` for jitter) matches codegen exactly.
+    --aod` matches codegen exactly; `--minute N` and `--heatmap` (per-pixel
+    persistence over a day) evaluate the frame over time. `jitter:`
+    (slice 5) was built and then removed on 2026-09-23 to cut complexity;
+    research 15's pixel masks are the candidate replacement.
     `docs/guide/always-on-display.md` is the full reference.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,

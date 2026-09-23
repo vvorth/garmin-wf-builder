@@ -91,8 +91,21 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# face-level `aod: {jitter: ...}` -- built, plan 14 slice 5: see
-# tests/test_aod_jitter.py for format/resolution/sequence/codegen coverage.
+# face-level `aod: jitter:` -- removed outright, so the schema rejects it
+# (dim: built, below)
+
+
+def test_jitter_is_rejected_by_the_schema(write_design, bag):
+    text = BASE.replace("palette:\n", "aod:\n  jitter: 4\npalette:\n") + "elements:\n" + """  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    assert any("jitter" in d.message for d in bag.errors), bag.render()
+
+
 # --------------------------------------------------------------------------
 # friendly build errors for what slice 2 does not restyle (house style:
 # never silently no-op an unimplemented override -- CLAUDE.md §7)
@@ -1489,3 +1502,39 @@ def test_the_aod_example_stays_clean_under_burn_in(write_design, bag, db):
     hits = [d for d in bag.items if d.code == "aod-burn-in"]
     assert hits, bag.render()
     assert hits[0].severity.value == "note", bag.render()
+
+
+# --------------------------------------------------------------------------
+# `wfb preview --heatmap`: the AOD frame summed over minutes
+
+
+def test_heatmap_counts_each_minute_separately(write_design, bag, db):
+    """A clock's digits change from minute to minute and a block does not, so
+    a real sum has both full-white pixels and partial ones. Rendering one
+    frame, or OR-ing frames together, would leave no partial pixel."""
+    from wfb.preview import PreviewOptions, render_aod_heatmap
+
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    at: {anchor: center}
+    color: palette.fg
+    aod: show
+  - id: block
+    type: shape
+    shape: rectangle
+    at: {anchor: center, dy: 30%}
+    size: {width: 20, height: 20}
+    color: palette.fg
+    aod: show
+"""
+    resolved = _resolved(text, write_design, bag, db)
+    heat, peak = render_aod_heatmap(resolved, PreviewOptions(scale=1),
+                                    minutes=range(600, 604))
+    values = set(heat.convert("L").getdata())
+    assert peak == 1.0
+    assert 255 in values
+    assert values & {64, 127, 191}, sorted(values)

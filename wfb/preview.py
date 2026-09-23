@@ -34,7 +34,6 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw
 
 from . import catalog, complications, expr, formatting
-from .aod_jitter import MINUTES_PER_DAY, offset as jitter_offset
 from .catalog import Type
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
@@ -408,82 +407,54 @@ def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = N
     return composed
 
 
+#: Minutes in a day -- the range `--minute` accepts and the number of frames
+#: `render_aod_heatmap` sums by default.
+MINUTES_PER_DAY = 24 * 60
+
+
 def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
                        minutes: Iterable[int] | None = None,
                        used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None,
                        ) -> tuple[Image.Image, float]:
-    """Sum the jittered AOD frame over every minute of the day into one
-    normalised PNG -- `wfb preview --aod --heatmap` (plan 14 §5.2), a
-    stand-in for the simulator's own Screen Heat Map (research 11 §1.5),
-    which is unreachable in this environment (root `CLAUDE.md` §3).
+    """Sum the AOD frame over every minute of the day into one normalised
+    image -- `wfb preview --aod --heatmap`, a stand-in for the simulator's
+    own Screen Heat Map (research 11 §1.5), which is unreachable here (root
+    `CLAUDE.md` §3).
 
-    Renders `render(resolved, options.replace(aod=True, time=(m // 60, m %
-    60, 0)))` once per minute in ``minutes`` (`range(MINUTES_PER_DAY)` by
-    default -- overridable so a test can sample a handful of minutes
-    instead of paying for a full day's worth of renders), and counts, per
-    pixel, how many of those minutes rendered it lit -- "any colour other
-    than pure black" (research 11 §1.1's own definition, the exact one
-    `wfb.lint.check_aod_burn_in`'s own lit-pixel fraction already uses).
-    The returned image is that count scaled to 0-255 so a pixel lit on
-    *every* rendered minute is white, per the plan's own spec; the returned
-    `float` is the same count's own peak, as a fraction of ``minutes``' own
-    length -- the max share of minutes any single pixel was lit, the
-    heatmap's one-number summary.
+    Renders the AOD frame once per minute in ``minutes``
+    (`range(MINUTES_PER_DAY)` by default; a test can pass a handful) and
+    counts, per pixel, how many minutes left it lit -- any colour other than
+    pure black, the definition `wfb.lint.check_aod_burn_in` uses too. The
+    image is that count scaled so a pixel lit every minute is white; the
+    `float` is the peak count as a fraction of the minutes rendered.
 
-    **This approximates, it does not replace, the burn-in lint**
-    (`check_aod_burn_in`, `docs/limitations.md` §3): that check samples two
-    worst-case clock times with a full-battery reading and scores *one*
-    frame's own lit-pixel/luminance fractions against Garmin's 10% rule;
-    this renders *every* minute at the design's default sample data (no
-    per-minute data variation) and reports how *persistently*, not how
-    *much*, any one pixel lights up over a day -- a different question,
-    closer to the 3-minute same-pixel-too-long rule than to the 10% rule, and the
-    two are not substitutes for each other.
+    This answers how *persistently* a pixel lights over a day -- closer to
+    the 3-minute rule -- not how *much* of the screen is lit, which is the
+    burn-in lint's question; neither substitutes for the other.
 
-    Uses `PIL.ImageMath` (part of Pillow, no new dependency) rather than a
-    per-pixel Python loop, for the same reason `wfb.lint`'s own
-    `_aod_burn_in_measure` does: this is 1,440 full-resolution renders by
-    default, and a Python-level double loop over every pixel of every frame
-    would be many minutes slower than Pillow's own C-level per-pixel
-    arithmetic. The accumulator is Pillow's 32-bit-integer `"I"` mode --
-    not `"L"` -- because an ordinary 8-bit `ImageChops.add` clips at 255,
-    which an always-on-in-AOD pixel (lit on all 1,440 minutes) would hit
-    almost immediately, wrecking exactly the pixels this heatmap most needs
-    to get right.
+    The accumulator is Pillow's 32-bit `"I"` mode because an 8-bit add
+    clips at 255, which an always-lit pixel reaches almost immediately.
     """
     from PIL import ImageMath
 
     options = options or PreviewOptions()
     base = dataclass_replace(options, aod=True, mask_shape=False)
     device = resolved.device
+    scale = max(1, base.scale)
     minute_list = list(range(MINUTES_PER_DAY) if minutes is None else minutes)
-    accum: Image.Image | None = None
+    accum = Image.new("I", (device.width * scale, device.height * scale), 0)
     for minute in minute_list:
-        frame_options = dataclass_replace(base, time=(minute // 60, minute % 60, 0))
-        frame = render(resolved, frame_options, used_faces=used_faces)
+        frame = render(resolved, dataclass_replace(base, time=(minute // 60, minute % 60, 0)),
+                       used_faces=used_faces)
         r, g, b = frame.split()
         lit = ImageChops.lighter(ImageChops.lighter(r, g), b).point(lambda v: 1 if v else 0)
-        lit_i = lit.convert("I")
-        accum = lit_i if accum is None else ImageMath.lambda_eval(
-            lambda args: args["a"] + args["b"], a=accum, b=lit_i)
+        accum = ImageMath.lambda_eval(lambda args: args["a"] + args["b"],
+                                      a=accum, b=lit.convert("I"))
     count = max(len(minute_list), 1)
-    if accum is None:
-        accum = Image.new("I", (device.width * max(1, base.scale),) * 2, 0)
-    # An affine `point()` transform (a pure `v * scale`), not `ImageMath`:
-    # the one thing left to do is a single per-pixel scalar multiply, and
-    # `point()` already handles that on an "I"-mode image without spinning
-    # up the expression evaluator for it.
-    scaled = accum.point(lambda v: v * (255.0 / count))
-    heat = scaled.convert("L").convert("RGB")
+    heat = accum.point(lambda v: v * (255.0 / count)).convert("L").convert("RGB")
     if options.mask_shape and device.shape == "round":
-        heat = _mask_round(heat, max(1, base.scale))
-    # `getextrema()`, not `max(accum.getdata())`: same answer, no per-pixel
-    # Python-level walk (and no reliance on `getdata()`, deprecated in
-    # newer Pillow in favour of an API this project's `pillow>=10` floor
-    # cannot assume).
-    peak = accum.getextrema()[1] if minute_list else 0
-    max_fraction = peak / count
-    return heat, max_fraction
+        heat = _mask_round(heat, scale)
+    return heat, accum.getextrema()[1] / count
 
 
 @lru_cache(maxsize=4096)
@@ -611,28 +582,6 @@ class _Renderer:
         color = self._color(part_color, values)
         return self._dim_rgb(color) if dim_active else color
 
-    def _jitter_offset(self, placed) -> tuple[int, int]:
-        """`aod: {jitter: ...}` (plan 14 slice 5): this element's own
-        `(dx, dy)` for the minute this preview renders, or `(0, 0)` when it
-        does not resolve into a jittered AOD scope -- `wfb.aod_jitter.
-        offset`, the exact same function `runtime-lib/WfbJitter.mc`
-        mirrors, so this preview and the device agree bit for bit.
-
-        The minute of day comes from `PreviewOptions.time` (`--time HH:MM`/
-        `--minute N`, both ultimately set the same field) when given, else
-        `SAMPLE`'s own default clock (10:09) -- the same clock every other
-        element in this render already reads through `time.hour`/
-        `time.minute` when no `--time`/`--minute` overrides it.
-        """
-        element = placed.element
-        if not self.options.aod or element.aod is None or element.aod_jitter is None:
-            return 0, 0
-        if self.options.time is not None:
-            hour, minute, _ = self.options.time
-        else:
-            hour, minute = SAMPLE["time.hour"], SAMPLE["time.minute"]
-        return jitter_offset((hour * 60 + minute) % MINUTES_PER_DAY, element.aod_jitter)
-
     def render_element(self, placed) -> None:
         # `--aod`: the fully resolved AOD gate (`element.visible` already
         # folded in, plan 14 §3) -- not the element's own plain `visible:`,
@@ -641,28 +590,6 @@ class _Renderer:
                    else placed.element.visible)
         if not self._visible(visible):
             return
-        dx, dy = self._jitter_offset(placed)
-        if dx == 0 and dy == 0:
-            self._draw(placed)
-            return
-        # Rendered onto a throwaway transparent layer at the element's own
-        # unshifted position -- every `_shape`/`_text`/... method below is
-        # unaware of jitter entirely -- then alpha-composited onto the real
-        # canvas shifted by `(dx, dy)` device pixels (scaled to this
-        # preview's own `--scale`). This is the host-side twin of codegen's
-        # unconditional `+ _aodDx`/`+ _aodDy` (`wfb.emit.monkeyc.common.
-        # _jitter_terms`): both move the whole element rigidly, with no
-        # second implementation of any single draw method.
-        layer = Image.new("RGBA", self.image.size, (0, 0, 0, 0))
-        saved_draw, saved_image = self.draw, self.image
-        self.draw, self.image = ImageDraw.Draw(layer), layer
-        try:
-            self._draw(placed)
-        finally:
-            self.draw, self.image = saved_draw, saved_image
-        self.image.paste(layer, (dx * self.scale, dy * self.scale), layer)
-
-    def _draw(self, placed) -> None:
         if isinstance(placed, PlacedShape):
             self._shape(placed)
         elif isinstance(placed, PlacedText):
@@ -2014,30 +1941,8 @@ def _mask_round(image: Image.Image, scale: int) -> Image.Image:
     return out
 
 
-def _save(image: Image.Image, path: Path) -> Path:
+def save(image: Image.Image, path: Path) -> Path:
+    """Write ``image`` to ``path`` as a PNG, creating its directory."""
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, format="PNG")
     return path
-
-
-def write(resolved: ResolvedFace, path: Path, options: PreviewOptions | None = None, *,
-         used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None) -> Path:
-    return _save(render(resolved, options, used_faces=used_faces), path)
-
-
-def write_all_styles(resolved: ResolvedFace, path: Path,
-                     options: PreviewOptions | None = None, *,
-                     used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None) -> Path:
-    return _save(render_all_styles(resolved, options, used_faces=used_faces), path)
-
-
-def write_aod_heatmap(resolved: ResolvedFace, path: Path,
-                      options: PreviewOptions | None = None, *,
-                      minutes: Iterable[int] | None = None,
-                      used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None,
-                      ) -> tuple[Path, float]:
-    """`wfb preview --aod --heatmap` -- `render_aod_heatmap`, saved, with its
-    own max-persistence fraction passed back so the caller can print it."""
-    heat, max_fraction = render_aod_heatmap(resolved, options, minutes=minutes,
-                                            used_faces=used_faces)
-    return _save(heat, path), max_fraction

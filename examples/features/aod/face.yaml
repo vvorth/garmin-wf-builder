@@ -1,24 +1,15 @@
-# Always-on display (docs/guide/always-on-display.md, plan 14 slices 1-5):
+# Always-on display (docs/guide/always-on-display.md, plan 14 slices 1-3):
 # `aod:` as overrides on the one design, replacing `modes: [always_on]`
 # outright (D3) -- the format key that slice 0 exercised here no longer
 # exists at all.
 #
 # This stays the small, ordinary face slice 0 introduced -- digital time, a
 # date, a battery ring, a bezel -- not a format-feature dump. The face-wide
-# `aod: {default: hide, dim: 0.6, jitter: 3}` below is the canonical
-# "everything off but the time" shape (plan 14 §3), plus a face-wide dim
-# (slice 3, §4.5) and a face-wide jitter (slice 5, §5.2): every element the
-# ancestry says nothing about is hidden in AOD, and each `aod:` block below
-# is now actually read by codegen (slice 2) -- ternaries at the draw call
-# site, not the unrestyled sleep frame slice 1 shipped. `jitter: 3` reaches
-# every element this face still shows in AOD (`clock`, `accent_dot`,
-# `battery_ring` -- none of them sits inside its own jittered group, so all
-# three share the one face-level offset, moving together as the face
-# default's own implicit "whole design" scope); `docs/guide/
-# always-on-display.md` shows the group-scope form (`aod: {jitter: ...}` on
-# a `group`, replacing the face default for just that subtree) instead of
-# duplicating it here, since this face has no group left undimmed to hang
-# it on (`info`, the one group, is hidden outright).
+# `aod: {default: hide, dim: 0.6}` below is the canonical "everything off
+# but the time" shape (plan 14 §3), plus a face-wide dim (slice 3, §4.5):
+# every element the ancestry says nothing about is hidden in AOD, and each
+# `aod:` block below is now actually read by codegen (slice 2) -- ternaries
+# at the draw call site, not the unrestyled sleep frame slice 1 shipped:
 #
 # - `clock` restyles `color:` (an explicit dimmer grey, not `dim:`-derived --
 #   Garmin's own guidance is to avoid white/blue, research 11 §1.3), swaps
@@ -76,7 +67,6 @@ targets:
 aod:
   default: hide
   dim: 0.6
-  jitter: 3
 
 palette:
   black: "#000000"

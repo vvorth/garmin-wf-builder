@@ -112,8 +112,8 @@ the duplicate pair), and `unreachable-layout` on the **`layouts:` entry's
 own** `lint:` -- neither is an element. `aod-empty` is the same shape, one
 level up: it is about the whole face (nothing anywhere draws in AOD), so it
 goes on the **face's own `aod:` block's** `lint:` --
-`aod: {lint: {allow: [aod-empty], reason: ...}}`, beside `default:`/`dim:`/
-`jitter:`. `aod-unreachable`, by contrast, is an ordinary element-scoped
+`aod: {lint: {allow: [aod-empty], reason: ...}}`, beside `default:`/`dim:`.
+`aod-unreachable`, by contrast, is an ordinary element-scoped
 diagnostic: it goes on the element whose own now-dead `aod:` it names.
 `aod-burn-in` is element-scoped too, but not on a fixed element the way
 `aod-unreachable` is: it goes on whichever AOD-shown element the rendered
