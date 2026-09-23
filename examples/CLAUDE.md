@@ -48,31 +48,46 @@ aligned to grow away from the centre, covering all four
 `align`×`vertical_align` combinations, plus every accepting shape, both
 `progress` styles, a static `icon`, and aligned hand/pattern parts.
 
-`features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slices 1-4, 2026-09-23)
+`features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slices 1-5, 2026-09-23)
 is the first, and so far only, example to add a fourth target, `fenix847mm`
 -- the first AMOLED device this project has ever built for. An ordinary
 small face (digital time, a date, a battery ring, a bezel) rather than a
-format-feature dump: a face-wide `aod: {default: hide, dim: 0.6}` hides
-everything but `clock`, a small accent dot and the battery ring -- the
+format-feature dump: a face-wide `aod: {default: hide, dim: 0.6, jitter: 3}`
+hides everything but `clock`, a small accent dot and the battery ring -- the
 canonical "everything off but the time" AOD shape (plan 14 §3), plus enough
-variety to exercise slice 2's restyling and slice 3's dimming: `clock`
-overrides `color:`/`format:`/`font:` (its own `color:` override is the
-author's final word, left undimmed by `dim: 0.6`), `accent_dot` flips
-`filled:` from a solid disc to a thin ring *and* carries no `color:`
-override of its own, so its awake blue is dimmed automatically -- the
-contrast that makes the face-wide `dim:` visible against `clock`'s explicit
-one -- `battery_ring` overrides `color:`/`thickness:` to a thinner, dimmer
-arc, and `info` (a `group` wrapping `date_text`) carries an explicit `aod:
-hide` that its own child's `aod: show` cannot undo -- deliberately, to
-demonstrate the one asymmetry in plan 14 §3, which is why that child needs
-`lint: {allow: [aod-unreachable]}`. Every one of those overrides is now
+variety to exercise slice 2's restyling, slice 3's dimming and slice 5's
+jitter: `clock` overrides `color:`/`format:`/`font:` (its own `color:`
+override is the author's final word, left undimmed by `dim: 0.6`),
+`accent_dot` flips `filled:` from a solid disc to a thin ring *and* carries
+no `color:` override of its own, so its awake blue is dimmed automatically
+-- the contrast that makes the face-wide `dim:` visible against `clock`'s
+explicit one -- `battery_ring` overrides `color:`/`thickness:` to a
+thinner, dimmer arc, and `info` (a `group` wrapping `date_text`) carries an
+explicit `aod: hide` that its own child's `aod: show` cannot undo --
+deliberately, to demonstrate the one asymmetry in plan 14 §3, which is why
+that child needs `lint: {allow: [aod-unreachable]}`. The face-level
+`jitter: 3` reaches every element still shown in AOD -- none of the three
+sits inside its own jittered group, so all three move together as one
+implicit whole-face scope; the group-scoped form (a `jitter:` on a `group`,
+replacing the face default for just that subtree) is shown in `docs/guide/
+always-on-display.md`'s own written example instead, since this face has no
+group left undimmed to hang it on. Every one of those overrides is now
 actually read by codegen (slice 2, `docs/lore/codegen.md`), not just
-resolved, and `dim:` reaches every colour the AOD frame draws that has no
-override, exactly as slice 3 documents. The three MIP verification devices
-are unaffected by `aod:` at all -- their generated source is byte-identical
-to a build with no `aod:` keys (`tests/test_aod.py`). Slice 4's burn-in
-lint (`aod-burn-in`) stays clean on it: a `note` (5.8% lit, 0.5% luminance
-at its own sampled worst case), not a warning or an error.
+resolved, `dim:` reaches every colour the AOD frame draws that has no
+override (slice 3), and `jitter:` shifts every jittered element's own
+coordinates by a deterministic per-minute offset (slice 5,
+`docs/lore/codegen.md`'s own measurement: +338 B on `fenix847mm`). The
+three MIP verification devices are unaffected by `aod:` **at runtime** --
+`_aod` (and `_aodDxN3`/`_aodDyN3`) stay false/zero there always, D5 -- but
+their generated source is *not* byte-identical to a build with no `aod:`
+keys the way an **all-MIP** build's would be, because this build mixes an
+AMOLED target in (`tests/test_aod_jitter.py::
+test_an_all_mip_build_is_byte_identical_with_jitter_declared` is what
+actually holds that guarantee, on a `targets:` with no AMOLED device at
+all). Slice 4's burn-in lint (`aod-burn-in`) stays clean on it: a `note`
+(5.8% lit, 0.5% luminance at its own sampled worst case), not a warning or
+an error -- unaffected by jitter, which moves the same lit pixels around
+rather than changing how many of them there are in any single frame.
 
 ## `system-fonts/`
 

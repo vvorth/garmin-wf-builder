@@ -91,22 +91,8 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# face-level `aod: jitter:` -- friendly "not implemented" error (dim: built,
-# below)
-
-
-def test_jitter_is_a_friendly_not_implemented_error(write_design, bag):
-    text = BASE.replace("palette:\n", "aod:\n  jitter: 4\npalette:\n") + "elements:\n" + """  - id: clock
-    type: text
-    text: "12:00"
-    color: palette.fg
-"""
-    face = load(write_design(text), bag)
-    assert face is None
-    hits = [d for d in bag.errors if d.code == "aod"]
-    assert hits and "jitter" in hits[0].message and "not implemented" in hits[0].message
-
-
+# face-level `aod: {jitter: ...}` -- built, plan 14 slice 5: see
+# tests/test_aod_jitter.py for format/resolution/sequence/codegen coverage.
 # --------------------------------------------------------------------------
 # friendly build errors for what slice 2 does not restyle (house style:
 # never silently no-op an unimplemented override -- CLAUDE.md §7)

@@ -280,6 +280,18 @@ def _parser() -> argparse.ArgumentParser:
                          help="render the AMOLED always-on-display frame: the resolved "
                               "'aod:' set, unrestyled, with every awake-only second hand "
                               "hidden (plan 14)")
+    preview.add_argument("--minute", type=int, metavar="N",
+                         help="with --aod: render minute N of the day (0-1439) -- sugar "
+                              "for '--time HH:MM' computed from N, so a jittered element's "
+                              "'aod: {jitter: ...}' offset renders at exactly this minute "
+                              "(plan 14 slice 5); mutually exclusive with --time")
+    preview.add_argument("--heatmap", action="store_true",
+                         help="with --aod: sum the jittered AOD frame over every minute of "
+                              "the day into one normalised PNG (a pixel lit every minute is "
+                              "white) and print the max fraction of minutes any pixel was "
+                              "lit -- a stand-in for the simulator's own Screen Heat Map "
+                              "(plan 14 slice 5); --style/--all-styles/--minute/-w are not "
+                              "combined with it")
     preview.add_argument("-w", "--watch", action="store_true",
                          help="re-render whenever the design or a font it uses changes")
     preview.add_argument("--interval", type=float, default=0.4,
@@ -445,7 +457,10 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     marker that implies it, silence stdout completely; diagnostics are
     unaffected either way, because `Bag.print` writes to stderr.
     """
-    from .preview import PreviewOptions, UnknownStyleError, render, render_all_styles
+    from .aod_jitter import MINUTES_PER_DAY
+    from .preview import (
+        PreviewOptions, UnknownStyleError, render, render_all_styles, write_aod_heatmap,
+    )
     from .preview import stand_in_warning as preview_stand_in_warning
     from .preview import write as write_preview, write_all_styles
 
@@ -453,17 +468,34 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     quiet = to_stdout or getattr(args, "quiet", False)
     style = getattr(args, "style", None)
     all_styles = getattr(args, "all_styles", False)
+    heatmap = getattr(args, "heatmap", False)
     if style is not None and all_styles:
         _error("--style and --all-styles are mutually exclusive")
         return 1, [args.design]
 
     time_arg = getattr(args, "time", None)
+    minute_arg = getattr(args, "minute", None)
+    if time_arg is not None and minute_arg is not None:
+        _error("--time and --minute are mutually exclusive")
+        return 1, [args.design]
     time: tuple[int, int, int] | None = None
     if time_arg is not None:
         time = _parse_preview_time(time_arg)
         if time is None:
             _error(f"--time {time_arg!r} is not HH:MM or HH:MM:SS")
             return 1, [args.design]
+    elif minute_arg is not None:
+        if not (0 <= minute_arg < MINUTES_PER_DAY):
+            _error(f"--minute {minute_arg!r} is not 0..{MINUTES_PER_DAY - 1}")
+            return 1, [args.design]
+        time = (minute_arg // 60, minute_arg % 60, 0)
+    if heatmap and (style is not None or all_styles or minute_arg is not None
+                    or getattr(args, "watch", False)):
+        _error("--heatmap is not combined with --style/--all-styles/--minute/--watch")
+        return 1, [args.design]
+    if heatmap and not getattr(args, "aod", False):
+        _error("--heatmap only means something with --aod")
+        return 1, [args.design]
 
     bag = Bag()
     face = load(args.design, bag)
@@ -499,6 +531,14 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     used_faces: dict = {}
     try:
         for device_id, result in resolved.items():
+            if heatmap:
+                path, max_fraction = write_aod_heatmap(
+                    result, args.output / f"{device_id}--heatmap.png", options,
+                    used_faces=used_faces)
+                if not quiet:
+                    print(f"{label}    {path}  (max {max_fraction * 100:.1f}% of minutes "
+                          f"any one pixel was lit)", flush=True)
+                continue
             if to_stdout:
                 image = (render_all_styles(result, options, used_faces=used_faces) if all_styles
                          else render(result, options, used_faces=used_faces))
@@ -568,7 +608,16 @@ def _preview(args) -> int:
     device shape -- no mode switch, unlike before plan 14 (`always_on` is
     gone). `--aod` renders the AMOLED always-on-display frame -- the
     resolved `aod:` set, unrestyled -- and implies `--asleep` too, the same
-    choice the generated `_aod` branch makes (plan 14).
+    choice the generated `_aod` branch makes (plan 14). With `--aod`,
+    `--minute N` (0-1439) renders that exact minute of the day, so a
+    jittered ('aod: {jitter: ...}') element's own offset shows at that
+    minute -- sugar for computing `--time` from `N`, mutually exclusive
+    with it (plan 14 slice 5). `--heatmap` (also with `--aod`) sums the
+    jittered AOD frame over every minute of the day into one normalised PNG
+    -- a pixel lit on every minute is white -- and prints the max fraction
+    of minutes any one pixel was lit; a stand-in for the simulator's own
+    Screen Heat Map (unreachable here, see `docs/limitations.md`), not
+    combined with `--style`/`--all-styles`/`--minute`/`--watch`.
 
     `-w/--watch` re-renders whenever the design file or any font it
     references changes, polling every `--interval` seconds (default 0.4).

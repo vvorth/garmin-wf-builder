@@ -36,10 +36,30 @@ fraction, uniquely suppressible among this project's hard errors (research
 don't say which one a target is); a `note` under the threshold, the same
 "the number on every build" shape `graphics-pool` already uses.
 `examples/features/aod/face.yaml` stays clean (a note: 5.8% lit / 0.5%
-luminance at its own worst sample). D2 (§7, below) is still `hide` -- not
-this slice's call to change, only to inform: see its own updated note for
-the measured `default: show` + `dim: 0.4` figures on three existing
-examples. Slices 5–6 open.
+luminance at its own worst sample). This slice's own render also supplied
+the measurement behind D2's final call (§7): `default: hide` stays, for
+good, on the evidence of `default: show` + `dim: 0.4` on three existing
+examples. **Slice 5 built 2026-09-23** (§6, §5.2): `aod: {jitter: ...}`, a
+deterministic per-minute pixel offset (1-4px, Garmin's own cap) accepted at
+face level and on a `group`'s own `aod:` block, a friendly build error
+anywhere else (per-element jitter would break a design's own
+relationships); nearest ancestor's `jitter:` wins for its whole subtree,
+never accumulating with an outer one; a constant-stride sequence through
+the flattened `(2n+1)²` grid keyed by minute of day (moving both axes
+every minute, not just the pair as a whole -- a first, raster-scan cut
+moved only one axis per minute and was caught in review, §5.2), one Python
+implementation (`wfb/aod_jitter.py`) and one Monkey C twin
+(`runtime-lib/WfbJitter.mc`), checked for parity and (the Monkey C half)
+compiled warning-free; codegen appends `+
+_aodDxN<n>`/`_aodDyN<n>` to every position a jittered element's draw call
+uses, unconditionally (cheaper than a ternary, `0` whenever the watch
+isn't actually drawing that jittered frame), one field pair per distinct
+magnitude the design actually uses; `wfb preview --aod --minute N` and
+`--heatmap` (a stand-in for the simulator's own Screen Heat Map, summing
+1,440 renders into one normalised PNG plus a max-persistence figure).
+`examples/features/aod/face.yaml` gained a face-wide `jitter: 3`, +338 B on
+`fenix847mm` (`docs/lore/codegen.md`), still warning-free on all four
+targets. Slice 6 open.
 D1–D5 (§7) decided by the user, 2026-09-22: every recommendation taken. It
 grew out of
 `docs/research/11-always-on-display.md` §6, whose open question (does
@@ -112,7 +132,7 @@ An empty block (`aod: {}`) means `show`.
 aod:                  # top-level, beside elements:
   default: hide       # hide | show — for elements whose ancestry says nothing
   dim: 0.4            # optional, AMOLED: scale every drawn colour's luminance
-  jitter: 4           # reserved for slice 5; a friendly "not implemented" error until then
+  jitter: 4           # optional, AMOLED: shift every still-shown element by up to 4px a minute (slice 5, §5.2)
 ```
 
 ### 2.3 What may be overridden (v1 allowlist)
@@ -254,24 +274,71 @@ list replacement** (`aod: {parts: [...]}`), never per-index patching.
 
 The second hand is already awake-only, and stays so.
 
-### 5.2 Jitter (slice 5, reserved now)
+### 5.2 Jitter (slice 5, built 2026-09-23)
 
 - Set at **face or group level only**. Per-element jitter would break
   relationships such as the hands' centre against the tick ring. A group
-  moves as a unit.
+  moves as a unit -- and, built: a **nested** group's own `jitter:`
+  replaces its ancestry's (an enclosing group's, or the face default's) for
+  its whole subtree, never accumulating into a sum of two magnitudes. The
+  schema accepts `jitter:` on every kind (so the builder, not a bare
+  "unexpected property", can give the real reason on a non-group element);
+  it bounds only the value, an integer 1-4.
 - **A deterministic sequence keyed by minute of day**, capped at 4 px
-  (Garmin's guidance, research 11 §1.3). Then
-  `wfb preview --aod --minute N` renders any frame, and a heatmap is a sum
-  over 1440 minutes, standing in for the simulator's burn-in tool, which
-  is unreachable here (research 11 §1.5).
-- **Works well with `static:`:** a static buffer blits at `(dx, dy)`, so
-  shifting exactly the static elements Garmin says to shift is nearly free.
+  (Garmin's guidance, research 11 §1.3). **The obvious first cut -- a
+  raster scan (`w = 2n+1; dx = (m % w) - n; dy = ((m / w) % w) - n`) --
+  was wrong and caught in review, not by a test**: it steps `dx` every
+  minute but only advances `dy` once every `w` minutes, so a 1px
+  horizontal line (a ring's own edge, a progress bar, a text baseline)
+  sat with its whole interior lit for up to `w` (9, at `n = 4`) minutes
+  running, breaking Garmin's own 3-minute rule on exactly the shapes it
+  protects -- despite the offset *pair* itself changing every minute,
+  which is what every test written against the raster scan actually
+  checked. **Built instead: a constant stride through the flattened
+  `(2n+1)x(2n+1)` grid** (`w = 2n+1; stride = 2w+1; cell = (m * stride) %
+  (w*w); dx = cell % w - n; dy = cell // w - n`), pure integer arithmetic.
+  `stride` is coprime with `w*w` (`w` odd), so it is still a full-period
+  bijection -- every cell visited once per `w*w` minutes, the same even
+  heatmap coverage the raster scan gave -- but it moves `dx` **and** `dy`
+  together every single minute (`(+1, +2)` per step, with the usual carry),
+  so a horizontal, vertical or 45-degree line all move along their own
+  axis every minute, not just the pair as a whole. Checked by `tests/
+  test_aod_jitter.py::test_no_pixel_of_a_long_line_stays_lit_for_3_
+  consecutive_minutes`: three long 1px lines' own offset pixel sets,
+  computed for all 1440 minutes with plain set arithmetic (no rendering),
+  confirmed to fail against the raster scan and pass against the stride.
+  One Python implementation (`wfb/aod_jitter.py`) and one Monkey C twin
+  (`runtime-lib/WfbJitter.mc`), kept bit-for-bit identical by construction
+  (integer-only, no floating point) and checked by `tests/
+  test_aod_jitter.py` (a spot-check table for the Python half; a slow test
+  compiling the Monkey C half warning-free -- there is no simulator here to
+  run and compare it directly). `wfb preview --aod --minute N` renders any
+  frame, and `wfb preview --aod --heatmap` sums 1440 renders (by default;
+  a test may sample fewer) into one normalised PNG plus a max-persistence
+  figure, standing in for the simulator's burn-in tool, which is
+  unreachable here (research 11 §1.5) -- an approximation of a different
+  question than `aod-burn-in` answers (persistence over a day, not one
+  frame's own lit-pixel/luminance share), so the two figures are reported
+  separately, never folded into one message.
+- **`static:` gets no special-cased blit.** The plan's own hope here
+  ("a static buffer blits at `(dx, dy)`") assumed the AOD path would reuse
+  the awake buffer; it doesn't -- a `static:` element already bypasses its
+  buffer entirely while `_aod` and draws through the ordinary per-element
+  method (§4.4, built in slice 2), so it already picks up the same `+
+  _aodDxN<n>`/`_aodDyN<n>` every other jittered element does, with no
+  second implementation needed. There is no buffer left, in this codebase,
+  for an offset blit to be "nearly free" against.
 - Elsewhere, positions are `Layout.mc` constants, so an offset means
-  `Layout.FOO_X + _aodDx` through every emitter (research 11 §6 E1). That
-  mechanical diff is why this slice comes last.
-
-Until then `jitter:` is accepted by the schema and rejected by the builder
-with a friendly "not implemented" error, like per-device overrides.
+  `Layout.FOO_X + _aodDx` through every emitter (research 11 §6 E1) --
+  confirmed the only viable shape: `$CIQ_SDK/bin/api.debug.xml` has no
+  `Dc`-side coordinate-system translate (`AffineTransform.translate`
+  exists, but nothing on `Dc` itself), so the "cheapest mechanism" question
+  had only one real answer. Unconditional at every coordinate (no `_aod ?
+  ... : ...` ternary), since the field is `0` except while the frame that
+  computed it is the one drawing (§5.2's own "acceptable if smaller than
+  branching" prediction, confirmed cheaper: `docs/lore/codegen.md`).
+  Measured on `examples/features/aod/face.yaml`, `fenix847mm`: +338 B for
+  one magnitude reaching three elements.
 
 ---
 
@@ -287,10 +354,10 @@ Every slice is warning-free on the three verification targets **and** on
 | 2 | **Codegen:** `_aod` gate (§4.1), ternaries (§4.2), AOD fonts (§4.3), static bypass (§4.4) | an all-MIP face's generated source is byte-identical before and after; the AMOLED example builds and its `--build-stats` figure is recorded |
 | 3 | **`dim:`** (§4.5) | preview shows the dimmed frame; explicit override colours are left alone |
 | 4 | **Burn-in lint** (research 11 §6 D): lit-pixel and luminance fractions from the `--aod` render, per AMOLED target, reported per element | a face lighting >10% fails, one under passes, formula and confidence stated per ADR 0008 |
-| 5 | **Jitter** (§5.2) | preview renders minute N with the expected offset; the static buffer blits offset |
+| 5 | **Jitter** (§5.2) | preview renders minute N with the expected offset; a jittered `static:` element picks up the offset through its already-unbuffered AOD draw (no second buffer, §5.2) |
 | 6 | **`getDisplayMode` ladder** (research 11 §6 F): skip drawing on `DISPLAY_MODE_OFF` | guarded per device; MIP targets untouched |
 
-Slice 4 is where the default in D2 is revisited.
+Slice 4 is where the data behind D2's final call (§7) was gathered.
 
 ---
 
@@ -308,14 +375,12 @@ all-MIP faces, runtime to select within a mixed target list.
   calls an absent AOD a defect (research 11 §1.3).
 - `show` is friendly but can light 60% of the screen, and only the slice 4
   lint would catch it.
-**Decided:** `hide` until slice 4 exists, then reconsider `show`
-paired with `dim:`.
 
-**Slice 4's own measurement, 2026-09-23 (not a decision -- D2 stays `hide`;
-this is the data promised above).** A scratch copy of three existing
-examples (not the checked-in files) with `targets: [..., fenix847mm]` and a
-face-wide `aod: {default: show, dim: 0.4}` bolted on, `aod-burn-in`'s own
-worst-case render (`10:08`/`20:08`, full battery):
+**Decided (final, 2026-09-23, after slice 4's own measurement below):
+`hide`.** A scratch copy of three existing examples (not the checked-in
+files) with `targets: [..., fenix847mm]` and a face-wide `aod: {default:
+show, dim: 0.4}` bolted on, `aod-burn-in`'s own worst-case render
+(`10:08`/`20:08`, full battery):
 
 | Example | lit-pixel fraction | luminance fraction | `aod-burn-in` |
 |---|---|---|---|
@@ -331,13 +396,14 @@ it cuts the *luminance* figure roughly in proportion. All three examples
 comfortably clear the Venu 2+ luminance rule at `dim: 0.4`; only the
 simplest (`analog/`) also clears the older lit-pixel rule, and the busiest
 (`showcase/`) fails it by a wide margin. So "`default: show` paired with
-`dim:`" is not, on its own, the universal fix the D2 write-up above
-hoped for -- it reliably buys the luminance half of the rule, not the
+`dim:`" is not, on its own, the universal fix the D2 write-up above hoped
+for -- it reliably buys the luminance half of the rule, not the
 pixel-count half, and a face with `showcase`'s own element count would
 still need explicit `hide`s (or a heavier `dim:`) to pass on a
-lit-pixel-rule device. D2 itself stays `hide` (this slice's brief does not
-include changing it); this table is the evidence for whoever revisits it
-next.
+lit-pixel-rule device. On that evidence the user kept `default: hide` as
+the final answer: `show` cannot be recommended as a blanket default when a
+design of `showcase`'s own size fails outright on one of the two device
+generations, `dim:` included.
 
 **D3: does `modes: [always_on]` go away?** **Decided: yes, removed
 outright, no shim** (house style; nothing uses it). `modes:` then means only

@@ -271,11 +271,10 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - per-device `overrides` (writing one is a build error);
   - `segments`/`scale` progress styles;
   - unit conversion;
-  - `aod: dim:`/`jitter:` (plan 14 slices 3/5); a `pattern`'s/
-    `complication_slot`'s own `aod: {font: ...}` override; any `aod: {font:
-    ...}` naming a `face:` (vector) font (plan 14 §4.3); `aod: {filled:
-    ...}` on `shape: polygon` (no outline primitive to switch to) --
-    friendly build errors, all four, never a silent no-op;
+  - a `pattern`'s/`complication_slot`'s own `aod: {font: ...}` override;
+    any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
+    `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
+    switch to) -- friendly build errors, all three, never a silent no-op;
   - **phone settings**: frozen, incomplete, on `wip/phone-settings`. Do not
     resume without asking;
   - catalogue generation from the SDK;
@@ -302,24 +301,29 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     platform lacks (plan 15, all three slices), reaching every draw shape
     those elements can take and checked by a new suppressible lint,
     `text-outline-interior`;
-  - `aod:` format, resolution, restyling, dimming and the burn-in lint
-    (plan 14 slices 1–4): per-element/group `hide`/`show`/override block, a
-    face-wide default, `jitter:` reserved with a friendly error, `_aod`
-    emitted only when a target is AMOLED, three suppressible lints
-    (`aod-unreachable`, `aod-empty`, `aod-burn-in`) — and every override
-    key actually restyling the generated AOD frame: inline ternaries
-    (measured smaller than a second per-element method), `filled:`
-    toggling the draw call, a resource font named only by an override
-    loaded as a second resource in `onEnterSleep`, a `static:` element's
-    own override bypassing its buffer, and `wfb preview --aod` matching
-    all of it — plus `dim:` scaling every drawn colour's luminance except
-    an explicit override, pre-computed at build time for a constant colour
-    and by a small `WfbColor.dim` runtime helper otherwise, matched
-    exactly by preview — plus `aod-burn-in` (research 11 §6 D, ADR 0008
-    check 8): lit-pixel and luminance fractions **measured** from that
-    same `--aod` render at a sampled worst-case time, reported per
-    element, `error` over Garmin's 10% rule (uniquely among this
-    project's hard errors, suppressible) and a `note` under it.
+  - `aod:` format, resolution, restyling, dimming, jitter and the burn-in
+    lint (plan 14 slices 1–5): per-element/group `hide`/`show`/override
+    block, a face-wide default, `_aod` emitted only when a target is
+    AMOLED, three suppressible lints (`aod-unreachable`, `aod-empty`,
+    `aod-burn-in`) — and every override key actually restyling the
+    generated AOD frame: inline ternaries (measured smaller than a second
+    per-element method), `filled:` toggling the draw call, a resource font
+    named only by an override loaded as a second resource in
+    `onEnterSleep`, a `static:` element's own override bypassing its
+    buffer, and `wfb preview --aod` matching all of it — plus `dim:`
+    scaling every drawn colour's luminance except an explicit override,
+    pre-computed at build time for a constant colour and by a small
+    `WfbColor.dim` runtime helper otherwise, matched exactly by preview —
+    plus `aod-burn-in` (research 11 §6 D, ADR 0008 check 8): lit-pixel and
+    luminance fractions **measured** from that same `--aod` render at a
+    sampled worst-case time, reported per element, `error` over Garmin's
+    10% rule (uniquely among this project's hard errors, suppressible) and
+    a `note` under it — plus `jitter:` (slice 5, §5.2), a deterministic
+    per-minute pixel offset (1–4px, face- or group-scoped, nearest wins
+    with no accumulation), one Python/Monkey C sequence pair
+    (`wfb/aod_jitter.py`/`runtime-lib/WfbJitter.mc`), `+ _aodDxN<n>`/
+    `_aodDyN<n>` appended unconditionally at every jittered coordinate
+    through every emitter, and `wfb preview --aod --minute N`/`--heatmap`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.

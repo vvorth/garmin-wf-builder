@@ -21,9 +21,9 @@ from ...palette import dim_fraction
 from ...series import Acquisition
 from .common import (
     AodDim, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _aod_font_field,
-    _aod_only_fonts, _and_list, _const_prefix, _describe, _editor_slot_pairs, _field,
-    _loaded_fonts, _mc_bool, _method, _pattern_needs_math, _vector_fonts_used, header,
-    hold_targets,
+    _aod_jitter_ns, _aod_only_fonts, _and_list, _const_prefix, _describe, _editor_slot_pairs,
+    _field, _jitter_field, _loaded_fonts, _mc_bool, _method, _pattern_needs_math,
+    _vector_fonts_used, header, hold_targets,
 )
 from .complication_slot import (
     _emit_complication_slot, _emit_complication_slot_editor_methods,
@@ -187,6 +187,17 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     plan = ReadPlan(resolved, guards)
     if _has_partial_update(resolved):
         plan.modules.add("Toybox.System")  # onPowerBudgetExceeded reports via println
+    # `aod: {jitter: ...}` (plan 14 slice 5, §5.2): every distinct magnitude
+    # an AOD-shown element actually resolves to, in this build -- `()` for a
+    # design that never uses `jitter:` at all, or an all-MIP build, so this
+    # feature costs nothing on either (byte-identical to before it existed).
+    # Computed here, ahead of the `import` loop below (not beside the `aod`/
+    # `dim` locals further down, which run *after* that loop has already
+    # snapshotted `plan.modules` -- `guards.amoled_target` is used directly
+    # rather than waiting for the `aod` local for exactly that reason).
+    jitter_ns = _aod_jitter_ns(resolved) if guards.amoled_target else ()
+    if jitter_ns:
+        plan.modules.add("Toybox.System")  # getClockTime() for the minute of day
 
     graphs = [p for p in resolved.items if isinstance(p, PlacedGraph)]
     graph_modules: set[str] = set()
@@ -300,6 +311,19 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             )
             w.line("private var _aod as Boolean = false;")
             w.blank()
+        if jitter_ns:
+            w.doc(
+                "The current AOD frame's own deterministic per-minute pixel offset\n"
+                "('aod: {jitter: ...}', plan 14 §5.2) -- one pair per distinct magnitude\n"
+                "this design actually uses (WfbJitter.mc). Computed once, at the top of\n"
+                "the AOD branch, from the current minute of day; reset to 0 in\n"
+                "onExitSleep, so a jittered element's shared draw method can add these\n"
+                "in unconditionally, at every coordinate, with no cost while awake."
+            )
+            for n in jitter_ns:
+                w.line(f"private var {_jitter_field(n, 'x')} as Number = 0;")
+                w.line(f"private var {_jitter_field(n, 'y')} as Number = 0;")
+            w.blank()
         _emit_initialize(w, face, has_slots=bool(slot_pairs), guards=guards)
         if antialias_default is not None:
             _emit_antialias_helper(w)
@@ -308,10 +332,10 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards)
-        _emit_on_update(w, resolved, plan, aod, static, antialias_default)
+        _emit_on_update(w, resolved, plan, aod, static, antialias_default, jitter_ns)
         if _has_partial_update(resolved):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
-        _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod, guards, aod_only_fonts)
+        _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod, guards, aod_only_fonts, jitter_ns)
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
         for placed in graphs:
@@ -905,7 +929,8 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
 
 def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bool,
                     static: "StaticPlan | None" = None,
-                    antialias_default: bool | None = None) -> None:
+                    antialias_default: bool | None = None,
+                    jitter_ns: tuple[int, ...] = ()) -> None:
     w.doc(
         "Draw the full face.\n"
         "\n"
@@ -932,7 +957,7 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         if aod:
             with w.block("if (_aod)"):
-                _emit_aod_body(w, resolved, plan)
+                _emit_aod_body(w, resolved, plan, jitter_ns)
             with w.block("else"):
                 _emit_mode_body(w, resolved, plan, "active", static)
         else:
@@ -1012,7 +1037,8 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
     _emit_layout_guarded_calls(w, resolved.face, calls)
 
 
-def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
+def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
+                   jitter_ns: tuple[int, ...] = ()) -> None:
     """The AMOLED always-on frame (plan 14 slices 1-2): every element whose
     resolved `aod:` is not `None`, calling the exact same per-element method
     the active frame calls, restyled by the ternaries/branches those methods
@@ -1044,11 +1070,29 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
     is the only correct AOD ground (research 11 §1.1: a pixel is "off"
     only when it renders black), so this is not configurable the way
     `renderStatic`'s own ground-clear isn't either.
+
+    **`aod: {jitter: ...}` (plan 14 slice 5, §5.2): every distinct magnitude
+    in `jitter_ns` gets its own `(dx, dy)`, computed once here**, from the
+    current minute of day, via `WfbJitter.offsetX`/`offsetY` -- the same
+    arithmetic `wfb.aod_jitter.offset` performs in Python, bit for bit
+    (`tests/test_aod_jitter.py`). A dedicated local (`aodClock`), not the
+    `clock` local `plan.emit_reads` may already have declared for an
+    ordinary `time.clock`-bound element: the two would only collide by
+    coincidence of naming, and this keeps this computation correct whether
+    or not any element actually reads the clock too.
     """
     w.comment("AOD starts from black: Dc keeps its contents between frames,")
     w.comment("and the awake frame's own background does not draw here")
     w.line("dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);")
     w.line("dc.clear();")
+    if jitter_ns:
+        w.comment("aod: {jitter: ...} -- this frame's own deterministic pixel offset(s)")
+        w.line("var aodClock = System.getClockTime();")
+        w.line("var aodMinuteOfDay = aodClock.hour * 60 + aodClock.min;")
+        for n in jitter_ns:
+            w.line(f"{_jitter_field(n, 'x')} = WfbJitter.offsetX(aodMinuteOfDay, {n});")
+            w.line(f"{_jitter_field(n, 'y')} = WfbJitter.offsetY(aodMinuteOfDay, {n});")
+        w.blank()
     plan.emit_reads(w, "aod")
     w.blank()
     ids = set(plan.aod_ids())
@@ -1130,7 +1174,8 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
 
 def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
                       aod: bool, guards: "Guards" = _NO_GUARDS,
-                      aod_only_fonts: list[str] | None = None) -> None:
+                      aod_only_fonts: list[str] | None = None,
+                      jitter_ns: tuple[int, ...] = ()) -> None:
     aod_only_fonts = aod_only_fonts or []
     w.doc("Awake: full-power updates resume.")
     with w.block("function onExitSleep() as Void"):
@@ -1138,6 +1183,18 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
             w.line("_sleeping = false;")
         if aod:
             w.line("_aod = false;")
+        for n in jitter_ns:
+            # `aod: {jitter: ...}` (plan 14 §5.2): the shared per-element
+            # draw method adds these unconditionally, awake or asleep
+            # (`wfb.emit.monkeyc.common._jitter_terms`), so they must be
+            # exactly 0 every moment the watch is not actually drawing a
+            # jittered AOD frame -- reset here, the same place `_aod` itself
+            # goes back to `false`, rather than trusting the *next*
+            # `_emit_aod_body` run to overwrite them before anything reads
+            # them (nothing reads them in the meantime, but zeroing on exit
+            # is the one place this is true by construction, not by timing).
+            w.line(f"{_jitter_field(n, 'x')} = 0;")
+            w.line(f"{_jitter_field(n, 'y')} = 0;")
         for name in aod_only_fonts:
             # Released unconditionally, not only when it was actually
             # loaded -- nulling an already-null field is harmless, and this

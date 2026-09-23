@@ -393,6 +393,9 @@ class Builder:
         #: The top-level `aod: dim:` (plan 14 §4.5), normalised: `None` for
         #: both "absent" and a written `1` -- see `Face.aod_dim`.
         self.face_aod_dim: float | None = None
+        #: Top-level `aod: {jitter: ...}` (plan 14 slice 5) -- `None` until
+        #: `_build_face_aod` runs; see `Face.aod_jitter`.
+        self.face_aod_jitter: int | None = None
 
     # -- entry point ------------------------------------------------------
 
@@ -435,6 +438,7 @@ class Builder:
         self._resolve_antialias(elements)
         self._resolve_min_1px(elements)
         self._resolve_aod(elements)
+        self._resolve_aod_jitter(elements)
 
         face = data["face"]
         name = face["name"]
@@ -465,6 +469,7 @@ class Builder:
             aod_lint_allow=self.face_aod_lint_allow,
             aod_lint_reason=self.face_aod_lint_reason,
             aod_dim=self.face_aod_dim,
+            aod_jitter=self.face_aod_jitter,
         )
 
     # -- layouts, palette, config, fonts, scope -----------------------------
@@ -1898,7 +1903,7 @@ class Builder:
             )
             return None
 
-        aod_own_hide, aod_own = self._build_aod_authored(node)
+        aod_own_hide, aod_own, aod_jitter_own = self._build_aod_authored(node)
         common = dict(
             id=element_id,
             kind=node["type"],
@@ -1915,6 +1920,7 @@ class Builder:
             min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
             aod_own_hide=aod_own_hide,
             aod_own=aod_own,
+            aod_jitter_own=aod_jitter_own,
         )
 
         builders = {
@@ -2243,10 +2249,8 @@ class Builder:
     # -- always-on display (`aod:`, plan 14) --------------------------------
 
     def _build_face_aod(self, raw: dict) -> None:
-        """Top-level `aod:` (plan 14 §2.2): `default:`, `dim:` (§4.5), plus
-        `jitter:`, which the schema accepts but this builder rejects with a
-        friendly "not implemented yet" error -- the same shape `_build_element`
-        already gives per-device `overrides:` (`docs/limitations.md`).
+        """Top-level `aod:` (plan 14 §2.2): `default:`, `dim:` (§4.5), `jitter:`
+        (§5.2).
         """
         self.face_aod_default_hide = raw.get("default", "hide") == "hide"
         lint = raw.get("lint") or {}
@@ -2260,29 +2264,38 @@ class Builder:
         # `dim:` (the schema's own `exclusiveMinimum: 0`/`maximum: 1` has
         # already ruled out anything outside (0, 1] by the time this runs).
         self.face_aod_dim = None if dim_raw is None or float(dim_raw) == 1.0 else float(dim_raw)
-        if "jitter" in raw:
-            self.bag.error(
-                "aod",
-                "aod: 'jitter:' is not implemented, so this would be silently ignored",
-                self.doc.span(raw, "jitter"),
-                notes=["plan 14 slice 5 builds it -- see docs/limitations.md 2"],
-            )
+        jitter_raw = raw.get("jitter")
+        # The schema already bounds this to an integer 1-4 (`$defs/
+        # aodJitter`), so there is nothing left to validate here -- just
+        # carry it through as the root default `_resolve_aod_jitter`'s
+        # top-down walk starts from.
+        self.face_aod_jitter = int(jitter_raw) if jitter_raw is not None else None
 
-    def _build_aod_authored(self, node: dict) -> tuple[bool, dict[str, object] | None]:
+    def _build_aod_authored(
+        self, node: dict,
+    ) -> tuple[bool, dict[str, object] | None, int | None]:
         """Parse one element/group's own `aod:` (plan 14 §2.1) into
-        ``(hide, keys)``: ``hide`` is `True` only for the literal `aod: hide`;
-        ``keys`` is `None` when nothing but that was written (or nothing at
-        all), or the resolved key -> value dict an `aod: show` (`{}`) or an
-        override block produced.
+        ``(hide, keys, jitter_own)``: ``hide`` is `True` only for the literal
+        `aod: hide`; ``keys`` is `None` when nothing but that was written (or
+        nothing at all), or the resolved key -> value dict an `aod: show`
+        (`{}`) or an override block produced; ``jitter_own`` is this
+        element's own `jitter:` (§5.2, group-only -- `None` everywhere else,
+        including "no `aod:` at all").
 
         One generic parser for every element kind: the schema already
         restricts which keys a given kind's own `aod:` block may carry
         (`schema/wfb-face-1.schema.json`'s `aod<Kind>` `$defs`, D2.3), so by
         the time this runs, whichever of the keys below are present are
         exactly the ones this element's own kind allows -- there is nothing
-        left for this method to reject. Every value is resolved through the
-        exact same machinery the element's own property of the same name
-        uses, so an `aod: {color: ...}` reaches a palette/config colour role
+        left for this method to reject, **except `jitter:`**, which the
+        schema deliberately accepts on every kind (the same "syntactically
+        allowed, semantically refused with a reason" shape already used for
+        a pattern's/complication_slot's own `font:` override and `aod:
+        {filled: ...}` on `shape: polygon`, below) so this method can give
+        the real reason rather than a generic "additional property" schema
+        error. Every other value is resolved through the exact same
+        machinery the element's own property of the same name uses, so an
+        `aod: {color: ...}` reaches a palette/config colour role
         (`_color_expression`), a font name resolves through `_font_reference`
         exactly like `font:` (kept as the `(name, is_custom)` pair
         `_resolve_font` itself produces), and a length through `_length` --
@@ -2290,12 +2303,39 @@ class Builder:
         """
         raw = node.get("aod")
         if raw is None:
-            return False, None
+            return False, None, None
         if raw == "hide":
-            return True, None
+            return True, None, None
         if raw == "show":
-            return False, {}
+            return False, {}, None
         keys: dict[str, object] = {}
+        jitter_own: int | None = None
+        if "jitter" in raw:
+            if node.get("type") != "group":
+                # Position, not styling -- out of the per-key `AodOverride`
+                # ternary system entirely (`_resolve_aod_jitter`), so this is
+                # not "not implemented yet" the way a pattern's own `font:`
+                # override below is: it is a permanent restriction, the same
+                # shape `aod: {filled: ...}` on `shape: polygon` already
+                # uses for the same reason (no amount of future work makes
+                # per-element jitter sensible; see the note).
+                self.bag.error(
+                    "aod",
+                    f"{node.get('id', '?')}: 'aod: {{jitter: ...}}' is only accepted "
+                    f"at face level or on a 'group' -- not on a "
+                    f"{node.get('type')!r} element",
+                    self.doc.span(raw, "jitter") or self.doc.span(node, "aod"),
+                    notes=["per-element jitter would break relationships between an "
+                           "element and its neighbours -- e.g. analog hands' centre "
+                           "against a tick ring it has to stay concentric with -- so "
+                           "jitter moves a whole group (or the whole face) as one "
+                           "rigid unit, never a single element on its own",
+                           "put 'jitter:' on this element's enclosing group's 'aod:' "
+                           "block instead, or at face level "
+                           "(docs/guide/always-on-display.md)"],
+                )
+            else:
+                jitter_own = int(raw["jitter"])
         if "color" in raw:
             keys["color"] = self._color_expression(raw, "color")
         if "track_color" in raw:
@@ -2365,7 +2405,7 @@ class Builder:
             keys["format"] = raw["format"]
         if "visible" in raw:
             keys["visible"] = self._visible(raw)
-        return False, keys
+        return False, keys, jitter_own
 
     def _conjoin_optional(self, outer: Expression | None, inner: Expression | None,
                           ) -> Expression | None:
@@ -2508,6 +2548,31 @@ class Builder:
         self._resolve_inherited_flag(
             elements, authored="min_1px", resolved="resolved_min_1px",
             default=self.face_min_1px,
+        )
+
+    def _resolve_aod_jitter(self, elements: list[Element]) -> None:
+        """`aod: {jitter: ...}` (plan 14 §5.2) -- reuses `_resolve_inherited_
+        flag` (typed there for a `bool`, but its logic never actually reads
+        or writes one: `getattr`/`setattr` on two field names, "authored
+        wins outright over inherited, else inherit" -- exactly "nearest
+        declaration simply wins" for an `int | None` too).
+
+        This is deliberately a *separate*, simpler walk from `_resolve_aod`
+        above, not another key folded into its per-element `AodOverride`
+        merge: jitter is a position fact, not a restyling one, so it has to
+        reach every element in a jittered group's subtree the same way
+        `min_1px`/`antialias` do -- nearest-wins, root to leaf, no
+        conjoining -- regardless of whether that particular element (or its
+        enclosing group) also declares any colour/thickness/etc. override of
+        its own. A group's own `jitter:` *replaces* whatever its ancestry
+        supplied for its whole subtree (the group "moves as a unit"); nested
+        groups with different `jitter:` values therefore never accumulate an
+        offset -- each element ends up in exactly one scope's magnitude,
+        never a sum of several (docs/guide/always-on-display.md).
+        """
+        self._resolve_inherited_flag(  # type: ignore[arg-type]
+            elements, authored="aod_jitter_own", resolved="aod_jitter",
+            default=self.face_aod_jitter,
         )
 
     # -- static subtrees ---------------------------------------------------

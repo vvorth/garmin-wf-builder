@@ -107,8 +107,8 @@ simulator. What is verified is a warning-free real `monkeyc` build and
   draws directly. `wfb preview --aod` renders the resolved set fully
   restyled, matching codegen's own scope (a `pattern`/`complication_slot`
   `font:` override and any vector-font override are not implemented yet).
-  Two new suppressible lints, `aod-unreachable` and `aod-empty`. `jitter:`
-  is slice 5. `modes: [always_on]` is removed outright (D3) -- see below.
+  Two new suppressible lints, `aod-unreachable` and `aod-empty`.
+  `modes: [always_on]` is removed outright (D3) -- see below.
 - **`aod: {dim: ...}` (plan 14 slice 3):** scales the luminance of every
   colour the AOD frame draws, override colours excepted -- each channel
   times `dim`, rounded to the nearest integer (`wfb.palette.dim_channel`).
@@ -157,6 +157,43 @@ simulator. What is verified is a warning-free real `monkeyc` build and
   `monkeyc` build. Cannot see the 3-minute static-pixel rule (a property of
   a frame sequence, not the one rendered), any time/data combination but
   the two sampled, or Garmin's actual luminance formula.
+- **`aod: {jitter: ...}` (plan 14 slice 5, §5.2):** a deterministic
+  per-minute pixel offset, 1-4 px (Garmin's own cap), accepted at face
+  level and on a `group`'s own `aod:` block -- schema-accepted, builder-
+  rejected with an explanation everywhere else, since per-element jitter
+  would break a design's own relationships (a hand's centre against its
+  tick ring). Resolution is "nearest declaration wins", the same
+  `min_1px:`/`antialias:` walk (`Builder._resolve_inherited_flag`), so a
+  group's own `jitter:` replaces its ancestry's for its whole subtree and
+  nested groups never accumulate an offset. The sequence is a constant
+  stride (`stride = 2w+1`, coprime with `w²` since `w = 2n+1` is odd)
+  through the flattened `(2n+1)x(2n+1)` grid, pure integer arithmetic, one
+  Python implementation (`wfb/aod_jitter.py`) and one Monkey C twin
+  (`runtime-lib/WfbJitter.mc`) kept bit-for-bit identical: it moves *both*
+  axes every single minute, not just the offset pair as a whole -- a first,
+  raster-scan cut (step one axis every minute, the other only every `w`
+  minutes) passed every property test written against it (bounded,
+  deterministic, full grid coverage, the pair never repeating) while still
+  leaving a long 1px line's own interior lit for up to `w` minutes, caught
+  in review before it shipped (`docs/lore/codegen.md`). Codegen appends
+  `+ _aodDxN<n>`/`+ _aodDyN<n>`
+  (one field pair per distinct magnitude actually used, computed once at
+  the top of the AOD branch and reset to `0` in `onExitSleep`) to every
+  coordinate a jittered element's shared draw method uses --
+  unconditionally, cheaper than a ternary since the field is `0` except
+  while that exact frame is drawing. Reaches every element kind: `shape`
+  (including a rebuilt polygon vertex array, since `_POINTS` has no single
+  X/Y to suffix), `text` (plain, vector, `outline:`, `curve:`), `progress`,
+  `icon`, `graph`, `complication_slot`, `hands` (the rotation centre) and
+  `pattern` (the per-copy origin) -- the last two, plus a `curve:`/
+  `outline:` anchor, needed no per-call-site editing at all, since they
+  already funnel every part's geometry through one shared local origin.
+  `wfb preview --aod --minute N` renders any single minute's offset;
+  `wfb preview --aod --heatmap` sums 1,440 renders into one normalised PNG
+  plus a max-persistence figure, approximating (not replacing) the
+  simulator's own Screen Heat Map. Measured: +338 B on `fenix847mm`
+  (`examples/features/aod/face.yaml`, one magnitude reaching three
+  elements, `docs/lore/codegen.md`).
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 
@@ -196,11 +233,9 @@ specifies each item.
    renderer.
 9. `mypy --strict` and CI. Neither exists.
 10. `wfb install`, `package`, `migrate`.
-11. `aod: jitter:` (plan 14 §5.2, slice 5) -- accepted by the schema,
-    rejected by the builder with a friendly error. `aod: dim:` is built
-    (slice 3, above). A `pattern`'s or `complication_slot`'s own
-    `aod: {font: ...}` override, any `font:` override naming a `face:`
-    (vector) font, and `aod: {filled: ...}` on `shape: polygon` (plan 14
-    §4.3, slice 2 built every other override key and a `text` element's
-    baked-font override) -- all four are friendly build errors
-    (`Builder._build_aod_authored`), never a silent no-op.
+11. A `pattern`'s or `complication_slot`'s own `aod: {font: ...}` override,
+    any `font:` override naming a `face:` (vector) font, and
+    `aod: {filled: ...}` on `shape: polygon` (plan 14 §4.3, slice 2 built
+    every other override key and a `text` element's baked-font override,
+    and slice 5 built `jitter:`, above) -- all three are friendly build
+    errors (`Builder._build_aod_authored`), never a silent no-op.

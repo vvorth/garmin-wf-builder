@@ -57,13 +57,22 @@ EXAMPLES = {
     # shot shows the restyled sleep frame (plan 14 slice 2), not the awake
     # design.
     "aod": ("features/aod", ["--aod"], None),
+    # The jittered AOD frame summed over every minute of the day (plan 14
+    # slice 5) -- a stand-in for the simulator's own Screen Heat Map, which
+    # is unreachable in this environment (root CLAUDE.md §3). Takes longer
+    # than every other shot here (1,440 renders), which is fine for a
+    # manually-run regeneration script but is why no automated test does
+    # this at full resolution (`tests/test_aod_jitter.py` samples a handful
+    # of minutes instead).
+    "aod-heatmap": ("features/aod", ["--aod", "--heatmap"], None),
 }
 
 #: Per-example device override for `EXAMPLES` -- every other topic example
-#: renders on `DEVICE` (a MIP target); `features/aod` is the one design
-#: whose whole point is an AMOLED target, so its shot needs `fenix847mm`
-#: instead, the only device in this project with a real `_aod` frame to show.
-EXAMPLE_DEVICE = {"aod": "fenix847mm"}
+#: renders on `DEVICE` (a MIP target); `features/aod`/`aod-heatmap` are the
+#: one design whose whole point is an AMOLED target, so its shot needs
+#: `fenix847mm` instead, the only device in this project with a real `_aod`
+#: frame to show.
+EXAMPLE_DEVICE = {"aod": "fenix847mm", "aod-heatmap": "fenix847mm"}
 
 # `wfb new` templates: name -> (-t value or None for the default, face name).
 NEW_TEMPLATES = {

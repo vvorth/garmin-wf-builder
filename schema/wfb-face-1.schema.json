@@ -694,9 +694,7 @@
           "maximum": 1
         },
         "jitter": {
-          "description": "Pixels to shift static AOD content by, deterministically, once a minute (Garmin's burn-in guidance, capped at 4px). Accepted by the schema; the builder rejects it with a friendly error until plan 14 slice 5 lands.",
-          "type": "number",
-          "minimum": 0
+          "$ref": "#/$defs/aodJitter"
         },
         "lint": {
           "description": "Suppress a face-level AOD lint (currently only 'aod-empty') -- there is no single element to hang an ordinary 'lint: {allow: [...]}' on for a face-wide check.",
@@ -705,7 +703,7 @@
       }
     },
     "aodText": {
-      "description": "'aod:' on a 'text' element (docs/plans/14-aod.md \u00a72.3): 'hide' | 'show' | an override block reusing 'text's own 'color:'/'font:'/'format:', plus 'visible:'. An empty block ('aod: {}') means 'show'.",
+      "description": "'aod:' on a 'text' element (docs/plans/14-aod.md \u00a72.3): 'hide' | 'show' | an override block reusing 'text's own 'color:'/'font:'/'format:', plus 'visible:'. An empty block ('aod: {}') means 'show'. 'jitter:' is syntactically accepted here too, but rejected by the builder with an explanation: it only applies at face level or on a 'group' (docs/plans/14-aod.md §5.2).",
       "oneOf": [
         {
           "enum": [
@@ -725,6 +723,9 @@
             },
             "format": {
               "type": "string"
+            },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
             },
             "visible": {
               "$ref": "#/$defs/visible"
@@ -734,7 +735,7 @@
       ]
     },
     "aodShape": {
-      "description": "'aod:' on a 'shape' element: 'hide' | 'show' | an override block reusing 'shape's own 'color:'/'thickness:'/'filled:', plus 'visible:'.",
+      "description": "'aod:' on a 'shape' element: 'hide' | 'show' | an override block reusing 'shape's own 'color:'/'thickness:'/'filled:', plus 'visible:'. 'jitter:' is syntactically accepted here too, but rejected by the builder with an explanation: it only applies at face level or on a 'group' (docs/plans/14-aod.md §5.2).",
       "oneOf": [
         {
           "enum": [
@@ -755,6 +756,9 @@
             "filled": {
               "type": "boolean"
             },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
+            },
             "visible": {
               "$ref": "#/$defs/visible"
             }
@@ -763,7 +767,7 @@
       ]
     },
     "aodProgress": {
-      "description": "'aod:' on a 'progress' element: 'hide' | 'show' | an override block reusing 'progress's own 'color:'/'track_color:'/'thickness:', plus 'visible:'.",
+      "description": "'aod:' on a 'progress' element: 'hide' | 'show' | an override block reusing 'progress's own 'color:'/'track_color:'/'thickness:', plus 'visible:'. 'jitter:' is syntactically accepted here too, but rejected by the builder with an explanation: it only applies at face level or on a 'group' (docs/plans/14-aod.md §5.2).",
       "oneOf": [
         {
           "enum": [
@@ -784,6 +788,9 @@
             "thickness": {
               "$ref": "#/$defs/length"
             },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
+            },
             "visible": {
               "$ref": "#/$defs/visible"
             }
@@ -792,7 +799,7 @@
       ]
     },
     "aodIcon": {
-      "description": "'aod:' on an 'icon' element: 'hide' | 'show' | an override block reusing 'icon's own 'color:', plus 'visible:'.",
+      "description": "'aod:' on an 'icon' element: 'hide' | 'show' | an override block reusing 'icon's own 'color:', plus 'visible:'. 'jitter:' is syntactically accepted here too, but rejected by the builder with an explanation: it only applies at face level or on a 'group' (docs/plans/14-aod.md §5.2).",
       "oneOf": [
         {
           "enum": [
@@ -807,6 +814,9 @@
             "color": {
               "$ref": "#/$defs/colorExpression"
             },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
+            },
             "visible": {
               "$ref": "#/$defs/visible"
             }
@@ -815,7 +825,7 @@
       ]
     },
     "aodGraph": {
-      "description": "'aod:' on a 'graph' element: 'hide' | 'show' | an override block reusing 'graph's own 'color:'/'thickness:'/'bar_width:', plus 'visible:'.",
+      "description": "'aod:' on a 'graph' element: 'hide' | 'show' | an override block reusing 'graph's own 'color:'/'thickness:'/'bar_width:', plus 'visible:'. 'jitter:' is syntactically accepted here too, but rejected by the builder with an explanation: it only applies at face level or on a 'group' (docs/plans/14-aod.md §5.2).",
       "oneOf": [
         {
           "enum": [
@@ -836,6 +846,9 @@
             "bar_width": {
               "$ref": "#/$defs/length"
             },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
+            },
             "visible": {
               "$ref": "#/$defs/visible"
             }
@@ -844,7 +857,7 @@
       ]
     },
     "aodComplicationSlot": {
-      "description": "'aod:' on a 'complication_slot' element: 'hide' | 'show' | an override block reusing its own 'color:'/'icon_color:'/'font:', plus 'visible:'.",
+      "description": "'aod:' on a 'complication_slot' element: 'hide' | 'show' | an override block reusing its own 'color:'/'icon_color:'/'font:', plus 'visible:'. 'jitter:' is syntactically accepted here too, but rejected by the builder with an explanation: it only applies at face level or on a 'group' (docs/plans/14-aod.md §5.2).",
       "oneOf": [
         {
           "enum": [
@@ -865,6 +878,9 @@
             "font": {
               "type": "string"
             },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
+            },
             "visible": {
               "$ref": "#/$defs/visible"
             }
@@ -873,7 +889,7 @@
       ]
     },
     "aodHands": {
-      "description": "'aod:' on a 'hands' element: 'hide' | 'show' | an override block reusing 'color:'/'thickness:', applied uniformly to every part of every hand in the set (docs/plans/14-aod.md \u00a75.1), plus 'visible:'.",
+      "description": "'aod:' on a 'hands' element: 'hide' | 'show' | an override block reusing 'color:'/'thickness:', applied uniformly to every part of every hand in the set (docs/plans/14-aod.md \u00a75.1), plus 'visible:'. 'jitter:' is syntactically accepted here too, but rejected by the builder with an explanation: it only applies at face level or on a 'group' (docs/plans/14-aod.md §5.2).",
       "oneOf": [
         {
           "enum": [
@@ -891,6 +907,9 @@
             "thickness": {
               "$ref": "#/$defs/length"
             },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
+            },
             "visible": {
               "$ref": "#/$defs/visible"
             }
@@ -899,7 +918,7 @@
       ]
     },
     "aodPattern": {
-      "description": "'aod:' on a 'pattern' element: 'hide' | 'show' | an override block reusing 'color:'/'thickness:'/'font:', applied uniformly to every part (docs/plans/14-aod.md \u00a75.1), plus 'visible:'.",
+      "description": "'aod:' on a 'pattern' element: 'hide' | 'show' | an override block reusing 'color:'/'thickness:'/'font:', applied uniformly to every part (docs/plans/14-aod.md \u00a75.1), plus 'visible:'. 'jitter:' is syntactically accepted here too, but rejected by the builder with an explanation: it only applies at face level or on a 'group' (docs/plans/14-aod.md §5.2).",
       "oneOf": [
         {
           "enum": [
@@ -920,6 +939,9 @@
             "font": {
               "type": "string"
             },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
+            },
             "visible": {
               "$ref": "#/$defs/visible"
             }
@@ -928,7 +950,7 @@
       ]
     },
     "aodGroup": {
-      "description": "'aod:' on a 'group': 'hide' | 'show' | an override block allowing the union of every kind a descendant might allow (docs/plans/14-aod.md \u00a72.3), plus 'visible:'. Pushed down to descendants key by key -- see the top-level 'aod:' resolution rule.",
+      "description": "'aod:' on a 'group': 'hide' | 'show' | an override block allowing the union of every kind a descendant might allow (docs/plans/14-aod.md \u00a72.3), plus 'visible:' and 'jitter:' (\u00a75.2, group-only: a group moves as one rigid unit, and its own 'jitter:' replaces its ancestry's for its whole subtree, never accumulating). Pushed down to descendants key by key -- see the top-level 'aod:' resolution rule.",
       "oneOf": [
         {
           "enum": [
@@ -964,12 +986,21 @@
             "format": {
               "type": "string"
             },
+            "jitter": {
+              "$ref": "#/$defs/aodJitter"
+            },
             "visible": {
               "$ref": "#/$defs/visible"
             }
           }
         }
       ]
+    },
+    "aodJitter": {
+      "description": "Pixels to shift this scope's AOD content by, deterministically, once a minute (docs/plans/14-aod.md §5.2, Garmin's burn-in guidance -- research 11 §1.3: 'up to four pixels in any direction every minute'). Accepted at face level ('aod: {jitter: ...}' beside 'elements:') and on a 'group''s own 'aod:' block -- a group moves as one rigid unit, and a group's own 'jitter:' replaces whatever its ancestry (an enclosing group, or the face default) would otherwise have supplied, for its whole subtree; nested groups do not accumulate offsets. Schema-accepted but builder-rejected, with an explanation, anywhere else ('aod:' on a non-group element): per-element jitter would break a design's own relationships, e.g. analog hands' centre against a tick ring it must stay concentric with.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
     },
     "outline": {
       "description": "The stamped-ring outline (research 13/14, plan 15): draws the text N times at small pixel offsets in this colour, then once more, unshifted, in the element's own 'color:' -- the fill pass every text element already has. 'none' (the default) draws no ring at all, byte-identical to today. The shorthand form (a bare colour expression) is 'width: 2' with that colour.",

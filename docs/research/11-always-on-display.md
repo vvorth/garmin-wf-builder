@@ -255,8 +255,10 @@ an AMOLED screen now fails the build with that exact figure instead of
 shipping silently -- the gap this section used to describe is closed. What
 is *not* closed: the 3-minute static-pixel rule (§1.2, §5) is a property
 of a sequence of frames, and this renders exactly one (or two, at two
-sampled times) -- jitter (slice 5, still open) is the mitigation for that
-rule, not this lint.
+sampled times) -- `jitter:` (plan 14 slice 5, built) is the design-side
+mitigation for that rule, not this lint; `wfb preview --aod --heatmap`
+approximates the sequence question separately (`docs/limitations.md`),
+never folded into this lint's own message.
 
 ### 3.5 `always_on` was emitted but unexercised; now has one caller
 
@@ -343,7 +345,10 @@ Garmin's four pieces of guidance (§1.3) except by hiding elements outright.
 - **The 3-minute static-pixel rule cannot be checked from one frame.** It is
   a property of a sequence of frames, so a single rendered AOD frame can
   only show the pixel/luminance rules; the shift guidance (§1.3) is what
-  addresses it and it has no static check.
+  addresses it (`jitter:`, plan 14 slice 5, built) and it has no exact
+  static check -- `wfb preview --aod --heatmap` only approximates the
+  question, at the design's own default sample data, not a real day's
+  worth of sensor readings.
 - **Whether `onEnterSleep` and `DISPLAY_MODE_LOW_POWER` ever disagree** on a
   real AMOLED device is unverified.
 
@@ -425,25 +430,40 @@ own tool for the cases §1.5 says are unreachable here.
 **Caveat:** §5 — the luminance formula must be chosen and labelled, and the
 3-minute rule stays uncheckable.
 
-### E. Pixel shifting (the ≤4 px per minute jitter)
+### E. Pixel shifting (the ≤4 px per minute jitter) — **built, plan 14 slice 5**
 
 Layout coordinates are compile-time constants in `Layout.mc` and draw calls
 reference them directly (`wfb/emit/monkeyc/layout_constants.py`), so a shift
-is not free. Three ways:
+is not free. Three ways were considered:
 
 1. **Offset arguments on the AOD path** — emit `Layout.FOO_X + _aodDx`.
-   Touches every emitter; costs no memory.
+   Touches every emitter; costs no memory. **This is what shipped**
+   (`+ _aodDxN<n>`/`_aodDyN<n>`, one pair per distinct magnitude a design
+   actually uses, appended unconditionally rather than behind an `_aod ?
+   ... : ...` ternary — cheaper, since the field is `0` except while the
+   frame that computed it is the one drawing).
 2. **Draw the AOD frame into a `BufferedBitmap` and blit it at `(dx, dy)`** —
    one place, reusing the static-buffer machinery (`view.py:363`), and the
    graphics pool is separate from the 128 KB (constraint 11). But a 454×454
    surface at 16 bpp is ≈412 KB of the 1 MB pool (**UNVERIFIED**: the
    per-surface overhead the pool adds is undocumented — see
    `wfb/devices.py:169`'s note), and the frame changes every minute anyway.
+   Not built: `Dc` itself has no `setOrigin`/translate of any kind
+   (**VERIFIED** — `$CIQ_SDK/bin/api.debug.xml` has `AffineTransform.
+   translate`, nothing on `Dc`), so this route would need its own second
+   buffer with no cheaper primitive to lean on, and today's AOD path draws
+   directly rather than through a buffer at all (`static:` bypasses its own
+   buffer while `_aod`, plan 14 §4.4), so there is no existing buffer this
+   could piggyback on either.
 3. **Per-element opt-in** — only elements marked shiftable take an offset.
+   Not built as such: the shipped design restricts *where* `jitter:` can be
+   declared (face or `group` only, never a bare element) rather than which
+   elements opt in — every element in a jittered group's subtree is
+   shiftable by construction, which is what "moves as a unit" requires.
 
-**Recommendation: defer.** It is the one piece that does not pay for itself
-until a real AMOLED design is on a wrist, and E1 is a large mechanical diff
-through every emitter.
+**Built as option 1**, exactly as this section originally described it,
+confirmed the only viable mechanism once option 2's premise (a `Dc`-side
+translate) checked out false.
 
 ### F. Drive the AOD branch from the real API, not only `_sleeping`
 
@@ -462,16 +482,19 @@ and §3.4 went unnoticed in the first place.
 
 ### Recommended sequence
 
-**G → A + B → C → D → F**, with **E deferred**.
+**G → A + B → C → D → E → F** as built (plan 14 slices 0-5; F, the
+`getDisplayMode` ladder, is slice 6 and still open).
 
 Rationale: G first, because a guard nobody has watched fail is not a guard
 (root `CLAUDE.md` §7) and today nothing can fail. A + B are the format
 change the goal asks for, and they are cheapest before `always_on` has any
 users. C makes B's most valuable case nearly free by reusing machinery that
 already exists. D is the check that makes an AOD design trustworthy, and it
-is measured rather than estimated because the renderer is already there. F
-removes the last guess from the runtime. E is a real requirement of §1.3 but
-the largest diff and the least verifiable without a device, so it goes last.
+is measured rather than estimated because the renderer is already there. E,
+originally recommended last (real requirement of §1.3, but the largest diff
+and the least verifiable without a device), landed as plan 14 slice 5 once
+D existed to check it against. F, removing the last guess from the runtime,
+remains open.
 
 The open question for the user, since A changes the format's shape (root
 `CLAUDE.md` §7): **does `modes: [always_on]` change meaning (A), or does
