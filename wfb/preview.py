@@ -999,21 +999,31 @@ class _Renderer:
         metric = placed.font_metric
         aod_font = self._aod_field(element, "font", None)
         # Matches codegen's own scope exactly (`wfb.emit.monkeyc.shapes.
-        # _emit_text_draw`): only a *different*, baked (non-vector) custom
-        # font override actually swaps anything here. Naming the same
-        # resource is a legitimate no-op (nothing to swap); naming a `face:`
-        # (vector) font never reaches this renderer at all -- it is a
-        # friendly build error (`Builder._build_aod_authored`,
-        # `docs/limitations.md` §2) -- so the `is_vector` check below is
-        # defensive, not a live case.
-        if (aod_font is not None and element.aod.font_is_custom
-                and aod_font != placed.font_reference):
-            override_spec = self.resolved.face.fonts.get(aod_font)
-            if override_spec is not None and not override_spec.is_vector:
-                override_font = self.resolved.fonts.get(aod_font)
-                if override_font is not None:
-                    font = override_font
-                    metric = None
+        # _emit_text_draw`): a *different* font override actually swaps
+        # something here, whichever kind it names -- a baked (non-vector)
+        # custom font (`element.aod.font_is_custom`), swapping the drawn
+        # `BakedFont`, or a system one, swapping the `FontMetric` the
+        # fallback typeface is drawn at (`_emit_text_draw`'s own
+        # `override_expr = f"Graphics.{element.aod.font}"` branch, exercised
+        # regardless of whether the *awake* font is itself custom or
+        # system). Naming the same resource is a legitimate no-op (nothing
+        # to swap); naming a `face:` (vector) font never reaches this
+        # renderer at all -- it is a friendly build error
+        # (`Builder._build_aod_authored`, `docs/limitations.md` §2) -- so
+        # the `is_vector` check below is defensive, not a live case.
+        if aod_font is not None and aod_font != placed.font_reference:
+            if element.aod.font_is_custom:
+                override_spec = self.resolved.face.fonts.get(aod_font)
+                if override_spec is not None and not override_spec.is_vector:
+                    override_font = self.resolved.fonts.get(aod_font)
+                    if override_font is not None:
+                        font = override_font
+                        metric = None
+            else:
+                override_metric = self.resolved.device.system_fonts.get(aod_font)
+                if override_metric is not None:
+                    font = None
+                    metric = override_metric
         if element.outline is not None:
             ring_color = self._color(element.outline.color)
             self._stamp_outline(

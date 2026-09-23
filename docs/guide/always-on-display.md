@@ -304,13 +304,13 @@ wfb preview face.yaml --aod
 ```
 
 Renders the resolved `aod:` set, restyled exactly as codegen restyles it —
-colour, thickness, filled, font (baked, non-vector only) and format all
-apply — with every `awake`-only second hand hidden (AOD only ever runs
-asleep). A design with no `aod:` anywhere renders blank under the face
-default (`hide`). `dim:` applies with the exact same formula and rounding
-codegen uses (`wfb.palette.dim_channel`, shared by both), so a colour that
-this preview draws and a colour the generated `WfbColor.dim` computes on
-the device agree to the pixel.
+colour, thickness, filled, font (baked or system, non-vector only) and
+format all apply — with every `awake`-only second hand hidden (AOD only
+ever runs asleep). A design with no `aod:` anywhere renders blank under the
+face default (`hide`). `dim:` applies with the exact same formula and
+rounding codegen uses (`wfb.palette.dim_channel`, shared by both), so a
+colour that this preview draws and a colour the generated `WfbColor.dim`
+computes on the device agree to the pixel.
 
 `--asleep` is the narrower, older flag: it only hides an `awake`-only
 second hand (`seconds: awake`), on any device shape, without touching AOD

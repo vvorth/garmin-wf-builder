@@ -1083,6 +1083,41 @@ elements:
     assert asleep.getpixel((cx, cy)) == (0, 0, 0)
 
 
+def test_preview_aod_renders_the_overridden_system_font(write_design, bag, db):
+    """`aod: {font: ...}` naming a *system* font (not a baked one) must
+    actually swap the drawn typeface's size under `--aod` too -- the same
+    override `test_system_font_override_on_text` proves codegen honours
+    (`_aod ? Graphics.FONT_NUMBER_MILD : Graphics.FONT_NUMBER_MEDIUM`).
+    Must fail against a preview whose `_text` only ever swapped a
+    baked/custom font override (gated on `element.aod.font_is_custom`),
+    silently ignoring a system-font one."""
+    from wfb.preview import PreviewOptions, render
+
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    color: palette.fg
+    aod: {font: FONT_NUMBER_MILD}
+"""
+    resolved = _resolved(text, write_design, bag, db)
+
+    def ink_rows(image) -> int:
+        """How many rows have any non-black pixel -- a cheap proxy for the
+        drawn glyphs' vertical extent, which shrinks with a smaller font."""
+        return sum(
+            1 for y in range(image.height)
+            if any(image.getpixel((x, y)) != (0, 0, 0) for x in range(image.width))
+        )
+
+    awake = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False))
+    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True))
+    assert ink_rows(asleep) < ink_rows(awake)
+
+
 # --------------------------------------------------------------------------
 # `aod: dim:` (plan 14 slice 3, docs/guide/always-on-display.md): scales the
 # luminance of every AOD colour, override colours excepted.
