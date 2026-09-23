@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/` (open: 16, the AOD pixel mask; built plans are deleted — see `docs/CLAUDE.md`) |
+| proposals written but not built | `docs/plans/` (none open right now; built plans are deleted — see `docs/CLAUDE.md`) |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -317,7 +317,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     --aod` matches codegen exactly; `--minute N` and `--heatmap` (per-pixel
     persistence over a day) evaluate the frame over time. `jitter:`
     (slice 5) was built and then removed on 2026-09-23 to cut complexity;
-    research 15's pixel masks are the candidate replacement.
+    `aod: {mask: ...}` (plan 16, the same day) replaced it: a moving 2x2
+    pixel mask over the whole AOD frame, on by default (`mask: false` opts
+    out), 25% duty, no pixel lit two minutes running.
     `docs/guide/always-on-display.md` is the full reference.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,

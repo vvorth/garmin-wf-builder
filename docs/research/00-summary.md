@@ -25,7 +25,7 @@ Detail lives in:
 | `12-vector-fonts.md` | can a face ship its own TTF? No — the two font paths, `getVectorFont`'s four availability gates, 44/136 devices, and measured costs |
 | `13-outline-vector-text.md` | outlined vector text: the engine has a 2 px stroked-glyph mode, but it is keyed on the font record and no app input reaches it |
 | `14-stamped-ring-text.md` | the "stamped ring" workaround, measured: offset sets at r=1/2/3 against a true dilation and FreeType's stroker, per-font-kind validity (including the radial-text geometry), lit-pixel and code-size cost, alternatives, a proposed `outline:` format |
-| `15-aod-pixel-masks.md` | a rotating pixel mask for the AOD frame compared with jitter: the 3-minute rule by construction, lit-pixel and luminance cut by the duty, the toroidal "queen-5" pattern that never drops a 1 px line, and device routes (overlay bitmap), still unprobed |
+| `15-aod-pixel-masks.md` | a rotating pixel mask for the AOD frame compared with jitter: the 3-minute rule by construction, lit-pixel and luminance cut by the duty, the toroidal "queen-5" pattern that never drops a 1 px line, and device routes -- built as `aod: {mask: ...}` (plan 16): a simpler moving 2×2 single-pixel tile, on by default, drawn as black `fillRectangle` strips rather than queen-5's overlay bitmap |
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
 | `data/capability-matrix.json` | feature × device support, machine-readable |
 

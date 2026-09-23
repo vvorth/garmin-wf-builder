@@ -268,11 +268,15 @@ the compiler emits (ADR 0008's amendment has the full reasoning). Under
 So a design that writes `aod: show` everywhere and would have lit 60% of
 an AMOLED screen now fails the build with that exact figure instead of
 shipping silently -- the gap this section used to describe is closed. What
-is *not* closed: the 3-minute static-pixel rule (§1.2, §5) is a property
-of a sequence of frames, and this renders exactly one (or two, at two
-sampled times). `wfb preview --heatmap` approximates it over a day; the
-mitigation (slice 5's jitter, since removed, or research 15's pixel masks)
-is a design-side mechanism, not this lint.
+is *not* closed, when the mask is off (`aod: {mask: false}`): the 3-minute
+static-pixel rule (§1.2, §5) is a property of a sequence of frames, and
+this renders exactly one (or two, at two sampled times). `wfb preview
+--heatmap` approximates it over a day. **With the mask on (the default),
+the rule holds by construction** -- the mitigation slice 5's jitter once
+aimed for, and research 15's pixel masks then compared, is built as
+`aod: {mask: ...}` (plan 16), and this lint scores the masked frame at its
+worst of four phases (`docs/guide/lints.md`, `docs/research/
+15-aod-pixel-masks.md` §7).
 
 ### 3.5 `always_on` was emitted but unexercised; now has one caller
 
@@ -450,9 +454,10 @@ own tool for the cases §1.5 says are unreachable here.
 
 ### E. Pixel shifting (the ≤4 px per minute jitter) — built as plan 14 slice 5, removed 2026-09-23
 
-Option 1 below shipped and was then removed to cut codegen complexity; the
-replacement is open (research 15 compares pixel masks). The analysis is
-kept as the record of the options.
+Option 1 below shipped and was then removed to cut codegen complexity. The
+replacement is built: `aod: {mask: ...}`, a moving 2×2 pixel mask (plan 16,
+research 15 §7), on by default. The analysis below is kept as the record of
+the options that were not taken.
 
 Layout coordinates are compile-time constants in `Layout.mc` and draw calls
 reference them directly (`wfb/emit/monkeyc/layout_constants.py`), so a shift
@@ -517,7 +522,8 @@ already exists. D is the check that makes an AOD design trustworthy, and it
 is measured rather than estimated because the renderer is already there. F,
 removing the last guess from the runtime, landed as slice 6, closing plan 14
 out. E (jitter) landed as slice 5 and was removed again on 2026-09-23 to cut
-codegen complexity; research 15 compares pixel masks as its replacement.
+codegen complexity; its replacement, `aod: {mask: ...}` (research 15,
+plan 16), shipped the same day.
 
 The question A posed the user -- does `modes: [always_on]` change meaning,
 or does `aod:` land alongside the existing opt-in set -- was answered by a

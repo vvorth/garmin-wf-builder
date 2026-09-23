@@ -11,14 +11,24 @@ with `dim:`. The user's two examples:
 - **Example 2:** the 2×4 tile `((1,0,0,0),(0,0,1,0))`, a sparser and less
   stripe-like variant with a stable average luminance.
 
-**Status: research only. Nothing is implemented.** Every behavioural claim
-is marked **VERIFIED** or **UNVERIFIED**, per `docs/CLAUDE.md`. Here
-"VERIFIED" means one of:
+**Status: this research fed plan 16, which is built** (`aod: {mask: ...}`,
+slice 1 `3c2b40d`, slice 2 `965518a`). §7 records the decision and why it
+departed from this document's own §7 recommendation (queen-5, opt-in). The
+comparison and line-vanishing tables below (§3, §4, §6) were remeasured on
+2026-09-23 alongside the shipped pattern, so figures differ slightly from
+earlier drafts of this document; the methodology and every other pattern
+are unchanged. Every behavioural claim is marked **VERIFIED** or
+**UNVERIFIED**, per `docs/CLAUDE.md`. Here "VERIFIED" means one of:
 
 - measured host-side, on frames from `wfb.preview.render` (the renderer
   that `wfb preview --aod` and the `aod-burn-in` lint use), at `fenix847mm`
   resolution;
 - read from the SDK or the device files.
+
+`jitter:` rows below are kept as data, labelled "(removed 2026-09-23)" --
+plan 14 slice 5 shipped `aod: {jitter: ...}` and it was removed the same
+day the mask shipped (`d20b633`), so it can no longer be remeasured; its
+figures are the ones originally recorded.
 
 Nothing was run on a watch or in the simulator (root `CLAUDE.md` §3). The
 probe is `docs/research/probes/aod-pixel-masks/`.
@@ -89,36 +99,48 @@ clock digits change as they would on the watch. Fractions are inside the
 round display mask.
 
 **`examples/features/aod/face.yaml`** (clock, battery ring, dot; `dim:
-0.6`), 60 minutes:
+0.6`), 60 minutes, remeasured 2026-09-23 alongside the shipped pattern
+(`docs/research/probes/aod-pixel-masks/aod_nojitter.yaml`, this face
+without `jitter:`):
 
 | Treatment | Peak lit px | Peak luminance | Longest lit run | Lit pixels with a run > 3 min |
 |---|---|---|---|---|
-| nothing | 5.44% | 0.43% | 60 min | **78.3%** |
-| `jitter: 3` (shipped) | 5.44% | 0.43% | 60 min | **31.8%** |
-| rotated 2×2, 50% (example 1) | 2.72% | 0.21% | 2 min | 0% |
-| checkerboard, 2 phases, 50% | 2.71% | 0.21% | 1 min | 0% |
-| brick 2×4, 25% (example 2) | 1.36% | 0.11% | 1 min | 0% |
-| queen-5, k=1 (20%) | 1.09% | 0.09% | 1 min | 0% |
-| queen-5, k=2 (40%) | 2.17% | 0.17% | 2 min | 0% |
-| queen-5, k=3 (60%) | 3.27% | 0.26% | 3 min | 0% |
+| nothing | 3.69% | 0.27% | 60 min | **81.3%** |
+| `jitter: 3` (removed 2026-09-23) | 5.44% | 0.43% | 60 min | **31.8%** |
+| rotated 2×2, 50% (example 1) | 1.87% | 0.14% | 2 min | 0% |
+| checkerboard, 2 phases, 50% | 1.84% | 0.14% | 1 min | 0% |
+| brick 2×4, 25% (example 2) | 0.92% | 0.068% | 1 min | 0% |
+| **moving 2×2, 25% (shipped, plan 16)** | **0.93%** | **0.069%** | **1 min** | **0%** |
+| queen-5, k=1 (20%) | 0.74% | 0.055% | 1 min | 0% |
+| queen-5, k=2 (40%) | 1.48% | 0.11% | 2 min | 0% |
+| queen-5, k=3 (60%) | 2.22% | 0.17% | 3 min | 0% |
 
-The "queen-5" family is defined in §4. Jitter's residual 31.8% is the
-digits' interiors. The shipped heatmap for the same face already showed a
-100% max persistence (plan 14 slice 5 report), and these numbers are
-consistent with it.
+The "queen-5" family is defined in §4. The `jitter:` row is the one figure
+in this table that could not be remeasured (§ status note above): it is
+kept from the original run, which measured a design that still carried
+`jitter: 3` and so used a different `nothing` baseline (5.44%/0.43%) than
+today's 3.69%/0.27%. Both are real measurements of the same fixture at
+different times; the drift is the example's own restyling in the plan 14
+slices between the two runs plus `d20b633`'s preview-pipeline unification,
+not anything mask-related, and every non-jitter row above was remeasured
+together in one run so the ratios between them (all ≈duty, per §2) are
+internally consistent. The shipped pattern lands within noise of the other
+25%-duty patterns, as §2's by-construction guarantee predicts.
 
 **`examples/showcase`** with `aod: {default: show, dim: 0.4}` on
-`fenix847mm` (the plan-14 D2 measurement copy), 30 minutes:
+`fenix847mm` (the plan-14 D2 measurement copy), 30 minutes, also
+remeasured 2026-09-23 (unchanged from the original run within rounding):
 
 | Treatment | Peak lit px | Peak luminance | Lit pixels with a run > 3 min |
 |---|---|---|---|
 | nothing | **25.4%** (fails the Venu rule) | 1.33% | 92.6% |
 | any 50% mask | 12.7–12.8% (still fails) | 0.67% | 0% |
-| any 25% mask | **6.35% (passes)** | 0.34% | 0% |
+| any 25% mask, incl. shipped (6.50% / 0.34%) | **6.35–6.50% (passes)** | 0.34% | 0% |
 
 So a 25% mask brings the busiest example face under both 10% rules with
-its whole design shown. No combination of `dim:` and jitter can do that
-for the pixel-count rule.
+its whole design shown -- including the shipped pattern, which measures in
+the same bucket as the others. No combination of `dim:` and jitter can do
+that for the pixel-count rule.
 
 ---
 
@@ -134,12 +156,19 @@ at every alignment against every phase (**VERIFIED**):
 | rotated 2×2 (ex. 1) | **vanishes** in some minutes | **vanishes** | 50% | 50% |
 | checkerboard | 50% | 50% | **vanishes** | **vanishes** |
 | brick 2×4 (ex. 2) | 25% | **vanishes** | 25% | 25% |
+| **moving 2×2, single pixel (shipped, plan 16)** | **vanishes** | **vanishes** | **vanishes** | **vanishes** |
 | queen-5, k lit phases | ≈k/5 | ≈k/5 | ≈k/5 | ≈k/5, never vanishes (measured minimum 19%/38%/58% for k = 1/2/3 on a 48 px line) |
 
 "Vanishes" means some alignment of the line is entirely black for a whole
 minute: a tick mark or hand edge that blinks out. The example 1 rotation
 puts every pixel through lit-lit-off-off (a longest run of 2, which is
 good), but a 1 px horizontal line on an off row is gone for that minute.
+The shipped pattern is the worst case in this table by this one measure:
+because only one of its 2×2 tile's four pixels is ever lit (never two, as
+in the rotated tile), a 1 px line aligned with the tile vanishes in
+**every** orientation, not just horizontal/vertical, in half of the
+(alignment, minute) combinations `lines.py` tries. **This is a deliberate,
+accepted tradeoff (plan 16 D1), not an oversight**: see §7.
 
 **Queen-5.** Light pixel (x, y) in phase t when
 `(x − 2y − t) mod 5 ∈ {0, …, k−1}`. The single-residue set
@@ -230,85 +259,136 @@ that could step the phase. But:
 
 It is rejected unless a probe shows text honours it.
 
+**Built instead: a fifth route, simpler than all four above, for the
+pattern actually shipped.** §7's chosen pattern -- one lit pixel per 2×2
+tile, moving by one 4-neighbour step each minute -- has a black set that is
+exactly every other row **union** every other column, so it is two loops of
+1 px `Dc.fillRectangle` strips (`runtime-lib/WfbAodMask.mc`), about
+`(w + h) / 2` calls (454 on a 454 px panel), needing no bitmap, no alpha,
+no `BufferedBitmap` and no graphics-pool memory at all -- it runs on every
+device, not just the two with `alphaBlendingSupport`. M1's row/column
+argument above didn't apply to it because M1 was evaluated against
+queen-5's diagonal residue classes, which are not axis-aligned; this
+pattern's tile is. See §7 for why this pattern, not queen-5, is what
+shipped.
+
 ---
 
 ## 6. Compared with jitter and `dim:`
 
-| | `jitter:` (shipped) | `dim:` (shipped) | Pixel mask (M2, queen-5 k=2) |
+| | `jitter:` (removed 2026-09-23) | `dim:` (shipped) | Pixel mask (shipped, plan 16: moving 2×2, 25%) |
 |---|---|---|---|
-| 3-minute rule (original Venu) | not guaranteed; 31.8% of the example's lit pixels still fail | no effect | **guaranteed for any image**; longest run = k |
-| Pixel-count rule (original Venu) | no effect | no effect | ×duty (showcase 25.4% → 6.35% at 25%, measured; ≈10.2% at 40%, derived from the measured retention) |
-| Luminance rule (Venu 2+, fēnix 8/9) | no effect | ×≈dim^2.2 in linear light | ×duty; stacks with `dim` |
+| 3-minute rule (original Venu) | not guaranteed; 31.8% of the example's lit pixels still fail | no effect | **guaranteed for any image**; longest run = 1 min |
+| Pixel-count rule (original Venu) | no effect | no effect | ×¼ (showcase 25.4% → 6.50%, measured) |
+| Luminance rule (Venu 2+, fēnix 8/9) | no effect | ×≈dim^2.2 in linear light | ×¼; stacks with `dim` (measured example lit-fraction: `aod-burn-in` 4.0% → 1.0%, luminance 0.3% → 0.1%) |
 | Differential wear (real burn-in) | blurs edges over ±N px; interiors unchanged | lowers the wear rate everywhere | lowers the wear rate everywhere; no edge blur |
-| Image fidelity | exact image, moved ≤4 px | exact image, darker | textured; 1 px lines keep k/5 of their pixels |
-| Generated code | offsets on every coordinate of every jittered element: +338 B for 3 elements on the example, growing with element count | per-colour constants or `WfbColor.dim` calls | constant: one bitmap, one draw call, one phase computation, whatever the element count |
-| Per-frame work | ~0: a few integer ops | ~0 | one full-screen blit (**UNVERIFIED** cost) plus one-time construction |
+| Image fidelity | exact image, moved ≤4 px | exact image, darker | textured; a 1 px line vanishes in half of (alignment, minute) pairs (§4) -- accepted, not fixed, since AMOLED panels are high-DPI (plan 16 D1) |
+| Generated code | offsets on every coordinate of every jittered element: +338 B for 3 elements on the example, growing with element count | per-colour constants or `WfbColor.dim` calls | constant: one barrel call (`WfbAodMask.apply`), whatever the element count -- +279 B on the example (2,447 B → 2,726 B on `fenix847mm`) |
+| Device route | offset arguments threaded through every emitter | per-colour constants, computed at build time | two loops of 1 px `Dc.fillRectangle` strips, ~454 calls/minute on a 454 px panel -- no bitmap, no alpha, no graphics-pool memory (§5) |
+| Per-frame work | ~0: a few integer ops | ~0 | ~454 `fillRectangle` calls a minute (**UNVERIFIED** watchdog/per-frame cost, plan 16 §3) |
 | Display power | unchanged | lower | lower, ∝ lit pixels × brightness (**UNVERIFIED** magnitude) |
-| Preview and lint | exact (implemented) | exact | exact and cheap: apply the same mask host-side |
+| Preview and lint | exact (implemented) | exact | exact and cheap: `wfb.aod_mask.apply` host-side, the same phase table as the device (`wfb.preview.render`, `aod-burn-in`) |
 
 On the user's hypothesis:
 
 - **"100% pass on the 3-minute rule regardless of the image":** **true,
-  by construction** for any mask with k ≤ 3 consecutive lit phases.
-  Measured at 0% violations on both faces, against 31.8% (example) and
-  92.6% (showcase) without it. The caveat is §1: that rule is enforced
-  only on original-Venu-class devices. On the fēnix 8/9 the mask's
-  enforceable benefit is the luminance cut, which `dim:` already offers
-  at full fidelity.
-- **"Less computationally intense":** **half true.**
+  by construction**, verified for the shipped pattern (longest run = 1
+  minute, measured 0% violations on both example faces, against 31.8%
+  (example, with jitter) and 92.6% (showcase, with nothing) without a
+  mask). The caveat is §1: that rule is enforced only on
+  original-Venu-class devices. On the fēnix 8/9 the mask's enforceable
+  benefit is the luminance cut, which `dim:` already offers at full
+  fidelity but cannot combine with a hard 3-minute guarantee the way the
+  mask does.
+- **"Less computationally intense":** **half true**, and now measured on
+  the device side too (plan 16 slice 1's real `monkeyc` build, warning-free
+  on all four targets):
   - It is simpler and smaller in code: O(1), with no change to any
     emitter or to layout constants, where jitter touched every emitter
-    and grows with the element count.
-  - Per frame it does more pixel work (one full-screen blit) than
+    and grows with the element count. The shipped device route (§5) needs
+    no `BufferedBitmap`, no alpha and no graphics-pool memory -- simpler
+    than every route this document originally proposed (M1-M4).
+  - Per frame it does more pixel work (~454 `fillRectangle` calls) than
     jitter's handful of additions. At one frame a minute that is very
-    likely negligible, especially against the display power it saves.
-    That is **UNVERIFIED** until measured.
+    likely negligible, especially against the display power it saves, but
+    the watchdog budget and the real per-frame cost are still
+    **UNVERIFIED** -- the user checks these on the watch and in the host
+    simulator's Screen Heat Map (§7, plan 16 §6).
 
 ---
 
-## 7. Assessment and what a plan would need
+## 7. Decision (2026-09-23) and what shipped
 
-1. **Worth building as an opt-in AOD treatment, not as a jitter
-   replacement.** It fixes exactly what jitter and `dim` cannot: the
-   pixel-count rule and a hard 3-minute guarantee. Jitter keeps a role in
-   softening the edges of real differential wear, and the two compose
-   because the mask lives in screen coordinates.
-2. **Pattern:** queen-5, because no 1 px line in any direction ever
-   vanishes. Duty k/5 with k ∈ {1, 2, 3}, and a recommended default of
-   k = 2 (40%). Offer the checkerboard (50%) as an alternative only if
-   the device test shows queen-5's grain is visible. Reject stripes
-   (example 1) and the brick (example 2) for the vanishing-line cases in
-   §4.
-3. **A format sketch, not a decision:** `aod: {mask: 40%}`, face level
-   only, since a mask per element would let neighbouring elements sit at
-   different duties. Accept exactly 20/40/60%, or `mask: {duty: 2/5}`.
-   The burn-in lint and the preview apply the same mask. The lint's lit
-   and luminance figures become the masked ones, computed exactly.
-4. **Gate:** AMOLED only (plan 14 D1 and D5), and per device on
-   `alphaBlendingSupport` plus `Graphics.createBufferedBitmap` (constraint
-   6e: runtime `has` guard).
-5. **A probe before any plan** (`docs/research/probes/`), in this order:
-   - a Monkey C build of M2 on `fenix847mm`: tile, doubling, one blit per
-     minute, warning-free, with `--build-stats` and the graphics-pool
-     size;
-   - the user runs it in the host simulator's Screen Heat Map (research
-     11 §1.5), which should show no pixel above 40% on-time;
-   - on the watch: is the grain visible, is there moiré, is the phase
-     change visible?
+This section originally recommended queen-5 at k=2 (40%), opt-in, drawn as
+an M2 overlay bitmap. **The user decided differently on all three points,
+recorded as plan 16 §1 D1/D2 and built as plan 16 (slice 1 `3c2b40d`, slice
+2 `965518a`):**
 
-   Only the first step can happen in this sandbox.
+1. **Pattern: the 2×2 tile `((1,0),(0,0))`, not queen-5.** One pixel per
+   2×2 tile is lit and the other three are forced black, stepping
+   `(0,0) → (1,0) → (1,1) → (0,1)` with the clock minute mod 4 (§2's own
+   4-neighbour argument, unchanged). Duty is a fixed 25%, not queen-5's
+   tunable k/5. **This document's own §4 finding stands**: a 1 px line
+   aligned with the tile vanishes for a whole minute, in every one of the
+   four orientations tested (worse than the rotated-2×2 example, which
+   only loses horizontal/vertical) -- queen-5 was specifically recommended
+   above to avoid exactly this. **The user's call, not a correction of
+   this research:** fēnix 8/9-class AMOLED panels are high-DPI enough
+   (§4's own arcminute estimate) that a thin line losing pixels, or
+   blinking out for a minute, is not judged a real problem worth queen-5's
+   extra complexity (a diagonal residue class, not axis-aligned -- see §5's
+   note on why that also ruled out the M1 primitives route for queen-5).
+   Queen-5 was not built.
+2. **On by default, not opt-in.** `aod: {mask: false}` opts out; omitting
+   `mask:` and writing `mask: true` mean the same thing (masked). This
+   document's §7 (as originally written) recommended opt-in because the
+   pattern was still a research proposal; ADR 0006's 2026-09-23 amendment
+   records the reasoning for making it the default instead -- burn-in
+   protection should not depend on the author remembering to ask for it.
+3. **Device route: black `fillRectangle` strips, not an overlay bitmap.**
+   This pattern's black set is the union of every other row and every
+   other column (axis-aligned, unlike queen-5's diagonal residue classes),
+   so M1's row/column argument -- rejected above only for queen-5 -- applies
+   cleanly here: two loops of 1 px strips, no bitmap, no alpha, no
+   graphics-pool memory (§5). This made M2's whole apparatus (tile
+   construction, doubling, alpha compositing, the graphics-pool question)
+   moot for the pattern actually shipped; none of M2-M4 were built.
+4. **Format:** `aod: {mask: ...}`, face level only, a boolean rather than
+   a duty -- since the pattern is fixed, there is nothing to parametrise.
+   The burn-in lint and the preview apply the identical mask (`wfb.aod_mask`,
+   the host-side twin of `WfbAodMask.mc`), computed exactly, matching §7's
+   original format sketch's intent.
+5. **Gate:** AMOLED only (plan 14 D1 and D5) -- but, because the shipped
+   route needs only `Dc.fillRectangle`/`setColor`/`getWidth`/`getHeight`
+   and `System.getClockTime`, all universal symbols, there is no
+   `alphaBlendingSupport`/`Graphics.createBufferedBitmap` runtime gate: the
+   `_aod` branch itself (already AMOLED-only) is the only guard needed.
+6. **Probed and built, not merely probed:** a real `monkeyc` build of
+   `examples/features/aod/face.yaml` on `fenix847mm`, warning-free, with
+   `--build-stats` before (2,447 B) and after (2,726 B, +279 B) -- more of
+   §5's step 1 than a probe. Steps 2-3 (the host simulator's Screen Heat
+   Map, and eyes on a real watch) are still **UNVERIFIED**, for the user
+   to check (plan 16 §6, `docs/limitations.md`).
 
 ---
 
 ## 8. Open questions
 
-- Transparent `BufferedBitmap` compositing over the watch-face `Dc` on
-  the fēnix 8 AMOLED, and its memory format. (M2)
-- The cost of one full-screen blit in the AOD frame, and whether the AOD
-  update has an execution budget. The FAQ states none that was found.
+**Resolved by the decision in §7:** transparent `BufferedBitmap`
+compositing and its memory format (M2) are moot -- the shipped route uses
+neither a bitmap nor alpha (§5, §7 point 3).
+
+**Still open, for the user to check (plan 16 §6):**
+
+- The cost of ~454 `Dc.fillRectangle` calls a minute in the AOD frame, and
+  whether the AOD update has an execution budget. The FAQ states none that
+  was found.
 - Subpixel layout, moiré, and whether the minute-to-minute phase change
   is visible.
 - Whether Garmin's heat-map tool (and any on-device enforcement) treats
   "3 minutes" as more than 3 consecutive one-minute frames. That is how
   this document and the jitter test read it; the FAQ says "longer than 3
   minutes".
+- No real AMOLED hardware, and no simulator, has run any of this
+  (`docs/limitations.md` "AOD, more broadly, has no real AMOLED hardware
+  behind any of it").

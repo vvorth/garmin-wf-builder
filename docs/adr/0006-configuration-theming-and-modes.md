@@ -836,6 +836,21 @@ nothing. See research 07 §2.
 > test_weather_readers_track_the_weather_module` now exercise it against a
 > real installed device rather than only a stubbed one.
 
+> **Eighth amendment (2026-09-23): `aod: {mask: ...}` (plan 16) is a
+> face-level format key that is on by default, a deliberate departure from
+> every other AOD key's opt-in shape.** `dim:` and every per-element
+> override do nothing unless the author writes them. The pixel mask is the
+> reverse: every AMOLED AOD frame that draws anything is masked, whether
+> or not the face names `mask:`, and `aod: {mask: false}` is the only way
+> out. This does not change the opt-in stance the rest of this ADR takes
+> for configuration and theming. Burn-in protection is a safety property,
+> not a design choice, and a safety property that works only when the
+> author remembers to ask for it is not much of one. The cost was known
+> before deciding (`docs/research/15-aod-pixel-masks.md` §7): 25% duty, no
+> pixel lit two minutes running, +279 B on the measured example, drawn
+> with universal `Dc` calls only (no new per-device gate). An all-MIP
+> build is unaffected, since it has no AOD frame at all.
+
 ---
 
 *Original text, superseded above:*

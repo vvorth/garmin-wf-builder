@@ -73,8 +73,12 @@ are unaffected by `aod:` at runtime (`_aod` stays false there), but their
 generated source is not byte-identical to a build with no `aod:` keys,
 because this build mixes an AMOLED target in; only an all-MIP `targets:`
 holds that guarantee (`tests/test_aod.py`). Slice 4's burn-in
-lint (`aod-burn-in`) stays clean on it: a `note` (5.8% lit, 0.5% luminance
-at its own sampled worst case), not a warning or an error.
+lint (`aod-burn-in`) stays clean on it: a `note`, not a warning or an
+error. Since plan 16 (2026-09-23) the face's `aod:` block also gets the
+moving 2×2 pixel mask, on by default -- no key is written for it, the same
+"omitting `mask:` still masks" default every other AMOLED `aod:` design
+gets -- and the lint's own note now scores that masked frame at its worst
+of four phases: 1.0% lit, 0.1% luminance, down from 4.0%/0.3% unmasked.
 
 ## `system-fonts/`
 

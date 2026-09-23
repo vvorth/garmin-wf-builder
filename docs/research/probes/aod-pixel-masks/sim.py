@@ -16,7 +16,11 @@ def frames(design, minutes, device="fenix847mm"):
     devs = select_devices(face, db, bag, [device])
     resolved, _ = resolve_all(face, devs, bag)
     r = resolved[0] if isinstance(resolved, list) else list(resolved.values())[0] if isinstance(resolved, dict) else resolved
-    opts = PreviewOptions(scale=1, mask_shape=False, aod=True)
+    # aod_mask=False: this probe applies every candidate mask itself (below),
+    # including the shipped one, over the raw unmasked frame -- render()
+    # would otherwise apply the shipped mask by default (plan 16 slice 2)
+    # and confound the "none" baseline and every other candidate.
+    opts = PreviewOptions(scale=1, mask_shape=False, aod=True, aod_mask=False)
     out = []
     for m in minutes:
         img = render(r, replace(opts, time=(m // 60, m % 60, 0)))
@@ -41,8 +45,17 @@ def m_brick(t, H, W):  # user's example 2: ((1,0,0,0),(0,0,1,0)) shifted one col
 def m_brick8(t, H, W):  # 25% duty, 4 phases, lit set x ≡ 2y + t (mod 4): a 4x4 tile of 1/4 duty
     y, x = np.mgrid[:H, :W]; return ((x - 2 * y - t) % 4) == 0
 
+def m_shipped(t, H, W):  # shipped (plan 16): moving 2x2 tile ((1,0),(0,0)),
+    # one pixel lit per tile, stepping (0,0)->(1,0)->(1,1)->(0,1) each minute
+    phase = t % 4
+    dx = 1 if phase in (1, 2) else 0
+    dy = 1 if phase >= 2 else 0
+    y, x = np.mgrid[:H, :W]
+    return ((x % 2) == dx) & ((y % 2) == dy)
+
 MASKS = {"none": m_none, "rot2x2(50%)": m_rot2x2, "checker(50%)": m_checker,
-         "brick(25%)": m_brick, "diag4(25%)": m_brick8}
+         "brick(25%)": m_brick, "diag4(25%)": m_brick8,
+         "shipped(25%)": m_shipped}
 
 def disk(H, W):
     y, x = np.mgrid[:H, :W]; cy, cx = (H - 1) / 2, (W - 1) / 2
@@ -75,15 +88,18 @@ def analyse(F, mask_fn, dim=1.0):
                 share_over_3min=float(over3), retention=float(retention.mean()),
                 isolated_px=float(np.mean(iso)))
 
-if __name__ == "__main__":
-    minutes = list(range(600, 600 + int(sys.argv[2]))) if len(sys.argv) > 2 else list(range(600, 660))
-    F = frames(sys.argv[1], minutes)
-    for name, fn in MASKS.items():
-        print(f"{name:14s}", json.dumps(analyse(F, fn)))
-
 def _queen(k):
     def fn(t, H, W):
         y, x = np.mgrid[:H, :W]; c = (x - 2 * y) % 5
         return np.isin(c, [(t + j) % 5 for j in range(k)])
     return fn
+# Moved above __main__ (was after it, so `python sim.py <design>` never
+# actually printed these -- the loop below had already run by the time this
+# ran at module scope): queen-5 now prints like every other mask.
 MASKS.update({"queen5(20%)": _queen(1), "queen5x2(40%)": _queen(2), "queen5x3(60%)": _queen(3)})
+
+if __name__ == "__main__":
+    minutes = list(range(600, 600 + int(sys.argv[2]))) if len(sys.argv) > 2 else list(range(600, 660))
+    F = frames(sys.argv[1], minutes)
+    for name, fn in MASKS.items():
+        print(f"{name:14s}", json.dumps(analyse(F, fn)))

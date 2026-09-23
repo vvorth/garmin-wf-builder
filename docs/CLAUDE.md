@@ -35,6 +35,7 @@ they record when and why a decision changed.
 | 13 showcase `roman` layout | `git show 28638ca:docs/plans/13-showcase-roman-layout.md` (as proposed; built with two deliberate departures recorded in `examples/showcase/face.yaml`'s own comments — `skip: [2, 10]` because the shared registers sit on those spokes, and both apertures on `FONT_XTINY` so each is wider than tall) |
 | 15 `outline:`, the stamped ring | `git show e31117b:docs/plans/15-text-outline.md` (§14 "Slices" is what shipped; slice 1 is `0cebdf0` (amended by `65b8f2a`), slice 2 `e31117b`, slice 3 the example/screenshots/doc-sweep, commit `9a5371f`) |
 | 14 `aod:`, always-on display | `git show 2892263:docs/plans/14-aod.md` (§6 "Slices" is what shipped; slice 0 `02c375d`, slice 1 `1af607e`, slice 2 `b786723`, slice 3 `616b646`, slice 4 `65bca8a`, slice 5 `2892263`, slice 6 `1f8358e`, which deleted it; §7's decisions D1-D5 and §8's open questions live on in ADR 0006's 2026-09-23 amendment and research 11 §5/`docs/limitations.md` §3) |
+| 16 AOD pixel mask | `git show 965518a:docs/plans/16-aod-pixel-mask.md` (§5 "Slices" is what shipped; plan `fd49cab`, slice 1 `3c2b40d`, slice 2 `965518a`, slice 3 the docs closeout that deleted it) |
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of
 research, ADRs, lore, the root `CLAUDE.md`, `limitations.md` or

@@ -672,7 +672,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `rounded_rectangle`/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |
 | A true typographic-baseline value for `vertical_align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | plan 07 §6 choice 1 -- `bottom` is the line box's bottom (ascent + descent); a real typographic baseline would need a new value |
 | Element-level alignment of a *linear* `pattern`'s drawn-ink box (as opposed to its `at:`, which is a pivot every copy steps from, and already refuses `align:`/`vertical_align:` outright) | plan 07 §6 choice 2's alternative -- useful for aligning a whole row, but left unbuilt because it would make a pattern's `at:` mean two different things (the step origin, and the row's own box) |
-| Pixel shifting in the AOD frame (`aod: jitter:`) | built as plan 14 slice 5 and removed on 2026-09-23 to cut codegen complexity -- the key is now a schema error. Burn-in shifting will return as a different mechanism; `docs/research/15-aod-pixel-masks.md` compares pixel masks |
+| Pixel shifting in the AOD frame (`aod: jitter:`) | built as plan 14 slice 5 and removed on 2026-09-23 to cut codegen complexity -- the key is now a schema error. Superseded by `aod: {mask: ...}` (plan 16, `docs/research/15-aod-pixel-masks.md` §7), a moving 2×2 pixel mask, on by default, built the same day |
 | The alpha route for `aod: dim:` (`Dc.setStroke`'s `0xAARRGGBB`, blending toward black instead of pre-computing a darker colour) | plan 14 §4.5 -- left UNVERIFIED on purpose: the burn-in lint (slice 4, `aod-burn-in`) now measures whatever `wfb preview --aod` actually renders, but the alpha route itself was never built to render anything through it, so whether the meter would count a *blended* result correctly is still an open question. Pre-computed/on-device channel arithmetic (`wfb.palette.dim_channel`/`WfbColor.dim`) is what shipped instead |
 | A `pattern`'s own `aod: {font: ...}` override, and a `complication_slot`'s `aod: {font: ...}` override | plan 14 §4.3, slice 2 built `color`/`track_color`/`icon_color`/`thickness`/`bar_width`/`filled`/`format` overrides and a `text` element's `font:` override, but not these two -- the builder rejects them with a friendly "not implemented yet" error (`Builder._build_aod_authored`) rather than silently keeping the element's awake font |
 | An `aod: {font: ...}` override naming a `face:` (vector) font rather than a baked one | plan 14 §4.3, slice 2 -- same friendly build error, on any kind of element; gate 1-4's machinery has no AOD-aware second face/size constant yet |
@@ -686,7 +686,12 @@ one pixel stays lit -- closer to Garmin's 3-minutes-on-the-same-pixel rule
 than to its 10% rule. It is not the burn-in lint (`aod-burn-in`, §3 below),
 which scores one worst-case frame's lit-pixel/luminance share, and it is not
 the simulator's own tool, which is unreachable in this environment and
-would also vary sensor data over its 24-hour run.
+would also vary sensor data over its 24-hour run. **With the pixel mask on
+(the default, `aod: {mask: ...}`, plan 16), `--heatmap` applies the same
+masked frame the device draws, so its peak persistence figure is capped at
+25% by construction** -- on `examples/features/aod/face.yaml` it falls from
+100% (unmasked) to 25.0%. `aod: {mask: false}` restores the unmasked figure
+and the old caveat above in full.
 
 **None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
 verified anywhere in this project** (plan 02 §9,
@@ -916,22 +921,29 @@ fact on real hardware -- confirm in the host simulator (or on a real
 | **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is measured with the device's own font file when `vendor/fonts/` holds Garmin's fonts: a `.ttf` scaled to the device's published metrics (`wfb/fonts/fallback.py`), or on the fenix 6/7 family, fr245 and fr255 a decoded `.cft` bitmap font, exact to the pixel (`wfb/fonts/cft.py`). Without them it is **an estimate** against a pinned free stand-in (`exact`/`family`/`substitute` match, `docs/research/10-system-fonts.md`), then Pillow's default face, then a flat 0.55 em/character. Every system-font width is labelled `(estimated)` in the generated code regardless. UNVERIFIED for `.cft` devices (`docs/research/10-system-fonts.md` §10.6–10.7): whether `getFontHeight` reports the file's `height` or `height − 1`, whether the simulator quantises the antialias blend to the 64-colour palette, and which glyph an unmapped character draws (glyph 0 is assumed). |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
 | **`graphics-pool`** | The pool size is exact (`graphicsResourcePoolSize`, straight from the device file) and so is the pixel count. **Bytes per pixel is not.** The SDK publishes no figure for a `BufferedBitmap`, so this uses the display's own `bitsPerPixel` as a proxy and ignores per-surface overhead; the check labels itself an estimate. It also does not account for the fonts and bitmaps the face loads at runtime, which share the same pool -- so the *fraction* it reports is a floor, not a total. |
-| **`aod-burn-in`** (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8) | *Measured*, not estimated, for the one rendered frame it actually scores -- the same renderer `wfb preview --aod` uses (`wfb.preview.render`), at device resolution, with the round bezel excluded from the denominator on a round screen. Two things keep it from being exact overall: (1) it renders only a **worst-case sample** -- two clock times (`10:08`, `20:08`) with full battery, `wfb.preview.SAMPLE`'s other defaults unchanged, not an exhaustive scan of every minute and data value the simulator's own Screen Heat Map would cover (research 11 §1.5, unreachable in this container); (2) the **luminance formula is this compiler's own choice** (`Color.relative_luminance`, WCAG/Rec. 709 over sRGB-decoded channels), since Garmin's own integral is unpublished (research 11 §5). It checks both AMOLED generations' 10% rules (lit-pixel share and luminance share) at once, since the device files do not say which generation a target is. It cannot see the 3-minute static-pixel rule at all -- that is a property of a *sequence* of frames, and this renders exactly one; `wfb preview --heatmap` approximates that sequence question separately (above). |
+| **`aod-burn-in`** (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8; masked scoring plan 16 slice 2) | *Measured*, not estimated, for the one rendered frame it actually scores -- the same renderer `wfb preview --aod` uses (`wfb.preview.render`), at device resolution, with the round bezel excluded from the denominator on a round screen. Two things keep it from being exact overall: (1) it renders only a **worst-case sample** -- two clock times (`10:08`, `20:08`) with full battery, `wfb.preview.SAMPLE`'s other defaults unchanged, not an exhaustive scan of every minute and data value the simulator's own Screen Heat Map would cover (research 11 §1.5, unreachable in this container); (2) the **luminance formula is this compiler's own choice** (`Color.relative_luminance`, WCAG/Rec. 709 over sRGB-decoded channels), since Garmin's own integral is unpublished (research 11 §5). It checks both AMOLED generations' 10% rules (lit-pixel share and luminance share) at once, since the device files do not say which generation a target is. **With the pixel mask on (the default), the reported figures are the masked frame's, taken as the worst of the 4 mask phases at each sampled time** (`examples/features/aod/face.yaml`: 4.0% lit / 0.3% luminance unmasked, 1.0% lit / 0.1% luminance masked), and the 3-minute static-pixel rule -- a property of a *sequence* of frames that a single rendered frame otherwise can't see -- **now holds by construction**, since no pixel the mask allows through is ever lit two minutes running. `aod: {mask: false}` turns both back into exactly what they were before the mask existed: the unmasked figures, and the old caveat that this check cannot see the 3-minute rule at all (`wfb preview --heatmap` approximates that sequence question separately, above). |
 
 **AOD, more broadly, has no real AMOLED hardware behind any of it.** Every
-AOD claim in this project -- the lint above, `dim:`, and the
+AOD claim in this project -- the lint above, `dim:`, the pixel mask, and the
 `getDisplayMode` ladder (plan 14 slice 6) that now decides when the sleep
 frame draws at all -- is checked against a host-side render or a real
 `monkeyc` compile, never against a real panel or the simulator's own Screen
-Heat Map (no simulator in this container, root `CLAUDE.md` §3). Two things
-stay open specifically because of that: whether `onEnterSleep`/`onExitSleep`
+Heat Map (no simulator in this container, root `CLAUDE.md` §3). Things stay
+open specifically because of that: whether `onEnterSleep`/`onExitSleep`
 and a `DISPLAY_MODE_LOW_POWER`/`_HIGH_POWER` transition ever land at
 different moments on a real device (research 11 §5 -- slice 6 narrowed the
 window with a `DISPLAY_MODE_OFF` check *inside* it, it did not verify the
-window's own edges), and whether `System.getDisplayMode`/`DISPLAY_MODE_*`
+window's own edges), whether `System.getDisplayMode`/`DISPLAY_MODE_*`
 genuinely move together on every AMOLED device the way they do on the two
 installed here (research 11 §2's table is two devices, not Garmin's whole
-fleet). See research 11 §5 for the complete, current list.
+fleet), and, since the pixel mask shipped (plan 16): whether ~454
+`Dc.fillRectangle` calls a minute fit inside the AOD update's unpublished
+watchdog budget, the real per-frame cost of drawing them, and whether the
+once-a-minute moving grain is visible on the panel as texture, crawl or
+moiré against its subpixel layout. **None of the mask has run on a watch or
+in the host simulator's Screen Heat Map** -- the user checks all of these
+(`docs/research/15-aod-pixel-masks.md` §7, §8). See research 11 §5 for the
+complete, current list of the rest.
 
 ### Suppression, and what it can reach
 

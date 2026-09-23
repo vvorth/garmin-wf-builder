@@ -571,6 +571,32 @@ These cost real time to discover; do not rediscover them.
   per-device symbol question (`AppBase` gets no override, no test needed
   for one) -- not measured, because nothing was built to measure.
 
+- **`aod: {mask: ...}` (plan 16, the same day): `WfbAodMask.apply` is
+  emitted last in the `_aod` branch, after every element the frame draws,
+  and only when the resolved AOD set is non-empty** -- masking an
+  all-black frame is pure waste, and the same "only emit what could
+  matter" shape `_aod` itself already follows for an all-MIP build.
+  **The barrel file is pulled in the same way `WfbColor.mc` is (above):**
+  `wfb.emit.project._barrel_for` cannot decide from the IR alone whether
+  the view ends up calling `WfbAodMask.apply(` at all (that depends on
+  `Face.aod_mask` *and* the resolved AOD set being non-empty, the same two
+  facts the emitter itself checks), so it scans the already-generated view
+  source for the literal call, exactly the "inspect what was emitted,
+  don't re-derive it" move that keeps the two from disagreeing.
+  **`wfb/aod_mask.py` is this feature's Python twin**, the same
+  shared-renderer stance ADR 0004 already takes for layout, extended here
+  from layout to a runtime effect: `wfb.preview.render`, `--heatmap`, and
+  the `aod-burn-in` lint all go through its `apply`, so there is no second
+  implementation of the mask for any of them to drift from. The two phase
+  tables (`PHASES` in `wfb/aod_mask.py`, the `dx`/`dy` ternaries in
+  `runtime-lib/WfbAodMask.mc`) cannot be hand-kept in sync either --
+  `tests/test_aod_mask_preview.py` parses the `dx`/`dy` logic straight out
+  of the real `.mc` source rather than re-typing plan 16 §2 a third time,
+  the same anti-drift move as the barrel-detection grep above.
+  Measured: `examples/features/aod/face.yaml` on `fenix847mm` is
+  **2,726 B** with the mask (the default) against **2,447 B** with
+  `aod: {mask: false}` -- **+279 B**, warning-free on all four targets.
+
 - **`date.today`'s `format:` bug (found 2026-09-23): under `FORMAT_MEDIUM`
   (the `date` reader), `month` and `day_of_week` are Strings, not Numbers --
   `%b`/`%a` rely on exactly that, but `%m` (numeric, zero-padded month)

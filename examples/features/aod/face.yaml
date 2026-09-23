@@ -46,6 +46,12 @@
 # exactly the awake design), and their generated source is unaffected by
 # `aod:` at all, on purpose -- the byte-identical test in `tests/test_aod.py`.
 #
+# Since plan 16 (2026-09-23) this face's `aod:` block above also gets the
+# moving 2x2 pixel mask (docs/guide/always-on-display.md "Pixel mask"),
+# on by default -- no `mask:` key is written here, the same way no design
+# has to ask for it. `aod-burn-in`'s own note now scores the masked frame
+# (1.0% lit, 0.1% luminance, down from 4.0%/0.3% unmasked).
+#
 # Build it with:     ./wfb.py build examples/features/aod/face.yaml
 # Preview it with:   ./wfb.py preview examples/features/aod/face.yaml --aod
 #

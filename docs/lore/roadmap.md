@@ -160,19 +160,34 @@ simulator. What is verified is a warning-free real `monkeyc` build and
   already uses. Never runs on a MIP target (D5). Cost: ~40-70 ms per
   AMOLED target on `examples/features/aod/face.yaml` (two full-frame
   renders plus one per AOD-shown element), negligible against a real
-  `monkeyc` build. Cannot see the 3-minute static-pixel rule (a property of
-  a frame sequence, not the one rendered), any time/data combination but
-  the two sampled, or Garmin's actual luminance formula.
+  `monkeyc` build. With the pixel mask on (the default, plan 16), it
+  scores the masked frame at its worst of 4 phases and the 3-minute
+  static-pixel rule holds by construction, so this check no longer needs
+  to see it; `aod: {mask: false}` restores that old gap. It still cannot
+  see any time/data combination but the two sampled, or Garmin's actual
+  luminance formula.
 - **`aod: {jitter: ...}` (plan 14 slice 5): built, then removed
   2026-09-23** to cut codegen complexity (an offset term threaded through
   every emitter, a runtime barrel file and a Python twin kept bit-for-bit
-  identical). The key is now a schema error. Burn-in shifting will come
-  back as a different mechanism; `docs/research/15-aod-pixel-masks.md`
-  compares pixel masks. The per-minute preview tools stayed because any
-  replacement needs them: `wfb preview --minute N` renders one minute of
-  the day, and `--heatmap` (implies `--aod`) sums 1,440 renders into one
-  normalised persistence PNG plus a max-persistence figure, approximating
-  the simulator's Screen Heat Map.
+  identical). The key is now a schema error. The per-minute preview tools
+  stayed because the replacement needed them: `wfb preview --minute N`
+  renders one minute of the day, and `--heatmap` (implies `--aod`) sums
+  1,440 renders into one normalised persistence PNG plus a max-persistence
+  figure, approximating the simulator's Screen Heat Map.
+- **`aod: {mask: ...}` (plan 16, the same day): the replacement, built.**
+  A moving 2×2 pixel mask over the whole AOD frame -- one pixel per
+  on-screen 2×2 tile stays lit, stepping to a 4-neighbour each minute, 25%
+  duty -- on by default (`aod: {mask: false}` opts out). Plan `fd49cab`,
+  slice 1 (format + codegen) `3c2b40d`, slice 2 (preview/heatmap/lint)
+  `965518a`. The device route is two loops of 1 px `Dc.fillRectangle`
+  strips (`runtime-lib/WfbAodMask.mc`, ~454 calls on a 454 px panel) --
+  no bitmap, no alpha, no graphics-pool memory, universal symbols only.
+  `examples/features/aod/face.yaml` on `fenix847mm` measures **2,726 B**
+  with the mask (the default) against **2,447 B** with `mask: false`
+  (+279 B), warning-free on all four targets. `wfb.aod_mask` is the
+  host-side twin (`docs/lore/codegen.md` has the barrel-detection and
+  phase-table lore). `docs/research/15-aod-pixel-masks.md` §7 records why
+  this pattern shipped instead of the research's own recommended queen-5.
 - **The `getDisplayMode` ladder (plan 14 slice 6, research 11 §6 F):** the
   AOD frame now checks `System.getDisplayMode() == System.DISPLAY_MODE_OFF`
   before drawing anything at all -- not even the frame's own black clear --
