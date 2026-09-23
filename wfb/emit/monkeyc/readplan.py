@@ -115,8 +115,8 @@ class ReadPlan:
                 # that decides this, shared with `_emit_date` so the two
                 # cannot drift). Both the awake `format:` (always present
                 # and coded here, `Builder._check_format`) and an
-                # `aod: {format: ...}` override (plan 14, unvalidated
-                # against the value's own codes) can use such a code
+                # `aod: {format: ...}` override (checked the same way,
+                # `Builder._check_format_spec`) can use such a code
                 # independently of one another, so both are checked.
                 specs = [element.format]
                 if element.aod is not None and element.aod.format is not None:

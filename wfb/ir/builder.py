@@ -435,6 +435,14 @@ class Builder:
         self._resolve_antialias(elements)
         self._resolve_min_1px(elements)
         self._resolve_aod(elements)
+        # `_resolve_aod` is the one resolution walk above that can itself add
+        # an error (a group's inherited `aod: {format: ...}` checked against
+        # a descendant's value type, `_check_format_spec`) -- the same gate
+        # every earlier build stage already gets, so a bad inherited format
+        # stops the build here rather than reaching `resolve`/`generate`
+        # with a `Face` the bag has already condemned.
+        if not self.bag.ok():
+            return None
 
         face = data["face"]
         name = face["name"]
@@ -2434,6 +2442,20 @@ class Builder:
                     if own is not None:
                         effective.update(own)
                     element.aod = self._make_aod_override(element, effective)
+                    fmt = effective.get("format")
+                    if (fmt is not None and isinstance(element, Text) and element.value is not None
+                            and not (own is not None and "format" in own)):
+                        # `format` inherited from an ancestor group's own
+                        # `aod: {format: ...}` (an element's *own* one is
+                        # already checked in `_build_text`, against a
+                        # precise span -- this `not (...)` skips it here so
+                        # it is not checked, and so not double-reported,
+                        # twice). A group's `aod:` block may reach several
+                        # descendants of different kinds and value types
+                        # (D2.3), so there is no single bound value to
+                        # check its `format:` against until the
+                        # inheritance resolves to one text element here.
+                        self._check_format_spec(element.value, str(fmt), element.span)
                 visit(element.children(), child_forced_hidden, child_nearest)
 
         visit(elements, False, None)
@@ -3206,6 +3228,16 @@ class Builder:
             self._check_absence(node, element, value, element.when_absent, element.placeholder,
                                 element.fallback)
             self._check_format(node, value, element.format)
+            if element.aod_own is not None and "format" in element.aod_own:
+                # This element's own `aod: {format: ...}` -- checked here,
+                # against the same `value`, rather than left to reach
+                # codegen raw: see `_check_format_spec`. An ancestor
+                # group's own `aod: {format: ...}` reaching this element by
+                # inheritance is checked later, in `_resolve_aod`, once the
+                # inheritance is resolved -- there is no ancestor `aod:` to
+                # read yet at this point in the walk.
+                aod_span = self.doc.span(node.get("aod"), "format") or self.doc.span(node, "aod")
+                self._check_format_spec(value, str(element.aod_own["format"]), aod_span)
         self._check_other_absence(node, element, "color", element.color)
         self._check_reachable_substitute(node, element, "'color'",
                                          (element.value,), (element.color,))
@@ -4389,6 +4421,18 @@ class Builder:
                     self.doc.span(node, "value"),
                 )
             return
+        self._check_format_spec(bound, spec, span)
+
+    def _check_format_spec(self, bound: Expression, spec: str, span: Span | None) -> None:
+        """The coded-vs-type checks a `format:` spec needs against the value
+        it formats -- factored out of `_check_format` so an `aod: {format:
+        ...}` override (which has no "was 'format:' omitted" case of its
+        own: it is only ever consulted once a spec was actually written)
+        can run through the exact same checks the awake `format:` gets,
+        rather than a second, narrower implementation. An earlier pass left
+        an override's spec unchecked entirely, so a malformed one reached
+        `formatting.emit`/`formatting.render` as a raw, unhandled
+        `FormatError` instead of a diagnostic on the author's line."""
         coded = formatting.is_time_spec(spec)
         if coded and not bound.value.type.is_formatted():
             self.bag.error(

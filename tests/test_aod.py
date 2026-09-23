@@ -821,6 +821,74 @@ elements:
     assert ':"' in body or "':'" in body
 
 
+def test_own_aod_format_with_an_unknown_strftime_code_is_a_friendly_error(write_design, bag):
+    """An `aod: {format: ...}` override is a strftime-style spec exactly
+    like the awake `format:` it restyles -- it must go through the same
+    `Builder._check_format` checks, not reach `formatting.emit`/`render`
+    unvalidated and crash with a raw `FormatError` (must fail against an
+    implementation that stores `aod.format` verbatim with no check at
+    all)."""
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    color: palette.fg
+    aod: {format: "{:%Q}"}
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    hits = [d for d in bag.errors if d.code == "format"]
+    assert hits, bag.render()
+    assert "%Q" in hits[0].message
+
+
+def test_own_aod_format_with_the_wrong_code_table_is_a_friendly_error(write_design, bag):
+    """The same date-code-on-a-clock-value (and reverse) mismatch
+    `_check_format` already catches for the awake `format:` -- `%M` is a
+    time code (minute), not a date one, and a `date.today` value's `aod:`
+    override must be checked against `DATE_CODES`, not silently accepted."""
+    text = BASE + """
+elements:
+  - id: today
+    type: text
+    value: date.today
+    format: "{:%a %e %b}"
+    color: palette.fg
+    aod: {format: "{:%M}"}
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    hits = [d for d in bag.errors if d.code == "format"]
+    assert hits, bag.render()
+    assert "date code %M" in hits[0].message
+
+
+def test_ancestor_group_aod_format_is_checked_against_the_descendant_value(write_design, bag):
+    """A group's own `aod: {format: ...}` (D2.3: the union of what its
+    descendants allow) reaches a text descendant by the ordinary key-by-key
+    resolution rule -- it must be checked against *that* descendant's bound
+    value type too, not just an element's own override (`_resolve_aod`)."""
+    text = BASE + """
+elements:
+  - id: g
+    type: group
+    aod: {format: "{:%Q}"}
+    children:
+      - id: clock
+        type: text
+        value: time.clock
+        format: "{:%H:%M}"
+        color: palette.fg
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    hits = [d for d in bag.errors if d.code == "format"]
+    assert hits, bag.render()
+    assert "%Q" in hits[0].message
+
+
 def test_system_font_override_on_text(write_design, bag, db):
     text = BASE + """
 elements:
