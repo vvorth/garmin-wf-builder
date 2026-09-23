@@ -1368,6 +1368,15 @@ class Face:
     #: it on for a whole-face check.
     aod_lint_allow: frozenset[str] = frozenset()
     aod_lint_reason: str | None = None
+    #: Top-level `aod: dim:` (plan 14 slice 3): scales the luminance of
+    #: every colour the AOD frame draws, except an explicit override colour.
+    #: `None` for both "never written" and a written `dim: 1` -- the two are
+    #: normalised together at build time (`Builder._build_face_aod`) because
+    #: both mean the same thing, "no dimming", and `None` is what every
+    #: emitter reads as "skip the dimming ternary entirely", which is what
+    #: keeps a `dim: 1` face's generated source byte-identical to one with
+    #: no `dim:` at all.
+    aod_dim: float | None = None
 
     @property
     def has_config(self) -> bool:

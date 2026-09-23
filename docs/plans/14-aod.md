@@ -16,8 +16,17 @@ only in `onEnterSleep`; a `static:` element's own override bypasses its
 buffer; `wfb preview --aod` matches. A `pattern`/`complication_slot`
 `font:` override, any vector-font override, and `aod: {filled: ...}` on
 `shape: polygon` are all friendly build errors, not silent no-ops
-(`docs/limitations.md` §2). Slices 3–6 open. D1–D5 (§7) decided by the
-user, 2026-09-22: every recommendation taken. It grew out of
+(`docs/limitations.md` §2). **Slice 3 built 2026-09-23** (§6, §4.5):
+`aod: {dim: ...}` scales the luminance of every AOD colour except an
+explicit override -- each channel times `dim`, rounded to the nearest
+integer (`wfb.palette.dim_channel`); a build-time-constant colour is
+pre-dimmed into a second literal, a `config.colors.<role>` (or otherwise
+runtime-only) colour is dimmed on-device by a small integer-math helper
+(`WfbColor.dim`, `runtime-lib/WfbColor.mc`); `dim: 1`/absent is identity
+(byte-identical source); `dim: 0` is a schema error, not a silent
+all-black frame; `wfb preview --aod` matches exactly. Slices 4–6 open.
+D1–D5 (§7) decided by the user, 2026-09-22: every recommendation taken. It
+grew out of
 `docs/research/11-always-on-display.md` §6, whose open question (does
 `modes: [always_on]` change meaning, or does `aod:` sit alongside it?) this
 plan answers with a third option: `aod:` **replaces** it (§7, D3).

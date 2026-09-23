@@ -59,7 +59,7 @@ its cost).
 ```yaml
 aod:                  # top-level, beside elements:
   default: hide        # hide (default) | show — for elements whose ancestry says nothing
-  dim: 0.4              # not implemented yet — see "Restyling (slice 2)"
+  dim: 0.4              # scale every drawn colour's luminance, 0-1 (exclusive of 0) — see "Dimming" below
   jitter: 4              # not implemented — see "Restyling (slice 2)"
   lint:                   # suppress a face-level AOD lint (aod-empty)
     allow: [aod-empty]
@@ -143,13 +143,80 @@ in an override is loaded once, not twice.
 `font:` override, a `complication_slot`'s `font:` override, and any `font:`
 override naming a `face:` (vector) font rather than a baked one — each is
 rejected outright by the builder with a friendly "not implemented yet"
-error, the same house style `dim:`/`jitter:` and per-device `overrides:`
-already follow: never a silent no-op. `aod: {filled: ...}` on `shape:
-polygon` gets the same treatment, for the same reason the awake element's
-own `filled: false` already does — there is no outline primitive (Dc has
-fillPolygon, not drawPolygon) for either one to switch to. `wfb preview
---aod` matches this exact scope, element for element — none of these five
-cases can ever reach it, since the build fails first.
+error, the same house style `jitter:` and per-device `overrides:` already
+follow: never a silent no-op. `aod: {filled: ...}` on `shape: polygon` gets
+the same treatment, for the same reason the awake element's own `filled:
+false` already does — there is no outline primitive (Dc has fillPolygon,
+not drawPolygon) for either one to switch to. `wfb preview --aod` matches
+this exact scope, element for element — none of these four cases can ever
+reach it, since the build fails first.
+
+## Dimming (`aod: {dim: ...}`, slice 3)
+
+```yaml
+aod:
+  dim: 0.6              # scale every AOD colour's luminance to 60%
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    color: palette.white
+    aod: {color: palette.white}   # explicit -- never dimmed
+  - id: date
+    type: text
+    value: time.date
+    color: palette.white
+    aod: show                      # dimmed to 60% -- no override of its own
+```
+
+`dim` reaches **every** colour the AOD frame draws — `color:`, `track_color:`,
+`icon_color:`, a hand or pattern part's own colour, an icon's glyph colour —
+whether or not that element has an `aod:` override of its own. A `show`-only
+element, or one that inherits its AOD set purely from a face default or an
+ancestor group, is dimmed exactly like an overridden one.
+
+**The one exception is an explicit override colour.** `color:`/
+`track_color:`/`icon_color:` written inside an element's own (or an
+inherited group's) `aod:` block is the author's final word and is never
+dimmed — the `clock` example above stays full white in AOD; `date`, which
+opts in with a bare `aod: show`, dims to 60%.
+
+**The formula.** Each 8-bit RGB channel is multiplied by `dim` and rounded
+to the nearest integer: `round(channel * dim)`, clamped to 0–255. Hue is
+unchanged; luminance scales linearly. `dim: 1` and omitting `dim:` entirely
+are identical — both mean "no dimming," and neither emits a single dimming
+ternary, so a `dim: 1` face's generated source is byte-identical to one with
+no `dim:` at all. `dim: 0` is rejected by the schema (`exclusiveMinimum: 0`):
+it would turn every undimmed colour black, which is indistinguishable from
+`aod: hide` and almost certainly not what was meant.
+
+**Where the arithmetic runs.** A colour fixed at build time — a bare hex
+literal, or a `palette.<name>` reference — is pre-dimmed into a second
+literal in Python, once, at compile time: no runtime cost at all. A colour
+that follows `color_scheme:`/`config.colors` at runtime (the wearer's own
+on-device pick) cannot be precomputed the same way, since its value is not
+known until the device resolves it; that case is dimmed on-device instead,
+by a small generated helper (`WfbColor.dim`, `runtime-lib/WfbColor.mc`) doing
+plain integer channel arithmetic — the exact same rounding formula, so a
+colour dims to the identical value whichever path codegen took for it, and
+`wfb preview --aod` (below) renders that same value a third time, in Python,
+for the same reason.
+
+**The alpha route stays unverified.** AMOLED supports `alphaBlendingSupport`
+and `Dc.setStroke` takes `0xAARRGGBB`, which could in principle dim by
+blending toward black instead of pre-computing a darker colour. Plan 14 §4.5
+left this route open but unbuilt: it depends on the burn-in lint (slice 4)
+confirming the meter counts the *blended* result, not the nominal colour,
+and that has not been checked. Pre-computed/on-device channel arithmetic is
+what ships, and works on every device regardless of alpha support.
+
+**Palette lint.** The 64-colour MIP palette rule (`docs/limitations.md` §2,
+constraint 13) never fires on a dimmed colour: a dimmed value is a new,
+synthetic literal that is never entered into `palette:`/`config:`/
+`color_scheme:`, so it is invisible to that check by construction — and
+since `dim` only ever reaches the `_aod` branch, which only ever runs on an
+AMOLED device (constraint 13's rule is MIP-only to begin with), there is
+nothing there to warn about anyway.
 
 ## When the AOD frame runs
 
@@ -185,7 +252,10 @@ Renders the resolved `aod:` set, restyled exactly as codegen restyles it —
 colour, thickness, filled, font (baked, non-vector only) and format all
 apply — with every `awake`-only second hand hidden (AOD only ever runs
 asleep). A design with no `aod:` anywhere renders blank under the face
-default (`hide`).
+default (`hide`). `dim:` applies with the exact same formula and rounding
+codegen uses (`wfb.palette.dim_channel`, shared by both), so a colour that
+this preview draws and a colour the generated `WfbColor.dim` computes on
+the device agree to the pixel.
 
 `--asleep` is the narrower, older flag: it only hides an `awake`-only
 second hand (`seconds: awake`), on any device shape, without touching AOD

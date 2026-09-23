@@ -44,7 +44,7 @@ from .layout import (
     PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
     alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
 )
-from .palette import MIP64_LEVELS, Color
+from .palette import MIP64_LEVELS, Color, dim_fraction
 
 #: Illustrative sample values for a `complication_slot` preview, keyed by
 #: `wfb.complications.TYPES` name -- not real data (there is no live
@@ -139,14 +139,16 @@ class PreviewOptions:
     #: `wfb preview --aod` (plan 14). Draws the resolved `aod:` set
     #: (`Element.aod is not None`), restyled by every override key exactly
     #: as codegen restyles it (plan 14 slice 2, `_Renderer._aod_field` and
-    #: its call sites). A `pattern`/`complication_slot` `font:` override and
-    #: any `font:` override naming a `face:` (vector) font are rejected as
-    #: friendly build errors (`Builder._build_aod_authored`,
-    #: `docs/limitations.md` §2), so no face that reaches this renderer can
-    #: carry one -- there is nothing left here for those two cases to draw.
-    #: A design with no `aod:` anywhere renders blank under the face default
-    #: (`hide`, D2) -- see `asleep` above for a plain "hide the second hand"
-    #: preview that needs no `aod:` at all.
+    #: its call sites), and dimmed exactly as codegen dims it (slice 3,
+    #: `_Renderer._aod_color`/`_dim_rgb`, sharing `wfb.palette.dim_channel`'s
+    #: own rounding with both codegen paths). A `pattern`/`complication_slot`
+    #: `font:` override and any `font:` override naming a `face:` (vector)
+    #: font are rejected as friendly build errors (`Builder._build_aod_
+    #: authored`, `docs/limitations.md` §2), so no face that reaches this
+    #: renderer can carry one -- there is nothing left here for those two
+    #: cases to draw. A design with no `aod:` anywhere renders blank under
+    #: the face default (`hide`, D2) -- see `asleep` above for a plain "hide
+    #: the second hand" preview that needs no `aod:` at all.
     aod: bool = False
     #: `--fonts DIR` -- overrides `wfb.fonts.fetch_system.garmin_font_root`'s
     #: search (`WFB_FONTS`, `vendor/fonts/`, the per-OS SDK Manager
@@ -481,6 +483,55 @@ class _Renderer:
         override = getattr(element.aod, key)
         return override if override is not None else base
 
+    def _dim_rgb(self, rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+        """`aod: {dim: ...}` (plan 14 §4.5), applied to an already-resolved
+        RGB triple -- the preview's own twin of `wfb.emit.monkeyc.common.
+        _dim_color_code`, sharing its exact integer arithmetic
+        (`wfb.palette.Color.dim`/`dim_channel`) so a colour dims to the
+        identical value here and on the device, whichever of the two paths
+        (a build-time-precomputed literal, or a runtime `WfbColor.dim` call)
+        codegen took for it. Callers only reach this when `self.resolved.
+        face.aod_dim is not None`.
+        """
+        num, den = dim_fraction(self.resolved.face.aod_dim)
+        dimmed = Color(*rgb).dim(num, den)
+        return (dimmed.r, dimmed.g, dimmed.b)
+
+    def _aod_color(self, element, key: str, base_expr) -> tuple[int, int, int]:
+        """The drawn RGB for one colour role (`color`/`track_color`/
+        `icon_color`) while `--aod` renders, matching `wfb.emit.monkeyc.
+        common._aod_color` exactly: this element's own resolved `aod:`
+        override for `key`, when one exists, else the plain awake colour --
+        dimmed by the face's own `aod: {dim: ...}` (plan 14 §4.5) whenever
+        that applies and no override took over, the same "dim reaches every
+        AOD colour, override or not" rule the codegen ternary follows.
+        """
+        base = self._color(base_expr)
+        if not self.options.aod or element.aod is None:
+            return base
+        override = getattr(element.aod, key)
+        if override is not None:
+            return self._color(override)
+        if self.resolved.face.aod_dim is None:
+            return base
+        return self._dim_rgb(base)
+
+    def _resolve_part_color(self, part_color, values: dict | None,
+                            color_override: tuple[int, int, int] | None,
+                            dim_active: bool) -> tuple[int, int, int]:
+        """A `hands`/`pattern` part's own drawn RGB: the element-level
+        `aod: {color: ...}` override when one exists (`color_override`,
+        already resolved once by the caller -- §5.1, uniform across every
+        part), else this part's own plain colour, dimmed when `dim_active`
+        (the caller's own "shown in AOD, no override" gate, matching
+        `wfb.emit.monkeyc.rotated._emit_hands`/`_emit_pattern`'s
+        `dim_effective`).
+        """
+        if color_override is not None:
+            return color_override
+        color = self._color(part_color, values)
+        return self._dim_rgb(color) if dim_active else color
+
     def render_element(self, placed) -> None:
         # `--aod`: the fully resolved AOD gate (`element.visible` already
         # folded in, plan 14 §3) -- not the element's own plain `visible:`,
@@ -510,7 +561,7 @@ class _Renderer:
 
     def _shape(self, placed: PlacedShape) -> None:
         element = placed.element
-        fill = self._color(self._aod_field(element, "color", element.color))
+        fill = self._aod_color(element, "color", element.color)
         filled = self._aod_field(element, "filled", element.filled)
         thickness = placed.aod_thickness if (
             self.options.aod and placed.aod_thickness is not None) else placed.thickness
@@ -593,6 +644,11 @@ class _Renderer:
             self._color(element.aod.color) if (self.options.aod and element.aod is not None
                                                and element.aod.color is not None) else None
         )
+        # `aod: {dim: ...}` (plan 14 §4.5): only when this hand set is shown
+        # in AOD at all and no per-part override already took over --
+        # matches `wfb.emit.monkeyc.rotated._emit_hands`'s own
+        # `dim_effective` gate exactly.
+        dim_active = self.options.aod and element.aod is not None and self.resolved.face.aod_dim is not None
         thickness_override = (
             placed.aod_thickness if (self.options.aod and placed.aod_thickness is not None)
             else None
@@ -607,13 +663,14 @@ class _Renderer:
             sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
             for part in hand.parts:
                 self._hand_part(part, cx, cy, s, sin_t, cos_t,
-                                color_override=color_override, thickness_override=thickness_override)
+                                color_override=color_override, thickness_override=thickness_override,
+                                dim_active=dim_active)
 
     def _hand_part(self, part, cx: float, cy: float, s: int,
                    sin_t: float, cos_t: float, values: dict | None = None,
                    color_override: tuple[int, int, int] | None = None,
-                   thickness_override: int | None = None) -> None:
-        fill = color_override if color_override is not None else self._color(part.color, values)
+                   thickness_override: int | None = None, dim_active: bool = False) -> None:
+        fill = self._resolve_part_color(part.color, values, color_override, dim_active)
         thickness = thickness_override if thickness_override is not None else part.thickness
 
         def rotated(x: float, y: float) -> tuple[float, float]:
@@ -671,6 +728,9 @@ class _Renderer:
             self._color(element.aod.color) if (self.options.aod and element.aod is not None
                                                and element.aod.color is not None) else None
         )
+        # `aod: {dim: ...}` (plan 14 §4.5): the preview's own twin of
+        # `wfb.emit.monkeyc.rotated._emit_pattern`'s `dim_effective` gate.
+        dim_active = self.options.aod and element.aod is not None and self.resolved.face.aod_dim is not None
         thickness_override = (
             placed.aod_thickness if (self.options.aod and placed.aod_thickness is not None)
             else None
@@ -694,13 +754,13 @@ class _Renderer:
                     continue
                 if part.shape == "arc":
                     self._pattern_arc(part, ox, oy, index, placed, s, values,
-                                      color_override, thickness_override)
+                                      color_override, thickness_override, dim_active)
                 elif part.shape == "text":
                     self._pattern_text(part, ox, oy, sin_t, cos_t, index, values,
-                                       copy_angle_degrees, color_override)
+                                       copy_angle_degrees, color_override, dim_active)
                 else:
                     self._hand_part(part, cx, cy, s, sin_t, cos_t, values,
-                                    color_override, thickness_override)
+                                    color_override, thickness_override, dim_active)
 
     def _pattern_absent(self, element) -> bool:
         """Whether any nullable source this pattern's colours (`element.colors`,
@@ -733,7 +793,8 @@ class _Renderer:
     def _pattern_arc(self, part, ox: float, oy: float, index: int,
                      placed: PlacedPattern, s: int, values: dict,
                      color_override: tuple[int, int, int] | None = None,
-                     thickness_override: int | None = None) -> None:
+                     thickness_override: int | None = None,
+                     dim_active: bool = False) -> None:
         """An `arc` template part -- always centred on the copy's own
         origin (`at:` is rejected on it), so there are no vertices to
         rotate: only its *start angle* turns with the copy, exactly as
@@ -743,7 +804,7 @@ class _Renderer:
         there). Drawn through the same whole-degree `arc_span` rule a
         `shape: arc` element uses.
         """
-        fill = color_override if color_override is not None else self._color(part.color, values)
+        fill = self._resolve_part_color(part.color, values, color_override, dim_active)
         thickness = thickness_override if thickness_override is not None else part.thickness
         cx, cy = ox * s, oy * s
         r = part.radius * s
@@ -755,7 +816,8 @@ class _Renderer:
 
     def _pattern_text(self, part, ox: float, oy: float, sin_t: float, cos_t: float,
                       index: int, values: dict, copy_angle_degrees: float = 0.0,
-                      color_override: tuple[int, int, int] | None = None) -> None:
+                      color_override: tuple[int, int, int] | None = None,
+                      dim_active: bool = False) -> None:
         """A `shape: text` template part: upright glyphs at this copy's own
         anchor, rounded the same half-up way `runtime-lib/WfbGeom.mc`'s
         `rotatedX`/`rotatedY` round it on the device
@@ -796,7 +858,7 @@ class _Renderer:
         stamp loop relies on).
         """
         text = part.texts[index]
-        color = color_override if color_override is not None else self._color(part.color, values)
+        color = self._resolve_part_color(part.color, values, color_override, dim_active)
         anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
         ring_color = (
             self._color(part.outline_color, values) if part.outline_color is not None else None
@@ -852,7 +914,7 @@ class _Renderer:
         text = self._text_value(placed)
         if text is None:
             return
-        color = self._color(self._aod_field(element, "color", element.color))
+        color = self._aod_color(element, "color", element.color)
         if placed.font_is_vector:
             # `curve:` (plan 11): a `face:` font draws upright, angled or
             # radial, never through a baked sheet -- `_draw_vector_text`
@@ -933,7 +995,7 @@ class _Renderer:
                 else min(1.0, max(0.0, value / maximum))
             )
         s = self.scale
-        color = self._color(self._aod_field(element, "color", element.color))
+        color = self._aod_color(element, "color", element.color)
 
         if element.style == "arc":
             cx, cy, r = placed.center[0] * s, placed.center[1] * s, placed.radius * s
@@ -945,7 +1007,7 @@ class _Renderer:
             # see `arc_span`.
             track = arc_span(placed.start_angle, placed.sweep)
             if element.track_color is not None and track is not None:
-                track_color = self._color(self._aod_field(element, "track_color", element.track_color))
+                track_color = self._aod_color(element, "track_color", element.track_color)
                 self.draw.arc(box, *track, fill=track_color, width=width)
             fill = arc_span(placed.start_angle, placed.sweep * fraction) if fraction > 0 else None
             if fill is not None:
@@ -954,7 +1016,7 @@ class _Renderer:
 
         box = self._rect(placed.box)
         if element.track_color is not None:
-            track_color = self._color(self._aod_field(element, "track_color", element.track_color))
+            track_color = self._aod_color(element, "track_color", element.track_color)
             self.draw.rectangle(box, fill=track_color)
         filled = int(placed.box.width * fraction) * s
         if filled > 0:
@@ -971,7 +1033,7 @@ class _Renderer:
         if sheet is None or glyph is None:
             return  # the font failed to bake, or the glyph is missing from it
         s = self.scale
-        color = self._color(self._aod_field(placed.element, "color", placed.element.color))
+        color = self._aod_color(placed.element, "color", placed.element.color)
         self._paste_glyph(sheet, glyph, placed.box.x * s, placed.box.y * s, color)
 
     def _graph(self, placed: PlacedGraph) -> None:
@@ -1002,7 +1064,7 @@ class _Renderer:
         span = hi - lo
         if span <= 0:
             span = 1.0
-        color = self._color(self._aod_field(element, "color", element.color))
+        color = self._aod_color(element, "color", element.color)
         if element.style == "line":
             self._graph_line(placed, values, lo, span, color)
         elif element.style == "area":
@@ -1107,9 +1169,9 @@ class _Renderer:
         if slot is None:
             return
         ctype = complications.TYPES[slot.default]
-        color = self._color(self._aod_field(element, "color", element.color))
+        color = self._aod_color(element, "color", element.color)
         if element.icon_color is not None:
-            icon_color = self._color(self._aod_field(element, "icon_color", element.icon_color))
+            icon_color = self._aod_color(element, "icon_color", element.icon_color)
         else:
             # No awake `icon_color:` at all falls back to whatever colour
             # `color` (above) already resolved to -- matches codegen's own

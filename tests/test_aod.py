@@ -12,8 +12,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from tests.test_build import toolchain  # noqa: F401  -- a fixture, used by name
 from tests.test_diagnostics import load
 from wfb import lint
+from wfb.build import build as real_build
 from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
@@ -87,19 +91,8 @@ elements:
 
 
 # --------------------------------------------------------------------------
-# face-level `aod: dim:`/`jitter:` -- friendly "not implemented" errors
-
-
-def test_dim_is_a_friendly_not_implemented_error(write_design, bag):
-    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + "elements:\n" + """  - id: clock
-    type: text
-    text: "12:00"
-    color: palette.fg
-"""
-    face = load(write_design(text), bag)
-    assert face is None
-    hits = [d for d in bag.errors if d.code == "aod"]
-    assert hits and "dim" in hits[0].message and "not implemented" in hits[0].message
+# face-level `aod: jitter:` -- friendly "not implemented" error (dim: built,
+# below)
 
 
 def test_jitter_is_a_friendly_not_implemented_error(write_design, bag):
@@ -976,3 +969,280 @@ elements:
     assert awake.getpixel((cx, cy)) == (255, 255, 255)
     # ...and unlit in AOD, where only a thin ring near the edge is drawn.
     assert asleep.getpixel((cx, cy)) == (0, 0, 0)
+
+
+# --------------------------------------------------------------------------
+# `aod: dim:` (plan 14 slice 3, docs/guide/always-on-display.md): scales the
+# luminance of every AOD colour, override colours excepted.
+
+
+def test_dim_0_is_a_schema_error(write_design, bag):
+    """0 would dim every undimmed colour to black -- indistinguishable from
+    `aod: hide` -- so the schema refuses it outright (`exclusiveMinimum: 0`),
+    the same house style a bad `modes: [always_on]` already gets (D3)."""
+    text = BASE.replace("palette:\n", "aod:\n  dim: 0\npalette:\n") + "elements:\n" + """  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    hits = [d for d in bag.errors if d.code == "schema"]
+    assert hits and "dim" in hits[0].message, bag.render()
+
+
+def test_a_show_only_element_is_dimmed_to_its_exact_value(write_design, bag, db):
+    """`dim` reaches every colour the AOD frame draws, not only overridden
+    ones -- a plain `aod: show`, with no override block at all, still gets a
+    dimming ternary, against the exact per-channel value `wfb.palette.
+    dim_channel` computes: 0x55 * 0.4, rounded, is 0x22 on every channel."""
+    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.dim
+    aod: show
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert "dc.setColor((_aod ? 0x222222 : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in view
+
+
+def test_an_explicit_override_colour_is_never_dimmed(write_design, bag, db):
+    """The author's own `aod: {color: ...}` is the final word -- must fail
+    against an implementation that dims an override the same as anything
+    else. A sibling with no override of its own is dimmed in the same
+    build, so this cannot pass by `dim` silently doing nothing at all."""
+    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + """
+elements:
+  - id: overridden
+    type: text
+    text: "12:00"
+    color: palette.dim
+    aod: {color: palette.bg}
+  - id: plain
+    type: text
+    text: "plain"
+    color: palette.dim
+    aod: show
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    # the override colour, Palette.BG, appears bare -- never as a dimmed literal
+    assert "dc.setColor((_aod ? Palette.BG : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in view
+    plain = view.split("function drawPlain")[1].split("\n    }")[0]
+    assert "dc.setColor((_aod ? 0x222222 : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in plain
+
+
+def test_a_runtime_role_colour_is_dimmed_with_the_generated_helper(write_design, bag, db):
+    """`config.colors.<role>` is a view field the wearer's on-device pick can
+    repoint, so it cannot be pre-dimmed into a build-time literal the way a
+    `palette.<name>` reference can -- it must go through the generated
+    `WfbColor.dim` at runtime instead. Must fail against an implementation
+    that only handles the compile-time-constant case."""
+    text = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix847mm]
+aod:
+  dim: 0.4
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+color_scheme:
+  dark:
+    colors: {fg: palette.white}
+config:
+  style:
+    default: dark
+    choices:
+      dark: {colors: dark}
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: config.colors.fg
+    aod: show
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert ("dc.setColor((_aod ? WfbColor.dim(_configColorsFg, 400, 1000) : "
+            "_configColorsFg), Graphics.COLOR_TRANSPARENT);") in view
+
+
+def test_dim_absent_or_dim_1_is_byte_identical(write_design, bag, db):
+    """`dim: 1` and no `dim:` at all must mean exactly the same thing --
+    identity -- and neither may emit a single dimming ternary."""
+    without = BASE + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+    aod: show
+"""
+    dim_one = BASE.replace("palette:\n", "aod:\n  dim: 1\npalette:\n") + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+    aod: show
+"""
+    bag_a, bag_b = Bag(), Bag()
+    text_a = _view_text(without, write_design, bag_a, db, device_id="fenix847mm")
+    text_b = _view_text(dim_one, write_design, bag_b, db, device_id="fenix847mm")
+    assert text_a == text_b
+    assert "WfbColor.dim" not in text_a
+
+
+def test_an_all_mip_build_stays_byte_identical_with_dim_set(write_design, bag, db):
+    """`dim` is AMOLED-only like the rest of `aod:` (constraint 5): an
+    all-MIP build's generated source must not change at all, even with
+    `dim:` set and an element drawn in AOD -- the same guarantee slice 1
+    established for `aod:` itself, now re-checked with `dim:` in the mix."""
+    without = MIP_BASE + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+"""
+    with_dim = MIP_BASE.replace(
+        "palette:\n", "aod:\n  default: hide\n  dim: 0.4\npalette:\n"
+    ) + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+    aod: {color: palette.fg}
+"""
+    bag_a, bag_b = Bag(), Bag()
+    text_a = _view_text(without, write_design, bag_a, db)
+    text_b = _view_text(with_dim, write_design, bag_b, db)
+    assert text_a == text_b
+    assert "_aod" not in text_a and "WfbColor" not in text_a
+
+
+def test_preview_and_codegen_dim_the_same_colour_identically(write_design, bag, db):
+    """One colour, dimmed by both paths -- the codegen ternary's own literal
+    and the preview's rendered pixel -- must land on the exact same value.
+    `dim: 0.5` on `#555555` (85) is a genuine tie (42.5): a preview that used
+    Python's own banker's-rounding `round()` instead of `wfb.palette.
+    dim_channel`'s integer formula would compute 42 here, not 43, so this
+    fails against that mismatch specifically."""
+    from wfb.preview import PreviewOptions, render
+
+    text = BASE.replace("palette:\n", "aod:\n  dim: 0.5\npalette:\n") + """
+elements:
+  - id: block
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 40%, height: 40%}
+    color: palette.dim
+    aod: show
+"""
+    view = _view_text(text, write_design, Bag(), db, device_id="fenix847mm")
+    assert "dc.setColor((_aod ? 0x2B2B2B : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in view
+
+    resolved = _resolved(text, write_design, bag, db)
+    cx, cy = resolved.device.width // 2, resolved.device.height // 2
+    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True))
+    assert asleep.getpixel((cx, cy)) == (0x2B, 0x2B, 0x2B) == (43, 43, 43)
+
+
+def test_no_palette_lint_fires_on_a_dimmed_constant(write_design, bag, db):
+    """plan 14 §4.6: the 64-colour palette lint checks `palette:`/`config:`/
+    `color_scheme:`'s own *declared* entries, never a dimmed colour -- a
+    dimmed value is a synthetic literal that never becomes one of those.
+    `#FFFFFF` dimmed by 0.4 is `0x666666`, off the 64-colour grid, which
+    would fail `Color.is_palette_legal` outright if this check ever looked
+    at it -- must fail against an implementation that registers the dimmed
+    constant as a new palette entry (or otherwise feeds it to the check)."""
+    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+    aod: show
+"""
+    resolved = _resolved(text, write_design, bag, db)
+    lint.run(resolved, bag)
+    assert not any(d.code in ("palette", "palette-dither") for d in bag.items), bag.render()
+
+
+def test_hands_colour_is_dimmed_per_part_with_no_override(write_design, bag, db):
+    """`dim` reaches hands too (plan §3 item 3), independently per part --
+    each part keeps its *own* colour, dimmed on its own value, when the
+    hand set has no `aod: {color: ...}` override to apply uniformly
+    instead. Must fail against an implementation that only wires `dim`
+    through the plain shape/text/progress/icon/graph call sites."""
+    text = BASE.replace("palette:\n", "aod:\n  dim: 0.4\npalette:\n") + """
+hands:
+  set:
+    hour:
+      color: palette.fg
+      parts:
+        - {shape: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
+    minute:
+      color: palette.dim
+      parts:
+        - {shape: line, at: {dy: 0}, to: {dy: -60px}, thickness: 2px}
+elements:
+  - id: h
+    type: hands
+    hands: set
+    aod: show
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    body = view.split("function drawH(")[1].split("\n    }")[0]
+    assert "(_aod ? 0x666666 : Palette.FG)" in body  # hour: palette.fg dimmed
+    assert "(_aod ? 0x222222 : Palette.DIM)" in body  # minute: palette.dim dimmed
+
+
+@pytest.mark.slow
+def test_a_runtime_dimmed_colour_compiles_warning_free(write_design, db, tmp_path, toolchain):
+    """The real `monkeyc` build, not just Python-level codegen, for a colour
+    that goes through `WfbColor.dim` at runtime -- a face-level Python
+    codegen test cannot catch a barrel file the real compiler needs but
+    `wfb.emit.project._barrel_for` forgot to copy in (`Undefined symbol
+    ':WfbColor'`, found by building this exact design for real while
+    developing this slice: `_barrel_for` only listed the pre-existing
+    helpers, so a design whose only dimmed colour was a `config.colors.*`
+    field failed to compile even though the Python-level codegen tests above
+    were all green)."""
+    text = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: RuntimeDim
+targets: [fenix847mm]
+aod:
+  dim: 0.5
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+color_scheme:
+  dark:
+    colors: {fg: palette.white}
+config:
+  style:
+    default: dark
+    choices:
+      dark: {colors: dark}
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: config.colors.fg
+    aod: show
+"""
+    bag = Bag()
+    result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)

@@ -8,7 +8,8 @@ from ... import expr, formatting
 from ...ir import PatternElement
 from ...layout import PlacedHands, PlacedPattern
 from .common import (
-    _aod_value, _color, _const_prefix, _field, _glyph_y_expr, _mc_float, _pattern_needs_math,
+    AodDim, _aod_part_color, _aod_value, _color, _const_prefix, _field, _glyph_y_expr, _mc_float,
+    _pattern_needs_math,
 )
 from .shapes import _RADIAL_DIRECTION, _emit_outline_loop, _radial_radius_expr
 from ..writer import Writer
@@ -18,7 +19,7 @@ from ..writer import Writer
 _HAND_ANGLE_FUNCTIONS = (("hour", "hourAngle"), ("minute", "minuteAngle"), ("second", "secondAngle"))
 
 
-def _emit_hands(w: Writer, placed: "PlacedHands", aod: bool = False) -> None:
+def _emit_hands(w: Writer, placed: "PlacedHands", aod: bool = False, dim: AodDim = None) -> None:
     """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
     draw each of its parts, shaped exactly like the analog-hands probe's
     `drawMainHands` (`docs/research/probes/analog-hands/`): the axis first,
@@ -28,7 +29,10 @@ def _emit_hands(w: Writer, placed: "PlacedHands", aod: bool = False) -> None:
     `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1) apply uniformly to
     every part of every hand: one ternary against one element-level override,
     reused by every part's own colour/pen-width line, rather than a
-    per-part override.
+    per-part override. With no `color:` override but a face-wide `dim`
+    (§4.5), each part's own colour is dimmed instead -- `dim_effective` is
+    `None` outright when this hand set is not shown in AOD at all
+    (`element.aod is None`), matching `color_override`'s own guard.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
@@ -38,6 +42,7 @@ def _emit_hands(w: Writer, placed: "PlacedHands", aod: bool = False) -> None:
         element.aod.color.code if (aod and element.aod is not None
                                    and element.aod.color is not None) else None
     )
+    dim_effective = dim if (aod and element.aod is not None) else None
     thickness_override = (
         f"Layout.{prefix}_AOD_THICKNESS" if (aod and placed.aod_thickness is not None) else None
     )
@@ -52,15 +57,16 @@ def _emit_hands(w: Writer, placed: "PlacedHands", aod: bool = False) -> None:
         if gated:
             with w.block("if (!_sleeping)"):
                 declared = _emit_one_hand(w, prefix, hand_name, angle_fn, hand, declared,
-                                          color_override, thickness_override)
+                                          color_override, thickness_override, aod, dim_effective)
         else:
             declared = _emit_one_hand(w, prefix, hand_name, angle_fn, hand, declared,
-                                      color_override, thickness_override)
+                                      color_override, thickness_override, aod, dim_effective)
 
 
 def _emit_one_hand(w: Writer, prefix: str, hand_name: str, angle_fn: str, hand,
                    declared: bool, color_override: str | None = None,
-                   thickness_override: str | None = None) -> bool:
+                   thickness_override: str | None = None, aod: bool = False,
+                   dim: AodDim = None) -> bool:
     """One hand's angle/sin/cos, then each of its parts, rotated and drawn.
 
     `declared` says whether `angle`/`sin`/`cos` already have a `var` in this
@@ -80,7 +86,7 @@ def _emit_one_hand(w: Writer, prefix: str, hand_name: str, angle_fn: str, hand,
     current = None
     for index, part in enumerate(hand.parts):
         part_prefix = f"{prefix}_{HAND}_{index}"
-        color = _aod_value(color_override is not None, color_override, _color(part.color))
+        color = _aod_part_color(part.color, color_override, aod, dim)
         if color != current:
             w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
             current = color
@@ -489,7 +495,8 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
     w.line(f"                {start_arg}, {sweep});")
 
 
-def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: bool = False) -> None:
+def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: bool = False,
+                  dim: AodDim = None) -> None:
     """`type: pattern` -- loop over the drawn copies, turning (radial) or
     translating (linear) the template resolved once at build time.  The
     same bargain `_emit_hands` already struck for analog hands: the device
@@ -532,6 +539,7 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: bool = False) -> None
         element.aod.color.code if (aod and element.aod is not None
                                    and element.aod.color is not None) else None
     )
+    dim_effective = dim if (aod and element.aod is not None) else None
     thickness_override = (
         f"Layout.{prefix}_AOD_THICKNESS" if (aod and placed.aod_thickness is not None) else None
     )
@@ -573,7 +581,7 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: bool = False) -> None
     # is declared at the top of the method, before the loop.)  A dead part
     # (constant-false `visible:`, excluded from `live`) contributes no
     # colour at all -- it never draws, so its colour is nobody's concern.
-    colors = [_aod_value(color_override is not None, color_override, _color(part.color))
+    colors = [_aod_part_color(part.color, color_override, aod, dim_effective)
              for _, part in live]
     distinct_colors = list(dict.fromkeys(colors))
     per_copy = any(expr.reads_copy(part.color.ast) for _, part in live

@@ -9,7 +9,7 @@ from ...ir import (
 )
 from ...layout import PlacedGraph
 from ...series import Acquisition
-from .common import _aod_color, _aod_value, _color, _const_prefix
+from .common import AodDim, _aod_color, _aod_value, _color, _const_prefix
 from ..writer import Writer
 
 
@@ -42,7 +42,7 @@ def _emit_graph_fields(w: Writer, graphs: list) -> None:
     w.blank()
 
 
-def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False) -> None:
+def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False, dim: AodDim = None) -> None:
     """The rebuild-cadence check, then one drawing call per `style:`.
 
     The check runs here rather than unconditionally in `onUpdate` -- after
@@ -65,7 +65,7 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False) -> None:
           else f"({element.min.code}).toFloat()")
     hi = (f"{graph_max_field(element.id)}.toFloat()" if element.max_auto
           else f"({element.max.code}).toFloat()")
-    color_code = _aod_color(element, "color", _color(element.color), aod)
+    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     if element.style == "line":
         thickness_base = f"Layout.{prefix}_THICKNESS"

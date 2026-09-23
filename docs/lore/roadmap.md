@@ -107,9 +107,26 @@ simulator. What is verified is a warning-free real `monkeyc` build and
   draws directly. `wfb preview --aod` renders the resolved set fully
   restyled, matching codegen's own scope (a `pattern`/`complication_slot`
   `font:` override and any vector-font override are not implemented yet).
-  Two new suppressible lints, `aod-unreachable` and `aod-empty`. `dim:`/
-  `jitter:` are slices 3/5. `modes: [always_on]` is removed outright (D3) --
-  see below.
+  Two new suppressible lints, `aod-unreachable` and `aod-empty`. `jitter:`
+  is slice 5. `modes: [always_on]` is removed outright (D3) -- see below.
+- **`aod: {dim: ...}` (plan 14 slice 3):** scales the luminance of every
+  colour the AOD frame draws, override colours excepted -- each channel
+  times `dim`, rounded to the nearest integer (`wfb.palette.dim_channel`).
+  A build-time-constant colour (a bare hex, or a `palette.<name>`
+  reference) is pre-dimmed into a second literal at build time, no runtime
+  cost; a `config.colors.<role>` field (or any colour not known until the
+  device resolves it) is dimmed on-device instead, by a small generated
+  helper doing plain integer arithmetic (`WfbColor.dim`,
+  `runtime-lib/WfbColor.mc`) -- the exact same formula, so codegen and
+  `wfb preview --aod` agree to the pixel. `dim: 1` and no `dim:` at all both
+  normalise to "no dimming" and emit no ternary at all, so a `dim: 1` face's
+  generated source is byte-identical to one with no `dim:`; `dim: 0` is a
+  schema error (`exclusiveMinimum: 0`) rather than a silent all-black frame.
+  The 64-colour palette lint never sees a dimmed colour, since it is a
+  synthetic literal never entered into `palette:`/`config:`/
+  `color_scheme:`. The alpha route (`Dc.setStroke`'s `0xAARRGGBB`) stays
+  UNVERIFIED, per the plan (§4.5) -- it needs the burn-in lint (slice 4) to
+  confirm the meter counts the blended result first.
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 
@@ -149,11 +166,12 @@ specifies each item.
    renderer.
 9. `mypy --strict` and CI. Neither exists.
 10. `wfb install`, `package`, `migrate`.
-11. `aod: dim:`/`jitter:` (plan 14 §4.5/§5.2, slices 3/5) -- accepted by the
-    schema, rejected by the builder with a friendly error. A `pattern`'s or
-    `complication_slot`'s own `aod: {font: ...}` override, any `font:`
-    override naming a `face:` (vector) font, and `aod: {filled: ...}` on
-    `shape: polygon` (plan 14 §4.3, slice 2 built every other override key
-    and a `text` element's baked-font override) -- all four are friendly
-    build errors (`Builder._build_aod_authored`), never a silent no-op.
+11. `aod: jitter:` (plan 14 §5.2, slice 5) -- accepted by the schema,
+    rejected by the builder with a friendly error. `aod: dim:` is built
+    (slice 3, above). A `pattern`'s or `complication_slot`'s own
+    `aod: {font: ...}` override, any `font:` override naming a `face:`
+    (vector) font, and `aod: {filled: ...}` on `shape: polygon` (plan 14
+    §4.3, slice 2 built every other override key and a `text` element's
+    baked-font override) -- all four are friendly build errors
+    (`Builder._build_aod_authored`), never a silent no-op.
     The AMOLED burn-in pixel/luminance lint (plan 14 slice 4).

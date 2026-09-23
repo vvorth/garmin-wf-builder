@@ -390,6 +390,9 @@ class Builder:
         self.face_aod_default_hide = True
         self.face_aod_lint_allow: frozenset[str] = frozenset()
         self.face_aod_lint_reason: str | None = None
+        #: The top-level `aod: dim:` (plan 14 §4.5), normalised: `None` for
+        #: both "absent" and a written `1` -- see `Face.aod_dim`.
+        self.face_aod_dim: float | None = None
 
     # -- entry point ------------------------------------------------------
 
@@ -461,6 +464,7 @@ class Builder:
             aod_default_hide=self.face_aod_default_hide,
             aod_lint_allow=self.face_aod_lint_allow,
             aod_lint_reason=self.face_aod_lint_reason,
+            aod_dim=self.face_aod_dim,
         )
 
     # -- layouts, palette, config, fonts, scope -----------------------------
@@ -2239,24 +2243,23 @@ class Builder:
     # -- always-on display (`aod:`, plan 14) --------------------------------
 
     def _build_face_aod(self, raw: dict) -> None:
-        """Top-level `aod:` (plan 14 §2.2): `default:`, plus `dim:`/`jitter:`,
-        which the schema accepts but this builder rejects with a friendly
-        "not implemented yet" error -- the same shape `_build_element` already
-        gives per-device `overrides:` (`docs/limitations.md`).
+        """Top-level `aod:` (plan 14 §2.2): `default:`, `dim:` (§4.5), plus
+        `jitter:`, which the schema accepts but this builder rejects with a
+        friendly "not implemented yet" error -- the same shape `_build_element`
+        already gives per-device `overrides:` (`docs/limitations.md`).
         """
         self.face_aod_default_hide = raw.get("default", "hide") == "hide"
         lint = raw.get("lint") or {}
         self.face_aod_lint_allow = frozenset(lint.get("allow", ()))
         self.face_aod_lint_reason = lint.get("reason")
-        if "dim" in raw:
-            self.bag.error(
-                "aod",
-                "aod: 'dim:' is not implemented yet, so this would be silently ignored",
-                self.doc.span(raw, "dim"),
-                notes=["plan 14 slice 3 builds it -- see docs/limitations.md 2",
-                       "until then, restyle individual elements' 'aod: {color: ...}' "
-                       "to a dimmer colour by hand"],
-            )
+        dim_raw = raw.get("dim")
+        # `dim: 1` and no `dim:` at all mean the same thing -- "no
+        # dimming" -- so both normalise to `None` here, the one value every
+        # emitter checks to skip the dimming ternary entirely and keep a
+        # `dim: 1` face's generated source byte-identical to one with no
+        # `dim:` (the schema's own `exclusiveMinimum: 0`/`maximum: 1` has
+        # already ruled out anything outside (0, 1] by the time this runs).
+        self.face_aod_dim = None if dim_raw is None or float(dim_raw) == 1.0 else float(dim_raw)
         if "jitter" in raw:
             self.bag.error(
                 "aod",

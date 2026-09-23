@@ -467,3 +467,67 @@ These cost real time to discover; do not rediscover them.
   runtime fallback code both still carry for the font cases (e.g.
   `wfb.emit.monkeyc.shapes._emit_text_draw`'s `is_vector` check) is
   defensive, not a live path.
+
+- **`aod: {dim: ...}` (plan 14 slice 3): the split is `Expression.is_constant`,
+  not a choice between two implementations -- and a real `monkeyc` build
+  caught a barrel-file omission no Python-level codegen test could.**
+  `dim` has to scale a colour that is either a build-time literal
+  (`palette.<name>`, a bare hex) or something the device resolves at
+  runtime (`config.colors.<role>`, a conditional between several colours).
+  Plan §4.5 offered two candidate implementations for the runtime half:
+  a small integer-math helper (`dim(color, num, den)`), or precomputing a
+  dimmed variant per `color_scheme:` entry. The second was never actually
+  built to compare against: `config.colors.<role>` is a *view field* the
+  wearer's own on-device pick can repoint at runtime
+  (`Builder._define_config_color`, `constant=None` by design), so
+  precomputing a dimmed variant would mean a second shadow field kept in
+  sync on every `applyConfig`/style edit -- strictly more fields, more
+  bookkeeping, and a second place that field and its shadow could drift --
+  for a value that is one `Number` and three shifts to compute from the
+  field that already exists. The runtime helper (`WfbColor.dim`,
+  `runtime-lib/WfbColor.mc`, integer channel math -- never `Float`, so its
+  rounding is bit-for-bit the same as the Python half's, `wfb/palette.py`'s
+  own `dim_channel` docstring) is what shipped. `Expression.is_constant` --
+  already true for a `palette.<name>` reference (`fold_colors=True`'s own
+  resolved-constant half, `Builder._expression`) and already `None` for
+  `config.colors.<role>` -- is exactly the fact that decides which of the
+  two a given colour needs, so `wfb.emit.monkeyc.common._dim_color_code`
+  needed no new classification of its own: a constant colour is pre-dimmed
+  into a second literal in Python once, at build time
+  (`wfb.palette.Color.dim`); anything else calls `WfbColor.dim` at the draw
+  site. Measured (`fenix847mm`, `--build-stats`, one `text` element): a
+  face with `aod: show` and no `dim:` at all is 1,127 B; the same face with
+  `aod: {dim: 0.5}` on a `config.colors.<role>` colour is 1,318 B -- **191 B**
+  for the runtime path (the `WfbColor` module, the call site and the
+  ternary together). A colour dimmed at build time costs far less: the
+  `examples/features/aod/face.yaml` example (one `palette.<name>`-typed
+  colour newly dimmed, `accent_dot`, no override of its own) grew from
+  2,401 B to 2,415 B on the same device -- **14 B**, a single wider hex
+  literal.
+
+  **`wfb.emit.project._barrel_for` copies runtime-lib files by IR-structural
+  inference for every existing helper (walks `resolved.items` for the
+  element kinds present) -- `WfbColor.mc` cannot be decided that way**,
+  because whether the generated view ends up calling `WfbColor.dim` at all
+  depends on a fact `_barrel_for` cannot see from the IR alone: whether
+  *any* AOD-shown colour, across every element and every one of `color`/
+  `track_color`/`icon_color`, turned out non-constant with no override.
+  Re-deriving that classification a second time inside `_barrel_for` would
+  be exactly the "two guesses that can disagree" shape this project's own
+  working agreement warns against (the `dead-element`-lint cascade lore
+  above). Instead `_barrel_for` now takes the project's already-generated
+  sources and greps them for the one literal call `WfbColor.dim(` ever
+  appears as -- the same "inspect what was actually emitted, don't
+  re-derive it" move `_avoid_string_label_collisions` already makes one
+  function below, so it cannot drift from the real decision codegen made.
+  **This is not a hypothetical:** a real `monkeyc` build of a
+  `config.colors.<role>`-dimmed design failed outright with `Undefined
+  symbol ':WfbColor'` before this fix, while every Python-level codegen
+  test in `tests/test_aod.py` stayed green -- none of them invoke `monkeyc`
+  at all, only `wfb.emit.generate` (source text) or `wfb.preview` (a
+  render), neither of which would ever notice a missing barrel file.
+  `tests/test_aod.py::test_a_runtime_dimmed_colour_compiles_warning_free`
+  (`@pytest.mark.slow`) is what actually builds this exact design for real
+  and would have caught it -- add a `slow` test alongside any change to
+  `_barrel_for`'s *decision* (not just its Python-level output), because
+  that decision only has a real audience once `monkeyc` runs.

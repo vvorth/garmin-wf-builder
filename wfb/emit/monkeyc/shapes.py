@@ -8,7 +8,8 @@ from ... import formatting
 from ...ir import Progress, local_name
 from ...layout import PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace
 from .common import (
-    _aod_color, _aod_font_field, _aod_value, _color, _const_prefix, _field, _glyph_y_expr,
+    AodDim, _aod_color, _aod_font_field, _aod_value, _color, _const_prefix, _field,
+    _glyph_y_expr,
 )
 from ..writer import Writer
 
@@ -67,10 +68,10 @@ def _shape_filled_override(element, aod: bool) -> bool:
     )
 
 
-def _emit_shape(w: Writer, placed: PlacedShape, aod: bool = False) -> None:
+def _emit_shape(w: Writer, placed: PlacedShape, aod: bool = False, dim: AodDim = None) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
-    color_code = _aod_color(element, "color", _color(element.color), aod)
+    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     filled_override = _shape_filled_override(element, aod)
 
@@ -173,10 +174,10 @@ def _emit_filled_toggle(w: Writer, filled: bool, override: bool,
 
 
 def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: list[str],
-              aod: bool = False) -> None:
+              aod: bool = False, dim: AodDim = None) -> None:
     element = placed.element
     if element.literal is not None:
-        _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod)
+        _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod, dim)
         return
 
     value_code = formatting.emit(
@@ -215,9 +216,9 @@ def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: li
         with w.block(f"if ({available})"):
             w.line(f"text = {value_code};")
         w.blank()
-        _emit_text_draw(w, resolved, placed, "text", aod)
+        _emit_text_draw(w, resolved, placed, "text", aod, dim)
         return
-    _emit_text_draw(w, resolved, placed, value_code, aod)
+    _emit_text_draw(w, resolved, placed, value_code, aod, dim)
 
 
 #: `text.curve.direction` -> `Graphics.RadialTextDirection` (verified in
@@ -321,11 +322,11 @@ def _emit_plain_text_call(
 
 
 def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value_code: str,
-                    aod: bool = False) -> None:
+                    aod: bool = False, dim: AodDim = None) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
-    color_code = _aod_color(element, "color", _color(element.color), aod)
+    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
     if placed.font_is_vector:
         _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code)
         return
@@ -445,13 +446,14 @@ def _emit_vector_text_draw(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
-def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str], aod: bool = False) -> None:
+def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str], aod: bool = False,
+                   dim: AodDim = None) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
     fraction_expr = _fraction(element)
-    color_code = _aod_color(element, "color", _color(element.color), aod)
+    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
     track_color_code = (
-        _aod_color(element, "track_color", _color(element.track_color), aod)
+        _aod_color(element, "track_color", _color(element.track_color), aod, dim)
         if element.track_color is not None else None
     )
     if element.when_absent == "fallback" and guards:
@@ -527,7 +529,7 @@ def _fraction(element: Progress) -> str:
     return f"WfbMath.percent({element.value.code}, {element.maximum.code}) / 100.0"
 
 
-def _emit_icon(w: Writer, placed: PlacedIcon, aod: bool = False) -> None:
+def _emit_icon(w: Writer, placed: PlacedIcon, aod: bool = False, dim: AodDim = None) -> None:
     """A `drawText` call against the icon's baked glyph -- see `wfb.icons`:
     an icon is a one-character string drawn with a bitmap font, the same
     mechanism any other bound text uses, not a hand-drawn shape.
@@ -564,7 +566,7 @@ def _emit_icon(w: Writer, placed: PlacedIcon, aod: bool = False) -> None:
         glyph_expr = f'"{element.codepoint}"'
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
     y_expr = _glyph_y_expr(f"Layout.{prefix}_CY", element.vertical_align, "font")
-    color_code = _aod_color(element, "color", _color(element.color), aod)
+    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     w.line(f"dc.drawText(Layout.{prefix}_CX, {y_expr}, font,")
     w.line(f"            {glyph_expr},")

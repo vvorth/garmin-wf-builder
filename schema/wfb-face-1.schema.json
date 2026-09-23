@@ -688,9 +688,9 @@
           "default": "hide"
         },
         "dim": {
-          "description": "Scale the luminance of every colour the AOD frame draws, 0-1. Accepted by the schema; the builder rejects it with a friendly error until plan 14 slice 3 lands.",
+          "description": "Scale the luminance of every colour the AOD frame draws (docs/plans/14-aod.md §4.5): each 8-bit channel times 'dim', rounded to the nearest integer. 1 (or omitting 'dim:') is identity -- no dimming code is emitted at all. 0 is rejected outright (exclusiveMinimum): it would make every undimmed-by-override colour black, indistinguishable from 'aod: hide'. An explicit 'color:'/'track_color:'/'icon_color:' inside an element's own 'aod:' override block is never dimmed -- it is the author's final word.",
           "type": "number",
-          "minimum": 0,
+          "exclusiveMinimum": 0,
           "maximum": 1
         },
         "jitter": {

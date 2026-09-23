@@ -28,6 +28,7 @@ BARREL_FILES = {
     "WfbSeries.mc": "graph time-series acquisition, binning and drawing",
     "WfbHands.mc": "analog hands -- the three clock-to-angle functions",
     "WfbGeom.mc": "rotate/translate-and-draw helpers shared by analog hands and patterns",
+    "WfbColor.mc": "aod: {dim: ...} -- dimming a colour not known until the device resolves it",
 }
 
 
@@ -109,7 +110,7 @@ def generate(face: Face, devices: list[Device], root: Path,
         # design (no on_hold) also needs one, purely for
         # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
         project.sources.append(monkeyc.emit_delegate(first, guards))
-    project.barrel = _barrel_for(face, first)
+    project.barrel = _barrel_for(face, first, project.sources)
     _avoid_string_label_collisions(project)
     return project
 
@@ -186,8 +187,22 @@ def _is_time_value(element) -> bool:
     return element.value is not None and element.value.value.type is Type.TIME
 
 
-def _barrel_for(face: Face, resolved: ResolvedFace) -> list[str]:
+def _barrel_for(face: Face, resolved: ResolvedFace,
+                sources: "list[monkeyc.SourceFile] | tuple[()]" = ()) -> list[str]:
     needed: set[str] = set()
+    # `aod: {dim: ...}` (plan 14 slice 3): whether the *generated view* ends
+    # up calling `WfbColor.dim` at all is a fact about which colours turned
+    # out non-constant (`Expression.is_constant`, `wfb.emit.monkeyc.common.
+    # _dim_color_code`) -- every AOD-shown element with no override for a
+    # given key, on a build that actually dims at all. Re-deriving that here
+    # from the IR would be a second guess that could drift from the real
+    # decision codegen already made; scanning the view source it already
+    # emitted (`monkeyc.emit_view`, appended to `sources` above) for the one
+    # call this helper ever makes cannot disagree with it by construction --
+    # the same "inspect what was actually generated" shape `_avoid_string_
+    # label_collisions` already uses one function down.
+    if any("WfbColor.dim(" in source.text for source in sources):
+        needed.add("WfbColor.mc")
     plan = monkeyc.ReadPlan(resolved)
     if face.barrel_functions():
         needed.add("WfbMath.mc")

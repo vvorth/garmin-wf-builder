@@ -86,3 +86,46 @@ class Color:
 
     def __str__(self) -> str:
         return f"#{self.value:06X}"
+
+    def dim(self, num: int, den: int) -> "Color":
+        """Scale this colour's luminance by ``num/den`` (`aod: {dim: ...}`,
+        plan 14 slice 3): each channel times ``num/den``, rounded to the
+        nearest integer with :func:`dim_channel`'s own plain integer
+        arithmetic, never a float -- see that function's docstring for why.
+        """
+        return Color(dim_channel(self.r, num, den), dim_channel(self.g, num, den),
+                     dim_channel(self.b, num, den))
+
+
+def dim_channel(value: int, num: int, den: int) -> int:
+    """Scale one 0-255 channel by ``num/den``, rounded to the nearest integer
+    (ties up), with only integer arithmetic (plan 14 slice 3, `aod: {dim:
+    ...}`).
+
+    This exact formula is computed in three places that must agree bit for
+    bit: here, in Python, for a build-time-constant colour (a bare hex
+    literal or a `palette.<name>` reference -- `Expression.is_constant`,
+    pre-dimmed into a second literal at build time, `wfb.emit.monkeyc.
+    common._dim_color_code`); in the generated `WfbColor.dim`
+    (`runtime-lib/WfbColor.mc`), for a colour whose value is not known until
+    the device resolves it (`config.colors.<role>`, or a conditional between
+    several colours); and in `wfb.preview`, rendering the same frame on the
+    host.  A float would let a channel landing near a `.5` boundary round
+    differently across those three -- Python's banker's rounding, this
+    platform's own `Math.round`, and 32-bit vs. 64-bit precision could each
+    disagree -- so every one of them does this same integer division
+    instead, which Monkey C's `/` on two non-negative `Number`s and Python's
+    `//` compute identically.
+    """
+    return max(0, min(255, (value * num + den // 2) // den))
+
+
+def dim_fraction(dim: float) -> tuple[int, int]:
+    """One face's `aod: {dim: ...}` factor (0-1, exclusive of 0), as the
+    ``(num, den)`` integer ratio :func:`dim_channel`, the codegen ternary and
+    the generated `WfbColor.dim` all share -- a fixed denominator of 1000
+    (three decimal digits) is precise enough for a value the schema already
+    restricts to 0-1, and, being an integer itself, is exactly representable
+    on both sides with no floating-point drift to keep in sync.
+    """
+    return round(dim * 1000), 1000

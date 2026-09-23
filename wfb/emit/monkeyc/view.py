@@ -17,9 +17,10 @@ from ...layout import (
     ANTIALIASED_PRIMITIVES, PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
     PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
+from ...palette import dim_fraction
 from ...series import Acquisition
 from .common import (
-    CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _aod_font_field,
+    AodDim, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _aod_font_field,
     _aod_only_fonts, _and_list, _const_prefix, _describe, _editor_slot_pairs, _field,
     _loaded_fonts, _mc_bool, _method, _pattern_needs_math, _vector_fonts_used, header,
     hold_targets,
@@ -255,6 +256,12 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     aod = guards.amoled_target
     if aod:
         plan.modules.add("Toybox.System")  # DeviceSettings.requiresBurnInProtection
+    # `aod: {dim: ...}` (plan 14 §4.5): computed once here, as the same
+    # `(num, den)` integer ratio every dimming call site shares -- `None`
+    # for "no dimming", which is also what a face with no `dim:` at all (or
+    # an all-MIP build, where `aod` above is already `False`) gets, so
+    # nothing downstream needs a second "does this face even dim" check.
+    dim: AodDim = dim_fraction(face.aod_dim) if aod and face.aod_dim is not None else None
     # `_sleeping` exists only for the `awake`-only second hand (whether to
     # draw it at all) -- `aod` no longer reads it: the AMOLED gate is `_aod`
     # below, recomputed straight from the device settings in onEnterSleep,
@@ -322,7 +329,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             if placed.kind == "group":
                 continue
             w.blank()
-            _emit_element_method(w, resolved, placed, plan, antialias_default, aod)
+            _emit_element_method(w, resolved, placed, plan, antialias_default, aod, dim)
     return SourceFile(f"source/{face.entry}View.mc", w.render())
 
 
@@ -1217,7 +1224,8 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
 
 
 def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadPlan",
-                         antialias_default: bool | None = None, aod: bool = False) -> None:
+                         antialias_default: bool | None = None, aod: bool = False,
+                         dim: AodDim = None) -> None:
     element = placed.element
     w.doc(_method_doc(placed))
     signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
@@ -1245,7 +1253,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             # `plan.guards`/`value_guards` to say about it -- `color:` is the
             # only ordinary expression here, and `Builder._build_complication_
             # slot` already requires it to be non-nullable.
-            _emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
+            _emit_complication_slot(w, resolved, placed, plan.device_guards, aod, dim)
             return
         value_guards = plan.value_guards(placed)
         if substitutes_value:
@@ -1277,19 +1285,19 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
             w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
         if isinstance(placed, PlacedShape):
-            _emit_shape(w, placed, aod)
+            _emit_shape(w, placed, aod, dim)
         elif isinstance(placed, PlacedText):
-            _emit_text(w, resolved, placed, value_guards, aod)
+            _emit_text(w, resolved, placed, value_guards, aod, dim)
         elif isinstance(placed, PlacedProgress):
-            _emit_progress(w, placed, value_guards, aod)
+            _emit_progress(w, placed, value_guards, aod, dim)
         elif isinstance(placed, PlacedIcon):
-            _emit_icon(w, placed, aod)
+            _emit_icon(w, placed, aod, dim)
         elif isinstance(placed, PlacedGraph):
-            _emit_graph(w, placed, aod)
+            _emit_graph(w, placed, aod, dim)
         elif isinstance(placed, PlacedHands):
-            _emit_hands(w, placed, aod)
+            _emit_hands(w, placed, aod, dim)
         elif isinstance(placed, PlacedPattern):
-            _emit_pattern(w, placed, aod)
+            _emit_pattern(w, placed, aod, dim)
         if overrides_antialias:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 

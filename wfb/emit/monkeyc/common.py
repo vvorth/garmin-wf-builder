@@ -14,6 +14,7 @@ from ...ir import (
     element_method_name,
 )
 from ...layout import PlacedComplicationSlot, PlacedIcon, PlacedPattern, PlacedText, ResolvedFace
+from ...palette import Color
 
 
 #: Base Toybox imports every generated face needs.
@@ -234,7 +235,45 @@ def _color(expression: Expression | None) -> str:
     return expression.code
 
 
-def _aod_color(element, key: str, awake_code: str, aod: bool) -> str:
+#: `aod: {dim: ...}` (plan 14 slice 3), as the `(num, den)` integer ratio
+#: `wfb.palette.dim_channel`/the generated `WfbColor.dim` both read -- `None`
+#: means "no dimming", the same as the face never writing `dim:` at all
+#: (`Face.aod_dim`'s own normalisation folds `dim: 1` into this too).  Every
+#: `_emit_*` function below that can draw a colour in the AOD frame takes
+#: this as an optional trailing parameter, threaded down from `emit_view`
+#: exactly alongside `aod: bool` -- the two are always derived together, at
+#: the one place `Guards.amoled_target`/`Face.aod_dim` are both in scope.
+AodDim = tuple[int, int] | None
+
+
+def _dim_color_code(expression: Expression | None, awake_code: str, dim: "AodDim") -> str:
+    """The AOD Monkey C expression for one colour that has **no** explicit
+    `aod: {color: ...}`-style override, when the face's own `aod: {dim:
+    ...}` still applies to it (plan 14 §4.5: dimming reaches every colour
+    the AOD frame draws, override or not).
+
+    A colour whose value is fixed at build time -- a bare hex literal, or a
+    `palette.<name>` reference, `Expression.is_constant` either way -- is
+    pre-dimmed into a second literal here, in Python, once, rather than
+    spending a runtime call on arithmetic whose answer never changes
+    (`wfb.palette.Color.dim`). Anything else -- `config.colors.<role>` (a
+    view field the wearer's own on-device pick can repoint, `Expression.
+    constant is None` by `Builder._define_config_color`'s own design) or a
+    conditional between several colours -- is dimmed on-device instead, with
+    the exact same integer math (`WfbColor.dim`, `runtime-lib/WfbColor.mc`),
+    since its value is not known until the device resolves it.
+    `expression is None` is a `color:` an element never wrote at all, which
+    defaults to `Graphics.COLOR_WHITE` (`_color`) -- itself fixed at build
+    time, dimmed the same way as any other constant.
+    """
+    num, den = dim
+    if expression is None or expression.is_constant:
+        value = expression.constant if expression is not None else 0xFFFFFF
+        return Color.parse(value).dim(num, den).as_monkeyc()
+    return f"WfbColor.dim({awake_code}, {num}, {den})"
+
+
+def _aod_color(element, key: str, awake_code: str, aod: bool, dim: "AodDim" = None) -> str:
     """One colour argument (`color`/`track_color`/`icon_color`), as
     ``_aod ? <override> : <awake>`` when this element's resolved `aod:`
     overrides ``key`` *and* this build ever emits AOD code at all (``aod`` --
@@ -246,13 +285,43 @@ def _aod_color(element, key: str, awake_code: str, aod: bool) -> str:
     `color_scheme:`/`config.colors` at runtime exactly as `awake_code`
     already does (plan 14 §4.6): there is no second, narrower colour
     resolution path here.
+
+    With no override for ``key`` but a face-wide `dim` (plan 14 §4.5), this
+    element is still shown in AOD (`element.aod is not None`, checked
+    above), so its awake colour is dimmed instead of left alone -- `dim`
+    reaches *every* colour the AOD frame draws, not only overridden ones.
     """
     if not aod or element.aod is None:
         return awake_code
     override = getattr(element.aod, key)
-    if override is None:
+    if override is not None:
+        return f"(_aod ? {override.code} : {awake_code})"
+    if dim is None:
         return awake_code
-    return f"(_aod ? {override.code} : {awake_code})"
+    dimmed = _dim_color_code(getattr(element, key, None), awake_code, dim)
+    return f"(_aod ? {dimmed} : {awake_code})"
+
+
+def _aod_part_color(color_expr: Expression | None, override_code: str | None, aod: bool,
+                    dim: "AodDim") -> str:
+    """`_aod_color`'s own colour-selection rule (override, then dim, then
+    plain), for a `hands`/`pattern` part -- which has no single `element` to
+    read a `key` off of (`aod: {color: ...}` applies uniformly to every
+    part, §5.1), just this one part's own resolved `color:` `Expression` and
+    whatever ternary string the caller already derived for the element-level
+    override.  ``dim`` is expected already narrowed to `None` when this
+    element is not shown in AOD at all (`element.aod is None`) -- the same
+    "no override, no dim, nothing to do" outcome `_aod_color` reaches by
+    checking that itself.
+    """
+    awake_code = _color(color_expr)
+    if not aod:
+        return awake_code
+    if override_code is not None:
+        return f"(_aod ? {override_code} : {awake_code})"
+    if dim is None:
+        return awake_code
+    return f"(_aod ? {_dim_color_code(color_expr, awake_code, dim)} : {awake_code})"
 
 
 def _aod_value(aod: bool, override: str | None, awake_code: str) -> str:
