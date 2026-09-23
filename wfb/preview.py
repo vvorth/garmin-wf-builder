@@ -582,6 +582,30 @@ class _Renderer:
         color = self._color(part_color, values)
         return self._dim_rgb(color) if dim_active else color
 
+    def _aod_part_overrides(
+        self, element, placed,
+    ) -> tuple[tuple[int, int, int] | None, bool, int | None]:
+        """`aod: {color: ...}`/`{thickness: ...}`/`{dim: ...}` (plan 14
+        §4.5/§5.1), resolved once per `hands`/`pattern` element -- the one
+        override applied uniformly to every part -- and shared by `_hands`
+        and `_pattern`, which otherwise computed the identical three values
+        from the identical fields (`element.aod`, `placed.aod_thickness`,
+        `self.resolved.face.aod_dim`) independently, a duplication this
+        collapses rather than risk the two drifting apart.  Returns
+        `(color_override, dim_active, thickness_override)`, consumed by
+        `_resolve_part_color`/`_hand_part`/`_pattern_arc` exactly as before.
+        """
+        color_override = (
+            self._color(element.aod.color) if (self.options.aod and element.aod is not None
+                                               and element.aod.color is not None) else None
+        )
+        dim_active = self.options.aod and element.aod is not None and self.resolved.face.aod_dim is not None
+        thickness_override = (
+            placed.aod_thickness if (self.options.aod and placed.aod_thickness is not None)
+            else None
+        )
+        return color_override, dim_active, thickness_override
+
     def render_element(self, placed) -> None:
         # `--aod`: the fully resolved AOD gate (`element.visible` already
         # folded in, plan 14 §3) -- not the element's own plain `visible:`,
@@ -687,22 +711,11 @@ class _Renderer:
             "minute": math.radians(minute * 6.0),
             "second": math.radians(second * 6.0),
         }
-        # `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1): one override,
-        # applied uniformly to every part of every hand -- the preview's own
-        # twin of `wfb.emit.monkeyc.rotated._emit_hands`'s ternary.
-        color_override = (
-            self._color(element.aod.color) if (self.options.aod and element.aod is not None
-                                               and element.aod.color is not None) else None
-        )
-        # `aod: {dim: ...}` (plan 14 §4.5): only when this hand set is shown
-        # in AOD at all and no per-part override already took over --
-        # matches `wfb.emit.monkeyc.rotated._emit_hands`'s own
-        # `dim_effective` gate exactly.
-        dim_active = self.options.aod and element.aod is not None and self.resolved.face.aod_dim is not None
-        thickness_override = (
-            placed.aod_thickness if (self.options.aod and placed.aod_thickness is not None)
-            else None
-        )
+        # `aod: {color: ...}`/`{thickness: ...}`/`{dim: ...}` (plan 14
+        # §4.5/§5.1): one override, applied uniformly to every part of every
+        # hand -- the preview's own twin of `wfb.emit.monkeyc.rotated.
+        # _emit_hands`'s ternary (`_aod_part_overrides`, shared with `_pattern`).
+        color_override, dim_active, thickness_override = self._aod_part_overrides(element, placed)
         for hand_name in ("hour", "minute", "second"):
             hand = getattr(placed, hand_name)
             if hand is None:
@@ -768,23 +781,14 @@ class _Renderer:
         if self._pattern_absent(element):
             return
         s = self.scale
-        # `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1): one
-        # override, applied uniformly to every part -- the preview's own
-        # twin of `wfb.emit.monkeyc.rotated._emit_pattern`'s ternary.
+        # `aod: {color: ...}`/`{thickness: ...}`/`{dim: ...}` (plan 14
+        # §4.5/§5.1): one override, applied uniformly to every part -- the
+        # preview's own twin of `wfb.emit.monkeyc.rotated._emit_pattern`'s
+        # ternary (`_aod_part_overrides`, shared with `_hands`).
         # (A pattern's own `aod: {font: ...}` never reaches here at all --
         # it is a friendly build error, `Builder._build_aod_authored`,
         # docs/limitations.md §2.)
-        color_override = (
-            self._color(element.aod.color) if (self.options.aod and element.aod is not None
-                                               and element.aod.color is not None) else None
-        )
-        # `aod: {dim: ...}` (plan 14 §4.5): the preview's own twin of
-        # `wfb.emit.monkeyc.rotated._emit_pattern`'s `dim_effective` gate.
-        dim_active = self.options.aod and element.aod is not None and self.resolved.face.aod_dim is not None
-        thickness_override = (
-            placed.aod_thickness if (self.options.aod and placed.aod_thickness is not None)
-            else None
-        )
+        color_override, dim_active, thickness_override = self._aod_part_overrides(element, placed)
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
             cx, cy = ox * s, oy * s
