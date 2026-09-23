@@ -393,6 +393,9 @@ class Builder:
         #: The top-level `aod: dim:` (plan 14 §4.5), normalised: `None` for
         #: both "absent" and a written `1` -- see `Face.aod_dim`.
         self.face_aod_dim: float | None = None
+        #: The top-level `aod: mask:` (plan 16 slice 1) -- `True` for both
+        #: "absent" and an explicit `true`, see `Face.aod_mask`.
+        self.face_aod_mask: bool = True
 
     # -- entry point ------------------------------------------------------
 
@@ -473,6 +476,7 @@ class Builder:
             aod_lint_allow=self.face_aod_lint_allow,
             aod_lint_reason=self.face_aod_lint_reason,
             aod_dim=self.face_aod_dim,
+            aod_mask=self.face_aod_mask,
         )
 
     # -- layouts, palette, config, fonts, scope -----------------------------
@@ -2245,7 +2249,8 @@ class Builder:
     # -- always-on display (`aod:`, plan 14) --------------------------------
 
     def _build_face_aod(self, raw: dict) -> None:
-        """Top-level `aod:` (plan 14 §2.2): `default:`, `dim:` (§4.5)."""
+        """Top-level `aod:` (plan 14 §2.2): `default:`, `dim:` (§4.5), `mask:`
+        (plan 16 §4)."""
         self.face_aod_default_hide = raw.get("default", "hide") == "hide"
         lint = raw.get("lint") or {}
         self.face_aod_lint_allow = frozenset(lint.get("allow", ()))
@@ -2258,6 +2263,11 @@ class Builder:
         # `dim:` (the schema's own `exclusiveMinimum: 0`/`maximum: 1` has
         # already ruled out anything outside (0, 1] by the time this runs).
         self.face_aod_dim = None if dim_raw is None or float(dim_raw) == 1.0 else float(dim_raw)
+        # `mask:` (plan 16 §4): absent and `true` both mean "on" -- unlike
+        # `dim:`, a plain bool needs no separate normalised sentinel, since
+        # the emitter's own "should I emit the mask call" question is
+        # answered by this value directly.
+        self.face_aod_mask = bool(raw.get("mask", True))
 
     def _build_aod_authored(self, node: dict) -> tuple[bool, dict[str, object] | None]:
         """Parse one element/group's own `aod:` (plan 14 §2.1) into

@@ -17,7 +17,7 @@ design, not a second layout to maintain.
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
 | `aod:` | any element, `group` | `hide` \| `show` \| an override block | inherited (see [Resolution](#resolution)) | this element's AOD behaviour |
-| `aod:` | top level, beside `elements:` | `{default, dim, lint}` | — | face-wide AOD defaults |
+| `aod:` | top level, beside `elements:` | `{default, dim, mask, lint}` | — | face-wide AOD defaults |
 
 ## Per element or group
 
@@ -69,6 +69,7 @@ other `awake`-only frame.
 aod:                  # top-level, beside elements:
   default: hide        # hide (default) | show — for elements whose ancestry says nothing
   dim: 0.4              # scale every drawn colour's luminance, 0-1 (exclusive of 0) — see "Dimming" below
+  mask: true             # moving 2x2 pixel mask, on by default — see "Pixel mask" below
   lint:                   # suppress a face-level AOD lint (aod-empty)
     allow: [aod-empty]
     reason: "prototype face, AOD comes later"
@@ -225,6 +226,66 @@ synthetic literal that is never entered into `palette:`/`config:`/
 since `dim` only ever reaches the `_aod` branch, which only ever runs on an
 AMOLED device (constraint 13's rule is MIP-only to begin with), there is
 nothing there to warn about anyway.
+
+## Pixel mask (`aod: {mask: ...}`)
+
+```yaml
+aod:
+  mask: false           # opt out; on by default, so omitting this key entirely masks too
+```
+
+A moving 2x2 pixel mask sits over the whole AOD frame, on top of restyling
+and dimming (plan 16 §1-2, `docs/research/15-aod-pixel-masks.md`): one pixel
+in each on-screen 2x2 tile stays lit as drawn, and the other three are
+forced black. Which pixel of the tile stays lit moves every minute, so no
+single pixel is ever lit for two consecutive minutes and every pixel is lit
+at most one minute in four — lit-pixel count and luminance both fall to
+about a quarter of the unmasked frame, on top of whatever `dim:` already did
+(the two stack; a design can use either, both or neither).
+
+**The phase table.** `phase = minute mod 4` (`minute` is
+`System.getClockTime().min`, 0-59) selects `(dx, dy)` from the fixed
+4-cycle:
+
+| phase | (dx, dy) |
+|---|---|
+| 0 | (0, 0) |
+| 1 | (1, 0) |
+| 2 | (1, 1) |
+| 3 | (0, 1) |
+
+The pixel kept lit at device coordinate `(x, y)` is exactly the one with
+`x mod 2 == dx` and `y mod 2 == dy`. Each step moves the lit pixel to a
+4-neighbour, never a diagonal jump, and both 60 and 1440 are multiples of 4,
+so the cycle stays continuous across the hour and the day.
+
+**On by default.** `mask: false` is the only way to opt out; omitting
+`mask:` and writing `mask: true` mean the same thing. Masking an AMOLED
+target with nothing shown in AOD at all (an empty resolved `aod:` set) skips
+the mask call too — there is nothing lit to mask.
+
+**The device route: black strips, not a bitmap.** The black set is
+`{y mod 2 != dy} ∪ {x mod 2 != dx}` — every other row plus every other
+column — so the generated code (`runtime-lib/WfbAodMask.mc`, called once,
+last, after every AOD element has drawn) is two loops of 1px
+`Dc.fillRectangle` calls:
+
+```monkeyc
+for (var y = 1 - dy; y < h; y += 2) { dc.fillRectangle(0, y, w, 1); }
+for (var x = 1 - dx; x < w; x += 2) { dc.fillRectangle(x, 0, 1, h); }
+```
+
+This needs no alpha, no `BufferedBitmap` and no graphics-pool memory — only
+`Dc.fillRectangle`/`setColor`/`getWidth`/`getHeight` and
+`System.getClockTime`, which exist on every device. Anti-aliasing is turned
+off first (`dc has :setAntiAlias`, the same guard `applyAntiAlias` uses) so
+the 1px strips land on exact pixels.
+
+**Not applied by preview or the burn-in lint yet.** `wfb preview --aod`
+currently shows the unmasked frame, and `aod-burn-in` scores the unmasked
+render — both are slice 2 of plan 16, not yet built. Until then, a design's
+actual on-device lit-pixel/luminance figures under the mask will read lower
+than what preview and the lint currently report.
 
 ## When the AOD frame runs
 

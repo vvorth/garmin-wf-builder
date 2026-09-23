@@ -693,6 +693,11 @@
           "exclusiveMinimum": 0,
           "maximum": 1
         },
+        "mask": {
+          "description": "A moving 2x2 pixel mask over the whole AOD frame (docs/plans/16-aod-pixel-mask.md): one pixel in each on-screen 2x2 tile stays lit, the other three are forced black, and which pixel of the tile is lit moves to a 4-neighbour once a minute (phase = minute mod 4). On (the default) unless set to false. No pixel is lit for two consecutive minutes and every pixel is lit at most one minute in four, cutting lit-pixel count and luminance to about a quarter of the unmasked frame. Stacks with 'dim:'.",
+          "type": "boolean",
+          "default": true
+        },
         "lint": {
           "description": "Suppress a face-level AOD lint (currently only 'aod-empty') -- there is no single element to hang an ordinary 'lint: {allow: [...]}' on for a face-wide check.",
           "$ref": "#/$defs/lint"

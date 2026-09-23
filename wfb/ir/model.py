@@ -1377,6 +1377,16 @@ class Face:
     #: keeps a `dim: 1` face's generated source byte-identical to one with
     #: no `dim:` at all.
     aod_dim: float | None = None
+    #: Top-level `aod: mask:` (plan 16 slice 1): a moving 2x2 pixel mask
+    #: over the whole AOD frame -- one pixel per on-screen 2x2 tile stays
+    #: lit, the other three are forced black, and the lit pixel moves to a
+    #: 4-neighbour every minute. `True` (the default, and what an absent
+    #: `mask:` means) emits the mask call; `False` opts out entirely. Unlike
+    #: `aod_dim`, there is no "written but equal to the default" value to
+    #: normalise away -- a plain `bool` is already the whole story, and
+    #: `mask: false` is itself a real, distinct choice from omitting `mask:`
+    #: only in the schema layer, never in codegen, which reads this field.
+    aod_mask: bool = True
 
     @property
     def has_config(self) -> bool:

@@ -29,6 +29,7 @@ BARREL_FILES = {
     "WfbHands.mc": "analog hands -- the three clock-to-angle functions",
     "WfbGeom.mc": "rotate/translate-and-draw helpers shared by analog hands and patterns",
     "WfbColor.mc": "aod: {dim: ...} -- dimming a colour not known until the device resolves it",
+    "WfbAodMask.mc": "aod: {mask: ...} -- the moving 2x2 pixel mask over the AOD frame",
 }
 
 
@@ -203,6 +204,14 @@ def _barrel_for(face: Face, resolved: ResolvedFace,
     # label_collisions` already uses one function down.
     if any("WfbColor.dim(" in source.text for source in sources):
         needed.add("WfbColor.mc")
+    # `aod: {mask: ...}` (plan 16 slice 1): the same "inspect what was
+    # actually emitted" shape as `WfbColor.mc` just above -- whether the
+    # generated view calls `WfbAodMask.apply` at all depends on both
+    # `face.aod_mask` and whether the resolved AOD set is non-empty
+    # (`_emit_aod_body`), which this helper has no reason to re-derive when
+    # it can just look at what codegen already decided.
+    if any("WfbAodMask.apply(" in source.text for source in sources):
+        needed.add("WfbAodMask.mc")
     plan = monkeyc.ReadPlan(resolved)
     if face.barrel_functions():
         needed.add("WfbMath.mc")

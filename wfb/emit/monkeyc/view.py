@@ -1019,7 +1019,9 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     """The AMOLED always-on frame (plan 14 slices 1-2): every element whose
     resolved `aod:` is not `None`, calling the exact same per-element method
     the active frame calls, restyled by the ternaries/branches those methods
-    now read `_aod` through.
+    now read `_aod` through -- finished off by `WfbAodMask.apply` (plan 16
+    slice 1), the moving 2x2 pixel mask, when `face.aod_mask` is on and
+    something was actually drawn above for it to mask.
 
     **`DISPLAY_MODE_OFF` (plan 14 slice 6, research 11 §6 F): drawn nothing,
     before even the black clear.** `_aod` only narrows "asleep, on a
@@ -1091,6 +1093,18 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     ids = set(plan.aod_ids())
     entries = [placed for placed in resolved.items if placed.id in ids]
     _emit_layout_guarded_aod_calls(w, resolved.face, plan, entries)
+    # `aod: {mask: ...}` (plan 16 slice 1): the moving 2x2 pixel mask, drawn
+    # last so it forces every element's own pixels black except the one
+    # kept lit each minute -- only when the face wants it (`aod_mask`,
+    # `True` unless `mask: false`) and there is actually something drawn
+    # above to mask; an empty `entries` means the frame is already all
+    # black, and masking that would be pure waste (mirrors the plan's own
+    # "masking an all-black frame is pure waste" note for the emission
+    # gate).
+    if resolved.face.aod_mask and entries:
+        w.blank()
+        w.comment("aod: {mask: ...} (plan 16): moves the lit pixel every minute")
+        w.line("WfbAodMask.apply(dc, System.getClockTime().min);")
 
 
 def _emit_layout_guarded_aod_calls(w: Writer, face: Face, plan: "ReadPlan", entries: list) -> None:
