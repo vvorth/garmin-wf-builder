@@ -48,17 +48,69 @@ def test_a_complication_reader_is_available_on_fenix8(db):
 
 
 def test_an_ordinary_reader_is_available_everywhere_installed(db):
-    """`clock`/`activity`/`weather_current`/etc. are all core, pre-4.2.0
-    APIs -- confirmed present in every installed device's own symbol table,
-    fenix6/fr245 included (docs/research/probes/device-symbol-gate and this
-    task's own device sweep)."""
+    """`clock`/`activity`/etc. are all core, pre-3.1.0 APIs -- confirmed
+    present in every installed device's own symbol table, `fenix5`/`fenix5x`
+    (ConnectIQ 3.1.6, this project's lowest-level installed devices as of
+    2026-09-23) included.
+
+    `weather_current`/`weather_daily` used to be asserted here too, but they
+    are not actually universal -- `fenix5`/`fenix5x` lack `Toybox.Weather`
+    outright, so a `False` claim here would be a false universal, not a real
+    finding (`tests/CLAUDE.md`). See
+    `test_weather_readers_track_the_weather_module` below for the real,
+    per-device contrast.
+    """
     for device_id in db.ids():
         device = db.get(device_id)
         for reader_name in ("clock", "settings", "stats", "date", "activity",
-                            "activity_info", "weather_current", "weather_daily",
-                            "user_profile"):
+                            "activity_info", "user_profile"):
             assert availability.reader_unavailable(reader_name, device) is None, (
                 reader_name, device_id)
+
+
+def test_weather_readers_track_the_weather_module(db):
+    """`weather_current`/`weather_daily` are available exactly where
+    `Device.has_module("Weather")` holds, and reported unavailable -- naming
+    the right missing symbol -- everywhere it does not.
+
+    Neither `weather_current` nor `weather_daily`'s own `Reader.
+    requires_module` is set (only the 42 complication readers set it,
+    `wfb/catalog.py`'s own `Reader.requires_module` docstring), so the gap
+    `reader_unavailable` finds here is a `"function"` gap off `Reader.
+    requires`, not a `"module"` one -- confirmed by asserting `gap.kind`
+    below, not just that a gap exists.
+
+    This is the real contrast plan 14 slice 0's own false-universal
+    (`docs/lore` -- `tests/CLAUDE.md`) was standing in for, and it can
+    actually fail: without both a Weather-having and a Weather-lacking
+    installed device, every branch below degrades to "vacuously true",
+    which is exactly what happened before `fenix5`/`fenix5x` were
+    installed. The two asserts right after the loop are what keep that from
+    silently regressing again.
+    """
+    saw_weather = False
+    saw_no_weather = False
+    for device_id in db.ids():
+        device = db.get(device_id)
+        if device.has_module("Weather"):
+            saw_weather = True
+            assert availability.reader_unavailable("weather_current", device) is None, device_id
+            assert availability.reader_unavailable("weather_daily", device) is None, device_id
+        else:
+            saw_no_weather = True
+            current_gap = availability.reader_unavailable("weather_current", device)
+            daily_gap = availability.reader_unavailable("weather_daily", device)
+            assert current_gap is not None, device_id
+            assert current_gap.kind == "function"
+            assert current_gap.symbol == "Weather.getCurrentConditions"
+            assert daily_gap is not None, device_id
+            assert daily_gap.kind == "function"
+            assert daily_gap.symbol == "Weather.getDailyForecast"
+    assert saw_weather, "no installed device has Toybox.Weather -- the 'available' branch was never exercised"
+    assert saw_no_weather, (
+        "no installed device lacks Toybox.Weather -- the 'unavailable' branch was never exercised "
+        "(this is exactly the false-universal tests/CLAUDE.md records for plan 14 slice 0)"
+    )
 
 
 def test_stress_score_is_unavailable_on_fenix6_but_not_fenix8(db):
@@ -368,5 +420,5 @@ def test_manifest_floor_stays_at_base_even_with_fenix6_and_a_complication(write_
     (`error[monkeyc]: Device 'fenix6' does not support API Level '4.2.0'`)."""
     _skip_unless_installed(db, "fenix6")
     project = _generate(write_design, bag, db, tmp_path, "fenix6, fenix8solar47mm")
-    assert 'minApiLevel="3.2.0"' in project.manifest_text
+    assert 'minApiLevel="3.1.0"' in project.manifest_text
     assert 'minApiLevel="4.2.0"' not in project.manifest_text

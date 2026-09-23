@@ -199,25 +199,25 @@ def test_minapilevel_stays_at_the_base_even_with_a_complication(write_design, ba
     `uses_complications` still says yes; `api_level` just no longer listens."""
     face, _ = _build(write_design, bag, db, tmp_path, BODY_BATTERY)
     assert uses_complications(face) is True
-    assert api_level(face) == "3.2.0"
+    assert api_level(face) == "3.1.0"
 
 
 def test_minapilevel_stays_at_the_base_without_one(write_design, bag, db, tmp_path):
     face, _ = _build(write_design, bag, db, tmp_path, NO_COMPLICATION)
     assert uses_complications(face) is False
-    assert api_level(face) == "3.2.0"
+    assert api_level(face) == "3.1.0"
 
 
 def test_manifest_declares_complicationsubscriber(write_design, bag, db, tmp_path):
     _, project = _build(write_design, bag, db, tmp_path, BODY_BATTERY)
     assert '<iq:uses-permission id="ComplicationSubscriber"/>' in project.manifest_text
-    assert 'minApiLevel="3.2.0"' in project.manifest_text
+    assert 'minApiLevel="3.1.0"' in project.manifest_text
 
 
 def test_manifest_omits_complicationsubscriber_without_one(write_design, bag, db, tmp_path):
     _, project = _build(write_design, bag, db, tmp_path, NO_COMPLICATION)
     assert 'ComplicationSubscriber' not in project.manifest_text
-    assert 'minApiLevel="3.2.0"' in project.manifest_text
+    assert 'minApiLevel="3.1.0"' in project.manifest_text
 
 
 def test_view_imports_complications(write_design, bag, db, tmp_path):

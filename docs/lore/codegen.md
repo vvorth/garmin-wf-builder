@@ -56,9 +56,13 @@ These cost real time to discover; do not rediscover them.
    a device below that level** (`docs/research/probes/api-gating/`). Raising
    it for one feature raises it for *every* target device in the same
    `<iq:products>` block, including one that never touches the feature.
-   `wfb/emit/manifest.py::BASE_API_LEVEL` (`3.2.0`) is the *only* level
-   this compiler ever emits; a feature that needs more is gated at runtime
-   per device instead (below), never by moving this number. If a future feature genuinely cannot be runtime-guarded, `api_level()`
+   `wfb/emit/manifest.py::BASE_API_LEVEL` (`3.1.0`, lowered from `3.2.0`
+   plan 14 slice 6 once `fenix5`/`fenix5x` -- ConnectIQ 3.1.6, this
+   project's lowest installed ceiling -- were installed and audited) is the
+   *only* level this compiler ever emits; a feature that needs more is
+   gated at runtime per device instead (below), never by moving this
+   number. A device below the floor is a friendly `target` build error
+   (`wfb.build.select_devices`), not a raw `monkeyc` failure. If a future feature genuinely cannot be runtime-guarded, `api_level()`
    is the one place to raise it again — deliberately kept as a function, not
    a bare constant reference, for exactly that day.
 

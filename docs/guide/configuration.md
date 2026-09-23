@@ -391,7 +391,7 @@ documented 5.1.0, and still has no editor at all (see CLAUDE.md constraint 6,
 and `docs/research/probes/watchface-config/`). Declaring `config:` forces no
 `minApiLevel` bump on any device, `data:` included: `manifest.xml`'s
 `minApiLevel` is one number shared by every target device in the build, so it
-stays at the generator's own base floor (`3.2.0`) regardless of what a design
+stays at the generator's own base floor (`3.1.0`) regardless of what a design
 uses (`wfb/emit/manifest.py::BASE_API_LEVEL`). A `data:` slot needs
 `Toybox.Complications` (`Complications.Id`, `COMPLICATION_TYPE_*`) the same as
 any other complication use, but a target device that lacks the module gets a

@@ -1149,7 +1149,7 @@ def test_a_data_axis_design_compiles_warning_free_on_every_target(
     assert set(result.products) == {"fenix8solar47mm", "fenix8solar51mm", "fr955"}
 
     manifest_text = (result.output_dir / "manifest.xml").read_text(encoding="utf-8")
-    assert 'minApiLevel="3.2.0"' in manifest_text
+    assert 'minApiLevel="3.1.0"' in manifest_text
     assert '<iq:uses-permission id="ComplicationSubscriber"/>' in manifest_text
 
     fenix_config = (result.output_dir / "resources-fenix8solar47mm" / "configs"
@@ -1200,7 +1200,7 @@ elements:
     assert not monkeyc_warnings, "\n".join(d.message for d in monkeyc_warnings)
 
     manifest_text = (result.output_dir / "manifest.xml").read_text(encoding="utf-8")
-    assert 'minApiLevel="3.2.0"' in manifest_text
+    assert 'minApiLevel="3.1.0"' in manifest_text
     assert '<iq:uses-permission id="ComplicationSubscriber"/>' in manifest_text
 
 

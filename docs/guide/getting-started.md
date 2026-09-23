@@ -174,10 +174,11 @@ platform, not a list of supported devices:
 
 - **The watch must run watch faces at all.** 28 of the 164 devices in
   Garmin's SDK can't; `wfb` refuses them.
-- **Connect IQ 3.2 or newer.** Every generated face declares 3.2.0 as its
-  minimum. That covers the fēnix 6 and Forerunner 245 generation and
-  everything since, and an older model qualifies if its firmware was updated
-  to 3.2 or later. Below that, it's out of range.
+- **Connect IQ 3.1 or newer.** Every generated face declares 3.1.0 as its
+  minimum. That covers the fēnix 5 generation and everything since, and an
+  older model qualifies if its firmware was updated to 3.1 or later. Below
+  that, `wfb` refuses the device with a clear build error rather than
+  letting `monkeyc` fail on it.
 - **Newer features switch off where the watch lacks them**, rather than
   locking the face out. Complications need Connect IQ 4.2 and the on-device
   face editor needs 5.1 plus Garmin's editor (fēnix 8 and later). On an older

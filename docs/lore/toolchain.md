@@ -213,9 +213,17 @@ destination, without touching what is already there — a re-run installs
 *every* not-yet-installed vendored device in one pass, not just the one you
 wanted (this is how `fenix847mm`'s slice-0 install also brought in
 `enduro3`, `fenix5`, `fenix5x`, `fenix947mm`, `vivoactive4` and
-`vivoactive4s`, surfacing pre-existing gaps in those older devices' own
-support — `tests/CLAUDE.md`). Re-run it after `vendor/devices/` gains a
-device, or the device builds as `unknown device`.
+`vivoactive4s`). `fenix5`/`fenix5x` (ConnectIQ 3.1.6, this project's lowest
+installed ceiling) and `vivoactive4`/`vivoactive4s` initially surfaced three
+real gaps this slice-0 install exposed but did not itself fix -- the shared
+manifest floor (`3.2.0`) sitting above `fenix5`'s own ceiling, a negative
+control (`Weather`/`solarIntensity`) that was not actually universal, and 22
+installed `ww` font filenames unmapped in the registry -- all three closed
+by lowering `BASE_API_LEVEL` to 3.1.0 and auditing every unguarded API
+against `fenix5`'s own `api.debug.xml` (`wfb/emit/manifest.py`,
+`wfb.build.select_devices`, `wfb/fonts/registry.json`; see `tests/CLAUDE.md`
+for what was pre-existing before that fix). Re-run `setup-env.sh` after
+`vendor/devices/` gains a device, or the device builds as `unknown device`.
 
 `vendor/devices/` is **gitignored on purpose** — it is the user's own licensed
 copy of Garmin's device files, fine to move around their machine but not

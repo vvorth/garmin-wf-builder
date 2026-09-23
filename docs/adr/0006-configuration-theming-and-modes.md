@@ -809,6 +809,33 @@ nothing. See research 07 §2.
 > guard: the generator can only gate whole modules and bare fields, per
 > `wfb.devices.Device`'s own symbol-table shape.
 
+> **Seventh amendment (2026-09-23): the shared floor itself moved, 3.2.0 to
+> 3.1.0, once `fenix5`/`fenix5x` (ConnectIQ 3.1.6) were installed --
+> `wfb/emit/manifest.py::BASE_API_LEVEL`.** The sixth amendment's own
+> reasoning (one number shared by every target, so it stays at the lowest
+> level the ungated code needs) did not change; only the number did, after
+> auditing every API the generator can emit unguarded against `fenix5`'s own
+> `api.debug.xml` and confirming nothing above 3.1.0 is emitted without
+> either a runtime `has`-guard or a proof of presence on 3.1.x devices
+> (`docs/lore/codegen.md`, `docs/lore/platform-constraints.md` constraint
+> 6e). A device below 3.1.0 is now a `target`-code build error naming the
+> device and its own ConnectIQ ceiling (`wfb.build.select_devices`), not a
+> raw `monkeyc` failure -- the sixth amendment's own design left this
+> friendly-error path unbuilt because no installed device was below its
+> then-current floor to need it.
+>
+> **The "a reader function a device lacks (none exist today)" line above is
+> now stale.** `fenix5`/`fenix5x` lack `Toybox.Weather` entirely, and
+> neither `weather_current` nor `weather_daily` sets `Reader.
+> requires_module` (only the 42 complication readers do), so a
+> `weather.*`-bound design targeting either device hits exactly the
+> function-level gap this ADR's Decision section already anticipated:
+> `api-gated-unguardable`, a build **error** naming the missing function,
+> not a runtime guard -- `docs/limitations.md`'s "What this still does not
+> cover" paragraph and `tests/test_availability.py::
+> test_weather_readers_track_the_weather_module` now exercise it against a
+> real installed device rather than only a stubbed one.
+
 ---
 
 *Original text, superseded above:*

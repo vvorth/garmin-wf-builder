@@ -857,12 +857,24 @@ state instead. Both warnings fire there, each naming a genuinely different
 fact, and `check_config_support`'s own wording is adjusted per-slot to say
 so rather than repeating the (here false) "keeps its default" line.
 `manifest.xml`'s `minApiLevel` stays at the
-generator's own base floor (`3.2.0`) regardless -- it is one number shared by
+generator's own base floor (`3.1.0`) regardless -- it is one number shared by
 every target device in a build, so a per-feature bump would lock out any
 device that never touches the feature (`docs/research/probes/api-gating/`). A device missing something a design
 binds gets a runtime `has`-guard in the shared generated view instead
 (`wfb.availability.compute_guards`, `wfb/emit/monkeyc/`), and the binding
 simply reads as absent there.
+
+**A device whose own ConnectIQ ceiling sits below 3.1.0 is unsupported.**
+Every generated manifest declares `minApiLevel="3.1.0"`, so such a device
+cannot build at all, regardless of whether the design uses anything that
+floor actually needs. `wfb.build.select_devices` reports this as a
+targeted `target` build error naming the device and its own ceiling,
+rather than letting it reach `monkeyc` as `Device '<id>' does not support
+API Level '3.1.0'`. No installed device is currently below this floor
+(`fenix5`/`fenix5x`, ConnectIQ 3.1.6, are this project's lowest installed
+ceiling) -- `tests/test_build.py::
+test_a_device_below_the_manifest_floor_is_a_friendly_build_error`
+exercises the error path with a synthetic device fixture instead.
 
 **What this still does not cover: a missing *function* symbol.** The
 generated code only ever guards a module or a field at runtime -- there is no
@@ -870,9 +882,17 @@ guard for an individual function (`Reader.requires`/`Source.requires`'s own
 namespace). If `wfb.availability.source_unavailable` ever reports a function
 gap, `check_api_gated` raises it as a build **error**
 (`api-gated-unguardable`), not a warning, because the call would otherwise
-run unguarded and crash on that device. No device this project vendors
-triggers it today -- every reader's function symbol is present on every
-installed device -- so it is only exercised with a stubbed device in tests.
+run unguarded and crash on that device. This is a real, installed-device gap,
+not only a stubbed-device test case: `fenix5`/`fenix5x` (ConnectIQ 3.1.6)
+lack `Toybox.Weather` outright, and neither `weather_current` (`Weather.
+getCurrentConditions`) nor `weather_daily` (`Weather.getDailyForecast`) sets
+`Reader.requires_module` (only the 42 complication readers do), so a
+`weather.*`-bound design targeting either device is refused at lint time
+with `api-gated-unguardable`, naming the missing function -- drop the
+target, drop the binding, or add a runtime guard for the missing function to
+`wfb/emit/monkeyc.py` before shipping. `tests/test_availability.py::
+test_weather_readers_track_the_weather_module` exercises this against the
+real device, not only a stubbed one.
 
 **The bare-field-name approximation is a real, if currently unrealised,
 risk.** `Device.has_field` cannot tell two different classes' same-named

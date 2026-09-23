@@ -157,8 +157,9 @@ re-litigate these without new evidence.**
      view may use target-only APIs guarded at runtime, and nothing but
      `has_symbol` plus a lint catches an absent symbol.
    - **6e.** Modules and fields vary per device too; the shared manifest
-     floor stays 3.2.0 and newer APIs are `has`-guarded per device
-     (`wfb/availability.py`).
+     floor stays 3.1.0 and newer APIs are `has`-guarded per device
+     (`wfb/availability.py`). A device below 3.1.0 is a friendly build
+     error (`wfb.build.select_devices`), never a raw `monkeyc` failure.
 7. **A missing permission fails silently** (the API returns null), so the
    compiler derives `manifest.xml` permissions.
 8. **Every data field is nullable.** Absence is normal.

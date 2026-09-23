@@ -94,13 +94,42 @@ def test_fenix8_has_every_module_and_field_the_lower_devices_lack(db):
     assert f8.has_field("floorsClimbed") is True
 
 
-def test_every_target_has_weather_and_solar_intensity(db):
-    """A module/field every installed device shares -- the negative control:
-    `has_module`/`has_field` must not report every gap, only real ones."""
+def test_every_installed_device_has_activity_monitor_and_battery(db):
+    """A module/field every installed device genuinely shares -- the negative
+    control: `has_module`/`has_field` must not report every gap, only real
+    ones.
+
+    `Weather`/`solarIntensity` used to be this negative control, but they are
+    not actually universal: `fenix5`/`fenix5x` (ConnectIQ 3.1.6, installed
+    2026-09-23 alongside `fenix847mm` -- `tests/CLAUDE.md`) lack `Toybox.
+    Weather` entirely and have no `solarIntensity` field, which is a real
+    device gap, not a bug in `has_module`/`has_field` (see
+    `test_fenix5_lacks_weather_and_solar_intensity` below for the
+    corresponding positive gap). `ActivityMonitor` (module) and `battery`
+    (`System.Stats.battery`, the same field `wfb.catalog`'s `system.battery`
+    reads, API 1.0.0) are confirmed present on every one of the 20 installed
+    devices as of 2026-09-23, including `fenix5`/`fenix5x`.
+    """
     for device_id in db.ids():
         device = db.get(device_id)
-        assert device.has_module("Weather") is True, device_id
-        assert device.has_field("solarIntensity") is True, device_id
+        assert device.has_module("ActivityMonitor") is True, device_id
+        assert device.has_field("battery") is True, device_id
+
+
+def test_fenix5_lacks_weather_and_solar_intensity(db):
+    """The positive gap `test_every_installed_device_has_activity_monitor_
+    and_battery`'s docstring refers to: `fenix5` (ConnectIQ 3.1.6) has
+    neither `Toybox.Weather` nor a `solarIntensity` field, confirmed against
+    its own `api.debug.xml`. This is what makes `weather.*`-bound designs
+    targeting `fenix5` a build error (`api-gated-unguardable`,
+    `wfb.availability`/`wfb.lint`) rather than a silent guard -- there is no
+    module guard for an individual missing function, only for a missing
+    module/field."""
+    if "fenix5" not in db.ids():
+        pytest.skip("fenix5 not installed")
+    fenix5 = db.get("fenix5")
+    assert fenix5.has_module("Weather") is False
+    assert fenix5.has_field("solarIntensity") is False
 
 
 def test_unknown_module_and_field_are_false_not_errors(device):

@@ -338,6 +338,26 @@
       "note": "ROBOTO_CONDENSED with no explicit weight; bold assumed"
     },
     {
+      "regex": "ROBOTOCONDENSEDBOLD",
+      "key": "roboto-condensed-bold",
+      "note": "fenix5/fenix5x FNT_FENIX5_ROBOTOCONDENSEDBOLD_{26,29,34,37}PX -- no underscore between ROBOTO and CONDENSED, unlike the ROBOTO_CONDENSED family above; scraped face is 'Roboto Condensed', filename says BOLD explicitly (docs/research/data/devices/fenix5.json FONT_TINY..LARGE)."
+    },
+    {
+      "regex": "ROBOTOCONDENSEDREGULAR",
+      "key": "roboto-condensed-regular",
+      "note": "fenix5/fenix5x FNT_FENIX5_ROBOTOCONDENSEDREGULAR_26PX (FONT_XTINY/FONT_SYSTEM_XTINY); filename says REGULAR explicitly, so the regular key is used rather than the bold-assumed default."
+    },
+    {
+      "regex": "_ROBOTO_(XTINY|TINY_PLUS|TINY|SMALL)_BOLD$",
+      "key": "roboto-condensed-bold",
+      "note": "vivoactive4/vivoactive4s FNT_VIVOACTIVE4[S]_ROBOTO_{XTINY,TINY,TINY_PLUS,SMALL}_BOLD -- scraped face for FONT_XTINY..SMALL is 'Roboto Condensed' (docs/research/data/devices/vivoactive4.json), filename drops CONDENSED but says BOLD explicitly. MEDIUM/MEDIUM_PLUS siblings already resolve via the ROBOTO_MEDIUM pattern above and are left alone."
+    },
+    {
+      "regex": "REGULAR_NUMBER_FONT_\\d+$",
+      "key": "roboto-condensed-regular",
+      "note": "vivoactive4/vivoactive4s FNT_VIVOACTIVE4[S]_REGULAR_NUMBER_FONT_{1,2} (FONT_NUMBER_MILD/_MEDIUM) -- scraped face is 'Roboto Condensed' (docs/research/data/devices/vivoactive4.json) and the filename states REGULAR explicitly, unlike the unweighted NUMBER_FONT_* ladder above where bold is only assumed for lack of a stated weight."
+    },
+    {
       "regex": "FNT_1252_PRO_\\d+$",
       "key": "roboto-condensed-bold",
       "note": "1252 = Latin-1 codepage bitmap, Roboto Condensed face"

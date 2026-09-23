@@ -116,7 +116,7 @@ These are the findings that shaped every decision. Full detail and citations in
    for this device, 3.2.0 for that one," so a feature that raised it would
    lock out *every* target below that level in the same build, including one
    that never touches the feature. So the floor stays fixed at the generator's base level always
-   (`wfb/emit/manifest.py::BASE_API_LEVEL`, `3.2.0`) and gates the module and
+   (`wfb/emit/manifest.py::BASE_API_LEVEL`, `3.1.0`) and gates the module and
    the fields at runtime instead (`Toybox has :Complications`, `x has
    :stressScore`), aggregated over every target by `wfb.availability.
    compute_guards` so the one shared generated view emits a guard only when

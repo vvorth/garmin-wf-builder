@@ -44,10 +44,16 @@ listed as shipped.
   - the Data axis as `complication_slot`, with icons for all 42 types
     (plan 03).
 - **Per-device API gating:**
-  - the shared manifest floor stays 3.2.0;
+  - the shared manifest floor stays 3.1.0 (plan 14 slice 6, lowered from
+    3.2.0 once `fenix5`/`fenix5x` were installed);
+  - a device below 3.1.0 is a friendly `target` build error, not a raw
+    `monkeyc` failure (`wfb.build.select_devices`);
   - every complication touch and every missing field is `has`-guarded at
     runtime (`wfb/availability.py`);
-  - an unavailable binding reads as absent, and lint `api-gated` warns.
+  - an unavailable binding reads as absent, and lint `api-gated` warns; a
+    missing *function* symbol (e.g. `fenix5`'s `Toybox.Weather`) is a build
+    error, `api-gated-unguardable`, since there is no runtime guard for an
+    individual function.
 
   UNVERIFIED on a real pre-4.2.0 device: that a guarded reference to an
   absent module is harmless at load time. A reader *function* that a device

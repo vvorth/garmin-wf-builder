@@ -32,10 +32,24 @@ from .monkeyc import hold_targets
 #: (a floor raised to 4.2.0 for complications fails `fenix6`, ConnectIQ
 #: 3.4.5, even on a design that never touches complications on that device).
 #:
+#: Lowered from ``3.2.0`` to ``3.1.0`` (plan 14 slice 6, 2026-09-23) once
+#: `fenix5`/`fenix5x` (ConnectIQ 3.1.6, this project's lowest installed
+#: ceiling) were installed and every API the generator can emit unguarded
+#: was audited against `fenix5`'s own `api.debug.xml`: nothing above 3.1.0
+#: is emitted without either an existing runtime `has`-guard (`Dc.
+#: setAntiAlias`, `Toybox.Complications`, vector fonts, AOD) or a confirmed
+#: presence on 3.1.x devices.  A device below this floor is refused with a
+#: friendly, targeted build error naming the device and its own ConnectIQ
+#: ceiling (`wfb.build.select_devices`), never a raw `monkeyc` failure.
+#:
 #: Everything the generator emits -- ``Application.AppBase``, ``WatchUi.WatchFace``,
 #: custom bitmap fonts, and the ``Dc`` primitives in the element vocabulary --
 #: is documented at or below this level, and it sits far below every device this
-#: project targets (fr955 is 5.2.0; the fenix 8 Solar pair are 6.0.2).
+#: project targets (fr955 is 5.2.0; the fenix 8 Solar pair are 6.0.2). It is
+#: also, since the 2026-09-23 audit, confirmed low enough for every
+#: *installed* device down to `fenix5`/`fenix5x` (3.1.6) to build: see
+#: `tests/test_build.py::
+#: test_every_installed_device_at_the_floor_or_above_builds_warning_free`.
 #:
 #: A feature that needs a higher-level API (complications, API 4.2.0) is
 #: instead guarded at *runtime* against the device that is actually running
@@ -56,7 +70,7 @@ from .monkeyc import hold_targets
 #: `Device.has_symbol("WatchFaceConfig.getSettings")` (constraint 6: fr955
 #: reports 5.2.0, above the editor's documented 5.1.0, and still has no
 #: editor).
-BASE_API_LEVEL = "3.2.0"
+BASE_API_LEVEL = "3.1.0"
 
 
 def api_level(face: Face) -> str:

@@ -5,7 +5,10 @@ newer feature per device with a runtime `has`-guard in the shared view, not a
 per-device source split.** The manifest floor is not per-device: it is one
 number shared by every target in `manifest.xml`, so a feature cannot raise it
 without locking out every older target. The floor therefore stays at the
-lowest level the *ungated* code needs (`3.2.0`). What used to raise it,
+lowest level the *ungated* code needs -- `3.2.0` at the time of this probe,
+later lowered to `3.1.0` (plan 14 slice 6, `wfb/emit/manifest.py::
+BASE_API_LEVEL`) once `fenix5`/`fenix5x` were installed and audited the same
+way. What used to raise it,
 `Complications`, is guarded the same way this project already guards
 `WatchFaceConfig` and `createBufferedBitmap`. VERIFIED: the build compiles.
 UNVERIFIED: the runtime behaviour (see "Open question" below).
@@ -122,7 +125,8 @@ device (constraint 8's contract, the element's `when_absent` path), `on_hold:`
 never fires there, config colours and styles keep their defaults (no editor),
 a `config: data:` slot shows absence (its default is itself a `Complications`
 read), and the build warns (a lint) rather than failing. The manifest floor
-stays at the generator's base `3.2.0`.
+stayed at the generator's base `3.2.0` at the time of this probe; it is now
+`3.1.0` (`wfb/emit/manifest.py::BASE_API_LEVEL`).
 
 ## Does the low floor cost a newer watch anything? No: `minApiLevel` is not in the `.prg`
 

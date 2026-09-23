@@ -15,19 +15,23 @@ Loaded automatically when working under `tests/`.
     pre-existing (predates plan 14), unrelated to any AMOLED/AOD work: an
     `off-screen` warning on `numerals` plus a `graphics-pool` note on the
     static buffer. Not caused by a target-list or device-install change.
-  - `test_availability.py::test_an_ordinary_reader_is_available_everywhere_installed`,
-    `test_devices.py::test_every_target_has_weather_and_solar_intensity`,
-    `test_font_registry.py::test_every_installed_ww_filename_resolves_or_is_unmapped`
-    (plan 14 slice 0, 2026-09-23) — these iterate **every installed
-    device**, not just the three verification targets or `fenix847mm`.
-    Re-running `tools/setup-env.sh` to install `fenix847mm` also installed
-    every other not-yet-installed `vendor/devices/` entry in the same pass
-    (incremental install copies in everything new, root `CLAUDE.md` §2):
-    `enduro3`, `fenix5`, `fenix5x`, `fenix947mm`, `vivoactive4`,
-    `vivoactive4s`. `fenix5` lacks `Toybox.Weather` entirely and several of
-    these older devices' own `.cft` filenames aren't in the font registry —
-    both real gaps in those devices' support, not in `fenix847mm` or in
-    anything plan 14 touches. Fixing them is out of scope for plan 14.
+
+  `test_availability.py::test_an_ordinary_reader_is_available_everywhere_installed`,
+  `test_devices.py::test_every_target_has_weather_and_solar_intensity` and
+  `test_font_registry.py::test_every_installed_ww_filename_resolves_or_is_unmapped`
+  used to be listed here too (plan 14 slice 0, 2026-09-23): `fenix847mm`'s
+  incremental device install also installed `enduro3`, `fenix5`, `fenix5x`,
+  `fenix947mm`, `vivoactive4` and `vivoactive4s` in the same pass (root
+  `CLAUDE.md` §2), surfacing that `fenix5`/`fenix5x` (ConnectIQ 3.1.6)
+  couldn't build at all under the then-current 3.2.0 manifest floor, that
+  `Weather`/`solarIntensity` were never actually universal, and that 22
+  installed `ww` font filenames were unmapped. All three are now fixed: the
+  floor is 3.1.0 (`wfb/emit/manifest.py::BASE_API_LEVEL`), the negative
+  control moved to `ActivityMonitor`/`battery` with a real positive-gap test
+  for `fenix5`'s `Weather` absence, the weather readers get their own
+  per-device contrast test, and the 22 filenames are mapped in
+  `wfb/fonts/registry.json`. The three tests above now assert real,
+  currently-true invariants again and are part of the green fast suite.
 - **`tests/fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing fixture
   fails rather than skips, because a skip once silently turned the goldens off.

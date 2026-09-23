@@ -161,6 +161,48 @@ def test_a_listed_target_asked_for_by_name_draws_no_note(slice_design, tmp_path,
     assert not [d for d in bag.items if d.code == "target"], bag.render()
 
 
+def test_a_device_below_the_manifest_floor_is_a_friendly_build_error(slice_design, tmp_path, db):
+    """A device whose own ConnectIQ ceiling sits below `BASE_API_LEVEL`
+    cannot build at all -- every generated manifest declares one shared
+    `minApiLevel` (`wfb/emit/manifest.py`), so a device below that floor
+    fails outright regardless of what the design actually uses. This must
+    surface as a clear, targeted build error naming the device and its
+    level (`wfb.build.select_devices`), not the raw `monkeyc` failure
+    ("Device '<id>' does not support API Level '<floor>'") a build would
+    otherwise hit deep inside the toolchain stage.
+
+    No installed device is actually below 3.1.0 (`fenix5`/`fenix5x`, this
+    project's lowest installed ceiling, are 3.1.6), so this constructs a
+    synthetic device fixture in a throwaway device root -- the same
+    "construct what no installed device can" move
+    `tests/test_vector_text_layout.py::
+    test_gate1_alone_blocks_resolution_even_when_the_face_is_published`
+    already uses for gate 1.
+    """
+    import json
+
+    device_root = tmp_path / "fake-devices" / "ancientwatch"
+    device_root.mkdir(parents=True)
+    (device_root / "compiler.json").write_text(json.dumps({
+        "deviceFamily": "fake-100x100",
+        "resolution": {"width": 100, "height": 100},
+        "appTypes": [{"type": "watchFace", "memoryLimit": 65536}],
+        "partNumbers": [{"connectIQVersion": "3.0.0"}],
+    }), encoding="utf-8")
+    (device_root / "simulator.json").write_text("{}", encoding="utf-8")
+    fake_db = DeviceDatabase(root=tmp_path / "fake-devices")
+
+    bag = Bag()
+    result = build(slice_design, output=tmp_path / "out", bag=bag, db=fake_db,
+                   devices_only=["ancientwatch"], compile_prg=False)
+    assert result is None
+    hits = [d for d in bag.items if d.code == "target"]
+    assert len(hits) == 1 and hits[0].severity.value == "error", bag.render()
+    assert "ancientwatch" in hits[0].message
+    assert "3.0.0" in hits[0].message
+    assert "3.1.0" in hits[0].message
+
+
 def test_an_unknown_device_is_one_error_and_no_note(slice_design, tmp_path, db):
     bag = Bag()
     result = build(slice_design, output=tmp_path, bag=bag, db=db,
@@ -175,6 +217,144 @@ def test_a_device_named_twice_is_built_once(slice_design, tmp_path, db):
     result = build(slice_design, output=tmp_path, bag=bag, db=db,
                    devices_only=["fr955", "fr955"], compile_prg=False)
     assert [d.id for d in result.devices] == ["fr955"]
+
+
+# --------------------------------------------------------------------------
+# the build proof: every installed, watch-face-capable device at or above
+# the shared manifest floor (root CLAUDE.md constraint 2's "136 of 164
+# devices can run a watch face", narrowed to BASE_API_LEVEL) gets a real,
+# warning-free monkeyc build.
+
+
+def _build_proof_device_ids() -> list[str]:
+    """Collected once, at import time, the same way `tests/test_templates.
+    py`'s own `EXAMPLES` list is built from a directory scan -- so a missing
+    `~/.Garmin/ConnectIQ/Devices` collects zero parametrised cases (each
+    reported "no tests ran" for this file, not a collection error) rather
+    than failing collection for the whole test session.
+
+    Filters `db.ids()` (every installed device) down to the ones this
+    compiler can actually target: `Device.supports_watchface` (constraint
+    2 -- 28 of 164 devices cannot run a watch face at all) and an own
+    ConnectIQ ceiling at or above `BASE_API_LEVEL` (the shared manifest
+    floor every generated build declares, `wfb/emit/manifest.py`) -- a
+    device below that floor is `wfb.build.select_devices`'s own friendly
+    `target` build error, covered separately by
+    `test_a_device_below_the_manifest_floor_is_a_friendly_build_error`
+    above, not this proof.
+    """
+    from wfb.devices import DeviceDatabase, DeviceError, version_key
+    from wfb.emit.manifest import BASE_API_LEVEL
+
+    try:
+        database = DeviceDatabase.discover()
+    except DeviceError:
+        return []
+    floor = version_key(BASE_API_LEVEL)
+    return sorted(
+        device_id for device_id in database.ids()
+        if database.get(device_id).supports_watchface
+        and version_key(database.get(device_id).api_level) >= floor
+    )
+
+
+_BUILD_PROOF_DEVICE_IDS = _build_proof_device_ids()
+
+#: One face exercising: text bound to `time.clock` and `date.today` with a
+#: `%m`-using `format:` (`docs/lore/codegen.md`'s "date.today's format: bug"
+#: finding -- the numeric month needs a second, `date_short` reader, which
+#: is exactly the kind of extra codegen path a per-device build proof needs
+#: to actually compile, not just generate), a `shape` element, a `progress`
+#: `style: arc` bound to `system.battery` (CLAUDE.md's own "progress arc on
+#: battery"), and an `antialias: true` primitive (`_emit_antialias_helper`'s
+#: `dc has :setAntiAlias` guard, `wfb/emit/monkeyc/view.py`) -- a small but
+#: non-trivial face. On `fenix5`/`fenix5x` (ConnectIQ 3.1.6) this only
+#: compiles once the manifest floor is at or below 3.1.0: at the previous
+#: 3.2.0 floor `fenix5` sits *below* the floor and the build fails outright
+#: (`test_a_device_below_the_manifest_floor_is_a_friendly_build_error`
+#: covers that failure mode in isolation, with a synthetic device, since no
+#: installed device is below the *current* 3.1.0 floor to demonstrate it
+#: directly) -- this test is the complementary proof: a real, warning-free
+#: `monkeyc` run for a design that actually uses these features, on every
+#: device the new floor makes buildable, not just a friendly-error stub.
+_BUILD_PROOF_FACE = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f61
+  name: BuildProof
+targets: [{device_id}]
+aod:
+  lint: {{allow: [aod-empty], reason: "build-proof fixture, not a real design -- irrelevant on a MIP target too"}}
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  accent: "#00AAFF"
+  dim: "#555555"
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: {{anchor: center}}
+    size: {{width: 100%, height: 100%}}
+    color: palette.bg
+    antialias: true
+    lint: {{allow: [antialias-dither], reason: "build-proof fixture, not a real design"}}
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{{:%H:%M}}"
+    font: FONT_MEDIUM
+    color: palette.fg
+    at: {{anchor: center, dy: -20%r}}
+  - id: today
+    type: text
+    value: date.today
+    format: "{{:%Y-%m-%d}}"
+    font: FONT_TINY
+    color: palette.fg
+    at: {{anchor: center, dy: 20%r}}
+  - id: battery_arc
+    type: progress
+    style: arc
+    at: {{anchor: center, angle: 187deg, radius: 46%r}}
+    radius: 6%r
+    thickness: 3px
+    start_angle: 20deg
+    sweep: 320deg
+    value: system.battery
+    max: 100
+    color: palette.accent
+    track_color: palette.dim
+"""
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("device_id", _BUILD_PROOF_DEVICE_IDS)
+def test_every_installed_device_at_the_floor_or_above_builds_warning_free(
+        device_id, write_design, tmp_path, db, toolchain):
+    """The build proof: a real `monkeyc` build, warning-free, for every
+    installed device at or above `BASE_API_LEVEL` -- parametrised per
+    device, so a failure names the device rather than reporting one lump
+    "some target failed". Before the floor was lowered to 3.1.0 this failed
+    outright on `fenix5`/`fenix5x` with monkeyc's own `Device 'fenix5' does
+    not support API Level '3.2.0'`, confirmed by hand
+    (`wfb.build.select_devices` did not yet exist to turn that into a
+    friendly error either, at the time -- the manifest floor was simply too
+    high for the device to build under any circumstance).
+    """
+    design = write_design(_BUILD_PROOF_FACE.format(device_id=device_id))
+    bag = Bag()
+    result = build(design, output=tmp_path / "out", bag=bag, db=db,
+                   toolchain=toolchain, devices_only=[device_id])
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)
+    assert device_id in result.products
+    prg = result.products[device_id]
+    assert prg.exists() and prg.stat().st_size > 0
+    stats = result.memory[device_id]
+    assert 0 < stats["total"] < stats["limit"]
 
 
 @pytest.mark.slow

@@ -12,7 +12,7 @@
                     name="@Strings.AppName"
                     entry="SliceApp"
                     launcherIcon="@Drawables.LauncherIcon"
-                    minApiLevel="3.2.0">
+                    minApiLevel="3.1.0">
         <iq:products>
             <iq:product id="fenix8solar47mm"/>
             <iq:product id="fenix8solar51mm"/>

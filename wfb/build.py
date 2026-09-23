@@ -18,10 +18,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import desugar, lint, validate, yamlsrc
-from .devices import Device, DeviceDatabase, DeviceError
+from .devices import Device, DeviceDatabase, DeviceError, version_key
 from .diagnostics import Bag
 from .emit import GeneratedProject, generate
 from .emit import strhash
+from .emit.manifest import BASE_API_LEVEL
 from .emit.project import write as write_project
 from .fonts import BakedFont
 from .ir import Face, build as build_ir
@@ -100,6 +101,19 @@ def select_devices(face: Face, db: DeviceDatabase, bag: Bag,
             continue
         if not device.supports_watchface:
             bag.error("target", f"{device_id} cannot run a watch face at all")
+            continue
+        if version_key(device.api_level) < version_key(BASE_API_LEVEL):
+            bag.error(
+                "target",
+                f"{device_id} is below the {BASE_API_LEVEL} floor this compiler "
+                f"requires (its own ConnectIQ ceiling is {device.api_level})",
+                notes=[
+                    "every generated manifest declares minApiLevel="
+                    f"\"{BASE_API_LEVEL}\" (wfb/emit/manifest.py's BASE_API_LEVEL); "
+                    "a device below that floor cannot build at all, whether or not "
+                    "the design uses anything that floor actually needs",
+                ],
+            )
             continue
         if device_id not in face.targets:
             bag.note(
