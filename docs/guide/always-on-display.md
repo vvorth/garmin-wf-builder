@@ -271,6 +271,64 @@ declared. `--aod` implies it.
   ...}`) — an AMOLED target where nothing in the design draws in AOD at
   all. Since the face default is `hide`, an unconverted design triggers
   this on every AMOLED target until at least one element opts in.
+- **`aod-burn-in`** (plan 14 slice 4, research 11 §6 D) — is the rendered
+  AOD frame within Garmin's rule of thumb? *Measured*, not estimated: it
+  renders the resolved `aod:` set the same way `wfb preview --aod` does
+  (`wfb.preview.render`), at device resolution, with the round bezel
+  excluded from both sides of the fraction on a round screen, and scores
+  two things over that rendered frame:
+
+  - **lit-pixel fraction** — the share of in-mask pixels that are not pure
+    black. Garmin's own FAQ (research 11 §1.1): "a pixel is considered on
+    when rendering any color other than black" — so lit is *any*
+    non-`(0, 0, 0)` pixel, never a brightness threshold of this compiler's
+    own invention.
+  - **luminance fraction** — the mean relative luminance across the same
+    pixels (`wfb.palette.Color.relative_luminance`, WCAG-style: Rec. 709
+    primaries over sRGB-decoded channels), already a 0–1 fraction of full
+    white by construction. Garmin's own integral is unpublished (research
+    11 §5) — this is a stated, reused choice (the same formula the
+    contrast lint already uses), not a claim of matching Garmin's firmware
+    bit for bit.
+
+  Garmin's 10% rule differs by device generation — the original Venu
+  counts lit pixels, Venu 2 and later count luminance (research 11 §1.2) —
+  and the device files don't say which generation a target is, so this
+  check compares **both** fractions against 10% and fires if either one
+  is over: the conservative reading that can never pass a design that
+  would fail on either generation's own rule.
+
+  **Worst case, not every frame.** The AOD frame depends on the clock and
+  on data, so this renders at two sample times, `10:08` and `20:08`, with
+  full battery (`wfb.preview.SAMPLE`'s other defaults unchanged), and
+  reports the worse of the two — a cheap stand-in for scanning every
+  minute, which is what the simulator's own Screen Heat Map does
+  (research 11 §1.5) and is unreachable in this environment.
+
+  **Reported per element.** Every AOD-shown element is re-rendered *alone*
+  (the same renderer, given just that one element — the cheapest correct
+  attribution, and no second renderer) to rank how many of the frame's lit
+  pixels each one contributes. The diagnostic is anchored at the biggest
+  contributor's own source line, and names the top few with their share.
+
+  **Over 10% (either fraction) is an `error`**, code `aod-burn-in` — but,
+  unusually for an error in this project, it **is suppressible**
+  (`lint: {allow: [aod-burn-in], reason: "..."}` on the named top
+  contributor): unlike this project's other AMOLED hard error
+  (`partial-update`, which describes generated code that would not run at
+  all on the device), exceeding this rule does not break anything the
+  compiler emits — at worst, Garmin's own OS turns always-on off for the
+  app, a product-quality guideline the watch enforces, not a structural
+  platform limit. **Under 10% is an informational `note`** stating both
+  measured figures, the same "the author sees the number on every build"
+  shape `graphics-pool` already uses. On a MIP target this check never
+  runs at all (D5: `aod:` doesn't apply there).
+
+  **What it cannot see:** the 3-minute static-pixel rule (a property of a
+  *sequence* of frames, not the one this renders), any time or data
+  combination other than the two sampled, and Garmin's actual luminance
+  formula, which is unpublished. See
+  [`docs/limitations.md`](../limitations.md) §3.
 
 See [Lints and suppression](lints.md) for the general mechanism.
 

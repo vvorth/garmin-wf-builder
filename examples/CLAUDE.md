@@ -48,7 +48,7 @@ aligned to grow away from the centre, covering all four
 `align`×`vertical_align` combinations, plus every accepting shape, both
 `progress` styles, a static `icon`, and aligned hand/pattern parts.
 
-`features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slices 1-3, 2026-09-23)
+`features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slices 1-4, 2026-09-23)
 is the first, and so far only, example to add a fourth target, `fenix847mm`
 -- the first AMOLED device this project has ever built for. An ordinary
 small face (digital time, a date, a battery ring, a bezel) rather than a
@@ -70,7 +70,9 @@ actually read by codegen (slice 2, `docs/lore/codegen.md`), not just
 resolved, and `dim:` reaches every colour the AOD frame draws that has no
 override, exactly as slice 3 documents. The three MIP verification devices
 are unaffected by `aod:` at all -- their generated source is byte-identical
-to a build with no `aod:` keys (`tests/test_aod.py`).
+to a build with no `aod:` keys (`tests/test_aod.py`). Slice 4's burn-in
+lint (`aod-burn-in`) stays clean on it: a `note` (5.8% lit, 0.5% luminance
+at its own sampled worst case), not a warning or an error.
 
 ## `system-fonts/`
 

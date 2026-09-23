@@ -71,13 +71,14 @@ class Color:
         return Color(snap(self.r), snap(self.g), snap(self.b))
 
     def relative_luminance(self) -> float:
-        """WCAG relative luminance, for the contrast lint."""
-
-        def channel(c: int) -> float:
-            s = c / 255.0
-            return s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4
-
-        return 0.2126 * channel(self.r) + 0.7152 * channel(self.g) + 0.0722 * channel(self.b)
+        """WCAG relative luminance -- Rec. 709 primaries over sRGB-degamma'd
+        channels -- used by the contrast lint and, since it is the same
+        "fraction of full white" figure Garmin's unpublished AOD rule wants
+        (research 11 §1.2, §5), by the AOD burn-in lint too
+        (`wfb.lint.check_aod_burn_in`)."""
+        return (0.2126 * srgb_channel_to_linear(self.r)
+                + 0.7152 * srgb_channel_to_linear(self.g)
+                + 0.0722 * srgb_channel_to_linear(self.b))
 
     def contrast_ratio(self, other: "Color") -> float:
         a, b = self.relative_luminance(), other.relative_luminance()
@@ -95,6 +96,19 @@ class Color:
         """
         return Color(dim_channel(self.r, num, den), dim_channel(self.g, num, den),
                      dim_channel(self.b, num, den))
+
+
+def srgb_channel_to_linear(value: int) -> float:
+    """One 0-255 sRGB-encoded channel -> linear 0-1, the sRGB EOTF (the
+    piecewise curve WCAG's own relative-luminance formula specifies).
+    Factored out of :meth:`Color.relative_luminance` so the contrast lint
+    and the AOD burn-in lint (`wfb.lint.check_aod_burn_in`, which builds a
+    256-entry lookup table from this same function to score a whole
+    rendered frame without a per-pixel gamma call) can never disagree about
+    what "linear" means for a channel value.
+    """
+    s = value / 255.0
+    return s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4
 
 
 def dim_channel(value: int, num: int, den: int) -> int:

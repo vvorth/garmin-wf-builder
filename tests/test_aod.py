@@ -1246,3 +1246,147 @@ elements:
     assert bag.ok(), bag.render()
     warnings = [d for d in bag.items if d.severity.value == "warning"]
     assert not warnings, "\n".join(d.message for d in warnings)
+
+
+# --------------------------------------------------------------------------
+# burn-in (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8): lit-pixel
+# and luminance fractions from the same `--aod` render, per element.
+
+#: A near-full-screen filled disc, shown unrestyled in AOD -- Garmin's FAQ
+#: says any non-black pixel is "on" (research 11 §1.1), so this lights well
+#: over both the pixel-count and the luminance halves of the 10% rule at
+#: once, on purpose: the test must fail against a burn-in check that only
+#: wires up one of the two bases.
+_BIG_DISC = BASE + """
+elements:
+  - id: disc
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 90%r
+    filled: true
+    color: palette.fg
+    aod: show
+"""
+
+
+def test_aod_burn_in_fires_when_a_design_lights_over_ten_percent(write_design, bag, db):
+    resolved = _resolved(_BIG_DISC, write_design, bag, db)
+    lint.check_aod_burn_in(resolved, bag)
+    hits = [d for d in bag.items if d.code == "aod-burn-in"]
+    assert hits, bag.render()
+    assert hits[0].severity.value == "error"
+    assert "disc" in hits[0].message
+
+
+def test_aod_burn_in_passes_under_the_threshold(write_design, bag, db):
+    """A single thin ring lights far under 10% -- must be a `note`, not a
+    warning or an error, the same "the author sees the figure on every
+    build" shape `graphics-pool` already uses. Must fail against an
+    implementation that reports nothing at all once a design is clean, the
+    same way `graphics-pool`'s own note-on-every-build guard would."""
+    text = BASE + """
+elements:
+  - id: ring
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 90%r
+    filled: false
+    thickness: 1px
+    color: palette.fg
+    aod: show
+"""
+    resolved = _resolved(text, write_design, bag, db)
+    lint.check_aod_burn_in(resolved, bag)
+    hits = [d for d in bag.items if d.code == "aod-burn-in"]
+    assert hits, bag.render()
+    assert hits[0].severity.value == "note"
+    assert bag.ok()
+
+
+def test_aod_burn_in_names_the_right_top_contributor(write_design, bag, db):
+    """Two AOD-shown discs of very different size: the diagnostic must name
+    -- and anchor on -- the *actually* bigger contributor, not just the
+    first or the last one declared. Must fail against an implementation
+    that always blames the first/last AOD-shown element regardless of its
+    real share."""
+    text = BASE + """
+elements:
+  - id: tiny
+    type: shape
+    shape: circle
+    at: {anchor: center, dy: -40%}
+    radius: 5%r
+    filled: true
+    color: palette.fg
+    aod: show
+  - id: huge
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 60%r
+    filled: true
+    color: palette.fg
+    aod: show
+"""
+    resolved = _resolved(text, write_design, bag, db)
+    lint.check_aod_burn_in(resolved, bag)
+    hits = [d for d in bag.items if d.code == "aod-burn-in"]
+    assert hits, bag.render()
+    assert hits[0].severity.value == "error"
+    assert "huge" in hits[0].message.split("top contributor:")[1].split(",")[0]
+    huge = next(e for e in resolved.face.walk() if e.id == "huge")
+    assert hits[0].span == huge.span
+
+
+def test_aod_burn_in_is_suppressible_on_the_top_contributor(write_design, bag, db):
+    text = _BIG_DISC.replace(
+        "aod: show\n",
+        'aod: show\n    lint: {allow: [aod-burn-in], reason: "deliberately bright, test"}\n',
+    )
+    resolved = _resolved(text, write_design, bag, db)
+    lint.check_aod_burn_in(resolved, bag)
+    assert "aod-burn-in" not in {d.code for d in bag.items}
+    assert bag.ok()
+
+
+def test_aod_burn_in_is_silent_on_a_mip_target(write_design, bag, db):
+    """D5: `aod:` does not apply on MIP at all, so this must never even
+    render -- checked with a design that would fail outright on an AMOLED
+    target, so a check that forgot the device guard cannot pass by
+    accident."""
+    text = _BIG_DISC.replace("targets: [fenix847mm]", "targets: [fenix8solar47mm]")
+    resolved = _resolved(text, write_design, bag, db, device_id="fenix8solar47mm")
+    lint.check_aod_burn_in(resolved, bag)
+    assert "aod-burn-in" not in {d.code for d in bag.items}
+
+
+def test_aod_burn_in_is_silent_when_nothing_draws_in_aod(write_design, bag, db):
+    """`aod-empty` already reports an empty AOD set; the burn-in check has
+    nothing to measure or blame there and must stay silent rather than
+    double up."""
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+"""
+    resolved = _resolved(text, write_design, bag, db)
+    lint.check_aod_burn_in(resolved, bag)
+    assert "aod-burn-in" not in {d.code for d in bag.items}
+
+
+def test_the_aod_example_stays_clean_under_burn_in(write_design, bag, db):
+    """The shipped example (`examples/features/aod/face.yaml`) must stay
+    clean under this new check: a `note` is fine, a `warning` or `error` is
+    not (plan 14 slice 4 §6)."""
+    face = load(ROOT / "examples" / "features" / "aod" / "face.yaml", bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix847mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    lint.check_aod_burn_in(resolved, bag)
+    hits = [d for d in bag.items if d.code == "aod-burn-in"]
+    assert hits, bag.render()
+    assert hits[0].severity.value == "note", bag.render()

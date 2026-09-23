@@ -39,7 +39,7 @@ SUPPRESSIBLE = frozenset({
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
     "sub-pixel-length", "font-unavailable", "off-screen", "text-outline-interior",
-    "aod-unreachable", "aod-empty",
+    "aod-unreachable", "aod-empty", "aod-burn-in",
 })
 #: `api-gated-unguardable` is deliberately absent here -- see
 #: `check_api_gated`'s case 5: it means the generator would emit an unguarded
@@ -57,7 +57,7 @@ SUPPRESSIBLE = frozenset({
 #: silently.
 ALL_CODES = frozenset({
     "antialias-dither",
-    "aod", "aod-unreachable", "aod-empty",
+    "aod", "aod-unreachable", "aod-empty", "aod-burn-in",
     "api-gated", "api-gated-unguardable",
     "color", "color-scheme", "complication-slot",
     "config", "config-unsupported",
@@ -98,6 +98,7 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_dead_element(resolved, bag)
     check_aod_unreachable(resolved, bag)
     check_aod_empty(resolved, bag)
+    check_aod_burn_in(resolved, bag)
     check_api_gated(resolved, bag)
     check_graphics_pool(resolved, bag)
     check_static_overlap(resolved, bag)
@@ -1724,6 +1725,267 @@ def check_aod_empty(resolved: ResolvedFace, bag: Bag) -> None:
                "deliberate"],
         confidence="exact -- resolved 'aod:' set, this device",
     )
+
+
+# -- burn-in (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8) ----------
+
+#: Garmin's 10% rule (research 11 §1.2) has two different bases depending on
+#: device generation -- the original Venu counts **lit pixels**, Venu 2 and
+#: later count **luminance** -- and nothing in the device files
+#: (`compiler.json`/`simulator.json`) says which generation a given AMOLED
+#: target is. Checking *both* bases and erroring when either exceeds 10% is
+#: the conservative reading: it can never pass a design that would fail on
+#: either generation, only (rarely) fail one that would have passed on one
+#: specific generation's own rule.
+AOD_BURN_IN_THRESHOLD = 0.10
+
+#: Two worst-case sample clocks (plan 14 slice 4 §2), not an exhaustive scan
+#: of all 1,440 minutes -- that is what the simulator's own Screen Heat Map
+#: is for (research 11 §1.5), and it is unreachable in this environment
+#: (root `CLAUDE.md` §3). "10:08" and "20:08" between them draw a 24-hour
+#: clock's two different tens-of-hours digits (1 and 2) against the same
+#: units/minutes digits (0, 8) -- cheap (two renders), not a claim of being
+#: the actual worst minute of the day. The max over these two is reported,
+#: never just one arbitrarily chosen time.
+AOD_BURN_IN_SAMPLE_TIMES: tuple[tuple[int, int, int], ...] = ((10, 8, 0), (20, 8, 0))
+
+#: Full battery, so a `progress`/`graph` element bound to `system.battery`
+#: is measured at its own worst case too -- every other sample value stays
+#: `wfb.preview.SAMPLE`'s own default (plan 14 slice 4 §2: "whatever sample
+#: values wfb preview uses by default").
+AOD_BURN_IN_SAMPLE: dict[str, object] = {"system.battery": 100.0}
+
+#: How many top contributors the diagnostic names (plan 14 slice 4 §3).
+_AOD_BURN_IN_TOP_N = 3
+
+
+def _aod_burn_in_lut(weight: float):
+    """A 256-entry lookup table mapping an sRGB-encoded 0-255 channel value
+    to its share of `weight` of full-white relative luminance, 0-255 --
+    built once from `wfb.palette.srgb_channel_to_linear` so a whole
+    rendered frame can be scored with three `Image.point` calls (fast, in
+    Pillow's own C loop) instead of a per-pixel Python loop over
+    device-resolution images."""
+    from .palette import srgb_channel_to_linear
+    return bytes(min(255, round(weight * srgb_channel_to_linear(v) * 255)) for v in range(256))
+
+
+#: Rec. 709 primaries, the same weights `Color.relative_luminance` uses --
+#: built lazily (module import time has no Pillow-free reason to pay for
+#: this) by `_aod_burn_in_luts`.
+_AOD_LUMINANCE_WEIGHTS = (0.2126, 0.7152, 0.0722)
+_aod_burn_in_luts_cache: tuple | None = None
+
+
+def _aod_burn_in_luts():
+    global _aod_burn_in_luts_cache
+    if _aod_burn_in_luts_cache is None:
+        _aod_burn_in_luts_cache = tuple(_aod_burn_in_lut(w) for w in _AOD_LUMINANCE_WEIGHTS)
+    return _aod_burn_in_luts_cache
+
+
+def _aod_burn_in_mask(width: int, height: int, shape: str):
+    """Which pixels count in the denominator (research 11 §1.1: Garmin's
+    rule is about *screen* pixels/luminance) -- on a round screen, the
+    pixels the bezel physically crops are not part of the display at all,
+    so they must not count on either side of the fraction. Built the same
+    way `wfb.preview._mask_round`'s own bezel crop is (a hard-edged
+    ellipse inscribed in the framebuffer), but returned as a mask rather
+    than applied to an image, because this lint needs the pixel *count*
+    the crop leaves behind, not just a masked picture.
+
+    Every other screen shape (rectangle, and semi-round/semi-octagon, for
+    which ADR 0008 check 4 already says "unavailable" -- ADR 0008) uses the
+    whole framebuffer: not exactly the true visible area on a semi-shape,
+    but the two AMOLED devices this project has today (`fenix847mm`,
+    `fenix947mm`) are both `round-454x454`, so this never actually differs
+    from an exact answer in practice; it is flagged here for the day a
+    semi-shaped AMOLED device shows up.
+    """
+    from PIL import Image, ImageDraw
+    if shape == "round":
+        mask = Image.new("L", (width, height), 0)
+        ImageDraw.Draw(mask).ellipse([0, 0, width - 1, height - 1], fill=255)
+        return mask
+    return Image.new("L", (width, height), 255)
+
+
+def _aod_burn_in_measure(image, mask) -> tuple[float, float, int, int]:
+    """`(lit_fraction, luminance_fraction, lit_pixels, mask_pixels)` over
+    `mask`'s own pixels only.
+
+    **Lit**, research 11 §1.1, quoting Garmin's FAQ verbatim: "a pixel is
+    considered on when rendering any color other than black" -- so lit is
+    *any* non-`(0, 0, 0)` pixel, never a brightness threshold of this
+    compiler's own invention (there is no such threshold to justify from
+    the source).
+
+    **Luminance** is the mean of `wfb.palette.Color.relative_luminance`
+    (WCAG-style: Rec. 709 primaries over sRGB-degamma'd channels) across
+    the same pixels, already a 0-1 fraction of full white by construction
+    (`relative_luminance()` of pure white is exactly `1.0`). Garmin's own
+    integral is unpublished (plan 14 §8, research 11 §5) -- this is a
+    stated, reused choice (the same formula the contrast lint already
+    uses), not a claim of matching Garmin's firmware bit for bit.
+    """
+    from PIL import Image, ImageChops
+    zero = Image.new("L", image.size, 0)
+    r, g, b = image.split()
+    activity = Image.composite(ImageChops.lighter(ImageChops.lighter(r, g), b), zero, mask)
+    lit = sum(activity.histogram()[1:])
+
+    lut_r, lut_g, lut_b = _aod_burn_in_luts()
+    luminance = ImageChops.add(ImageChops.add(r.point(lut_r), g.point(lut_g)), b.point(lut_b))
+    luminance = Image.composite(luminance, zero, mask)
+    luminance_total = sum(value * count for value, count in enumerate(luminance.histogram()))
+
+    denom = mask.histogram()[255]
+    if denom == 0:
+        return 0.0, 0.0, lit, 0
+    return lit / denom, (luminance_total / denom) / 255.0, lit, denom
+
+
+def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
+    """research 11 §6 D / ADR 0008 check 8: is this AOD frame within
+    Garmin's 10% rule?
+
+    **Measured, not estimated -- the same renderer `wfb preview --aod`
+    uses** (`wfb.preview.render`), at device resolution, so this can never
+    see a frame the author's own preview disagrees with (the anti-drift
+    stance ADR 0004 already takes for layout, extended here to burn-in).
+    No second renderer exists or is added for this check.
+
+    **Worst case, not every frame.** The AOD frame depends on the clock and
+    on data values, so this renders `AOD_BURN_IN_SAMPLE_TIMES` (two sample
+    times) with `AOD_BURN_IN_SAMPLE` (full battery) layered over
+    `wfb.preview.SAMPLE`'s own defaults, and reports the worse of the two --
+    see those constants' own docstrings for why this pair, not a full
+    1,440-minute scan (research 11 §1.5's own heat map tool is
+    authoritative and unreachable here).
+
+    **Per-element attribution (plan 14 slice 4 §3): render each element
+    alone.** For every AOD-shown leaf (`element.aod is not None`, groups
+    excluded -- they draw nothing, `wfb.preview.render`'s own loop already
+    skips them), a second render with `resolved.items` narrowed to just
+    that one `Placed` (`dataclasses.replace`, cheap -- geometry is already
+    absolute, resolved at build time, ADR 0004, so an isolated element
+    renders exactly the pixels it would have contributed to the full
+    frame) gives that element's own lit-pixel count. Ranked descending,
+    the top few are named in the message, and the diagnostic is **anchored
+    at the biggest contributor's own source line** -- never at the face
+    `aod:` line, which plan 14 slice 4 §3 allows as a fallback only when no
+    element can be blamed; here there always is one, because this check
+    returns early when the AOD set is empty (`aod-empty` already reports
+    that case).
+
+    **Severity and suppression.** Over 10% (lit pixels *or* luminance,
+    `AOD_BURN_IN_THRESHOLD`) is `error`, code `aod-burn-in` -- but, unlike
+    this project's other AMOLED hard error (`partial-update`, check
+    `check_partial_update_budget`, which is *not* suppressible because it
+    describes generated code that would not run at all on the device),
+    exceeding this rule does not break anything the compiler emits: at
+    worst, Garmin's own OS disables always-on for the app. That is a
+    product-quality guideline enforced by the watch, not a structural
+    platform limit this framework's own output violates, so -- deliberately
+    departing from ADR 0008's "error-severity hard-platform-limit checks
+    are never suppressible" default -- `aod-burn-in` **is** in
+    `SUPPRESSIBLE`, on the same "acknowledge it, with a reason" terms as
+    every other suppressible check. Under the threshold this is a `note`,
+    the same "the author sees the number on every build" shape
+    `check_graphics_pool` already uses -- also routed through `_emit`
+    (suppressible in principle, since the code is one code regardless of
+    severity), though there is normally nothing to suppress about a
+    passing note.
+
+    MIP-only builds never reach this at all (`resolved.device.is_amoled`
+    guards it, D5): `aod:` does not apply there.
+    """
+    device = resolved.device
+    if not device.is_amoled:
+        return
+    shown = [placed for placed in resolved.items
+             if placed.kind != "group" and placed.element.aod is not None]
+    if not shown:
+        return  # aod-empty already reports this face; nothing here to measure or blame
+
+    from dataclasses import replace as _dc_replace
+    from . import preview as _preview
+
+    mask = _aod_burn_in_mask(device.width, device.height, device.shape)
+
+    best: tuple[float, float, int, tuple[int, int, int]] | None = None
+    for sample_time in AOD_BURN_IN_SAMPLE_TIMES:
+        options = _preview.PreviewOptions(scale=1, quantise=True, mask_shape=False, aod=True,
+                                          time=sample_time, sample=AOD_BURN_IN_SAMPLE)
+        image = _preview.render(resolved, options)
+        lit_fraction, luminance_fraction, lit_pixels, _ = _aod_burn_in_measure(image, mask)
+        if best is None or max(lit_fraction, luminance_fraction) > max(best[0], best[1]):
+            best = (lit_fraction, luminance_fraction, lit_pixels, sample_time)
+    lit_fraction, luminance_fraction, total_lit_pixels, worst_time = best
+    total_lit_pixels = max(total_lit_pixels, 1)  # guard the (all-black) division below
+
+    solo_options = _preview.PreviewOptions(scale=1, quantise=True, mask_shape=False, aod=True,
+                                           time=worst_time, sample=AOD_BURN_IN_SAMPLE)
+    contributions = []
+    for placed in shown:
+        solo = _dc_replace(resolved, items=[placed])
+        solo_image = _preview.render(solo, solo_options)
+        _, _, solo_lit_pixels, _ = _aod_burn_in_measure(solo_image, mask)
+        contributions.append((placed, solo_lit_pixels))
+    contributions.sort(key=lambda pair: pair[1], reverse=True)
+    top = contributions[:_AOD_BURN_IN_TOP_N]
+    top_line = ", ".join(
+        f"{placed.id} ({100 * count / total_lit_pixels:.1f}%)" for placed, count in top
+    )
+    anchor = contributions[0][0]
+
+    hh, mm, _ = worst_time
+    message = (
+        f"{device.id}: the AOD frame lights {lit_fraction * 100:.1f}% of pixels and "
+        f"{luminance_fraction * 100:.1f}% of luminance at {hh:02d}:{mm:02d} (Garmin's 10% "
+        f"rule, research 11 §1.2) -- top contributor: {top_line}"
+    )
+    notes = [
+        f"worst of {len(AOD_BURN_IN_SAMPLE_TIMES)} sampled clock times "
+        + ", ".join(f"{h:02d}:{m:02d}" for h, m, _ in AOD_BURN_IN_SAMPLE_TIMES)
+        + ", full battery, wfb.preview.SAMPLE's other defaults unchanged -- not every "
+          "possible time/data value",
+        "lit: any pixel rendering other than pure black (research 11 §1.1); luminance: mean "
+        "relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded "
+        "channels) as a fraction of full white -- Garmin's own integral is unpublished "
+        "(research 11 §5)",
+        "checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel "
+        "share; Venu 2+: luminance share), since the device files do not say which generation "
+        "a target is",
+        "cannot see the 3-minute static-pixel rule, jitter, or any minute but the sampled "
+        "ones -- docs/limitations.md",
+        f"share is each element's own lit-pixel count against the full frame's "
+        f"{total_lit_pixels:,} lit pixels at {hh:02d}:{mm:02d} -- overlapping elements' shares "
+        f"can sum past 100%",
+    ]
+    confidence = ("estimate -- rasterised from a chosen worst-case sample frame, not the "
+                  "simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), "
+                  "which is authoritative; the luminance formula is this compiler's own "
+                  "choice, since Garmin's is unpublished")
+
+    if max(lit_fraction, luminance_fraction) > AOD_BURN_IN_THRESHOLD:
+        _emit(bag, anchor, Diagnostic(
+            Severity.ERROR, "aod-burn-in", message,
+            anchor.element.span,
+            notes=notes + [
+                "over Garmin's 10% rule risks the system switching always-on off for this "
+                "app entirely (research 11 §1.2)",
+                "lighten the top contributor(s) -- hide, thin, or dim them further in 'aod:' -- "
+                "or accept it with lint: {allow: [aod-burn-in], reason: \"...\"} on the "
+                "element named above",
+            ],
+            confidence=confidence,
+        ))
+    else:
+        _emit(bag, anchor, Diagnostic(
+            Severity.NOTE, "aod-burn-in", message, anchor.element.span,
+            notes=notes, confidence=confidence,
+        ))
 
 
 # -- hold targets -----------------------------------------------------------

@@ -4,11 +4,13 @@
 warning means the design might not look or behave as intended on that watch —
 it never fails the build. Suppress an individual warning deliberately with
 `lint: {allow: [...], reason: ...}`; a handful of checks reflect hard
-platform limits and can never be suppressed.
+platform limits and can never be suppressed. One check, `aod-burn-in`, is
+the one deliberate exception to "an error always fails the build with no way
+out" — see its own paragraph below.
 
 ## At a glance
 
-Twenty-one codes are suppressible. One line each, derived from this chapter,
+Twenty-two codes are suppressible. One line each, derived from this chapter,
 [`docs/limitations.md`](../limitations.md) §3 and `wfb/lint.py`'s own
 messages; see `wfb/lint.py` if unsure.
 
@@ -35,6 +37,7 @@ messages; see `wfb/lint.py` if unsure.
 | `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
 | `aod-unreachable` | an element's own `aod:` (a `show` or an override) can never draw because an ancestor group already writes `aod: hide`, which is sticky |
 | `aod-empty` | an AMOLED target where nothing in the design draws in always-on display |
+| `aod-burn-in` | the rendered `--aod` frame lights over 10% of pixels or 10% of luminance (Garmin's rule) at a sampled worst-case time; under the threshold this is an informational `note` instead, naming the same figures |
 
 ## Lint suppression
 
@@ -53,12 +56,24 @@ an out-of-range draw call, it clips silently the same way `setClip` does, so
 drawing partly or fully off the framebuffer is a cropped design, not a broken
 one, and the check is a warning like `safe-area`.
 
-Twenty-one codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
+**`aod-burn-in` is the one suppressible check whose default severity is
+`error`, not `warning`.** Every other error in this list reflects a hard
+platform limit — code the generated app would crash on, or a manifest that
+would not validate — where silencing the check would ship something that
+simply does not work, so none of those are suppressible. Exceeding Garmin's
+10% AOD rule is different in kind: it describes a policy the *watch's own
+OS* enforces against a face that otherwise builds and runs correctly (worst
+case, the system turns always-on off for the app), not anything wrong with
+the generated code itself, so it follows the ordinary "acknowledge it, with
+a reason" suppression path like every other measured/estimated check
+instead of joining the hard-limit errors below.
+
+Twenty-two codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
 `text-overflow`, `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
 `duplicate-style`, `unreachable-layout`, `sub-pixel-length`,
-`text-outline-interior`, `aod-unreachable`, `aod-empty` and
+`text-outline-interior`, `aod-unreachable`, `aod-empty`, `aod-burn-in` and
 `font-unavailable` — a `face:` font, or an element using one, that has
 `if_unavailable: hide` and fails to resolve a usable face on some target
 device (["Vector (`face:`) fonts"](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)). Under the default
@@ -100,6 +115,12 @@ goes on the **face's own `aod:` block's** `lint:` --
 `aod: {lint: {allow: [aod-empty], reason: ...}}`, beside `default:`/`dim:`/
 `jitter:`. `aod-unreachable`, by contrast, is an ordinary element-scoped
 diagnostic: it goes on the element whose own now-dead `aod:` it names.
+`aod-burn-in` is element-scoped too, but not on a fixed element the way
+`aod-unreachable` is: it goes on whichever AOD-shown element the rendered
+worst-case frame actually lit the most pixels for (its own top-ranked
+contributor, named in the message) — suppressing it there acknowledges the
+element actually responsible, not an arbitrary stand-in the way
+`graphics-pool`'s "first static root" is.
 `sub-pixel-length` is an ordinary element-scoped diagnostic like the rest
 -- **except** that a finding about a hand or pattern **part** goes on the
 part's **owning element**, the same element `min_1px:` inherits through

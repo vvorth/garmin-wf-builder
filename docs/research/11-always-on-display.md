@@ -216,17 +216,47 @@ D1: it decides whether the shared view carries `_aod`/its sleep-hook
 plumbing/its `onUpdate` branch at all, and is the byte-identical guarantee
 for an all-MIP build (§4.1's own test, `tests/test_aod.py`).
 
-### 3.4 There is no burn-in check of any kind
+### 3.4 The burn-in check: built, plan 14 slice 4 (2026-09-23)
 
-**VERIFIED.** `docs/limitations.md` and ADR 0006 §5 both list "the AMOLED
-pixel/luminance estimate for `always_on`" as Phase 1.4 — unbuilt. `wfb/lint.py`
-contains no luminance, pixel-count or burn-in check; its only
-power-related check is `partial-update-budget`, which is MIP-specific (clip
-area and operation count under `onPartialUpdate`).
+**Superseded.** `wfb/lint.py`'s `check_aod_burn_in` (code `aod-burn-in`,
+ADR 0008 check 8) now exists. It renders the resolved `aod:` set through
+`wfb.preview.render` -- the same function `wfb preview --aod` uses, no
+second renderer -- at a sampled worst-case frame (`10:08`/`20:08`, full
+battery, `wfb.preview.SAMPLE`'s other defaults unchanged; see §1.5/§5
+below for why sampling rather than every minute) and scores, over the
+round-masked display area:
 
-So a design can write `aod: show` everywhere, build warning-free, and light
-60% of an AMOLED screen (this remains true as of plan 14 slice 1 -- the
-burn-in lint is still slice 4). Nothing would say a word.
+- **lit-pixel fraction**: the share of pixels that are not pure black,
+  matching §1.1's own quoted definition exactly ("a pixel is considered on
+  when rendering any color other than black") -- not a brightness
+  threshold of this compiler's own invention.
+- **luminance fraction**: the mean relative luminance across the same
+  pixels (`wfb.palette.Color.relative_luminance`, Rec. 709 primaries over
+  sRGB-decoded channels -- the same WCAG-style formula the contrast lint
+  already used), as a fraction of full white. Garmin's own integral is
+  still unpublished (§5 below), so this is a stated, reused choice, not a
+  claim of matching Garmin's firmware.
+
+§1.2's two device-generation rules (original Venu: lit-pixel count; Venu 2+:
+luminance) are both checked at once, since neither `compiler.json` nor
+`simulator.json` records which generation a target device is -- exceeding
+either fraction is the finding, which can only ever be as strict as, never
+looser than, whichever single rule actually applies to a given panel.
+Reported per element (§6 D's own goal): every AOD-shown element is
+re-rendered alone and ranked by its own lit-pixel count, and the
+diagnostic is anchored at the biggest contributor's own source line. Over
+10% is `error`, code `aod-burn-in` -- deliberately suppressible, unlike
+this project's other AMOLED hard error, since exceeding it breaks nothing
+the compiler emits (ADR 0008's amendment has the full reasoning). Under
+10% is a `note` stating both figures.
+
+So a design that writes `aod: show` everywhere and would have lit 60% of
+an AMOLED screen now fails the build with that exact figure instead of
+shipping silently -- the gap this section used to describe is closed. What
+is *not* closed: the 3-minute static-pixel rule (§1.2, §5) is a property
+of a sequence of frames, and this renders exactly one (or two, at two
+sampled times) -- jitter (slice 5, still open) is the mitigation for that
+rule, not this lint.
 
 ### 3.5 `always_on` was emitted but unexercised; now has one caller
 
@@ -306,7 +336,10 @@ Garmin's four pieces of guidance (§1.3) except by hiding elements outright.
   than 10% of the screen's luminance" without defining the integral,
   the colour space, or whether it is normalised against full white. A
   build-time check must therefore state a chosen formula and label its
-  confidence, the way ADR 0008 requires.
+  confidence, the way ADR 0008 requires -- done, plan 14 slice 4 (§3.4):
+  `wfb.palette.Color.relative_luminance` (Rec. 709/WCAG over sRGB-decoded
+  channels), labelled `estimate` on the diagnostic, since it is this
+  compiler's own reused choice, not Garmin's actual formula.
 - **The 3-minute static-pixel rule cannot be checked from one frame.** It is
   a property of a sequence of frames, so a single rendered AOD frame can
   only show the pixel/luminance rules; the shift guidance (§1.3) is what

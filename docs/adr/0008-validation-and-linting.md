@@ -32,7 +32,7 @@ and every diagnostic carries **file, line and column** from the YAML source
 | 5 | **Text overflows its slot** | warning | resolved geometry + per-device, per-language font pixel metrics | exact for fixed system fonts; approximate for vector fonts |
 | 6 | **Missing glyph in a subsetted font** | error | used-glyph set vs. font `cmap` | exact |
 | 7 | **Estimated memory overrun** | warning | `monkeyc --build-stats` against the device limit from the device DB | **measured, not estimated** — see below |
-| 8 | **AMOLED always-on pixel/luminance violation** | warning | rasterise the resolved `aod:` set (plan 14; `modes: [always_on]` removed outright, D3), integrate | estimate; simulator heat map is authoritative — still unbuilt (plan 14 slice 4); a weaker precursor, `aod-empty` (does *anything* draw in AOD at all), shipped in slice 1 |
+| 8 | **AMOLED always-on pixel/luminance violation** | **error** (uniquely suppressible, see amendment below) | rasterise the resolved `aod:` set with `wfb.preview.render` (the same function `wfb preview --aod` uses), score lit-pixel and luminance fractions over the round-masked display at a sampled worst-case frame | estimate; simulator heat map is authoritative — built 2026-09-23 (plan 14 slice 4, code `aod-burn-in`); a weaker precursor, `aod-empty` (does *anything* draw in AOD at all), shipped in slice 1 |
 | 9 | **Partial-update power-budget risk** | warning | clip area + operation count heuristic | **heuristic only** — see below |
 | 10 | **Insufficient contrast** | warning | WCAG-style ratio between element and its backdrop | exact arithmetic, subjective threshold |
 | 11 | **Config surface unavailable on target** | error | API 5.1.0 + four-axis limits (ADR 0006) | exact |
@@ -102,7 +102,10 @@ lint:
 
 `error`-severity checks that reflect hard platform limits (2, 11; 12 no longer
 exists) are **not** suppressible — suppressing them produces a face that does
-not work.
+not work. Check 8 (`aod-burn-in`, added 2026-09-23, see its own amendment
+below) is the one deliberate exception: it is `error`-severity but *is*
+suppressible, because exceeding it does not describe generated code that
+fails to work — see that amendment for why.
 
 The code named in `allow:` is checked against the set the compiler actually
 emits (`lint.ALL_CODES`, kept honest by a test that re-derives it from the
@@ -216,3 +219,55 @@ confidence discipline). Full design: `wfb/layout.py`'s own docstrings
 `circular_extent`), and `docs/guide/text.md`'s "`curve:` — rotated and radial
 text" section. Tests: `tests/test_pattern_text_curve.py`,
 `tests/test_vector_text_layout.py`, `tests/test_patterns.py`.
+
+## Amendment (2026-09-23): check 8 built, `aod-burn-in` -- and the first
+## deliberately suppressible `error`
+
+**What changed.** Check 8 (the table above) is built: `wfb.lint.
+check_aod_burn_in`, code `aod-burn-in` (plan 14 slice 4, research 11 §6 D).
+It renders the resolved `aod:` set through `wfb.preview.render` -- the same
+function `wfb preview --aod` uses, no second renderer -- at device
+resolution, at a sampled worst-case frame (two clock times, `10:08` and
+`20:08`, full battery, `wfb.preview.SAMPLE`'s other defaults unchanged),
+and scores two fractions over the round-masked display area: the share of
+non-black pixels (Garmin's own FAQ, research 11 §1.1: "a pixel is
+considered on when rendering any color other than black") and the mean
+relative luminance (`wfb.palette.Color.relative_luminance`, the same
+Rec. 709/WCAG formula check 10 already uses, as a fraction of full white).
+Both of Garmin's two generation-specific 10% rules (research 11 §1.2 --
+original Venu on lit pixels, Venu 2+ on luminance) are checked at once,
+since the device files carry no field saying which generation a target is;
+exceeding either is the finding. It is reported **per element**: every
+AOD-shown element is re-rendered alone (`dataclasses.replace(resolved,
+items=[placed])`, cheap because geometry is already absolute at this
+stage) and ranked by its own lit-pixel count, and the diagnostic is
+anchored at the biggest contributor's own source line.
+
+**Severity, and the one deliberate exception to this ADR's own "error +
+hard platform limit -> unsuppressible" rule.** Over 10% (either fraction)
+is `Severity.ERROR` -- consistent with this project's other AMOLED hard
+error, `partial-update` (check 9's own device-support branch). But unlike
+that error, which describes generated code that would not run on the
+device at all, exceeding the 10% rule breaks nothing the compiler emits:
+at worst, the watch's own OS disables always-on for the app, a
+product-quality guideline the *device* enforces, not a structural limit
+this framework's output violates. So `aod-burn-in` is, on purpose, in
+`wfb.lint.SUPPRESSIBLE` -- the first `error`-severity code in this
+project that is. This ADR's own "checks 2 and 11 are the unsuppressible
+hard-limit errors" language (Decision, "Suppression") still holds for
+those two; `aod-burn-in` is a third, narrower case this ADR did not
+originally anticipate needing, because its harm is enforced by the watch's
+policy engine, not by anything that fails to run. Under 10% is
+`Severity.NOTE`, stating both figures -- the same "the author sees the
+number on every build" shape check 7's row above (`graphics-pool`) already
+established.
+
+**What is still an estimate, not a measurement, and says so.** The
+lit-pixel fraction is exact *for the rendered sample frame*, but that
+frame is one of two sampled clock times with a fixed data snapshot, not
+every time/data combination a real face can show, and the AOD frame's
+own 3-minute static-pixel rule (research 11 §1.2/§5) is a property of a
+*sequence* of frames this single-frame check cannot see at all. The
+luminance fraction additionally depends on this compiler's own choice of
+formula, since Garmin's is unpublished. `confidence=` on the diagnostic
+says all of this, and `docs/limitations.md` §3 has the full account.

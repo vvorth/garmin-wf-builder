@@ -125,8 +125,38 @@ simulator. What is verified is a warning-free real `monkeyc` build and
   The 64-colour palette lint never sees a dimmed colour, since it is a
   synthetic literal never entered into `palette:`/`config:`/
   `color_scheme:`. The alpha route (`Dc.setStroke`'s `0xAARRGGBB`) stays
-  UNVERIFIED, per the plan (§4.5) -- it needs the burn-in lint (slice 4) to
-  confirm the meter counts the blended result first.
+  UNVERIFIED, per the plan (§4.5): the burn-in lint (slice 4, below) now
+  exists and would measure whatever it drew, but the alpha route itself was
+  never built to render anything through it.
+- **The burn-in lint, `aod-burn-in` (plan 14 slice 4, research 11 §6 D, ADR
+  0008 check 8):** measured, not estimated -- renders the resolved `aod:`
+  set with `wfb.preview.render` (`wfb preview --aod`'s own function, no
+  second renderer) at a sampled worst-case time (`10:08`/`20:08`, full
+  battery, `wfb.preview.SAMPLE`'s other defaults unchanged) and scores two
+  fractions over the round-masked display area: the share of non-black
+  pixels (research 11 §1.1's own "any color other than black" definition)
+  and the mean relative luminance (`wfb.palette.Color.relative_luminance`,
+  the same Rec. 709/WCAG formula the contrast lint uses, as a fraction of
+  full white -- Garmin's own formula is unpublished, research 11 §5). Both
+  AMOLED generations' 10% rules are checked at once (lit-pixel share for
+  the original Venu, luminance share for Venu 2+, research 11 §1.2), since
+  the device files do not say which generation a target is. Reported per
+  element: every AOD-shown element is re-rendered alone
+  (`dataclasses.replace`'s `items=[placed]`, cheap -- geometry is already
+  absolute) and ranked by its own lit-pixel count, and the diagnostic is
+  anchored at the biggest contributor's own line. Over 10% (either
+  fraction) is `error`, code `aod-burn-in` -- uniquely among this
+  project's hard errors, it **is** suppressible, because exceeding it
+  breaks nothing the compiler emits (unlike `partial-update`, the other
+  AMOLED hard error): at worst the watch's own OS disables always-on for
+  the app. Under 10% is a `note` stating both figures, the same
+  "the author sees the number on every build" shape `graphics-pool`
+  already uses. Never runs on a MIP target (D5). Cost: ~40-70 ms per
+  AMOLED target on `examples/features/aod/face.yaml` (two full-frame
+  renders plus one per AOD-shown element), negligible against a real
+  `monkeyc` build. Cannot see the 3-minute static-pixel rule (a property of
+  a frame sequence, not the one rendered), any time/data combination but
+  the two sampled, or Garmin's actual luminance formula.
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 
@@ -174,4 +204,3 @@ specifies each item.
     §4.3, slice 2 built every other override key and a `text` element's
     baked-font override) -- all four are friendly build errors
     (`Builder._build_aod_authored`), never a silent no-op.
-    The AMOLED burn-in pixel/luminance lint (plan 14 slice 4).

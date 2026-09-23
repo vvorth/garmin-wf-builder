@@ -673,11 +673,10 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | A true typographic-baseline value for `vertical_align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | plan 07 §6 choice 1 -- `bottom` is the line box's bottom (ascent + descent); a real typographic baseline would need a new value |
 | Element-level alignment of a *linear* `pattern`'s drawn-ink box (as opposed to its `at:`, which is a pivot every copy steps from, and already refuses `align:`/`vertical_align:` outright) | plan 07 §6 choice 2's alternative -- useful for aligning a whole row, but left unbuilt because it would make a pattern's `at:` mean two different things (the step origin, and the row's own box) |
 | `aod: jitter:` (face-level) | plan 14 §5.2 -- accepted by the schema, rejected by the builder with a friendly "not implemented" error naming the slice (5) that will build it. `aod: dim:` is built (slice 3, `docs/guide/always-on-display.md`) |
-| The alpha route for `aod: dim:` (`Dc.setStroke`'s `0xAARRGGBB`, blending toward black instead of pre-computing a darker colour) | plan 14 §4.5 -- left UNVERIFIED on purpose: it depends on the burn-in lint (slice 4) confirming the meter counts the blended result, which has not been checked. Pre-computed/on-device channel arithmetic (`wfb.palette.dim_channel`/`WfbColor.dim`) is what shipped instead |
+| The alpha route for `aod: dim:` (`Dc.setStroke`'s `0xAARRGGBB`, blending toward black instead of pre-computing a darker colour) | plan 14 §4.5 -- left UNVERIFIED on purpose: the burn-in lint (slice 4, `aod-burn-in`) now measures whatever `wfb preview --aod` actually renders, but the alpha route itself was never built to render anything through it, so whether the meter would count a *blended* result correctly is still an open question. Pre-computed/on-device channel arithmetic (`wfb.palette.dim_channel`/`WfbColor.dim`) is what shipped instead |
 | A `pattern`'s own `aod: {font: ...}` override, and a `complication_slot`'s `aod: {font: ...}` override | plan 14 §4.3, slice 2 built `color`/`track_color`/`icon_color`/`thickness`/`bar_width`/`filled`/`format` overrides and a `text` element's `font:` override, but not these two -- the builder rejects them with a friendly "not implemented yet" error (`Builder._build_aod_authored`) rather than silently keeping the element's awake font |
 | An `aod: {font: ...}` override naming a `face:` (vector) font rather than a baked one | plan 14 §4.3, slice 2 -- same friendly build error, on any kind of element; gate 1-4's machinery has no AOD-aware second face/size constant yet |
 | `aod: {filled: ...}` on `shape: polygon` | there is no outline primitive for it to switch to (Dc has fillPolygon, no drawPolygon) -- a friendly build error, the same one the awake element's own `filled: false` already gets |
-| The AMOLED burn-in pixel/luminance lint | plan 14 §4/D2, slice 4 -- until then, `aod: {default: hide}` (the schema default) is the safe choice, and `aod-empty` only checks that *something* draws, not how much |
 
 **None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
 verified anywhere in this project** (plan 02 §9,
@@ -887,6 +886,7 @@ fact on real hardware -- confirm in the host simulator (or on a real
 | **Text overflow** | Exact for a baked custom font (real glyph advances from the TrueType source). A system font (`FONT_TINY` and so on) is measured with the device's own font file when `vendor/fonts/` holds Garmin's fonts: a `.ttf` scaled to the device's published metrics (`wfb/fonts/fallback.py`), or on the fenix 6/7 family, fr245 and fr255 a decoded `.cft` bitmap font, exact to the pixel (`wfb/fonts/cft.py`). Without them it is **an estimate** against a pinned free stand-in (`exact`/`family`/`substitute` match, `docs/research/10-system-fonts.md`), then Pillow's default face, then a flat 0.55 em/character. Every system-font width is labelled `(estimated)` in the generated code regardless. UNVERIFIED for `.cft` devices (`docs/research/10-system-fonts.md` §10.6–10.7): whether `getFontHeight` reports the file's `height` or `height − 1`, whether the simulator quantises the antialias blend to the 64-colour palette, and which glyph an unmapped character draws (glyph 0 is assumed). |
 | **Contrast** | The arithmetic is exact WCAG; the 3.0 threshold is a judgement call, which is why it is a warning and is suppressible. |
 | **`graphics-pool`** | The pool size is exact (`graphicsResourcePoolSize`, straight from the device file) and so is the pixel count. **Bytes per pixel is not.** The SDK publishes no figure for a `BufferedBitmap`, so this uses the display's own `bitsPerPixel` as a proxy and ignores per-surface overhead; the check labels itself an estimate. It also does not account for the fonts and bitmaps the face loads at runtime, which share the same pool -- so the *fraction* it reports is a floor, not a total. |
+| **`aod-burn-in`** (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8) | *Measured*, not estimated, for the one rendered frame it actually scores -- the same renderer `wfb preview --aod` uses (`wfb.preview.render`), at device resolution, with the round bezel excluded from the denominator on a round screen. Two things keep it from being exact overall: (1) it renders only a **worst-case sample** -- two clock times (`10:08`, `20:08`) with full battery, `wfb.preview.SAMPLE`'s other defaults unchanged, not an exhaustive scan of every minute and data value the simulator's own Screen Heat Map would cover (research 11 §1.5, unreachable in this container); (2) the **luminance formula is this compiler's own choice** (`Color.relative_luminance`, WCAG/Rec. 709 over sRGB-decoded channels), since Garmin's own integral is unpublished (research 11 §5). It checks both AMOLED generations' 10% rules (lit-pixel share and luminance share) at once, since the device files do not say which generation a target is. It cannot see the 3-minute static-pixel rule at all -- that is a property of a *sequence* of frames, and this renders exactly one. |
 
 ### Suppression, and what it can reach
 
@@ -945,11 +945,20 @@ check that refuses suppression on purpose.
 ### `visible:` is a runtime fact, and the linter reasons about build-time geometry
 
 A hidden element still **occupies its box** for every geometric check: safe
-area, off-screen, text overflow, the `low_power` clip rectangle, the AMOLED
-luminance estimate, and (once it exists) overlap. Two elements that are
-`visible:` on mutually exclusive conditions, deliberately stacked in the same
-place, will still be reported as overlapping when that check lands, and both
-still count toward the clip.
+area, off-screen, text overflow, the `low_power` clip rectangle, and (once it
+exists) overlap. Two elements that are `visible:` on mutually exclusive
+conditions, deliberately stacked in the same place, will still be reported as
+overlapping when that check lands, and both still count toward the clip.
+
+`aod-burn-in` (built, plan 14 slice 4) is the one exception to "occupies its
+box regardless": it is not a static-geometry check at all, but a render, so
+an element whose resolved `aod: {visible: ...}` evaluates false at the
+sampled worst-case reading genuinely draws nothing and contributes nothing
+to the count -- exactly matching what `wfb preview --aod` would show at that
+same reading. The limitation this trades in for is the opposite one: a
+*different* reading than the one or two this check happens to sample could
+make a different element visible instead, and that combination is not
+checked (see the `aod-burn-in` row above).
 
 This is a real limitation, not an oversight, and the alternative is worse: the
 linter would have to decide whether two conditions can be true at the same time,
@@ -993,8 +1002,6 @@ glance, and back returns — so this is documented rather than gated.
   by anything more involved is sized from its source's full range, which
   over-estimates.
 * **Visual quality.** Nothing judges whether a design is legible or attractive.
-* **AMOLED pixel and luminance ratios** (ADR 0008 check 8). Not implemented; the
-  simulator's heat map is authoritative anyway.
 * **`raw` element runtime allocation.** The escape hatch does not exist yet; when
   it does, its memory contribution will be compiled and therefore measured, but
   its *runtime* allocation will not be modelled.

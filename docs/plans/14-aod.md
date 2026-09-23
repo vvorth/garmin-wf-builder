@@ -1,6 +1,6 @@
 # 14 — `aod:`: always-on display as overrides on the one design
 
-**Status:** accepted, 2026-09-22; slice 0 built 2026-09-23 (§6): `fenix847mm`
+**Status:** accepted, 2026-09-22; slices 0–4 built 2026-09-23 (§6): `fenix847mm`
 installed and `examples/features/aod/face.yaml` added, warning-free on it
 and the three verification targets. **Slice 1 built 2026-09-23** (§6):
 schema, IR (`AodOverride`), resolution (`Builder._resolve_aod`),
@@ -24,7 +24,22 @@ pre-dimmed into a second literal, a `config.colors.<role>` (or otherwise
 runtime-only) colour is dimmed on-device by a small integer-math helper
 (`WfbColor.dim`, `runtime-lib/WfbColor.mc`); `dim: 1`/absent is identity
 (byte-identical source); `dim: 0` is a schema error, not a silent
-all-black frame; `wfb preview --aod` matches exactly. Slices 4–6 open.
+all-black frame; `wfb preview --aod` matches exactly. **Slice 4 built
+2026-09-23** (§6, research 11 §6 D, ADR 0008 check 8): the burn-in lint,
+`aod-burn-in` -- lit-pixel and luminance fractions measured from `wfb
+preview --aod`'s own renderer, no second one, at a sampled worst-case time
+(`10:08`/`20:08`, full battery); reported per element by re-rendering each
+AOD-shown element alone and ranking its own lit-pixel count, anchored at
+the biggest contributor's source line; `error`, over 10% of either
+fraction, uniquely suppressible among this project's hard errors (research
+11 §1.2's two generations' rules both checked, since the device files
+don't say which one a target is); a `note` under the threshold, the same
+"the number on every build" shape `graphics-pool` already uses.
+`examples/features/aod/face.yaml` stays clean (a note: 5.8% lit / 0.5%
+luminance at its own worst sample). D2 (§7, below) is still `hide` -- not
+this slice's call to change, only to inform: see its own updated note for
+the measured `default: show` + `dim: 0.4` figures on three existing
+examples. Slices 5–6 open.
 D1–D5 (§7) decided by the user, 2026-09-22: every recommendation taken. It
 grew out of
 `docs/research/11-always-on-display.md` §6, whose open question (does
@@ -295,6 +310,34 @@ all-MIP faces, runtime to select within a mixed target list.
   lint would catch it.
 **Decided:** `hide` until slice 4 exists, then reconsider `show`
 paired with `dim:`.
+
+**Slice 4's own measurement, 2026-09-23 (not a decision -- D2 stays `hide`;
+this is the data promised above).** A scratch copy of three existing
+examples (not the checked-in files) with `targets: [..., fenix847mm]` and a
+face-wide `aod: {default: show, dim: 0.4}` bolted on, `aod-burn-in`'s own
+worst-case render (`10:08`/`20:08`, full battery):
+
+| Example | lit-pixel fraction | luminance fraction | `aod-burn-in` |
+|---|---|---|---|
+| `examples/features/analog/` | 4.0% | 0.2% | note (passes both rules) |
+| `examples/features/graph/` | 9.7% | 1.1% | note (passes, close on lit-pixel) |
+| `examples/showcase/` | 26.0% | 1.4% | **error** (fails the lit-pixel rule) |
+
+The two rules disagree sharply here, which is exactly research 11 §1.2's
+own warning: `dim: 0.4` scales every channel down but never all the way to
+`(0, 0, 0)`, so it does nothing for the lit-*pixel* count (a dimmed pixel
+is still "on" under Garmin's own FAQ definition, research 11 §1.1) while
+it cuts the *luminance* figure roughly in proportion. All three examples
+comfortably clear the Venu 2+ luminance rule at `dim: 0.4`; only the
+simplest (`analog/`) also clears the older lit-pixel rule, and the busiest
+(`showcase/`) fails it by a wide margin. So "`default: show` paired with
+`dim:`" is not, on its own, the universal fix the D2 write-up above
+hoped for -- it reliably buys the luminance half of the rule, not the
+pixel-count half, and a face with `showcase`'s own element count would
+still need explicit `hide`s (or a heavier `dim:`) to pass on a
+lit-pixel-rule device. D2 itself stays `hide` (this slice's brief does not
+include changing it); this table is the evidence for whoever revisits it
+next.
 
 **D3: does `modes: [always_on]` go away?** **Decided: yes, removed
 outright, no shim** (house style; nothing uses it). `modes:` then means only
