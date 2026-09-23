@@ -1617,13 +1617,7 @@ class Builder:
                             text_format = node.get("format")
                             self._check_format(node, value, text_format)
             else:  # has_text
-                if "format" in node:
-                    self.bag.error(
-                        "pattern",
-                        f"{part_where}.format: 'format:' applies only to "
-                        "'value:', not a fixed 'text:'",
-                        self.doc.span(node, "format"),
-                    )
+                if not self._check_format_not_on_literal(node, part_where):
                     ok = False
                 else:
                     text_literal = str(node.get("text"))
@@ -3238,6 +3232,22 @@ class Builder:
                 # read yet at this point in the walk.
                 aod_span = self.doc.span(node.get("aod"), "format") or self.doc.span(node, "aod")
                 self._check_format_spec(value, str(element.aod_own["format"]), aod_span)
+        else:
+            # A fixed `text:` has no bound value for a `format:` to format --
+            # the same rule a pattern's own `shape: text` part already
+            # enforces on the identical 'text:'/'format:' combination
+            # (`_check_format_not_on_literal`), extended to its `aod:` twin:
+            # `_emit_text` never even looks at `element.aod.format` once
+            # `element.literal is not None`, so leaving this unchecked would
+            # silently accept a key with no effect either way.
+            self._check_format_not_on_literal(node, element.id)
+            if element.aod_own is not None and "format" in element.aod_own:
+                self.bag.error(
+                    "format",
+                    f"{element.id}.aod.format: 'aod: {{format: ...}}' applies only "
+                    "to 'value:', not a fixed 'text:'",
+                    self.doc.span(node.get("aod"), "format") or self.doc.span(node, "aod"),
+                )
         self._check_other_absence(node, element, "color", element.color)
         self._check_reachable_substitute(node, element, "'color'",
                                          (element.value,), (element.color,))
@@ -4456,6 +4466,21 @@ class Builder:
                 formatting.parse_time(formatting.strip_braces(spec), codes)
             except formatting.FormatError as exc:
                 self.bag.error("format", str(exc), span)
+
+    def _check_format_not_on_literal(self, node: dict, label: str) -> bool:
+        """`format:` is meaningless without a bound `value:` to format --
+        shared by a `text` element and a pattern's own `shape: text` part,
+        which both take the same `text:` spelling for a fixed string.
+        Returns `False` (having already reported it) when `format:` was
+        written anyway, `True` otherwise."""
+        if "format" not in node:
+            return True
+        self.bag.error(
+            "format",
+            f"{label}.format: 'format:' applies only to 'value:', not a fixed 'text:'",
+            self.doc.span(node, "format"),
+        )
+        return False
 
     def _require(self, node: dict, key: str, message: str) -> None:
         self.bag.error("element", message, self.doc.span(node, key) or self.doc.span(node))

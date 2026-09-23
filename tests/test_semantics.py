@@ -1684,6 +1684,50 @@ def test_a_literal_text_element_is_accepted(write_design, bag):
     assert face is not None
 
 
+_LITERAL_WITH_FORMAT = """
+  - id: unit
+    type: text
+    text: "XX%"
+    format: "{:d}"
+    color: palette.fg
+    at: {anchor: center}
+"""
+
+_LITERAL_WITH_AOD_FORMAT = """
+  - id: unit
+    type: text
+    text: "XX%"
+    color: palette.fg
+    aod: {format: "{:d}"}
+    at: {anchor: center}
+"""
+
+
+def test_format_on_a_literal_text_element_is_an_error(write_design, bag):
+    """`format:` formats a bound `value:`; a fixed `text:` has none to
+    format, so this must fail exactly the way a pattern's own `shape:
+    text` part already refuses the identical combination
+    (`test_pattern_text.py::test_format_with_a_fixed_text_is_one_error`)
+    -- must fail against an implementation that keeps `format:` unchecked
+    for a plain `text` element, silently ignoring it (it was, before this
+    was added: `element.format` was never even read when `element.literal`
+    is set)."""
+    load(write_design(design(_LITERAL_WITH_FORMAT)), bag)
+    errors = [d for d in bag.errors if d.code == "format"]
+    assert errors, bag.render()
+    assert "applies only to 'value:'" in errors[0].message
+
+
+def test_aod_format_on_a_literal_text_element_is_an_error(write_design, bag):
+    """The same rule extended to `aod: {format: ...}`: `_emit_text` never
+    reads `element.aod.format` once `element.literal` is set, so leaving
+    it unchecked would accept a key with no effect either way."""
+    load(write_design(design(_LITERAL_WITH_AOD_FORMAT)), bag)
+    errors = [d for d in bag.errors if d.code == "format"]
+    assert errors, bag.render()
+    assert "applies only to 'value:'" in errors[0].message
+
+
 # -- `overrides:` is not implemented, and now says so -------------------------
 
 
