@@ -8,8 +8,8 @@ from ... import formatting
 from ...ir import Progress, local_name
 from ...layout import PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace
 from .common import (
-    AodDim, _aod_color, _aod_font_field, _aod_value, _color, _const_prefix, _field,
-    _glyph_y_expr,
+    AodDim, _aod_color, _aod_font_field, _aod_layout_override_expr, _aod_value, _color,
+    _const_prefix, _field, _glyph_y_expr,
 )
 from ..writer import Writer
 
@@ -41,11 +41,11 @@ def _thickness_expr(prefix: str, placed, aod: bool) -> str:
     """`Layout.<P>_THICKNESS`, ternary against `_AOD_THICKNESS` when this
     element's resolved `aod:` overrides `thickness:` (plan 14 §4.2) and
     this build ever emits AOD code (`aod`) -- the plain constant otherwise,
-    byte-identical to before this override existed.
+    byte-identical to before this override existed. A thin wrapper over
+    `_aod_layout_override_expr`, the shared shape every `Layout`-constant
+    thickness/bar-width override in this project follows.
     """
-    base = f"Layout.{prefix}_THICKNESS"
-    override = f"Layout.{prefix}_AOD_THICKNESS" if placed.aod_thickness is not None else None
-    return _aod_value(aod, override, base)
+    return _aod_layout_override_expr(prefix, "THICKNESS", placed.aod_thickness is not None, aod)
 
 
 def _circle_thickness_expr(placed, aod: bool) -> str:

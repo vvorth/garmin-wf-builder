@@ -9,7 +9,7 @@ from ...ir import (
 )
 from ...layout import PlacedGraph
 from ...series import Acquisition
-from .common import AodDim, _aod_color, _aod_value, _color, _const_prefix
+from .common import AodDim, _aod_color, _aod_layout_override_expr, _color, _const_prefix
 from ..writer import Writer
 
 
@@ -68,11 +68,8 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False, dim: AodDim =
     color_code = _aod_color(element, "color", _color(element.color), aod, dim)
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     if element.style == "line":
-        thickness_base = f"Layout.{prefix}_THICKNESS"
-        thickness_override = (
-            f"Layout.{prefix}_AOD_THICKNESS" if placed.aod_thickness is not None else None
-        )
-        thickness_expr = _aod_value(aod, thickness_override, thickness_base)
+        thickness_expr = _aod_layout_override_expr(
+            prefix, "THICKNESS", placed.aod_thickness is not None, aod)
         w.line(f"WfbSeries.drawLine(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
                f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
         w.line(f"                   {thickness_expr}, {values}, {lo}, {hi});")
@@ -81,11 +78,8 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False, dim: AodDim =
                f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
         w.line(f"                   {values}, {lo}, {hi});")
     else:  # bars
-        bar_base = f"Layout.{prefix}_BAR_WIDTH"
-        bar_override = (
-            f"Layout.{prefix}_AOD_BAR_WIDTH" if placed.aod_bar_width is not None else None
-        )
-        bar_expr = _aod_value(aod, bar_override, bar_base)
+        bar_expr = _aod_layout_override_expr(
+            prefix, "BAR_WIDTH", placed.aod_bar_width is not None, aod)
         w.line(f"WfbSeries.drawBars(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
                f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
         w.line(f"                   {bar_expr}, {values}, {lo}, {hi});")

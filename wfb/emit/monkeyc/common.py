@@ -324,6 +324,26 @@ def _aod_part_color(color_expr: Expression | None, override_code: str | None, ao
     return f"(_aod ? {_dim_color_code(color_expr, awake_code, dim)} : {awake_code})"
 
 
+def _aod_layout_override_expr(prefix: str, suffix: str, has_override: bool, aod: bool) -> str:
+    """``Layout.<P>_<suffix>``, ternary against ``Layout.<P>_AOD_<suffix>``
+    when this element's resolved `aod:` overrides the corresponding key
+    (plan 14 §4.2) and this build ever emits AOD code (``aod``) -- the plain
+    constant otherwise, byte-identical to before any such override existed.
+
+    Every `Layout`-constant-backed override this project has -- a shape's,
+    a `progress` arc's or a `graph: line`'s own `thickness:`, a
+    `graph: bars`'s own `bar_width:` -- follows exactly this shape (the two
+    constants share one prefix, differing only by an `AOD_` infix), so this
+    is the one place that builds the ternary rather than each caller
+    re-deriving the same three lines (`_thickness_expr` below is now a thin
+    wrapper; `wfb.emit.monkeyc.graph._emit_graph` used to reconstruct this
+    by hand for both its `line` and `bars` styles).
+    """
+    base = f"Layout.{prefix}_{suffix}"
+    override = f"Layout.{prefix}_AOD_{suffix}" if has_override else None
+    return _aod_value(aod, override, base)
+
+
 def _aod_value(aod: bool, override: str | None, awake_code: str) -> str:
     """The same ternary as `_aod_color`, for a call site that already has
     the override rendered as a Monkey C expression string (a `Layout`
