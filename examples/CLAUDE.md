@@ -48,19 +48,23 @@ aligned to grow away from the centre, covering all four
 `align`×`vertical_align` combinations, plus every accepting shape, both
 `progress` styles, a static `icon`, and aligned hand/pattern parts.
 
-`features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slice 1, 2026-09-23) is
-the first, and so far only, example to add a fourth target, `fenix847mm` --
-the first AMOLED device this project has ever built for. An ordinary small
-face (digital time, a date, a battery ring, a bezel) rather than a
+`features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slices 1-2, 2026-09-23)
+is the first, and so far only, example to add a fourth target, `fenix847mm`
+-- the first AMOLED device this project has ever built for. An ordinary
+small face (digital time, a date, a battery ring, a bezel) rather than a
 format-feature dump: a face-wide `aod: {default: hide}` hides everything but
-`clock`, which carries an `aod: {color: ...}` override -- the canonical
-"everything off but the time" AOD shape (plan 14 §3). Codegen (slice 2) does
-not read that override's colour yet; slice 1 only resolves, validates and
-gates *which* elements draw in AOD (`_aod`, `wfb/emit/monkeyc/view.py`), so
-the sleep frame this build produces still draws `clock` in its awake white.
-The three MIP verification devices are unaffected by `aod:` at all -- their
-generated source is byte-identical to a build with no `aod:` keys
-(`tests/test_aod_codegen.py`).
+`clock`, a small accent dot and the battery ring -- the canonical
+"everything off but the time" AOD shape (plan 14 §3), plus enough variety to
+exercise slice 2's restyling: `clock` overrides `color:`/`format:`/`font:`,
+`accent_dot` flips `filled:` from a solid disc to a thin ring, `battery_ring`
+overrides `color:`/`thickness:` to a thinner, dimmer arc, and `info` (a
+`group` wrapping `date_text`) carries an explicit `aod: hide` that its own
+child's `aod: show` cannot undo -- deliberately, to demonstrate the one
+asymmetry in plan 14 §3, which is why that child needs `lint: {allow:
+[aod-unreachable]}`. Every one of those overrides is now actually read by
+codegen (slice 2, `docs/lore/codegen.md`), not just resolved. The three MIP
+verification devices are unaffected by `aod:` at all -- their generated
+source is byte-identical to a build with no `aod:` keys (`tests/test_aod.py`).
 
 ## `system-fonts/`
 

@@ -90,19 +90,26 @@ Nothing config-, hands- or pattern-related is verified on a watch or in the
 simulator. What is verified is a warning-free real `monkeyc` build and
 `wfb preview`.
 
-- **`aod:` format and resolution (plan 14 slice 1):** per-element/group
-  `hide`/`show`/an override block reusing that kind's own property names,
-  key-by-key resolution (element > nearest ancestor group > face default),
-  a group's explicit `hide` sticky and unconditional, `visible:` conjoined
-  with the element's own. `_aod` (the sleep-frame gate) is emitted only
-  when some build target is AMOLED (`Device.is_amoled`), selected at
-  runtime per device via `requiresBurnInProtection` -- an all-MIP build
-  stays byte-identical with or without `aod:` keys present. `wfb preview
-  --aod` renders the resolved set, unrestyled; two new suppressible lints,
-  `aod-unreachable` and `aod-empty`. Restyling what the AOD frame actually
-  draws (colour/font/thickness ternaries, a separate AOD font, a static
-  element's own bypass) is slice 2; `dim:`/`jitter:` are slices 3/5.
-  `modes: [always_on]` is removed outright (D3) -- see below.
+- **`aod:` format, resolution and restyling (plan 14 slices 1-2):**
+  per-element/group `hide`/`show`/an override block reusing that kind's own
+  property names, key-by-key resolution (element > nearest ancestor group >
+  face default), a group's explicit `hide` sticky and unconditional,
+  `visible:` conjoined with the element's own. `_aod` (the sleep-frame gate)
+  is emitted only when some build target is AMOLED (`Device.is_amoled`),
+  selected at runtime per device via `requiresBurnInProtection` -- an
+  all-MIP build stays byte-identical with or without `aod:` keys present.
+  Every override key restyles the generated AOD frame for real (slice 2):
+  an inline `_aod ? <aod> : <awake>` ternary at the draw call site, measured
+  smaller than a second per-element method (`docs/lore/codegen.md`);
+  `filled:` toggles the draw call itself; a resource font named only by an
+  override is a second resource, loaded in `onEnterSleep` and released in
+  `onExitSleep`; a `static:` element with an override skips its buffer and
+  draws directly. `wfb preview --aod` renders the resolved set fully
+  restyled, matching codegen's own scope (a `pattern`/`complication_slot`
+  `font:` override and any vector-font override are not implemented yet).
+  Two new suppressible lints, `aod-unreachable` and `aod-empty`. `dim:`/
+  `jitter:` are slices 3/5. `modes: [always_on]` is removed outright (D3) --
+  see below.
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 
@@ -143,8 +150,10 @@ specifies each item.
 9. `mypy --strict` and CI. Neither exists.
 10. `wfb install`, `package`, `migrate`.
 11. `aod: dim:`/`jitter:` (plan 14 §4.5/§5.2, slices 3/5) -- accepted by the
-    schema, rejected by the builder with a friendly error. An `aod:`
-    override's `color:`/`font:`/`format:`/`thickness:`/etc. actually
-    restyling the generated AOD frame, a separate AOD font, and a
-    `static:` element's own `aod:` bypassing the buffer (plan 14 slice 2).
+    schema, rejected by the builder with a friendly error. A `pattern`'s or
+    `complication_slot`'s own `aod: {font: ...}` override, any `font:`
+    override naming a `face:` (vector) font, and `aod: {filled: ...}` on
+    `shape: polygon` (plan 14 §4.3, slice 2 built every other override key
+    and a `text` element's baked-font override) -- all four are friendly
+    build errors (`Builder._build_aod_authored`), never a silent no-op.
     The AMOLED burn-in pixel/luminance lint (plan 14 slice 4).

@@ -288,6 +288,29 @@ def _arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
     ]
 
 
+def _needs_thickness_constant(element) -> bool:
+    """Does this `shape` need a `_THICKNESS` `Layout` constant at all -- the
+    plain unfilled-outline case, or an `aod: {filled: false}` override on an
+    otherwise-filled shape (plan 14 §4.2), which needs a pen width for the
+    AOD-only outline draw even though the awake draw never did.  `line`/`arc`
+    always need one regardless (there is no `filled` concept there), so
+    neither call site of this helper is reached for them.
+    """
+    if not element.filled:
+        return True
+    aod = element.aod
+    return aod is not None and aod.filled is False
+
+
+def _aod_thickness_constant(prefix: str, placed) -> list[tuple[str, float, str]]:
+    """`{prefix}_AOD_THICKNESS`, only when this element's resolved `aod:`
+    overrides `thickness:` (plan 14 §4.2) -- the codegen ternary at the draw
+    call site falls back to the plain `_THICKNESS` constant otherwise."""
+    if placed.aod_thickness is None:
+        return []
+    return [(f"{prefix}_AOD_THICKNESS", placed.aod_thickness, "aod: thickness override")]
+
+
 def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
     prefix = _const_prefix(placed.id)
     out: list[tuple[str, float | McLiteral, str]] = []
@@ -298,17 +321,25 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             out.append((f"{prefix}_CY", placed.center[1], ""))
         if element.shape == "circle":
             out.append((f"{prefix}_RADIUS", placed.radius, ""))
+            # A circle's own pen width is inlined as a plain literal at the
+            # draw call site (`wfb.emit.monkeyc.shapes._emit_shape`), not
+            # routed through `Layout` -- unlike every other shape here, so
+            # its `aod_thickness` override is inlined there too, never as a
+            # constant.
         elif element.shape == "line":
             out.append((f"{prefix}_END_X", placed.end[0], ""))
             out.append((f"{prefix}_END_Y", placed.end[1], ""))
             out.append((f"{prefix}_THICKNESS", placed.thickness, ""))
+            out.extend(_aod_thickness_constant(prefix, placed))
         elif element.shape == "arc":
             out.extend(_arc_constants(prefix, placed))
+            out.extend(_aod_thickness_constant(prefix, placed))
         elif element.shape == "ellipse":
             out.append((f"{prefix}_RX", placed.rx, "semi-axis along x"))
             out.append((f"{prefix}_RY", placed.ry, "semi-axis along y"))
-            if not element.filled:
+            if _needs_thickness_constant(element):
                 out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
+                out.extend(_aod_thickness_constant(prefix, placed))
         elif element.shape == "polygon":
             points = ", ".join(f"[{x}, {y}]" for x, y in placed.points)
             out.append((
@@ -321,8 +352,9 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
             out.extend(_box_constants(prefix, rect))
             if element.shape == "rounded_rectangle":
                 out.append((f"{prefix}_CORNER", placed.corner_radius, ""))
-            if not element.filled:
+            if _needs_thickness_constant(element):
                 out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
+                out.extend(_aod_thickness_constant(prefix, placed))
     elif isinstance(placed, PlacedText):
         # For `curve: {style: radial}` this is the *centre of the circle*
         # (plan 11 §2.2's `at:` reinterpretation, `PlacedText.anchor_point`'s
@@ -354,6 +386,7 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         out.append((f"{prefix}_CY", placed.center[1], ""))
         if placed.element.style == "arc":
             out.extend(_arc_constants(prefix, placed))
+            out.extend(_aod_thickness_constant(prefix, placed))
         else:
             out.extend(_box_constants(prefix, placed.box))
     elif isinstance(placed, PlacedIcon):
@@ -371,9 +404,13 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         out.extend(_box_constants(prefix, placed.box))
         if placed.element.style == "line":
             out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
+            out.extend(_aod_thickness_constant(prefix, placed))
         elif placed.element.style == "bars":
             out.append((f"{prefix}_BAR_WIDTH", placed.bar_width,
                         "centred in each slot"))
+            if placed.aod_bar_width is not None:
+                out.append((f"{prefix}_AOD_BAR_WIDTH", placed.aod_bar_width,
+                            "aod: bar_width override"))
     elif isinstance(placed, PlacedComplicationSlot):
         out.append((f"{prefix}_CX", placed.anchor_point[0],
                     "the icon+reading pair is centred here at runtime"))
@@ -401,6 +438,11 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
     elif isinstance(placed, PlacedHands):
         out.append((f"{prefix}_CX", placed.center[0], "the axis"))
         out.append((f"{prefix}_CY", placed.center[1], ""))
+        if placed.aod_thickness is not None:
+            # One override, applied uniformly to every part of every hand
+            # (plan 14 §5.1) -- not one constant per part.
+            out.append((f"{prefix}_AOD_THICKNESS", placed.aod_thickness,
+                        "aod: thickness override, applied to every part"))
         for hand_name in ("hour", "minute", "second"):
             hand = getattr(placed, hand_name)
             if hand is None:
@@ -417,6 +459,11 @@ def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
         if placed.element.pattern == "linear":
             out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
             out.append((f"{prefix}_DY", placed.dy, ""))
+        if placed.aod_thickness is not None:
+            # See PlacedHands' own `_AOD_THICKNESS` -- one override, applied
+            # uniformly to every part (plan 14 §5.1).
+            out.append((f"{prefix}_AOD_THICKNESS", placed.aod_thickness,
+                        "aod: thickness override, applied to every part"))
         for index, part in enumerate(placed.parts):
             out.extend(_hand_part_constants(f"{prefix}_{index}", "template", index, part))
     return out

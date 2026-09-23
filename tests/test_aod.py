@@ -115,6 +115,99 @@ def test_jitter_is_a_friendly_not_implemented_error(write_design, bag):
 
 
 # --------------------------------------------------------------------------
+# friendly build errors for what slice 2 does not restyle (house style:
+# never silently no-op an unimplemented override -- CLAUDE.md §7)
+
+
+def test_pattern_font_override_is_a_friendly_error(write_design, bag):
+    text = BASE + """
+elements:
+  - id: p
+    type: pattern
+    pattern: linear
+    count: 2
+    step: {dx: 20px, dy: 0}
+    color: palette.fg
+    aod: {font: FONT_SMALL}
+    parts:
+      - {shape: text, text: "x", font: FONT_MEDIUM}
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    hits = [d for d in bag.errors if d.code == "aod"]
+    assert hits, bag.render()
+    assert "pattern" in hits[0].message and "not implemented" in hits[0].message
+
+
+def test_complication_slot_font_override_is_a_friendly_error(write_design, bag):
+    text = BASE + """
+config:
+  data:
+    top:
+      default: complication.heart_rate
+      choices: [complication.heart_rate]
+elements:
+  - id: slot
+    type: complication_slot
+    slot: config.data.top
+    color: palette.fg
+    aod: {font: FONT_SMALL}
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    hits = [d for d in bag.errors if d.code == "aod"]
+    assert hits, bag.render()
+    assert "complication_slot" in hits[0].message and "not implemented" in hits[0].message
+
+
+def test_vector_face_font_override_is_a_friendly_error(write_design, bag):
+    """An `aod: {font: ...}` naming a `face:` (vector) font -- rejected
+    regardless of which kind of font the element itself draws with while
+    awake."""
+    text = BASE + """
+fonts:
+  night_face:
+    face: [RobotoCondensedRegular]
+    size: 20%r
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    font: FONT_MEDIUM
+    color: palette.fg
+    aod: {font: font.night_face}
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    hits = [d for d in bag.errors if d.code == "aod"]
+    assert hits, bag.render()
+    assert "vector" in hits[0].message and "not implemented" in hits[0].message
+
+
+def test_polygon_filled_override_is_a_friendly_error(write_design, bag):
+    """A polygon has no outline primitive (Dc has fillPolygon, no
+    drawPolygon) -- an `aod: {filled: ...}` override must be refused the
+    same way the awake `filled: false` already is, not silently ignored."""
+    text = BASE + """
+elements:
+  - id: tri
+    type: shape
+    shape: polygon
+    points:
+      - {dx: 0px, dy: -10px}
+      - {dx: 10px, dy: 10px}
+      - {dx: -10px, dy: 10px}
+    color: palette.fg
+    aod: {filled: false}
+"""
+    face = load(write_design(text), bag)
+    assert face is None
+    hits = [d for d in bag.errors if d.code == "aod"]
+    assert hits, bag.render()
+    assert "polygon" in hits[0].message and "drawPolygon" in hits[0].message
+
+
+# --------------------------------------------------------------------------
 # resolution precedence (plan 14 §3)
 
 
@@ -470,6 +563,286 @@ elements:
     assert "private var _aod as Boolean = false;" in view
 
 
+# --------------------------------------------------------------------------
+# restyling (plan 14 slice 2): one ternary/branch per override key
+
+
+def _layout_text(text, write_design, bag, db, device_id="fenix847mm"):
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    device = db.get(device_id)
+    baked = {device.id: bake_fonts(face, device)}
+    project = generate(face, [device], write_design("").parent / "build", baked)
+    return next(v for k, v in project.files().items() if k.endswith("Layout.mc"))
+
+
+def test_color_ternary_emitted_only_for_the_overridden_element(write_design, bag, db):
+    """One override key (`color`), on one element only -- a sibling with no
+    `aod:` at all must keep its plain, unrestyled `dc.setColor` line."""
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+    aod: {color: palette.dim}
+  - id: plain
+    type: text
+    text: "plain"
+    color: palette.fg
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert "dc.setColor((_aod ? Palette.DIM : Palette.FG), Graphics.COLOR_TRANSPARENT);" in view
+    plain = view.split("function drawPlain")[1].split("\n    }")[0]
+    assert "_aod" not in plain
+    assert "dc.setColor(Palette.FG, Graphics.COLOR_TRANSPARENT);" in plain
+
+
+def test_track_color_ternary_on_progress(write_design, bag, db):
+    text = BASE + """
+elements:
+  - id: bar
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    radius: 40%r
+    thickness: 4px
+    start_angle: 0deg
+    sweep: 300deg
+    color: palette.fg
+    track_color: palette.dim
+    aod: {track_color: palette.bg}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert "dc.setColor((_aod ? Palette.BG : Palette.DIM), Graphics.COLOR_TRANSPARENT);" in view
+
+
+def test_icon_color_ternary_on_complication_slot(write_design, bag, db):
+    text = BASE + """
+config:
+  data:
+    top:
+      default: complication.heart_rate
+      choices: [complication.heart_rate]
+elements:
+  - id: slot
+    type: complication_slot
+    slot: config.data.top
+    color: palette.fg
+    icon_size: 20px
+    icon_color: palette.dim
+    aod: {icon_color: palette.bg}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert "_aod ? Palette.BG : Palette.DIM" in view
+
+
+def test_thickness_ternary_on_shape_and_layout_constant(write_design, bag, db):
+    """A `line` shape's thickness is a `Layout` constant (unlike a circle's,
+    which is inlined as a plain per-device literal) -- the ternary lives at
+    that call site."""
+    text = BASE + """
+elements:
+  - id: ring
+    type: shape
+    shape: line
+    at: {dx: -20%, dy: 0}
+    to: {dx: 20%, dy: 0}
+    thickness: 4px
+    color: palette.fg
+    aod: {thickness: 1px}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert "dc.setPenWidth((_aod ? Layout.RING_AOD_THICKNESS : Layout.RING_THICKNESS));" in view
+    layout = _layout_text(text, write_design, Bag(), db)
+    assert "RING_AOD_THICKNESS" in layout
+
+
+def test_bar_width_ternary_on_graph(write_design, bag, db):
+    text = BASE + """
+elements:
+  - id: g
+    type: graph
+    style: bars
+    series: steps
+    range: 7d
+    size: {width: 50%, height: 10%}
+    color: palette.fg
+    bar_width: 6px
+    min: 0
+    max: auto
+    aod: {bar_width: 2px}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert ("_aod ? Layout.G_AOD_BAR_WIDTH : Layout.G_BAR_WIDTH" in view)
+
+
+def test_filled_override_wraps_both_draw_calls(write_design, bag, db):
+    """`filled: true -> false` changes the draw call itself, not an
+    argument -- must fail against an implementation that only ternaries
+    `color`/`thickness` and ignores `filled`."""
+    text = BASE + """
+elements:
+  - id: dot
+    type: shape
+    shape: circle
+    radius: 10%r
+    filled: true
+    color: palette.fg
+    aod: {filled: false, thickness: 1px}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    body = view.split("function drawDot")[1].split("\n    }")[0]
+    assert "if (_aod)" in body
+    assert "dc.fillCircle(" in body
+    assert "dc.drawCircle(" in body
+
+
+def test_format_ternary_on_text(write_design, bag, db):
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    color: palette.fg
+    aod: {format: "{:%H.%M}"}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    body = view.split("function drawClock")[1].split("\n    }")[0]
+    assert '"."' in body or "'.'" in body
+    assert "_aod ?" in body
+    assert ':"' in body or "':'" in body
+
+
+def test_system_font_override_on_text(write_design, bag, db):
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    color: palette.fg
+    aod: {font: FONT_NUMBER_MILD}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert "_aod ? Graphics.FONT_NUMBER_MILD : Graphics.FONT_NUMBER_MEDIUM" in view
+
+
+def test_elements_without_overrides_are_untouched(write_design, bag, db):
+    """An element with no `aod:` at all generates exactly what it always
+    did -- no `_aod` anywhere in its own method."""
+    text = BASE + """
+elements:
+  - id: plain_shape
+    type: shape
+    shape: rectangle
+    size: {width: 10%, height: 10%}
+    color: palette.fg
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    body = view.split("function drawPlainShape")[1].split("\n    }")[0]
+    assert "_aod" not in body
+
+
+def test_static_element_bypasses_its_buffer_in_aod(write_design, bag, db):
+    """plan 14 §4.4: a static element with its own `aod:` override draws
+    directly in the AOD branch -- must fail against an implementation that
+    still excludes every static id from the AOD call list."""
+    text = BASE + """
+elements:
+  - id: label
+    type: text
+    text: "hi"
+    static: true
+    color: palette.fg
+    aod: {color: palette.dim}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    on_update = view.split("function onUpdate")[1].split("\n    function ")[0]
+    aod_branch = on_update.split("if (_aod) {", 1)[1].split("\n        else {", 1)[0]
+    assert "drawLabel(dc" in aod_branch
+
+
+def test_aod_only_baked_font_is_loaded_only_in_on_enter_sleep(write_design, bag, db):
+    """plan 14 §4.3: a baked font named only by an `aod: {font: ...}`
+    override is a second resource -- never loaded in onLayout, only inside
+    onEnterSleep's own `if (_aod)`, and released again in onExitSleep."""
+    text = BASE + f"""
+fonts:
+  clock_font:
+    source: {ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"}
+    size: 30%r
+  night_font:
+    source: {ROOT / "tests" / "fixtures" / "slice" / "assets" / "OpenSans-Regular.ttf"}
+    size: 24%r
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{{:%H:%M}}"
+    font: font.clock_font
+    color: palette.fg
+    aod: {{color: palette.dim, font: font.night_font}}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    assert "_fontNightFont" in view
+    on_layout = view.split("function onLayout")[1].split("\n    function ")[0]
+    assert "NightFont" not in on_layout  # not loaded up front
+    enter_sleep = view.split("function onEnterSleep")[1].split("\n    function ")[0]
+    assert "if (_aod)" in enter_sleep
+    assert "_fontNightFontAod = WatchUi.loadResource" in enter_sleep
+    exit_sleep = view.split("function onExitSleep")[1].split("\n    function ")[0]
+    assert "_fontNightFontAod = null;" in exit_sleep
+
+
+def test_hands_color_and_thickness_apply_uniformly_to_every_part(write_design, bag, db):
+    text = BASE + """
+hands:
+  set:
+    hour:
+      color: palette.fg
+      parts:
+        - {shape: line, at: {dy: 0}, to: {dy: -40px}, thickness: 3px}
+    minute:
+      color: palette.dim
+      parts:
+        - {shape: line, at: {dy: 0}, to: {dy: -60px}, thickness: 2px}
+elements:
+  - id: h
+    type: hands
+    hands: set
+    aod: {color: palette.bg, thickness: 1px}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    body = view.split("function drawH(")[1].split("\n    }")[0]
+    # every dc.setColor line in this method must be the same uniform ternary
+    for line in body.splitlines():
+        if "dc.setColor(" in line:
+            assert "_aod ? Palette.BG : " in line
+    assert "_aod ? Layout.H_AOD_THICKNESS : " in body
+
+
+def test_pattern_color_and_thickness_apply_uniformly_to_every_part(write_design, bag, db):
+    text = BASE + """
+elements:
+  - id: p
+    type: pattern
+    pattern: radial
+    count: 4
+    color: palette.fg
+    aod: {color: palette.dim, thickness: 1px}
+    parts:
+      - {shape: line, at: {dy: 0}, to: {dy: -20px}, thickness: 3px}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    body = view.split("function drawP(")[1].split("\n    }")[0]
+    assert "_aod ? Palette.DIM : Palette.FG" in body
+    assert "_aod ? Layout.P_AOD_THICKNESS : " in body
+
+
 def test_aod_branch_clears_to_black_before_any_draw_call(write_design, bag, db):
     """Review finding: `Dc` keeps its contents between `onUpdate` calls --
     there is no implicit clear -- and the awake frame's own background
@@ -506,3 +879,100 @@ elements:
     clear_pos = aod_branch.index("dc.clear();")
     call_pos = aod_branch.index("drawClock(dc")
     assert clear_pos < call_pos
+
+
+# --------------------------------------------------------------------------
+# preview (plan 14 slice 2): overridden colour and thickness actually render
+
+
+def _resolved(text, write_design, bag, db, device_id="fenix847mm"):
+    from wfb.emit.resources import bake_fonts
+    from wfb.layout import resolve
+
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    device = db.get(device_id)
+    return resolve(face, device, bake_fonts(face, device))
+
+
+def test_preview_aod_renders_the_overridden_colour(write_design, bag, db):
+    """A filled rectangle's `aod: {color: ...}` must actually change the
+    rendered pixel colour under `--aod` -- must fail against a preview that
+    still reads the element's plain, awake `color:` there."""
+    from wfb.preview import PreviewOptions, render
+
+    text = BASE + """
+elements:
+  - id: block
+    type: shape
+    shape: rectangle
+    at: {anchor: center}
+    size: {width: 40%, height: 40%}
+    color: palette.fg
+    aod: {color: palette.dim}
+"""
+    resolved = _resolved(text, write_design, bag, db)
+    cx, cy = resolved.device.width // 2, resolved.device.height // 2
+    awake = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False))
+    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True))
+    assert awake.getpixel((cx, cy)) == (255, 255, 255)  # palette.fg
+    assert asleep.getpixel((cx, cy)) == (0x55, 0x55, 0x55)  # palette.dim
+
+
+def test_preview_aod_renders_the_overridden_thickness(write_design, bag, db):
+    """An unfilled shape's `aod: {thickness: ...}` must actually change how
+    many pixels the rendered stroke covers under `--aod`."""
+    from wfb.preview import PreviewOptions, render
+
+    text = BASE + """
+elements:
+  - id: ring
+    type: shape
+    shape: line
+    at: {dx: -40%, dy: 0}
+    to: {dx: 40%, dy: 0}
+    thickness: 10px
+    color: palette.fg
+    aod: {thickness: 2px}
+"""
+    resolved = _resolved(text, write_design, bag, db)
+    cy = resolved.device.height // 2
+    cx = resolved.device.width // 2
+
+    def stroke_height(image) -> int:
+        count = 0
+        for dy in range(-10, 11):
+            pixel = image.getpixel((cx, cy + dy))
+            if pixel != (0, 0, 0):
+                count += 1
+        return count
+
+    awake = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False))
+    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True))
+    assert stroke_height(awake) > stroke_height(asleep)
+
+
+def test_preview_aod_renders_the_filled_override(write_design, bag, db):
+    """`aod: {filled: false}` must actually stop the preview from filling
+    the shape's interior."""
+    from wfb.preview import PreviewOptions, render
+
+    text = BASE + """
+elements:
+  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 30%r
+    filled: true
+    color: palette.fg
+    aod: {filled: false, thickness: 2px}
+"""
+    resolved = _resolved(text, write_design, bag, db)
+    cx, cy = resolved.device.width // 2, resolved.device.height // 2
+    awake = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False))
+    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True))
+    # the centre of the disc is lit while awake (filled)...
+    assert awake.getpixel((cx, cy)) == (255, 255, 255)
+    # ...and unlit in AOD, where only a thin ring near the edge is drawn.
+    assert asleep.getpixel((cx, cy)) == (0, 0, 0)

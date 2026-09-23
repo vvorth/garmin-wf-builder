@@ -9,7 +9,7 @@ from ...ir import (
     config_field, element_method_name,
 )
 from ...layout import COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, ResolvedFace
-from .common import SourceFile, _NO_GUARDS, _color, _const_prefix, _field, header
+from .common import SourceFile, _NO_GUARDS, _aod_color, _color, _const_prefix, _field, header
 from ..writer import Writer
 
 
@@ -234,7 +234,7 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
 
 
 def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot,
-                            guards: "Guards" = _NO_GUARDS) -> None:
+                            guards: "Guards" = _NO_GUARDS, aod: bool = False) -> None:
     """A native Data-axis slot: pull the wearer's chosen complication, choose
     an icon from its *type* alone, then draw the two as one centred pair.
 
@@ -352,8 +352,21 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
                 w.line("text += WfbComplications.unitSuffix(pulled.unit);")
     w.blank()
 
-    text_color_expr = _color(element.color)
-    icon_color_expr = _color(element.icon_color) if element.icon_color is not None else None
+    text_color_expr = _aod_color(element, "color", _color(element.color), aod)
+    base_icon_color_expr = _color(element.icon_color) if element.icon_color is not None else None
+    icon_aod_override = (
+        element.aod.icon_color if (aod and element.aod is not None) else None
+    )
+    if icon_aod_override is None:
+        icon_color_expr = base_icon_color_expr
+    else:
+        # No awake `icon_color:` at all falls back to whatever colour `dc`
+        # is already left at (`text_color_expr`, set unconditionally just
+        # below) -- the same "icon draws in the text's colour by default"
+        # awake behaviour this element always had, unchanged while `_aod`
+        # is false.
+        awake_icon_expr = base_icon_color_expr if base_icon_color_expr is not None else text_color_expr
+        icon_color_expr = f"(_aod ? {icon_aod_override.code} : {awake_icon_expr})"
     fast_path = (
         placed.icon_position == "left"
         and element.icon_gap is None

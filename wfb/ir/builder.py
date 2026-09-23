@@ -2304,11 +2304,60 @@ class Builder:
         if "bar_width" in raw:
             keys["bar_width"] = self._length(raw, "bar_width")
         if "filled" in raw:
-            keys["filled"] = bool(raw["filled"])
+            if node.get("type") == "shape" and node.get("shape") == "polygon":
+                # Same reason the awake element itself refuses `filled:
+                # false` (below, in the shape builder): Dc has fillPolygon
+                # and no drawPolygon, so there is no outline primitive for
+                # an override to switch to either -- silently ignoring this
+                # would promise a ring the platform cannot draw.
+                self.bag.error(
+                    "aod",
+                    f"{node.get('id', '?')}: 'aod: {{filled: ...}}' is not accepted on "
+                    f"'shape: polygon' -- Toybox.Graphics.Dc has fillPolygon but no "
+                    f"drawPolygon",
+                    self.doc.span(raw, "filled") or self.doc.span(node, "aod"),
+                    notes=["for an outline, draw the edges as separate 'shape: line' "
+                           "elements, and override those instead"],
+                )
+            else:
+                keys["filled"] = bool(raw["filled"])
         if "font" in raw:
-            resolved = self._font_reference(str(raw["font"]), self.doc.span(raw, "font"))
-            if resolved is not None:
-                keys["font"] = resolved
+            kind = node.get("type")
+            if kind == "pattern":
+                self.bag.error(
+                    "aod",
+                    f"{node.get('id', '?')}: a pattern's own 'aod: {{font: ...}}' "
+                    f"override is not implemented yet (plan 14)",
+                    self.doc.span(raw, "font") or self.doc.span(node, "aod"),
+                    notes=["restyle this pattern's colour/thickness in AOD instead, "
+                           "or drop the font override for now"],
+                )
+            elif kind == "complication_slot":
+                self.bag.error(
+                    "aod",
+                    f"{node.get('id', '?')}: a complication_slot's own 'aod: "
+                    f"{{font: ...}}' override is not implemented yet (plan 14)",
+                    self.doc.span(raw, "font") or self.doc.span(node, "aod"),
+                    notes=["restyle this slot's colour/icon_color in AOD instead, "
+                           "or drop the font override for now"],
+                )
+            else:
+                resolved = self._font_reference(str(raw["font"]), self.doc.span(raw, "font"))
+                if resolved is not None:
+                    name, is_custom = resolved
+                    if is_custom and self.fonts[name].is_vector:
+                        self.bag.error(
+                            "aod",
+                            f"{node.get('id', '?')}: an 'aod: {{font: ...}}' override "
+                            f"naming a 'face:' (vector) font is not implemented yet "
+                            f"(plan 14)",
+                            self.doc.span(raw, "font"),
+                            notes=[f"{name!r} is declared with 'face:', not 'source:' "
+                                   "-- name a baked font instead, or drop the override "
+                                   "for now"],
+                        )
+                    else:
+                        keys["font"] = resolved
         if "format" in raw:
             keys["format"] = raw["format"]
         if "visible" in raw:

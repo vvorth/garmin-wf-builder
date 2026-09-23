@@ -218,10 +218,56 @@ def _field(name: str) -> str:
     return "font" + "".join(p[:1].upper() + p[1:] for p in parts)
 
 
+def _aod_font_field(name: str) -> str:
+    """The view field a baked font used *only* by an `aod: {font: ...}`
+    override (never drawn while awake) is loaded into -- `_field(name)`
+    with an `Aod` suffix, so it never collides with an awake field for a
+    font of the same name used elsewhere too (plan 14 §4.3: "a resource
+    font used only as an AOD override is a second resource").
+    """
+    return f"{_field(name)}Aod"
+
+
 def _color(expression: Expression | None) -> str:
     if expression is None:
         return "Graphics.COLOR_WHITE"
     return expression.code
+
+
+def _aod_color(element, key: str, awake_code: str, aod: bool) -> str:
+    """One colour argument (`color`/`track_color`/`icon_color`), as
+    ``_aod ? <override> : <awake>`` when this element's resolved `aod:`
+    overrides ``key`` *and* this build ever emits AOD code at all (``aod`` --
+    some target is AMOLED, `wfb.availability.Guards.amoled_target`) -- plain
+    ``awake_code`` unchanged otherwise, byte-identical to before this
+    (plan 14 §4.2). An override colour is already a fully resolved
+    `Expression` -- built by `Builder._color_expression`, the exact machinery
+    the element's own `color:` uses -- so its `.code` follows
+    `color_scheme:`/`config.colors` at runtime exactly as `awake_code`
+    already does (plan 14 §4.6): there is no second, narrower colour
+    resolution path here.
+    """
+    if not aod or element.aod is None:
+        return awake_code
+    override = getattr(element.aod, key)
+    if override is None:
+        return awake_code
+    return f"(_aod ? {override.code} : {awake_code})"
+
+
+def _aod_value(aod: bool, override: str | None, awake_code: str) -> str:
+    """The same ternary as `_aod_color`, for a call site that already has
+    the override rendered as a Monkey C expression string (a `Layout`
+    constant reference, a boolean literal, a resolved font expression, ...)
+    rather than an `Expression` object -- `thickness`/`bar_width`/`filled`/
+    `font` overrides all go through this, each building its own ``override``
+    string first. ``override`` is `None` exactly when this element's
+    resolved `aod:` sets no override for this key, in which case
+    ``awake_code`` passes through unchanged.
+    """
+    if not aod or override is None:
+        return awake_code
+    return f"(_aod ? {override} : {awake_code})"
 
 
 def _mc_bool(value: bool) -> str:
@@ -276,6 +322,39 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
                 if (part.shape == "text" and part.font_is_custom
                         and not part.font_is_vector and part.font_reference not in out):
                     out.append(part.font_reference)
+    return out
+
+
+def _aod_only_fonts(resolved: ResolvedFace) -> list[str]:
+    """Baked (non-vector) custom fonts named only by a `text` element's own
+    `aod: {font: ...}` override, and never drawn while awake (`_loaded_
+    fonts`) -- plan 14 §4.3's "a resource font used only as an AOD override
+    is a second resource": loaded in `onEnterSleep`, only when `_aod`, and
+    released (nulled) in `onExitSleep`, so it does not sit in memory the
+    whole time the way an ordinarily-loaded font does.
+
+    Excludes an override that names the *same* resource the element already
+    draws with while awake (nothing to load a second time -- the awake
+    field already covers it). A `face:` (vector) font override, a
+    `complication_slot`'s own `font:` override and a pattern's own `font:`
+    override are all rejected outright as friendly build errors
+    (`Builder._build_aod_authored`, `docs/limitations.md` §2), so none of
+    them can ever reach this function -- only `PlacedText` is consulted.
+    """
+    awake = set(_loaded_fonts(resolved))
+    out: list[str] = []
+    for placed in resolved.items:
+        if not isinstance(placed, PlacedText):
+            continue
+        aod = placed.element.aod
+        if aod is None or aod.font is None or not aod.font_is_custom:
+            continue
+        if aod.font == placed.font_reference or aod.font in awake or aod.font in out:
+            continue
+        spec = resolved.face.fonts.get(aod.font)
+        if spec is None or spec.is_vector:
+            continue
+        out.append(aod.font)
     return out
 
 

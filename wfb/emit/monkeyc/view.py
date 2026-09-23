@@ -19,9 +19,10 @@ from ...layout import (
 )
 from ...series import Acquisition
 from .common import (
-    CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _and_list, _const_prefix,
-    _describe, _editor_slot_pairs, _field, _loaded_fonts, _mc_bool, _method,
-    _pattern_needs_math, _vector_fonts_used, header, hold_targets,
+    CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _aod_font_field,
+    _aod_only_fonts, _and_list, _const_prefix, _describe, _editor_slot_pairs, _field,
+    _loaded_fonts, _mc_bool, _method, _pattern_needs_math, _vector_fonts_used, header,
+    hold_targets,
 )
 from .complication_slot import (
     _emit_complication_slot, _emit_complication_slot_editor_methods,
@@ -265,8 +266,15 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     static = static_plan(resolved)
     antialias_default = _antialias_default(resolved)
     slot_pairs = _editor_slot_pairs(face)
+    # `aod: {font: ...}` (plan 14 §4.3): a baked font named only by an AOD
+    # override, never drawn while awake -- computed only when this build
+    # ever emits AOD code at all, so an all-MIP build never even looks
+    # (`aod_only_fonts` would be `[]` there regardless, since no element
+    # gets a resolved `aod:` worth restyling, but this keeps the intent
+    # explicit and matches every other `if aod:`-gated computation here).
+    aod_only_fonts = _aod_only_fonts(resolved) if aod else []
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
-        _emit_fields(w, resolved)
+        _emit_fields(w, resolved, aod_only_fonts)
         _emit_config_fields(w, face, guards)
         _emit_static_field(w, static)
         _emit_graph_fields(w, graphs)
@@ -296,7 +304,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         _emit_on_update(w, resolved, plan, aod, static, antialias_default)
         if _has_partial_update(resolved):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
-        _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod, guards)
+        _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod, guards, aod_only_fonts)
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
         for placed in graphs:
@@ -314,7 +322,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             if placed.kind == "group":
                 continue
             w.blank()
-            _emit_element_method(w, resolved, placed, plan, antialias_default)
+            _emit_element_method(w, resolved, placed, plan, antialias_default, aod)
     return SourceFile(f"source/{face.entry}View.mc", w.render())
 
 
@@ -472,16 +480,27 @@ def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
                 w.line(f"{_method(placed.id)}(dc);")
 
 
-def _emit_fields(w: Writer, resolved: ResolvedFace) -> None:
+def _emit_fields(w: Writer, resolved: ResolvedFace, aod_only_fonts: list[str] | None = None) -> None:
     loaded = _loaded_fonts(resolved)
     vector_fonts = _vector_fonts_used(resolved)
-    if not loaded and not vector_fonts:
+    aod_only_fonts = aod_only_fonts or []
+    if not loaded and not vector_fonts and not aod_only_fonts:
         return
     if loaded:
         w.doc("Bitmap fonts -- custom text and icon glyphs alike -- loaded once in\n"
               "onLayout rather than per frame.")
         for name in loaded:
             w.line(f"private var _{_field(name)} as FontResource?;")
+        w.blank()
+    if aod_only_fonts:
+        w.doc(
+            "Bitmap fonts named only by an 'aod: {font: ...}' override (plan 14\n"
+            "§4.3) -- never drawn while awake, so they are loaded in onEnterSleep\n"
+            "instead of here, only when _aod ends up true, and released (nulled) in\n"
+            "onExitSleep so they do not sit in memory the whole time."
+        )
+        for name in aod_only_fonts:
+            w.line(f"private var _{_aod_font_field(name)} as FontResource?;")
         w.blank()
     if vector_fonts:
         # Not a `WatchUi.loadResource` resource at all (plan 11) -- a
@@ -987,16 +1006,19 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
 
 
 def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
-    """The AMOLED always-on frame (plan 14 slice 1): every element whose
+    """The AMOLED always-on frame (plan 14 slices 1-2): every element whose
     resolved `aod:` is not `None`, calling the exact same per-element method
-    the active frame calls -- unrestyled; slice 2 teaches those methods to
-    read `aod:` as ternaries, load an AOD font and bypass a static buffer.
+    the active frame calls, restyled by the ternaries/branches those methods
+    now read `_aod` through.
 
-    A static element is skipped here even when its own `aod:` resolves to
-    something (plan 14 §4.4 is slice 2's job: for now, static content simply
-    does not appear in AOD) -- the buffer is one opaque, all-or-nothing
-    blit painted once from the *active* styling, so there is nothing this
-    slice could correctly blit or draw for it.
+    **A static element bypasses its buffer here** (plan 14 §4.4): the
+    buffer is one opaque, all-or-nothing blit painted once, in `onLayout`,
+    from the *active* styling, so it can never stand in for a restyled AOD
+    frame. Its own generated method (`_method(placed.id)`) exists
+    regardless of `static:` -- it is what `renderStatic` itself calls to
+    fill the buffer in the first place (`_emit_static_methods`) -- so
+    calling it a second time, directly, while `_aod`, costs nothing new to
+    generate: this is simply no longer excluded from `entries` below.
 
     The element's own generated method already checks its plain `visible:`
     unconditionally (awake or asleep); only the *extra* condition an
@@ -1023,8 +1045,7 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
     plan.emit_reads(w, "aod")
     w.blank()
     ids = set(plan.aod_ids())
-    entries = [placed for placed in resolved.items
-              if placed.id in ids and placed.element.static_root is None]
+    entries = [placed for placed in resolved.items if placed.id in ids]
     _emit_layout_guarded_aod_calls(w, resolved.face, plan, entries)
 
 
@@ -1101,13 +1122,22 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
 
 
 def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
-                      aod: bool, guards: "Guards" = _NO_GUARDS) -> None:
+                      aod: bool, guards: "Guards" = _NO_GUARDS,
+                      aod_only_fonts: list[str] | None = None) -> None:
+    aod_only_fonts = aod_only_fonts or []
     w.doc("Awake: full-power updates resume.")
     with w.block("function onExitSleep() as Void"):
         if needs_sleeping:
             w.line("_sleeping = false;")
         if aod:
             w.line("_aod = false;")
+        for name in aod_only_fonts:
+            # Released unconditionally, not only when it was actually
+            # loaded -- nulling an already-null field is harmless, and this
+            # is simpler than tracking whether onEnterSleep's own load ran
+            # (plan 14 §4.3: "released in onExitSleep so it doesn't sit in
+            # memory all the time").
+            w.line(f"_{_aod_font_field(name)} = null;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
     if aod:
@@ -1132,6 +1162,16 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
                 )
             else:
                 w.line(f"_aod = settings.{Device.BURN_IN_FIELD};")
+            if aod_only_fonts:
+                w.comment("plan 14 §4.3: loaded only now, only when this device actually")
+                w.comment("enters the AOD frame -- never sits in memory while awake")
+                with w.block("if (_aod)"):
+                    for name in aod_only_fonts:
+                        resource = font_resource_id(name)
+                        w.line(
+                            f"_{_aod_font_field(name)} = "
+                            f"WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
+                        )
         w.line("WatchUi.requestUpdate();")
     w.blank()
     if _has_partial_update(resolved):
@@ -1177,7 +1217,7 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
 
 
 def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadPlan",
-                         antialias_default: bool | None = None) -> None:
+                         antialias_default: bool | None = None, aod: bool = False) -> None:
     element = placed.element
     w.doc(_method_doc(placed))
     signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
@@ -1205,7 +1245,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             # `plan.guards`/`value_guards` to say about it -- `color:` is the
             # only ordinary expression here, and `Builder._build_complication_
             # slot` already requires it to be non-nullable.
-            _emit_complication_slot(w, resolved, placed, plan.device_guards)
+            _emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
             return
         value_guards = plan.value_guards(placed)
         if substitutes_value:
@@ -1237,19 +1277,19 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
             w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
         if isinstance(placed, PlacedShape):
-            _emit_shape(w, placed)
+            _emit_shape(w, placed, aod)
         elif isinstance(placed, PlacedText):
-            _emit_text(w, resolved, placed, value_guards)
+            _emit_text(w, resolved, placed, value_guards, aod)
         elif isinstance(placed, PlacedProgress):
-            _emit_progress(w, placed, value_guards)
+            _emit_progress(w, placed, value_guards, aod)
         elif isinstance(placed, PlacedIcon):
-            _emit_icon(w, placed)
+            _emit_icon(w, placed, aod)
         elif isinstance(placed, PlacedGraph):
-            _emit_graph(w, placed)
+            _emit_graph(w, placed, aod)
         elif isinstance(placed, PlacedHands):
-            _emit_hands(w, placed)
+            _emit_hands(w, placed, aod)
         elif isinstance(placed, PlacedPattern):
-            _emit_pattern(w, placed)
+            _emit_pattern(w, placed, aod)
         if overrides_antialias:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 

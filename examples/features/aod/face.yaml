@@ -1,19 +1,38 @@
-# Always-on display (docs/guide/always-on-display.md, plan 14 slice 1):
+# Always-on display (docs/guide/always-on-display.md, plan 14 slices 1-2):
 # `aod:` as overrides on the one design, replacing `modes: [always_on]`
 # outright (D3) -- the format key that slice 0 exercised here no longer
 # exists at all.
 #
 # This stays the small, ordinary face slice 0 introduced -- digital time, a
-# date, a battery ring, a bezel -- not a format-feature showcase. The
-# face-wide `aod: {default: hide}` below is the canonical "everything off
-# but the time" shape (plan 14 §3): every element the ancestry says nothing
-# about is hidden in AOD, and the one line on `clock` turns it back on, with
-# a dimmer colour than its awake white -- Garmin's own guidance is to avoid
-# white/blue and prefer light grey (research 11 §1.3). Slice 1 resolves and
-# validates that override but does not yet apply it in the generated sleep
-# frame: the AOD frame this build produces draws `clock` with its *awake*
-# styling, unrestyled -- restyling ternaries land in slice 2
-# (docs/limitations.md §2).
+# date, a battery ring, a bezel -- not a format-feature dump. The face-wide
+# `aod: {default: hide}` below is the canonical "everything off but the
+# time" shape (plan 14 §3): every element the ancestry says nothing about is
+# hidden in AOD, and each `aod:` block below is now actually read by codegen
+# (slice 2) -- ternaries at the draw call site, not the unrestyled sleep
+# frame slice 1 shipped:
+#
+# - `clock` restyles `color:` (a dimmer grey than its awake white -- Garmin's
+#   own guidance is to avoid white/blue, research 11 §1.3), swaps `format:`
+#   to a different separator (the same mechanism a design would use to drop
+#   seconds -- free, since AOD redraws once a minute anyway -- kept as a
+#   same-width swap here so the widest-rendering estimate, which is measured
+#   against the *awake* format only, still fits fēnix 8's screen), and swaps
+#   to a lighter system font (`font:` -- no baked resource needed for this
+#   one, so the example stays free of a font-baking dependency; an
+#   AOD-only *baked* font's own memory cost is measured separately,
+#   docs/lore/codegen.md).
+# - `accent_dot` is a small filled accent, awake -- `aod: {filled: false}`
+#   turns it into a thin dim ring instead of a filled disc in AOD, the
+#   "solid disc becomes a thin ring" guidance (plan 14 §2.3) applied to the
+#   smallest lit shape this face has, in miniature.
+# - `battery_ring` shows in AOD too, thinner and dimmer than its awake ring
+#   (`thickness:`/`color:` overrides) -- exactly the kind of secondary
+#   reading Garmin's own guidance says to keep legible but unobtrusive.
+# - `info` is a `group` with an explicit `aod: hide`: unconditional and
+#   sticky (plan 14 §3's one asymmetry) -- `date_text`'s own `aod: show`
+#   inside it can never draw, which is *why* it needs `lint: {allow:
+#   [aod-unreachable]}` here: this pairing is deliberately demonstrating the
+#   rule the lint exists to catch, not an oversight.
 #
 # `fenix847mm` (round-454x454, AMOLED, `requiresBurnInProtection` --
 # docs/research/11-always-on-display.md §2) is the fourth target, installed
@@ -21,8 +40,7 @@
 # across every target in one build (root CLAUDE.md §1); the three MIP
 # verification devices never see a lit `_aod` (D5: their sleep frame stays
 # exactly the awake design), and their generated source is unaffected by
-# `aod:` at all, on purpose -- see the byte-identical test in
-# `tests/test_aod_codegen.py`.
+# `aod:` at all, on purpose -- the byte-identical test in `tests/test_aod.py`.
 #
 # Build it with:     ./wfb.py build examples/features/aod/face.yaml
 # Preview it with:   ./wfb.py preview examples/features/aod/face.yaml --aod
@@ -69,20 +87,46 @@ elements:
     thickness: 1px
     color: palette.gray
 
-  - id: date_text
-    type: text
-    value: date.today
-    format: "{:%a %d}"
-    font: FONT_XTINY
-    at: { anchor: center, dy: -30% }
-    color: palette.gray
+  # An explicit group hide is unconditional and sticky (plan 14 §3): no
+  # descendant can undo it, whatever it writes itself. `date_text`'s own
+  # `aod: show` is deliberately unreachable, to demonstrate exactly that --
+  # see the header comment above.
+  - id: info
+    type: group
+    aod: hide
+    children:
+      - id: date_text
+        type: text
+        value: date.today
+        format: "{:%a %d}"
+        font: FONT_XTINY
+        at: { anchor: center, dy: -30% }
+        color: palette.gray
+        aod: show
+        lint:
+          allow: [aod-unreachable]
+          reason: >-
+            deliberate: demonstrates that a group's own 'aod: hide' beats a
+            descendant's 'aod: show' (docs/guide/always-on-display.md)
 
-  # The one element shown in AOD: the face default (`hide`) leaves every
-  # other element off, and this one line turns the clock back on -- the
-  # canonical "everything off but the time" shape (plan 14 §3). `color:`
-  # here is what slice 2's restyling will apply; today it is resolved and
-  # validated (`Element.aod.color`) but not yet read by codegen, which
-  # still draws this element with its own awake `color:` while `_aod`.
+  # A small filled accent while awake -- becomes a thin, dim ring in AOD
+  # (plan 14 §2.3's "solid disc becomes a thin ring" guidance).
+  - id: accent_dot
+    type: shape
+    shape: circle
+    at: { anchor: center, dy: 24% }
+    radius: 3%r
+    filled: true
+    color: palette.accent
+    aod:
+      filled: false
+      thickness: 1px
+      color: palette.dim
+
+  # The one element the face default would leave off but this design turns
+  # back on -- the canonical "everything off but the time" shape (plan 14
+  # §3). Every one of its overridable keys is exercised: a dimmer colour, a
+  # different (same-width) format string, and a lighter system font.
   - id: clock
     type: text
     value: time.clock
@@ -92,6 +136,8 @@ elements:
     color: palette.white
     aod:
       color: palette.dim
+      format: "{:%H.%M}"
+      font: FONT_NUMBER_MILD
 
   - id: battery_ring
     type: progress
@@ -105,3 +151,6 @@ elements:
     sweep: 300deg
     color: palette.accent
     track_color: palette.dim
+    aod:
+      color: palette.dim
+      thickness: 1%r

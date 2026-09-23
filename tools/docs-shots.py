@@ -52,7 +52,18 @@ EXAMPLES = {
     # Cropped to the five system-font-size rows; the two extra vertical_align
     # demo rows below them are calibration detail, not gallery material.
     "system-fonts": ("system-fonts/text", [], ((0, 0, 260, 195), SCALE)),
+    # The only topic example needing a non-default (AMOLED) device --
+    # see EXAMPLE_DEVICE below -- and the only one passing `--aod`, so the
+    # shot shows the restyled sleep frame (plan 14 slice 2), not the awake
+    # design.
+    "aod": ("features/aod", ["--aod"], None),
 }
+
+#: Per-example device override for `EXAMPLES` -- every other topic example
+#: renders on `DEVICE` (a MIP target); `features/aod` is the one design
+#: whose whole point is an AMOLED target, so its shot needs `fenix847mm`
+#: instead, the only device in this project with a real `_aod` frame to show.
+EXAMPLE_DEVICE = {"aod": "fenix847mm"}
 
 # `wfb new` templates: name -> (-t value or None for the default, face name).
 NEW_TEMPLATES = {
@@ -158,7 +169,7 @@ def main():
             subprocess.run(
                 [sys.executable, str(ROOT / "wfb.py"), "preview",
                  str(ROOT / "examples" / example / "face.yaml"),
-                 "-d", DEVICE, "-o", str(dest), *args],
+                 "-d", EXAMPLE_DEVICE.get(name, DEVICE), "-o", str(dest), *args],
                 check=True, capture_output=True,
             )
             (rendered,) = dest.glob("*.png")

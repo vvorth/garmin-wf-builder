@@ -466,6 +466,14 @@ class PlacedShape(Placed):
     sweep: float = 360.0
     garmin_start: float = 90.0
     garmin_direction: str = "ARC_CLOCKWISE"
+    #: The `aod: {thickness: ...}` override, resolved exactly like `thickness`
+    #: above (`Resolver._aod_thickness_extent`, plan 14 §4.2) -- `None` when
+    #: this element's resolved `aod:` sets no `thickness:` override, in which
+    #: case codegen keeps the plain `Layout.<P>_THICKNESS` reference
+    #: unchanged.  Never affects `box`/`rect` -- an AOD-only pen width is a
+    #: rendering fact, not a safe-area/overlap one; the awake box is what
+    #: those lints check either way.
+    aod_thickness: int | None = None
 
 
 @dataclass
@@ -580,6 +588,9 @@ class PlacedProgress(Placed):
     garmin_start: float = 90.0
     garmin_direction: str = "ARC_CLOCKWISE"
     size: tuple[int, int] = (0, 0)
+    #: See `PlacedShape.aod_thickness` -- the same override, `style: arc` only
+    #: (a bar-style progress has no pen width for it to change).
+    aod_thickness: int | None = None
 
 
 @dataclass
@@ -617,6 +628,10 @@ class PlacedGraph(Placed):
     thickness: int = 1
     bar_width: int = 1
     size: tuple[int, int] = (0, 0)
+    #: See `PlacedShape.aod_thickness`/`.aod_bar_width` -- the same two
+    #: overrides, for a `line`/`bars` graph respectively.
+    aod_thickness: int | None = None
+    aod_bar_width: int | None = None
 
 
 @dataclass(frozen=True)
@@ -751,6 +766,12 @@ class PlacedHands(Placed):
     #: `circular_extent` reads this instead of `box`, so the visible-area
     #: check reasons about the real disc, not its bounding square.
     reach: float = 0.0
+    #: The `aod: {thickness: ...}` override (plan 14 §5.1) -- one value,
+    #: applied uniformly to every part of every hand in the set, resolved
+    #: once per element the same way `PlacedShape.aod_thickness` is (never
+    #: per part: there is no per-part override in v1).  `None` when this
+    #: element's resolved `aod:` sets no `thickness:` override.
+    aod_thickness: int | None = None
 
 
 @dataclass
@@ -781,6 +802,9 @@ class PlacedPattern(Placed):
     #: instead of `box`, the same reasoning `PlacedHands.reach` follows). 0
     #: for a linear pattern, which reports no disc.
     reach: float = 0.0
+    #: See `PlacedHands.aod_thickness` -- the same "one override, applied
+    #: uniformly to every part" shape (plan 14 §5.1), for a pattern's parts.
+    aod_thickness: int | None = None
 
     def transform(self, index: int) -> tuple[float, float, float, float]:
         """``(ox, oy, sin, cos)`` for copy ``index``: radial =
@@ -1301,6 +1325,8 @@ class Resolver:
         min_1px = element.resolved_min_1px
         thickness = round(self._extent(element.thickness, parent, Axis.MINOR, 1,
                                        min_1px=min_1px, what="thickness"))
+        aod_thickness = self._aod_extent(
+            element.aod.thickness if element.aod is not None else None, parent, 1)
 
         if element.shape == "circle":
             radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
@@ -1314,7 +1340,8 @@ class Resolver:
             reach = radius if element.filled else radius + max(1, thickness) // 2 + 1
             box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
             return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
-                               radius=radius, thickness=max(1, thickness))
+                               radius=radius, thickness=max(1, thickness),
+                               aod_thickness=aod_thickness)
 
         if element.shape == "line":
             # No `align`/`vertical_align` on a line: `at:` and
@@ -1326,7 +1353,8 @@ class Resolver:
             box = Box(min(cx, ex) - pad, min(cy, ey) - pad,
                       abs(ex - cx) + 2 * pad, abs(ey - cy) + 2 * pad)
             return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
-                               thickness=max(1, thickness), end=(round(ex), round(ey)))
+                               thickness=max(1, thickness), end=(round(ex), round(ey)),
+                               aod_thickness=aod_thickness)
 
         if element.shape == "arc":
             radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
@@ -1340,6 +1368,7 @@ class Resolver:
                 radius=radius, thickness=pen,
                 start_angle=start, sweep=sweep,
                 garmin_start=garmin_start, garmin_direction=direction,
+                aod_thickness=aod_thickness,
             )
 
         if element.shape == "polygon":
@@ -1372,7 +1401,8 @@ class Resolver:
             pad = 0 if element.filled else max(1, thickness) // 2 + 1
             box = Box(cx - rx - pad, cy - ry - pad, 2 * (rx + pad), 2 * (ry + pad))
             return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
-                               rx=rx, ry=ry, thickness=max(1, thickness))
+                               rx=rx, ry=ry, thickness=max(1, thickness),
+                               aod_thickness=aod_thickness)
 
         corner = round(self._len(element.corner_radius, parent, Axis.MINOR, 0))
         # `min_1px=min_1px`: this box's width/height is `width`/`height`
@@ -1381,7 +1411,8 @@ class Resolver:
         rect = Box(cx - width / 2, cy - height / 2, width, height).rounded(min_1px=min_1px)
         if element.filled:
             return PlacedShape(element, rect, (round(cx), round(cy)), depth,
-                               corner_radius=corner, thickness=max(1, thickness))
+                               corner_radius=corner, thickness=max(1, thickness),
+                               aod_thickness=aod_thickness)
         # An unfilled rectangle is stroked *on* its edge, so the ink straddles
         # the declared rectangle the same way a circle's outline straddles its
         # radius -- see `PlacedShape.rect`.
@@ -1389,7 +1420,8 @@ class Resolver:
         reach = Box(rect.x - pad, rect.y - pad,
                     rect.width + 2 * pad, rect.height + 2 * pad).rounded()
         return PlacedShape(element, reach, (round(cx), round(cy)), depth,
-                           corner_radius=corner, thickness=max(1, thickness), rect=rect)
+                           corner_radius=corner, thickness=max(1, thickness), rect=rect,
+                           aod_thickness=aod_thickness)
 
     def _resolve_text(self, element: Text, parent: Box, depth: int) -> Placed:
         font_px, reference, is_custom, baked, metric = self._font_for(element)
@@ -1657,12 +1689,15 @@ class Resolver:
             box, cx, cy, start, sweep, garmin_start, direction = _arc_box(
                 radius, thickness, cx, cy, element.align, element.vertical_align,
                 element.start_angle, element.sweep)
+            aod_thickness = self._aod_extent(
+                element.aod.thickness if element.aod is not None else None, parent, 1)
             return PlacedProgress(
                 element, box, (round(cx), round(cy)), depth,
                 radius=radius, thickness=thickness,
                 start_angle=start, sweep=sweep,
                 garmin_start=garmin_start,
                 garmin_direction=direction,
+                aod_thickness=aod_thickness,
             )
         width, height, cx, cy = self._sized_shift(
             element.size, parent, cx, cy, element.align, element.vertical_align, min_1px=min_1px)
@@ -1714,9 +1749,13 @@ class Resolver:
                                               min_1px=min_1px, what="thickness")))
         bar_width = max(1, round(self._extent(element.bar_width, parent, Axis.MINOR, 3,
                                               min_1px=min_1px, what="bar_width")))
+        aod = element.aod
+        aod_thickness = self._aod_extent(aod.thickness if aod is not None else None, parent, 2)
+        aod_bar_width = self._aod_extent(aod.bar_width if aod is not None else None, parent, 3)
         return PlacedGraph(
             element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
             thickness=thickness, bar_width=bar_width, size=(round(width), round(height)),
+            aod_thickness=aod_thickness, aod_bar_width=aod_bar_width,
         )
 
     def _resolve_complication_slot(self, element: ComplicationSlot, parent: Box,
@@ -1882,10 +1921,13 @@ class Resolver:
             resolved[name] = ResolvedHand(parts=tuple(parts))
         axis = (round(cx), round(cy))
         box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
+        aod_thickness = self._aod_extent(
+            element.aod.thickness if element.aod is not None else None, parent, 1)
         return PlacedHands(
             element, box.rounded(), axis, depth,
             hour=resolved.get("hour"), minute=resolved.get("minute"),
             second=resolved.get("second"), reach=reach,
+            aod_thickness=aod_thickness,
         )
 
     def _resolve_hand_part(
@@ -2128,10 +2170,13 @@ class Resolver:
             dx = round_half_away(self._len(step_position.dx, parent, Axis.X, 0))
             dy = round_half_away(self._len(step_position.dy, parent, Axis.Y, 0))
 
+        aod_thickness = self._aod_extent(
+            element.aod.thickness if element.aod is not None else None, parent, 1)
         placed = PlacedPattern(
             element, IntBox(0, 0, 0, 0), center, depth,
             parts=tuple(parts), copies=element.drawn_indices(),
             start=start, step=step, dx=dx, dy=dy, reach=reach,
+            aod_thickness=aod_thickness,
         )
 
         min_x = min_y = math.inf
@@ -2277,6 +2322,23 @@ class Resolver:
         if not min_1px and units.is_sub_pixel_length(length, value):
             self._record_sub_pixel(what, length, value)
         return units.at_least_one_px(length, value, min_1px)
+
+    def _aod_extent(self, aod_length: Length | None, parent: Box, default: float) -> int | None:
+        """`aod: {thickness: ...}`/`{bar_width: ...}`, resolved exactly like
+        the element's own `thickness`/`bar_width` (`_extent`, `Axis.MINOR`) --
+        `None` when the resolved `aod:` sets no override for this key, which
+        every codegen call site reads as "keep the plain, unrestyled
+        constant" (plan 14 §4.2).  `min_1px=True` unconditionally: an
+        override is a deliberate restyling choice, not authored geometry, so
+        it does not feed the `sub-pixel-length` lint (`_record_sub_pixel`) --
+        there would be nothing actionable to point the lint's own line-number
+        machinery at.  Never affects `box`/`reach`/the awake safe-area
+        geometry -- purely a second rendering-time pixel count.
+        """
+        if aod_length is None:
+            return None
+        return max(1, round(self._extent(aod_length, parent, Axis.MINOR, default,
+                                         min_1px=True, what="aod")))
 
     def _record_sub_pixel(self, key: str, length: Length | None, value: float) -> None:
         """Append one `SubPixelLength` for whatever `_extent`/`_hand_extent`

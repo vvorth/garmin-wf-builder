@@ -59,8 +59,8 @@ its cost).
 ```yaml
 aod:                  # top-level, beside elements:
   default: hide        # hide (default) | show — for elements whose ancestry says nothing
-  dim: 0.4              # not implemented yet — see "What slice 1 does not do"
-  jitter: 4              # not implemented — see "What slice 1 does not do"
+  dim: 0.4              # not implemented yet — see "Restyling (slice 2)"
+  jitter: 4              # not implemented — see "Restyling (slice 2)"
   lint:                   # suppress a face-level AOD lint (aod-empty)
     allow: [aod-empty]
     reason: "prototype face, AOD comes later"
@@ -119,25 +119,37 @@ elements:
 ...}` is **ANDed with the element's own `visible:`**, not a replacement for
 it — an element hidden while awake stays hidden in AOD too.
 
-## What slice 1 does not do yet
+## Restyling (slice 2)
 
-This slice resolves, validates and stores every `aod:` key, and gates
-*which* elements draw in AOD at all (`docs/limitations.md` §2). It does
-**not** yet:
+Every override key actually restyles the generated AOD frame, as an inline
+`_aod ? <aod value> : <awake value>` ternary in the element's existing draw
+method — measured against a second, per-element AOD method and kept for
+being smaller (`docs/lore/codegen.md`) — or, for `filled:`, an
+`if (_aod) { ... } else { ... }` around the two different draw calls a
+filled/outlined shape takes. `color:`/`track_color:`/`icon_color:` follow
+`color_scheme:`/`config.colors` at runtime exactly as the element's own
+`color:` does — an override colour is resolved through the same machinery,
+not a second, narrower one. A `static:` element with an AOD override skips
+its buffer while `_aod` and draws directly, through the very same
+per-element method the buffer itself calls to fill in.
 
-- apply an override's `color:`/`font:`/`thickness:`/etc. in the generated
-  sleep frame — the AOD frame currently draws with the element's *awake*
-  styling, unrestyled;
-- load a separate AOD font;
-- bypass a `static:` buffer for a static element's own `aod:` override —
-  static content simply does not appear in AOD yet, whatever it declares;
-- implement `dim:` or `jitter:` — both are accepted by the schema and
-  rejected by the builder with a friendly "not implemented" error naming
-  the slice that will build them.
+**A resource font used only by an `aod: {font: ...}` override is a second
+resource**: loaded in `onEnterSleep`, only when `_aod` turns out true, and
+released (nulled) again in `onExitSleep`, so it never sits in memory while
+awake (measured cheap, `docs/lore/codegen.md`). A font used both awake and
+in an override is loaded once, not twice.
 
-Restyling, the AOD font and the static bypass land together in a later
-slice; `dim:`/`jitter:` follow after that. See `docs/limitations.md` §2 for
-the authoritative status.
+**Not implemented yet** (`docs/limitations.md` §2): a `pattern`'s own
+`font:` override, a `complication_slot`'s `font:` override, and any `font:`
+override naming a `face:` (vector) font rather than a baked one — each is
+rejected outright by the builder with a friendly "not implemented yet"
+error, the same house style `dim:`/`jitter:` and per-device `overrides:`
+already follow: never a silent no-op. `aod: {filled: ...}` on `shape:
+polygon` gets the same treatment, for the same reason the awake element's
+own `filled: false` already does — there is no outline primitive (Dc has
+fillPolygon, not drawPolygon) for either one to switch to. `wfb preview
+--aod` matches this exact scope, element for element — none of these five
+cases can ever reach it, since the build fails first.
 
 ## When the AOD frame runs
 
@@ -169,8 +181,9 @@ awake frame's own background (if any) never draws there.
 wfb preview face.yaml --aod
 ```
 
-Renders the resolved `aod:` set — unrestyled, matching slice 1's own
-codegen — with every `awake`-only second hand hidden (AOD only ever runs
+Renders the resolved `aod:` set, restyled exactly as codegen restyles it —
+colour, thickness, filled, font (baked, non-vector only) and format all
+apply — with every `awake`-only second hand hidden (AOD only ever runs
 asleep). A design with no `aod:` anywhere renders blank under the face
 default (`hide`).
 
@@ -193,7 +206,9 @@ See [Lints and suppression](lints.md) for the general mechanism.
 
 ## See also
 
-- [`examples/features/aod/face.yaml`](../../examples/features/aod/face.yaml) — the "everything off but the time" shape, on `fenix847mm`.
+![the aod example's restyled sleep frame](../screenshots/aod.png)
+
+- [`examples/features/aod/face.yaml`](../../examples/features/aod/face.yaml) — the "everything off but the time" shape, restyled, on `fenix847mm` (`wfb preview --aod`, above).
 - [Power modes and touch-and-hold](modes-and-interaction.md) — `modes:`, the orthogonal MIP partial-update axis.
 - `docs/research/11-always-on-display.md` — Garmin's own AMOLED rules and the design options this plan chose between.
 - `docs/plans/14-aod.md` — the plan this chapter documents, slice by slice.

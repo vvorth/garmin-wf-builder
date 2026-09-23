@@ -397,3 +397,73 @@ These cost real time to discover; do not rediscover them.
   already relies on, which is also what keeps two outlined text parts in
   the *same* pattern from colliding with each other, not just with the
   copy loop's own `i`.
+
+- **`aod:` restyling (plan 14 slice 2): ternary beats a second method,
+  measured per ADR 0008, and an AOD-only font is cheap.** Two candidate
+  shapes for reading an `AodOverride` at the draw call site: an inline
+  `_aod ? <aod> : <awake>` ternary inside the *one* existing per-element
+  method (`_emit_element_method` already calls the same method from both
+  the active and AOD branches -- plan 14 slice 1), or a second, fully
+  separate method (`draw<Id>Aod`) called from the AOD branch instead. A
+  throwaway probe with 8 overridden elements (every override key exercised
+  at least once: `color`/`track_color`/`thickness`/`filled`/`format`/`font`/
+  `bar_width`, `fenix847mm`, `--build-stats`) measured **4,704 B** (1,026 B
+  data + 3,678 B code) for the ternary shape this project actually built,
+  against **5,169 B** (1,098 B data + 4,071 B code) for a hand-written
+  second-method variant of the exact same design -- the ternary is **465 B
+  (9%) smaller**, because every duplicated method repeats its own
+  declarations/guards/reads and the two-method call sites (one per branch)
+  cost more than one ternary each. Kept the ternary as the unconditional
+  default (`wfb.emit.monkeyc.common._aod_color`/`_aod_value`, one call site
+  per overridable key), matching the plan's own prediction (§4.2) rather
+  than just assuming it.
+
+  **A baked font used only by an `aod: {font: ...}` override, never drawn
+  while awake, is a second resource** (§4.3): declared under `fonts:` like
+  any other, baked unconditionally by `wfb.emit.resources.bake_fonts`
+  (which bakes every declared font regardless of whether anything draws
+  with it while awake -- `glyph_set` is extended to also collect the
+  *override*'s own needed glyphs, through its own `format:` override if it
+  has one, so it is never baked with the empty-glyph-set "0123456789"
+  fallback), but the view field for it is declared separately
+  (`_aod_only_fonts`, `wfb.emit.monkeyc.common`) and loaded **only** inside
+  `onEnterSleep`'s own `if (_aod)` branch -- never in `onLayout` -- with the
+  field nulled again in `onExitSleep`, so it never sits resident while
+  awake. Measured (two otherwise-identical one-clock faces, baked custom
+  font, `fenix847mm`, `--build-stats`): **1,209 B** (633 B data + 576 B
+  code) with one font used both awake and (unstyled) asleep, **1,301 B**
+  (651 B data + 650 B code) once a *second*, AOD-only font is declared and
+  overridden in -- a **92 B** difference (0.07% of the 131,072 B budget) for
+  the extra field, its conditional load/null bookkeeping, and the font
+  ternary at the call site. Confirms the plan's own prediction ("since API
+  4.0.0, loaded fonts live in the graphics pool, this should be cheap") --
+  the *resource* itself never touches this figure at all (constraint 11);
+  what is measured here is purely the bookkeeping around it.
+
+  **Scope actually shipped in slice 2, and what is deliberately deferred:**
+  ternaries for every allowlisted key on `shape`/`text`/`progress`/`icon`/
+  `graph`, `filled` as an `if (_aod) { <opposite draw> } else { <awake
+  draw> } ` branch (`wfb.emit.monkeyc.shapes._emit_filled_toggle`), `format`
+  as two fully-formatted value expressions ternaried against each other
+  (built before `when_absent:` substitution, so a placeholder/fallback
+  still sees the right one), and `hands`/`pattern` `color`/`thickness`
+  applied uniformly to every part by ternarying the *existing* per-part/
+  hoisted `dc.setColor`/`dc.setPenWidth` call sites against one element-
+  level override, never restructuring the hoisting logic itself (plan 14
+  §5.1). **Not implemented yet, matching `docs/limitations.md` §2 -- and,
+  per house style (CLAUDE.md §7, the same rule per-device `overrides:`
+  follows), each is a friendly build error, never a silent no-op**: a
+  `pattern`'s own `font:` override (allowlisted, plan 14 §2.3, but a
+  pattern's per-copy text font loading has no second-resource slot yet), a
+  `complication_slot`'s `font:` override (same reason), any `font:`
+  override that names a `face:` (vector) font rather than a baked one (gate
+  1-4's own machinery has no AOD-override-aware second face/size constant
+  yet), and `aod: {filled: ...}` on `shape: polygon` (there is no outline
+  primitive for it to switch to -- the same reason the awake element's own
+  `filled: false` is already refused, `wfb/ir/builder.py`'s `_build_shape`).
+  All four are raised in `Builder._build_aod_authored`, on the author's own
+  line, so a face using one of them never reaches codegen or `wfb preview
+  --aod` at all -- there is nothing left for either to draw, and the
+  runtime fallback code both still carry for the font cases (e.g.
+  `wfb.emit.monkeyc.shapes._emit_text_draw`'s `is_vector` check) is
+  defensive, not a live path.

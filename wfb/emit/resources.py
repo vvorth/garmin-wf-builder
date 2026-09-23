@@ -136,14 +136,38 @@ def glyph_set(face: Face) -> dict[str, str]:
         if face.fonts[element.font].is_vector:
             continue
         bucket = needed.setdefault(element.font, set())
+        # An `aod: {font: ...}` override naming a *different* baked font
+        # (plan 14 §4.3) draws the exact same string, through the exact same
+        # format spec unless that too is overridden -- so its own bucket
+        # needs the same glyphs, not the "0123456789" fallback an empty
+        # bucket would otherwise bake with. A vector-font override is
+        # excluded the same way the awake font is above (not built yet,
+        # `docs/limitations.md` §2); naming the same resource as the awake
+        # font is simply a second `setdefault` of the same bucket, which is
+        # harmless.
+        aod = element.aod
+        aod_bucket = None
+        if (aod is not None and aod.font is not None and aod.font_is_custom
+                and not face.fonts[aod.font].is_vector):
+            aod_bucket = needed.setdefault(aod.font, set())
         if element.literal is not None:
             bucket |= set(element.literal)
+            if aod_bucket is not None:
+                aod_bucket |= set(element.literal)
             continue
         if element.value is None:
             continue
         source = catalog.get(element.value.sources[0]) if element.value.sources else None
         spec = element.format or "{}"
-        bucket |= formatting.glyphs(spec, source, element.value.value.type, element.value.scale)
+        glyphs = formatting.glyphs(spec, source, element.value.value.type, element.value.scale)
+        bucket |= glyphs
+        if aod_bucket is not None:
+            aod_spec = (aod.format if aod.format is not None else spec)
+            aod_bucket |= (
+                glyphs if aod_spec == spec
+                else formatting.glyphs(aod_spec, source, element.value.value.type,
+                                       element.value.scale)
+            )
         if element.placeholder:
             bucket |= set(element.placeholder)
         if element.when_absent == "fallback" and element.fallback is not None:

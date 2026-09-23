@@ -7,9 +7,17 @@ schema, IR (`AodOverride`), resolution (`Builder._resolve_aod`),
 `modes: [always_on]` removed outright (D3, a schema error names `aod:` as
 the replacement), the `_aod` codegen gate (moved up from §4.1 so this
 commit is coherent -- draws the resolved set unrestyled), `wfb preview
---aod`, and the two lints (`aod-unreachable`, `aod-empty`). Slices 2–6
-open. D1–D5 (§7) decided by the user, 2026-09-22: every recommendation
-taken. It grew out of
+--aod`, and the two lints (`aod-unreachable`, `aod-empty`). **Slice 2 built
+2026-09-23** (§6): every override key restyles the generated AOD frame for
+real -- inline ternaries, measured against a second per-element method and
+kept for being smaller (`docs/lore/codegen.md`); `filled:` toggles the draw
+call; a `text` element's baked-font override is a second resource, loaded
+only in `onEnterSleep`; a `static:` element's own override bypasses its
+buffer; `wfb preview --aod` matches. A `pattern`/`complication_slot`
+`font:` override, any vector-font override, and `aod: {filled: ...}` on
+`shape: polygon` are all friendly build errors, not silent no-ops
+(`docs/limitations.md` §2). Slices 3–6 open. D1–D5 (§7) decided by the
+user, 2026-09-22: every recommendation taken. It grew out of
 `docs/research/11-always-on-display.md` §6, whose open question (does
 `modes: [always_on]` change meaning, or does `aod:` sit alongside it?) this
 plan answers with a third option: `aod:` **replaces** it (§7, D3).

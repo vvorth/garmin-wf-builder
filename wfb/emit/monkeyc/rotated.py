@@ -7,7 +7,9 @@ import math
 from ... import expr, formatting
 from ...ir import PatternElement
 from ...layout import PlacedHands, PlacedPattern
-from .common import _color, _const_prefix, _field, _glyph_y_expr, _mc_float, _pattern_needs_math
+from .common import (
+    _aod_value, _color, _const_prefix, _field, _glyph_y_expr, _mc_float, _pattern_needs_math,
+)
 from .shapes import _RADIAL_DIRECTION, _emit_outline_loop, _radial_radius_expr
 from ..writer import Writer
 
@@ -16,17 +18,29 @@ from ..writer import Writer
 _HAND_ANGLE_FUNCTIONS = (("hour", "hourAngle"), ("minute", "minuteAngle"), ("second", "secondAngle"))
 
 
-def _emit_hands(w: Writer, placed: "PlacedHands") -> None:
+def _emit_hands(w: Writer, placed: "PlacedHands", aod: bool = False) -> None:
     """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
     draw each of its parts, shaped exactly like the analog-hands probe's
     `drawMainHands` (`docs/research/probes/analog-hands/`): the axis first,
     then hour, minute, second in that fixed order, with an `awake` second
     hand's parts wrapped in `if (!_sleeping)`.
+
+    `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1) apply uniformly to
+    every part of every hand: one ternary against one element-level override,
+    reused by every part's own colour/pen-width line, rather than a
+    per-part override.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
     w.line(f"var cx = Layout.{prefix}_CX;")
     w.line(f"var cy = Layout.{prefix}_CY;")
+    color_override = (
+        element.aod.color.code if (aod and element.aod is not None
+                                   and element.aod.color is not None) else None
+    )
+    thickness_override = (
+        f"Layout.{prefix}_AOD_THICKNESS" if (aod and placed.aod_thickness is not None) else None
+    )
     declared = False
     for hand_name, angle_fn in _HAND_ANGLE_FUNCTIONS:
         hand = getattr(placed, hand_name)
@@ -37,13 +51,16 @@ def _emit_hands(w: Writer, placed: "PlacedHands") -> None:
         w.comment(f"{hand_name}" + (" -- seconds: awake" if gated else ""))
         if gated:
             with w.block("if (!_sleeping)"):
-                declared = _emit_one_hand(w, prefix, hand_name, angle_fn, hand, declared)
+                declared = _emit_one_hand(w, prefix, hand_name, angle_fn, hand, declared,
+                                          color_override, thickness_override)
         else:
-            declared = _emit_one_hand(w, prefix, hand_name, angle_fn, hand, declared)
+            declared = _emit_one_hand(w, prefix, hand_name, angle_fn, hand, declared,
+                                      color_override, thickness_override)
 
 
 def _emit_one_hand(w: Writer, prefix: str, hand_name: str, angle_fn: str, hand,
-                   declared: bool) -> bool:
+                   declared: bool, color_override: str | None = None,
+                   thickness_override: str | None = None) -> bool:
     """One hand's angle/sin/cos, then each of its parts, rotated and drawn.
 
     `declared` says whether `angle`/`sin`/`cos` already have a `var` in this
@@ -63,15 +80,16 @@ def _emit_one_hand(w: Writer, prefix: str, hand_name: str, angle_fn: str, hand,
     current = None
     for index, part in enumerate(hand.parts):
         part_prefix = f"{prefix}_{HAND}_{index}"
-        color = _color(part.color)
+        color = _aod_value(color_override is not None, color_override, _color(part.color))
         if color != current:
             w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
             current = color
-        _emit_rotated_part(w, part, part_prefix)
+        _emit_rotated_part(w, part, part_prefix, thickness_override=thickness_override)
     return True
 
 
-def _emit_rotated_part(w: Writer, part, part_prefix: str, *, set_pen: bool = True) -> None:
+def _emit_rotated_part(w: Writer, part, part_prefix: str, *, set_pen: bool = True,
+                       thickness_override: str | None = None) -> None:
     """One polygon/line/circle part's `WfbGeom.*Rotated` call about `(cx, cy)`
     -- shared by `_emit_one_hand` and a radial pattern's own
     `_emit_pattern_part`, which otherwise duplicate the exact two-line
@@ -79,12 +97,17 @@ def _emit_rotated_part(w: Writer, part, part_prefix: str, *, set_pen: bool = Tru
     hand never hoists its pen (``set_pen`` always true there); a radial
     pattern with one shared pen width across every line/outlined-circle part
     passes ``set_pen=False`` and brackets the whole loop itself instead.
+    ``thickness_override``, when given, is the element-level
+    `aod: {thickness: ...}` override's `Layout` constant, applied uniformly
+    (plan 14 §5.1) to every part's own pen width, ternary against `_aod`.
     """
     if part.shape == "polygon":
         w.line(f"WfbGeom.fillRotated(dc, Layout.{part_prefix}_POINTS, cx, cy, sin, cos);")
     elif part.shape == "line":
+        thickness_expr = _aod_value(
+            thickness_override is not None, thickness_override, f"Layout.{part_prefix}_THICKNESS")
         if set_pen:
-            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+            w.line(f"dc.setPenWidth({thickness_expr});")
         w.line(
             f"WfbGeom.drawLineRotated(dc, Layout.{part_prefix}_X1, "
             f"Layout.{part_prefix}_Y1,"
@@ -102,8 +125,10 @@ def _emit_rotated_part(w: Writer, part, part_prefix: str, *, set_pen: bool = Tru
         )
         w.line("                          cx, cy, sin, cos);")
     else:
+        thickness_expr = _aod_value(
+            thickness_override is not None, thickness_override, f"Layout.{part_prefix}_THICKNESS")
         if set_pen:
-            w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+            w.line(f"dc.setPenWidth({thickness_expr});")
         w.line(
             f"WfbGeom.drawCircleRotated(dc, Layout.{part_prefix}_X, "
             f"Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS,"
@@ -345,7 +370,8 @@ def _emit_pattern_text_draw(
 
 def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index: int,
                        part, radial: bool, hoist_pen: bool,
-                       text_fonts: dict[str, str] | None = None) -> None:
+                       text_fonts: dict[str, str] | None = None,
+                       thickness_override: str | None = None) -> None:
     """One template part, drawn for the current copy `i`: rotated about
     `(cx, cy)` through `WfbGeom` for a radial pattern, translated by
     `(ox, oy)` for a linear one -- the same two drawing shapes
@@ -399,11 +425,14 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
             w.line(f"WfbGeom.fillTranslated(dc, Layout.{part_prefix}_POINTS, ox, oy);")
         return
     if part.shape == "line":
+        thickness_expr = _aod_value(
+            thickness_override is not None, thickness_override, f"Layout.{part_prefix}_THICKNESS")
         if radial:
-            _emit_rotated_part(w, part, part_prefix, set_pen=not hoist_pen)
+            _emit_rotated_part(w, part, part_prefix, set_pen=not hoist_pen,
+                               thickness_override=thickness_override)
         else:
             if not hoist_pen:
-                w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+                w.line(f"dc.setPenWidth({thickness_expr});")
             w.line(f"dc.drawLine(ox + Layout.{part_prefix}_X1, oy + Layout.{part_prefix}_Y1,")
             w.line(f"            ox + Layout.{part_prefix}_X2, oy + Layout.{part_prefix}_Y2);")
             if not hoist_pen:
@@ -419,11 +448,14 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
                     f"oy + Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS);"
                 )
             return
+        thickness_expr = _aod_value(
+            thickness_override is not None, thickness_override, f"Layout.{part_prefix}_THICKNESS")
         if radial:
-            _emit_rotated_part(w, part, part_prefix, set_pen=not hoist_pen)
+            _emit_rotated_part(w, part, part_prefix, set_pen=not hoist_pen,
+                               thickness_override=thickness_override)
         else:
             if not hoist_pen:
-                w.line(f"dc.setPenWidth(Layout.{part_prefix}_THICKNESS);")
+                w.line(f"dc.setPenWidth({thickness_expr});")
             w.line(
                 f"dc.drawCircle(ox + Layout.{part_prefix}_X, "
                 f"oy + Layout.{part_prefix}_Y, Layout.{part_prefix}_RADIUS);"
@@ -448,14 +480,16 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
     else:
         start_arg = g0
         cx_arg, cy_arg = "ox", "oy"
+    arc_thickness_expr = _aod_value(
+        thickness_override is not None, thickness_override, f"Layout.{part_prefix}_THICKNESS")
     w.line(
         f"WfbArc.drawSpan(dc, {cx_arg}, {cy_arg}, Layout.{part_prefix}_RADIUS, "
-        f"Layout.{part_prefix}_THICKNESS,"
+        f"{arc_thickness_expr},"
     )
     w.line(f"                {start_arg}, {sweep});")
 
 
-def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
+def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: bool = False) -> None:
     """`type: pattern` -- loop over the drawn copies, turning (radial) or
     translating (linear) the template resolved once at build time.  The
     same bargain `_emit_hands` already struck for analog hands: the device
@@ -491,6 +525,16 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     """
     element = placed.element
     prefix = _const_prefix(placed.id)
+    # `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1): one override,
+    # applied uniformly to every part -- reused verbatim by every colour/pen
+    # line below, whether hoisted or not.
+    color_override = (
+        element.aod.color.code if (aod and element.aod is not None
+                                   and element.aod.color is not None) else None
+    )
+    thickness_override = (
+        f"Layout.{prefix}_AOD_THICKNESS" if (aod and placed.aod_thickness is not None) else None
+    )
     # `element.parts[i]` and `placed.parts[i]` are the same template, in the
     # same order (`Resolver._resolve_pattern` builds one `ResolvedHandPart`
     # per `HandPart`, 1:1) -- so the IR part is what carries `visible:`
@@ -529,7 +573,8 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
     # is declared at the top of the method, before the loop.)  A dead part
     # (constant-false `visible:`, excluded from `live`) contributes no
     # colour at all -- it never draws, so its colour is nobody's concern.
-    colors = [_color(part.color) for _, part in live]
+    colors = [_aod_value(color_override is not None, color_override, _color(part.color))
+             for _, part in live]
     distinct_colors = list(dict.fromkeys(colors))
     per_copy = any(expr.reads_copy(part.color.ast) for _, part in live
                    if part.color is not None)
@@ -552,7 +597,10 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
               "  // hoisted: one colour")
     if hoist_pen:
         hoist_index = pen_parts[0][0]
-        w.line(f"dc.setPenWidth(Layout.{prefix}_{hoist_index}_THICKNESS);"
+        hoisted_thickness_expr = _aod_value(
+            thickness_override is not None, thickness_override,
+            f"Layout.{prefix}_{hoist_index}_THICKNESS")
+        w.line(f"dc.setPenWidth({hoisted_thickness_expr});"
               "  // hoisted: one pen, no arc")
 
     skip_condition = _pattern_skip_condition(element)
@@ -579,8 +627,10 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern") -> None:
                 # Non-constant, or `live` would have excluded it above.
                 w.comment(f"visible: {visible.text}")
                 with w.block(f"if ({visible.code})"):
-                    _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen, text_fonts)
+                    _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
+                                       text_fonts, thickness_override)
             else:
-                _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen, text_fonts)
+                _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
+                                   text_fonts, thickness_override)
     if hoist_pen:
         w.line("dc.setPenWidth(1);")
