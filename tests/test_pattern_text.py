@@ -351,6 +351,51 @@ def test_pattern_text_anchor_rounds_half_up_not_to_even_or_away_from_zero():
     assert ay == 0
 
 
+def test_pattern_text_anchor_negative_offset_needs_floor_not_truncation():
+    """The test above (`x = 2.5`, `y = -0.5`) happens to dodge the one case
+    where 'the device's own `(v + 0.5).toNumber()` matches this exactly'
+    was not actually true before the 2026-09-23 fix to `runtime-lib/
+    WfbGeom.mc`: `y = -0.5` lands `v + 0.5` exactly on `0.0`, where
+    Monkey C's truncate-toward-zero (`.toNumber()`, `WfbArc.roundAway`'s
+    own docstring) and `floor` agree by coincidence. `x = -1.6` does not --
+    a rotated/translated pattern text anchor can legitimately land off the
+    screen's top-left edge (`docs/limitations.md`'s 'off-screen' lint is
+    suppressible, not a build error), and this is exactly the input shape
+    where the pre-fix barrel (`(v + 0.5).toNumber()` alone, no `Math.
+    floor`) rounded one pixel away from what this function -- and `wfb
+    preview` -- compute. See `test_wfb_geom_rotated_helpers_round_with_
+    math_floor` below for the barrel-side half of this fix."""
+    part = ResolvedHandPart("text", None, x=-1.6, y=0.0)
+    ax, _ = pattern_text_anchor(part, 0.0, 0.0, 0.0, 1.0)
+    assert ax == -2  # floor(-1.6 + 0.5) == floor(-1.1) == -2
+    # Monkey C's own (v + 0.5).toNumber() truncates toward zero instead:
+    # the exact disagreement runtime-lib/WfbGeom.mc is asserted to have
+    # fixed below.
+    assert int(-1.6 + 0.5) == -1
+    assert ax != int(-1.6 + 0.5)
+
+
+def test_wfb_geom_rotated_helpers_round_with_math_floor():
+    """No simulator runs in this container (CLAUDE.md), so the barrel's own
+    source is inspected directly for the fix -- the same 'read the actual
+    .mc text' approach `tests/test_parameter_limits.py` already uses for
+    this exact file. `rotatedX`/`rotatedY` must round through `Math.
+    floor(...)`, or a negative anchor rounds one pixel off from this
+    module's own `pattern_text_anchor` (proven by the test above)."""
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parent.parent / "runtime-lib" / "WfbGeom.mc").read_text()
+    for name in ("rotatedX", "rotatedY"):
+        start = text.index(f"function {name}(")
+        end = text.index("\n    }", start)
+        body = text[start:end]
+        assert "Math.floor(" in body, (
+            f"WfbGeom.{name} must round with Math.floor(...), not plain "
+            "(v + 0.5).toNumber() truncation -- see "
+            "test_pattern_text_anchor_negative_offset_needs_floor_not_truncation"
+        )
+
+
 # -- glyph_set (resources.py) -------------------------------------------------
 
 

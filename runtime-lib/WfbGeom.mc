@@ -1,5 +1,6 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.Math;
 
 //! Shared rotate/translate-and-draw helpers for analog hands (plan 04) and
 //! patterns (plan 05), plus a pattern's `shape: text` parts (plan 06).  Both
@@ -88,6 +89,21 @@ module WfbGeom {
     //! A text part (plan 06): rotate only the anchor -- the glyphs stay
     //! upright, a bitmap font cannot turn -- round it half up, then draw.
     //!
+    //! **Round half up, not `(v + 0.5).toNumber()` alone** (fixed
+    //! 2026-09-23): `.toNumber()` truncates toward zero
+    //! (`WfbArc.roundAway`'s own docstring), which disagrees with `Math.
+    //! floor` for a negative `v + 0.5` that is not itself a whole number --
+    //! e.g. `v = -1.6`: `floor(-1.1) == -2` but `(-1.1).toNumber() == -1`.
+    //! A rotated/translated anchor can legitimately land off the top or
+    //! left edge of the screen (an author-placed or lint-flagged, not
+    //! build-rejected, case -- `docs/limitations.md`'s "off-screen" lint is
+    //! suppressible, not a hard error), so this is reachable on a real
+    //! design, not merely a theoretical corner. `wfb.layout.
+    //! pattern_text_anchor`, the preview's own twin, has always used
+    //! `math.floor(v + 0.5)`; before this fix the two disagreed by one
+    //! pixel for exactly the negative, non-half-integer inputs above, so
+    //! the device drew one pixel off from what `wfb preview` showed.
+    //!
     //! **Found 2026-09-18:** a single combined `drawTextRotated(dc, x, y,
     //! cx, cy, sin, cos, font, text, justify)` is 10 parameters wide, and
     //! CIQ 3.x rejects a function past 9 outright ("Too many arguments
@@ -102,9 +118,10 @@ module WfbGeom {
     //! caller (`wfb.emit.monkeyc.rotated`) passes `rotatedX`/`rotatedY`'s
     //! results straight into `dc.drawText` as its own `x`/`y`, exactly the
     //! anchor this used to compute internally. Each axis still rounds half
-    //! up (`(v + 0.5).toNumber()`), matching
-    //! `wfb.layout.pattern_text_anchor`'s per-axis `math.floor(v + 0.5)`
-    //! pixel for pixel, so the preview and the device still agree.
+    //! up, matching `wfb.layout.pattern_text_anchor`'s per-axis `math.
+    //! floor(v + 0.5)` pixel for pixel (see the "Round half up" note
+    //! above for the `Math.floor` fix that makes this actually true for a
+    //! negative anchor too), so the preview and the device still agree.
     //!
     //! `text` is typed `String` rather than `drawText`'s own wider `Object`
     //! because every caller here already has a `String`, from a literal or
@@ -115,11 +132,11 @@ module WfbGeom {
     //! `Graphics.TextJustification`, under `-l 3`.
     function rotatedX(x as Number, y as Number, cx as Number,
                       sin as Decimal, cos as Decimal) as Number {
-        return (cx + x * cos - y * sin + 0.5).toNumber();
+        return Math.floor(cx + x * cos - y * sin + 0.5).toNumber();
     }
 
     function rotatedY(x as Number, y as Number, cy as Number,
                       sin as Decimal, cos as Decimal) as Number {
-        return (cy + x * sin + y * cos + 0.5).toNumber();
+        return Math.floor(cy + x * sin + y * cos + 0.5).toNumber();
     }
 }
