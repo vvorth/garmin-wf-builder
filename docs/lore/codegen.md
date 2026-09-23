@@ -192,6 +192,43 @@ These cost real time to discover; do not rediscover them.
   system font's widest-rendering comment, never referenced elsewhere in the
   generated code) -- confirmed by the golden `Layout.mc` diffs this step
   produced, one line each, nothing else.
+- **Derived metrics for a device with no scraped page at all (plan 17,
+  2026-09-23): a third source, stdlib `struct` only, that never touches a
+  scraped device.** Three installed devices (`fenix947mm`,
+  `fenix9prosolar47mm`, `fenix9prosolar51mm`) have no
+  `docs/research/data/devices/<id>.json` at all, so `Device.system_fonts`'
+  first two loops leave them empty and every `text` element degraded to
+  "not checked" -- `wfb preview` drew no system-font text on them either.
+  A third loop derives `size_px` for the 9 standard `FONT_*` symbols
+  (`FONT_XTINY`…`FONT_NUMBER_THAI_HOT`) directly from a *located* real
+  `.ttf`/`.otf`'s own `head.unitsPerEm`/`hhea.ascent`/`hhea.descent`, with
+  the exact same `size_px = round(em_px * (ascent - descent) / upm)` model
+  §3's Roboto/Bionic check already verified (`docs/research/
+  10-system-fonts.md` §3.1) -- 45/45 exact against every scraped device
+  that has the inputs. It fires only for a symbol in the documented
+  vocabulary (`_documented_font_symbols`, the union of every scraped
+  device's own `fonts.default.fixed` keys), only when neither earlier loop
+  already covered the symbol, and only when the file resolves to a real
+  `.ttf`/`.otf` under the user's own Garmin font root
+  (`_locate_garmin_outline_font` -- local files only, never the
+  free-stand-in registry, and never a `.cft`: no verified height model for
+  one, per the `.cft` finding above). **`wfb.devices` still never imports
+  Pillow/fontTools**: `_sfnt_head_hhea` is a from-scratch `struct` reader
+  of the sfnt table directory (`numTables` at offset 4, 16-byte table
+  records from offset 12, `head.unitsPerEm` at its own offset 18,
+  `hhea.ascent`/`descent` at offsets 4/6), cached per resolved path, never
+  raising. **No scraped device gains a symbol from this** -- checked
+  against every installed device with a scrape, the first loop already
+  covers every symbol this loop could otherwise reach, so its own
+  `if symbol in metrics: continue` guard always wins first. Importing
+  `wfb.fonts.fetch_system` (for `garmin_font_root`/`garmin_any_file`) has
+  to happen *lazily*, inside the function that needs it, not at module
+  level: `wfb.fonts`' own `__init__` imports `wfb.fonts.fallback`, which
+  imports `FontMetric` back out of `wfb.devices` -- a real cycle if
+  `wfb.devices` tried to import `wfb.fonts` while still mid-load itself,
+  but harmless deferred to call time, since nothing calls
+  `Device.system_fonts` until a caller already holds a fully-constructed
+  `Device`, long after both modules have finished loading.
 - **Vector fonts and `curve:` (plan 11): per-device `Layout` constants, one
   guard for the whole build, one null check that is never omitted.** A used
   `face:` font gets `FONT_<NAME>_FACE`/`_SIZE` in every target device's own

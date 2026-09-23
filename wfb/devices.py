@@ -22,8 +22,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import struct
 from dataclasses import dataclass, field
-from functools import cached_property
+from functools import cached_property, lru_cache
 from pathlib import Path
 
 DEFAULT_DEVICE_ROOTS = (
@@ -37,6 +38,117 @@ _SCRAPED_FONTS = _REPO_ROOT / "docs" / "research" / "data" / "devices"
 
 class DeviceError(Exception):
     pass
+
+
+@lru_cache(maxsize=1)
+def _documented_font_symbols() -> frozenset[str]:
+    """The union of every ``FONT_*`` key across every scraped device's
+    ``fonts.default.fixed`` table (``docs/research/data/devices/*.json``) --
+    22 symbols (``FONT_XTINY`` ... ``FONT_NUMBER_THAI_HOT``, ``FONT_SYSTEM_*``,
+    ``FONT_GLANCE*``, ``FONT_AUX1``/``FONT_AUX2``) at the time plan 17 was
+    written. Gate 2 of :attr:`Device.system_fonts`' third source (plan 17
+    §3): a ``simulator.json`` ``ww`` entry whose derived ``FONT_*`` symbol
+    (:meth:`Device._symbol_for_simulator_name`) is *not* in this set is a
+    scalable-table-only or simulator-extension name with no ``FONT_*``
+    counterpart at all (``glanceFont`` -> ``FONT_GLANCE_FONT``, not the real
+    ``FONT_GLANCE``) and is never derived. Computed once, lazily, at module
+    level -- every scraped file is read only the first time any device asks.
+    """
+    vocabulary: set[str] = set()
+    for path in _SCRAPED_FONTS.glob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        fixed = data.get("fonts", {}).get("default", {}).get("fixed", {})
+        vocabulary.update(fixed.keys())
+    return frozenset(vocabulary)
+
+
+#: The two sfnt version tags this project's minimal reader accepts --
+#: TrueType outlines (``0x00010000``) and OpenType/CFF outlines (``OTTO``).
+#: Anything else (a bitmap-only ``.cft``, a corrupt file, ``true``/``typ1``
+#: Apple-only variants this project has no evidence any Garmin/registry file
+#: uses) is rejected rather than guessed at.
+_SFNT_VERSIONS = (b"\x00\x01\x00\x00", b"OTTO")
+
+
+@lru_cache(maxsize=64)
+def _sfnt_head_hhea(path: str) -> tuple[int, int, int] | None:
+    """``(head.unitsPerEm, hhea.ascent, hhea.descent)`` read directly out of
+    the sfnt table directory with :mod:`struct` -- **stdlib only**, so this
+    module never needs Pillow/fontTools just to derive a fallback metric for
+    a device the scraped reference has nothing for (plan 17 §3; the module
+    docstring's own "never import Pillow/fontTools" rule stays true).
+
+    Parses the offset table (``numTables`` at offset 4, big-endian
+    ``uint16``), then the table directory (16-byte records from offset 12:
+    ``tag``, ``checksum``, ``offset``, ``length``), then ``head`` at its own
+    offset 18 (``unitsPerEm``, ``uint16``) and ``hhea`` at offsets 4/6
+    (``ascender``/``descender``, signed ``int16``). Accepts the
+    ``0x00010000`` and ``'OTTO'`` sfnt versions (:data:`_SFNT_VERSIONS`).
+    Cached per resolved path -- a device's own ``ww`` set repeats the same
+    handful of filenames across every ``FONT_*`` symbol it needs one for.
+
+    **Never raises**: anything malformed, truncated, or missing either
+    table returns ``None``, the same "derive what you can, never fail a
+    build over an estimate" stance every other font fallback in this
+    project takes (`wfb.fonts.fallback`'s own `_hhea`, which this mirrors
+    for `wfb.devices`' own stdlib-only sibling case).
+    """
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return None
+    try:
+        if len(data) < 12 or data[0:4] not in _SFNT_VERSIONS:
+            return None
+        num_tables = struct.unpack_from(">H", data, 4)[0]
+        tables: dict[bytes, tuple[int, int]] = {}
+        for i in range(num_tables):
+            record = 12 + i * 16
+            tag, _checksum, offset, length = struct.unpack_from(">4sIII", data, record)
+            tables[tag] = (offset, length)
+        head = tables.get(b"head")
+        hhea = tables.get(b"hhea")
+        if head is None or hhea is None:
+            return None
+        units_per_em = struct.unpack_from(">H", data, head[0] + 18)[0]
+        ascent, descent = struct.unpack_from(">hh", data, hhea[0] + 4)
+        if units_per_em <= 0:
+            return None
+        return int(units_per_em), int(ascent), int(descent)
+    except (struct.error, IndexError):
+        return None
+
+
+def _locate_garmin_outline_font(filename: str) -> Path | None:
+    """A local ``.ttf``/``.otf`` for ``filename`` under the user's own
+    Garmin font root, or ``None`` -- **local files only**
+    (`wfb.fonts.fetch_system.garmin_font_root`/`garmin_any_file`), never the
+    registry's `ensure()` (no download from inside a device property). A
+    located ``.cft`` doesn't qualify: it is Garmin's bitmap container, not a
+    scalable outline this reader's `head`/`hhea` model applies to (plan 17
+    §3 rule 4, plan 10 §2.3's own "no verified model for `.cft` height").
+
+    **Imported lazily**, not at module level: `wfb.fonts` (the package
+    `wfb.fonts.fetch_system` lives in) has its own `__init__` that imports
+    `wfb.fonts.fallback`, which imports `FontMetric` back out of *this*
+    module -- importing `wfb.fonts` while `wfb.devices` is still mid-load
+    would be a real cycle. Calling this only from inside
+    :attr:`Device.system_fonts` (a `cached_property`, never touched until a
+    caller already holds a fully-constructed `Device`) means `wfb.devices`
+    has always finished loading by the time this import runs.
+    """
+    from .fonts import fetch_system
+
+    root = fetch_system.garmin_font_root()
+    if root is None:
+        return None
+    found = fetch_system.garmin_any_file(filename, root)
+    if found is not None and found.suffix.lower() in (".ttf", ".otf"):
+        return found
+    return None
 
 
 @dataclass(frozen=True)
@@ -69,10 +181,29 @@ class FontMetric:
     (``size_pt * ppi / 72``, only known when the device file gives both a
     point ``size`` and a top-level ``ppi``), and ``ascent_px``/``height_px``
     are the device's own published values where it bothers to state them
-    (about a third of `ww` `ttf` entries do). All three stay `None` for a
-    bitmap entry -- its `.cft` carries height/ascent directly, so there is
-    nothing here to estimate -- and also when a TTF entry's own data is
-    incomplete; `wfb.fonts.fallback` derives whatever is missing from a
+    (about a third of `ww` `ttf` entries do).
+
+    **A third source (plan 17), for a device the scraped reference has no
+    page for at all** (the fenix 9 family): when a standard `FONT_*` symbol
+    (the documented vocabulary, `_documented_font_symbols`) has nothing from
+    either loop above, and its `simulator.json` `ww` entry's `filename`
+    resolves to a real, locatable `.ttf`/`.otf` under the user's own Garmin
+    font root (`_locate_garmin_outline_font` -- local files only, never a
+    download), `size_px` itself is *derived* from that file's own `head`/
+    `hhea` tables (`_sfnt_head_hhea`, a stdlib `struct` reader) rather than
+    read from a scrape: `size_px = round(em_px * (ascent - descent) /
+    unitsPerEm)`, with `em_px` set the same way the second loop's does. Both
+    `face`/`ascent_px` stay `""`/`None` here too, matching the second loop's
+    own shape -- `wfb.fonts.fallback` already derives the ascent from the
+    located TTF once one is found again at draw/measure time. This source
+    never fires for a device the scrape already covers, or for a symbol
+    outside the vocabulary, or without the user's own licensed Garmin fonts
+    installed.
+
+    All three stay `None` for a bitmap entry -- its `.cft` carries height/
+    ascent directly, so there is nothing here to estimate -- and also when a
+    TTF entry's own data is incomplete; `wfb.fonts.fallback` derives whatever
+    is missing from a
     *located* TTF's own `hhea` table instead in that case (kept out of this
     module so ``wfb.devices`` never needs Pillow/fontTools: see that
     module's docstring).
@@ -559,6 +690,27 @@ class Device:
         that derivation happens there instead, lazily, only for a symbol
         actually referenced). An entry with no `height` is simply left out --
         the same "not checked" degradation as a totally unknown symbol.
+
+        **A third source (plan 17), only for a symbol still missing after
+        both loops above** -- a device the scraped reference has no page for
+        at all (the fenix 9 family: `fenix947mm`, `fenix9prosolar47mm`,
+        `fenix9prosolar51mm`). For each of the 9 standard `FONT_*` symbols
+        (`_documented_font_symbols`'s vocabulary) whose own `ww` entry is a
+        `type: "ttf"` with a point `size`, when the device has a `ppi` and
+        that entry's `filename` resolves to a real, locatable `.ttf`/`.otf`
+        under the user's own Garmin font root (`_locate_garmin_outline_font`
+        -- never the free-stand-in registry, and never a `.cft`), `size_px`
+        itself is derived from that file's own `head.unitsPerEm`/
+        `hhea.ascent`/`hhea.descent` (`_sfnt_head_hhea`, a stdlib `struct`
+        reader): `size_px = round(em_px * (ascent - descent) / unitsPerEm)`,
+        `em_px` computed the same `size * ppi / 72` way as the second loop's.
+        No scraped device gains a symbol from this (checked against every
+        installed device that does have a scrape): a scraped device's `fixed`
+        table already covers every symbol this loop would otherwise reach,
+        so the first loop's `if symbol in metrics` guard always wins first.
+        Without the user's own licensed Garmin fonts installed, this source
+        never fires and an unscraped device stays "not checked", exactly as
+        before (`docs/limitations.md`).
         """
         fixed = self._scraped.get("fonts", {}).get("default", {}).get("fixed", {})
         ppi = self.simulator.get("ppi")
@@ -607,6 +759,27 @@ class Device:
                 symbol, "", sim_entry.get("filename", ""), int(height),
                 em_px, ascent_px, int(height),
             )
+
+        if ppi:
+            vocabulary = _documented_font_symbols()
+            for symbol, sim_entry in sim_fonts.items():
+                if symbol in metrics or sim_entry.get("type") != "ttf":
+                    continue
+                if symbol not in vocabulary or "size" not in sim_entry:
+                    continue
+                filename = sim_entry.get("filename")
+                if not filename:
+                    continue
+                path = _locate_garmin_outline_font(filename)
+                if path is None:
+                    continue
+                sfnt = _sfnt_head_hhea(str(path))
+                if sfnt is None:
+                    continue
+                units_per_em, ascent, descent = sfnt
+                em_px = sim_entry["size"] * ppi / 72
+                size_px = round(em_px * (ascent - descent) / units_per_em)
+                metrics[symbol] = FontMetric(symbol, "", filename, size_px, em_px, None, size_px)
         return metrics
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid

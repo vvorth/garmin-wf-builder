@@ -134,8 +134,11 @@ of a "g" or "y"). `Dc.drawText` has no bottom-justify flag, so it draws by
 subtracting the font's own on-device `getFontHeight` from the anchor -- exact
 even for a system font, whose pixel height this compiler only knows at build
 time from the SDK's published device reference, the installed device's
-`simulator.json`, or its `.cft` font. `vertical_align: baseline` is a build
-error naming `bottom`.
+`simulator.json`, or its `.cft` font -- or, for a device the SDK's reference
+has no page for at all, derived from a located real `.ttf`/`.otf`'s own
+`head`/`hhea` tables when the user's own licensed Garmin fonts are installed
+(`docs/research/10-system-fonts.md` §3.1). `vertical_align: baseline` is a
+build error naming `bottom`.
 
 #### `outline:` — the stamped ring
 

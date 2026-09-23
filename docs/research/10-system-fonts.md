@@ -203,6 +203,58 @@ run:
 ./.venv/bin/python tools/research/font_metric_check.py --fonts-dir <dir>
 ```
 
+### 3.1 Deriving `size_px` for a device with no scraped page at all (plan 17, VERIFIED)
+
+The SDK's scraped device reference has no pages for the fenix 9
+family: of the 20 installed devices, `fenix947mm`, `fenix9prosolar47mm`
+and `fenix9prosolar51mm` have an **empty** `Device.system_fonts` before
+this, so every `text` element degrades to "not checked" and `wfb preview`
+draws no system-font text at all.
+
+Checked 2026-09-23 against **Garmin's own TTFs** (`~/.Garmin/ConnectIQ/Fonts`,
+copied from `vendor/fonts/` by `tools/setup-env.sh`): the same em/hhea model
+above, run the other way around (`size_px = round(em_px * (hhea.ascent -
+hhea.descent) / head.unitsPerEm)`), reproduces **45 of 45** scraped
+`size_px` values exactly, 0 off, across every installed device that is
+both scraped and has `ww` `type: "ttf"` entries with a point `size` (that
+includes fenix847mm's `Roboto-Regular` -- 37/47/53/61/71 -- and
+`Bionic_Medium` -- 113/153/173/210). The unscraped fenix 9 devices'
+`simulator.json` files carry exactly the same two inputs the model needs
+(a point `size` and a top-level `ppi`), for the same font families:
+
+| device | ppi | `ww` `type: "ttf"` fonts |
+|---|---|---|
+| `fenix947mm` | 326 | `Roboto-Regular`, `Bionic_Medium` -- the same sizes as `fenix847mm` to ±0.003 pt |
+| `fenix9prosolar47mm` | 202 | `RobotoCondensed-Bold`, `Bionic_semibold` |
+| `fenix9prosolar51mm` | 202 | `RobotoCondensed-Bold`, `Bionic_semibold` |
+
+`fenix947mm`'s derived values are therefore identical to `fenix847mm`'s
+scraped ones -- `FONT_XTINY`…`FONT_NUMBER_THAI_HOT` = 37, 47, 53, 61, 71,
+113, 153, 173, 210 -- confirmed by running the real installed device
+database (`wfb.devices.Device.system_fonts`, not this script) with the
+real Garmin font root. `fenix9prosolar47mm`/`51mm` derive their own
+distinct values from `RobotoCondensed-Bold`/`Bionic_semibold` at their own
+`ppi`/point sizes (21/29/32/38/40/58/65/99/121 and
+22/30/34/38/42/62/69/107/129 respectively).
+
+**What ships is narrower than this script's own reach.** `wfb.devices`
+stays free of Pillow/fontTools (this module's own docstring), so
+`Device.system_fonts`' third source (`docs/lore/codegen.md`'s
+"system-font metrics" entry) reads `head.unitsPerEm`/`hhea.ascent`/
+`hhea.descent` with a **stdlib `struct` reader** instead of fontTools --
+parsing the sfnt table directory directly, `head` at offset 18 and `hhea`
+at offsets 4/6 (`wfb.devices._sfnt_head_hhea`). It only fires for the 9
+standard `FONT_*` symbols (`FONT_XTINY`…`FONT_NUMBER_THAI_HOT` -- the
+documented vocabulary, minus the symbols with no direct `ww` counterpart
+like `FONT_GLANCE`/`FONT_AUX1`), only when nothing scraped or stated
+already covers the symbol, and only when the user's own licensed Garmin
+fonts are installed and locatable as a real `.ttf`/`.otf` (never the
+free-stand-in registry, and never a `.cft` -- §10.6 below already found no
+verified model for bitmap height). **No scraped device gains a symbol
+from this**: checked against every installed device with a scrape, the
+first loop (the scraped table) already covers every symbol this source
+would otherwise reach.
+
 ---
 
 ## 4. Mapping rationale, by family

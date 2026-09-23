@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/` (open: 17, derived system-font metrics; built plans are deleted — see `docs/CLAUDE.md`) |
+| proposals written but not built | `docs/plans/` (none open right now; built plans are deleted — see `docs/CLAUDE.md`) |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
