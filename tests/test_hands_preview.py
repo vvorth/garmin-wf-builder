@@ -98,6 +98,12 @@ def test_the_default_sample_time_still_renders(resolved):
 #: exercising hands-in-AOD. A small, self-contained hands fixture with its
 #: own `aod: show` is what `test_hands_codegen.py`'s own `NO_HANDS`/
 #: `SECONDS_NEVER` constants already do for the same reason.
+#:
+#: `mask: false` (plan 16): these tests check single exact pixels along a
+#: thin hand line, which the pixel mask (on by default) would black out on
+#: three renders in four -- an orthogonal concern with its own coverage in
+#: `tests/test_aod_mask_preview.py`, not something this file's hand-geometry
+#: tests should have to account for.
 HANDS_AOD = """
 format: 1
 face:
@@ -107,6 +113,8 @@ targets: [fenix8solar47mm]
 palette:
   bg: "#000000"
   fg: "#FFFFFF"
+aod:
+  mask: false
 hands:
   clock:
     hour:

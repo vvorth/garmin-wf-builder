@@ -33,7 +33,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-from . import catalog, complications, expr, formatting
+from . import aod_mask, catalog, complications, expr, formatting
 from .catalog import Type
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
@@ -157,6 +157,16 @@ class PreviewOptions:
     #: renderer makes (plan 12 R1.5) -- today there was no way to point a
     #: preview at a font root at all.
     fonts_root: str | None = None
+    #: Apply the face's own `aod: {mask: ...}` (plan 16) when rendering
+    #: `--aod` -- `wfb.aod_mask.apply`, using the frame's own minute
+    #: (`time` above, or the sample clock). `True` by default, matching
+    #: `Face.aod_mask`'s own default: an ordinary `--aod`/`--heatmap`/
+    #: `--minute` preview shows exactly what the device will, mask
+    #: included. `check_aod_burn_in` sets this `False` so it can render the
+    #: frame once, unmasked, and apply each of the four phases itself
+    #: (worst-of-four, not just the frame's own minute's phase) -- the one
+    #: caller this field exists for besides the CLI.
+    aod_mask: bool = True
 
 
 #: `SystemFace.match` levels a stand-in warning is owed (plan 12 R1.3):
@@ -347,6 +357,17 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
         if placed.element.layout is not None and placed.element.layout != active_layout:
             continue
         renderer.render_element(placed)
+
+    if options.aod and resolved.face.aod_mask and options.aod_mask:
+        # plan 16: the same moving 2x2 mask the device applies, over the
+        # frame's own minute -- `values["time.minute"]` is exactly
+        # `options.time`'s minute when given, else the sample clock's, so
+        # this agrees with every other `time.*`-bound element already drawn
+        # above. Runs before `_quantise_mip64`/`_mask_round`: quantising a
+        # pure-black masked pixel is a no-op (black is already an exact MIP
+        # palette entry), but doing it after would let a stray anti-aliased
+        # fringe on the round bezel crop leak back in as non-black.
+        image = aod_mask.apply(image, int(values["time.minute"]), scale)
 
     if options.quantise and device.display_colors == 64:
         image = _quantise_mip64(image)

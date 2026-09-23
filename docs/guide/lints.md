@@ -37,7 +37,7 @@ messages; see `wfb/lint.py` if unsure.
 | `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
 | `aod-unreachable` | an element's own `aod:` (a `show` or an override) can never draw because an ancestor group already writes `aod: hide`, which is sticky |
 | `aod-empty` | an AMOLED target where nothing in the design draws in always-on display |
-| `aod-burn-in` | the rendered `--aod` frame lights over 10% of pixels or 10% of luminance (Garmin's rule) at a sampled worst-case time; under the threshold this is an informational `note` instead, naming the same figures |
+| `aod-burn-in` | the rendered `--aod` frame -- masked, at its worst of 4 mask phases, unless `aod: {mask: false}` -- lights over 10% of pixels or 10% of luminance (Garmin's rule) at a sampled worst-case time; under the threshold this is an informational `note` instead, naming the same figures |
 
 ## Lint suppression
 

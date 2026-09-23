@@ -281,11 +281,12 @@ This needs no alpha, no `BufferedBitmap` and no graphics-pool memory — only
 off first (`dc has :setAntiAlias`, the same guard `applyAntiAlias` uses) so
 the 1px strips land on exact pixels.
 
-**Not applied by preview or the burn-in lint yet.** `wfb preview --aod`
-currently shows the unmasked frame, and `aod-burn-in` scores the unmasked
-render — both are slice 2 of plan 16, not yet built. Until then, a design's
-actual on-device lit-pixel/luminance figures under the mask will read lower
-than what preview and the lint currently report.
+**Applied by both preview and the burn-in lint.** `wfb preview --aod`,
+`--minute` and `--heatmap` all show the masked frame (`wfb.aod_mask.apply`,
+using each frame's own clock minute), and `aod-burn-in` scores the masked
+frame too, worst case over all four phases (below) — see "Preview" and
+"Lints" below for the details of each. `aod: {mask: false}` turns all three
+back into exactly what they showed before this mask existed.
 
 ## When the AOD frame runs
 
@@ -373,6 +374,13 @@ rounding codegen uses (`wfb.palette.dim_channel`, shared by both), so a
 colour that this preview draws and a colour the generated `WfbColor.dim`
 computes on the device agree to the pixel.
 
+The moving pixel mask (above) applies last, over the frame's own clock
+minute — `--time`/`--minute` when given, otherwise the sample clock's own
+minute (10:09) — exactly the way `WfbAodMask.apply` masks the device's own
+frame (`wfb.aod_mask.apply`, plan 16, ADR 0004's shared-renderer stance
+extended to this too). `aod: {mask: false}` renders the plain unmasked
+frame instead, same as before the mask existed.
+
 `--asleep` is the narrower, older flag: it only hides an `awake`-only
 second hand (`seconds: awake`), on any device shape, without touching AOD
 set membership at all — useful for previewing analog hands with no `aod:`
@@ -392,6 +400,13 @@ simulator's Screen Heat Map, which is unreachable here, and answers the
 scores one sampled frame. The heatmap only varies the clock; every other
 source stays at its sample value. It takes `--style` and `-o -` like any
 other preview, but not `--all-styles`, `--time` or `--minute`.
+
+With the mask on (the default), the heatmap's own peak share is **at most
+25%** by construction — every pixel is lit at most one minute in four,
+whatever the design draws — and `--minute`/`--time` show whichever of the
+four phases that minute's clock lands on. `aod: {mask: false}` removes that
+ceiling; the heatmap then reports whatever the unmasked design actually
+does (potentially 100% on a static pixel).
 
 ## Lints
 
@@ -436,6 +451,18 @@ other preview, but not `--all-styles`, `--time` or `--minute`.
   minute, which is what the simulator's own Screen Heat Map does
   (research 11 §1.5) and is unreachable in this environment.
 
+  **With the pixel mask on (the default), the figures are the masked
+  frame's, worst of all four mask phases at each sample time — 8
+  renderings scored, not 2.** Each sample time is rendered once unmasked
+  and then `wfb.aod_mask.apply` is applied for each phase in turn
+  (`wfb.lint.check_aod_burn_in`), since a design's real risk is whichever
+  phase turns out worst, not just whichever phase the sample minute's own
+  clock happens to land on — every phase recurs every hour regardless. The
+  message names the phase the worst figures came from (`phase N, dx=.. dy=..`),
+  and the top-contributor shares are computed at that same phase, so they
+  stay consistent with each other. `aod: {mask: false}` turns this back
+  into exactly the unmasked-frame check this lint always was.
+
   **Reported per element.** Every AOD-shown element is re-rendered *alone*
   (the same renderer, given just that one element — the cheapest correct
   attribution, and no second renderer) to rank how many of the frame's lit
@@ -455,12 +482,14 @@ other preview, but not `--all-styles`, `--time` or `--minute`.
   shape `graphics-pool` already uses. On a MIP target this check never
   runs at all (D5: `aod:` doesn't apply there).
 
-  **What it cannot see:** the 3-minute static-pixel rule (a property of a
-  *sequence* of frames, not the one this renders — `--heatmap` above
-  approximates that separately), any time or data
-  combination other than the two sampled, and Garmin's actual luminance
-  formula, which is unpublished. See
-  [`docs/limitations.md`](../limitations.md) §3.
+  **What it cannot see:** with the mask on, the 3-minute static-pixel rule
+  holds *by construction* (plan 16: no pixel is ever lit two consecutive
+  minutes), so this check no longer needs to see it — with `mask: false`
+  that guarantee is gone and it is once again a property of a *sequence* of
+  frames this check cannot see (`--heatmap` above approximates it). Either
+  way, this still cannot see any time or data combination other than the
+  two sampled, and Garmin's actual luminance formula, which is unpublished.
+  See [`docs/limitations.md`](../limitations.md) §3.
 
 See [Lints and suppression](lints.md) for the general mechanism.
 

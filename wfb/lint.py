@@ -1976,6 +1976,20 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
     1,440-minute scan (research 11 §1.5's own heat map tool is
     authoritative and unreachable here).
 
+    **The pixel mask (plan 16), when `resolved.face.aod_mask` is on, is
+    scored too -- worst of 4 phases, not just the sampled minute's own
+    phase.** Each sample time is rendered once, unmasked
+    (`PreviewOptions(..., aod_mask=False)`, so this stays the one renderer
+    ADR 0004 already commits to -- `render` itself never applies the mask
+    here), and then `wfb.aod_mask.apply` is applied for each of the 4
+    phases in turn and measured separately: the worst `max(lit, luminance)`
+    over all `(sample time, phase)` pairs wins, not just the phase the
+    sample minute's own clock happens to land on -- a design's real risk is
+    whichever phase is worst, and every phase recurs every hour regardless
+    of which minute this check happens to sample. With `aod: {mask: false}`
+    this whole extra dimension collapses away and the check measures
+    exactly the unmasked frame, unchanged from before this mask existed.
+
     **Per-element attribution (plan 14 slice 4 §3): render each element
     alone.** For every AOD-shown leaf (`element.aod is not None`, groups
     excluded -- they draw nothing, `wfb.preview.render`'s own loop already
@@ -1983,13 +1997,16 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
     that one `Placed` (`dataclasses.replace`, cheap -- geometry is already
     absolute, resolved at build time, ADR 0004, so an isolated element
     renders exactly the pixels it would have contributed to the full
-    frame) gives that element's own lit-pixel count. Ranked descending,
-    the top few are named in the message, and the diagnostic is **anchored
-    at the biggest contributor's own source line** -- never at the face
-    `aod:` line, which plan 14 slice 4 §3 allows as a fallback only when no
-    element can be blamed; here there always is one, because this check
-    returns early when the AOD set is empty (`aod-empty` already reports
-    that case).
+    frame) gives that element's own lit-pixel count. When the mask is on,
+    the solo render is also rendered unmasked and then masked at the same
+    *worst* phase the frame-level figure above settled on -- the same
+    phase for every element, so shares still sum against one consistent
+    frame. Ranked descending, the top few are named in the message, and the
+    diagnostic is **anchored at the biggest contributor's own source
+    line** -- never at the face `aod:` line, which plan 14 slice 4 §3
+    allows as a fallback only when no element can be blamed; here there
+    always is one, because this check returns early when the AOD set is
+    empty (`aod-empty` already reports that case).
 
     **Severity and suppression.** Over 10% (lit pixels *or* luminance,
     `AOD_BURN_IN_THRESHOLD`) is `error`, code `aod-burn-in` -- but, unlike
@@ -2022,27 +2039,41 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
         return  # aod-empty already reports this face; nothing here to measure or blame
 
     from dataclasses import replace as _dc_replace
+    from . import aod_mask as _aod_mask
     from . import preview as _preview
 
+    mask_on = resolved.face.aod_mask
     mask = _aod_burn_in_mask(device.width, device.height, device.shape)
 
-    best: tuple[float, float, int, tuple[int, int, int]] | None = None
+    # `aod_mask=False` on every render this check makes: whether or not the
+    # face wants the mask, this check applies it itself (below) so it can
+    # score every phase independently rather than only the one the sample
+    # minute's clock happens to land on -- `wfb.preview.render` never
+    # applies the mask here, so there is still exactly one renderer.
+    best: tuple[float, float, int, tuple[int, int, int], int | None] | None = None
     for sample_time in AOD_BURN_IN_SAMPLE_TIMES:
         options = _preview.PreviewOptions(scale=1, quantise=True, mask_shape=False, aod=True,
-                                          time=sample_time, sample=AOD_BURN_IN_SAMPLE)
+                                          time=sample_time, sample=AOD_BURN_IN_SAMPLE,
+                                          aod_mask=False)
         image = _preview.render(resolved, options)
-        lit_fraction, luminance_fraction, lit_pixels, _ = _aod_burn_in_measure(image, mask)
-        if best is None or max(lit_fraction, luminance_fraction) > max(best[0], best[1]):
-            best = (lit_fraction, luminance_fraction, lit_pixels, sample_time)
-    lit_fraction, luminance_fraction, total_lit_pixels, worst_time = best
+        phases = range(4) if mask_on else (None,)
+        for phase in phases:
+            scored = _aod_mask.apply(image, phase) if phase is not None else image
+            lit_fraction, luminance_fraction, lit_pixels, _ = _aod_burn_in_measure(scored, mask)
+            if best is None or max(lit_fraction, luminance_fraction) > max(best[0], best[1]):
+                best = (lit_fraction, luminance_fraction, lit_pixels, sample_time, phase)
+    lit_fraction, luminance_fraction, total_lit_pixels, worst_time, worst_phase = best
     total_lit_pixels = max(total_lit_pixels, 1)  # guard the (all-black) division below
 
     solo_options = _preview.PreviewOptions(scale=1, quantise=True, mask_shape=False, aod=True,
-                                           time=worst_time, sample=AOD_BURN_IN_SAMPLE)
+                                           time=worst_time, sample=AOD_BURN_IN_SAMPLE,
+                                           aod_mask=False)
     contributions = []
     for placed in shown:
         solo = _dc_replace(resolved, items=[placed])
         solo_image = _preview.render(solo, solo_options)
+        if worst_phase is not None:
+            solo_image = _aod_mask.apply(solo_image, worst_phase)
         _, _, solo_lit_pixels, _ = _aod_burn_in_measure(solo_image, mask)
         contributions.append((placed, solo_lit_pixels))
     contributions.sort(key=lambda pair: pair[1], reverse=True)
@@ -2053,14 +2084,24 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
     anchor = contributions[0][0]
 
     hh, mm, _ = worst_time
-    message = (
-        f"{device.id}: the AOD frame lights {lit_fraction * 100:.1f}% of pixels and "
-        f"{luminance_fraction * 100:.1f}% of luminance at {hh:02d}:{mm:02d} (Garmin's 10% "
-        f"rule, research 11 §1.2) -- top contributor: {top_line}"
-    )
+    if worst_phase is not None:
+        dx, dy = _aod_mask.offset(worst_phase)
+        message = (
+            f"{device.id}: with the pixel mask (phase {worst_phase}, dx={dx} dy={dy}), the "
+            f"AOD frame lights {lit_fraction * 100:.1f}% of pixels and "
+            f"{luminance_fraction * 100:.1f}% of luminance at {hh:02d}:{mm:02d} (Garmin's 10% "
+            f"rule, research 11 §1.2) -- top contributor: {top_line}"
+        )
+    else:
+        message = (
+            f"{device.id}: the AOD frame lights {lit_fraction * 100:.1f}% of pixels and "
+            f"{luminance_fraction * 100:.1f}% of luminance at {hh:02d}:{mm:02d} (Garmin's 10% "
+            f"rule, research 11 §1.2) -- top contributor: {top_line}"
+        )
     notes = [
         f"worst of {len(AOD_BURN_IN_SAMPLE_TIMES)} sampled clock times "
         + ", ".join(f"{h:02d}:{m:02d}" for h, m, _ in AOD_BURN_IN_SAMPLE_TIMES)
+        + (" x 4 mask phases" if worst_phase is not None else "")
         + ", full battery, wfb.preview.SAMPLE's other defaults unchanged -- not every "
           "possible time/data value",
         "lit: any pixel rendering other than pure black (research 11 §1.1); luminance: mean "
@@ -2070,8 +2111,15 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
         "checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel "
         "share; Venu 2+: luminance share), since the device files do not say which generation "
         "a target is",
-        "cannot see the 3-minute static-pixel rule or any minute but the sampled ones "
-        "(`wfb preview --heatmap` approximates both) -- docs/limitations.md",
+        (
+            "the moving pixel mask (aod: {mask: ...}, on by default, plan 16) guarantees no "
+            "pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by "
+            "construction -- this still cannot see any minute or data value but the sampled "
+            "ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md"
+            if worst_phase is not None else
+            "cannot see the 3-minute static-pixel rule or any minute but the sampled ones "
+            "(`wfb preview --heatmap` approximates both) -- docs/limitations.md"
+        ),
         f"share is each element's own lit-pixel count against the full frame's "
         f"{total_lit_pixels:,} lit pixels at {hh:02d}:{mm:02d} -- overlapping elements' shares "
         f"can sum past 100%",

@@ -1,6 +1,6 @@
 """`aod: {mask: ...}` (plan 16 slice 1): the moving 2x2 pixel mask over the
 AOD frame -- format + codegen only. Host-side (`wfb/aod_mask.py`, preview,
-heatmap, lint) is slice 2 and does not exist yet.
+heatmap, lint) is slice 2, in `tests/test_aod_mask_preview.py`.
 
 Each test names, in its own docstring, the contrast it drives -- the same
 discipline `tests/test_aod.py` documents at its own top

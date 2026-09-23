@@ -1087,7 +1087,13 @@ elements:
     resolved = _resolved(text, write_design, bag, db)
     cx, cy = resolved.device.width // 2, resolved.device.height // 2
     awake = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False))
-    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True))
+    # `aod_mask=False`: this test is about the colour override, not plan
+    # 16's pixel mask (on by default), which would black out this exact
+    # pixel on some clock minutes regardless of which colour got drawn --
+    # an orthogonal concern with its own coverage in
+    # `tests/test_aod_mask_preview.py`.
+    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True,
+                                             aod_mask=False))
     assert awake.getpixel((cx, cy)) == (255, 255, 255)  # palette.fg
     assert asleep.getpixel((cx, cy)) == (0x55, 0x55, 0x55)  # palette.dim
 
@@ -1364,7 +1370,10 @@ elements:
 
     resolved = _resolved(text, write_design, bag, db)
     cx, cy = resolved.device.width // 2, resolved.device.height // 2
-    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True))
+    # `aod_mask=False`: this test is about the dimmed colour value, not
+    # plan 16's pixel mask (on by default) -- see the sibling test above.
+    asleep = render(resolved, PreviewOptions(scale=1, mask_shape=False, quantise=False, aod=True,
+                                             aod_mask=False))
     assert asleep.getpixel((cx, cy)) == (0x2B, 0x2B, 0x2B) == (43, 43, 43)
 
 
@@ -1525,8 +1534,15 @@ def test_aod_burn_in_names_the_right_top_contributor(write_design, bag, db):
     -- and anchor on -- the *actually* bigger contributor, not just the
     first or the last one declared. Must fail against an implementation
     that always blames the first/last AOD-shown element regardless of its
-    real share."""
-    text = BASE + """
+    real share.
+
+    `mask: false`: this test is about attribution/ranking, not plan 16's
+    pixel mask -- masking this design's lit fraction down to about a
+    quarter would drop it under `AOD_BURN_IN_THRESHOLD` and turn the
+    `error` this test checks for into a `note` (masking's own severity
+    interaction has its own coverage in `tests/test_aod_mask_preview.py`).
+    """
+    text = BASE.replace("palette:\n", "aod:\n  mask: false\npalette:\n") + """
 elements:
   - id: tiny
     type: shape
@@ -1614,10 +1630,16 @@ def test_the_aod_example_stays_clean_under_burn_in(write_design, bag, db):
 def test_heatmap_counts_each_minute_separately(write_design, bag, db):
     """A clock's digits change from minute to minute and a block does not, so
     a real sum has both full-white pixels and partial ones. Rendering one
-    frame, or OR-ing frames together, would leave no partial pixel."""
+    frame, or OR-ing frames together, would leave no partial pixel.
+
+    `mask: false`: this test is about the heatmap's own summing logic, not
+    plan 16's pixel mask (on by default), which would cap every pixel's
+    share at 25% regardless of how the summing worked -- the mask's own
+    heatmap ceiling has its own coverage in
+    `tests/test_aod_mask_preview.py`."""
     from wfb.preview import PreviewOptions, render_aod_heatmap
 
-    text = BASE + """
+    text = BASE.replace("palette:\n", "aod:\n  mask: false\npalette:\n") + """
 elements:
   - id: clock
     type: text
