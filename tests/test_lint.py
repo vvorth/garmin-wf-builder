@@ -1610,8 +1610,9 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     and `wfb.lint.check_vector_font_availability`'s `font-unavailable`, not
     a `check_api_gated` "kind" at all -- so it is excluded from the
     comparison below rather than added to it. `amoled_target`/`burn_in_
-    field_guarded` (plan 14) are a fourth, unrelated pair: the AOD gate's
-    own build-time/runtime halves, governed by `wfb.emit.monkeyc.view`
+    field_guarded`/`display_mode_guarded` (plan 14) are a fourth, unrelated
+    group: the AOD gate's own build-time/runtime halves (the last one added
+    by slice 6, research 11 §6 F), governed by `wfb.emit.monkeyc.view`
     directly, never by `check_api_gated` -- excluded the same way."""
     from dataclasses import fields as dc_fields
 
@@ -1619,7 +1620,7 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
 
     guards_field_names = (
         {f.name for f in dc_fields(Guards)}
-        - {"vector_fonts", "amoled_target", "burn_in_field_guarded"}
+        - {"vector_fonts", "amoled_target", "burn_in_field_guarded", "display_mode_guarded"}
     )
     assert guards_field_names == {"complications", "fields"}
 

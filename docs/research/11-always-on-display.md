@@ -202,6 +202,21 @@ sleep/wake transition, guarded by `Device.has_field` per D1
 still unread, so the `DISPLAY_MODE_OFF` distinction this paragraph names
 remains open.
 
+**Superseded again 2026-09-23 (plan 14 slice 6, §6 option F):** the
+`DISPLAY_MODE_OFF` distinction is closed. `System.getDisplayMode()` is now
+read at the top of the AOD frame, on a device that has the symbol
+(`has`-guarded per device when some target lacks it, `wfb.availability.
+Guards.display_mode_guarded`, mirroring `burn_in_field_guarded`); a result
+of `DISPLAY_MODE_OFF` returns before any drawing, including the frame's own
+black clear. `DISPLAY_MODE_*`'s three constants are read too (as the
+comparison's own right-hand side); `Application.AppBase.onDisplayModeChanged`
+is still unread, by deliberate choice, not an oversight -- see ADR 0006's
+2026-09-23 amendment for why (`WatchFace.onUpdate` already runs once a
+minute while asleep regardless of display mode, so the callback would only
+shave a worst-case one-minute latency on a mode transition, at the cost of
+one more per-device symbol question). `docs/guide/always-on-display.md`
+"The `getDisplayMode` ladder" is the author-facing description.
+
 ### 3.3 `Device.is_amoled` decides exactly one thing
 
 **VERIFIED.** Its only consumer is `supports_partial_update`
@@ -350,7 +365,14 @@ Garmin's four pieces of guidance (§1.3) except by hiding elements outright.
   question, at the design's own default sample data, not a real day's
   worth of sensor readings.
 - **Whether `onEnterSleep` and `DISPLAY_MODE_LOW_POWER` ever disagree** on a
-  real AMOLED device is unverified.
+  real AMOLED device is unverified. Plan 14 slice 6 (§6 F) added a
+  `DISPLAY_MODE_OFF` check *inside* the window `onEnterSleep`'s own
+  `requiresBurnInProtection` read already opens -- it narrows that window,
+  it does not answer whether the window's own edges (`onEnterSleep`/
+  `onExitSleep` firing) ever land at a different moment than a
+  `DISPLAY_MODE_LOW_POWER`/`_HIGH_POWER` transition would. This is now
+  recorded in `docs/limitations.md` §3 as well, alongside every other AOD
+  claim this project cannot verify without real AMOLED hardware.
 
 ---
 
@@ -465,13 +487,31 @@ is not free. Three ways were considered:
 confirmed the only viable mechanism once option 2's premise (a `Dc`-side
 translate) checked out false.
 
-### F. Drive the AOD branch from the real API, not only `_sleeping`
+### F. Drive the AOD branch from the real API, not only `_sleeping` — **built, plan 14 slice 6**
 
 Add the FAQ's ladder (§2) behind `wfb/availability.py` guards: skip drawing
 entirely on `DISPLAY_MODE_OFF`, take the AOD branch on
 `DISPLAY_MODE_LOW_POWER`, and keep `_sleeping` as the fallback for devices
-without `getDisplayMode` — which is all three current targets. `AppBase.
-onDisplayModeChanged` requests the update.
+without `getDisplayMode` — which is all three MIP verification targets.
+
+**Built almost exactly as described**, with one deliberate narrowing:
+`System.getDisplayMode()` is read at the top of `_emit_aod_body`, guarded by
+`System has :getDisplayMode` on any build where some target lacks the
+symbol (`wfb.availability.Guards.display_mode_guarded`, computed the same
+way as `burn_in_field_guarded`); `DISPLAY_MODE_OFF` returns immediately,
+before the frame's own black clear (nothing an off panel could show is
+worth even that); `DISPLAY_MODE_LOW_POWER` needed no new branch at all --
+it is exactly the AOD frame this project already draws while `_aod`, so the
+ladder is one early exit added to the existing path, not a second path.
+**Not built:** `AppBase.onDisplayModeChanged` requesting an update on a
+mode change -- a deliberate choice, not an oversight (ADR 0006's
+2026-09-23 amendment has the full reasoning): `WatchFace.onUpdate` already
+runs once a minute while asleep regardless of which display mode that
+minute lands in, so the callback would only shave a worst-case one-minute
+latency off a transition away from `DISPLAY_MODE_OFF`, at the cost of one
+more per-device symbol question for unproven benefit. `docs/guide/
+always-on-display.md` "The `getDisplayMode` ladder" is the author-facing
+description; `tests/test_aod.py`'s slice-6 tests are the coverage.
 
 ### G. Prerequisite: add an AMOLED target
 
@@ -482,8 +522,7 @@ and §3.4 went unnoticed in the first place.
 
 ### Recommended sequence
 
-**G → A + B → C → D → E → F** as built (plan 14 slices 0-5; F, the
-`getDisplayMode` ladder, is slice 6 and still open).
+**G → A + B → C → D → E → F**, all built (plan 14 slices 0-6).
 
 Rationale: G first, because a guard nobody has watched fail is not a guard
 (root `CLAUDE.md` §7) and today nothing can fail. A + B are the format
@@ -494,8 +533,10 @@ is measured rather than estimated because the renderer is already there. E,
 originally recommended last (real requirement of §1.3, but the largest diff
 and the least verifiable without a device), landed as plan 14 slice 5 once
 D existed to check it against. F, removing the last guess from the runtime,
-remains open.
+landed as slice 6, closing plan 14 out.
 
-The open question for the user, since A changes the format's shape (root
-`CLAUDE.md` §7): **does `modes: [always_on]` change meaning (A), or does
-`aod:` land alongside the existing opt-in set, leaving `always_on` as it is?**
+The question A posed the user -- does `modes: [always_on]` change meaning,
+or does `aod:` land alongside the existing opt-in set -- was answered by a
+third option neither A nor the question anticipated: `aod:` *replaces*
+`modes: [always_on]` outright (plan 14 D3, ADR 0006's 2026-09-23
+amendment).

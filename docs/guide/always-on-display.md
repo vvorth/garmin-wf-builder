@@ -58,6 +58,15 @@ than per-element; see "Jitter" below for the one geometry change `aod:`
 does allow) and data bindings (`value:`, `series:`, `text:` — they would
 change what the sleep frame reads, and so its cost).
 
+**Hands and patterns restyle uniformly, not per part.** `hands.hour.parts[…]`
+and `pattern.parts[…]` are lists, and merging an override into a list by
+index is fragile — reordering the parts in the design would silently
+re-target the override. If per-part AOD control ever proves necessary, the
+next step is **wholesale list replacement** (`aod: {parts: [...]}`), never
+per-index patching. The awake-only second hand (`seconds: awake`) is
+unaffected by any of this: it is already hidden in AOD, the same as every
+other `awake`-only frame.
+
 ## Face level
 
 ```yaml
@@ -374,7 +383,54 @@ moments:
 
 The AOD frame always starts by clearing the screen to black before drawing
 anything, since `Dc` keeps its contents between `onUpdate` calls and the
-awake frame's own background (if any) never draws there.
+awake frame's own background (if any) never draws there — **unless the
+display itself is off** (below), in which case nothing is drawn at all, not
+even that clear.
+
+### The `getDisplayMode` ladder
+
+`_aod` only narrows "asleep, on a burn-in-protected device" — it says
+nothing about *which* of Garmin's own three display modes the panel is
+actually in right now. On a device that has `System.getDisplayMode`
+(`fenix847mm`/`fenix947mm`; research 11 §2), the AOD frame checks it before
+drawing anything:
+
+```monkeyc
+if (System.getDisplayMode() == System.DISPLAY_MODE_OFF) {
+    return;
+}
+```
+
+`DISPLAY_MODE_OFF` means the panel itself is unlit (`Toybox/System.html`:
+"Display is off"), so nothing this frame could draw would ever become
+visible — not even the black clear that would otherwise come next, which is
+why the check runs first and returns immediately, skipping the clear too.
+The next call that finds the mode back at `DISPLAY_MODE_LOW_POWER` clears
+and redraws fresh, so nothing is left stale by skipping a frame here.
+`DISPLAY_MODE_LOW_POWER` itself needs no separate handling: it is exactly
+the frame this project already draws while `_aod`, so the check above is an
+early exit added to the existing path, not a second one.
+
+**Guarded per device**, the same way `requiresBurnInProtection` already is:
+a mixed build (an AMOLED target alongside MIP ones — the common case, since
+`examples/features/aod/face.yaml` targets both) wraps the call in `System
+has :getDisplayMode`, because `monkeyc` compiles the one shared view once
+per device and a MIP target's own symbol table lacks it entirely (research
+11 §2). Only a build whose every target has the symbol — today, only an
+AMOLED-only build of `fenix847mm`/`fenix947mm` — emits the bare call. A
+device with neither `getDisplayMode` (every MIP device, and any older
+AMOLED device that predates it) keeps drawing the resolved `aod:` set on
+every asleep frame exactly as before this ladder existed:
+`requiresBurnInProtection` is the only signal such a device has ever had.
+
+`DISPLAY_MODE_*`'s own constants need no `has` guard of their own — unlike
+`getDisplayMode` (a method call), they are plain compile-time fields, and
+research 11 §2 confirms all three move together with `getDisplayMode` on
+every device checked so far. `Application.AppBase.onDisplayModeChanged` is
+deliberately **not** wired to request an update: `WatchFace.onUpdate`
+already runs once a minute while asleep regardless of which display mode
+that minute lands in, so a transition away from `DISPLAY_MODE_OFF` is
+picked up by the next scheduled update within that same minute either way.
 
 ## Preview
 
@@ -476,4 +532,6 @@ See [Lints and suppression](lints.md) for the general mechanism.
 - [`examples/features/aod/face.yaml`](../../examples/features/aod/face.yaml) — the "everything off but the time" shape, restyled, on `fenix847mm` (`wfb preview --aod`, above).
 - [Power modes and touch-and-hold](modes-and-interaction.md) — `modes:`, the orthogonal MIP partial-update axis.
 - `docs/research/11-always-on-display.md` — Garmin's own AMOLED rules and the design options this plan chose between.
-- `docs/plans/14-aod.md` — the plan this chapter documents, slice by slice.
+- Plan 14 is what built this chapter, slice by slice; it is deleted now that
+  every slice has shipped — `docs/CLAUDE.md`'s "Built plans are deleted"
+  table has the `git show` incantation to read it as proposed.

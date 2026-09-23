@@ -334,7 +334,7 @@ def _check_modes_always_on(doc: YamlDocument, bag: Bag) -> list[list]:
             notes=["the always-on-display sleep frame is now 'aod:' -- a "
                    "per-element/group override, plus a face-wide "
                    "'aod: {default: hide|show}' -- not a mode to opt an "
-                   "element into (docs/plans/14-aod.md, D3)",
+                   "element into (docs/guide/always-on-display.md)",
                    "'modes:' now means only the two MIP partial-update "
                    "modes, 'active'/'low_power'"],
         )

@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/` (open: `14-aod.md`; built plans are deleted — see `docs/CLAUDE.md`) |
+| proposals written but not built | `docs/plans/` (none open right now; built plans are deleted — see `docs/CLAUDE.md`) |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -143,7 +143,8 @@ re-litigate these without new evidence.**
 4. **An `onPartialUpdate` overrun is permanent** for the app's lifetime.
    `setClip` is charged by clip *area*.
 5. **AMOLED forbids `onPartialUpdate`.** The targets are MIP, but 74/164
-   devices are AMOLED-class.
+   devices are AMOLED-class. An AMOLED target instead draws a constrained
+   sleep frame via `aod:` (§6) — see `docs/guide/always-on-display.md`.
 6. **API level does not decide availability.** Resolve symbols against
    `<id>.api.debug.xml` by fully qualified parent. (`fr955` is 5.2.0 and
    lacks `WatchFaceDelegate.onTap`.)
@@ -301,29 +302,20 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     platform lacks (plan 15, all three slices), reaching every draw shape
     those elements can take and checked by a new suppressible lint,
     `text-outline-interior`;
-  - `aod:` format, resolution, restyling, dimming, jitter and the burn-in
-    lint (plan 14 slices 1–5): per-element/group `hide`/`show`/override
-    block, a face-wide default, `_aod` emitted only when a target is
-    AMOLED, three suppressible lints (`aod-unreachable`, `aod-empty`,
-    `aod-burn-in`) — and every override key actually restyling the
-    generated AOD frame: inline ternaries (measured smaller than a second
-    per-element method), `filled:` toggling the draw call, a resource font
-    named only by an override loaded as a second resource in
-    `onEnterSleep`, a `static:` element's own override bypassing its
-    buffer, and `wfb preview --aod` matching all of it — plus `dim:`
-    scaling every drawn colour's luminance except an explicit override,
-    pre-computed at build time for a constant colour and by a small
-    `WfbColor.dim` runtime helper otherwise, matched exactly by preview —
-    plus `aod-burn-in` (research 11 §6 D, ADR 0008 check 8): lit-pixel and
-    luminance fractions **measured** from that same `--aod` render at a
-    sampled worst-case time, reported per element, `error` over Garmin's
-    10% rule (uniquely among this project's hard errors, suppressible) and
-    a `note` under it — plus `jitter:` (slice 5, §5.2), a deterministic
-    per-minute pixel offset (1–4px, face- or group-scoped, nearest wins
-    with no accumulation), one Python/Monkey C sequence pair
-    (`wfb/aod_jitter.py`/`runtime-lib/WfbJitter.mc`), `+ _aodDxN<n>`/
-    `_aodDyN<n>` appended unconditionally at every jittered coordinate
-    through every emitter, and `wfb preview --aod --minute N`/`--heatmap`.
+  - `aod:` (plan 14, all six slices, now deleted — `docs/CLAUDE.md`): the
+    AMOLED always-on-display sleep frame as per-element/group overrides on
+    the *one* design (`hide`/`show`/an override block reusing each kind's
+    own property names), resolved element > nearest ancestor group > face
+    default, restyled by inline ternaries at the draw call site; `dim:`
+    (luminance scaling), `jitter:` (a deterministic 1–4px per-minute
+    offset), and a measured burn-in lint (`aod-burn-in`, lit-pixel/
+    luminance fractions from the real render, ADR 0008 check 8) round it
+    out. `_aod` — and, since slice 6, a `getDisplayMode`/`DISPLAY_MODE_OFF`
+    early exit, per-device `has`-guarded — is emitted only when a target is
+    AMOLED, so an all-MIP build is byte-identical. Three suppressible
+    lints (`aod-unreachable`, `aod-empty`, `aod-burn-in`). `wfb preview
+    --aod` (`--minute N`/`--heatmap` for jitter) matches codegen exactly.
+    `docs/guide/always-on-display.md` is the full reference.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.

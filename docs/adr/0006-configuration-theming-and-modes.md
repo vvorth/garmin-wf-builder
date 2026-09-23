@@ -609,6 +609,85 @@ generates byte-identical source with or without `aod:` keys present. The
 AMOLED pixel/luminance estimate this section's bullet list named for
 "Phase 1.4" is plan 14 slice 4, still unbuilt.
 
+#### Amended (2026-09-23, plan 14, built): D1, D2, D4, D5, and the `getDisplayMode` ladder (D3's sibling decisions, plan 14 §7)
+
+Plan 14 (deleted once built — `docs/CLAUDE.md`'s "Built plans are deleted"
+table has the `git show` incantation and the slice commits) asked the user
+five questions on 2026-09-22; every
+recommendation was accepted. D3 (`always_on` removed outright) is recorded
+above, in its own right since it is the format change. The other four,
+recorded here as this ADR's own durable home for them:
+
+- **D1: how is "burn-in device" decided?** Both — build-time `Device.
+  is_amoled` (`wfb.availability.Guards.amoled_target`) decides whether the
+  shared view carries `_aod`/its sleep-hook bookkeeping/its `onUpdate`
+  branch **at all** (so an all-MIP build emits none of it, byte-identical to
+  a pre-plan-14 build), and runtime `System.getDeviceSettings().
+  requiresBurnInProtection` (`has`-guarded per device when some target
+  lacks the field, `Guards.burn_in_field_guarded`) selects within a mixed
+  target list, since the one shared view runs on every device in the build.
+- **D2: face default — `hide` or `show`?** **`hide`.** `show` looked
+  friendly but the slice-4 burn-in lint's own measurement (plan 14 §7,
+  reproduced in research 11 §3.4) showed `default: show` + `dim: 0.4` on
+  three existing examples clears the newer (Venu 2+) luminance rule
+  comfortably but fails the older (original Venu) lit-pixel rule outright on
+  a `showcase`-sized design (26.0% lit vs. the 10% ceiling) — dimming cuts
+  luminance but never makes a lit pixel *count* as off, so it is not a
+  universal fix for the older rule. `default: hide` needed a new lint of its
+  own, `aod-empty` (an AMOLED target where nothing draws in AOD at all), so
+  an unconverted design is never silently invisible instead of silently
+  bright.
+- **D4: name — `aod:` or `always_on:`?** **`aod:`** — short, and the
+  industry-standard abbreviation; `always_on` was the name being retired by
+  D3, so keeping it for the replacement key would have been confusing.
+- **D5: does `aod:` apply on MIP?** **No, AMOLED only**, following directly
+  from D1: a MIP device's `requiresBurnInProtection` reads `false` at
+  runtime (verified on all three MIP verification devices), so `_aod` never
+  goes true there and a MIP face's sleep frame stays exactly the awake
+  design — no separate schema rule was needed to enforce this, D1's own
+  runtime check already does.
+
+**Slice 6, built 2026-09-23: the FAQ's own `getDisplayMode` ladder
+(research 11 §6 F), the one option the recommended sequence (research 11
+§6, "G → A + B → C → D → E → F") left open when plan 14 was first written.**
+`_aod` (D1) narrows "asleep, on a burn-in-protected device" but says
+nothing about *which* of the FAQ's own three display modes
+(`System.getDisplayMode`/`DISPLAY_MODE_HIGH_POWER`/`_LOW_POWER`/`_OFF`,
+`Toybox/System.html`) the panel is actually in — `DISPLAY_MODE_OFF` means
+the panel itself is unlit, so drawing anything (even the AOD frame's own
+black clear) is wasted work. `wfb.emit.monkeyc.view._emit_aod_body` now
+checks this, on a device that has the symbol, before any drawing —
+`System.getDisplayMode() == System.DISPLAY_MODE_OFF` returns immediately,
+skipping even the black clear, since an off panel could not show it either.
+Guarded per device (`wfb.availability.Guards.display_mode_guarded`,
+computed the same way `burn_in_field_guarded` is): `fenix847mm`/
+`fenix947mm` both have `System.getDisplayMode` (research 11 §2, re-checked
+directly against `has_symbol`), every device this project's three MIP
+verification targets cover does not, so a mixed build emits `(System has
+:getDisplayMode) && (...)`, and only an AMOLED-only build whose every target
+has the symbol emits the bare call. A device lacking the symbol entirely
+keeps the pre-slice-6 behaviour — the resolved `aod:` set draws on every
+asleep frame, `_sleeping`/`requiresBurnInProtection` the only signal it has
+ever had, exactly D1's own fallback. `DISPLAY_MODE_LOW_POWER` continues to
+drive the AOD frame exactly as before (this slice adds an early exit, not a
+new draw path), and `DISPLAY_MODE_*`'s own constants need no runtime guard
+of their own — they are plain compile-time fields, not a method call, and
+move in lock-step with `getDisplayMode` on every device checked.
+`Application.AppBase.onDisplayModeChanged` (research 11 §2's fourth
+symbol) was considered and **not** wired to request an update: the FAQ's own
+worked example never calls it either, and `WatchFace.onUpdate` already runs
+once a minute while asleep regardless of which display mode that minute
+lands in (`Toybox/WatchUi/WatchFace.html`), so a transition away from
+`DISPLAY_MODE_OFF` is picked up by the next scheduled update within that
+same minute — adding the callback would only shave that worst-case latency,
+at the cost of one more per-device symbol question, and was left out as
+unproven benefit for real cost. All-MIP output stays byte-identical (no
+`getDisplayMode`/`DISPLAY_MODE_OFF` text appears at all when `Guards.
+amoled_target` is false) — `tests/test_aod.py`'s own byte-identical test
+now checks this new ladder specifically, not just `_aod` generally.
+`docs/guide/always-on-display.md` "When the AOD frame runs" carries the
+author-facing description.
+
 ### 6. Interactivity
 
 > **Amended after `docs/research/07-carousel-interaction.md`.** The original

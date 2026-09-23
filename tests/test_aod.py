@@ -542,6 +542,119 @@ elements:
     assert "private var _aod as Boolean = false;" in view
 
 
+def test_an_all_mip_build_has_no_display_mode_code_either(write_design, bag, db):
+    """The same byte-identical guarantee, restated for slice 6's own new
+    lines specifically: an all-MIP build must carry none of the
+    `getDisplayMode`/`DISPLAY_MODE_OFF` ladder, not just none of `_aod`
+    itself -- would fail against an implementation that forgot to gate the
+    new check behind `aod` (build-time `amoled_target`) the same way every
+    other `_aod_*` helper already is."""
+    without = MIP_BASE + """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+"""
+    view = _view_text(without, write_design, bag, db)
+    assert "DISPLAY_MODE_OFF" not in view
+    assert "getDisplayMode" not in view
+
+
+# --------------------------------------------------------------------------
+# the getDisplayMode ladder (plan 14 slice 6, research 11 §6 F): skip
+# drawing entirely on DISPLAY_MODE_OFF, guarded per device.
+
+
+def _view_text_multi(text, write_design, bag, db, device_ids):
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    devices = [db.get(device_id) for device_id in device_ids]
+    baked = {device.id: bake_fonts(face, device) for device in devices}
+    project = generate(face, devices, write_design("").parent / "build", baked)
+    return next(v for k, v in project.files().items() if k.endswith("View.mc"))
+
+
+_ONE_CLOCK = """
+elements:
+  - id: clock
+    type: text
+    text: "12:00"
+    color: palette.fg
+    aod: show
+"""
+
+
+def test_aod_frame_returns_early_on_display_mode_off_before_any_drawing(write_design, bag, db):
+    """`fenix847mm` has `getDisplayMode` (research 11 §2): the AOD frame
+    must check `DISPLAY_MODE_OFF` and return *before* the black clear and
+    every element draw, not merely skip individual draw calls -- would pass
+    against a broken implementation that checked the mode only around the
+    per-element calls (still clearing to black on an unlit panel) if the
+    ordering were not asserted directly."""
+    view = _view_text(BASE + _ONE_CLOCK, write_design, bag, db, device_id="fenix847mm")
+    body = view.split("function onUpdate(dc as Dc) as Void {")[1]
+    off_check = body.find("DISPLAY_MODE_OFF")
+    clear = body.find("dc.clear();")
+    assert off_check != -1, view
+    assert clear != -1, view
+    assert off_check < clear, (
+        "the DISPLAY_MODE_OFF check must run before the AOD frame clears to black"
+    )
+    guard_and_return = body[off_check - 200:clear]
+    assert "return;" in guard_and_return, guard_and_return
+
+
+def test_display_mode_check_is_has_guarded_when_a_target_lacks_the_symbol(write_design, bag, db):
+    """`fenix8solar47mm` has no `getDisplayMode` at all (research 11 §2) --
+    mixed into the same build as `fenix847mm` (constraint 6d: the shared
+    view is one file `monkeyc` compiles once per device), the call must be
+    wrapped in `System has :getDisplayMode`, mirroring
+    `Guards.burn_in_field_guarded`'s own shape. Would fail against an
+    implementation that always emits the bare call."""
+    text = BASE.replace("targets: [fenix847mm]", "targets: [fenix847mm, fenix8solar47mm]")
+    view = _view_text_multi(
+        text + _ONE_CLOCK, write_design, bag, db, ["fenix847mm", "fenix8solar47mm"]
+    )
+    assert (
+        "if ((System has :getDisplayMode) && "
+        "(System.getDisplayMode() == System.DISPLAY_MODE_OFF)) {"
+    ) in view
+
+
+def test_display_mode_check_is_unguarded_when_every_target_has_the_symbol(write_design, bag, db):
+    """`fenix847mm` and `fenix947mm` both have `getDisplayMode` -- an
+    AMOLED-only build of the two must skip the has-check, the same "no
+    guard for a thing every target has" rule `fields`/`vector_fonts`/
+    `burn_in_field_guarded` already follow. Would fail against an
+    implementation that always wraps the call in a has-check."""
+    text = BASE.replace("targets: [fenix847mm]", "targets: [fenix847mm, fenix947mm]")
+    view = _view_text_multi(
+        text + _ONE_CLOCK, write_design, bag, db, ["fenix847mm", "fenix947mm"]
+    )
+    assert "if (System.getDisplayMode() == System.DISPLAY_MODE_OFF) {" in view
+    assert "System has :getDisplayMode" not in view
+
+
+@pytest.mark.slow
+def test_display_mode_ladder_compiles_warning_free_on_a_mixed_build(
+        write_design, db, tmp_path, toolchain):
+    """The real `monkeyc` build, not just Python-level codegen: a mixed
+    AMOLED + MIP build must compile warning-free on every target with the
+    new `getDisplayMode` ladder in place -- the has-guarded form on the MIP
+    devices, the plain form is never reached on them since `_aod` stays
+    false there (D5)."""
+    text = BASE.replace(
+        "targets: [fenix847mm]", "targets: [fenix847mm, fenix8solar47mm, fr955]"
+    ) + _ONE_CLOCK
+    bag = Bag()
+    result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)
+
+
 # --------------------------------------------------------------------------
 # restyling (plan 14 slice 2): one ternary/branch per override key
 

@@ -900,6 +900,21 @@ fact on real hardware -- confirm in the host simulator (or on a real
 | **`graphics-pool`** | The pool size is exact (`graphicsResourcePoolSize`, straight from the device file) and so is the pixel count. **Bytes per pixel is not.** The SDK publishes no figure for a `BufferedBitmap`, so this uses the display's own `bitsPerPixel` as a proxy and ignores per-surface overhead; the check labels itself an estimate. It also does not account for the fonts and bitmaps the face loads at runtime, which share the same pool -- so the *fraction* it reports is a floor, not a total. |
 | **`aod-burn-in`** (plan 14 slice 4, research 11 §6 D, ADR 0008 check 8) | *Measured*, not estimated, for the one rendered frame it actually scores -- the same renderer `wfb preview --aod` uses (`wfb.preview.render`), at device resolution, with the round bezel excluded from the denominator on a round screen. Two things keep it from being exact overall: (1) it renders only a **worst-case sample** -- two clock times (`10:08`, `20:08`) with full battery, `wfb.preview.SAMPLE`'s other defaults unchanged, not an exhaustive scan of every minute and data value the simulator's own Screen Heat Map would cover (research 11 §1.5, unreachable in this container); (2) the **luminance formula is this compiler's own choice** (`Color.relative_luminance`, WCAG/Rec. 709 over sRGB-decoded channels), since Garmin's own integral is unpublished (research 11 §5). It checks both AMOLED generations' 10% rules (lit-pixel share and luminance share) at once, since the device files do not say which generation a target is. It cannot see the 3-minute static-pixel rule at all -- that is a property of a *sequence* of frames, and this renders exactly one; `jitter:` (plan 14 slice 5) is the design-side mitigation, and `wfb preview --aod --heatmap` approximates the sequence question separately (above), never folded into this lint's own message. |
 
+**AOD, more broadly, has no real AMOLED hardware behind any of it.** Every
+AOD claim in this project -- the lint above, `dim:`, `jitter:`, and the
+`getDisplayMode` ladder (plan 14 slice 6) that now decides when the sleep
+frame draws at all -- is checked against a host-side render or a real
+`monkeyc` compile, never against a real panel or the simulator's own Screen
+Heat Map (no simulator in this container, root `CLAUDE.md` §3). Two things
+stay open specifically because of that: whether `onEnterSleep`/`onExitSleep`
+and a `DISPLAY_MODE_LOW_POWER`/`_HIGH_POWER` transition ever land at
+different moments on a real device (research 11 §5 -- slice 6 narrowed the
+window with a `DISPLAY_MODE_OFF` check *inside* it, it did not verify the
+window's own edges), and whether `System.getDisplayMode`/`DISPLAY_MODE_*`
+genuinely move together on every AMOLED device the way they do on the two
+installed here (research 11 §2's table is two devices, not Garmin's whole
+fleet). See research 11 §5 for the complete, current list.
+
 ### Suppression, and what it can reach
 
 `lint: {allow: [<code>], reason: "..."}` on an element silences a suppressible

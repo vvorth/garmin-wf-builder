@@ -307,7 +307,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
                 "Whether the AMOLED always-on-display frame should draw: asleep, on a\n"
                 "device that requires burn-in protection. Recomputed in onEnterSleep\n"
                 "(a hardware fact, not a per-frame one) and cleared in onExitSleep --\n"
-                "see docs/plans/14-aod.md."
+                "see docs/guide/always-on-display.md."
             )
             w.line("private var _aod as Boolean = false;")
             w.blank()
@@ -332,7 +332,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards)
-        _emit_on_update(w, resolved, plan, aod, static, antialias_default, jitter_ns)
+        _emit_on_update(w, resolved, plan, aod, static, antialias_default, jitter_ns, guards)
         if _has_partial_update(resolved):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
         _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod, guards, aod_only_fonts, jitter_ns)
@@ -930,14 +930,16 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
 def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bool,
                     static: "StaticPlan | None" = None,
                     antialias_default: bool | None = None,
-                    jitter_ns: tuple[int, ...] = ()) -> None:
+                    jitter_ns: tuple[int, ...] = (),
+                    guards: "Guards" = _NO_GUARDS) -> None:
     w.doc(
         "Draw the full face.\n"
         "\n"
         "Called once a minute in low-power mode and once a second while the watch is\n"
         "awake." + (
             "  While _aod (asleep, on a burn-in-protected device), draws the resolved\n"
-            "'aod:' set instead -- see _aod, set by onEnterSleep/onExitSleep below."
+            "'aod:' set instead -- see _aod, set by onEnterSleep/onExitSleep below -- or\n"
+            "nothing at all if the device says the display itself is off (research 11 §6 F)."
             if aod else ""
         ) + (
             "  The static content comes first, as one blit of a buffer painted in\n"
@@ -957,7 +959,7 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         if aod:
             with w.block("if (_aod)"):
-                _emit_aod_body(w, resolved, plan, jitter_ns)
+                _emit_aod_body(w, resolved, plan, jitter_ns, guards)
             with w.block("else"):
                 _emit_mode_body(w, resolved, plan, "active", static)
         else:
@@ -1038,11 +1040,33 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
 
 
 def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
-                   jitter_ns: tuple[int, ...] = ()) -> None:
+                   jitter_ns: tuple[int, ...] = (),
+                   guards: "Guards" = _NO_GUARDS) -> None:
     """The AMOLED always-on frame (plan 14 slices 1-2): every element whose
     resolved `aod:` is not `None`, calling the exact same per-element method
     the active frame calls, restyled by the ternaries/branches those methods
     now read `_aod` through.
+
+    **`DISPLAY_MODE_OFF` (plan 14 slice 6, research 11 §6 F): drawn nothing,
+    before even the black clear.** `_aod` only narrows "asleep, on a
+    burn-in-protected device" -- it says nothing about *which* of the FAQ's
+    three display modes that device is actually in right now (research 11
+    §2: `System.getDisplayMode`/`DISPLAY_MODE_*`/`Application.AppBase.
+    onDisplayModeChanged`, none of which `_aod` reads). `DISPLAY_MODE_OFF`
+    ("Display is off," `Toybox/System.html`) means the panel itself is
+    unlit: no pixel this call could draw would ever become visible, so
+    there is nothing to gain from drawing -- not even the black clear
+    below, since clearing to black changes nothing an off panel would show
+    either, and skipping it is strictly cheaper. The next call that finds
+    the mode back at `DISPLAY_MODE_LOW_POWER` clears and redraws fresh, so
+    nothing is left stale by skipping a frame here. Only emitted on a
+    device that actually has the symbol (`Guards.display_mode_guarded`
+    decides whether that needs a runtime `has` check or not, mirroring
+    `Guards.burn_in_field_guarded`); a device lacking `getDisplayMode`
+    (every device installed here except `fenix847mm`/`fenix947mm`, research
+    11 §2) keeps the pre-slice-6 behaviour of drawing the resolved `aod:`
+    set on every asleep frame, `_sleeping` as the only signal it has ever
+    had.
 
     **A static element bypasses its buffer here** (plan 14 §4.4): the
     buffer is one opaque, all-or-nothing blit painted once, in `onLayout`,
@@ -1081,6 +1105,19 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     coincidence of naming, and this keeps this computation correct whether
     or not any element actually reads the clock too.
     """
+    # `_emit_aod_body` is only ever called from inside `_emit_on_update`'s own
+    # `if (_aod)` branch, itself only emitted when `aod` (== `guards.
+    # amoled_target`) is true, so this check does not need to test that flag
+    # again -- only whether the device (some, all, or none) actually has the
+    # symbol, exactly the question `guards.display_mode_guarded` answers.
+    w.comment("research 11 §6 F: the panel is unlit, so there is nothing to draw --")
+    w.comment("not even the black clear below, which an off panel could not show anyway")
+    condition = "System.getDisplayMode() == System.DISPLAY_MODE_OFF"
+    if guards.display_mode_guarded:
+        condition = f"(System has :getDisplayMode) && ({condition})"
+    with w.block(f"if ({condition})"):
+        w.line("return;")
+    w.blank()
     w.comment("AOD starts from black: Dc keeps its contents between frames,")
     w.comment("and the awake frame's own background does not draw here")
     w.line("dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);")

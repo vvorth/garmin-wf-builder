@@ -401,6 +401,20 @@ class Device:
     #: could lack it.
     BURN_IN_FIELD = "requiresBurnInProtection"
 
+    #: `System.getDisplayMode` (plan 14 slice 6, research 11 §6 F/§2) -- the
+    #: FAQ's own ladder's second rung, checked with `has_symbol` per device
+    #: (never by API level): a device can report `requiresBurnInProtection`
+    #: (the original-Venu rule) without this newer (5.0.0) method existing
+    #: at all -- the FAQ's own example code guards it with
+    #: `System has :getDisplayMode` for exactly that reason. Verified
+    #: present, moving together with `System.DISPLAY_MODE_*` and
+    #: `Application.AppBase.onDisplayModeChanged`, on `fenix847mm`/
+    #: `fenix947mm`; verified absent, all three together, on
+    #: `fenix8solar47mm`/`fenix8solar51mm`/`fr955` (research 11 §2's table,
+    #: re-checked directly against each installed device's own
+    #: `has_symbol`).
+    DISPLAY_MODE_SYMBOL = "System.getDisplayMode"
+
     @staticmethod
     def _symbol_for_simulator_name(name: str) -> str:
         """``simulator.json`` ``name`` (``"xtiny"``, ``"numberHot"``,

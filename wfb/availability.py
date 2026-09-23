@@ -337,6 +337,22 @@ class Guards:
     #: the same "no guard for a thing every target has" rule `fields`/
     #: `vector_fonts` already follow.
     burn_in_field_guarded: bool = False
+    #: True iff `amoled_target` and at least one target device's own symbol
+    #: table lacks `Device.DISPLAY_MODE_SYMBOL` (`System.getDisplayMode`) --
+    #: plan 14 slice 6, research 11 §6 F. Gates the `System has
+    #: :getDisplayMode` wrapper around the `DISPLAY_MODE_OFF` early-return
+    #: at the top of the AOD frame (`wfb.emit.monkeyc.view._emit_aod_body`):
+    #: every target having the symbol (true only for an AMOLED-only build
+    #: whose targets are all `fenix847mm`/`fenix947mm`-like) emits the plain,
+    #: unguarded call instead -- the same "no guard for a thing every target
+    #: has" rule `fields`/`vector_fonts`/`burn_in_field_guarded` all follow.
+    #: Aggregated over every device in the build, not just the AMOLED ones,
+    #: for the same reason `burn_in_field_guarded` is: the shared view is
+    #: one file `monkeyc` compiles once per device (constraint 6d), so a MIP
+    #: target lacking the symbol still needs the reference in its own copy
+    #: of this source to be safe, even though `_aod` is always false there
+    #: at runtime.
+    display_mode_guarded: bool = False
 
     @property
     def any(self) -> bool:
@@ -371,6 +387,10 @@ def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
     burn_in_field_guarded = amoled_target and any(
         not device.has_field(Device.BURN_IN_FIELD) for device in devices
     )
+    display_mode_guarded = amoled_target and any(
+        not device.has_symbol(Device.DISPLAY_MODE_SYMBOL) for device in devices
+    )
     return Guards(complications=complications, fields=missing_fields,
                   vector_fonts=unavailable_vector_fonts, amoled_target=amoled_target,
-                  burn_in_field_guarded=burn_in_field_guarded)
+                  burn_in_field_guarded=burn_in_field_guarded,
+                  display_mode_guarded=display_mode_guarded)

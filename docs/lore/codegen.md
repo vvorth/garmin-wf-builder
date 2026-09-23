@@ -674,3 +674,37 @@ These cost real time to discover; do not rediscover them.
   byte-identical guarantee (which only holds when *no* target in the build
   is AMOLED at all, `tests/test_aod_jitter.py::
   test_an_all_mip_build_is_byte_identical_with_jitter_declared`).
+
+- **The `getDisplayMode` ladder (plan 14 slice 6): one `has`-guarded `if`
+  at the top of the AOD branch, cheap enough that no ternary-vs-method
+  comparison was needed -- unlike slice 2's own restyling decision, there
+  is only one reasonable shape here (an early `return;`), so this is a
+  measurement of cost, not a choice between two implementations.**
+  `wfb.emit.monkeyc.view._emit_aod_body` gained one condition
+  (`(System has :getDisplayMode) && (System.getDisplayMode() ==
+  System.DISPLAY_MODE_OFF)` on a mixed AMOLED+MIP build, since `monkeyc`
+  compiles the one shared view once per device and at least one MIP target
+  always lacks the symbol -- `wfb.availability.Guards.display_mode_guarded`,
+  computed the same way as `Guards.burn_in_field_guarded`) and one `return;`,
+  placed before the frame's own black clear so an off panel never pays for
+  either. Measured on `examples/features/aod/face.yaml`
+  (`fenix847mm`, `monkeyc --build-stats`, real build): **2,785 B** total
+  (857 B data + 1,928 B code), up from slice 5's own recorded **2,753 B** --
+  **+32 B** for the guarded form (the `has` check, the comparison, and the
+  early return), on a design that also uses `dim:`/`jitter:` together so
+  this is the cost against an already-loaded AOD frame, not a from-scratch
+  design. No new barrel file, no new resource, no new field: the check
+  reads two SDK-wide symbols the view already imports `Toybox.System` for
+  (`requiresBurnInProtection`'s own import, `emit_view`'s `aod` branch).
+  `DISPLAY_MODE_*`'s three constants needed no separate guard of their own
+  (they are plain compile-time fields, not a method call -- see
+  `wfb/devices.py`'s `Device.DISPLAY_MODE_SYMBOL` docstring for the
+  per-device evidence they move together with `getDisplayMode`), so the one
+  `has` check on the method call is the whole runtime cost. `Application.
+  AppBase.onDisplayModeChanged` was considered and deliberately not
+  emitted -- `WatchFace.onUpdate` already runs once a minute while asleep
+  regardless of display mode (`Toybox/WatchUi/WatchFace.html`), so the only
+  thing the callback would buy is shaving a worst-case one-minute latency
+  off a transition away from `DISPLAY_MODE_OFF`, for the cost of one more
+  per-device symbol question (`AppBase` gets no override, no test needed
+  for one) -- not measured, because nothing was built to measure.

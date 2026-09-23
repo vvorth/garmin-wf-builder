@@ -194,6 +194,24 @@ simulator. What is verified is a warning-free real `monkeyc` build and
   simulator's own Screen Heat Map. Measured: +338 B on `fenix847mm`
   (`examples/features/aod/face.yaml`, one magnitude reaching three
   elements, `docs/lore/codegen.md`).
+- **The `getDisplayMode` ladder (plan 14 slice 6, research 11 §6 F):** the
+  AOD frame now checks `System.getDisplayMode() == System.DISPLAY_MODE_OFF`
+  before drawing anything at all -- not even the frame's own black clear --
+  on a device that has the symbol (`fenix847mm`/`fenix947mm` today;
+  research 11 §2), since an unlit panel could not show either. Guarded per
+  device the same way `requiresBurnInProtection` already is
+  (`wfb.availability.Guards.display_mode_guarded`): a mixed AMOLED+MIP
+  build wraps the call in `System has :getDisplayMode`, an AMOLED-only
+  build where every target has the symbol emits the bare call, and a
+  device with neither symbol keeps drawing the resolved `aod:` set on
+  every asleep frame exactly as before this slice. `DISPLAY_MODE_LOW_POWER`
+  needed no new branch -- it is exactly the frame already drawn while
+  `_aod`. `Application.AppBase.onDisplayModeChanged` is deliberately not
+  wired to request an update (ADR 0006's 2026-09-23 amendment): `onUpdate`
+  already runs once a minute while asleep regardless of display mode, so
+  the callback would only shave a worst-case one-minute latency off a
+  transition away from `DISPLAY_MODE_OFF`. All-MIP output stays
+  byte-identical. This closes plan 14 out; it is deleted (`docs/CLAUDE.md`).
 
 ## Removed outright (no shim; the old spelling is an ordinary error)
 
