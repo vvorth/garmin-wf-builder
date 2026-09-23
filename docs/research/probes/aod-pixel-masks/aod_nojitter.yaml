@@ -1,0 +1,171 @@
+# Always-on display (docs/guide/always-on-display.md, plan 14 slices 1-5):
+# `aod:` as overrides on the one design, replacing `modes: [always_on]`
+# outright (D3) -- the format key that slice 0 exercised here no longer
+# exists at all.
+#
+# This stays the small, ordinary face slice 0 introduced -- digital time, a
+# date, a battery ring, a bezel -- not a format-feature dump. The face-wide
+# `aod: {default: hide, dim: 0.6, jitter: 3}` below is the canonical
+# "everything off but the time" shape (plan 14 §3), plus a face-wide dim
+# (slice 3, §4.5) and a face-wide jitter (slice 5, §5.2): every element the
+# ancestry says nothing about is hidden in AOD, and each `aod:` block below
+# is now actually read by codegen (slice 2) -- ternaries at the draw call
+# site, not the unrestyled sleep frame slice 1 shipped. `jitter: 3` reaches
+# every element this face still shows in AOD (`clock`, `accent_dot`,
+# `battery_ring` -- none of them sits inside its own jittered group, so all
+# three share the one face-level offset, moving together as the face
+# default's own implicit "whole design" scope); `docs/guide/
+# always-on-display.md` shows the group-scope form (`aod: {jitter: ...}` on
+# a `group`, replacing the face default for just that subtree) instead of
+# duplicating it here, since this face has no group left undimmed to hang
+# it on (`info`, the one group, is hidden outright).
+#
+# - `clock` restyles `color:` (an explicit dimmer grey, not `dim:`-derived --
+#   Garmin's own guidance is to avoid white/blue, research 11 §1.3), swaps
+#   `format:` to a different separator (the same mechanism a design would
+#   use to drop seconds -- free, since AOD redraws once a minute anyway --
+#   kept as a same-width swap here so the widest-rendering estimate, which
+#   is measured against the *awake* format only, still fits fēnix 8's
+#   screen), and swaps to a lighter system font (`font:` -- no baked
+#   resource needed for this one, so the example stays free of a
+#   font-baking dependency; an AOD-only *baked* font's own memory cost is
+#   measured separately, docs/lore/codegen.md). Its explicit `color:`
+#   override is the author's final word (§4.5): `dim: 0.6` never touches it.
+# - `accent_dot` is a small filled accent, awake -- `aod: {filled: false}`
+#   turns it into a thin ring instead of a filled disc in AOD, the "solid
+#   disc becomes a thin ring" guidance (plan 14 §2.3) applied to the
+#   smallest lit shape this face has, in miniature -- and, with **no**
+#   `color:` override of its own, its awake blue is dimmed automatically:
+#   `dim: 0.6` reaches every AOD colour, override or not, which is the
+#   contrast this element is here to show against `clock`'s explicit one.
+# - `battery_ring` shows in AOD too, thinner and dimmer than its awake ring
+#   (`thickness:`/`color:` overrides) -- exactly the kind of secondary
+#   reading Garmin's own guidance says to keep legible but unobtrusive.
+# - `info` is a `group` with an explicit `aod: hide`: unconditional and
+#   sticky (plan 14 §3's one asymmetry) -- `date_text`'s own `aod: show`
+#   inside it can never draw, which is *why* it needs `lint: {allow:
+#   [aod-unreachable]}` here: this pairing is deliberately demonstrating the
+#   rule the lint exists to catch, not an oversight.
+#
+# `fenix847mm` (round-454x454, AMOLED, `requiresBurnInProtection` --
+# docs/research/11-always-on-display.md §2) is the fourth target, installed
+# by `tools/setup-env.sh` (plan 14 slice 0). The generated view is shared
+# across every target in one build (root CLAUDE.md §1); the three MIP
+# verification devices never see a lit `_aod` (D5: their sleep frame stays
+# exactly the awake design), and their generated source is unaffected by
+# `aod:` at all, on purpose -- the byte-identical test in `tests/test_aod.py`.
+#
+# Build it with:     ./wfb.py build examples/features/aod/face.yaml
+# Preview it with:   ./wfb.py preview examples/features/aod/face.yaml --aod
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 5a3e9c71-2f84-4b6d-9e10-7c8a2d4f61b5
+  name: Feature AOD
+  version: 1.0.0
+
+targets:
+  - fenix847mm
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+aod:
+  default: hide
+  dim: 0.6
+
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  gray: "#AAAAAA"
+  dim: "#555555"
+  accent: "#00AAFF"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.black
+
+  - id: bezel_ring
+    type: shape
+    shape: circle
+    at: { anchor: center }
+    radius: 95%r
+    filled: false
+    thickness: 1px
+    color: palette.gray
+
+  # An explicit group hide is unconditional and sticky (plan 14 §3): no
+  # descendant can undo it, whatever it writes itself. `date_text`'s own
+  # `aod: show` is deliberately unreachable, to demonstrate exactly that --
+  # see the header comment above.
+  - id: info
+    type: group
+    aod: hide
+    children:
+      - id: date_text
+        type: text
+        value: date.today
+        format: "{:%a %d}"
+        font: FONT_XTINY
+        at: { anchor: center, dy: -30% }
+        color: palette.gray
+        aod: show
+        lint:
+          allow: [aod-unreachable]
+          reason: >-
+            deliberate: demonstrates that a group's own 'aod: hide' beats a
+            descendant's 'aod: show' (docs/guide/always-on-display.md)
+
+  # A small filled accent while awake -- becomes a thin ring in AOD (plan 14
+  # §2.3's "solid disc becomes a thin ring" guidance), in its own awake blue
+  # dimmed automatically to 60% (no `color:` override here -- slice 3's
+  # `dim:` reaches it anyway, which is the point of leaving it out).
+  - id: accent_dot
+    type: shape
+    shape: circle
+    at: { anchor: center, dy: 24% }
+    radius: 3%r
+    filled: true
+    color: palette.accent
+    aod:
+      filled: false
+      thickness: 1px
+
+  # The one element the face default would leave off but this design turns
+  # back on -- the canonical "everything off but the time" shape (plan 14
+  # §3). Every one of its overridable keys is exercised: a dimmer colour, a
+  # different (same-width) format string, and a lighter system font.
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center }
+    color: palette.white
+    aod:
+      color: palette.dim
+      format: "{:%H.%M}"
+      font: FONT_NUMBER_MILD
+
+  - id: battery_ring
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    at: { anchor: center }
+    radius: 88%r
+    thickness: 3%r
+    start_angle: 270deg
+    sweep: 300deg
+    color: palette.accent
+    track_color: palette.dim
+    aod:
+      color: palette.dim
+      thickness: 1%r
