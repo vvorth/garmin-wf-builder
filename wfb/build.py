@@ -267,6 +267,20 @@ def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag
     stats = lint.check_memory(device, text, bag)
     if stats:
         result.memory[device.id] = stats
+    else:
+        # `check_memory` returns None when it cannot find the `--build-stats`
+        # section in monkeyc's own output -- e.g. a future SDK reformats it.
+        # Memory is measured, never estimated (ADR 0008), so a build that
+        # silently skips the check is worse than one that says so: without
+        # this, a build could go from "measured, under budget" to "never
+        # measured again" and nothing would ever report the difference.
+        bag.warning(
+            "memory",
+            f"{device.id}: could not parse monkeyc's --build-stats output, so "
+            "this build was not checked against the watch-face memory limit",
+            notes=["the .prg itself compiled fine; this is a gap in this "
+                   "diagnostic, not evidence the design is too big"],
+        )
 
 
 _NOISE = re.compile(r"^.*JAVA_TOOL_OPTIONS.*$\n?", re.M)

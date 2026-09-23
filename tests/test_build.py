@@ -48,6 +48,47 @@ def test_generation_needs_no_toolchain(slice_design, tmp_path, db):
         assert (root / f"resources-{device.id}" / "drawables" / "launcher_icon.png").exists()
 
 
+def test_an_unparseable_build_stats_section_is_reported_not_silently_dropped(
+        slice_design, tmp_path, db, monkeypatch,
+):
+    """`wfb.lint.check_memory` returns `None` when it cannot find the
+    `--build-stats` section in monkeyc's own output (a future SDK reformats
+    it, say). Memory is *measured, never estimated* (ADR 0008) -- a build
+    that quietly skips the check on such a `None` would silently stop
+    catching an over-budget design the moment the SDK's own output changed
+    shape, with nothing in the diagnostics to say so. No real toolchain is
+    needed: `subprocess.run` is faked to "succeed" (writes the `.prg`,
+    returns code 0) with output that carries no `--build-stats` section at
+    all, which is exactly the case `_STATS_RE` fails to match.
+    """
+    import subprocess as sp
+
+    from wfb.build import Toolchain
+
+    def fake_run(command, cwd, capture_output, text, check):
+        output_path = Path(command[command.index("-o") + 1])
+        output_path.write_bytes(b"fake-prg")
+        return sp.CompletedProcess(command, 0, stdout="BUILD SUCCESSFUL\n", stderr="")
+
+    monkeypatch.setattr("wfb.build.subprocess.run", fake_run)
+
+    toolchain = Toolchain(sdk=Path("/fake/sdk"), key=Path("/fake/key.der"))
+    bag = Bag()
+    result = build(slice_design, output=tmp_path, bag=bag, db=db, toolchain=toolchain)
+
+    assert result is not None, bag.render()
+    assert result.products, "the fake build should still have 'succeeded'"
+    assert not result.memory, "there was nothing to measure -- stats never parsed"
+    memory_warnings = [
+        d for d in bag.items
+        if d.code == "memory" and d.severity.value == "warning"
+    ]
+    assert memory_warnings, (
+        "an unparseable --build-stats section must be reported, not silently "
+        "dropped:\n" + bag.render()
+    )
+
+
 def test_an_off_screen_low_power_element_builds_and_clamps_the_clip(
     write_design, tmp_path, db, bag,
 ):
