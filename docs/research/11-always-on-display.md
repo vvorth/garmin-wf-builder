@@ -172,6 +172,16 @@ mode switch — with a plain MIP render as the outermost fallback.
 and an `awake`-only second hand — documented in ADR 0006 §5's 2026-09-14
 note and in `view.py:247`'s comment.
 
+**Superseded 2026-09-23 (plan 14 slice 1):** `always_on` was removed from
+`modes:` outright (D3; `always_on` in `modes:` is now a schema error naming
+`aod:`), and every row of the table above describes the pre-slice-1 shape.
+`onUpdate` now branches on a new `_aod` field instead (true while
+`_sleeping` **and** the device requires burn-in protection), the resolved
+`aod:` set replaces `always_on` membership, `wfb preview --aod` replaces
+that half of `--asleep` (which still exists, narrowed to just hiding an
+`awake`-only second hand), and the AMOLED+`low_power` hard error now points
+at `aod:`. See `docs/guide/always-on-display.md` and plan 14 §3-§4.
+
 ### 3.2 …but nothing reads the AMOLED API
 
 **VERIFIED** by grep: `requiresBurnInProtection`, `getDisplayMode`,
@@ -183,12 +193,28 @@ That inference is approximately right (§1.1: the constrained frame is the
 sleeping one) but it cannot distinguish `DISPLAY_MODE_OFF`, where the face
 is drawing into a screen that is off, from real always-on.
 
+**Superseded 2026-09-23 (plan 14 slice 1):** this is no longer true.
+`System.getDeviceSettings().requiresBurnInProtection` is now read, once per
+sleep/wake transition, guarded by `Device.has_field` per D1
+(`wfb/emit/monkeyc/view.py`'s `_emit_sleep_hooks`, `wfb/availability.py`'s
+`Guards.burn_in_field_guarded`) -- but only `requiresBurnInProtection`;
+`getDisplayMode`/`DISPLAY_MODE_*`/`onDisplayModeChanged` (§6 option F) are
+still unread, so the `DISPLAY_MODE_OFF` distinction this paragraph names
+remains open.
+
 ### 3.3 `Device.is_amoled` decides exactly one thing
 
 **VERIFIED.** Its only consumer is `supports_partial_update`
 (`wfb/devices.py:133-135`), which in turn feeds the `partial-update` error.
 Nothing else in the compiler branches on display technology: not layout, not
 codegen, not the palette check, not lint beyond that one error.
+
+**Superseded 2026-09-23 (plan 14 slice 1):** `Device.is_amoled` gained a
+second consumer, `wfb.availability.compute_guards`'s `amoled_target`
+(`any(device.is_amoled for device in devices)`), the build-time half of
+D1: it decides whether the shared view carries `_aod`/its sleep-hook
+plumbing/its `onUpdate` branch at all, and is the byte-identical guarantee
+for an all-MIP build (§4.1's own test, `tests/test_aod.py`).
 
 ### 3.4 There is no burn-in check of any kind
 
@@ -198,8 +224,9 @@ contains no luminance, pixel-count or burn-in check; its only
 power-related check is `partial-update-budget`, which is MIP-specific (clip
 area and operation count under `onPartialUpdate`).
 
-So a design can declare `modes: [always_on]`, build warning-free, and light
-60% of an AMOLED screen. Nothing would say a word.
+So a design can write `aod: show` everywhere, build warning-free, and light
+60% of an AMOLED screen (this remains true as of plan 14 slice 1 -- the
+burn-in lint is still slice 4). Nothing would say a word.
 
 ### 3.5 `always_on` was emitted but unexercised; now has one caller
 
@@ -209,10 +236,16 @@ fixture under `tests/fixtures/` used `always_on`; the 13 occurrences across
 `test_semantics.py`). The path had never been driven by a real design,
 consistent with §3.2 and §3.4 having gone unnoticed. **Since plan 14 slice 0
 (2026-09-23)**, `examples/features/aod/face.yaml` puts the digital clock in
-`modes: [active, always_on]`, so the path now has one real caller, on all
+`modes: [active, always_on]`, so the path had one real caller, on all
 four of that example's targets including `fenix847mm`; no AMOLED-specific
-codegen exists yet (that starts at slice 2), so this is still §4's gap, not
-a fix for it.
+codegen existed yet at that point (slice 2 is still the restyling work),
+so it was still §4's gap, not a fix for it.
+
+**Superseded 2026-09-23 (plan 14 slice 1):** `always_on` was removed
+outright (D3) and `examples/features/aod/face.yaml` now uses `aod: {color:
+...}` on the clock instead, with a face-wide `aod: {default: hide}`. The
+`_aod` gate this section's gap named is now built (moved up from plan 14
+§4.1 into slice 1) -- see §3.1/§3.3's own superseded notes above.
 
 ### 3.6 Two AMOLED devices are vendored; `fenix847mm` is now installed
 
@@ -342,9 +375,11 @@ checked, and this is AMOLED-only by construction.
 
 ### D. A measured burn-in lint, built on the host renderer
 
-`wfb preview --asleep` already rasterises the real AOD frame to RGB at
-device resolution (`wfb/preview.py:201`), with palette quantisation and the
-round-bezel mask applied. Lit-pixel fraction and relative luminance are
+`wfb preview --aod` (plan 14 slice 1; this option originally named
+`--asleep`, since renarrowed to a plain "hide the second hand" flag) already
+rasterises the real AOD frame to RGB at device resolution
+(`wfb/preview.py`), with palette quantisation and the round-bezel mask
+applied. Lit-pixel fraction and relative luminance are
 therefore **measurable, not estimated** — the same stance ADR 0008 takes for
 memory ("measured, not estimated") and the only honest way to check a rule
 whose failure mode is the screen switching itself off.

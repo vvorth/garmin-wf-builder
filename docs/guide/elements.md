@@ -39,7 +39,8 @@ Z-order is document order, with an optional `z:` override. Every element takes
 | `static` | every element | `true`\|`false` | `false` | [paint once into a buffer](#static--draw-it-once-then-blit-it) |
 | `antialias` | `group`, `shape`, `progress`, `graph`, `hands`, `pattern`, `icon`, `complication_slot` (not `text`) | `true`\|`false` | face default (`false`) | [soften the edge](#antialias--soften-an-edge) |
 | `min_1px` | `group`, `shape`, `progress`, `graph`, `hands`, `pattern`, and a hand/pattern part (not `text`, `icon`, `complication_slot`) | `true`\|`false` | face default (`false`) | [clamp a length to at least 1px](#min_1px--never-let-a-relative-length-round-to-nothing) |
-| `modes` | every element | list of `active`\|`low_power`\|`always_on` | `[active]` | which power modes draw this element |
+| `modes` | every element | list of `active`\|`low_power` | `[active]` | which power modes draw this element |
+| `aod` | every element, `group` | `hide`\|`show`\|an override block | inherited | AMOLED sleep frame — see [Always-on display](always-on-display.md) |
 | `z` | every element | integer | document order | z-order override |
 | `on_hold` | kinds with a fixed box (not `hands`, not `pattern`) | a complication name, or `auto` | — | touch-and-hold target — see [Interactivity](modes-and-interaction.md#interactivity-on_hold) |
 | `lint` | every element | `{allow: [...], reason: ...}` | — | suppress a specific warning — see [Lints](lints.md) |
@@ -285,9 +286,8 @@ Everything else the compiler rejects, and why:
 |---|---|
 | any data binding in the subtree, `visible:` included | the buffer is filled once and never refilled; the reading would freeze at whatever it was on the first frame |
 | a `graph` or `complication_slot` | its content is recomputed or repointed on-device; a buffer filled once would freeze it |
-| `modes:` containing `low_power` | `onPartialUpdate` is charged by clip *area*, and the buffer is the whole screen. `active` and `always_on` are both fine |
+| `modes:` containing `low_power` | `onPartialUpdate` is charged by clip *area*, and the buffer is the whole screen. `active` is fine; the AMOLED sleep frame is `aod:`, independent of `modes:` |
 | `static:` inside a static subtree | the outer one already draws it |
-| two static elements with different `modes:` | there is one buffer, and a buffer is blitted as a whole |
 
 A constant expression is fine — it is the *binding* that is rejected, not the
 syntax. `color: "palette.warm"` and `visible: "true"` both fold at build time and

@@ -377,8 +377,10 @@ error naming the key, not a silent no-op.
 **Draw order** is copy by copy, in ascending index, with a copy's parts in
 list order.
 
-**It takes the common keys** `id`, `type`, `at`, `modes`, `z`, `visible`,
-`static`, `antialias`, `min_1px`, `lint` and `overrides`. `size:` does not exist,
+**It takes the common keys** `id`, `type`, `at`, `modes`, `aod`, `z`,
+`visible`, `static`, `antialias`, `min_1px`, `lint` and `overrides`. `aod:`
+(`color`, `thickness`, `font`, `visible`) applies uniformly to every part —
+see [Always-on display](always-on-display.md). `size:` does not exist,
 because the extent comes from the ink. `on_hold:` is not accepted; hold a
 `group` around the pattern instead. `modes:` may not contain `low_power`.
 A fixed pattern gains nothing from `onPartialUpdate`, and its clip would be

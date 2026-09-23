@@ -27,9 +27,9 @@ from ..units import Angle, Duration, Length, UnitError
 from ..yamlsrc import YamlDocument
 
 from .model import (
-    ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle,
-    Curve, Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group, HOLD_AUTO,
-    Hand, HandPart, HandSet, HandsElement, IconElement, LayoutDecl, MAX_OUTLINE_WIDTH,
+    AodOverride, ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot,
+    ConfigStyle, Curve, Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group,
+    HOLD_AUTO, Hand, HandPart, HandSet, HandsElement, IconElement, LayoutDecl, MAX_OUTLINE_WIDTH,
     Outline, PATTERN_LOOP_INDEX,
     PatternElement, Position, Progress, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
     _drawn_copies, authored_draw_order, walk_elements,
@@ -384,6 +384,12 @@ class Builder:
         #: element resolution runs, but keeping the two read together avoids
         #: a second one-off special case later.
         self.face_min_1px = False
+        #: The top-level `aod: default:` (plan 14 §2.2), read first in
+        #: `build()` -- `_resolve_aod` needs it once every element exists.
+        #: `True` for `hide` (D2's decision, and the schema's own default).
+        self.face_aod_default_hide = True
+        self.face_aod_lint_allow: frozenset[str] = frozenset()
+        self.face_aod_lint_reason: str | None = None
 
     # -- entry point ------------------------------------------------------
 
@@ -391,6 +397,7 @@ class Builder:
         data = self.doc.data
         self.face_antialias = bool(data.get("antialias", False))
         self.face_min_1px = bool(data.get("min_1px", False))
+        self._build_face_aod(data.get("aod") or {})
         # Layouts first: a `config: style:` entry's `layout:` resolves
         # against the declared names, the same build pass its `colors:`
         # resolves against `color_scheme:`.
@@ -424,6 +431,7 @@ class Builder:
             return None
         self._resolve_antialias(elements)
         self._resolve_min_1px(elements)
+        self._resolve_aod(elements)
 
         face = data["face"]
         name = face["name"]
@@ -450,6 +458,9 @@ class Builder:
             config_style=self.config_style,
             config_data=self.config_data,
             hands=self.hand_sets,
+            aod_default_hide=self.face_aod_default_hide,
+            aod_lint_allow=self.face_aod_lint_allow,
+            aod_lint_reason=self.face_aod_lint_reason,
         )
 
     # -- layouts, palette, config, fonts, scope -----------------------------
@@ -1883,6 +1894,7 @@ class Builder:
             )
             return None
 
+        aod_own_hide, aod_own = self._build_aod_authored(node)
         common = dict(
             id=element_id,
             kind=node["type"],
@@ -1897,6 +1909,8 @@ class Builder:
             static=bool(node.get("static", False)),
             antialias=(bool(node["antialias"]) if "antialias" in node else None),
             min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
+            aod_own_hide=aod_own_hide,
+            aod_own=aod_own,
         )
 
         builders = {
@@ -2222,6 +2236,167 @@ class Builder:
 
         visit(group.items)
 
+    # -- always-on display (`aod:`, plan 14) --------------------------------
+
+    def _build_face_aod(self, raw: dict) -> None:
+        """Top-level `aod:` (plan 14 §2.2): `default:`, plus `dim:`/`jitter:`,
+        which the schema accepts but this builder rejects with a friendly
+        "not implemented yet" error -- the same shape `_build_element` already
+        gives per-device `overrides:` (`docs/limitations.md`).
+        """
+        self.face_aod_default_hide = raw.get("default", "hide") == "hide"
+        lint = raw.get("lint") or {}
+        self.face_aod_lint_allow = frozenset(lint.get("allow", ()))
+        self.face_aod_lint_reason = lint.get("reason")
+        if "dim" in raw:
+            self.bag.error(
+                "aod",
+                "aod: 'dim:' is not implemented yet, so this would be silently ignored",
+                self.doc.span(raw, "dim"),
+                notes=["plan 14 slice 3 builds it -- see docs/limitations.md 2",
+                       "until then, restyle individual elements' 'aod: {color: ...}' "
+                       "to a dimmer colour by hand"],
+            )
+        if "jitter" in raw:
+            self.bag.error(
+                "aod",
+                "aod: 'jitter:' is not implemented, so this would be silently ignored",
+                self.doc.span(raw, "jitter"),
+                notes=["plan 14 slice 5 builds it -- see docs/limitations.md 2"],
+            )
+
+    def _build_aod_authored(self, node: dict) -> tuple[bool, dict[str, object] | None]:
+        """Parse one element/group's own `aod:` (plan 14 §2.1) into
+        ``(hide, keys)``: ``hide`` is `True` only for the literal `aod: hide`;
+        ``keys`` is `None` when nothing but that was written (or nothing at
+        all), or the resolved key -> value dict an `aod: show` (`{}`) or an
+        override block produced.
+
+        One generic parser for every element kind: the schema already
+        restricts which keys a given kind's own `aod:` block may carry
+        (`schema/wfb-face-1.schema.json`'s `aod<Kind>` `$defs`, D2.3), so by
+        the time this runs, whichever of the keys below are present are
+        exactly the ones this element's own kind allows -- there is nothing
+        left for this method to reject. Every value is resolved through the
+        exact same machinery the element's own property of the same name
+        uses, so an `aod: {color: ...}` reaches a palette/config colour role
+        (`_color_expression`), a font name resolves through `_font_reference`
+        exactly like `font:` (kept as the `(name, is_custom)` pair
+        `_resolve_font` itself produces), and a length through `_length` --
+        no second, narrower implementation of any of them.
+        """
+        raw = node.get("aod")
+        if raw is None:
+            return False, None
+        if raw == "hide":
+            return True, None
+        if raw == "show":
+            return False, {}
+        keys: dict[str, object] = {}
+        if "color" in raw:
+            keys["color"] = self._color_expression(raw, "color")
+        if "track_color" in raw:
+            keys["track_color"] = self._color_expression(raw, "track_color")
+        if "icon_color" in raw:
+            keys["icon_color"] = self._color_expression(raw, "icon_color")
+        if "thickness" in raw:
+            keys["thickness"] = self._length(raw, "thickness")
+        if "bar_width" in raw:
+            keys["bar_width"] = self._length(raw, "bar_width")
+        if "filled" in raw:
+            keys["filled"] = bool(raw["filled"])
+        if "font" in raw:
+            resolved = self._font_reference(str(raw["font"]), self.doc.span(raw, "font"))
+            if resolved is not None:
+                keys["font"] = resolved
+        if "format" in raw:
+            keys["format"] = raw["format"]
+        if "visible" in raw:
+            keys["visible"] = self._visible(raw)
+        return False, keys
+
+    def _conjoin_optional(self, outer: Expression | None, inner: Expression | None,
+                          ) -> Expression | None:
+        """``outer and inner``, either of which may be absent -- `_conjoin_
+        visible` requires its first argument, so this is the thin wrapper
+        `_make_aod_override` needs to conjoin an element's own (always
+        present) `visible:` with an *optional* `aod: visible:`."""
+        if outer is None:
+            return inner
+        if inner is None:
+            return outer
+        return self._conjoin_visible(outer, inner)
+
+    def _make_aod_override(self, element: Element, keys: dict[str, object]) -> AodOverride:
+        """Build the `AodOverride` a *drawn* (non-hidden) element gets, from
+        its fully key-by-key-resolved `keys` (`_resolve_aod`)."""
+        font = keys.get("font")
+        font_name, font_is_custom = font if font is not None else (None, False)
+        own_visible = keys.get("visible")
+        return AodOverride(
+            color=keys.get("color"),
+            track_color=keys.get("track_color"),
+            icon_color=keys.get("icon_color"),
+            thickness=keys.get("thickness"),
+            bar_width=keys.get("bar_width"),
+            filled=keys.get("filled"),
+            font=font_name,
+            font_is_custom=font_is_custom,
+            format=keys.get("format"),
+            visible=self._conjoin_optional(element.visible, own_visible),
+            visible_override=own_visible,
+        )
+
+    def _resolve_aod(self, elements: list[Element]) -> None:
+        """Resolve `aod:` over the whole tree (plan 14 §3): element wins key
+        by key over its nearest ancestor group's own `aod:`, which wins over
+        the face's `aod: default:`.
+
+        A top-down walk, like `_resolve_inherited_flag`, but tracking two
+        things down the tree rather than one:
+
+        * ``forced_hidden`` -- sticky once an *explicit* `aod: hide` is seen
+          (own or inherited): every descendant is hidden regardless of what
+          it writes itself, mirroring `visible:`'s own group-conjoins-down
+          precedent, one level stricter (nothing can undo it below).
+        * ``nearest`` -- the most recently seen explicit `aod: show`/override
+          dict on the path from the root to here, replaced wholesale (not
+          merged) by a nearer one when a deeper group writes its own; `None`
+          exactly when nothing along the ancestry has spoken yet, which is
+          what lets the face default apply only there.
+
+        `aod_ancestor_hidden` is stamped on *every* element (hidden or not)
+        purely for the `aod-unreachable` lint: it needs to tell "my own
+        `aod: show`/override can never draw because an ancestor already hid
+        the whole subtree" apart from "this element simply has no `aod:` of
+        its own" -- a distinction `element.aod` collapsing to `None` either
+        way throws away.
+        """
+        def visit(items: list[Element], forced_hidden: bool,
+                 nearest: dict[str, object] | None) -> None:
+            for element in items:
+                element.aod_ancestor_hidden = forced_hidden
+                own_hide = element.aod_own_hide
+                own = element.aod_own
+                if forced_hidden or own_hide:
+                    hidden = True
+                elif own is not None or nearest is not None:
+                    hidden = False
+                else:
+                    hidden = self.face_aod_default_hide
+                child_forced_hidden = forced_hidden or own_hide
+                child_nearest = own if own is not None else nearest
+                if hidden:
+                    element.aod = None
+                else:
+                    effective = dict(nearest or {})
+                    if own is not None:
+                        effective.update(own)
+                    element.aod = self._make_aod_override(element, effective)
+                visit(element.children(), child_forced_hidden, child_nearest)
+
+        visit(elements, False, None)
+
     def _resolve_inherited_flag(
         self, elements: list[Element], *, authored: str, resolved: str, default: bool,
     ) -> None:
@@ -2321,9 +2496,7 @@ class Builder:
         for root in roots:
             self._mark_static(root, root)
         self._rank_static(elements, roots)
-        if not self._check_static_subtrees(roots):
-            return
-        self._check_static_modes(roots)
+        self._check_static_subtrees(roots)
 
     def _mark_static(self, root: Element, element: Element) -> None:
         if element is not root and element.static:
@@ -2416,34 +2589,11 @@ class Builder:
                                "the buffer is the whole screen -- one blit a "
                                "second would spend the power budget, which is "
                                "disabled permanently once exceeded",
-                               "`active` and `always_on` are both fine"],
+                               "`active` is fine -- and 'aod:' governs the AMOLED "
+                               "sleep frame independently of `modes:`"],
                     )
                     ok = False
         return ok
-
-    def _check_static_modes(self, roots: list[Element]) -> None:
-        """One buffer, so one mode set: everything static must agree."""
-        reference: Element | None = None
-        for root in roots:
-            for element in walk_elements([root]):
-                if element.kind == "group":
-                    continue  # a group paints nothing; its modes gate nothing
-                if reference is None:
-                    reference = element
-                elif set(element.modes) != set(reference.modes):
-                    self.bag.error(
-                        "static",
-                        f"{element.id!r} draws in "
-                        f"{', '.join(element.modes)} but the static "
-                        f"{reference.id!r} draws in "
-                        f"{', '.join(reference.modes)}",
-                        element.span,
-                        notes=["all static content shares one buffer, and a "
-                               "buffer is blitted as a whole -- so every "
-                               "element in it must draw in the same modes",
-                               f"give both the same `modes:`, or take "
-                               f"{element.id!r} out of the static content"],
-                    )
 
     def _rank_static(self, elements: list[Element], roots: list[Element]) -> None:
         """Number the static roots by where the author's own draw order put them.

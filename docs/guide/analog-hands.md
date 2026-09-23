@@ -22,7 +22,8 @@ watch. Ticks and numerals around the dial are `pattern` elements, covered in
 | `seconds` | `type: hands` element | `awake`\|`never` | `awake` | whether the second hand draws — see below |
 | `antialias` | `type: hands` element | `true`\|`false` | face default (`false`) | brackets the whole set's drawing |
 | `min_1px` | `type: hands` element, or a part | `true`\|`false` | face default (`false`) | clamps a part's own length — see [Elements](elements.md#min_1px--never-let-a-relative-length-round-to-nothing) |
-| `modes` | `type: hands` element | `active`\|`always_on` (not `low_power`) | `[active]` | — |
+| `modes` | `type: hands` element | `active` only (not `low_power`) | `[active]` | — |
+| `aod` | `type: hands` element | `hide`\|`show`\|`{color, thickness, visible}` | inherited | AMOLED sleep frame — see [Always-on display](always-on-display.md) |
 
 ## Example
 
@@ -204,21 +205,25 @@ sweep: the face redraws at most once a second.
 would do nothing — and so is `seconds: never` on a set that has *only* a
 second hand, which would draw nothing at all.
 
-Why `awake` needs its own switch rather than `modes:`: unless a design uses
-`always_on`, `onUpdate` draws the same `active` element set both awake (once
-a second) and asleep (once a minute), so a second hand drawn in `modes:
-[active]` would sit frozen asleep on whatever second that update landed on.
-An `awake` second hand therefore uses the same `_sleeping` field `always_on`
-already introduces (see [Modes](modes-and-interaction.md#modes)), set by `onEnterSleep`/
-`onExitSleep`, and only its parts are wrapped in `if (!_sleeping)` inside
-the element's draw method — the hour and minute hands are unaffected, and a
-design with neither `always_on` nor an `awake` second hand generates no
-`_sleeping` field at all.
+Why `awake` needs its own switch rather than `modes:`: `onUpdate` draws the
+same `active` element set both awake (once a second) and asleep (once a
+minute) on a MIP device, so a second hand drawn in `modes: [active]` would
+sit frozen asleep on whatever second that update landed on. An `awake`
+second hand therefore gets its own `_sleeping` field, set by
+`onEnterSleep`/`onExitSleep`, and only its parts are wrapped in `if
+(!_sleeping)` inside the element's draw method — the hour and minute hands
+are unaffected, and a design with no `awake` second hand generates no
+`_sleeping` field at all. (Before plan 14, `modes: [always_on]` shared this
+same field for an unrelated reason — which AMOLED element set to draw. That
+mode is gone; `_sleeping` is `_sleeping`'s own concern alone now, and an
+AMOLED sleep frame is `aod:`'s own `_aod` field instead — see
+[Always-on display](always-on-display.md).)
 
-`modes:` on a `type: hands` element accepts only `active` and `always_on` —
+`modes:` on a `type: hands` element accepts only `active` —
 **`low_power` is an error.** The hour and minute hands never need it (they
-change once a minute, and the sleeping `onUpdate` already redraws them), and
-a second hand while asleep is `seconds: always`, not implemented yet.
+change once a minute, and the sleeping `onUpdate` already redraws them), a
+second hand while asleep is `seconds: always`, not implemented yet, and the
+AMOLED sleep frame is `aod:`'s own concern, independent of `modes:`.
 
 **The axis can be anywhere, including off centre.** `at:` on the
 element *is* the axis, resolved exactly like any element's `at:` — an
@@ -328,6 +333,7 @@ See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 
 - [`examples/features/analog/face.yaml`](../../examples/features/analog/face.yaml) — two hand sets, an off-centre small-seconds subdial, all four part shapes and a `config.*` hand colour.
 - [`examples/analog-custom/face.yaml`](../../examples/analog-custom/face.yaml) — a hand-tuned dial with a custom numeral font, hour numerals and date windows.
+- [Always-on display](always-on-display.md) — `aod:` on a `type: hands` element, applied uniformly to every part of every hand in the set.
 - [Patterns](patterns.md) — the ticks and numerals around a dial.
 - [Styles and layouts](styles-and-layouts.md#styles-and-layouts) — switching hand sets per style.
 - [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — why a hand element refuses `align`/`vertical_align`.

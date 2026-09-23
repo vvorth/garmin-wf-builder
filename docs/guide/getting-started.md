@@ -188,8 +188,8 @@ platform, not a list of supported devices:
   layout checks. On semi-round and semi-octagon screens the face builds, but
   the visible-area check reports "not checked".
 - **MIP and AMOLED screens both work**, but AMOLED watches can't use
-  `low_power` updates and need a `modes: [always_on]` layout ([power modes](modes-and-interaction.md)); the lints
-  say so.
+  `low_power` updates and need an `aod:` sleep frame instead
+  ([always-on display](always-on-display.md)); the lints say so.
 - **Memory is the watch's own limit**, measured on every build: 128 KB on
   current models, as little as 96 KB on some older ones.
 

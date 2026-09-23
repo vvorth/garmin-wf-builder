@@ -392,6 +392,15 @@ class Device:
     DRAW_ANGLED_TEXT_SYMBOL = "Dc.drawAngledText"
     DRAW_RADIAL_TEXT_SYMBOL = "Dc.drawRadialText"
 
+    #: `System.DeviceSettings`' own burn-in flag (plan 14 D1) -- the runtime
+    #: half of "is this a burn-in device", checked with `has_field` per
+    #: device the same way any other bare field is (never by API level,
+    #: CLAUDE.md constraint 6). Present on all four devices research 11 §2
+    #: checked (two AMOLED, two MIP), but that is exactly why it is checked
+    #: here rather than assumed: a device this project has not looked at
+    #: could lack it.
+    BURN_IN_FIELD = "requiresBurnInProtection"
+
     @staticmethod
     def _symbol_for_simulator_name(name: str) -> str:
         """``simulator.json`` ``name`` (``"xtiny"``, ``"numberHot"``,

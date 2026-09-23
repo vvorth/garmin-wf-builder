@@ -289,14 +289,13 @@ def test_low_power_inside_a_static_subtree_is_an_error(write_design):
     assert "charged by clip *area*" in " ".join(errors[0].notes)
 
 
-def test_mixed_modes_inside_one_buffer_are_an_error(write_design):
-    """One buffer is blitted as a whole, so its contents cannot disagree about
-    which mode they belong to."""
-    text = BLOCK_FORM.replace("    color: palette.fg\nelements:",
-                              "    color: palette.fg\n    modes: [always_on]\nelements:")
-    errors = _errors(text, write_design)
-    assert [d.code for d in errors] == ["static"]
-    assert "draws in always_on but the static 'backdrop' draws in active" in errors[0].message
+#: `always_on` was removed outright (plan 14 D3), leaving `active` the only
+#: legal `modes:` value for static content (`low_power` is separately
+#: forbidden there, tested above) -- so `_check_static_modes`, which used to
+#: catch two static elements disagreeing about `modes:`, is no longer
+#: reachable at all: every element that survives the `low_power` check
+#: necessarily shares the one remaining value. Removed along with the test
+#: that drove it (`test_mixed_modes_inside_one_buffer_are_an_error`).
 
 
 def test_a_nested_static_names_the_outer_one(write_design):
@@ -561,26 +560,20 @@ def test_the_generated_view_has_a_buffer_a_fallback_and_one_blit(write_design, d
     assert "dc.clear();" in view
 
 
-def test_always_on_gets_the_blit_in_both_branches(write_design, db, tmp_path):
-    """`onUpdate` forks on `_sleeping`, so the blit has to be in both arms.
-
-    The static content declares the same modes as everything else it shares the
-    buffer with, so if it draws while awake and while asleep, both branches
-    blit.  Emitted per branch rather than hoisted above the fork, because a
-    design whose static content is `active`-only must *not* blit while asleep.
+def test_static_content_does_not_blit_in_the_aod_branch(write_design, db, tmp_path):
+    """A static element's own `aod:` is not consulted at all yet (plan 14
+    §4.4: static bypass is slice 2's job) -- for slice 1, static content
+    simply never appears in the AMOLED always-on frame, and the blit stays
+    exactly where it always was: the awake ('active') branch only.
     """
-    text = BLOCK_FORM.replace("    color: palette.bg\n",
-                              "    color: palette.bg\n    modes: [active, always_on]\n")
-    text = text.replace("    at: {anchor: center, dy: 30%}\n    color: palette.fg\n",
-                        "    at: {anchor: center, dy: 30%}\n    color: palette.fg\n"
-                        "    modes: [active, always_on]\n")
-    text = text.replace("    at: {anchor: center}\n    color: palette.fg\n",
-                        "    at: {anchor: center}\n    color: palette.fg\n"
-                        "    modes: [active, always_on]\n")
-    view = _view(text, write_design, db, tmp_path)
+    view = _view(BLOCK_FORM, write_design, db, tmp_path, device_id="fenix847mm")
+    assert "private var _aod as Boolean = false;" in view  # AMOLED target
     on_update = view.split("function onUpdate")[1].split("\n    function ")[0]
-    assert on_update.count("dc.drawBitmap(0, 0, buffer);") == 2
-    assert on_update.count("renderStatic(dc);") == 2
+    aod_branch = on_update.split("if (_aod) {", 1)[1].split("\n        else {", 1)[0]
+    active_branch = on_update.split("\n        else {", 1)[1]
+    assert "renderStatic(dc);" not in aod_branch
+    assert "dc.drawBitmap(0, 0, buffer);" not in aod_branch
+    assert "renderStatic(dc);" in active_branch
 
 
 def test_a_face_with_nothing_static_generates_exactly_what_it_did_before(write_design, db, tmp_path):

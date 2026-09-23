@@ -273,9 +273,13 @@ def _parser() -> argparse.ArgumentParser:
                          help="render analog hands (and any time.*-bound element) at "
                               "this time instead of the sample 10:09:42")
     preview.add_argument("--asleep", action="store_true",
-                         help="render the sleeping onUpdate frame: the 'always_on' "
-                              "element set when the design has one, 'active' "
-                              "otherwise, with every awake-only second hand hidden")
+                         help="hide every awake-only second hand, simulating a sleeping "
+                              "glance (no mode/aod-set switch: 'always_on' membership "
+                              "used to do that too, but was removed -- see --aod)")
+    preview.add_argument("--aod", action="store_true",
+                         help="render the AMOLED always-on-display frame: the resolved "
+                              "'aod:' set, unrestyled, with every awake-only second hand "
+                              "hidden (plan 14)")
     preview.add_argument("-w", "--watch", action="store_true",
                          help="re-render whenever the design or a font it uses changes")
     preview.add_argument("--interval", type=float, default=0.4,
@@ -485,6 +489,7 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
 
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
                              time=time, asleep=getattr(args, "asleep", False),
+                             aod=getattr(args, "aod", False),
                              fonts_root=getattr(args, "fonts_dir", None))
     color_out = term.should_color(sys.stdout)
     label = _status("preview", color=color_out)
@@ -558,11 +563,12 @@ def _preview(args) -> int:
     style:` axis to exist for an ordinary preview with neither flag.
 
     `--time HH:MM[:SS]` renders analog hands (and any `time.*`-bound
-    element) at that time instead of the sample 10:09:42. `--asleep` renders
-    the sleeping `onUpdate` frame -- the `always_on` element set when the
-    design has one, `active` otherwise -- with every `awake`-only second
-    hand hidden, the same choice the generated `_sleeping` branch makes
-    (plan 04 §7).
+    element) at that time instead of the sample 10:09:42. `--asleep` hides
+    every `awake`-only second hand, simulating a sleeping glance, on any
+    device shape -- no mode switch, unlike before plan 14 (`always_on` is
+    gone). `--aod` renders the AMOLED always-on-display frame -- the
+    resolved `aod:` set, unrestyled -- and implies `--asleep` too, the same
+    choice the generated `_aod` branch makes (plan 14).
 
     `-w/--watch` re-renders whenever the design file or any font it
     references changes, polling every `--interval` seconds (default 0.4).

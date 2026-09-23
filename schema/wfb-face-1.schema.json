@@ -41,6 +41,10 @@
       "type": "boolean",
       "default": false
     },
+    "aod": {
+      "description": "Face-wide always-on-display (AOD) defaults, for an AMOLED target (docs/plans/14-aod.md). Sits beside 'elements:', not inside it.",
+      "$ref": "#/$defs/faceAod"
+    },
     "palette": {
       "description": "Named colours. Elements reference palette entries, never raw hex. Each entry is either the short form (a colour directly) or the long form ({value, label}), which adds a human-readable label a 'config:' choices: entry can pick up by referencing this entry as 'palette.<name>'.",
       "type": "object",
@@ -70,7 +74,7 @@
       }
     },
     "color_scheme": {
-      "description": "Named role -> colour sets, picked on-device via a 'config: style:' entry's 'colors:' -- the Styles axis, the only one Garmin's native editor gives no meaning to (docs/research/09-data-library-and-config-axes.md §3). Every entry must declare the identical set of roles, or 'config.colors.<role>' would be undefined whenever the wearer picks a style entry that lacks it.",
+      "description": "Named role -> colour sets, picked on-device via a 'config: style:' entry's 'colors:' -- the Styles axis, the only one Garmin's native editor gives no meaning to (docs/research/09-data-library-and-config-axes.md \u00a73). Every entry must declare the identical set of roles, or 'config.colors.<role>' would be undefined whenever the wearer picks a style entry that lacks it.",
       "type": "object",
       "minProperties": 1,
       "propertyNames": {
@@ -81,7 +85,7 @@
       }
     },
     "config": {
-      "description": "User-editable colours, read through the fēnix 8's native on-device watch face editor (API 5.1.0). Garmin offers exactly two colour axes -- one accent colour, one data colour -- plus the Styles axis, which carries no colour of its own but is the only one Garmin gives no meaning to, so this compiler gives each listed 'style:' entry a meaning: a declared 'color_scheme:' (and, from a later phase, a layout). The axis is the key rather than an author-chosen name; declaring a fourth would need a feature Garmin does not have. Reference a declared colour entry as an ordinary colour expression, e.g. 'color: config.accent_color' or 'color: config.colors.<role>'. A target with no native editor (fr955) keeps every declared default -- see the suppressible 'config-unsupported' warning.",
+      "description": "User-editable colours, read through the f\u0113nix 8's native on-device watch face editor (API 5.1.0). Garmin offers exactly two colour axes -- one accent colour, one data colour -- plus the Styles axis, which carries no colour of its own but is the only one Garmin gives no meaning to, so this compiler gives each listed 'style:' entry a meaning: a declared 'color_scheme:' (and, from a later phase, a layout). The axis is the key rather than an author-chosen name; declaring a fourth would need a feature Garmin does not have. Reference a declared colour entry as an ordinary colour expression, e.g. 'color: config.accent_color' or 'color: config.colors.<role>'. A target with no native editor (fr955) keeps every declared default -- see the suppressible 'config-unsupported' warning.",
       "type": "object",
       "minProperties": 1,
       "additionalProperties": false,
@@ -367,7 +371,7 @@
       }
     },
     "configStyle": {
-      "description": "The Styles axis: an author-named, ordered set of entries -- each one line of the editor's Style list (plan 02 §4.1, §12.4). Unlike 'accent_color'/'data_color', entries are named by the author rather than by colour value, so 'default:' names an entry, not a scheme.",
+      "description": "The Styles axis: an author-named, ordered set of entries -- each one line of the editor's Style list (plan 02 \u00a74.1, \u00a712.4). Unlike 'accent_color'/'data_color', entries are named by the author rather than by colour value, so 'default:' names an entry, not a scheme.",
       "type": "object",
       "required": [
         "default",
@@ -558,7 +562,7 @@
       }
     },
     "vectorFont": {
-      "description": "A device-resident scalable face, drawn through Graphics.getVectorFont instead of a baked sheet. Only Garmin's own fixed catalogue of on-device faces is reachable this way -- about 14 Latin ones, published on 44 of the 136 watch-face-capable devices in the reference (docs/research/12-vector-fonts.md §3.2) -- and nothing can add a face to that list, so an author's own typeface can never be one. 'glyphs:', 'monospace:', 'align:' and 'antialias:' are all properties of baking a sheet, and this schema still parses them here (rather than rejecting them as unknown keys) purely so the compiler can name the actual mistake -- 'a vector font has no sheet' -- instead of jsonschema's generic 'unknown key' message; every one of the four is a build error on a 'face:' entry.",
+      "description": "A device-resident scalable face, drawn through Graphics.getVectorFont instead of a baked sheet. Only Garmin's own fixed catalogue of on-device faces is reachable this way -- about 14 Latin ones, published on 44 of the 136 watch-face-capable devices in the reference (docs/research/12-vector-fonts.md \u00a73.2) -- and nothing can add a face to that list, so an author's own typeface can never be one. 'glyphs:', 'monospace:', 'align:' and 'antialias:' are all properties of baking a sheet, and this schema still parses them here (rather than rejecting them as unknown keys) purely so the compiler can name the actual mistake -- 'a vector font has no sheet' -- instead of jsonschema's generic 'unknown key' message; every one of the four is a build error on a 'face:' entry.",
       "type": "object",
       "required": [
         "face",
@@ -670,6 +674,303 @@
         }
       ]
     },
+    "faceAod": {
+      "description": "Face-wide always-on-display defaults (docs/plans/14-aod.md \u00a72.2), for elements/groups whose own ancestry says nothing.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "description": "Whether an element with no 'aod:' anywhere in its own ancestry draws in AOD. 'hide' (the default) is safe: an unconverted design lights nothing extra. Fills only where nothing in the ancestry spoke -- unlike an explicit 'aod: hide' on a group, this is not sticky, so one element's own 'aod: show' still applies even under a face default of 'hide'.",
+          "enum": [
+            "hide",
+            "show"
+          ],
+          "default": "hide"
+        },
+        "dim": {
+          "description": "Scale the luminance of every colour the AOD frame draws, 0-1. Accepted by the schema; the builder rejects it with a friendly error until plan 14 slice 3 lands.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "jitter": {
+          "description": "Pixels to shift static AOD content by, deterministically, once a minute (Garmin's burn-in guidance, capped at 4px). Accepted by the schema; the builder rejects it with a friendly error until plan 14 slice 5 lands.",
+          "type": "number",
+          "minimum": 0
+        },
+        "lint": {
+          "description": "Suppress a face-level AOD lint (currently only 'aod-empty') -- there is no single element to hang an ordinary 'lint: {allow: [...]}' on for a face-wide check.",
+          "$ref": "#/$defs/lint"
+        }
+      }
+    },
+    "aodText": {
+      "description": "'aod:' on a 'text' element (docs/plans/14-aod.md \u00a72.3): 'hide' | 'show' | an override block reusing 'text's own 'color:'/'font:'/'format:', plus 'visible:'. An empty block ('aod: {}') means 'show'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "font": {
+              "type": "string"
+            },
+            "format": {
+              "type": "string"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodShape": {
+      "description": "'aod:' on a 'shape' element: 'hide' | 'show' | an override block reusing 'shape's own 'color:'/'thickness:'/'filled:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "filled": {
+              "type": "boolean"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodProgress": {
+      "description": "'aod:' on a 'progress' element: 'hide' | 'show' | an override block reusing 'progress's own 'color:'/'track_color:'/'thickness:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "track_color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodIcon": {
+      "description": "'aod:' on an 'icon' element: 'hide' | 'show' | an override block reusing 'icon's own 'color:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodGraph": {
+      "description": "'aod:' on a 'graph' element: 'hide' | 'show' | an override block reusing 'graph's own 'color:'/'thickness:'/'bar_width:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "bar_width": {
+              "$ref": "#/$defs/length"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodComplicationSlot": {
+      "description": "'aod:' on a 'complication_slot' element: 'hide' | 'show' | an override block reusing its own 'color:'/'icon_color:'/'font:', plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "icon_color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "font": {
+              "type": "string"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodHands": {
+      "description": "'aod:' on a 'hands' element: 'hide' | 'show' | an override block reusing 'color:'/'thickness:', applied uniformly to every part of every hand in the set (docs/plans/14-aod.md \u00a75.1), plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodPattern": {
+      "description": "'aod:' on a 'pattern' element: 'hide' | 'show' | an override block reusing 'color:'/'thickness:'/'font:', applied uniformly to every part (docs/plans/14-aod.md \u00a75.1), plus 'visible:'.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "font": {
+              "type": "string"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
+    "aodGroup": {
+      "description": "'aod:' on a 'group': 'hide' | 'show' | an override block allowing the union of every kind a descendant might allow (docs/plans/14-aod.md \u00a72.3), plus 'visible:'. Pushed down to descendants key by key -- see the top-level 'aod:' resolution rule.",
+      "oneOf": [
+        {
+          "enum": [
+            "hide",
+            "show"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "track_color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "icon_color": {
+              "$ref": "#/$defs/colorExpression"
+            },
+            "thickness": {
+              "$ref": "#/$defs/length"
+            },
+            "bar_width": {
+              "$ref": "#/$defs/length"
+            },
+            "filled": {
+              "type": "boolean"
+            },
+            "font": {
+              "type": "string"
+            },
+            "format": {
+              "type": "string"
+            },
+            "visible": {
+              "$ref": "#/$defs/visible"
+            }
+          }
+        }
+      ]
+    },
     "outline": {
       "description": "The stamped-ring outline (research 13/14, plan 15): draws the text N times at small pixel offsets in this colour, then once more, unshifted, in the element's own 'color:' -- the fill pass every text element already has. 'none' (the default) draws no ring at all, byte-identical to today. The shorthand form (a bare colour expression) is 'width: 2' with that colour.",
       "oneOf": [
@@ -702,7 +1003,7 @@
               "type": "integer",
               "minimum": 1,
               "default": 2,
-              "description": "Ring width in pixels, not a Length -- always pixels, on every device, the same way a pattern's own 'count:' is a bare integer with no unit (docs/guide/patterns.md). Capped at 3 -- a build error above that, not a schema bound, so the message can cite research 14's own numbers (D6, plan 15 §13). Never %/%r: the ring is a fixed visual stroke weight, the same way Garmin's own engine strokes at a fixed 2.0px regardless of device (research 13 §2.1)."
+              "description": "Ring width in pixels, not a Length -- always pixels, on every device, the same way a pattern's own 'count:' is a bare integer with no unit (docs/guide/patterns.md). Capped at 3 -- a build error above that, not a schema bound, so the message can cite research 14's own numbers (D6, plan 15 \u00a713). Never %/%r: the ring is a fixed visual stroke weight, the same way Garmin's own engine strokes at a fixed 2.0px regardless of device (research 13 \u00a72.1)."
             }
           }
         }
@@ -802,15 +1103,14 @@
       }
     },
     "modes": {
-      "description": "Which power modes draw this element. Mode is structural, not styling: AMOLED forbids onPartialUpdate entirely while MIP depends on it.",
+      "description": "Which power modes draw this element: 'active' (awake) and/or 'low_power' (MIP partial update). Mode is structural, not styling: AMOLED forbids onPartialUpdate entirely while MIP depends on it. The always-on-display sleep frame on an AMOLED target is governed by 'aod:' instead (docs/plans/14-aod.md) -- 'always_on' was removed outright (D3): it is a schema error naming 'aod:' as its replacement (wfb/validate.py).",
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": {
         "enum": [
           "active",
-          "low_power",
-          "always_on"
+          "low_power"
         ]
       },
       "default": [
@@ -923,6 +1223,9 @@
         },
         "lint": {
           "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodGroup"
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
@@ -1041,6 +1344,9 @@
         "lint": {
           "$ref": "#/$defs/lint"
         },
+        "aod": {
+          "$ref": "#/$defs/aodShape"
+        },
         "overrides": {
           "$ref": "#/$defs/overrides"
         }
@@ -1137,6 +1443,9 @@
         },
         "lint": {
           "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodText"
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
@@ -1251,6 +1560,9 @@
         "lint": {
           "$ref": "#/$defs/lint"
         },
+        "aod": {
+          "$ref": "#/$defs/aodProgress"
+        },
         "overrides": {
           "$ref": "#/$defs/overrides"
         }
@@ -1357,6 +1669,9 @@
         },
         "lint": {
           "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodIcon"
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
@@ -1484,6 +1799,9 @@
         "lint": {
           "$ref": "#/$defs/lint"
         },
+        "aod": {
+          "$ref": "#/$defs/aodGraph"
+        },
         "overrides": {
           "$ref": "#/$defs/overrides"
         }
@@ -1550,7 +1868,7 @@
           "default": "none"
         },
         "unit": {
-          "description": "Append Complication.unit's suffix after the value (e.g. 'm', 'm/s', '°C') when the device supplies one. Default false.",
+          "description": "Append Complication.unit's suffix after the value (e.g. 'm', 'm/s', '\u00b0C') when the device supplies one. Default false.",
           "type": "boolean",
           "default": false
         },
@@ -1598,6 +1916,9 @@
         },
         "lint": {
           "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodComplicationSlot"
         },
         "overrides": {
           "$ref": "#/$defs/overrides"
@@ -1656,13 +1977,16 @@
         "lint": {
           "$ref": "#/$defs/lint"
         },
+        "aod": {
+          "$ref": "#/$defs/aodHands"
+        },
         "overrides": {
           "$ref": "#/$defs/overrides"
         }
       }
     },
     "handSet": {
-      "description": "One named hand set (plan 04 §5.1): a shape, like a fonts: entry, not something drawn on its own -- it is placed by a 'type: hands' element naming it. Any of hour:/minute:/second: may be present, and at least one must be -- a set with only 'second:' is a small-seconds subdial.",
+      "description": "One named hand set (plan 04 \u00a75.1): a shape, like a fonts: entry, not something drawn on its own -- it is placed by a 'type: hands' element naming it. Any of hour:/minute:/second: may be present, and at least one must be -- a set with only 'second:' is a small-seconds subdial.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -1990,13 +2314,16 @@
         "lint": {
           "$ref": "#/$defs/lint"
         },
+        "aod": {
+          "$ref": "#/$defs/aodPattern"
+        },
         "overrides": {
           "$ref": "#/$defs/overrides"
         }
       }
     },
     "patternPart": {
-      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 §5.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin), 'size', 'align' and 'vertical_align'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'; arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:' or alignment, because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align', 'vertical_align', 'curve', 'if_unavailable' and 'outline' (plan 06 §3, plan 11 slice 2, plan 15 slice 2) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy, unlike a rectangle/circle part's box, which turns with the part (plan 07 phase D); with 'curve:' and a 'face:' (vector) 'font:', the glyphs themselves turn too, tangent to (or around) the copy's own position, not just the anchor; 'outline:' stamps a ring around this copy's own already-turned/stepped glyphs, exactly as on a standalone 'text' element. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' are not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends) -- see docs/guide/placement.md, \"Placement: at: and align:\".",
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses (plan 05 \u00a75.2): origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks (radial: 12 o'clock; linear: no rotation). 'anchor:' is rejected -- the origin is the only reference point. Only the keys the chosen 'shape:' reads are accepted: polygon reads 'points'; rectangle reads 'at' (default the origin), 'size', 'align' and 'vertical_align'; line reads 'at' (default the origin), 'to' and 'thickness' (default 1px); circle reads 'at' (default the origin), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false'), 'align' and 'vertical_align'; arc reads 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' (default 360deg) -- never 'at:' or alignment, because an arc is always centred on the copy's own origin (docs/plans/05-patterns.md D3); text reads 'at' (default the origin), 'value' xor 'text', 'format', 'font', 'align', 'vertical_align', 'curve', 'if_unavailable' and 'outline' (plan 06 \u00a73, plan 11 slice 2, plan 15 slice 2) -- upright glyphs whose anchor turns (radial) or steps (linear) with the copy, unlike a rectangle/circle part's box, which turns with the part (plan 07 phase D); with 'curve:' and a 'face:' (vector) 'font:', the glyphs themselves turn too, tangent to (or around) the copy's own position, not just the anchor; 'outline:' stamps a ring around this copy's own already-turned/stepped glyphs, exactly as on a standalone 'text' element. 'filled: false' is rejected on polygon and rectangle -- there is no drawPolygon. 'align'/'vertical_align' are not accepted on polygon (every vertex is its own position) or line ('at:'/'to:' are its two ends) -- see docs/guide/placement.md, \"Placement: at: and align:\".",
       "type": "object",
       "required": [
         "shape"
@@ -2004,7 +2331,7 @@
       "additionalProperties": false,
       "properties": {
         "shape": {
-          "description": "polygon/rectangle/line/circle/arc/text are the six primitives a pattern can repeat -- text is upright glyphs at an anchor point that turns (radial) or steps (linear) with the copy (plan 06 §3), unlike a hand part, which still rejects it (a bitmap font cannot rotate); with 'curve:' and a 'face:' font, a pattern's own text part can turn its glyphs too (plan 11 slice 2). rounded_rectangle, ellipse and icon are recognised here only so the compiler can reject each with its own platform reason (docs/guide/patterns.md) instead of a bare 'not one of ...'.",
+          "description": "polygon/rectangle/line/circle/arc/text are the six primitives a pattern can repeat -- text is upright glyphs at an anchor point that turns (radial) or steps (linear) with the copy (plan 06 \u00a73), unlike a hand part, which still rejects it (a bitmap font cannot rotate); with 'curve:' and a 'face:' font, a pattern's own text part can turn its glyphs too (plan 11 slice 2). rounded_rectangle, ellipse and icon are recognised here only so the compiler can reject each with its own platform reason (docs/guide/patterns.md) instead of a bare 'not one of ...'.",
           "enum": [
             "polygon",
             "rectangle",
@@ -2093,7 +2420,7 @@
           "$ref": "#/$defs/outline"
         },
         "align": {
-          "description": "'shape: rectangle', 'circle' or 'text' only. On rectangle/circle, the box is placed in the part's own frame, before it turns or steps with the copy (plan 07 phase D); on text, only the anchor point moves this way -- the glyphs stay upright (plan 06 §3), unless 'curve:' turns the glyphs themselves too (plan 11 slice 2).",
+          "description": "'shape: rectangle', 'circle' or 'text' only. On rectangle/circle, the box is placed in the part's own frame, before it turns or steps with the copy (plan 07 phase D); on text, only the anchor point moves this way -- the glyphs stay upright (plan 06 \u00a73), unless 'curve:' turns the glyphs themselves too (plan 11 slice 2).",
           "$ref": "#/$defs/align"
         },
         "vertical_align": {

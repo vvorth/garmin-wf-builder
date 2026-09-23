@@ -263,12 +263,17 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - a font `size:` given as a bare number, and `scale:`;
   - a raw pasted character in `icon:`;
   - refresh tiers (`WfbCache.mc`, `catalog.Tier`);
-  - `vertical_align: baseline` (renamed `bottom`).
+  - `vertical_align: baseline` (renamed `bottom`);
+  - `modes: [always_on]` (replaced by `aod:`, plan 14 D3 — a schema error
+    names the replacement).
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
   - per-device `overrides` (writing one is a build error);
   - `segments`/`scale` progress styles;
   - unit conversion;
+  - `aod: dim:`/`jitter:`, and an `aod:` override's colour/font/thickness
+    actually restyling the generated AOD frame (plan 14 slices 2/3/5;
+    friendly errors for `dim:`/`jitter:`);
   - **phone settings**: frozen, incomplete, on `wip/phone-settings`. Do not
     resume without asking;
   - catalogue generation from the SDK;
@@ -294,7 +299,13 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     part — the stamped-ring substitute for a filled-outline mode this
     platform lacks (plan 15, all three slices), reaching every draw shape
     those elements can take and checked by a new suppressible lint,
-    `text-outline-interior`.
+    `text-outline-interior`;
+  - `aod:` format and resolution, and the AMOLED sleep-frame gate (plan 14
+    slice 1): per-element/group `hide`/`show`/override block, a face-wide
+    default, `dim:`/`jitter:` reserved with friendly errors, `_aod`
+    emitted only when a target is AMOLED, `wfb preview --aod`, and two new
+    suppressible lints (`aod-unreachable`, `aod-empty`) — restyling what
+    the AOD frame actually draws is slice 2.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.

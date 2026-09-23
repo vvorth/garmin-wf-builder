@@ -8,7 +8,7 @@ platform limits and can never be suppressed.
 
 ## At a glance
 
-Nineteen codes are suppressible. One line each, derived from this chapter,
+Twenty-one codes are suppressible. One line each, derived from this chapter,
 [`docs/limitations.md`](../limitations.md) §3 and `wfb/lint.py`'s own
 messages; see `wfb/lint.py` if unsure.
 
@@ -33,6 +33,8 @@ messages; see `wfb/lint.py` if unsure.
 | `sub-pixel-length` | a `%`/`%r` length resolves below 1 px on this device, with `min_1px:` off |
 | `font-unavailable` | a `face:` font (or an element using one) with `if_unavailable: hide` fails to resolve a usable face on this device |
 | `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
+| `aod-unreachable` | an element's own `aod:` (a `show` or an override) can never draw because an ancestor group already writes `aod: hide`, which is sticky |
+| `aod-empty` | an AMOLED target where nothing in the design draws in always-on display |
 
 ## Lint suppression
 
@@ -51,12 +53,12 @@ an out-of-range draw call, it clips silently the same way `setClip` does, so
 drawing partly or fully off the framebuffer is a cropped design, not a broken
 one, and the check is a warning like `safe-area`.
 
-Nineteen codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
+Twenty-one codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
 `text-overflow`, `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
 `duplicate-style`, `unreachable-layout`, `sub-pixel-length`,
-`text-outline-interior` and
+`text-outline-interior`, `aod-unreachable`, `aod-empty` and
 `font-unavailable` — a `face:` font, or an element using one, that has
 `if_unavailable: hide` and fails to resolve a usable face on some target
 device (["Vector (`face:`) fonts"](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)). Under the default
@@ -92,7 +94,12 @@ names the type, or the `complication_slot` whose `slot:`/`default:`/
 either, but there is no element to hang either on at all: `duplicate-style`
 goes on the **`config: style:` entry's own** `lint:` (the second entry of
 the duplicate pair), and `unreachable-layout` on the **`layouts:` entry's
-own** `lint:` -- neither is an element.
+own** `lint:` -- neither is an element. `aod-empty` is the same shape, one
+level up: it is about the whole face (nothing anywhere draws in AOD), so it
+goes on the **face's own `aod:` block's** `lint:` --
+`aod: {lint: {allow: [aod-empty], reason: ...}}`, beside `default:`/`dim:`/
+`jitter:`. `aod-unreachable`, by contrast, is an ordinary element-scoped
+diagnostic: it goes on the element whose own now-dead `aod:` it names.
 `sub-pixel-length` is an ordinary element-scoped diagnostic like the rest
 -- **except** that a finding about a hand or pattern **part** goes on the
 part's **owning element**, the same element `min_1px:` inherits through

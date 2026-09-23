@@ -1,44 +1,31 @@
-# Always-on display (docs/guide/modes-and-interaction.md "Modes", plan 14
-# slice 0): the first face this project builds for an AMOLED target.
+# Always-on display (docs/guide/always-on-display.md, plan 14 slice 1):
+# `aod:` as overrides on the one design, replacing `modes: [always_on]`
+# outright (D3) -- the format key that slice 0 exercised here no longer
+# exists at all.
 #
-# This is deliberately a small, ordinary face -- digital time, a date, a
-# battery ring, a bezel -- not a format-feature showcase. Its job is to be
-# the AMOLED example that later plan-14 slices grow `aod:` overrides onto:
-# hiding the date and bezel in the sleep frame, dimming the clock, thinning
-# the ring. None of that exists yet (§6 of the plan), so today this face
-# uses the *existing* mechanism, `modes: [always_on]`, for exactly the
-# element Garmin's guidance says a sleep frame should keep: the clock. Every
-# other element (`background`, `bezel_ring`, `date_text`, `battery_ring`)
-# stays `modes: [active]` (the default) -- present while awake, absent while
-# asleep -- which is the "opt into everything" shape research 11 §4
-# describes as the gap `aod:` will close.
+# This stays the small, ordinary face slice 0 introduced -- digital time, a
+# date, a battery ring, a bezel -- not a format-feature showcase. The
+# face-wide `aod: {default: hide}` below is the canonical "everything off
+# but the time" shape (plan 14 §3): every element the ancestry says nothing
+# about is hidden in AOD, and the one line on `clock` turns it back on, with
+# a dimmer colour than its awake white -- Garmin's own guidance is to avoid
+# white/blue and prefer light grey (research 11 §1.3). Slice 1 resolves and
+# validates that override but does not yet apply it in the generated sleep
+# frame: the AOD frame this build produces draws `clock` with its *awake*
+# styling, unrestyled -- restyling ternaries land in slice 2
+# (docs/limitations.md §2).
 #
-# `modes: [low_power]` is not used anywhere here on purpose: AMOLED forbids
-# `onPartialUpdate` outright (`Device.supports_partial_update`,
-# `docs/lore/platform-constraints.md` #5), and a `low_power` element on an
-# AMOLED target is a hard build error pointing at `always_on`
-# (`wfb/lint.py`). Since the generated view is shared across every target in
-# one build (root CLAUDE.md §1), the three MIP verification devices simply
-# never enter the sleeping branch this face declares.
-#
-# `fenix847mm` (round-454x454, AMOLED, `requiresBurnInProtection`,
-# `getDisplayMode` -- docs/research/11-always-on-display.md §2) is the
-# fourth target here, installed by `tools/setup-env.sh` (plan 14 slice 0).
-# The three MIP verification devices are unaffected: with no AMOLED-specific
-# codegen yet (that is slice 2), the generated source for them is the same
-# shape every other example produces.
-#
-# What is verified: this design compiles warning-free through the real
-# `monkeyc` on all four targets, `fenix847mm` included, and the always_on
-# path (already emitted, previously unexercised by any example -- research
-# 11 §3.5) now has a real caller. What is NOT verified anywhere in this
-# project: what the sleep frame looks like on an AMOLED panel, or whether it
-# stays under Garmin's 10% pixel/luminance budget -- there is no simulator
-# and no watch in this container, and the burn-in lint is plan 14 slice 4,
-# not built yet.
+# `fenix847mm` (round-454x454, AMOLED, `requiresBurnInProtection` --
+# docs/research/11-always-on-display.md §2) is the fourth target, installed
+# by `tools/setup-env.sh` (plan 14 slice 0). The generated view is shared
+# across every target in one build (root CLAUDE.md §1); the three MIP
+# verification devices never see a lit `_aod` (D5: their sleep frame stays
+# exactly the awake design), and their generated source is unaffected by
+# `aod:` at all, on purpose -- see the byte-identical test in
+# `tests/test_aod_codegen.py`.
 #
 # Build it with:     ./wfb.py build examples/features/aod/face.yaml
-# Preview it with:   ./wfb.py preview examples/features/aod/face.yaml
+# Preview it with:   ./wfb.py preview examples/features/aod/face.yaml --aod
 #
 # yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
 
@@ -54,6 +41,9 @@ targets:
   - fenix8solar47mm
   - fenix8solar51mm
   - fr955
+
+aod:
+  default: hide
 
 palette:
   black: "#000000"
@@ -87,12 +77,12 @@ elements:
     at: { anchor: center, dy: -30% }
     color: palette.gray
 
-  # The sleep-frame element: drawn both awake and asleep, so this is the one
-  # place the `always_on` path -- emitted since research 11 §3.1, exercised
-  # by no example until this one -- actually runs. A future `aod:` override
-  # (plan 14 slice 1+) is what will thin/dim it for AMOLED instead of
-  # drawing it identically in both frames, as today's `modes:` mechanism can
-  # only do.
+  # The one element shown in AOD: the face default (`hide`) leaves every
+  # other element off, and this one line turns the clock back on -- the
+  # canonical "everything off but the time" shape (plan 14 §3). `color:`
+  # here is what slice 2's restyling will apply; today it is resolved and
+  # validated (`Element.aod.color`) but not yet read by codegen, which
+  # still draws this element with its own awake `color:` while `_aod`.
   - id: clock
     type: text
     value: time.clock
@@ -100,7 +90,8 @@ elements:
     font: FONT_NUMBER_MEDIUM
     at: { anchor: center }
     color: palette.white
-    modes: [active, always_on]
+    aod:
+      color: palette.dim
 
   - id: battery_ring
     type: progress

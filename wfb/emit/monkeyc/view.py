@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from ... import complications, expr, series
 from ...availability import Guards
 from ...catalog import READERS
+from ...devices import Device
 from ...ir import (
     HOLD_AUTO, Face, config_data_ids, config_field, font_resource_id, local_name,
     static_group_method,
@@ -244,13 +245,23 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         "the element's `id:` in the source YAML, so a change on screen leads back to\n"
         "a line in the design file."
     )
-    always_on = bool(resolved.in_mode("always_on"))
-    # `_sleeping` is shared by two independent reasons -- `always_on` (which
-    # element set to draw) and an `awake`-only second hand (whether to draw
-    # it at all) -- either one alone is enough to need the field and the two
-    # hooks. A design using neither generates neither: `needs_sleeping`
-    # reduces to `always_on` whenever `hands_awake_second` is False.
-    needs_sleeping = always_on or hands_awake_second
+    # `aod` (plan 14 D1's build-time half): whether *any* target in this
+    # build is AMOLED. Only then does the shared view carry `_aod`, its
+    # onEnterSleep/onExitSleep burn-in check, and the onUpdate branch that
+    # reads it -- an all-MIP build emits none of it, so its generated
+    # source stays byte-identical to a build before plan 14 (plan 14 §6
+    # slice 1's own test).
+    aod = guards.amoled_target
+    if aod:
+        plan.modules.add("Toybox.System")  # DeviceSettings.requiresBurnInProtection
+    # `_sleeping` exists only for the `awake`-only second hand (whether to
+    # draw it at all) -- `aod` no longer reads it: the AMOLED gate is `_aod`
+    # below, recomputed straight from the device settings in onEnterSleep,
+    # not derived from `_sleeping`. A field that is only ever *assigned*
+    # (never read) warns (`docs/lore/monkeyc.md`), which is exactly what
+    # `_sleeping` would do if emitted whenever `aod` alone were true and
+    # nothing reads it back.
+    needs_sleeping_field = hands_awake_second
     static = static_plan(resolved)
     antialias_default = _antialias_default(resolved)
     slot_pairs = _editor_slot_pairs(face)
@@ -261,9 +272,18 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         _emit_graph_fields(w, graphs)
         if slot_pairs:
             _emit_pulsing_field(w)
-        if needs_sleeping:
-            w.doc(_sleep_flag_doc(always_on, hands_awake_second))
+        if needs_sleeping_field:
+            w.doc(_sleep_flag_doc(hands_awake_second))
             w.line("private var _sleeping as Boolean = false;")
+            w.blank()
+        if aod:
+            w.doc(
+                "Whether the AMOLED always-on-display frame should draw: asleep, on a\n"
+                "device that requires burn-in protection. Recomputed in onEnterSleep\n"
+                "(a hardware fact, not a per-frame one) and cleared in onExitSleep --\n"
+                "see docs/plans/14-aod.md."
+            )
+            w.line("private var _aod as Boolean = false;")
             w.blank()
         _emit_initialize(w, face, has_slots=bool(slot_pairs), guards=guards)
         if antialias_default is not None:
@@ -273,10 +293,10 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards)
-        _emit_on_update(w, resolved, plan, always_on, static, antialias_default)
+        _emit_on_update(w, resolved, plan, aod, static, antialias_default)
         if _has_partial_update(resolved):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
-        _emit_sleep_hooks(w, resolved, needs_sleeping, always_on)
+        _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod, guards)
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
         for placed in graphs:
@@ -298,21 +318,20 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     return SourceFile(f"source/{face.entry}View.mc", w.render())
 
 
-def _sleep_flag_doc(always_on: bool, hands_awake_second: bool = False) -> str:
-    reasons = []
-    if always_on:
-        reasons.append(
-            "onUpdate reads it to choose which element set to draw: the 'always_on'\n"
-            "elements while asleep, the 'active' ones while awake."
-        )
-    if hands_awake_second:
-        reasons.append(
-            "An awake-only second hand ('seconds: awake') reads it too, so its own\n"
-            "draw method skips the second hand while asleep instead of drawing it\n"
-            "frozen at whatever second the once-a-minute sleeping update landed on."
-        )
-    return ("Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep "
-            "below.\n\n" + "\n\n".join(reasons))
+def _sleep_flag_doc(hands_awake_second: bool) -> str:
+    """`_sleeping`'s own doc -- unlike before plan 14, this field exists only
+    for the awake-only second hand; the AMOLED gate is `_aod`, which has its
+    own doc where it is declared (`emit_view`), computed fresh from the
+    device settings rather than derived from this flag.
+    """
+    assert hands_awake_second  # the only reason this field is ever emitted
+    return (
+        "Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep "
+        "below.\n\n"
+        "An awake-only second hand ('seconds: awake') reads it, so its own draw\n"
+        "method skips the second hand while asleep instead of drawing it frozen at\n"
+        "whatever second the once-a-minute sleeping update landed on."
+    )
 
 
 def _emit_static_field(w: Writer, static: "StaticPlan | None") -> None:
@@ -858,7 +877,7 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     w.blank()
 
 
-def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_on: bool,
+def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bool,
                     static: "StaticPlan | None" = None,
                     antialias_default: bool | None = None) -> None:
     w.doc(
@@ -866,9 +885,9 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_
         "\n"
         "Called once a minute in low-power mode and once a second while the watch is\n"
         "awake." + (
-            "  While asleep, draws the 'always_on' set instead of 'active' -- see\n"
-            "_sleeping, set by onEnterSleep/onExitSleep below."
-            if always_on else ""
+            "  While _aod (asleep, on a burn-in-protected device), draws the resolved\n"
+            "'aod:' set instead -- see _aod, set by onEnterSleep/onExitSleep below."
+            if aod else ""
         ) + (
             "  The static content comes first, as one blit of a buffer painted in\n"
             "onLayout -- or, on a device that could not allocate one, drawn straight\n"
@@ -885,9 +904,9 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", always_
         w.line("dc.clearClip();")
         if antialias_default is not None:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
-        if always_on:
-            with w.block("if (_sleeping)"):
-                _emit_mode_body(w, resolved, plan, "always_on", static)
+        if aod:
+            with w.block("if (_aod)"):
+                _emit_aod_body(w, resolved, plan)
             with w.block("else"):
                 _emit_mode_body(w, resolved, plan, "active", static)
         else:
@@ -967,6 +986,87 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
     _emit_layout_guarded_calls(w, resolved.face, calls)
 
 
+def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan") -> None:
+    """The AMOLED always-on frame (plan 14 slice 1): every element whose
+    resolved `aod:` is not `None`, calling the exact same per-element method
+    the active frame calls -- unrestyled; slice 2 teaches those methods to
+    read `aod:` as ternaries, load an AOD font and bypass a static buffer.
+
+    A static element is skipped here even when its own `aod:` resolves to
+    something (plan 14 §4.4 is slice 2's job: for now, static content simply
+    does not appear in AOD) -- the buffer is one opaque, all-or-nothing
+    blit painted once from the *active* styling, so there is nothing this
+    slice could correctly blit or draw for it.
+
+    The element's own generated method already checks its plain `visible:`
+    unconditionally (awake or asleep); only the *extra* condition an
+    `aod: {visible: ...}` override contributes, if any, is checked here, at
+    the call site (`ReadPlan.aod_guard_condition`).
+
+    **Starts from black, unconditionally.** `Dc` keeps its contents between
+    `onUpdate` calls -- there is no implicit clear -- and the awake frame's
+    own background element (if it has one) is exactly what the active
+    branch relies on for that. An `aod:`-drawn design's own resolved set
+    almost never includes a full-screen background (the whole point is to
+    light as little as possible), so without this the first AOD frame
+    would draw its few elements over whatever the *last awake frame*
+    happened to leave behind -- every pixel that frame lit stays lit,
+    which is precisely the burn-in this feature exists to prevent. Black
+    is the only correct AOD ground (research 11 §1.1: a pixel is "off"
+    only when it renders black), so this is not configurable the way
+    `renderStatic`'s own ground-clear isn't either.
+    """
+    w.comment("AOD starts from black: Dc keeps its contents between frames,")
+    w.comment("and the awake frame's own background does not draw here")
+    w.line("dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);")
+    w.line("dc.clear();")
+    plan.emit_reads(w, "aod")
+    w.blank()
+    ids = set(plan.aod_ids())
+    entries = [placed for placed in resolved.items
+              if placed.id in ids and placed.element.static_root is None]
+    _emit_layout_guarded_aod_calls(w, resolved.face, plan, entries)
+
+
+def _emit_layout_guarded_aod_calls(w: Writer, face: Face, plan: "ReadPlan", entries: list) -> None:
+    """`_emit_layout_guarded_calls`'s own layout-grouping shape, for the AOD
+    branch: each call may need its own `var`-declarations and an `if` guard
+    ahead of it (`_emit_one_aod_call`), which a flat `(element, line)` pair
+    cannot carry, so this walks `entries` (`Placed`, not pre-rendered lines)
+    directly instead of building on that helper.
+    """
+    index = 0
+    total = len(entries)
+    while index < total:
+        placed = entries[index]
+        layout = placed.element.layout
+        end = index + 1
+        while end < total and entries[end].element.layout == layout:
+            end += 1
+        if layout is None:
+            for k in range(index, end):
+                _emit_one_aod_call(w, plan, entries[k])
+        else:
+            guard = f"{CONFIG_LAYOUT_FIELD} == {face.layouts.index(layout)}"
+            with w.block(f"if ({guard})"):
+                for k in range(index, end):
+                    _emit_one_aod_call(w, plan, entries[k])
+        index = end
+
+
+def _emit_one_aod_call(w: Writer, plan: "ReadPlan", placed) -> None:
+    call = f"{_method(placed.id)}(dc{plan.arguments(placed)});"
+    condition = plan.aod_guard_condition(placed)
+    if condition is None:
+        w.line(call)
+        return
+    for name, read in plan.aod_guard_declarations(placed):
+        w.line(f"var {name} = {read};")
+    w.comment(f"aod: visible: {placed.element.aod.visible_override.text}")
+    with w.block(f"if ({condition})"):
+        w.line(call)
+
+
 def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                             antialias_default: bool | None = None) -> None:
     clip = resolved.clip_for("low_power")
@@ -1001,17 +1101,20 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
 
 
 def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
-                      always_on: bool) -> None:
+                      aod: bool, guards: "Guards" = _NO_GUARDS) -> None:
     w.doc("Awake: full-power updates resume.")
     with w.block("function onExitSleep() as Void"):
         if needs_sleeping:
             w.line("_sleeping = false;")
+        if aod:
+            w.line("_aod = false;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
-    if always_on:
-        doc = "Asleep: the next onUpdate draws the 'always_on' layout."
+    if aod:
+        doc = ("Asleep: the next onUpdate draws the resolved 'aod:' set instead of\n"
+               "'active', if this device requires burn-in protection.")
     elif needs_sleeping:
-        # `always_on` is unused: an awake-only second hand is the only other
+        # `aod` is unused: an awake-only second hand is the only other
         # reason `needs_sleeping` is true.
         doc = "Asleep: the next onUpdate hides the awake-only second hand."
     else:
@@ -1020,6 +1123,15 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
     with w.block("function onEnterSleep() as Void"):
         if needs_sleeping:
             w.line("_sleeping = true;")
+        if aod:
+            w.line("var settings = System.getDeviceSettings();")
+            if guards.burn_in_field_guarded:
+                w.line(
+                    f"_aod = (settings has :{Device.BURN_IN_FIELD}) && "
+                    f"settings.{Device.BURN_IN_FIELD};"
+                )
+            else:
+                w.line(f"_aod = settings.{Device.BURN_IN_FIELD};")
         w.line("WatchUi.requestUpdate();")
     w.blank()
     if _has_partial_update(resolved):

@@ -188,7 +188,7 @@ elements:
 """
 
 
-def test_seconds_never_with_no_always_on_declares_no_sleeping_field(write_design, bag, db):
+def test_seconds_never_declares_no_sleeping_field(write_design, bag, db):
     """The second hand simply is not drawn: no `if (!_sleeping)`, no field."""
     face = load(write_design(SECONDS_NEVER), bag)
     assert face is not None, bag.render()

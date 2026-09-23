@@ -18,8 +18,8 @@ cached on its side -- ``Toybox/Weather.html`` describes
 ``getCurrentConditions()`` as "get the **most recently cached** weather
 conditions", not "fetch weather conditions" -- so a second cache inside the
 128 KB watch face budget would be pure overhead for no freshness gained.
-``weather.*`` and ``complication.*`` are bindable from ``low_power``/
-``always_on`` elements the same as anything else; overrunning the
+``weather.*`` and ``complication.*`` are bindable from ``low_power``
+elements the same as anything else; overrunning the
 ``onPartialUpdate`` budget still calls ``onPowerBudgetExceeded`` and disables
 partial updates for the rest of the app's lifecycle (CLAUDE.md constraint 4),
 so watching for that is the author's own responsibility, backed by the

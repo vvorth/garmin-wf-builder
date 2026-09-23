@@ -126,12 +126,24 @@ class PreviewOptions:
     #: is also what every non-hands element still reads through the
     #: ordinary `time.hour`/`time.minute`/`time.second` sources.
     time: tuple[int, int, int] | None = None
-    #: Render the sleeping `onUpdate` frame instead of the awake one --
-    #: `wfb preview --asleep`.  Draws the `always_on` element set when the
-    #: design has one, the `active` set otherwise, and hides every
-    #: `awake`-only second hand either way -- the same choice the
-    #: generated view's own `_sleeping` branch makes.
+    #: Hide every `awake`-only second hand -- `wfb preview --asleep`, the
+    #: same choice the generated view makes while `_sleeping` (`seconds:
+    #: awake`'s own docstring). Before plan 14 this flag *also* switched
+    #: which `modes:` set drew (`always_on` vs. `active`); that half is gone
+    #: with the mode itself (D3) -- this is now purely the hands-only
+    #: "simulate a sleeping glance" preview, on every device shape, not just
+    #: AMOLED. `aod` below implies this too, since AOD only ever runs while
+    #: asleep.
     asleep: bool = False
+    #: Render the AMOLED always-on-display frame instead of the awake one --
+    #: `wfb preview --aod` (plan 14). Draws the resolved `aod:` set
+    #: (`Element.aod is not None`), unrestyled -- the same "unrestyled"
+    #: choice slice 1 codegen makes; colour/font/thickness overrides land in
+    #: slice 2, here and in codegen together. A design with no `aod:`
+    #: anywhere renders blank under the face default (`hide`, D2) -- see
+    #: `asleep` above for a plain "hide the second hand" preview that needs
+    #: no `aod:` at all.
+    aod: bool = False
     #: `--fonts DIR` -- overrides `wfb.fonts.fetch_system.garmin_font_root`'s
     #: search (`WFB_FONTS`, `vendor/fonts/`, the per-OS SDK Manager
     #: locations), the same override `wfb doctor --fonts` already takes.
@@ -314,15 +326,17 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     # `wfb/emit/monkeyc.py`'s `_emit_layout_guarded_calls` compiles into
     # `if (_configLayout == N)`, run here at preview time instead.
     active_layout = entry.layout if entry is not None else None
-    # `--asleep`: the sleeping `onUpdate` frame draws the `always_on`
-    # element set when the design has one, `active` otherwise -- the same
-    # choice `wfb/emit/monkeyc.py`'s own `_sleeping` branch makes.
-    draw_mode = "always_on" if options.asleep and resolved.in_mode("always_on") else "active"
     renderer = _Renderer(resolved, draw, image, scale, values, options, used_faces)
     for placed in resolved.items:
         if placed.kind == "group":
             continue
-        if draw_mode not in placed.element.modes:
+        if options.aod:
+            # `--aod`: the resolved 'aod:' set, not a `modes:` membership at
+            # all -- `wfb/emit/monkeyc.py`'s own `_aod` branch draws exactly
+            # this set, unrestyled (plan 14 slice 1).
+            if placed.element.aod is None:
+                continue
+        elif "active" not in placed.element.modes:
             continue
         if placed.element.layout is not None and placed.element.layout != active_layout:
             continue
@@ -451,7 +465,12 @@ class _Renderer:
     # -- dispatch ---------------------------------------------------------
 
     def render_element(self, placed) -> None:
-        if not self._visible(placed.element.visible):
+        # `--aod`: the fully resolved AOD gate (`element.visible` already
+        # folded in, plan 14 §3) -- not the element's own plain `visible:`,
+        # which an `aod: {visible: ...}` may narrow further.
+        visible = (placed.element.aod.visible if self.options.aod and placed.element.aod
+                   else placed.element.visible)
+        if not self._visible(visible):
             return
         if isinstance(placed, PlacedShape):
             self._shape(placed)
@@ -530,10 +549,11 @@ class _Renderer:
         the *resolved* geometry so this can never disagree with the
         generated code about a hand's shape or its axis.
 
-        `--asleep` hides an `awake`-only second hand, the same choice the
-        generated `if (!_sleeping)` branch makes; a `seconds: never` hand
-        was already excluded at resolve time (`Resolver._resolve_hands`),
-        so there is nothing here to skip for it.
+        `--asleep` (or `--aod`, which implies it) hides an `awake`-only
+        second hand, the same choice the generated view's hands codegen
+        makes while `_sleeping`; a `seconds: never` hand was already
+        excluded at resolve time (`Resolver._resolve_hands`), so there is
+        nothing here to skip for it.
         """
         element = placed.element
         s = self.scale
@@ -550,7 +570,8 @@ class _Renderer:
             hand = getattr(placed, hand_name)
             if hand is None:
                 continue
-            if hand_name == "second" and element.seconds == "awake" and self.options.asleep:
+            asleep = self.options.asleep or self.options.aod
+            if hand_name == "second" and element.seconds == "awake" and asleep:
                 continue
             sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
             for part in hand.parts:

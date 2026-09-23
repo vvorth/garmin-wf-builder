@@ -229,7 +229,8 @@ reader per element method (two elements sharing
 entire optimisation -- no staleness check, no field, no TTL.
 
 **Consequence: any source, including `weather.*` and `complication.*`, may
-be bound from a `low_power` or `always_on` element.** This does **not** make
+be bound from a `low_power` element (or an AMOLED sleep frame's `aod:`
+`visible:`).** This does **not** make
 reading them free in `onPartialUpdate` -- exceeding that handler's power
 budget calls `onPowerBudgetExceeded` and disables partial updates
 **permanently, for the rest of the app's lifecycle**. The suppressible

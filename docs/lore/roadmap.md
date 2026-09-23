@@ -90,6 +90,20 @@ Nothing config-, hands- or pattern-related is verified on a watch or in the
 simulator. What is verified is a warning-free real `monkeyc` build and
 `wfb preview`.
 
+- **`aod:` format and resolution (plan 14 slice 1):** per-element/group
+  `hide`/`show`/an override block reusing that kind's own property names,
+  key-by-key resolution (element > nearest ancestor group > face default),
+  a group's explicit `hide` sticky and unconditional, `visible:` conjoined
+  with the element's own. `_aod` (the sleep-frame gate) is emitted only
+  when some build target is AMOLED (`Device.is_amoled`), selected at
+  runtime per device via `requiresBurnInProtection` -- an all-MIP build
+  stays byte-identical with or without `aod:` keys present. `wfb preview
+  --aod` renders the resolved set, unrestyled; two new suppressible lints,
+  `aod-unreachable` and `aod-empty`. Restyling what the AOD frame actually
+  draws (colour/font/thickness ternaries, a separate AOD font, a static
+  element's own bypass) is slice 2; `dim:`/`jitter:` are slices 3/5.
+  `modes: [always_on]` is removed outright (D3) -- see below.
+
 ## Removed outright (no shim; the old spelling is an ordinary error)
 
 - `type: carousel`.
@@ -102,6 +116,8 @@ simulator. What is verified is a warning-free real `monkeyc` build and
 - Refresh tiers (`WfbCache.mc`, `catalog.Tier`).
 - `config: colors:`. Use `config: style:`.
 - `vertical_align: baseline`, renamed `bottom`.
+- `modes: [always_on]`. Use `aod:` (plan 14 D3) -- the schema error names
+  the replacement.
 
 ## Not implemented
 
@@ -126,3 +142,9 @@ specifies each item.
    renderer.
 9. `mypy --strict` and CI. Neither exists.
 10. `wfb install`, `package`, `migrate`.
+11. `aod: dim:`/`jitter:` (plan 14 §4.5/§5.2, slices 3/5) -- accepted by the
+    schema, rejected by the builder with a friendly error. An `aod:`
+    override's `color:`/`font:`/`format:`/`thickness:`/etc. actually
+    restyling the generated AOD frame, a separate AOD font, and a
+    `static:` element's own `aod:` bypassing the buffer (plan 14 slice 2).
+    The AMOLED burn-in pixel/luminance lint (plan 14 slice 4).

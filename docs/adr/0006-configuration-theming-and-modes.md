@@ -587,6 +587,28 @@ inside its own element's draw method — the hour and minute hands, and any
 `docs/guide/analog-hands.md` and `wfb/emit/monkeyc/view.py`'s
 `_sleep_flag_doc`/`_emit_sleep_hooks`.
 
+#### Amended (2026-09-23, plan 14 D3): `always_on` removed outright; the AMOLED sleep frame is `aod:`
+
+`modes: [always_on]` — "Modes: `active`, `low_power`, `always_on`" above,
+and the `_sleeping`-sharing note just before this one — is gone. Nothing
+used it as a real design (plan 14 research 11 §3.5), and it never grew the
+one thing the goal actually asked for: a per-element restyling delta for
+the sleep frame. `aod:` (plan 14, `docs/guide/always-on-display.md`)
+replaces it as overrides on the one design — element/group `hide`/`show`/
+an override block reusing that kind's own property names, resolved element
+> nearest ancestor group > face default — rather than a second element set
+to opt into. `modes:` now means only the two MIP partial-update modes.
+
+`_sleeping` is no longer shared: it exists solely for the `awake`-only
+second hand now (unchanged from the note above, minus its `always_on`
+half). The AMOLED gate is a new, independent field, `_aod` — true while
+`_sleeping` **and** `System.getDeviceSettings().requiresBurnInProtection`
+(checked at runtime per device, `has`-guarded per D1) — emitted only when
+some build target is AMOLED (`Device.is_amoled`), so an all-MIP build
+generates byte-identical source with or without `aod:` keys present. The
+AMOLED pixel/luminance estimate this section's bullet list named for
+"Phase 1.4" is plan 14 slice 4, still unbuilt.
+
 ### 6. Interactivity
 
 > **Amended after `docs/research/07-carousel-interaction.md`.** The original

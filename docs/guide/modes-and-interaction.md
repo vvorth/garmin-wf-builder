@@ -4,18 +4,22 @@
 tap, no swipe, and the physical keys belong to the system, so `on_hold:` is
 the only way any element responds to the wearer. Separately, `modes:` says
 in which power states an element draws at all — `active` while the watch is
-awake, `low_power` once a second while a MIP screen sleeps, and `always_on`
-for AMOLED's burn-in-constrained layout — because mode is a structural
-choice, not a styling one.
+awake, `low_power` once a second while a MIP screen sleeps — because mode is
+a structural choice, not a styling one. An AMOLED target's own
+burn-in-constrained sleep frame is a **different, independent axis**,
+`aod:`, covered in [Always-on display](always-on-display.md) rather than
+here: `modes:` used to carry it too (`always_on`), but that was removed
+outright (plan 14 D3) once `aod:` could express the same idea as overrides
+on the one design, not a second element set to opt into.
 
 ![the showcase asleep: the second hand stops drawing](../screenshots/showcase-asleep.png)
-*From the showcase face — see [Analog hands](analog-hands.md) for `seconds:`.*
+*From the showcase face — `wfb preview --asleep`, see [Analog hands](analog-hands.md) for `seconds:`.*
 
 ## At a glance
 
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
-| `modes:` | any element | `active`, `low_power`, `always_on` (unique) | `[active]` | [which power modes draw this element](#modes) |
+| `modes:` | any element | `active`, `low_power` (unique) | `[active]` | [which power modes draw this element](#modes) |
 | `on_hold:` | any element | a complication name (`wfb complications`) or `auto` | — | [touch-and-hold target](#interactivity-on_hold) |
 
 ## Modes
@@ -25,18 +29,13 @@ modes: [active, low_power]     # default: [active]
 ```
 
 Mode is structural, not styling, because AMOLED forbids `onPartialUpdate`
-entirely while MIP depends on it.
+entirely while MIP depends on it — which is also why `low_power` is a hard
+build error on an AMOLED target, pointing at `aod:` instead.
 
 | Mode | Meaning |
 |---|---|
 | `active` | drawn in `onUpdate`, once a second while awake |
 | `low_power` | also drawn in `onPartialUpdate`, once a second while asleep (MIP only) |
-| `always_on` | the AMOLED burn-in-constrained layout |
-
-**`modes: [always_on]`.** A separate element set for AMOLED watches, which
-can't use low-power updates. Most examples here target MIP watches only, so
-they don't use it; [`features/aod/`](../../examples/features/aod/face.yaml)
-does, on `fenix847mm`, this project's first AMOLED target.
 
 The compiler computes the **tightest `setClip` rectangle** around all `low_power`
 elements, because clip cost is charged by region *area* — every pixel inside the
@@ -168,3 +167,4 @@ apply to it.
 - [`examples/features/complications/face.yaml`](../../examples/features/complications/face.yaml) — `on_hold:` naming a complication type directly, and `on_hold: auto`.
 - [Configuration → The Data axis](configuration.md#the-data-axis) — a `complication_slot`'s own `on_hold: auto`, resolved on-device rather than at build time.
 - [Analog hands](analog-hands.md) — `seconds:`, the other mode-dependent choice on the analog dial.
+- [Always-on display](always-on-display.md) — `aod:`, the AMOLED sleep frame `modes:` no longer carries.

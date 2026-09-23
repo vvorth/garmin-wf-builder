@@ -39,6 +39,7 @@ SUPPRESSIBLE = frozenset({
     "dead-element", "graphics-pool", "antialias-dither", "static-overlap",
     "config-unsupported", "duplicate-style", "unreachable-layout",
     "sub-pixel-length", "font-unavailable", "off-screen", "text-outline-interior",
+    "aod-unreachable", "aod-empty",
 })
 #: `api-gated-unguardable` is deliberately absent here -- see
 #: `check_api_gated`'s case 5: it means the generator would emit an unguarded
@@ -56,6 +57,7 @@ SUPPRESSIBLE = frozenset({
 #: silently.
 ALL_CODES = frozenset({
     "antialias-dither",
+    "aod", "aod-unreachable", "aod-empty",
     "api-gated", "api-gated-unguardable",
     "color", "color-scheme", "complication-slot",
     "config", "config-unsupported",
@@ -94,6 +96,8 @@ def run(resolved: ResolvedFace, bag: Bag) -> None:
     check_partial_update_budget(resolved, bag)
     check_hold_targets(resolved, bag)
     check_dead_element(resolved, bag)
+    check_aod_unreachable(resolved, bag)
+    check_aod_empty(resolved, bag)
     check_api_gated(resolved, bag)
     check_graphics_pool(resolved, bag)
     check_static_overlap(resolved, bag)
@@ -1486,7 +1490,8 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
             f"{device.id} is an {device.display_type.upper()} device and does not support "
             f"onPartialUpdate, but this design has low-power elements",
             notes=["MIP and AMOLED are structurally different low-power paths, not a "
-                   "styling difference; use 'always_on' for AMOLED targets"],
+                   "styling difference; on an AMOLED target the sleep frame is 'aod:', "
+                   "not 'modes: [low_power]'"],
             confidence="exact -- device displayType",
         )
         return
@@ -1650,6 +1655,75 @@ def check_dead_element(resolved: ResolvedFace, bag: Bag) -> None:
                 notes=["delete the part, or fix the condition"],
                 confidence="exact -- constant-folded at build time",
             ))
+
+
+def check_aod_unreachable(resolved: ResolvedFace, bag: Bag) -> None:
+    """An element/group whose own `aod:` (a `show` or an override block) can
+    never draw because an ancestor already wrote an explicit `aod: hide`
+    (plan 14 §3): that hide is sticky and unconditional, so the descendant's
+    own `aod:` is dead weight the moment it is written, not just a redundant
+    duplicate.
+
+    `Builder._resolve_aod` stamps `aod_ancestor_hidden` on every element,
+    hidden or not, specifically so this check does not have to re-walk the
+    ancestry: an element with its own `aod_own` (a `show`/override -- never
+    set for `aod: hide`, which resolves to `aod_own_hide` instead) that was
+    still reached with `aod_ancestor_hidden` set is exactly the unreachable
+    case.
+    """
+    for placed in resolved.items:
+        element = placed.element
+        if not element.aod_ancestor_hidden or element.aod_own is None:
+            continue
+        _emit(bag, placed, Diagnostic(
+            Severity.WARNING,
+            "aod-unreachable",
+            f"{placed.id}: has its own 'aod:', but an ancestor group already "
+            f"writes 'aod: hide', which hides the whole subtree and cannot "
+            f"be undone below it",
+            element.span,
+            notes=["plan 14 §3: an explicit 'aod: hide' on a group is sticky "
+                   "-- nothing beneath it can turn AOD back on",
+                   "delete this element's own 'aod:', or drop the ancestor's "
+                   "'aod: hide'"],
+            confidence="exact -- resolved at build time",
+        ))
+
+
+def check_aod_empty(resolved: ResolvedFace, bag: Bag) -> None:
+    """D2: a face whose target is AMOLED but whose resolved `aod:` set is
+    empty -- the face default is `hide` (D2), so an unconverted design
+    silently ships a blank always-on frame on every AMOLED target unless an
+    element opts back in. Garmin treats an absent always-on view as a defect
+    on such a device, not a stylistic choice (research 11 §1.3).
+
+    Face-level, like `check_memory`: there is no single element to blame for
+    "nothing at all was ever turned on", so this carries no span and is
+    suppressed through the face's own `aod: {lint: {allow: [...]}}` rather
+    than an element's `lint:`.
+    """
+    if not resolved.device.is_amoled:
+        return
+    if any(placed.kind != "group" and placed.element.aod is not None
+           for placed in resolved.items):
+        return
+    face = resolved.face
+    if "aod-empty" in face.aod_lint_allow and "aod-empty" in SUPPRESSIBLE:
+        return
+    bag.warning(
+        "aod-empty",
+        f"{resolved.device.id} is AMOLED, but nothing in this design draws "
+        f"in always-on display",
+        notes=["Garmin treats an absent always-on view as a defect on an "
+               "AMOLED target, not an optional extra "
+               "(docs/research/11-always-on-display.md §1.3)",
+               "add 'aod: show' (or an override) to at least the time, or "
+               "set the face-wide 'aod: {default: show}'",
+               "suppress with the face's own "
+               "'aod: {lint: {allow: [aod-empty], reason: ...}}' if this is "
+               "deliberate"],
+        confidence="exact -- resolved 'aod:' set, this device",
+    )
 
 
 # -- hold targets -----------------------------------------------------------

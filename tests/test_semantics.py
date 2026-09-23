@@ -701,14 +701,15 @@ def test_a_non_nullable_colour_needs_no_when_absent(write_design, bag):
 
 
 # --------------------------------------------------------------------------
-# Bug 6: `modes: [always_on]` elements were generated but never drawn
+# Bug 6 (pre-plan-14): `modes: [always_on]` elements were generated but never
+# drawn. `always_on` was removed outright (plan 14 D3); `aod:` is its
+# replacement, and the equivalent regression test now drives *that* path.
 
 
-def test_always_on_elements_are_drawn_while_asleep(write_design, bag, db):
-    """Before this fix, `_emit_on_update` only ever looked at 'active' and
-    `_emit_on_partial_update` only at 'low_power' -- an 'always_on' element's
-    private draw method was emitted and never called from anywhere, and the
-    build reported no diagnostics."""
+def test_aod_elements_are_drawn_while_asleep(write_design, bag, db):
+    """`_emit_on_update` reads `_aod`, and the aod branch calls exactly the
+    elements whose resolved `aod:` is not `None` -- the plan 14 analogue of
+    the always_on fix this replaces."""
     from wfb.emit import generate
     from wfb.emit.resources import bake_fonts
 
@@ -718,25 +719,25 @@ def test_always_on_elements_are_drawn_while_asleep(write_design, bag, db):
     text: "12:00"
     color: palette.fg
     at: {anchor: center}
-    modes: [always_on]
+    aod: show
 """)), bag)
     assert face is not None, bag.render()
-    device = db.get("fenix8solar47mm")
+    device = db.get("fenix847mm")  # AMOLED: needed for `_aod` to be emitted at all
     baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
-    assert "private var _sleeping as Boolean = false;" in view
-    assert "_sleeping = true;" in view  # onEnterSleep
-    assert "_sleeping = false;" in view  # onExitSleep
+    assert "private var _aod as Boolean = false;" in view
+    assert "requiresBurnInProtection" in view  # onEnterSleep computes it
+    assert "_aod = false;" in view  # onExitSleep
     on_update = view.split("function onUpdate")[1].split("function ")[0]
-    assert "if (_sleeping) {" in on_update
+    assert "if (_aod) {" in on_update
     assert "drawClockDim(dc);" in on_update
 
 
-def test_a_design_with_no_always_on_elements_is_unchanged(write_design, bag, db, minimal):
-    """The always_on plumbing must be entirely invisible to a design that
-    does not use the mode, so ordinary designs (and their golden files)
-    do not churn."""
+def test_a_design_with_no_amoled_target_declares_no_aod_plumbing(write_design, bag, db, minimal):
+    """The `_aod` plumbing must be entirely invisible to an all-MIP build
+    (D1's build-time gate: some target must be AMOLED), so ordinary designs
+    (and their golden files) do not churn."""
     from wfb.emit import generate
     from wfb.emit.resources import bake_fonts
 
@@ -746,6 +747,7 @@ def test_a_design_with_no_always_on_elements_is_unchanged(write_design, bag, db,
     baked = {device.id: bake_fonts(face, device)}
     project = generate(face, [device], write_design("").parent / "build", baked)
     view = next(v for k, v in project.files().items() if k.endswith("View.mc"))
+    assert "_aod" not in view
     assert "_sleeping" not in view
 
 

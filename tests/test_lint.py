@@ -1609,12 +1609,18 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     guard -- a `face:` font's own gates 1-3, governed by `if_unavailable:`
     and `wfb.lint.check_vector_font_availability`'s `font-unavailable`, not
     a `check_api_gated` "kind" at all -- so it is excluded from the
-    comparison below rather than added to it."""
+    comparison below rather than added to it. `amoled_target`/`burn_in_
+    field_guarded` (plan 14) are a fourth, unrelated pair: the AOD gate's
+    own build-time/runtime halves, governed by `wfb.emit.monkeyc.view`
+    directly, never by `check_api_gated` -- excluded the same way."""
     from dataclasses import fields as dc_fields
 
     from wfb.availability import Guards, compute_guards
 
-    guards_field_names = {f.name for f in dc_fields(Guards)} - {"vector_fonts"}
+    guards_field_names = (
+        {f.name for f in dc_fields(Guards)}
+        - {"vector_fonts", "amoled_target", "burn_in_field_guarded"}
+    )
     assert guards_field_names == {"complications", "fields"}
 
     _skip_unless_installed(db, "fenix6")
@@ -1836,7 +1842,7 @@ palette:
   bg: "#000000"
   fg: "#FFFFFF"
 elements:
-  - id: always_on_text
+  - id: low_power_text
     type: text
     text: "AOD"
     color: palette.fg
@@ -1861,7 +1867,7 @@ def test_outline_interior_is_silent_across_disjoint_modes(write_design, bag, db)
     already applies, reused here rather than re-derived."""
     resolved = _resolved_for(
         write_design, bag, db,
-        _DISJOINT_MODES_DESIGN.format(first_modes="always_on", second_modes="active"),
+        _DISJOINT_MODES_DESIGN.format(first_modes="low_power", second_modes="active"),
         "fenix8solar47mm",
     )
     lint.check_text_outline_interior(resolved, bag)
@@ -1876,7 +1882,7 @@ def test_outline_interior_fires_once_modes_overlap(write_design, bag, db):
     resolved = _resolved_for(
         write_design, bag, db,
         _DISJOINT_MODES_DESIGN.format(
-            first_modes="active, always_on", second_modes="active"),
+            first_modes="active, low_power", second_modes="active"),
         "fenix8solar47mm",
     )
     lint.check_text_outline_interior(resolved, bag)

@@ -321,6 +321,22 @@ class Guards:
     #: and any test written before plan 11 -- keeps constructing a valid
     #: value without being touched.
     vector_fonts: frozenset[str] = frozenset()
+    #: True iff at least one target device is AMOLED (`Device.is_amoled`) --
+    #: plan 14 D1's *build-time* half of "burn-in device". `_aod` (the field,
+    #: the `onUpdate` branch, the sleep hooks' burn-in check) is emitted only
+    #: when this is true, so an all-MIP build emits none of it and generates
+    #: byte-identical source to a pre-plan-14 build (plan 14 §6 slice 1's own
+    #: test). Defaulted for the same reason `vector_fonts` is: every
+    #: pre-existing `Guards(...)` call site keeps constructing a valid value.
+    amoled_target: bool = False
+    #: True iff `amoled_target` and at least one target device's own symbol
+    #: table lacks `Device.BURN_IN_FIELD` -- plan 14 D1's *runtime* half:
+    #: `System.getDeviceSettings() has :requiresBurnInProtection` is emitted
+    #: only then. Every target having the field (true for every device
+    #: research 11 §2 checked) emits the plain, unguarded read instead --
+    #: the same "no guard for a thing every target has" rule `fields`/
+    #: `vector_fonts` already follow.
+    burn_in_field_guarded: bool = False
 
     @property
     def any(self) -> bool:
@@ -351,5 +367,10 @@ def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
         name for name, spec in used_vector_fonts.items()
         if any(vector_font_face(spec, device) == "" for device in devices)
     )
+    amoled_target = any(device.is_amoled for device in devices)
+    burn_in_field_guarded = amoled_target and any(
+        not device.has_field(Device.BURN_IN_FIELD) for device in devices
+    )
     return Guards(complications=complications, fields=missing_fields,
-                  vector_fonts=unavailable_vector_fonts)
+                  vector_fonts=unavailable_vector_fonts, amoled_target=amoled_target,
+                  burn_in_field_guarded=burn_in_field_guarded)

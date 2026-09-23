@@ -32,7 +32,7 @@ and every diagnostic carries **file, line and column** from the YAML source
 | 5 | **Text overflows its slot** | warning | resolved geometry + per-device, per-language font pixel metrics | exact for fixed system fonts; approximate for vector fonts |
 | 6 | **Missing glyph in a subsetted font** | error | used-glyph set vs. font `cmap` | exact |
 | 7 | **Estimated memory overrun** | warning | `monkeyc --build-stats` against the device limit from the device DB | **measured, not estimated** — see below |
-| 8 | **AMOLED always-on pixel/luminance violation** | warning | rasterise `always_on` layout, integrate | estimate; simulator heat map is authoritative |
+| 8 | **AMOLED always-on pixel/luminance violation** | warning | rasterise the resolved `aod:` set (plan 14; `modes: [always_on]` removed outright, D3), integrate | estimate; simulator heat map is authoritative — still unbuilt (plan 14 slice 4); a weaker precursor, `aod-empty` (does *anything* draw in AOD at all), shipped in slice 1 |
 | 9 | **Partial-update power-budget risk** | warning | clip area + operation count heuristic | **heuristic only** — see below |
 | 10 | **Insufficient contrast** | warning | WCAG-style ratio between element and its backdrop | exact arithmetic, subjective threshold |
 | 11 | **Config surface unavailable on target** | error | API 5.1.0 + four-axis limits (ADR 0006) | exact |

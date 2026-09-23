@@ -50,13 +50,14 @@
 # anywhere in this project: what any of it looks like, whether the second
 # hand actually vanishes on the first sleeping frame, and whether the axes
 # point where the preview says at a real clock time -- there is no simulator
-# and no watch in this container. `wfb preview --time
-# 10:09:42`/`--asleep` is the same resolved geometry the generated code
-# draws from, rendered with no simulator.
+# and no watch in this container. `wfb preview --time 10:09:42` is the same
+# resolved geometry the generated code draws from, rendered with no
+# simulator. (`--aod` does not apply here: this design declares no `aod:`,
+# so plan 14's face default -- hide -- would render nothing at all; see
+# `examples/features/aod/face.yaml` for that instead.)
 #
 # Build it with:     ./wfb.py build examples/features/analog/face.yaml
 # Preview it with:   ./wfb.py preview examples/features/analog/face.yaml --time 10:09:42
-# Preview asleep:    ./wfb.py preview examples/features/analog/face.yaml --time 10:09:42 --asleep
 #
 # yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
 

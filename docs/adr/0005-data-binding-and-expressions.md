@@ -205,7 +205,9 @@ page directly rather than assumed from the original ADR's framing.
 if a `low_power` element reads a non-`frame`-tier source" is gone along with
 the tiers it referred to. `weather.*` and `complication.*` (the renamed,
 widened form of what this ADR called `event`-tier sources — see below) may
-now be bound from `low_power`/`always_on` elements. **The platform limit this
+now be bound from `low_power` elements (or an AMOLED `aod:` override's
+`visible:`, plan 14 — `always_on` itself was removed outright, see that
+plan's D3). **The platform limit this
 rule protected has not gone away**: exceeding the `onPartialUpdate` power
 budget still calls `onPowerBudgetExceeded` and disables partial updates
 **permanently**, for the app's remaining lifecycle (`01-platform-

@@ -29,7 +29,7 @@ from .naming import (
 from .model import (
     MODES, HOLD_AUTO, PATTERN_LOOP_INDEX, GRAPH_AREA_MAX_SAMPLES, SYSTEM_FONTS,
     MAX_OUTLINE_WIDTH,
-    Position, Size, Expression, FontSpec, Curve, Outline, disc_perimeter_offsets,
+    Position, Size, Expression, FontSpec, Curve, Outline, AodOverride, disc_perimeter_offsets,
     CONFIG_SYMBOL, ConfigChoice, ConfigAxis,
     CONFIG_AXES, ConfigColor, ColorScheme, LayoutDecl, StyleEntry, ConfigStyle,
     ConfigDataSlot, Element, Group, Shape, HandPart, Hand, HandSet, HandsElement,
@@ -56,7 +56,7 @@ __all__ = [
     "_lower_first", "_pascal", "font_resource_id", "config_label_id", "config_style_label_id",
     "MODES", "HOLD_AUTO", "PATTERN_LOOP_INDEX", "GRAPH_AREA_MAX_SAMPLES", "SYSTEM_FONTS",
     "MAX_OUTLINE_WIDTH",
-    "Position", "Size", "Expression", "FontSpec", "Curve", "Outline", "disc_perimeter_offsets",
+    "Position", "Size", "Expression", "FontSpec", "Curve", "Outline", "AodOverride", "disc_perimeter_offsets",
     "CONFIG_SYMBOL", "ConfigChoice", "ConfigAxis",
     "CONFIG_AXES", "ConfigColor", "ColorScheme", "LayoutDecl", "StyleEntry", "ConfigStyle",
     "ConfigDataSlot", "Element", "Group", "Shape", "HandPart", "Hand", "HandSet", "HandsElement",

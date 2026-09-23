@@ -205,8 +205,11 @@ nothing inside it changed.
 ### AMOLED forbids `onPartialUpdate` entirely
 
 MIP and AMOLED are structurally different low-power paths, not a styling
-difference. All three targets here are MIP; **74 of 164 devices are
-AMOLED-class** and need the `always_on` path instead.
+difference. All three verification targets are MIP; **74 of 164 devices are
+AMOLED-class** and need an `aod:` sleep frame instead
+(`docs/guide/always-on-display.md`, plan 14) -- `modes: [always_on]` was
+removed outright (D3) once `aod:` could express the same frame as overrides
+on the one design, not a second element set.
 
 ### A face cannot ship its own TTF, and vector fonts are Garmin's only
 
@@ -669,6 +672,11 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `rounded_rectangle`/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |
 | A true typographic-baseline value for `vertical_align:` (glyph ascent, so a descender like the tail of a "g"/"y" hangs below it) | plan 07 §6 choice 1 -- `bottom` is the line box's bottom (ascent + descent); a real typographic baseline would need a new value |
 | Element-level alignment of a *linear* `pattern`'s drawn-ink box (as opposed to its `at:`, which is a pivot every copy steps from, and already refuses `align:`/`vertical_align:` outright) | plan 07 §6 choice 2's alternative -- useful for aligning a whole row, but left unbuilt because it would make a pattern's `at:` mean two different things (the step origin, and the row's own box) |
+| `aod: dim:` and `aod: jitter:` (face-level) | plan 14 §4.5/§5.2 -- accepted by the schema, rejected by the builder with a friendly "not implemented" error naming the slice (3 and 5 respectively) that will build them |
+| An `aod:` override's `color:`/`font:`/`format:`/`thickness:`/etc. actually changing what the generated AOD frame draws | plan 14 slice 2 -- slice 1 resolves, validates and stores every key, and gates *which* elements draw in AOD at all, but the sleep frame still draws with the element's *awake* styling, unrestyled |
+| A separate AOD font, loaded only in `onEnterSleep` | plan 14 §4.3, slice 2 |
+| A `static:` element's own `aod:` override drawing directly, bypassing the buffer | plan 14 §4.4, slice 2 -- for now, static content simply does not appear in AOD at all, whatever it declares |
+| The AMOLED burn-in pixel/luminance lint | plan 14 §4/D2, slice 4 -- until then, `aod: {default: hide}` (the schema default) is the safe choice, and `aod-empty` only checks that *something* draws, not how much |
 
 **None of `layouts:`/`config: style:`'s on-device editor *behaviour* is
 verified anywhere in this project** (plan 02 §9,
@@ -688,9 +696,10 @@ caches.** Every value comes from a Garmin API that caches on its own side
 (`Toybox/Weather.html`'s `getCurrentConditions()` is "get the most
 **recently cached** weather conditions"), so a cache inside the 128 KB budget
 would buy nothing (`docs/guide/data.md`'s "How data is read"). So a `weather.*` or
-`complication.*` binding may be used from a `low_power`/`always_on` element;
-that is the author's responsibility, backed only by the suppressible
-`partial-update-budget` warning (§3 below, `docs/guide/modes-and-interaction.md`'s "Modes").
+`complication.*` binding may be used from a `low_power` element (or an AMOLED
+sleep frame's `aod:` `visible:`); that is the author's responsibility, backed
+only by the suppressible `partial-update-budget` warning (§3 below,
+`docs/guide/modes-and-interaction.md`'s "Modes").
 
 **Complications are read by pull, not by subscription callback**:
 `WfbComplications.valueOf` is called from `onUpdate` exactly like any other

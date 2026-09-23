@@ -71,7 +71,7 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
     bad_types = (
         _check_element_types(doc, bag) + _check_hand_frame(doc, bag)
         + _check_pattern_frame(doc, bag) + _check_baseline_renamed(doc, bag)
-        + _check_hands_pattern_alignment(doc, bag)
+        + _check_hands_pattern_alignment(doc, bag) + _check_modes_always_on(doc, bag)
     )
 
     validator = Draft202012Validator(load_schema())
@@ -303,6 +303,53 @@ def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
                         if isinstance(part, dict) and part.get("shape") == "text" \
                                 and part.get("vertical_align") == "baseline":
                             report(part, here + ["parts", i, "vertical_align"])
+            visit(element.get("children"), here + ["children"])
+
+    visit(doc.data.get("elements"), ["elements"])
+    return bad
+
+
+def _check_modes_always_on(doc: YamlDocument, bag: Bag) -> list[list]:
+    """Catch `modes: [... always_on ...]` before the schema does: `always_on`
+    was removed from the `modes` enum outright (plan 14 D3), replaced by
+    `aod:`. A bare enum mismatch would just say "not one of active,
+    low_power" and leave an author who reaches for the old spelling with no
+    pointer to what replaced it.
+
+    Same precedent as `_check_hands_seconds_always`/`_check_baseline_
+    renamed`: the schema stays closed to the removed value, and this only
+    supplies the reason -- one path per occurrence (the `modes:` leaf, not
+    the whole element) so an unrelated mistake on the same element still
+    gets its own error. Checked on every element kind uniformly (`modes:`
+    is accepted everywhere), not just the kind(s) that used to combine it
+    with something else.
+    """
+    bad: list[list] = []
+
+    def report(container: dict, path: list) -> None:
+        bag.error(
+            "schema",
+            "'modes:' no longer accepts 'always_on'",
+            doc.span(container, "modes"),
+            notes=["the always-on-display sleep frame is now 'aod:' -- a "
+                   "per-element/group override, plus a face-wide "
+                   "'aod: {default: hide|show}' -- not a mode to opt an "
+                   "element into (docs/plans/14-aod.md, D3)",
+                   "'modes:' now means only the two MIP partial-update "
+                   "modes, 'active'/'low_power'"],
+        )
+        bad.append(path)
+
+    def visit(elements, path: list) -> None:
+        if not isinstance(elements, list):
+            return
+        for index, element in enumerate(elements):
+            if not isinstance(element, dict):
+                continue
+            here = path + [index]
+            modes = element.get("modes")
+            if isinstance(modes, list) and "always_on" in modes:
+                report(element, here + ["modes"])
             visit(element.get("children"), here + ["children"])
 
     visit(doc.data.get("elements"), ["elements"])

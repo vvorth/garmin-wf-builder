@@ -21,7 +21,10 @@ from ..series import SeriesDef
 from ..units import Angle, Length
 from .naming import _pascal, config_field, font_resource_id
 
-MODES = ("active", "low_power", "always_on")
+#: `always_on` was removed outright (plan 14 D3): the AMOLED sleep frame is
+#: `aod:` now, not a mode to opt an element into. `modes:` means only the two
+#: MIP partial-update modes.
+MODES = ("active", "low_power")
 
 #: `on_hold: auto` -- resolved later, once the element has a value binding to
 #: resolve *from*.  A plain string rather than a dedicated
@@ -284,6 +287,61 @@ class Outline:
 
     color: Expression
     width: int = 2
+
+
+@dataclass(frozen=True)
+class AodOverride:
+    """The resolved `aod:` override for one element (plan 14 §2-§3): element
+    wins key by key over its nearest ancestor group's own `aod:`, which wins
+    over nothing -- `Builder._resolve_aod`.  `Element.aod` is `None` when the
+    element is hidden in AOD outright; a *drawn* element always gets one of
+    these, even with every field below `None` (`aod: {}` / `aod: show`, or
+    an ancestor's `aod: show` with no override of its own) -- "drawn,
+    unrestyled", the shape slice 1's codegen draws until slice 2 teaches it
+    to read these fields as per-element ternaries.
+
+    Only the keys `docs/plans/14-aod.md` §2.3 allows for this element's own
+    kind are ever set here; every other field stays `None` forever for that
+    kind (a `text` element's `track_color` is always `None`, e.g.) -- the
+    schema already restricts which key an author can write per kind, so
+    nothing downstream needs to re-check that. Every value is resolved
+    through the exact same machinery the element's own properties use
+    (`Builder._color_expression`/`_font_reference`/`_length`), so a palette
+    or config colour role, or a declared font name, reaches codegen exactly
+    as `Shape.color`/`Text.font` already do.
+
+    `hands`/`pattern`: `color`/`thickness`/`font` apply uniformly to every
+    part of every hand, or every part of the pattern (§5.1) -- stored once,
+    here, at element level; there is no per-part override in v1.
+    """
+
+    color: Expression | None = None
+    track_color: Expression | None = None
+    icon_color: Expression | None = None
+    thickness: Length | None = None
+    bar_width: Length | None = None
+    filled: bool | None = None
+    font: str | None = None
+    font_is_custom: bool = False
+    format: str | None = None
+    #: The fully resolved "does this element actually draw in AOD" gate: the
+    #: element's own effective `visible:` (already conjoined with every
+    #: ancestor group's plain `visible:` by `Builder._push_visible`) AND
+    #: whichever `aod: {visible: ...}` won by the same key-by-key rule as
+    #: every other field above. `None` when neither contributes anything --
+    #: the element always draws in AOD once its `aod:` resolves to anything
+    #: at all. Read directly by `wfb.lint`'s `aod-empty` and by
+    #: `wfb.preview`'s `--aod` renderer; never re-derived from `visible_override`.
+    visible: Expression | None = None
+    #: The *aod-only* contribution to `visible` above, before conjoining
+    #: with the element's own plain `visible:` -- kept apart because
+    #: `wfb.emit.monkeyc` only ever needs to check this extra half at the
+    #: draw call site: the element's own generated method already checks its
+    #: plain `visible:` unconditionally, awake or asleep, so re-deriving the
+    #: element's own half from `visible` there would just recheck the same
+    #: condition a second time for no reason. `None` when no `aod: visible:`
+    #: won at any level in this element's own ancestry.
+    visible_override: Expression | None = None
 
 
 def disc_perimeter_offsets(radius: int) -> tuple[tuple[int, int], ...]:
@@ -672,6 +730,34 @@ class Element:
     #: ADR 0004 exception) -- never more than one mechanism for the same kind.
     align: str = "center"
     vertical_align: str = "center"
+    #: `aod:` as the author wrote it on *this* element/group alone, before
+    #: resolution against its ancestry -- `None` when nothing but `hide` was
+    #: written here (see `aod_own_hide`) or no `aod:` at all, else the parsed
+    #: key -> value dict an `aod: show` (empty dict) or an override block
+    #: produced (`Builder._build_aod_authored`). Consumed only by
+    #: `Builder._resolve_aod`, which walks the tree once after every element
+    #: exists, and by the `aod-unreachable` lint, which needs to tell "wrote
+    #: its own override, which an ancestor's explicit hide then buried" apart
+    #: from "never wrote one at all" -- information `aod` alone (the
+    #: resolved result) throws away once it collapses to `None`.
+    aod_own: dict[str, object] | None = None
+    #: `aod: hide` authored on *this* element/group alone (as opposed to
+    #: inherited). Explicit and sticky: `Builder._resolve_aod` propagates it,
+    #: once true, to every descendant regardless of what they write.
+    aod_own_hide: bool = False
+    #: True when some *ancestor* (not this element itself) explicitly wrote
+    #: `aod: hide`, reaching this element through that stickiness -- set by
+    #: `Builder._resolve_aod` for every element, hidden or not, purely so the
+    #: `aod-unreachable` lint can tell "my own `aod: show`/override can never
+    #: draw" apart from an element that simply has no `aod:` of its own.
+    aod_ancestor_hidden: bool = False
+    #: The resolved override, or `None` when this element does not draw in
+    #: AOD at all -- `Builder._resolve_aod`'s final answer, combining
+    #: `aod_own`/`aod_own_hide` with the nearest ancestor's own `aod:` and
+    #: the face's `aod: {default: ...}` (plan 14 §3). Every codegen/preview/
+    #: lint consumer reads this and only this; none of them re-walks the
+    #: ancestry.
+    aod: "AodOverride | None" = None
 
     @property
     def symbol(self) -> str:
@@ -1271,6 +1357,17 @@ class Face:
     #: analog hands, which is what keeps every existing golden file and
     #: generated project byte-identical.
     hands: dict[str, HandSet] = field(default_factory=dict)
+    #: Top-level `aod: default:` -- `True` for `hide` (the default, D2),
+    #: `False` for `show`. Fills an element's AOD visibility only where
+    #: nothing along its own ancestry (itself, every ancestor group) wrote
+    #: an `aod:` of its own -- `Builder._resolve_aod`.
+    aod_default_hide: bool = True
+    #: `aod: lint:` -- suppresses a face-level AOD lint (`aod-empty`), the
+    #: same `lint: {allow: [...]}` shape every element carries, but hung off
+    #: the face's own `aod:` block since there is no single element to hang
+    #: it on for a whole-face check.
+    aod_lint_allow: frozenset[str] = frozenset()
+    aod_lint_reason: str | None = None
 
     @property
     def has_config(self) -> bool:

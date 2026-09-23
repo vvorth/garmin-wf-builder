@@ -127,7 +127,7 @@ class ReadPlan:
             for path in paths:
                 self.modules.add(READERS[catalog.CATALOG[path].reader].module)
 
-        for mode in ("active", "low_power", "always_on"):
+        for mode in ("active", "low_power"):
             readers: list[str] = []
             for placed in self.resolved.items:
                 if mode not in placed.element.modes:
@@ -135,7 +135,37 @@ class ReadPlan:
                 readers = self._dedupe_readers(self._per_element[placed.id], readers)
             self._readers_for_mode[mode] = readers
 
+        # `aod` (plan 14): not a `modes:` membership at all -- the resolved
+        # `aod:` set (`Element.aod is not None`). Needs the readers every
+        # aod-drawn element's own method already needs (the same per-element
+        # call it always was, `_draw_calls`-style), plus whatever `aod:
+        # {visible: ...}`'s own *extra* condition reads -- that piece is
+        # checked at the call site (`aod_guard_condition`), not inside the
+        # element's own generated method, so its sources need their own
+        # locals declared there too (`aod_guard_declarations`).
+        self._aod_ids: list[str] = [
+            placed.id for placed in self.resolved.items
+            if placed.kind != "group" and placed.element.aod is not None
+        ]
+        aod_readers: list[str] = []
+        for placed in self.resolved.items:
+            if placed.id not in self._aod_ids:
+                continue
+            aod_readers = self._dedupe_readers(self._per_element[placed.id], aod_readers)
+            extra = placed.element.aod.visible_override
+            if extra is not None:
+                aod_readers = self._dedupe_readers(list(extra.sources), aod_readers)
+        self._readers_for_mode["aod"] = aod_readers
+
     # -- emission ---------------------------------------------------------
+
+    def aod_ids(self) -> list[str]:
+        """Ids of every drawn (non-group) element/part-owner whose resolved
+        `aod:` is not `None`, in resolved draw order -- the set `_emit_mode_
+        body`'s aod branch calls, exactly the same per-element methods the
+        active branch calls, unrestyled (plan 14 slice 1; restyling is
+        slice 2)."""
+        return list(self._aod_ids)
 
     def complication_readers(self) -> list[str]:
         """Reader names this design reads through `Toybox.Complications`.
@@ -291,9 +321,41 @@ class ReadPlan:
         return ()
 
     def declarations(self, placed) -> list[tuple[str, str]]:
+        return self._declare_paths(self._bound[placed.id])
 
+    def aod_guard_declarations(self, placed) -> list[tuple[str, str]]:
+        """Locals `aod: {visible: ...}`'s own *extra* condition needs,
+        declared fresh at the AOD call site (`_emit_mode_body`'s aod
+        branch): the element's own generated method already declares
+        whatever its plain `visible:`/value/colour bindings need, but never
+        sees this extra piece at all -- it is checked only at the call site,
+        only while `_aod`, by `aod_guard_condition` below. Empty (the
+        ordinary case) when this element's `aod:` added no visible condition
+        of its own.
+        """
+        element = placed.element
+        extra = element.aod.visible_override if element.aod is not None else None
+        if extra is None:
+            return []
+        return self._declare_paths(list(extra.sources))
+
+    def aod_guard_condition(self, placed) -> str | None:
+        """The Monkey C boolean for `aod: {visible: ...}`'s own extra
+        condition, fully null-guarded against the locals `aod_guard_
+        declarations` just declared -- `None` when this element's `aod:`
+        added no condition beyond its plain `visible:` (the ordinary case),
+        which the caller takes as "always draw once `_aod`"."""
+        element = placed.element
+        extra = element.aod.visible_override if element.aod is not None else None
+        if extra is None:
+            return None
+        parts = [f"{name} != null" for name in self._guarded_locals(list(extra.sources))]
+        parts.append(extra.code)
+        return " && ".join(parts)
+
+    def _declare_paths(self, paths: list[str]) -> list[tuple[str, str]]:
         out: list[tuple[str, str]] = []
-        for path in self._bound[placed.id]:
+        for path in paths:
             source = catalog.CATALOG[path]
             if source.field_name is None and source.type in (Type.TIME, Type.DATE):
                 # time.clock/date.today: formatting.py reads the reader
