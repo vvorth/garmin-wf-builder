@@ -48,6 +48,16 @@ aligned to grow away from the centre, covering all four
 `align`×`vertical_align` combinations, plus every accepting shape, both
 `progress` styles, a static `icon`, and aligned hand/pattern parts.
 
+`features/aod/` (plan 14 slice 0, 2026-09-23) is the first, and so far only,
+example to add a fourth target, `fenix847mm` -- the first AMOLED device this
+project has ever built for. An ordinary small face (digital time, a date, a
+battery ring, a bezel) rather than a format-feature dump: it exists to give
+the always-on path (`modes: [always_on]`, emitted since research 11 §3.1 but
+unexercised by any example) a real caller, with only the clock in that set.
+No AMOLED-specific codegen exists yet, so it is otherwise an ordinary face;
+later plan-14 slices grow `aod:` overrides on it instead of widening
+`modes:` further.
+
 ## `system-fonts/`
 
 `text/`, `numbers/` and `numbers-large/` (plan 09 step C, 2026-09-18) are

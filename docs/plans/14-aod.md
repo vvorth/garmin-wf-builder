@@ -1,7 +1,9 @@
 # 14 — `aod:`: always-on display as overrides on the one design
 
-**Status:** accepted, 2026-09-22; not built. D1–D5 (§7) decided by the
-user, 2026-09-22: every recommendation taken. It grew out of
+**Status:** accepted, 2026-09-22; slice 0 built 2026-09-23 (§6): `fenix847mm`
+installed and `examples/features/aod/face.yaml` added, warning-free on it
+and the three verification targets. Slices 1–6 open. D1–D5 (§7) decided by
+the user, 2026-09-22: every recommendation taken. It grew out of
 `docs/research/11-always-on-display.md` §6, whose open question (does
 `modes: [always_on]` change meaning, or does `aod:` sit alongside it?) this
 plan answers with a third option: `aod:` **replaces** it (§7, D3).
@@ -24,7 +26,14 @@ Every fact here is from research 11 §3, re-checked 2026-09-22:
 - Nothing varies an element's styling by mode.
 - Nothing reads the AMOLED API or measures burn-in.
 - `Device.is_amoled` gates exactly one check: the `partial-update` error.
-- No AMOLED device is installed. `fenix847mm` and `fenix947mm` are vendored.
+- `fenix847mm` is now installed (slice 0, 2026-09-23) — round-454x454,
+  `is_amoled` true, 131,072 B watch-face limit (same as the MIP targets),
+  `requiresBurnInProtection` present (confirmed by `has_field`, matching
+  research 11 §2's finding for all four devices checked). It has an
+  example, `examples/features/aod/face.yaml`, exercising `modes:
+  [always_on]` for the first time (763 B data + 1,298 B code = 2,061 B,
+  1.6% of budget on `fenix847mm`; warning-free there and on the three
+  verification targets). `fenix947mm` (AMOLED) is installed too.
 - Every element type already has an `overrides:` key (per-device overrides,
   reserved in the schema and rejected as not implemented). "A block holding
   a partial copy of the element's own properties" is therefore a shape the

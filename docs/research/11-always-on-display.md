@@ -201,21 +201,29 @@ area and operation count under `onPartialUpdate`).
 So a design can declare `modes: [always_on]`, build warning-free, and light
 60% of an AMOLED screen. Nothing would say a word.
 
-### 3.5 `always_on` is emitted but unexercised
+### 3.5 `always_on` was emitted but unexercised; now has one caller
 
-**VERIFIED.** No example under `examples/` and no fixture under
-`tests/fixtures/` uses `always_on`; the 13 occurrences across `tests/` are
-incidental (`test_hands_codegen.py`, `test_static.py`,
-`test_semantics.py`). The path has never been driven by a real design, which
-is consistent with §3.2 and §3.4 having gone unnoticed.
+**VERIFIED** at the time of writing: no example under `examples/` and no
+fixture under `tests/fixtures/` used `always_on`; the 13 occurrences across
+`tests/` were incidental (`test_hands_codegen.py`, `test_static.py`,
+`test_semantics.py`). The path had never been driven by a real design,
+consistent with §3.2 and §3.4 having gone unnoticed. **Since plan 14 slice 0
+(2026-09-23)**, `examples/features/aod/face.yaml` puts the digital clock in
+`modes: [active, always_on]`, so the path now has one real caller, on all
+four of that example's targets including `fenix847mm`; no AMOLED-specific
+codegen exists yet (that starts at slice 2), so this is still §4's gap, not
+a fix for it.
 
-### 3.6 Two AMOLED devices are already vendored, and neither is installed
+### 3.6 Two AMOLED devices are vendored; `fenix847mm` is now installed
 
 **VERIFIED.** `vendor/devices/` holds 20 devices, of which exactly two are
-AMOLED: `fenix847mm` and `fenix947mm`, both `round-454x454`. Neither is
-present in `~/.Garmin/ConnectIQ/Devices/`, so neither can be built for
-today. `tools/setup-env.sh`'s device install is incremental (root
-`CLAUDE.md` §2), so a re-run copies in just those.
+AMOLED: `fenix847mm` and `fenix947mm`, both `round-454x454`. Neither was
+present in `~/.Garmin/ConnectIQ/Devices/` at the time of writing. Plan 14
+slice 0 (2026-09-23) re-ran `tools/setup-env.sh` — incremental (root
+`CLAUDE.md` §2) — which installed `fenix847mm` (and, in the same pass,
+every other not-yet-installed vendored device, `fenix947mm` included).
+`fenix847mm` now has a build: `examples/features/aod/face.yaml`,
+warning-free, 2,061 B of its 131,072 B watch-face limit (1.6%).
 
 ### 3.7 Three MIP constraints do not hold on those AMOLED devices
 
@@ -255,9 +263,12 @@ Garmin's four pieces of guidance (§1.3) except by hiding elements outright.
 
 ## 5. What is not proven here
 
-- **No AMOLED build has been run.** Neither AMOLED device is installed
-  (§3.6), so nothing in this document about how a generated AOD face
-  *behaves* is verified on device or in the simulator.
+- **No AMOLED build has been run on device or in the simulator.**
+  `fenix847mm` is now installed and has a `monkeyc` build (§3.6), but that
+  is a host-side compile only — nothing in this document about how a
+  generated AOD face *behaves* is verified on a real panel or in the
+  simulator (root `CLAUDE.md` §3: the simulator does not survive
+  `monkeydo` in this project).
 - **The luminance rule's exact formula is unpublished.** Garmin says "less
   than 10% of the screen's luminance" without defining the integral,
   the colour space, or whether it is normalised against full white. A

@@ -1,0 +1,116 @@
+# Always-on display (docs/guide/modes-and-interaction.md "Modes", plan 14
+# slice 0): the first face this project builds for an AMOLED target.
+#
+# This is deliberately a small, ordinary face -- digital time, a date, a
+# battery ring, a bezel -- not a format-feature showcase. Its job is to be
+# the AMOLED example that later plan-14 slices grow `aod:` overrides onto:
+# hiding the date and bezel in the sleep frame, dimming the clock, thinning
+# the ring. None of that exists yet (§6 of the plan), so today this face
+# uses the *existing* mechanism, `modes: [always_on]`, for exactly the
+# element Garmin's guidance says a sleep frame should keep: the clock. Every
+# other element (`background`, `bezel_ring`, `date_text`, `battery_ring`)
+# stays `modes: [active]` (the default) -- present while awake, absent while
+# asleep -- which is the "opt into everything" shape research 11 §4
+# describes as the gap `aod:` will close.
+#
+# `modes: [low_power]` is not used anywhere here on purpose: AMOLED forbids
+# `onPartialUpdate` outright (`Device.supports_partial_update`,
+# `docs/lore/platform-constraints.md` #5), and a `low_power` element on an
+# AMOLED target is a hard build error pointing at `always_on`
+# (`wfb/lint.py`). Since the generated view is shared across every target in
+# one build (root CLAUDE.md §1), the three MIP verification devices simply
+# never enter the sleeping branch this face declares.
+#
+# `fenix847mm` (round-454x454, AMOLED, `requiresBurnInProtection`,
+# `getDisplayMode` -- docs/research/11-always-on-display.md §2) is the
+# fourth target here, installed by `tools/setup-env.sh` (plan 14 slice 0).
+# The three MIP verification devices are unaffected: with no AMOLED-specific
+# codegen yet (that is slice 2), the generated source for them is the same
+# shape every other example produces.
+#
+# What is verified: this design compiles warning-free through the real
+# `monkeyc` on all four targets, `fenix847mm` included, and the always_on
+# path (already emitted, previously unexercised by any example -- research
+# 11 §3.5) now has a real caller. What is NOT verified anywhere in this
+# project: what the sleep frame looks like on an AMOLED panel, or whether it
+# stays under Garmin's 10% pixel/luminance budget -- there is no simulator
+# and no watch in this container, and the burn-in lint is plan 14 slice 4,
+# not built yet.
+#
+# Build it with:     ./wfb.py build examples/features/aod/face.yaml
+# Preview it with:   ./wfb.py preview examples/features/aod/face.yaml
+#
+# yaml-language-server: $schema=../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 5a3e9c71-2f84-4b6d-9e10-7c8a2d4f61b5
+  name: Feature AOD
+  version: 1.0.0
+
+targets:
+  - fenix847mm
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  gray: "#AAAAAA"
+  dim: "#555555"
+  accent: "#00AAFF"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.black
+
+  - id: bezel_ring
+    type: shape
+    shape: circle
+    at: { anchor: center }
+    radius: 95%r
+    filled: false
+    thickness: 1px
+    color: palette.gray
+
+  - id: date_text
+    type: text
+    value: date.today
+    format: "{:%a %d}"
+    font: FONT_XTINY
+    at: { anchor: center, dy: -30% }
+    color: palette.gray
+
+  # The sleep-frame element: drawn both awake and asleep, so this is the one
+  # place the `always_on` path -- emitted since research 11 §3.1, exercised
+  # by no example until this one -- actually runs. A future `aod:` override
+  # (plan 14 slice 1+) is what will thin/dim it for AMOLED instead of
+  # drawing it identically in both frames, as today's `modes:` mechanism can
+  # only do.
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center }
+    color: palette.white
+    modes: [active, always_on]
+
+  - id: battery_ring
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    at: { anchor: center }
+    radius: 88%r
+    thickness: 3%r
+    start_angle: 270deg
+    sweep: 300deg
+    color: palette.accent
+    track_color: palette.dim

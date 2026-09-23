@@ -62,6 +62,7 @@ says what it is on the watch.
 | [`features/config/`](features/config/face.yaml) | accent/data colour and colour-scheme settings | [Configuration](../docs/guide/configuration.md) |
 | [`features/slots/`](features/slots/face.yaml) | the Data setting: `complication_slot`s the wearer re-points | [Configuration](../docs/guide/configuration.md) |
 | [`features/styles/`](features/styles/face.yaml) | `layouts:` switched by style | [Styles and layouts](../docs/guide/styles-and-layouts.md) |
+| [`features/aod/`](features/aod/face.yaml) | `modes: [always_on]` on an AMOLED target (`fenix847mm`) -- the only example targeting AMOLED so far | [Power modes and touch-and-hold](../docs/guide/modes-and-interaction.md) |
 
 [`system-fonts/`](system-fonts/) holds three calibration faces (`text/`,
 `numbers/`, `numbers-large/`). They draw every system font as a fixed sample

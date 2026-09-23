@@ -203,13 +203,19 @@ ERROR: Invalid device id specified: 'fenix8solar47mm'
 host, `~/Library/Application Support/Garmin/ConnectIQ/Devices/`), including all
 three primary targets. `setup-env.sh` installs them.
 
-13 devices are vendored: the three targets plus older-API devices such as
+20 devices are vendored: the three targets plus older-API devices such as
 `fenix6`, `fenix6xpro`, `fr245` and `fr255` (`docs/research/probes/
-api-gating/`). `setup-env.sh`'s device install is **incremental**: on every
-run it copies in whichever device directories under `vendor/devices/` are
-not yet at the destination, without touching what is already there. Re-run
-it after `vendor/devices/` gains a device, or the device builds as
-`unknown device`.
+api-gating/`), and, since plan 14 slice 0 (2026-09-23), the project's first
+two AMOLED devices, `fenix847mm` and `fenix947mm` (research 11 §3.6).
+`setup-env.sh`'s device install is **incremental**: on every run it copies
+in whichever device directories under `vendor/devices/` are not yet at the
+destination, without touching what is already there — a re-run installs
+*every* not-yet-installed vendored device in one pass, not just the one you
+wanted (this is how `fenix847mm`'s slice-0 install also brought in
+`enduro3`, `fenix5`, `fenix5x`, `fenix947mm`, `vivoactive4` and
+`vivoactive4s`, surfacing pre-existing gaps in those older devices' own
+support — `tests/CLAUDE.md`). Re-run it after `vendor/devices/` gains a
+device, or the device builds as `unknown device`.
 
 `vendor/devices/` is **gitignored on purpose** — it is the user's own licensed
 copy of Garmin's device files, fine to move around their machine but not

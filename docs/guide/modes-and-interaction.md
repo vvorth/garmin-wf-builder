@@ -34,8 +34,9 @@ entirely while MIP depends on it.
 | `always_on` | the AMOLED burn-in-constrained layout |
 
 **`modes: [always_on]`.** A separate element set for AMOLED watches, which
-can't use low-power updates. The examples all target MIP watches, so none
-of them uses it.
+can't use low-power updates. Most examples here target MIP watches only, so
+they don't use it; [`features/aod/`](../../examples/features/aod/face.yaml)
+does, on `fenix847mm`, this project's first AMOLED target.
 
 The compiler computes the **tightest `setClip` rectangle** around all `low_power`
 elements, because clip cost is charged by region *area* — every pixel inside the
