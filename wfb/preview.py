@@ -1489,8 +1489,7 @@ class _Renderer:
             # covers it) -- nothing to measure or draw with; mark the extent
             # instead, the same "more honest than drawing at the wrong size"
             # fallback the "no scalable face at all" case below uses.
-            if box is not None:
-                self.draw.rectangle(self._rect(box), outline=(64, 64, 64), width=1)
+            self._mark_extent(box)
             return
         s = self.scale
         face = self._system_face(metric, scale=s)
@@ -1501,8 +1500,7 @@ class _Renderer:
             # size -- only possible for a `text` element, which has a `box`
             # to outline; a pattern text part (`box is None`) simply draws
             # nothing here.
-            if box is not None:
-                self.draw.rectangle(self._rect(box), outline=(64, 64, 64), width=1)
+            self._mark_extent(box)
             return
 
         x = anchor[0] * s
@@ -1876,6 +1874,20 @@ class _Renderer:
         self.image.paste(rotated, top_left, rotated)
 
     # -- shared -----------------------------------------------------------
+
+    def _mark_extent(self, box) -> None:
+        """Outline `box` in dark grey where text cannot be drawn at its real
+        size -- `_approximate_text`'s two fallbacks.
+
+        An empty box draws nothing. Unmeasured text gets exactly that: with
+        no metric, layout has no extent to give it and records a 0x0 box at
+        the anchor (every system font on a device missing from the scraped
+        SDK reference, e.g. the fenix 9 family), and `_rect` turns a 0-wide
+        box into an inverted rectangle that Pillow rejects outright.
+        """
+        if box is None or box.width <= 0 or box.height <= 0:
+            return
+        self.draw.rectangle(self._rect(box), outline=(64, 64, 64), width=1)
 
     def _rect(self, box) -> list[float]:
         s = self.scale

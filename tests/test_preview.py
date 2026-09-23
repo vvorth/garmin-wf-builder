@@ -564,3 +564,50 @@ def test_all_styles_lays_out_every_entry_side_by_side(layout_style_resolved):
     gap = 1
     assert composed.width == one.width * 2 + gap
     assert composed.height > one.height  # the caption bar adds height
+
+
+def test_text_with_no_font_metrics_renders_without_crashing(write_design, db, bag, monkeypatch):
+    """A device missing from the scraped SDK reference (the fenix 9 family)
+    has no system-font metrics at all, so layout gives its text a 0x0 box.
+    The preview used to outline that box and Pillow rejected the inverted
+    rectangle, which crashed `wfb build` through the aod-burn-in lint.
+
+    Unmeasured text now draws nothing; other elements still render."""
+    from wfb.devices import Device
+
+    monkeypatch.setattr(Device, "system_fonts", property(lambda self: {}))
+    design = write_design("""
+format: 1
+face:
+  id: 0b7f3c1e-2a4d-4e8f-9c6b-5d1a7e3f9b20
+  name: Unmeasured
+  version: 1.0.0
+targets: [fenix8solar47mm]
+palette:
+  white: "#FFFFFF"
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center }
+    color: palette.white
+  - id: dot
+    type: shape
+    shape: circle
+    at: { anchor: center, dy: 30% }
+    radius: 5%r
+    filled: true
+    color: palette.white
+""")
+    face = load(design, bag)
+    assert face is not None, bag.render()
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    clock = next(p for p in resolved.items if p.id == "clock")
+    assert clock.box.width == 0 and clock.box.height == 0  # the case under test
+
+    for scale in (1, 2):
+        image = render(resolved, PreviewOptions(scale=scale, mask_shape=False, quantise=False))
+        assert image.getbbox() is not None  # the dot still draws
