@@ -211,7 +211,8 @@ def _barrel_for(face: Face, resolved: ResolvedFace,
     for placed in resolved.items:
         kind = placed.kind
         if kind == "progress":
-            needed.add("WfbArc.mc")
+            if placed.element.style == "arc":
+                needed.add("WfbArc.mc")  # a bar is two fillRectangle calls
             needed.add("WfbMath.mc")  # the fill fraction goes through percent()
         elif kind == "shape" and placed.element.shape == "arc":
             # A plain arc draws through the same WfbArc.drawSpan a progress
@@ -219,11 +220,15 @@ def _barrel_for(face: Face, resolved: ResolvedFace,
             needed.add("WfbArc.mc")
         elif kind == "text":
             element = placed.element
-            spec = getattr(element, "format", None)
-            # Only a *time* format needs the clock helpers; a date format reads
-            # Gregorian fields directly and a literal % is just punctuation.
-            if spec and formatting.is_time_spec(spec) and _is_time_value(element):
-                needed.add("WfbTime.mc")
+            # Only the time codes that call a helper need it (`%I`/`%l`/`%h`/
+            # `%p`, `formatting.helpers`), from the awake format or the AOD
+            # override alike; a date format reads Gregorian fields directly.
+            if _is_time_value(element):
+                aod_spec = element.aod.format if element.aod is not None else None
+                for spec in (element.format, aod_spec):
+                    if spec and formatting.is_time_spec(spec):
+                        needed.update(f"{helper}.mc"
+                                      for helper in formatting.helpers(spec, Type.TIME))
         elif kind == "icon" and placed.element.is_dynamic:
             needed.add("WfbWeather.mc")
         elif kind == "graph":

@@ -78,6 +78,9 @@ class Code:
     #: A `wfb.catalog.CATALOG` path the code reads beyond the value's own
     #: reader -- see :func:`extra_paths`.
     extra_path: str | None = None
+    #: The runtime-lib module `emit` calls into (``"WfbTime"``), or ``None``
+    #: -- see :func:`helpers`.
+    helper: str | None = None
 
 
 _PERCENT = Code("a literal percent sign", "%")
@@ -106,17 +109,17 @@ TIME_CODES: dict[str, Code] = {
               lambda v: f"{_hour(v):02d}"),
     "I": Code("hour, 12-hour, zero-padded", "12",
               lambda r: f'WfbTime.hour12({r.clock}.hour).format("%02d")',
-              lambda v: f"{_hour12(v):02d}"),
+              lambda v: f"{_hour12(v):02d}", helper="WfbTime"),
     "l": Code("hour, 12-hour, unpadded", "12",
               lambda r: f'WfbTime.hour12({r.clock}.hour).format("%d")',
-              lambda v: f"{_hour12(v):d}"),
+              lambda v: f"{_hour12(v):d}", helper="WfbTime"),
     # `WfbTime.displayHour` (runtime-lib/WfbTime.mc): zero-padded 24-hour, or
     # unpadded 12-hour, following `DeviceSettings.is24Hour`.
     "h": Code("hour, following the device's 12/24-hour setting", "23",
               lambda r: f"WfbTime.displayHour({r.clock}.hour, {r.settings}.is24Hour)",
               lambda v: (f"{_hour(v):02d}" if bool(v.get("device.is_24_hour", True))
                          else f"{_hour12(v):d}"),
-              extra_path="device.is_24_hour"),
+              extra_path="device.is_24_hour", helper="WfbTime"),
     "M": Code("minute, zero-padded", "59",
               lambda r: f'{r.clock}.min.format("%02d")',
               lambda v: f"{int(v.get('time.minute', 9)):02d}"),
@@ -125,7 +128,7 @@ TIME_CODES: dict[str, Code] = {
               lambda v: f"{int(v.get('time.second', 0)):02d}"),
     "p": Code("AM or PM", "AM",
               lambda r: f"WfbTime.meridiem({r.clock}.hour)",
-              lambda v: "AM" if _hour(v) < 12 else "PM"),
+              lambda v: "AM" if _hour(v) < 12 else "PM", helper="WfbTime"),
     "%": _PERCENT,
 }
 
@@ -304,6 +307,16 @@ def extra_paths(spec: str, value_type: Type) -> tuple[str, ...]:
     parts, codes = _strftime_parts(spec, value_type)
     paths = (codes[part.code].extra_path for part in parts if part.code is not None)
     return tuple(dict.fromkeys(path for path in paths if path is not None))
+
+
+def helpers(spec: str, value_type: Type) -> tuple[str, ...]:
+    """The runtime-lib modules a strftime spec's own codes call
+    (``("WfbTime",)`` for ``%I``/``%l``/``%h``/``%p``), read off the same
+    `Code` rows `emit` compiles, so `wfb.emit.project._barrel_for` copies
+    exactly the files the generated code calls."""
+    parts, codes = _strftime_parts(spec, value_type)
+    found = (codes[part.code].helper for part in parts if part.code is not None)
+    return tuple(dict.fromkeys(helper for helper in found if helper is not None))
 
 
 def _quote(text: str) -> str:

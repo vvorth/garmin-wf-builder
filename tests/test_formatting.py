@@ -168,3 +168,21 @@ def test_scaling_a_source_shrinks_its_digit_count():
     scaled = formatting.widest("{:.1f}k", get("activity.steps"), Type.NUMBER, 0.001)
     assert unscaled == "88888.8k"
     assert scaled == "88.8k"
+
+
+def test_every_code_names_the_runtime_helper_its_emit_calls():
+    """`Code.helper` decides which runtime-lib file `_barrel_for` copies
+    (plan 18 item 9); it must say exactly what `emit` calls, or a build
+    either carries a dead file or fails with `Undefined symbol`."""
+    readers = formatting.Readers()
+    for table in (formatting.TIME_CODES, formatting.DATE_CODES):
+        for name, code in table.items():
+            if code.emit is None:
+                continue
+            calls_helper = "WfbTime." in code.emit(readers)
+            assert (code.helper == "WfbTime") is calls_helper, name
+
+
+def test_helpers_reads_only_the_codes_a_spec_uses():
+    assert formatting.helpers("{:%H:%M}", Type.TIME) == ()
+    assert formatting.helpers("{:%I:%M %p}", Type.TIME) == ("WfbTime",)

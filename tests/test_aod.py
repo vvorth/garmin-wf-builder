@@ -972,6 +972,68 @@ elements:
     assert "settings.is24Hour" in body
 
 
+def _barrel(text, write_design, bag, db, device_id="fenix847mm"):
+    from wfb.emit.project import _barrel_for
+
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    device = db.get(device_id)
+    return _barrel_for(face, resolve(face, device, bake_fonts(face, device)))
+
+
+_CLOCK_WITH_AOD = BASE + """
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    color: palette.fg
+    aod: {format: "{:%I:%M}"}
+"""
+
+
+def test_wftime_is_copied_only_for_a_code_that_calls_it(write_design, bag, db):
+    """Plan 18 item 9: `%H:%M` never calls `WfbTime`, so the barrel file is
+    not copied for it (before, any time format pulled it in)."""
+    text = _CLOCK_WITH_AOD.replace('    aod: {format: "{:%I:%M}"}\n', "")
+    assert "WfbTime.mc" not in _barrel(text, write_design, bag, db)
+
+
+def test_wftime_is_copied_when_only_the_aod_format_calls_it(write_design, bag, db):
+    """The contrast, and the trap in tightening the rule: `%I` in the AOD
+    override alone emits `WfbTime.hour12`, so the file must still come."""
+    assert "WfbTime.mc" in _barrel(_CLOCK_WITH_AOD, write_design, bag, db)
+
+
+@pytest.mark.parametrize("style,wants_arc", [("bar", False), ("arc", True)])
+def test_wfbarc_is_copied_only_for_an_arc_progress(write_design, bag, db, style, wants_arc):
+    """Plan 18 item 9: a bar progress draws with fillRectangle and never
+    calls `WfbArc`; only the arc style does."""
+    geometry = ("at: {anchor: center}\n    size: {width: 50%, height: 5%}" if style == "bar"
+                else "at: {anchor: center}\n    radius: 40%r\n    thickness: 4px\n"
+                     "    start_angle: 0deg\n    sweep: 360deg")
+    text = BASE + f"""
+elements:
+  - id: bar
+    type: progress
+    style: {style}
+    value: 5
+    max: 10
+    {geometry}
+    color: palette.fg
+"""
+    assert ("WfbArc.mc" in _barrel(text, write_design, bag, db)) is wants_arc
+
+
+@pytest.mark.slow
+def test_a_wftime_code_in_the_aod_format_alone_compiles(write_design, db, tmp_path, toolchain):
+    bag = Bag()
+    result = real_build(write_design(_CLOCK_WITH_AOD), output=tmp_path, bag=bag, db=db,
+                        toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+
+
 @pytest.mark.slow
 def test_aod_format_with_its_own_extra_reader_compiles(write_design, db, tmp_path, toolchain):
     """The real `monkeyc` half of the test above: before plan 18 item 1 this
