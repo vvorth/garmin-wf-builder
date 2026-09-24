@@ -1,18 +1,20 @@
 # Plan 18: bug fixes from the 2026-09-24 code review
 
-**Status: open. Two small items remain (§2), and one needs a user decision.**
-Everything else was built on 2026-09-24, one commit per item (`d7fd497`..`2b99dfd`).
+**Status: items 1–9 done (2026-09-24). Two small items remain (§2): one needs
+a user decision, the other is optional.** Every other item was built on
+2026-09-24, one commit per item (`d7fd497`..`2b99dfd`).
 Read the full plan as written with `git show 8862941:docs/plans/18-review-bug-fixes.md`.
 Delete this file once both items below are built or explicitly dropped
 (`docs/CLAUDE.md`).
 
 **Where these came from.** A seven-part review/refactor pass (commits
 `6aacfee`..`f2efa36`) found behaviour bugs it deliberately did not fix.
-Architecture proposals from the same review are in plan 19. Plan 19's A1
-(host/device parity test), A2 (`Element.color_roles()`) and A3 (barrel from
-emitted code) are still the structural follow-ups to items 3–4, 6 and 9.
+Architecture proposals from the same review are in plan 19. Its A1–A3,
+now built, are the structural follow-ups to items 3–4, 6 and 9: a slow
+parity test, `Element.color_roles()`, and the barrel set scanned from the
+generated code.
 
-## 1. What shipped
+## 1. Done
 
 | # | Item | Commit |
 |---|---|---|
@@ -50,5 +52,8 @@ file.
 ### 2.2 `contrast` for `track_color` and `icon_color` (optional, from item 7)
 
 `check_contrast` never judges a progress `track_color` or a
-`complication_slot` `icon_color` against its backdrop.
-`_contrast_subjects` is the one place to add them.
+`complication_slot` `icon_color` against its backdrop. Since plan 19 A2 it
+is a small change: `_contrast_subjects`' plain branch reads
+`Element.color_roles()` and takes only the `ink`/`ring` roles, so adding
+`track`/`icon` there is the whole code change. It adds new warnings, so
+`tools/snapshot.py compare` would list exactly which.

@@ -1,20 +1,26 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A3 approved (2026-09-24) and built, in that order (see "As
-built" under each). A4–A7 still await a user decision.** These change the project's shape (root
+**Status: A0–A3 done (2026-09-24). A4–A7 and the small items in §3 are open
+and await a user decision.** These change the project's shape (root
 `CLAUDE.md` §7: stop and ask), so **do not start an unapproved step**, and
-record each decision in §4. Plan 18 holds the bug list from the same review. Its fixes
-come first unless the user says otherwise (§3 gives the combined order).
-Delete this file once every step is built or dropped.
+record each decision in §5. Delete this file once every step is built or
+dropped. The full plan as written, including the A0–A3 sections, is at
+`git show c0b0601:docs/plans/19-architecture-refactor.md`.
 
-## 0. Where things stand
+## 1. Done
 
-The review (commits `6aacfee`..`f2efa36`) already did every *local*,
-output-identical refactor: tables instead of `isinstance` ladders inside
-each module, shared helpers, about 2k lines of narrative removed. Net −3.7k
-lines. What is left needs cross-module changes, and this plan covers that.
+Each step was proven with `tools/snapshot.py` (357 cases: every example
+and fixture's generated project on three device mixes, lint on every
+installed device, eight preview variants, every CLI command).
 
-## 1. Problems, with evidence
+| Step | Commits | As built |
+|---|---|---|
+| A0 snapshot harness | `927e4f9` | `tools/snapshot.py save`/`diff`/`compare` (`docs/development.md`, "Tests"). |
+| A1 host/device parity | `d7d8edd`, `56ad550` | `layout.PatternTextAngle`, `layout.radial_direction_sign`/`radial_align_offset`, `ir.aod_color_choice`, `layout.HAND_ANGLES` (pinned to `WfbHands.mc` by a test). The slow `tests/test_expr_parity.py` checks operators against `monkeyc`'s constant folder and compile-checks every function. It cannot *run* Monkey C, so runtime-only behaviour (`Math.round`, the `WfbMath` bodies) stays hand-ported. Output identical. |
+| A2 roles | `9fdd7c1` | `Element.bound_expressions()` (role-tagged, in the old order) with a per-kind `VALUE_ROLES`, and `Element.color_roles()` (`ColorRole`). The five absence checks stay separate (different rules) but read the roles. Output identical. |
+| A3 usage from emitted code | `c0b0601` | `wfb/emit/usage.py` scans the generated sources: `barrel_modules` for the copied runtime-lib files, `toybox_modules` for the view's imports. It replaces `_barrel_for`, `Code.helper` and `_view_imports`. 29 views gained one redundant-but-correct import each. Fonts are out of reach: baking precedes layout, and font loads are inputs to emission. |
+
+## 2. Open problems, with evidence
 
 ### P1. Adding an element kind doesn't scale
 
@@ -32,67 +38,45 @@ About **120 kind/shape switch sites** (`isinstance(…, Placed*)`,
 | `emit/monkeyc/rotated.py` | 9 |
 | `emit/monkeyc/shapes.py` | 7 |
 
-On top of those, the builder alone has about 10 per-kind facts spread over
-separate tables: `_build_element` dispatch, `_KIND_SYMBOLS`,
-`_STATIC_FORBIDDEN_KINDS`, `_hold_auto_sources`, `_AOD_FONT_UNSUPPORTED`, and
-more. Layout, preview and emit each have their own `_BY_TYPE` table. Font
-use is derived by three separate ladders (`resources.glyph_set`,
-`resources.icon_font_specs`, `common._loaded_fonts`). `validate.py`
-hard-codes `ELEMENT_TYPES` and per-kind keys that the schema already
-defines.
+(A2 and A3 removed some of these: `ReadPlan._value_expressions`,
+`_hold_auto_sources` and `_barrel_for` no longer switch on kind.) On top of
+them, the builder has about 10 per-kind facts in separate tables:
+`_build_element` dispatch, `_KIND_SYMBOLS`, `_STATIC_FORBIDDEN_KINDS`,
+`_AOD_FONT_UNSUPPORTED`, and more. Layout, preview and emit each have their
+own `_BY_TYPE` table. Font use is derived by separate walks
+(`resources.glyph_set`, `resources.icon_font_specs`,
+`common._loaded_fonts`/`_aod_only_fonts`/`_vector_fonts_used`).
+`validate.py` hard-codes `ELEMENT_TYPES` and per-kind keys that the schema
+already defines.
 
-### P2. Preview and codegen implement the same rules twice, and have drifted
+### P2. Preview and codegen still implement some rules twice
 
-`wfb/preview.py` re-implements in Python what `wfb/emit/monkeyc/` emits as
-Monkey C, held together only by "matches X exactly" comments. Rules that
-exist in both:
+A1 unified the per-copy text angle, the radial sign and offset, the AOD
+colour choice and the hand angles. Still written on both sides, held
+together by "matches X exactly" comments:
 
-- AOD colour choice (override → dim → awake): `_aod_color` vs `AodStyle`
 - AOD layout/geometry override: `_aod_geometry` vs `AodStyle.value/layout`
 - layout gating, AOD membership, the awake-only second-hand skip
-- hand angles (Python vs `WfbHands.mc`)
-- the radial/linear part transform (Python vs `WfbGeom.mc`)
 - pattern arc start composition
-- curved-text per-copy angle `(g - copy_angle) % 360`: **three copies**
-  (`layout._pattern_text_ink`, `preview._pattern_text`,
-  `emit.rotated._emit_pattern_text_angle_expr`)
 - pattern when-absent early return, fill/outline per shape with the AOD
   swap
 - `vertical_align: bottom` glyph shift, the radial-text `top` radius shift
 - progress fallback fraction, whole-degree `arc_span` vs `WfbArc`
 - the complication-slot pair layout
-- expression functions and strftime codes, now each in one table row with
-  both halves (`wfb/expr.py FUNCTIONS`, `wfb/formatting.py Code`)
 
-Drift already found: plan 18 items 3–4 (`round`, `percent`, `clamp`, `%`).
-Constant folding uses the host half, so drift reaches generated code.
+### P3. Lint recomputes layout results
 
-### P3. Stages re-derive the same facts separately
-
-- "Which colours does this element draw" is answered about 6 ways:
-  `lint._users_of`, `lint._contrast_subjects`, `lint._outlined_interiors`,
-  `HandsElement.colors`/`PatternElement.colors`, the builder's AOD key loop,
-  and `preview._aod_color`. Plan 18 item 6 comes from these disagreeing.
-- "Which expression is the value" is decided by
-  `ReadPlan._value_expressions` (emit) and `Builder._hold_auto_sources`
-  (IR), and the two already differ on purpose.
-- The absence policy is written five ways (`_check_absence`,
-  `_check_other_absence`, `_check_slot_color_absence`,
-  `_check_pattern_absence`, `_reject_hand_data_color`).
-- Which barrel `.mc` files to copy: `emit/project.py::_barrel_for` walks
-  the IR and also greps generated source for `WfbColor.dim(` and
-  `WfbAodMask.apply(`. It has drifted (plan 18 item 9: `WfbTime.mc` copied
-  unused).
-- Lint recomputes layout results (`visible_reach` after
-  `inside_visible_area_for`, and `inside_visible_area_for` twice).
+`visible_reach` runs after `inside_visible_area_for`, and
+`inside_visible_area_for` runs twice.
 
 ### P4. Codegen uses device 0 for everyone
 
-`wfb/emit/project.py:99` generates the shared view, the barrel set and
-`needs_icon_glyphs` from `devices[0]`'s resolved layout. `build.build`
-resolves every device in `resolve_all`, discards the result, and
-`generate` resolves again. Anything whose presence varies per device
-silently follows the first target.
+`wfb/emit/project.py` generates the shared view and `needs_icon_glyphs`
+from `devices[0]`'s resolved layout (the barrel set is now scanned from
+that view's text, so it follows the same device). `build.build` resolves
+every device in `resolve_all`, discards the result, and `generate` resolves
+again. Anything whose presence varies per device silently follows the
+first target.
 
 ### P5. IR records that do too many jobs
 
@@ -112,137 +96,36 @@ Before the review there were about 12k comment/docstring lines against 17k
 code lines, much of it "plan N slice M" history that the house style says
 belongs in git. The review cut about 2k.
 
-## 2. Proposed steps
-
-Each step is independently shippable and ordered so earlier ones make later
-ones cheaper. The payoffs are estimates.
-
-### A0. Commit the verification harness (prerequisite for everything below)
-
-The review proved output identity with throwaway scripts that are now
-lost. Recreate them as `tools/snapshot.py` (not in the fast suite):
-
-- emit every example and fixture for its targets plus an AMOLED set
-  (`fenix847mm+fenix8solar47mm+fr245+fenix6`, `fenix947mm+fr955`) and hash
-  every file;
-- SHA every preview variant (default, `--aod`, `--minute 7/1234`, every
-  style, heatmap);
-- snapshot every CLI command's stdout/stderr with `--color never/always`;
-- run every lint over every example on every installed device.
-
-`tools/snapshot.py save DIR` / `compare DIR`. It makes every later step
-provable as "no output change" or "exactly these changes". Small, and
-worth doing even if nothing else here is approved.
-
-### A1. Host/device parity (addresses P2, option "a")
-
-Extend the pattern `formatting.Code` and `expr.Function` already use:
-every rule that exists in both preview and codegen becomes one pure
-function or table row with both halves side by side. First targets:
-
-- AOD choice, as a shared decision function. The review declined this as
-  too small alone (preview gates on "rendering the AOD frame", emit on
-  "this build emits AOD code"); revisit it together with the others.
-- hand angle, the part transform, and the per-copy text angle (one
-  `PlacedPattern.copy_curve_angle(part, i)` used by layout, preview and emit);
-- the radial glyph positions (a pure
-  `layout.radial_glyph_positions(...)` used by preview and the lint band).
-
-Add a **slow parity test** that compiles each `Function`/`Code` row with
-`monkeyc`, runs it (or a probe), and compares against the host half. This
-is what would have caught plan 18 items 3–4.
-
-**As built.** `layout.PatternTextAngle` (the per-copy angle, one definition
-for lint, preview and codegen), `layout.radial_direction_sign`/
-`radial_align_offset`, `ir.aod_color_choice`, and `layout.HAND_ANGLES`
-(pinned to `WfbHands.mc` by a test that parses it). The transform was
-already shared (`PlacedPattern.transform`). Snapshot-identical to A0. The
-parity test (`tests/test_expr_parity.py`, slow) cannot *run* Monkey C (no
-simulator). It checks operators against `monkeyc`'s own constant folder
-and compile-checks every function; runtime-only behaviour (`Math.round`,
-the `WfbMath` bodies) stays hand-ported. The radial glyph formula itself
-stays at both call sites, because sharing it would reorder float
-operations and move pixels.
-
-### A2. Role-tagged expressions and colour roles on the IR (addresses P3)
-
-- `Element.expressions()` returns `(role, expr)` with role in
-  `{value, other, visible}`. `ReadPlan` and `_hold_auto_sources` derive from
-  it; the five absence checks become one.
-- `Element.color_roles()` yields `(label, expr, role ∈ {ink, ring, track,
-  icon}, is_glyph)`, AOD overrides and outlines included. `_users_of`,
-  `_contrast_subjects`, `_outlined_interiors`, `.colors` and the
-  preview/emit AOD colour loops all consume it. This fixes plan 18 item 6
-  by construction.
-- Changes expression order for `IconElement` and `Graph`, so `ReadPlan`
-  output may reorder: expect golden diffs and explain them.
-
-**As built.** `Element.bound_expressions()` returns `(role, expression)`
-pairs in the old `expressions()` order, and `expressions()` projects it, so
-nothing reorders and no golden file moved (snapshot-identical to A0).
-`ReadPlan._value_expressions` reads a per-kind `VALUE_ROLES`, and
-`_hold_auto_sources` reads role `value`. The five absence checks stay
-separate functions because they are different rules (different codes,
-messages and policies). The two that scan take their inputs from the roles.
-`Element.color_roles()` (`ColorRole`: label, expression, ink/ring/track/icon,
-glyph, AOD) replaces `_colors_drawn_by`, `_outlined_interiors` and the plain
-branch of `_contrast_subjects`. Hands keep their resolved-part branch (the
-IR has no per-hand parts), and so do patterns (their element-default colour
-may be drawn by no part).
-
-### A3. Emitters record what they use (addresses P3)
-
-The emitter records barrel helpers, fonts and Toybox modules as it writes
-them (e.g. `SourceFile.used_barrels`, filled by `Writer.call` sites), the
-way `compute_guards` already works for API gates. That replaces
-`_barrel_for`'s about 60-line IR ladder and grep, and the three font-use
-ladders. It changes which barrel files are copied (fewer), so run a slow
-build per target. It also fixes plan 18 item 9's barrel drift.
-
-**As built.** Recording at `Writer.call` sites would miss most uses:
-barrel calls are also built inline as strings, in compiled expressions,
-strftime rows and reader calls. So `wfb/emit/usage.py` scans the generated
-sources instead, with comments and string literals stripped.
-`barrel_modules` gives the copied set (closed over runtime-lib, and an
-unknown `Wfb<Name>` is an error), replacing `_barrel_for`'s ladder, its two
-text searches and `formatting.Code.helper`. `toybox_modules` gives the
-view's imports from its rendered body, replacing `_view_imports`. Snapshot
-against A0: 328 unchanged, and 29 generated views each gained one import
-(`Toybox.Time` next to `Toybox.Time.Gregorian` where a date is read, or
-`Toybox.System` where an AMOLED target adds `System.getDisplayMode`).
-`monkeyc` already resolved both names without the import (the old project
-for the `System` case compiles), so these are redundant-but-correct, not
-fixes. No support file was added or removed: the old ladder agreed with the
-scan on all 357 cases. Fonts are not covered and cannot be: glyph baking
-precedes layout, and the view's font loads are inputs to emission, not
-outputs. The per-kind "fonts used" fact belongs to A4.
+## 3. Proposed steps
 
 ### A4. One spec object per element kind (addresses P1; the biggest payoff)
 
 A registry `wfb/kinds/<kind>.py`, each registering an `ElementKind` with:
 IR class, schema discriminator, builder, resolver, emitter, preview
-renderer, `layout_constants`, fonts used, `color_roles`, value
-expressions, AOD keys accepted, static-forbidden reason, extra symbols and
-description. The builder, layout, lint, preview, emit, resources and
-project all dispatch through it; `validate.ELEMENT_TYPES` is read from the
-schema. A 10th kind becomes one new module plus schema, not about 120
-edits. It is a mechanical move once A2/A3 exist, and much harder before
-them. Do it one kind at a time, starting with `progress` (small), with
-A0 proving no output change after each.
+renderer, `layout_constants`, fonts used, `color_roles`, `VALUE_ROLES`,
+AOD keys accepted, static-forbidden reason, extra symbols and description.
+The builder, layout, lint, preview, emit, resources and project all
+dispatch through it; `validate.ELEMENT_TYPES` is read from the schema. A
+10th kind becomes one new module plus schema, not about 120 edits. A2 and
+A3 have made this a mechanical move. Do it one kind at a time, starting
+with `progress` (small), with `tools/snapshot.py compare` proving no output
+change after each.
 
 ### A5. Resolve once, and decide per-device (addresses P4)
 
 `generate` takes `resolve_all`'s resolved faces instead of re-resolving.
-**Decision needed:** keep one shared view built from device 0 (today),
-or union the per-device needs (barrels, icon glyphs, fonts) across all
-targets, which is correct but may add unused code to some targets. The
-recommendation is the union, with a lint note when the targets diverge.
+**Decision needed:** keep one shared view built from device 0 (today), or
+union the per-device needs (icon glyphs, fonts, the barrel scan over every
+device's view) across all targets, which is correct but may add unused code
+to some targets. The recommendation is the union, with a lint note when the
+targets diverge.
 
 ### A6. IR shape cleanups (addresses P5; independent, do opportunistically)
 
 - `ResolvedFont` and `ResolvedCurve` value objects on `PlacedText`,
   `ResolvedHandPart` and `PlacedComplicationSlot` (about 150 reads to
-  update).
+  update). Plan 18 item 8 had to thread `fonts_root` through six layout
+  functions because font data travels as loose fields.
 - Split `ResolvedHandPart` into one frozen class per shape, each owning
   `ink()`/`reach()`. The same for `HandPart` in the IR, with a shared
   `TextStyle` for text and pattern-text parts.
@@ -254,16 +137,16 @@ recommendation is the union, with a lint note when the targets diverge.
   `.cft`) with one "place line box, blit glyph by glyph" loop, replacing
   `_draw_text`, `_blit_bitmap_text`, `_approximate_text`,
   `_draw_system_line`, `_draw_bitmap_line` and the slot text path. It is
-  not pixel-identical by construction, so gate it with A0.
+  not pixel-identical by construction, so gate it with the snapshot tool.
 
-### A7. A single draw program (P2, option "b"; only if the user wants it)
+### A7. A single draw program (P2's other option; only if the user wants it)
 
 Lower each element once into a small display list of drawing steps over
 symbolic expressions. Preview evaluates it, emit prints it as Monkey C.
 This removes P2 entirely, but rewrites most of `preview.py` and
 `emit/monkeyc/`. **Recommendation: don't**, unless the user expects many
-more drawing features; A1 gets most of the safety for a fraction of the
-cost.
+more drawing features; extending A1's shared definitions to the P2 list
+gets most of the safety for a fraction of the cost.
 
 ### Also noted (small, no decision needed beyond "go")
 
@@ -276,36 +159,32 @@ cost.
   resolves are 4 s each, repeated across modules).
 - `complication_slot.py:~430/~510`: left/right vs top/bottom branches
   mirror each other with the axes swapped; one axis-descriptor table saves
-  about 60 lines (risky; A0 first).
+  about 60 lines (risky; snapshot first).
 - `Binding.kind` (`wfb/expr.py`) is read by nothing, but ADR 0006 cites it;
   removing it needs a dated ADR note.
 - Dead or test-only code: `Source.intermediate_guard`,
   `icons.weather_icon_for_condition` and the `*_night` entries,
-  `icons.METRIC_ICON`/`icon_for_source`/`icons.get`, and `Guards.any`.
+  `icons.METRIC_ICON`/`icon_for_source`/`icons.get`.
 - The sub-pixel owner in `layout.Resolver` is mutable state
   (`_owner_id/_span/_element`) that `_resolve_hand_part` narrows and never
   restores. Pass the owner explicitly.
 - P6: add a line to root `CLAUDE.md` §7: no plan/slice history in code
   comments; cite the plan in the commit message instead.
 
-## 3. Combined order (plans 18 + 19)
+## 4. Suggested order
 
-1. Plan 18 items 1–2 (build break, wrong error on in-scope devices).
-2. **A0** harness.
-3. Plan 18 items 3–4 together with **A1** (the parity test catches them).
-4. Plan 18 item 5.
-5. **A2** (absorbs plan 18 item 6), then plan 18 item 7.
-6. **A3** (absorbs plan 18 item 9's barrel drift).
-7. Plan 18 item 8, then **A5**.
-8. **A4**, one kind per commit.
-9. **A6** items as convenient; plan 18 item 9 leftovers.
-10. **A7** only on an explicit decision.
+1. **A5** once its decision is made (it touches `generate`, which A4 moves).
+2. **A4**, one kind per commit.
+3. **A6** items and the small items as convenient; plan 18 §2 leftovers.
+4. **A7** only on an explicit decision.
 
-## 4. Decisions
+## 5. Decisions
 
 | Question | Options | Recommendation | User's answer |
 |---|---|---|---|
-| Approve A0–A4? | each separately | yes, all | A0–A3 approved 2026-09-24, one step at a time in order; A4 not yet decided |
-| Parity approach | A1 (tables + parity test) / A7 (draw program) | A1 | A1 (approved with A0–A3) |
+| Approve A0–A3? | each separately | yes | approved 2026-09-24, built |
+| Parity approach | A1 (shared definitions + parity test) / A7 (draw program) | A1 | A1 |
+| Approve A4? | yes / no | yes | — |
 | Per-device needs (A5) | device 0 (today) / union across targets | union | — |
+| Approve A6 items? | each separately | yes, opportunistically | — |
 | P6 comment rule in `CLAUDE.md` | add / don't | add | — |
