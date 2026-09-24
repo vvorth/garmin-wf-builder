@@ -1027,16 +1027,16 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
     * **ring vs. interior** -- the ring's inner edge disappears into the
       fill and the glyph reads as one soft blob instead of an outline.
     """
-    backdrop = _backdrop(resolved)
-    if backdrop is None:
-        return
-    for placed in resolved.items:
-        for label, color, ring, allow_backdrop_match in _contrast_subjects(placed):
-            if ring is not None:
-                _check_outline_contrast(bag, placed, ring, color, backdrop, label=label)
-            else:
-                _check_plain_color_contrast(bag, placed, color, backdrop, label=label,
-                                            allow_backdrop_match=allow_backdrop_match)
+    for index, placed in enumerate(resolved.items):
+        if _backdrop_color(resolved, placed) is not None:
+            continue  # a backdrop is what everything else is judged against
+        for backdrop in _backdrops(resolved, index):
+            for label, color, ring, allow_backdrop_match in _contrast_subjects(placed):
+                if ring is not None:
+                    _check_outline_contrast(bag, placed, ring, color, backdrop, label=label)
+                else:
+                    _check_plain_color_contrast(bag, placed, color, backdrop, label=label,
+                                                allow_backdrop_match=allow_backdrop_match)
 
 
 def _contrast_warning(bag: Bag, placed, message: str, note: str) -> None:
@@ -1109,15 +1109,38 @@ def _is_solid_backdrop_shape(placed) -> bool:
             and getattr(element, "filled", True))
 
 
-def _backdrop(resolved: ResolvedFace) -> Color | None:
-    """The colour behind everything: the first full-screen shape, or palette.bg."""
-    for placed in resolved.items:
-        if not _is_solid_backdrop_shape(placed):
-            continue
-        color = _constant_color(getattr(placed.element, "color", None))
-        if placed.box.area >= resolved.screen.area * 0.9 and color is not None:
-            return color
-    return resolved.face.palette.get("bg")
+def _backdrop_color(resolved: ResolvedFace, placed) -> Color | None:
+    """``placed``'s colour when it is a full-screen solid shape with a
+    build-time colour -- a backdrop -- else ``None``."""
+    if not _is_solid_backdrop_shape(placed) or placed.box.area < resolved.screen.area * 0.9:
+        return None
+    return _constant_color(getattr(placed.element, "color", None))
+
+
+def _backdrops(resolved: ResolvedFace, index: int) -> list[Color]:
+    """Every distinct colour behind ``resolved.items[index]``, one per
+    (mode, layout) it can be drawn in: the last backdrop drawn before it
+    that is drawn in that same mode and layout, or `palette.bg` when none is
+    (plan 18 item 7). An element with no layout is on screen in every
+    layout, so it is judged against each one's backdrop; a backdrop with no
+    layout is behind every layout's content."""
+    element = resolved.items[index].element
+    layouts: list[str | None] = [element.layout]
+    if element.layout is None:
+        layouts = sorted({e.layout for e in resolved.face.walk() if e.layout is not None}) or [None]
+    fallback = resolved.face.palette.get("bg")
+    found: list[Color] = []
+    for mode in element.modes:
+        for layout in layouts:
+            color = fallback
+            for earlier in resolved.items[:index]:
+                if (mode in earlier.element.modes
+                        and earlier.element.layout in (None, layout)
+                        and (backdrop := _backdrop_color(resolved, earlier)) is not None):
+                    color = backdrop
+            if color is not None and all(color.value != c.value for c in found):
+                found.append(color)
+    return found
 
 
 # -- check 9: partial-update budget (heuristic) -----------------------------

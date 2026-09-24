@@ -144,7 +144,13 @@ that crosses just part of the box, say) proves nothing about what the
 rest of the box sits on. The common case this quiets is the hollow-text
 idiom itself: `color:` repeating the same palette entry as the full-screen
 background underneath it (`docs/guide/text.md`'s "hollow text" section).
-`contrast` similarly treats an `outline:`-bearing element differently: see
+`contrast` judges each element against what is actually behind it: the
+last full-screen solid shape drawn before it in the same mode and the same
+layout, or `palette.bg` when there is none. So a night layout's text is
+judged against the night background, not the day one. Shared content (no
+layout) is on screen in every layout, so it is judged against each
+layout's background, and a full-screen background shape is never judged
+itself. `contrast` also treats an `outline:`-bearing element differently: see
 `wfb.lint.check_contrast`'s own docstring for the two ring comparisons it
 makes in place of judging the interior. On a `type: hands`/`type: pattern`
 element, `contrast` is checked per **part**, not once for the whole

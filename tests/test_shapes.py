@@ -489,13 +489,14 @@ elements:
 ], ids=["polygon", "outlined-rectangle"])
 def test_a_screen_sized_shape_that_paints_a_sliver_is_not_the_backdrop(
         resolved_for, covering):
-    """`_backdrop` reads the first shape whose *box* covers the screen, and
-    then every other element's contrast is measured against it.  Two of the
-    shapes added here can cover the screen with a bounding box while painting
-    almost none of it, which would make every contrast warning on the face
-    wrong in the same direction at once."""
-    from wfb.lint import _backdrop
+    """`_backdrop_color` decides which shapes count as a backdrop -- one
+    whose *box* covers the screen -- and every later element's contrast is
+    measured against it.  Two of the shapes added here can cover the screen
+    with a bounding box while painting almost none of it, which would make
+    every contrast warning on the face wrong in the same direction at once."""
+    from wfb.lint import _backdrop_color
 
     resolved = resolved_for(NO_BACKGROUND + covering)
-    # palette.bg's black, not the white shape on top of it.
-    assert _backdrop(resolved).value == 0x000000
+    (shape,) = [p for p in resolved.items if p.kind == "shape"]
+    # Not a backdrop, so what is behind later elements stays palette.bg's black.
+    assert _backdrop_color(resolved, shape) is None

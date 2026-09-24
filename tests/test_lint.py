@@ -633,6 +633,119 @@ elements:
 # -- check 10 --------------------------------------------------------------
 
 
+DAY_NIGHT = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f66
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#000000"
+  black: "#000000"
+  white: "#FFFFFF"
+  navy: "#000055"
+layouts:
+  day:
+    static:
+      day_bg:
+        type: shape
+        shape: rectangle
+        at: {anchor: center}
+        size: {width: 100%, height: 100%}
+        color: palette.white
+  night:
+    static:
+      night_bg:
+        type: shape
+        shape: rectangle
+        at: {anchor: center}
+        size: {width: 100%, height: 100%}
+        color: palette.black
+    elements:
+      night_text:
+        type: text
+        text: "hi"
+        at: {anchor: center}
+        color: palette.{night_ink}
+config:
+  style:
+    default: day
+    choices:
+      day: { layout: day }
+      night: { layout: night }
+elements:
+{shared}
+"""
+
+
+def _contrast_hits(write_design, bag, db, text):
+    resolved = _resolved_for(write_design, bag, db, text, "fenix8solar47mm")
+    lint.check_contrast(resolved, bag)
+    return [d for d in bag.items if d.code == "contrast"]
+
+
+def test_night_layout_text_is_judged_against_the_night_backdrop(write_design, bag, db):
+    """Plan 18 item 7, false positive: white text on the night layout's
+    black backdrop was judged against the day layout's white one."""
+    text = DAY_NIGHT.replace("{night_ink}", "white").replace("{shared}", "  []")
+    hits = _contrast_hits(write_design, bag, db, text)
+    assert not hits, bag.render()
+
+
+def test_dark_night_layout_text_warns_against_the_night_backdrop(write_design, bag, db):
+    """Plan 18 item 7, missed warning: navy on black is unreadable, but it
+    passed because it was compared with the day layout's white."""
+    text = DAY_NIGHT.replace("{night_ink}", "navy").replace("{shared}", "  []")
+    hits = _contrast_hits(write_design, bag, db, text)
+    assert [h.message.split(":")[0] for h in hits] == ["night_text"], bag.render()
+    assert "#000000" in hits[0].message
+
+
+def test_shared_text_is_judged_against_every_layouts_backdrop(write_design, bag, db):
+    """Shared content is on screen in both layouts: white text reads on the
+    night backdrop but vanishes on the day one, and that must be reported."""
+    shared = """  - id: shared_text
+    type: text
+    text: "hi"
+    at: {anchor: center, dy: 30%}
+    color: palette.white"""
+    text = DAY_NIGHT.replace("{night_ink}", "white").replace("{shared}", shared)
+    hits = _contrast_hits(write_design, bag, db, text)
+    assert [h.message.split(":")[0] for h in hits] == ["shared_text"], bag.render()
+    assert "#FFFFFF on #FFFFFF" in hits[0].message
+
+
+def test_a_low_power_background_is_not_the_active_backdrop(write_design, bag, db):
+    """A `modes: [low_power]` full-screen shape is never drawn under an
+    active-only element; the active frame's backdrop is palette.bg."""
+    text = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f67
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  bg: "#FFFFFF"
+  black: "#000000"
+elements:
+  - id: sleep_bg
+    type: shape
+    shape: rectangle
+    modes: [low_power]
+    at: {anchor: center}
+    size: {width: 100%, height: 100%}
+    color: palette.black
+  - id: label
+    type: text
+    text: "hi"
+    modes: [active]
+    at: {anchor: center}
+    color: palette.black
+"""
+    hits = _contrast_hits(write_design, bag, db, text)
+    assert not hits, bag.render()
+
+
 def test_low_contrast_warns_and_labels_the_threshold_as_a_judgement(check):
     bag = check(
         """
