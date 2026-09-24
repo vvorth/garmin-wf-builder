@@ -282,9 +282,16 @@ def unavailable_reason(name: str) -> str | None:
     Matched on the bare name and on its last dotted/underscored segment, so
     `ambient.pressure` and `sensor_pressure` land here too -- an author
     reaching for a forbidden quantity rarely guesses this module's exact
-    spelling for it.
+    spelling for it. The underscored segment only counts when the name is
+    not a near miss of a real series (:func:`suggest`): `hourly_temperature`
+    is one edit from `forecast_temperature`, and "did you mean" serves that
+    author better than "temperature cannot be plotted".
     """
     if name in UNAVAILABLE:
         return UNAVAILABLE[name]
-    tail = name.rsplit(".", 1)[-1]
-    return UNAVAILABLE.get(tail)
+    dotted = name.rsplit(".", 1)[-1]
+    if dotted in UNAVAILABLE:
+        return UNAVAILABLE[dotted]
+    if suggest(name):
+        return None
+    return UNAVAILABLE.get(dotted.rsplit("_", 1)[-1])

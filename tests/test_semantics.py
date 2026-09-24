@@ -1413,6 +1413,8 @@ def test_an_unknown_series_is_reported_with_a_suggestion(write_design, bag):
     ("body_battery", "SensorHistory"),
     ("stress", "SensorHistory"),
     ("ambient.pressure", "SensorHistory"),   # matched on the trailing segment
+    ("sensor_pressure", "SensorHistory"),    # ... on an underscore, too (plan 18 item 9)
+    ("ambient_stress", "SensorHistory"),
     ("solar", "no solar history API"),
     ("solar_intensity", "no solar history API"),
 ])
@@ -1431,6 +1433,17 @@ def test_a_series_the_platform_forbids_says_why_rather_than_unknown(
     assert "unknown series" not in errors[0].message
     assert "cannot be plotted on a watch face" in errors[0].message
     assert cite in " ".join(errors[0].notes)
+
+
+def test_an_underscore_tail_does_not_override_a_near_miss(write_design, bag):
+    """`hourly_temperature` ends in `temperature`, which the platform will
+    not plot -- but it is one edit from `forecast_temperature`, which it
+    will, so the author gets the suggestion, not a misleading refusal."""
+    load(write_design(design(_graph(series="hourly_temperature"))), bag)
+    errors = [d for d in bag.errors if d.code == "graph"]
+    assert errors, bag.render()
+    assert "unknown series" in errors[0].message
+    assert "forecast_temperature" in " ".join(errors[0].notes)
 
 
 def test_buckets_on_a_non_heart_rate_series_is_an_error(write_design, bag):
