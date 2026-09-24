@@ -116,7 +116,7 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
 
     `Element.resolved_antialias` already folds every inheritance step (face ->
     group -> element) into one per-element boolean (`wfb.ir.Builder.
-    _resolve_antialias`), so "does any primitive-drawing element actually draw
+    _resolve_inherited_flag`), so "does any primitive-drawing element actually draw
     anti-aliased" is exactly "does any `ANTIALIASED_PRIMITIVES` member have
     `resolved_antialias == True`" -- no separate walk of the face default and
     the override tree is needed here.  The same tuple drives

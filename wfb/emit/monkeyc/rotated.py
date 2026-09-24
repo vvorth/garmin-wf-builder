@@ -326,7 +326,7 @@ def _emit_pattern_text_draw(
         # lands outside the rotation, so it moves the drawn point
         # straight up on screen regardless of `theta`. Skipped entirely
         # under `curve:`: `vertical_align: bottom` is rejected there
-        # (`Builder._build_pattern_curve`), and `center`/`top` need no
+        # (`Builder._build_curve`), and `center`/`top` need no
         # y-shift -- `curve:`'s own vertical alignment is a `justify` flag,
         # never a coordinate shift (plan 11 §2.3).
         cy_expr = "cy" if curve_style is not None else _glyph_y_expr(

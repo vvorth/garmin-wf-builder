@@ -26,13 +26,10 @@ from .naming import _pascal, config_field, font_resource_id
 #: MIP partial-update modes.
 MODES = ("active", "low_power")
 
-#: `on_hold: auto` -- resolved later, once the element has a value binding to
-#: resolve *from*.  A plain string rather than a dedicated
-#: sentinel object so it survives unchanged through `Element.on_hold`, typed
-#: `str | None` -- and safe to compare against, because `"auto"` is not and
-#: will not become a real `wfb.complications.TYPES` key (constant names are
-#: SCREAMING_SNAKE_CASE lowercased, and Garmin's own type table has no
-#: `COMPLICATION_TYPE_AUTO`).
+#: `on_hold: auto` -- resolved once the element has a value binding to
+#: resolve from (`Builder._resolve_hold_auto`).  A plain string, so it fits
+#: `Element.on_hold: str | None`; Garmin has no `COMPLICATION_TYPE_AUTO`, so
+#: it can never collide with a real `wfb.complications.TYPES` key.
 HOLD_AUTO = "auto"
 
 #: The Monkey C a pattern colour's `copy` compiles to: the index of the loop
@@ -45,12 +42,9 @@ PATTERN_LOOP_INDEX = "i"
 GRAPH_AREA_MAX_SAMPLES = 62
 
 
-#: `outline:`'s own cap (plan 15 D6) -- every offset set research 14
-#: measured (`docs/research/14-stamped-ring-text.md` §1, §4.1) stops at
-#: r=3, and the ring/solid pixel ratio keeps climbing past it with no
-#: further evidence gathered.  `Builder._build_outline` rejects a wider
-#: ring with a build error citing that evidence -- deliberately not a
-#: schema `maximum`, so the message can say *why*, not just *that*.
+#: `outline:`'s cap (plan 15 D6): every offset set research 14 measured
+#: (`docs/research/14-stamped-ring-text.md` §1, §4.1) stops at r=3.
+#: `Builder._build_outline` enforces it with an error citing that evidence.
 MAX_OUTLINE_WIDTH = 3
 
 #: System fonts an author may name directly, instead of a baked custom font.
@@ -148,20 +142,11 @@ class FontSpec:
     """
 
     name: str
-    #: The declared size, always a :class:`~wfb.units.Length`: `12px` is twelve
-    #: pixels on every device, `18%r` is a fraction of each device's own minor
-    #: radius.  Restricted to :data:`wfb.units.SIZE_UNITS` -- the same `px`/`%r`
-    #: an `icon`'s `size:` allows, and for the same reason (a baked sheet is
-    #: rasterised before any element is placed, so there is no parent box to
-    #: take a `%` of and no font in scope to take a `pt` of -- a vector font
-    #: shares the restriction even though nothing is rasterised at build
-    #: time for it, so `:size` stays a single per-device pixel height either
-    #: way, resolved the same way by :meth:`pixel_size`).
-    #:
-    #: A bare number is not accepted: `%r` gives the same transparent
-    #: per-device scaling directly, without an unnamed reference screen.
-    #: `Builder._font_size` rejects a bare number with the exact `%r`
-    #: conversion to use instead.
+    #: The declared size: `12px` on every device, or `18%r` of each device's
+    #: minor radius.  Restricted to :data:`wfb.units.SIZE_UNITS` -- a sheet is
+    #: rasterised before any element is placed, so there is no box for `%`
+    #: nor font for `pt` (`Builder._font_size`).  A vector font shares the
+    #: rule, so :meth:`pixel_size` resolves both kinds the same way.
     size: Length
     span: Span | None
     #: A baked font's own TrueType/OpenType source path, or `None` for a
@@ -179,23 +164,15 @@ class FontSpec:
     #: Meaningless, and therefore an error, without :attr:`monospace`.
     align: str = "center"
     #: **Vector only** (plan 11 §2.1): candidate device-resident face names,
-    #: in author order -- `None` for a baked font.  A per-device build step
-    #: outside this module (`wfb.layout`, a later slice) resolves this to
-    #: the single face that device actually publishes; `:face` is emitted
-    #: as that one resolved string, never the array -- Garmin's own runtime
-    #: array fallback is deliberately not used, because it picks at
-    #: runtime, so the build could not say which face renders or measure
-    #: the layout box against it.
+    #: in author order.  Resolved per device to the one face it publishes
+    #: (`wfb.availability.vector_font_face`) -- never Garmin's own runtime
+    #: array fallback, which would leave the build unable to say which face
+    #: renders, or to measure against it.
     face: tuple[str, ...] | None = None
-    #: **Vector only.** `"error"` (the default a builder fills in) or
-    #: `"hide"` -- what to do on a device that fails to publish any listed
-    #: face.  Always `None` on a baked font: nothing there can ever be
-    #: unavailable, so `Builder._build_fonts` rejects `if_unavailable:` on
-    #: one rather than silently accepting a check that would never run.
-    #: An element using this font may override it outright
-    #: (`Text.if_unavailable`) -- the same "nearest/most specific
-    #: declaration wins" shape `_resolve_inherited_flag` already gives
-    #: `antialias:`/`min_1px:`, string-valued here instead of boolean.
+    #: **Vector only.** `"error"` (the default) or `"hide"` -- what to do on
+    #: a device that publishes none of the listed faces.  An element using
+    #: this font may override it (`Text.if_unavailable`,
+    #: `HandPart.if_unavailable`).
     if_unavailable: str | None = None
 
     @property
@@ -235,54 +212,34 @@ class Curve:
     (`style: radial`, `Dc.drawRadialText`).  Both calls refuse a resource
     font outright ("These APIs only support scalable fonts and do not
     support custom fonts loaded as resources", `$CIQ_SDK/doc/docs/
-    Core_Topics/Graphics.html` §Scalable Fonts), so `Builder._build_text`
-    requires the element's `font:` to name a `face:` (vector) `FontSpec`
-    before this is ever built.
+    Core_Topics/Graphics.html` §Scalable Fonts), so `Builder._build_curve`
+    requires `font:` to name a `face:` (vector) `FontSpec`.  Also carried by
+    a pattern's `shape: text` part (`HandPart.curve`).
     """
 
-    #: `"angled"` | `"radial"` -- the discriminator, following `progress`'s
-    #: own precedent of one element with a `style:` key because the
-    #: *binding* stays identical and only the rendering differs
-    #: (`docs/guide/progress-and-graphs.md` §`progress`).
+    #: `"angled"` | `"radial"`.
     style: str
-    #: (:class:`~wfb.units.Angle`) -- **not one convention**, since the two
-    #: styles answer different kinds of question despite sharing units.
-    #: For `radial`, a *position*: where around the circle the text starts,
-    #: this format's universal 12-o'clock-zero/clockwise-positive direction
-    #: convention, the same one every other angle in the format uses
-    #: (arc/hand/pattern start angles). For `angled`, a *rotation*: how far
-    #: the text's own baseline is tilted away from level, clockwise
-    #: positive, with `0deg` meaning unrotated (level) rather than "pointing
-    #: at 12 o'clock" -- deliberately a different zero, since conflating the
-    #: two made the common case (a level bezel numeral, a gently tilted
-    #: ribbon) need `90deg` and made `0deg`, which reads like "no rotation",
-    #: stand text on end. `wfb.layout.garmin_curve_angle` is the one place
-    #: either sense converts to Garmin's own 3-o'clock/counter-clockwise
-    #: convention, exactly as every angle in this format converts in
-    #: exactly one place.
+    #: **Not one convention.**  For `radial`, a *position*: where around the
+    #: circle the text starts, 12-o'clock-zero/clockwise-positive like every
+    #: other angle in the format.  For `angled`, a *rotation* of the
+    #: baseline from level, clockwise positive -- `0deg` is level text, not
+    #: "pointing at 12", so the common case needs no `90deg`.
+    #: `wfb.layout.garmin_curve_angle` is the one place either converts to
+    #: Garmin's convention.
     angle: Angle
-    #: `radial` only -- the circle's own radius, resolved through the same
-    #: unit rules `at:`/`radius:` already use elsewhere (not restricted to
-    #: :data:`wfb.units.SIZE_UNITS`: this is an ordinary per-device layout
-    #: quantity, not something baked before layout runs).  `None` on
-    #: `angled`, which has no circle for it to describe -- rejected there
-    #: by `Builder._build_text` rather than silently ignored.
+    #: `radial` only -- the circle's radius, an ordinary per-device layout
+    #: length.  `None` on `angled` (`Builder._check_curve_keys` rejects it).
     radius: Length | None = None
-    #: `radial` only -- `"clockwise"` (default) | `"counter_clockwise"`,
-    #: which way the text runs around the circle starting at `angle:`.
-    #: `None` on `angled`, rejected there the same way `radius` is.
+    #: `radial` only -- `"clockwise"` (default) | `"counter_clockwise"`.
     direction: str | None = None
 
 
 @dataclass(frozen=True)
 class Outline:
-    """`outline:` on a `text` element (plan 15 §2.4), and -- once slice 2
-    lands -- a pattern's own `shape: text` part: the stamped ring research
-    14 measured.  `color` follows `Text.color`'s own grammar exactly
-    (palette/config/data, `Builder._color_expression`, D8 §13 of plan 15);
-    `width` is a plain pixel integer, 1-3 (`Builder._build_outline` rejects
-    a wider ring with a build error citing research 14's own numbers --
-    not a schema bound, D6, :data:`MAX_OUTLINE_WIDTH`).
+    """`outline:` on a `text` element or a pattern's `shape: text` part
+    (plan 15): the stamped ring research 14 measured.  `color` follows
+    `color:`'s own grammar (`Builder._color_expression`); `width` is whole
+    pixels, 1 to :data:`MAX_OUTLINE_WIDTH`.
     """
 
     color: Expression
@@ -293,26 +250,14 @@ class Outline:
 class AodOverride:
     """The resolved `aod:` override for one element (plan 14 §2-§3): element
     wins key by key over its nearest ancestor group's own `aod:`, which wins
-    over nothing -- `Builder._resolve_aod`.  `Element.aod` is `None` when the
-    element is hidden in AOD outright; a *drawn* element always gets one of
-    these, even with every field below `None` (`aod: {}` / `aod: show`, or
-    an ancestor's `aod: show` with no override of its own) -- "drawn,
-    unrestyled", the shape slice 1's codegen draws until slice 2 teaches it
-    to read these fields as per-element ternaries.
+    over the face's `aod: default:` -- `Builder._resolve_aod`.
+    `Element.aod` is `None` when the element is hidden in AOD; a drawn
+    element always gets one of these, every field `None` meaning "drawn,
+    unrestyled".  Each value is resolved by the same machinery as the
+    element's own property of that name.
 
-    Only the keys `docs/plans/14-aod.md` §2.3 allows for this element's own
-    kind are ever set here; every other field stays `None` forever for that
-    kind (a `text` element's `track_color` is always `None`, e.g.) -- the
-    schema already restricts which key an author can write per kind, so
-    nothing downstream needs to re-check that. Every value is resolved
-    through the exact same machinery the element's own properties use
-    (`Builder._color_expression`/`_font_reference`/`_length`), so a palette
-    or config colour role, or a declared font name, reaches codegen exactly
-    as `Shape.color`/`Text.font` already do.
-
-    `hands`/`pattern`: `color`/`thickness`/`font` apply uniformly to every
-    part of every hand, or every part of the pattern (§5.1) -- stored once,
-    here, at element level; there is no per-part override in v1.
+    `hands`/`pattern`: `color`/`thickness` apply uniformly to every part
+    (§5.1); there is no per-part override.
     """
 
     color: Expression | None = None
@@ -324,44 +269,23 @@ class AodOverride:
     font: str | None = None
     font_is_custom: bool = False
     format: str | None = None
-    #: The fully resolved "does this element actually draw in AOD" gate: the
-    #: element's own effective `visible:` (already conjoined with every
-    #: ancestor group's plain `visible:` by `Builder._push_visible`) AND
-    #: whichever `aod: {visible: ...}` won by the same key-by-key rule as
-    #: every other field above. `None` when neither contributes anything --
-    #: the element always draws in AOD once its `aod:` resolves to anything
-    #: at all. Read directly by `wfb.lint`'s `aod-empty` and by
-    #: `wfb.preview`'s `--aod` renderer; never re-derived from `visible_override`.
+    #: The full "does this draw in AOD" gate: the element's own effective
+    #: `visible:` AND the winning `aod: {visible: ...}`, or `None` when
+    #: neither exists.  Read by the `aod-empty` lint and `wfb preview --aod`.
     visible: Expression | None = None
-    #: The *aod-only* contribution to `visible` above, before conjoining
-    #: with the element's own plain `visible:` -- kept apart because
-    #: `wfb.emit.monkeyc` only ever needs to check this extra half at the
-    #: draw call site: the element's own generated method already checks its
-    #: plain `visible:` unconditionally, awake or asleep, so re-deriving the
-    #: element's own half from `visible` there would just recheck the same
-    #: condition a second time for no reason. `None` when no `aod: visible:`
-    #: won at any level in this element's own ancestry.
+    #: Just the `aod: {visible: ...}` half of `visible` -- all codegen needs
+    #: to add, since the element's method already checks its own `visible:`.
     visible_override: Expression | None = None
 
 
 def disc_perimeter_offsets(radius: int) -> tuple[tuple[int, int], ...]:
     """The stamped-ring offset table for one ring width, in pixels
-    (research 14 §1, plan 15 §8, D3 §13): every integer `(dx, dy)` on the
-    outer integer shell of a disc of this radius -- `(r-1)**2 < dx**2 +
-    dy**2 <= r**2` -- the exact algorithm `docs/research/probes/
-    stamped-ring/stamp_experiment.py`'s own `offsets_disc_perimeter` uses,
-    reused verbatim rather than re-derived.  Exactly 4/8/16 points at
-    r=1/2/3, matching research 14 §1's own measured table.  `disc-
-    perimeter` is the *only* offset set this format ever emits (D3): no
-    `offsets:` escape hatch, because `square8` overshoots and `cross4`
-    undershoots with a quality gap that widens as the ring grows and is
-    rotation-variant around a radial run (research 14 §1, §3.2).
+    (research 14 §1, plan 15 D3): every integer `(dx, dy)` on the outer
+    shell of a disc of this radius, `(r-1)**2 < dx**2 + dy**2 <= r**2` --
+    4/8/16 points at r=1/2/3.  The only offset set this format emits.
 
-    Shared, verbatim, by `wfb.emit.monkeyc.layout_constants` (the device-
-    side `OUTLINE_OFFSETS_<W>` constant) and `wfb.preview` (the host-side
-    stamp loop) -- one source of truth, so the two cannot silently stamp
-    different pixels, the same discipline `wfb.layout`/`wfb.preview`
-    already keep for every other rendering fact.
+    The one source of truth for both `wfb.emit.monkeyc.layout_constants`
+    (`OUTLINE_OFFSETS_<W>`) and `wfb.preview`'s stamp loop.
     """
     lo = (radius - 1) * (radius - 1)
     hi = radius * radius
@@ -646,16 +570,10 @@ class Element:
     #: inside the on-device config editor, on every device that has it.
     on_hold: str | None = None
     #: `visible:` -- a BOOLEAN expression gating whether this element draws at
-    #: all.  A separate axis from `when_absent:`, which governs
-    #: the element's *value*: **absent means hidden**, because there is no
-    #: meaningful placeholder for existence, so a nullable source read here
-    #: contributes a null check to the same guard as the condition itself.
-    #:
-    #: On a `group` this is also conjoined into every descendant's own
-    #: `visible` by `Builder._build_group` -- a group emits no draw method, so
-    #: gating the subtree has to happen where the subtree still exists as a
-    #: tree.  The copy left on the group itself is what the `dead-element`
-    #: lint reports against.
+    #: all.  **Absent means hidden** (no `when_absent:` applies).  A group's
+    #: is conjoined into every descendant's own (`Builder._push_visible`),
+    #: since a group draws nothing itself; the copy left on the group is what
+    #: the `dead-element` lint reports against.
     visible: Expression | None = None
     #: `static: true` as the author wrote it -- this element is the *root* of a
     #: static subtree, drawn once into an offscreen buffer and blitted every
@@ -663,100 +581,49 @@ class Element:
     #: subtree of one.
     static: bool = False
     #: The id of the static root this element belongs to, itself included, or
-    #: None.  Set by `Builder._apply_static`, not by the author: the emitter
-    #: needs to know, for each *flattened* element, which buffer draws it, and
-    #: by the time layout has flattened the tree the subtree is gone -- the
-    #: same reason `visible:` is pushed down rather than read off the group
-    #: (`_push_visible`).
+    #: None.  Set by `Builder._apply_static`: once layout flattens the tree,
+    #: the emitter still needs to know which buffer draws each element.
     static_root: str | None = None
-    #: Where this element's static root sits in the design's *authored* draw
-    #: order, or None outside a static subtree.  Set alongside `static_root` by
-    #: `Builder._apply_static`, and read only by :func:`draw_sort_key`: static
-    #: content is hoisted to the front of draw order, and this is what keeps
-    #: each root's members one unbroken run there, ordered the way the author's
-    #: own `z:` ordered the roots themselves.
+    #: Where this element's static root sits in the *authored* draw order,
+    #: or None outside a static subtree (`Builder._rank_static`).  Read only
+    #: by :func:`draw_sort_key`, to keep each root's members one run.
     static_rank: int | None = None
     #: The declared `layouts:` name this element belongs to, or `None` for
-    #: shared content drawn in every layout.  Never set by the author
-    #: directly -- there is no element-level membership key (form A only) --
-    #: but by `Builder._assign_layouts`, which walks the two synthetic
-    #: groups `wfb/desugar.py`'s `_layouts_block` appended for each declared
-    #: layout and stamps this on the group and every descendant, by id.
-    #: Read by :func:`draw_sort_key` (the layer rank: shared content draws
-    #: below layout content) and by codegen's layout guards.
+    #: shared content.  Stamped by `Builder._assign_layouts` (there is no
+    #: element-level membership key); read by :func:`draw_sort_key` and by
+    #: codegen's layout guards.
     layout: str | None = None
-    #: `antialias:` as the author wrote it, or `None` to inherit -- from the
-    #: enclosing group's own value, or from `Face.antialias` when there is
-    #: none.  Accepted only on `group`, `shape`, `progress` and `icon`: `text`
-    #: draws through a `fonts:` resource shared by every element that
-    #: references it, so anti-aliasing cannot vary per element there
-    #: (`Builder._reject_text_antialias`).
+    #: Inherited boolean flags: `<key>` is what the author wrote (`None` =
+    #: inherit from the enclosing group, or the face default), and
+    #: `resolved_<key>` the answer `Builder._resolve_inherited_flag` stamps
+    #: on every element.  `antialias:` is accepted on `group`, `shape`,
+    #: `progress` and `icon` (a `text` shares its `fonts:` resource, so it
+    #: cannot vary per element -- `Builder._reject_text_antialias`).
     antialias: bool | None = None
-    #: The resolved value -- never `None` once `Builder._resolve_antialias`
-    #: has run over the whole tree.  What every downstream stage reads: on
-    #: `shape`/`progress` this drives the guarded `Dc.setAntiAlias` call
-    #: (`docs/limitations.md` -- `wfb preview` does not reproduce it, since
-    #: it draws primitives with plain `PIL.ImageDraw`); on `icon` it is
-    #: threaded into `wfb.icons.font_key` and the baked sheet.
-    #: On a `group` nothing reads it directly -- the field exists there only
-    #: as the default source `_resolve_antialias` hands to the subtree.
     resolved_antialias: bool = False
-    #: `min_1px:` as the author wrote it, or `None` to inherit -- from the
-    #: enclosing group's own value, or from `Face.min_1px` when there is
-    #: none.  Same shape as `antialias` above (`_resolve_inherited_flag`
-    #: resolves both), one level deeper: a hand or pattern part may also
-    #: declare its own (`HandPart.min_1px`).  Accepted only on `group`,
-    #: `shape`, `progress`, `graph`, `hands` and `pattern` -- not `text`,
-    #: `icon` or `complication_slot`, whose font size already floors at 1 px
-    #: on its own path (`wfb.units.pixel_size`), no switch involved.
+    #: `min_1px:` is accepted on `group`, `shape`, `progress`, `graph`,
+    #: `hands` and `pattern`; a hand/pattern part may carry its own
+    #: (`HandPart.min_1px`, which inherits `resolved_min_1px`).
     min_1px: bool | None = None
-    #: The resolved value -- never `None` once `Builder._resolve_min_1px` has
-    #: run over the whole tree.  Read by `wfb.layout.Resolver` at every
-    #: `_extent` call site this element owns, and handed down as the
-    #: inherited default to a hand/pattern part's own `min_1px` (which has no
-    #: `resolved_` twin of its own -- see `HandPart.min_1px`).
     resolved_min_1px: bool = False
-    #: The placement box's horizontal/vertical edge (or centre) that sits at
-    #: the point `at:` resolves to -- one rule, on the base class, so every
-    #: kind of element carries it the same way. Meaningful on `group`,
-    #: `text`, a pattern's `shape: text` part, `shape` (rectangle/
-    #: rounded_rectangle/ellipse/circle/arc -- not polygon/line), `progress`
-    #: (both styles), `graph`, `icon`, `complication_slot`, and a hand or
-    #: pattern `rectangle`/`circle` part; the schema stays closed on every
-    #: other kind. Read by `wfb.layout`'s `alignment_shift` (box-drawn
-    #: kinds), `Resolver._justify` (glyph-drawn kinds -- `text`, `icon`, a
-    #: pattern's `shape: text` part), or mirrored as runtime arithmetic in
-    #: `wfb.emit.monkeyc._emit_complication_slot` (`complication_slot`'s own
-    #: ADR 0004 exception) -- never more than one mechanism for the same kind.
+    #: The placement box's edge (or centre) that sits at `at:`.  The schema
+    #: decides which kinds accept it; `wfb.layout` applies it through
+    #: `alignment_shift` (box-drawn kinds) or `Resolver._justify` (glyph-drawn
+    #: kinds), and a `complication_slot` mirrors it at runtime.
     align: str = "center"
     vertical_align: str = "center"
-    #: `aod:` as the author wrote it on *this* element/group alone, before
-    #: resolution against its ancestry -- `None` when nothing but `hide` was
-    #: written here (see `aod_own_hide`) or no `aod:` at all, else the parsed
-    #: key -> value dict an `aod: show` (empty dict) or an override block
-    #: produced (`Builder._build_aod_authored`). Consumed only by
-    #: `Builder._resolve_aod`, which walks the tree once after every element
-    #: exists, and by the `aod-unreachable` lint, which needs to tell "wrote
-    #: its own override, which an ancestor's explicit hide then buried" apart
-    #: from "never wrote one at all" -- information `aod` alone (the
-    #: resolved result) throws away once it collapses to `None`.
+    #: `aod:` as written on this element alone (`Builder._build_aod_authored`):
+    #: `None` for none or `hide` (see `aod_own_hide`), else the parsed dict
+    #: (`{}` for `show`).  Read by `Builder._resolve_aod`, and by the
+    #: `aod-unreachable` lint, which needs what was written, not the result.
     aod_own: dict[str, object] | None = None
-    #: `aod: hide` authored on *this* element/group alone (as opposed to
-    #: inherited). Explicit and sticky: `Builder._resolve_aod` propagates it,
-    #: once true, to every descendant regardless of what they write.
+    #: `aod: hide` written on this element; sticky for every descendant.
     aod_own_hide: bool = False
-    #: True when some *ancestor* (not this element itself) explicitly wrote
-    #: `aod: hide`, reaching this element through that stickiness -- set by
-    #: `Builder._resolve_aod` for every element, hidden or not, purely so the
-    #: `aod-unreachable` lint can tell "my own `aod: show`/override can never
-    #: draw" apart from an element that simply has no `aod:` of its own.
+    #: An *ancestor* wrote `aod: hide` (for `aod-unreachable`).
     aod_ancestor_hidden: bool = False
     #: The resolved override, or `None` when this element does not draw in
-    #: AOD at all -- `Builder._resolve_aod`'s final answer, combining
-    #: `aod_own`/`aod_own_hide` with the nearest ancestor's own `aod:` and
-    #: the face's `aod: {default: ...}` (plan 14 §3). Every codegen/preview/
-    #: lint consumer reads this and only this; none of them re-walks the
-    #: ancestry.
+    #: AOD (`Builder._resolve_aod`).  Every downstream consumer reads this
+    #: and never re-walks the ancestry.
     aod: "AodOverride | None" = None
 
     @property
@@ -849,22 +716,14 @@ class HandPart:
     #: convention `Shape.start_angle`/`.sweep` use.
     start_angle: Angle | None = None
     sweep: Angle | None = None
-    #: `type: pattern` template parts only (schema keeps `handPart` closed to
-    #: it, `additionalProperties: false`) -- a boolean expression evaluated
-    #: per copy, `copy` bound the same as in a colour: false hides this part
-    #: for this copy only, other parts and copies unaffected.  `None` when
-    #: not authored, or when the condition folded to a build-time constant
-    #: `true` -- there is nothing to gate, so `_build_hand_part` drops it
-    #: rather than keep a no-op expression around.  A constant `false` is
-    #: kept (not dropped): codegen emits no draw code for it, and the
-    #: `dead-element` lint names it.
+    #: Pattern parts only -- a boolean evaluated per copy (`copy` in scope):
+    #: false hides this part for this copy only.  `None` when not authored
+    #: or constant `true`; a constant `false` is kept, so codegen emits
+    #: nothing for it and the `dead-element` lint names it.
     visible: Expression | None = None
-    #: `shape: text` template parts only (schema keeps `handPart` closed to
-    #: `shape: text`, so a hand part never sets any of these).  `value:`
-    #: compiled in the pattern's `copy`-bound scope; every `Ref` in it must
-    #: be `copy` (`Builder._build_hand_part`).  Exactly one of
-    #: `text_value`/`text_literal` is set once a text part reaches this
-    #: dataclass -- the other stays `None`.
+    #: The `shape: text` fields below are pattern parts only
+    #: (`Builder._build_text_part`).  `value:` may read only `copy`; exactly
+    #: one of `text_value`/`text_literal` is set.
     text_value: Expression | None = None
     #: `text:` -- a fixed string, the same for every copy.
     text_literal: str | None = None
@@ -873,75 +732,29 @@ class HandPart:
     format: str | None = None
     font: str = "FONT_MEDIUM"
     font_is_custom: bool = False
-    #: Read on `rectangle`/`circle` parts, resolved at build time by
-    #: `Resolver._resolve_hand_part` before rounding -- the same shift
-    #: `wfb.layout.alignment_shift` gives every box-drawn kind -- and on
-    #: `shape: text` parts, where the anchor turns/steps with the copy but
-    #: the glyphs stay upright, unlike a rectangle/circle part's box, which
-    #: turns with the part.  `_check_hand_part_keys` rejects both keys on
-    #: `polygon`, `line` and (pattern only) `arc`, with the reason
-    #: (`_HAND_PART_NO_ALIGNMENT_REASON`), so they are never set to anything
-    #: but the default there.
+    #: Read on `rectangle`/`circle` parts (resolved in the part's own frame
+    #: by `Resolver._resolve_hand_part`) and `shape: text` parts; rejected
+    #: on every other shape (`_check_hand_part_keys`).
     align: str = "center"
     vertical_align: str = "center"
-    #: The host-rendered string for every copy index `0..count-1` -- set by
-    #: `Builder._build_pattern_element` once the element's `count:` is known
-    #: (a part alone does not know it).  Empty until then; empty forever on
-    #: a non-text part.
+    #: The host-rendered string for every copy index `0..count-1`, set by
+    #: `Builder._render_pattern_texts` once `count:` is known.
     texts: tuple[str, ...] = ()
-    #: `shape: text` template parts only, and only when `font:` names a
-    #: `face:` (vector) font -- `curve:` bends this part's glyphs the same
-    #: way a `text` element's own `curve:` does (plan 11 slice 2), except
-    #: the angle it authors is in the **template's own local frame**: a
-    #: radial pattern's per-copy rotation composes with it at layout/codegen
-    #: time (`wfb.layout.Resolver._resolve_hand_part`, `wfb.emit.monkeyc.
-    #: rotated._emit_pattern_text_angle_expr`), the same way a radial
-    #: pattern's own `arc` part composes its authored `start_angle` with
-    #: `element.start_angle` -- so an author writes one angle per part, not
-    #: one per copy. `None` for an upright (uncurved) text part, or any
-    #: other shape.
+    #: `curve:` (vector font only), authored in the template's own local
+    #: frame: a radial pattern's per-copy rotation composes with it
+    #: downstream, so one angle serves every copy.
     curve: "Curve | None" = None
-    #: `shape: text` template parts only, and only when `font:` names a
-    #: `face:` (vector) font -- overrides that font's own `if_unavailable:`
-    #: outright, the same "the element's own value wins" rule `Text.if_
-    #: unavailable` follows; `None` inherits the font's own setting.  A
-    #: pattern has no single element-wide font to hang this on (one
-    #: template can have more than one `shape: text` part, each naming a
-    #: different font), so it lives on the part, not on `PatternElement`.
+    #: Overrides the (vector) font's own `if_unavailable:`; `None` inherits.
+    #: Per part, since each text part may name a different font.
     if_unavailable: str | None = None
-    #: `shape: text` template parts only (plan 15 §14 slice 2) -- the same
-    #: stamped ring `Text.outline` draws on a standalone element, one level
-    #: down: this copy's string drawn N times at small screen-space pixel
-    #: offsets in `outline.color`, then once more, unshifted, in the part's
-    #: own (effective) `color:`.  The offsets are applied to this copy's
-    #: own already-rotated/translated anchor (`wfb.emit.monkeyc.rotated.
-    #: _emit_pattern_text_draw`) -- *after* both the pattern's own per-copy
-    #: rotation and this part's own `curve:` angle, never composed into
-    #: either -- so the ring is a plain screen-space translation at every
-    #: copy, exactly the "commutes with rotation" argument research 14
-    #: §3.2 makes for a standalone element, not smeared by either
-    #: transform.  `None` for a part with no `outline:` (or `outline:
-    #: none`), or any shape other than `text`.  `Builder._build_hand_part`
-    #: builds this the same way `Builder._build_text` builds `Text.outline`
-    #: (`Builder._build_outline`, shared verbatim), except a pattern part's
-    #: absence check is deferred to `Builder._check_pattern_absence`
-    #: (`outline.color` folds into `PatternElement.colors` alongside
-    #: `part.color`, `_build_pattern_element`) rather than an immediate
-    #: per-key check, since a pattern has no per-part policy -- absence of
-    #: any colour (or any part's `visible:`) requires one `when_absent:
-    #: hide` for the whole element.
+    #: `outline:` -- `Text.outline`'s stamped ring, offset in screen space
+    #: from this copy's already transformed anchor.  Its colour joins
+    #: `PatternElement.colors`, so absence is policed for the whole pattern.
     outline: "Outline | None" = None
-    #: `min_1px:` as authored, or `None` to inherit the owning `type: hands`/
-    #: `type: pattern` element's own resolved value -- **authored only**,
-    #: deliberately with no `resolved_` twin the way `Element.min_1px` gets
-    #: one.  A `HandPart` lives inside a shared `HandSet` in `Face.hands`,
-    #: which more than one `type: hands` element can place (`hands: <name>`
-    #: names it) -- and two placements can resolve `min_1px` differently
-    #: (one element's subtree on, the other's off), so a single value
-    #: stamped once onto the part in the IR would be wrong for at least one
-    #: of them.  `Resolver._resolve_hand_part` computes the effective value
-    #: itself, per element instance, at layout time: `part.min_1px if
-    #: part.min_1px is not None else <the owning element's resolved_min_1px>`.
+    #: `min_1px:` as authored, or `None` to inherit.  Deliberately no
+    #: `resolved_` twin: one `HandSet` can be placed by several `type: hands`
+    #: elements that resolve `min_1px` differently, so
+    #: `Resolver._resolve_hand_part` resolves it per placement.
     min_1px: bool | None = None
 
 
@@ -1007,12 +820,10 @@ class HandsElement(Element):
 class PatternElement(Element):
     """`type: pattern` -- one template of 1-16 primitives, drawn repeatedly:
     turned about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
-    (`pattern: linear`).  The template is authored exactly like a
-    hand part (`Builder._build_hand_part`, parameterised by context), and
-    the repeat itself is the one piece of layout arithmetic the *device*
-    performs, the same bargain ADR 0004 already struck for hands -- `step_angle`/
-    `start_angle` are plain device-independent degrees, already defaulted,
-    so `wfb.layout` never has to ask "was `step:` written" again.
+    (`pattern: linear`).  The template is authored like a hand part
+    (`Builder._build_hand_part`); the repeat is layout arithmetic the device
+    performs, as for hands (ADR 0004).  `step_angle`/`start_angle` are
+    already-defaulted, device-independent degrees.
     """
 
     pattern: str = "radial"
@@ -1031,10 +842,8 @@ class PatternElement(Element):
     #: The element's own `color:` -- the default every part without one of
     #: its own inherits, before overrides (mirrors `Hand.color`).
     color: Expression | None = None
-    #: Every effective colour (the element default, each part's own
-    #: override, and each part's own `outline.color` -- plan 15 §14 slice
-    #: 2) this pattern uses, deduplicated in first-use order --
-    #: `HandsElement.colors`'s own precedent.
+    #: Every effective colour (the element default, each part's own, and
+    #: each part's `outline.color`), deduplicated in first-use order.
     colors: tuple[Expression, ...] = ()
     #: `when_absent: hide` as authored, or `None` (schema: `enum: ["hide"]`,
     #: the only value -- a pattern has no placeholder/fallback, see
@@ -1074,25 +883,13 @@ class Text(Element):
     when_absent: str | None = None
     placeholder: str | None = None
     fallback: Expression | None = None
-    #: `curve:` as authored, or `None` for ordinary upright text (plain
-    #: `Dc.drawText`).  Requires `font:` to name a `face:` (vector) font --
-    #: `Builder._build_text` rejects a baked or system font here, quoting
-    #: the SDK (`Curve`'s own docstring).
+    #: `curve:`, or `None` for upright text; needs a `face:` (vector) font.
     curve: "Curve | None" = None
-    #: Overrides this element's font's own `FontSpec.if_unavailable`
-    #: outright, when that font is a `face:` (vector) font -- `None` to
-    #: inherit the font's own value.  A build error on a baked or system
-    #: font (`Builder._build_text`): nothing there can ever be unavailable,
-    #: so accepting it would promise a check that never runs.
+    #: Overrides a vector font's own `FontSpec.if_unavailable`; `None`
+    #: inherits it.  Rejected on a baked or system font.
     if_unavailable: str | None = None
-    #: `outline:` as authored, or `None` for today's plain fill (plan 15).
-    #: The stamped ring: this element's string drawn N times at small pixel
-    #: offsets in `outline.color`, then once more, unshifted, in this
-    #: element's own `color:` -- the interior pass it already had.  Reaches
-    #: every draw shape a standalone element can take (upright, `curve:
-    #: {style: angled}`, `curve: {style: radial}`) -- `curve:` itself
-    #: decides which draw call runs; `outline:` only wraps whichever one
-    #: that already is.
+    #: `outline:` (plan 15), or `None` for a plain fill; wraps whichever
+    #: draw call `curve:` selects.
     outline: "Outline | None" = None
 
     def _own_expressions(self) -> list[Expression]:
@@ -1152,24 +949,11 @@ class ComplicationSlot(Element):
     (docs/research/09-data-library-and-config-axes.md §4): draws whichever
     complication the wearer currently has this `slot:` pointed at.
 
-    Deliberately not a `Text`/`IconElement` variant, and deliberately not
-    reached through `wfb.catalog`/an ordinary bound `value:` expression at
-    all: which complication *type* is showing is chosen by the wearer at
-    runtime (`Complications.Id.getType()` only resolves on-device), so there
-    is no fixed source for the expression compiler to bind at build time.
-    Everything this element draws comes from a fresh
-    `WfbComplications.valueOf(<slot field>)` pull, every frame, exactly the
-    "complications are pulled, not cached" contract every other
-    `complication.*` reader already has (CLAUDE.md).
-
-    No `format:` -- see `Builder._build_complication_slot`'s rejection for
-    why: `Complications.Complication.value` is a `String or Number or Float
-    or Long or Double` union whose concrete shape genuinely varies by which
-    choice the wearer picked, so a format string written for one choice
-    would be silently wrong for another.  This element renders the value
-    through `WfbComplications.formatValue` (`toString()`, except a Float or
-    Double, which is rounded to three significant figures), plus whatever
-    `label:`/`unit:` add.
+    Not a `Text` variant and not a bound `value:` expression: which
+    complication type is showing is the wearer's runtime choice, so there
+    is no fixed source to bind at build time.  Everything drawn comes from a
+    fresh `WfbComplications.valueOf(<slot field>)` pull every frame.  No
+    `format:` (`Builder._build_complication_slot` says why).
     """
 
     #: The declared `config: data:` slot name this element shows (the part
@@ -1178,31 +962,20 @@ class ComplicationSlot(Element):
     slot: str = ""
     font: str = "FONT_SMALL"
     font_is_custom: bool = False
-    #: Visual height of the icon chosen from the wearer's pick, or `None` to
-    #: draw no icon at all.  Resolved on-device from `Complications.Id.
-    #: getType()` through `slot.icons` (`wfb.ir.ConfigDataSlot.icons`,
-    #: itself built from `wfb.icons.COMPLICATION_ICON` plus any per-choice
-    #: override) -- see `wfb.emit.monkeyc._emit_complication_slot`.
+    #: Visual height of the icon chosen from the wearer's pick
+    #: (`ConfigDataSlot.icons`), or `None` to draw no icon.
     icon_size: Length | None = None
     color: Expression | None = None
     #: `left` (default) | `right` | `top` | `bottom` -- where the icon sits
-    #: relative to the reading.  Rejected, together with
-    #: `icon_gap:`/`icon_color:`, when `icon_size:` is not declared at all
-    #: (`Builder._build_complication_slot`) -- none of the three means
-    #: anything without an icon to place, colour or space.
+    #: relative to the reading.  This, `icon_gap` and `icon_color` need
+    #: `icon_size:`.
     icon_position: str = "left"
     #: Pixel/`%r` gap between icon and reading, or `None` for the fixed
-    #: `wfb.layout.COMPLICATION_SLOT_ICON_GAP` (4px).  Kept `None` rather
-    #: than always resolving to that constant so a design that never
-    #: mentions `icon_gap:` emits none of it -- the literal `4` stays
-    #: inline; only an *authored* gap becomes a per-device
-    #: `Layout.<ID>_ICON_GAP` constant, the same "declared vs. resolved, and
-    #: only when it matters" reasoning `wfb.icons.font_key` already applies
-    #: to a font size.
+    #: `wfb.layout.COMPLICATION_SLOT_ICON_GAP` -- kept `None` so only an
+    #: authored gap becomes a per-device `Layout.<ID>_ICON_GAP` constant.
     icon_gap: Length | None = None
-    #: The icon's own colour, or `None` to share `color:` (the default).
-    #: Must not be nullable, exactly like `color:` -- there is no
-    #: `when_absent:` for either colour, only for the pulled reading.
+    #: The icon's own colour, or `None` to share `color:`.  Neither colour
+    #: may be nullable: `when_absent:` governs only the pulled reading.
     icon_color: Expression | None = None
     #: `none` (default) | `short` | `long` -- `Complication.shortLabel`/
     #: `.longLabel`, read alongside the value, never authored.
@@ -1210,10 +983,8 @@ class ComplicationSlot(Element):
     #: Append `Complication.unit`'s suffix (`WfbComplications.mc`'s
     #: `unitSuffix`) after the value.
     unit: bool = False
-    #: `hide` (default) | `placeholder`.  Unlike every other element's
-    #: `when_absent:`, "hide" here blanks only the *reading* and leaves the
-    #: icon drawn: the icon says which metric the slot is pointed at, which
-    #: is still true even on a frame the reading itself could not be pulled.
+    #: `hide` (default) | `placeholder`.  "hide" blanks only the reading and
+    #: keeps the icon, which still says what the slot is pointed at.
     when_absent: str = "hide"
     placeholder: str | None = None
 
@@ -1247,22 +1018,9 @@ class Graph(Element):
     #: Seconds for a duration range; the sample count itself for a count one.
     range_value: int = 0
     #: Time-binned series only (`heart_rate` with a duration range) -- how
-    #: many buckets `WfbSeries.binHeartRate` fills. Default 40.
-    #:
-    #: Deliberately **not** derived from the element's resolved pixel width,
-    #: even though a pixel-per-bucket count is the obvious default someone
-    #: might reach for instead: `wfb/emit/project.py` generates one view
-    #: shared across every target device (`_emit_antialias_helper`'s
-    #: docstring states this same constraint for a different feature -- "the
-    #: decision cannot become a per-device constant"), and a resolved width
-    #: differs per device the same way a resolved font size does. This is
-    #: exactly `wfb.icons.font_key`'s reasoning for keying an icon font by
-    #: its *declared* size rather than the pixel size it resolves to --
-    #: baking a per-device value into a name (or, here, a loop bound) two
-    #: devices' generated code must share produces an `Undefined symbol` (or,
-    #: here, a wrong-length array) on every device but the one the view
-    #: happened to be generated from. `buckets:` therefore stays an authored
-    #: number, device-independent by construction, the same way `range:` is.
+    #: many buckets `WfbSeries.binHeartRate` fills.  Deliberately not derived
+    #: from the resolved pixel width: the generated view is shared by every
+    #: target, so a per-device loop bound would be wrong on all but one.
     buckets: int = 40
     style: str = "line"
     thickness: Length | None = None
@@ -1277,15 +1035,9 @@ class Graph(Element):
     max: Expression | None = None
     size: Size = field(default_factory=Size)
     color: Expression | None = None
-    #: The build-time-known upper bound on how many samples this graph can
-    #: draw -- `buckets` for a time-binned duration range, the requested
-    #: count otherwise, converted from a duration for an array-backed series
-    #: using its own `interval_seconds`. Device-independent (it depends only
-    #: on `range:`/`buckets:` and the series' own documented shape, never on
-    #: a screen size), which is why it is resolved once here rather than in
-    #: `wfb.layout` -- and why the 62-sample `style: area` cap and a
-    #: documented-maximum overrun (`getHistory()`'s 7) are both build errors,
-    #: not something a device-by-device pass could catch differently.
+    #: The build-time upper bound on samples drawn (`Builder._graph_sample_count`):
+    #: device-independent, so the `style: area` cap and a documented-maximum
+    #: overrun are build errors.
     sample_count: int = 0
 
     def _own_expressions(self) -> list[Expression]:
@@ -1304,40 +1056,16 @@ class Face:
     fonts: dict[str, FontSpec]
     elements: list[Element]
     source_path: Path
-    #: The top-level `antialias:` default -- what a font, icon or
-    #: primitive-drawing element inherits when it declares no `antialias:`
-    #: of its own.  Already folded into every element's own
-    #: `resolved_antialias` and every `fonts:` entry's `FontSpec.antialias`
-    #: by build time; kept here mainly so a re-render (preview, a future
-    #: `wfb explain`) does not need to re-derive it.
+    #: The face-wide `antialias:`/`min_1px:` defaults -- already folded into
+    #: every element's `resolved_*` (and `FontSpec.antialias`) by build time.
     antialias: bool = False
-    #: The top-level `min_1px:` default -- what a `group`, `shape`,
-    #: `progress`, `graph`, `hands` or `pattern` element inherits when it
-    #: declares no `min_1px:` of its own.  Already folded into every
-    #: element's own `resolved_min_1px` by build time; kept here for the
-    #: same "no need to re-derive it" reason `antialias` above is.  Defaults
-    #: to `False`, which is also the switch's off position -- a face that
-    #: never mentions `min_1px:` compiles to byte-identical output.
     min_1px: bool = False
-    #: `config:` entries, keyed by axis name (`accent_color`/`data_color`).
-    #: Empty on every design that declares no `config:` block, which is what
-    #: keeps every existing golden file and generated project unchanged --
-    #: every emitter below treats this dict as the single on/off switch for
-    #: the whole feature.
+    #: `config:` colour axes, keyed by name (`accent_color`/`data_color`).
+    #: Test `has_config`, not this, for "is on-device config in use".
     config: dict[str, ConfigColor] = field(default_factory=dict)
-    #: Long-form `palette:` entries' labels, keyed by name.  Only entries
-    #: declared with the `{value, label}` form and an actual `label:` appear
-    #: here; a short-form entry (`name: "#RRGGBB"`) contributes nothing.
-    #: `config:` already resolves a `palette.<name>` choice's label into its
-    #: own `ConfigChoice.label` at build time, so nothing downstream reads
-    #: this to render `config:` -- it exists for anything else (`wfb
-    #: explain`) that wants a palette entry's label without re-parsing the
-    #: source.
+    #: Accepted long-form `palette:` entries' labels, keyed by name.
     palette_labels: dict[str, str] = field(default_factory=dict)
-    #: `color_scheme:` entries, keyed by name.  Only accepted schemes appear
-    #: here -- one with a role-set mismatch is dropped by
-    #: `Builder._build_color_scheme` the same way a bad `config:` axis never
-    #: reaches `Face.config`.
+    #: Accepted `color_scheme:` entries, keyed by name.
     color_scheme: dict[str, ColorScheme] = field(default_factory=dict)
     #: Declared `layouts:` names, in declaration order.  Empty when the
     #: design declares no `layouts:` at all.  Every element's `layout`
@@ -1353,39 +1081,19 @@ class Face:
     #: `config: data:` slots, keyed by name.  A third, independent way to
     #: turn on the whole on-device-config feature -- see `has_config`.
     config_data: dict[str, ConfigDataSlot] = field(default_factory=dict)
-    #: `hands:` entries, keyed by name.  Empty on a design with no
-    #: analog hands, which is what keeps every existing golden file and
-    #: generated project byte-identical.
+    #: `hands:` entries, keyed by name.
     hands: dict[str, HandSet] = field(default_factory=dict)
-    #: Top-level `aod: default:` -- `True` for `hide` (the default, D2),
-    #: `False` for `show`. Fills an element's AOD visibility only where
-    #: nothing along its own ancestry (itself, every ancestor group) wrote
-    #: an `aod:` of its own -- `Builder._resolve_aod`.
+    #: Top-level `aod: default:` -- `True` for `hide` (the default).  Applies
+    #: only where nothing along an element's ancestry wrote an `aod:`.
     aod_default_hide: bool = True
-    #: `aod: lint:` -- suppresses a face-level AOD lint (`aod-empty`), the
-    #: same `lint: {allow: [...]}` shape every element carries, but hung off
-    #: the face's own `aod:` block since there is no single element to hang
-    #: it on for a whole-face check.
+    #: `aod: lint:` -- suppresses a face-level AOD lint (`aod-empty`).
     aod_lint_allow: frozenset[str] = frozenset()
     aod_lint_reason: str | None = None
-    #: Top-level `aod: dim:` (plan 14 slice 3): scales the luminance of
-    #: every colour the AOD frame draws, except an explicit override colour.
-    #: `None` for both "never written" and a written `dim: 1` -- the two are
-    #: normalised together at build time (`Builder._build_face_aod`) because
-    #: both mean the same thing, "no dimming", and `None` is what every
-    #: emitter reads as "skip the dimming ternary entirely", which is what
-    #: keeps a `dim: 1` face's generated source byte-identical to one with
-    #: no `dim:` at all.
+    #: `aod: dim:` luminance scale for the AOD frame (plan 14 §4.5); `None`
+    #: for both "absent" and `dim: 1`, so the generated source is identical.
     aod_dim: float | None = None
-    #: Top-level `aod: mask:` (plan 16 slice 1): a moving 2x2 pixel mask
-    #: over the whole AOD frame -- one pixel per on-screen 2x2 tile stays
-    #: lit, the other three are forced black, and the lit pixel moves to a
-    #: 4-neighbour every minute. `True` (the default, and what an absent
-    #: `mask:` means) emits the mask call; `False` opts out entirely. Unlike
-    #: `aod_dim`, there is no "written but equal to the default" value to
-    #: normalise away -- a plain `bool` is already the whole story, and
-    #: `mask: false` is itself a real, distinct choice from omitting `mask:`
-    #: only in the schema layer, never in codegen, which reads this field.
+    #: `aod: mask:` (plan 16) -- the moving 2x2 pixel mask over the AOD
+    #: frame; on unless `mask: false`.
     aod_mask: bool = True
 
     @property

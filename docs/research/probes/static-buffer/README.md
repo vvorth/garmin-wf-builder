@@ -74,7 +74,7 @@ Two consequences worth stating plainly, because they are restrictions the
 transparent design would not have had:
 
 * Static content is drawn **first**, whatever order it was written in. `wfb`
-  hoists it (`wfb/ir.py::draw_sort_key`) rather than letting a blit silently
+  hoists it (`wfb/ir/model.py::draw_sort_key`) rather than letting a blit silently
   erase whatever was drawn under it -- and rather than rejecting the design,
   which is what it used to do (`error[static]`,
   `Builder._check_static_order`). There is no order in which something can be
