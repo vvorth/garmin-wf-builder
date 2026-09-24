@@ -229,6 +229,20 @@ class _NamedBlock:
         bag.error(code, message, span, notes=[f"{note}: {known}"])
 
 
+def _aod_kind(element: Element) -> tuple[str | None, str | None, bool]:
+    """``(kind, shape, literal_text)`` of a built element, in the same terms
+    `Builder._aod_refusal` reads off a raw node."""
+    if isinstance(element, PatternElement):
+        return "pattern", None, False
+    if isinstance(element, ComplicationSlot):
+        return "complication_slot", None, False
+    if isinstance(element, Shape):
+        return "shape", element.shape, False
+    if isinstance(element, Text):
+        return "text", None, element.value is None
+    return None, None, False
+
+
 class Builder:
     def __init__(self, doc: YamlDocument, bag: Bag) -> None:
         self.doc = doc
@@ -2043,13 +2057,39 @@ class Builder:
         self.face_aod_dim = None if dim_raw is None or float(dim_raw) == 1.0 else float(dim_raw)
         self.face_aod_mask = bool(raw.get("mask", True))
 
-    #: Kinds whose own `aod: {font: ...}` override is not implemented yet
+    #: Kinds whose `aod: {font: ...}` override is not implemented yet
     #: (plan 14, `docs/limitations.md` §2) -> (who, what to restyle instead).
     _AOD_FONT_UNSUPPORTED = {
         "pattern": ("a pattern's", "restyle this pattern's colour/thickness in AOD instead"),
         "complication_slot": ("a complication_slot's",
                               "restyle this slot's colour/icon_color in AOD instead"),
     }
+
+    def _aod_refusal(self, key: str, kind: str | None, shape: str | None,
+                     literal_text: bool) -> tuple[str, str, list[str]] | None:
+        """``(code, what, notes)`` when an `aod:` override's `key` cannot
+        apply to an element of this kind, else ``None`` -- the one table
+        both an element's own block (`_build_aod_authored`, `_build_text`)
+        and a key it inherits from a group (`_resolve_aod`) are checked
+        against, so the two cannot drift (plan 18 item 5)."""
+        if key == "font" and kind in self._AOD_FONT_UNSUPPORTED:
+            who, instead = self._AOD_FONT_UNSUPPORTED[kind]
+            return ("aod",
+                    f"{who} 'aod: {{font: ...}}' override is not implemented yet (plan 14)",
+                    [f"{instead}, or drop the font override for now"])
+        if key == "filled" and kind == "shape" and shape == "polygon":
+            # Dc has fillPolygon and no drawPolygon, so there is no outline
+            # primitive for an override to switch to -- the same reason
+            # `_build_shape` refuses `filled: false` on a polygon.
+            return ("aod",
+                    "'aod: {filled: ...}' is not accepted on 'shape: polygon' -- "
+                    "Toybox.Graphics.Dc has fillPolygon but no drawPolygon",
+                    ["for an outline, draw the edges as separate 'shape: line' "
+                     "elements, and override those instead"])
+        if key == "format" and kind == "text" and literal_text:
+            return ("format", "'aod: {format: ...}' applies only to 'value:', not a fixed 'text:'",
+                    [])
+        return None
 
     def _build_aod_authored(self, node: dict) -> tuple[bool, dict[str, object] | None]:
         """Parse one element/group's own `aod:` (plan 14 §2.1) into
@@ -2079,33 +2119,23 @@ class Builder:
         for key in ("thickness", "bar_width"):
             if key in raw:
                 keys[key] = self._length(raw, key)
+        kind, shape = node.get("type"), node.get("shape")
         if "filled" in raw:
-            if node.get("type") == "shape" and node.get("shape") == "polygon":
-                # Dc has fillPolygon and no drawPolygon, so there is no
-                # outline primitive for an override to switch to -- the same
-                # reason `_build_shape` refuses `filled: false` on a polygon.
-                self.bag.error(
-                    "aod",
-                    f"{element_id}: 'aod: {{filled: ...}}' is not accepted on "
-                    f"'shape: polygon' -- Toybox.Graphics.Dc has fillPolygon but no "
-                    f"drawPolygon",
-                    self.doc.span(raw, "filled") or self.doc.span(node, "aod"),
-                    notes=["for an outline, draw the edges as separate 'shape: line' "
-                           "elements, and override those instead"],
-                )
+            refusal = self._aod_refusal("filled", kind, shape, literal_text=False)
+            if refusal is not None:
+                code, what, notes = refusal
+                self.bag.error(code, f"{element_id}: {what}",
+                               self.doc.span(raw, "filled") or self.doc.span(node, "aod"),
+                               notes=notes)
             else:
                 keys["filled"] = bool(raw["filled"])
         if "font" in raw:
-            unsupported = self._AOD_FONT_UNSUPPORTED.get(node.get("type"))
-            if unsupported is not None:
-                who, instead = unsupported
-                self.bag.error(
-                    "aod",
-                    f"{element_id}: {who} own 'aod: {{font: ...}}' override is not "
-                    f"implemented yet (plan 14)",
-                    self.doc.span(raw, "font") or self.doc.span(node, "aod"),
-                    notes=[f"{instead}, or drop the font override for now"],
-                )
+            refusal = self._aod_refusal("font", kind, shape, literal_text=False)
+            if refusal is not None:
+                code, what, notes = refusal
+                self.bag.error(code, f"{element_id}: {what}",
+                               self.doc.span(raw, "font") or self.doc.span(node, "aod"),
+                               notes=notes)
             else:
                 resolved = self._font_reference(str(raw["font"]), self.doc.span(raw, "font"))
                 if resolved is not None and self._is_vector_font(*resolved):
@@ -2168,9 +2198,15 @@ class Builder:
         `aod_ancestor_hidden` is stamped on every element for the
         `aod-unreachable` lint, which must tell "an ancestor's hide buried my
         own override" apart from "no `aod:` of my own".
+
+        A key an element inherits (rather than writes) is checked here
+        against the same per-kind refusals its own block would get
+        (`_aod_refusal`), because only here has a group's key reached the
+        element: one error per element, on the element, naming the group,
+        and the key is dropped (plan 18 item 5).
         """
         def visit(items: list[Element], forced_hidden: bool,
-                 nearest: dict[str, object] | None) -> None:
+                 nearest: dict[str, object] | None, nearest_from: Element | None) -> None:
             for element in items:
                 element.aod_ancestor_hidden = forced_hidden
                 own_hide = element.aod_own_hide
@@ -2183,10 +2219,13 @@ class Builder:
                     hidden = self.face_aod_default_hide
                 child_forced_hidden = forced_hidden or own_hide
                 child_nearest = own if own is not None else nearest
+                child_nearest_from = element if own is not None else nearest_from
                 if hidden:
                     element.aod = None
                 else:
                     effective = dict(nearest or {})
+                    if nearest_from is not None:
+                        self._refuse_inherited_aod_keys(element, effective, own, nearest_from)
                     if own is not None:
                         effective.update(own)
                     element.aod = self._make_aod_override(element, effective)
@@ -2197,9 +2236,34 @@ class Builder:
                         # several kinds and value types -- only checkable
                         # here.  An element's own one `_build_text` checked.
                         self._check_format_spec(element.value, str(fmt), element.span)
-                visit(element.children(), child_forced_hidden, child_nearest)
+                visit(element.children(), child_forced_hidden, child_nearest,
+                      child_nearest_from)
 
-        visit(elements, False, None)
+        visit(elements, False, None, None)
+
+    def _refuse_inherited_aod_keys(self, element: Element, inherited: dict[str, object],
+                                   own: dict[str, object] | None, group: Element) -> None:
+        """Report, and drop from ``inherited``, every key ``group``'s own
+        `aod:` passed down that ``element`` cannot take and does not
+        override itself."""
+        kind, shape, literal = _aod_kind(element)
+        for key in sorted(inherited):
+            if own is not None and key in own:
+                continue
+            refusal = self._aod_refusal(key, kind, shape, literal)
+            if refusal is None:
+                continue
+            code, what, notes = refusal
+            where = f"line {group.span.line}" if group.span is not None else "its own 'aod:'"
+            self.bag.error(
+                code,
+                f"{element.id}: {what}, inherited from group {group.id!r}",
+                element.span,
+                notes=[f"group {group.id!r} sets 'aod: {{{key}: ...}}' ({where}) for every "
+                       f"element below it", *notes,
+                       f"move the group's '{key}' onto the elements that can take it"],
+            )
+            del inherited[key]
 
     def _resolve_inherited_flag(self, elements: list[Element], key: str, default: bool) -> None:
         """Resolve a boolean key as an inherited default, root to leaf --
@@ -2931,13 +2995,11 @@ class Builder:
             # A fixed `text:` has no bound value for `format:`, or its
             # `aod:` twin, to format.
             self._check_format_not_on_literal(node, element.id)
-            if own_aod_format:
-                self.bag.error(
-                    "format",
-                    f"{element.id}.aod.format: 'aod: {{format: ...}}' applies only "
-                    "to 'value:', not a fixed 'text:'",
-                    aod_format_span,
-                )
+            refusal = self._aod_refusal("format", "text", None, literal_text=True)
+            if own_aod_format and refusal is not None:
+                code, what, notes = refusal
+                self.bag.error(code, f"{element.id}.aod.format: {what}", aod_format_span,
+                               notes=notes)
         self._check_other_absence(node, element, "color", element.color)
         self._check_reachable_substitute(node, element, "'color'",
                                          (element.value,), (element.color,))

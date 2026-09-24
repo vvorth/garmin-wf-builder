@@ -198,6 +198,137 @@ elements:
     assert "polygon" in hits[0].message and "drawPolygon" in hits[0].message
 
 
+# -- the same refusals when the key is inherited from a group (plan 18 item 5)
+
+_GROUP_AOD_CHILDREN = {
+    "slot": """
+      - id: slot
+        type: complication_slot
+        slot: config.data.top
+        color: palette.fg
+""",
+    "tri": """
+      - id: tri
+        type: shape
+        shape: polygon
+        points:
+          - {dx: 0px, dy: -10px}
+          - {dx: 10px, dy: 10px}
+          - {dx: -10px, dy: 10px}
+        color: palette.fg
+""",
+    "label": """
+      - id: label
+        type: text
+        text: "12:00"
+        color: palette.fg
+""",
+    "p": """
+      - id: p
+        type: pattern
+        pattern: linear
+        count: 2
+        step: {dx: 20px, dy: 0}
+        color: palette.fg
+        parts:
+          - {shape: text, text: "x", font: FONT_MEDIUM}
+""",
+}
+
+_GROUP_AOD_CONFIG = """
+config:
+  data:
+    top:
+      default: complication.heart_rate
+      choices: [complication.heart_rate]
+"""
+
+
+def _group_aod_design(aod: str, children: list[str]) -> str:
+    return BASE + _GROUP_AOD_CONFIG + f"""
+elements:
+  - id: g
+    type: group
+    aod: {aod}
+    children:""" + "".join(_GROUP_AOD_CHILDREN[c] for c in children)
+
+
+def test_group_inherited_unsupported_aod_keys_are_errors_on_each_element(write_design, bag):
+    """The plan's scratch design: before plan 18 item 5 this validated "ok",
+    every key silently dropped by codegen."""
+    text = _group_aod_design('{font: FONT_TINY, filled: false, format: "{:%H}"}',
+                             ["slot", "tri", "label", "p"])
+    assert load(write_design(text), bag) is None
+    hits = [d for d in bag.errors if d.code in ("aod", "format")]
+    assert sorted(d.message.split(":")[0] for d in hits) == ["label", "p", "slot", "tri"], \
+        bag.render()
+    for d in hits:
+        assert "inherited from group 'g'" in d.message
+        assert any("line" in note and "'g'" in note for note in d.notes), d.notes
+
+
+@pytest.mark.parametrize("aod,child,needle", [
+    ("{font: FONT_TINY}", "slot", "complication_slot"),
+    ("{font: FONT_TINY}", "p", "pattern"),
+    ("{filled: false}", "tri", "drawPolygon"),
+    ('{format: "{:%H}"}', "label", "fixed 'text:'"),
+])
+def test_each_group_inherited_refusal_on_its_own(write_design, bag, aod, child, needle):
+    text = _group_aod_design(aod, [child])
+    assert load(write_design(text), bag) is None
+    hits = [d for d in bag.errors if d.code in ("aod", "format")]
+    assert len(hits) == 1, bag.render()
+    assert hits[0].message.startswith(f"{child}:")
+    assert needle in hits[0].message
+
+
+def test_a_group_key_that_a_kind_supports_is_not_an_error(write_design, bag):
+    """The contrast: the same group `aod: {font: ...}` over a plain text
+    element, and `filled:` over a circle, are real overrides."""
+    text = BASE + """
+elements:
+  - id: g
+    type: group
+    aod: {font: FONT_TINY, filled: false}
+    children:
+      - id: label
+        type: text
+        text: "12:00"
+        color: palette.fg
+      - id: dot
+        type: shape
+        shape: circle
+        radius: 10%r
+        filled: true
+        color: palette.fg
+"""
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    assert _by_id(face, "label").aod.font == "FONT_TINY"
+    assert _by_id(face, "dot").aod.filled is False
+
+
+def test_an_elements_own_key_shadows_the_groups_unsupported_one(write_design, bag):
+    """Only an *inherited* key is checked here: an element whose own block
+    sets the key has already been judged on its own line, once."""
+    text = BASE + _GROUP_AOD_CONFIG + """
+elements:
+  - id: g
+    type: group
+    aod: {format: "{:%H}"}
+    children:
+      - id: clock
+        type: text
+        value: time.clock
+        format: "{:%H:%M}"
+        color: palette.fg
+        aod: {format: "{:%H.%M}"}
+"""
+    face = load(write_design(text), bag)
+    assert face is not None, bag.render()
+    assert _by_id(face, "clock").aod.format == "{:%H.%M}"
+
+
 # --------------------------------------------------------------------------
 # resolution precedence (plan 14 §3)
 

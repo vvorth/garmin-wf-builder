@@ -156,9 +156,14 @@ error, the same house style per-device `overrides:` already
 follow: never a silent no-op. `aod: {filled: ...}` on `shape: polygon` gets
 the same treatment, for the same reason the awake element's own `filled:
 false` already does — there is no outline primitive (Dc has fillPolygon,
-not drawPolygon) for either one to switch to. `wfb preview --aod` matches
-this exact scope, element for element — none of these four cases can ever
-reach it, since the build fails first.
+not drawPolygon) for either one to switch to. The same holds when the key
+comes from a group: a group's `aod: {font: ...}`, `{filled: ...}` or
+`{format: ...}` reaches every element below it, and each element that cannot
+take the key (a `pattern` or `complication_slot` for `font:`, a polygon for
+`filled:`, a fixed-`text:` text for `format:`) is an error on that element,
+naming the group. Elements that can take the key get it as usual. `wfb
+preview --aod` matches this exact scope, element for element — none of
+these cases can ever reach it, since the build fails first.
 
 ## Dimming (`aod: {dim: ...}`, slice 3)
 

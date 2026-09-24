@@ -251,5 +251,6 @@ specifies each item.
     any `font:` override naming a `face:` (vector) font, and
     `aod: {filled: ...}` on `shape: polygon` (plan 14 §4.3, slice 2 built
     every other override key and a `text` element's baked-font override)
-    -- all three are friendly build
-    errors (`Builder._build_aod_authored`), never a silent no-op.
+    -- all three are friendly build errors, whether the element writes
+    the key or inherits it from a group (`Builder._aod_refusal`), never a
+    silent no-op.

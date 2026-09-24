@@ -505,8 +505,11 @@ These cost real time to discover; do not rediscover them.
   yet), and `aod: {filled: ...}` on `shape: polygon` (there is no outline
   primitive for it to switch to -- the same reason the awake element's own
   `filled: false` is already refused, `wfb/ir/builder.py`'s `_build_shape`).
-  All four are raised in `Builder._build_aod_authored`, on the author's own
-  line, so a face using one of them never reaches codegen or `wfb preview
+  All four are raised on the author's own line: in `Builder._build_aod_authored`
+  for an element's own block, and in `Builder._resolve_aod` for a key the
+  element inherits from a group (plan 18 item 5; both read one table,
+  `Builder._aod_refusal`, so they cannot disagree). A face using one of
+  them never reaches codegen or `wfb preview
   --aod` at all -- there is nothing left for either to draw, and the
   runtime fallback code both still carry for the font cases (e.g.
   `wfb.emit.monkeyc.shapes._emit_text_draw`'s `is_vector` check) is
