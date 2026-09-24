@@ -6,16 +6,13 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .. import formatting
 from ..availability import compute_guards
-from ..catalog import Type
 from ..devices import Device
 from ..fonts import BakedFont
 from ..ir import Face
 from ..layout import ResolvedFace, resolve
-from . import jungle, manifest, monkeyc, resources, strhash
-
-RUNTIME_LIB = Path(__file__).resolve().parent.parent.parent / "runtime-lib"
+from . import jungle, manifest, monkeyc, resources, strhash, usage
+from .usage import RUNTIME_LIB
 
 #: Support-barrel files, and what pulls each one in.  Only what a face uses is
 #: copied, so an unused helper costs nothing (ADR 0003).
@@ -117,7 +114,7 @@ def generate(face: Face, devices: list[Device], root: Path,
         # design (no on_hold) also needs one, purely for
         # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
         project.sources.append(monkeyc.emit_delegate(first, guards))
-    project.barrel = _barrel_for(face, first, project.sources)
+    project.barrel = sorted(usage.barrel_modules(source.text for source in project.sources))
     _avoid_string_label_collisions(project)
     return project
 
@@ -180,80 +177,3 @@ def write(project: GeneratedProject, *, clean: bool = True) -> list[Path]:
     return written
 
 
-def _is_time_value(element) -> bool:
-    return element.value is not None and element.value.value.type is Type.TIME
-
-
-def _barrel_for(face: Face, resolved: ResolvedFace,
-                sources: "list[monkeyc.SourceFile] | tuple[()]" = ()) -> list[str]:
-    """The runtime-lib files the generated code calls into, sorted.
-
-    Decided from the IR, except for two helpers whose use depends on a
-    decision codegen already made and this would otherwise have to re-derive:
-    `WfbColor.dim` (whether any AOD-dimmed colour turned out non-constant,
-    `wfb.emit.monkeyc.common._dim_color_code`) and `WfbAodMask.apply`
-    (`face.aod_mask` *and* a non-empty AOD set, `_emit_aod_body`).  For those
-    the already-generated ``sources`` are searched for the call itself.
-    """
-    needed: set[str] = set()
-    for call, name in (("WfbColor.dim(", "WfbColor.mc"), ("WfbAodMask.apply(", "WfbAodMask.mc")):
-        if any(call in source.text for source in sources):
-            needed.add(name)
-    plan = monkeyc.ReadPlan(resolved)
-    if face.barrel_functions():
-        needed.add("WfbMath.mc")
-    if plan.complication_readers() or face.config_data:
-        # A `config: data:` slot pulls through `WfbComplications.valueOf` too,
-        # even though it binds no ordinary `complication.*` catalogue reader
-        # at all -- see `wfb.availability.uses_complications` for the same
-        # reasoning (it is the one place both cases are checked together now).
-        needed.add("WfbComplications.mc")
-    for placed in resolved.items:
-        kind = placed.kind
-        if kind == "progress":
-            if placed.element.style == "arc":
-                needed.add("WfbArc.mc")  # a bar is two fillRectangle calls
-            needed.add("WfbMath.mc")  # the fill fraction goes through percent()
-        elif kind == "shape" and placed.element.shape == "arc":
-            # A plain arc draws through the same WfbArc.drawSpan a progress
-            # element's unfilled track uses -- one arc convention, one helper.
-            needed.add("WfbArc.mc")
-        elif kind == "text":
-            element = placed.element
-            # Only the time codes that call a helper need it (`%I`/`%l`/`%h`/
-            # `%p`, `formatting.helpers`), from the awake format or the AOD
-            # override alike; a date format reads Gregorian fields directly.
-            if _is_time_value(element):
-                aod_spec = element.aod.format if element.aod is not None else None
-                for spec in (element.format, aod_spec):
-                    if spec and formatting.is_time_spec(spec):
-                        needed.update(f"{helper}.mc"
-                                      for helper in formatting.helpers(spec, Type.TIME))
-        elif kind == "icon" and placed.element.is_dynamic:
-            needed.add("WfbWeather.mc")
-        elif kind == "graph":
-            needed.add("WfbSeries.mc")
-        elif kind == "hands":
-            needed.add("WfbHands.mc")
-            needed.add("WfbGeom.mc")
-        elif kind == "pattern":
-            # A pattern needs WfbGeom only when it actually rotates or
-            # translates something *through* it: a radial pattern with at
-            # least one non-arc part (WfbGeom.*Rotated -- a `shape: text`
-            # part's `rotatedX`/`rotatedY` still rotate its anchor), or a
-            # linear pattern with a polygon part (WfbGeom.fillTranslated --
-            # a linear line/circle/text draws straight off `ox`/`oy` with no
-            # helper at all).  An all-arc pattern, radial or linear, only
-            # ever calls WfbArc.drawSpan -- mirrors `_emit_pattern_part` in
-            # `wfb/emit/monkeyc/rotated.py`, the source of truth this has to
-            # agree with.
-            radial = placed.element.pattern == "radial"
-            needs_geom = (
-                any(part.shape != "arc" for part in placed.parts) if radial
-                else any(part.shape == "polygon" for part in placed.parts)
-            )
-            if needs_geom:
-                needed.add("WfbGeom.mc")
-            if any(part.shape == "arc" for part in placed.parts):
-                needed.add("WfbArc.mc")
-    return sorted(needed)

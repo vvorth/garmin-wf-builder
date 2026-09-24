@@ -139,18 +139,14 @@ def test_dynamic_icon_hides_when_condition_is_absent(write_design, bag, db, tmp_
     assert "if (weatherCondition == null) {\n            return;\n        }" in view
 
 
-def test_barrel_includes_weather_module_and_not_cache(write_design, bag, db):
-    from wfb.emit.project import _barrel_for
-    from wfb.layout import resolve
-
+def test_barrel_includes_weather_module_and_not_cache(write_design, bag, db, tmp_path):
     face = load(write_design(DESIGN.format(elements=ONE_ICON)), bag)
     assert face is not None, bag.render()
     device = db.get("fenix8solar47mm")
     baked = bake_fonts(face, device)
-    resolved = resolve(face, device, baked)
-    barrel = _barrel_for(face, resolved)
-    assert "WfbWeather.mc" in barrel
-    assert "WfbCache.mc" not in barrel
+    project = generate(face, [device], tmp_path, {device.id: baked})
+    assert "WfbWeather.mc" in project.barrel
+    assert "WfbCache.mc" not in project.barrel
 
 
 def test_view_imports_weather_but_not_time_for_caching(write_design, bag, db, tmp_path):

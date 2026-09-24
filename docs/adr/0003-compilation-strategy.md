@@ -71,6 +71,16 @@ generator, which decides which barrel files to copy into the project at all
 same result: an unused barrel function is not merely dead-stripped at compile
 time, it is never even handed to the compiler).
 
+> **Amended (2026-09-24, plan 19 A3): the barrel set is read off the generated
+> code, not decided from the design.** `_barrel_for` inferred it from the IR,
+> one element kind at a time, plus two special-case text searches, and it
+> drifted from what codegen actually called (plan 18 item 9).
+> `wfb/emit/usage.py`'s `barrel_modules` now scans every generated source
+> (comments and strings stripped) for `Wfb<Name>.` references and copies
+> exactly those files. The guarantee above is unchanged, and now exact by
+> construction: a barrel file the code does not call is never handed to the
+> compiler.
+
 The distinction that keeps this honest: **generated code decides *what* is
 drawn; the barrel only helps with *how*.** If a barrel function ever needs to
 branch on the design, that branch belongs in the generator.

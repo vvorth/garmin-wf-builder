@@ -564,31 +564,28 @@ These cost real time to discover; do not rediscover them.
   2,401 B to 2,415 B on the same device -- **14 B**, a single wider hex
   literal.
 
-  **`wfb.emit.project._barrel_for` copies runtime-lib files by IR-structural
-  inference for every existing helper (walks `resolved.items` for the
-  element kinds present) -- `WfbColor.mc` cannot be decided that way**,
-  because whether the generated view ends up calling `WfbColor.dim` at all
-  depends on a fact `_barrel_for` cannot see from the IR alone: whether
-  *any* AOD-shown colour, across every element and every one of `color`/
-  `track_color`/`icon_color`, turned out non-constant with no override.
-  Re-deriving that classification a second time inside `_barrel_for` would
-  be exactly the "two guesses that can disagree" shape this project's own
-  working agreement warns against (the `dead-element`-lint cascade lore
-  above). Instead `_barrel_for` now takes the project's already-generated
-  sources and greps them for the one literal call `WfbColor.dim(` ever
-  appears as -- the same "inspect what was actually emitted, don't
-  re-derive it" move `_avoid_string_label_collisions` already makes one
-  function below, so it cannot drift from the real decision codegen made.
+  **Whether the generated view ends up calling `WfbColor.dim` at all depends
+  on a fact no per-kind IR walk can see**: whether *any* AOD-shown colour,
+  across every element and every one of `color`/`track_color`/`icon_color`,
+  turned out non-constant with no override. So the barrel set is never
+  derived from the IR: `wfb.emit.usage.barrel_modules` (plan 19 A3) scans
+  every generated Monkey C source (comments and strings stripped) for a
+  `Wfb<Name>.` reference and copies exactly the files named, closed over the
+  runtime-lib files themselves -- the same "inspect what was actually
+  emitted, don't re-derive it" move `_avoid_string_label_collisions` makes,
+  so the copied set cannot drift from the calls codegen wrote. The view's
+  `Toybox` imports come from the same scan of the view body
+  (`usage.toybox_modules`).
   **This is not a hypothetical:** a real `monkeyc` build of a
-  `config.colors.<role>`-dimmed design failed outright with `Undefined
-  symbol ':WfbColor'` before this fix, while every Python-level codegen
+  `config.colors.<role>`-dimmed design once failed outright with `Undefined
+  symbol ':WfbColor'` under the old ladder, while every Python-level codegen
   test in `tests/test_aod.py` stayed green -- none of them invoke `monkeyc`
   at all, only `wfb.emit.generate` (source text) or `wfb.preview` (a
   render), neither of which would ever notice a missing barrel file.
   `tests/test_aod.py::test_a_runtime_dimmed_colour_compiles_warning_free`
   (`@pytest.mark.slow`) is what actually builds this exact design for real
-  and would have caught it -- add a `slow` test alongside any change to
-  `_barrel_for`'s *decision* (not just its Python-level output), because
+  and would have caught it -- add a `slow` test alongside any change to how
+  the barrel set is decided (not just its Python-level output), because
   that decision only has a real audience once `monkeyc` runs.
 
 - **The `getDisplayMode` ladder (plan 14 slice 6): one `has`-guarded `if`
@@ -631,12 +628,12 @@ These cost real time to discover; do not rediscover them.
   and only when the resolved AOD set is non-empty** -- masking an
   all-black frame is pure waste, and the same "only emit what could
   matter" shape `_aod` itself already follows for an all-MIP build.
-  **The barrel file is pulled in the same way `WfbColor.mc` is (above):**
-  `wfb.emit.project._barrel_for` cannot decide from the IR alone whether
-  the view ends up calling `WfbAodMask.apply(` at all (that depends on
-  `Face.aod_mask` *and* the resolved AOD set being non-empty, the same two
-  facts the emitter itself checks), so it scans the already-generated view
-  source for the literal call, exactly the "inspect what was emitted,
+  **The barrel file is pulled in the same general way every barrel file is
+  now (above):** whether the view ends up calling `WfbAodMask.apply(` at all
+  depends on `Face.aod_mask` *and* the resolved AOD set being non-empty, the
+  same two facts the emitter itself checks -- `wfb.emit.usage.barrel_modules`
+  scans the already-generated sources for the literal call rather than
+  re-deriving that classification, the same "inspect what was emitted,
   don't re-derive it" move that keeps the two from disagreeing.
   **`wfb/aod_mask.py` is this feature's Python twin**, the same
   shared-renderer stance ADR 0004 already takes for layout, extended here

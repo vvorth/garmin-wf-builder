@@ -64,6 +64,19 @@ class Writer:
             return contextlib.nullcontext(self)
         return self.block(header, closing)
 
+    def prepend(self, other: "Writer") -> "Writer":
+        """Splice ``other``'s lines in before this writer's own.
+
+        For a preamble (a header/import block) that can only be written once
+        the body after it is already known -- `wfb.emit.monkeyc.view.
+        emit_view` renders the view's body first, derives its imports from
+        that rendered text (`wfb.emit.usage.toybox_modules`), then prepends
+        them this way, rather than guessing the imports from the IR ahead of
+        the body the way it used to.
+        """
+        self._lines = other._lines + self._lines
+        return self
+
     def call(self, callee: str, groups: Sequence[str]) -> "Writer":
         """One call statement, its arguments wrapped one ``groups`` entry per
         line, each continuation aligned under the first argument:

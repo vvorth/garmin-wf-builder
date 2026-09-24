@@ -973,12 +973,12 @@ elements:
 
 
 def _barrel(text, write_design, bag, db, device_id="fenix847mm"):
-    from wfb.emit.project import _barrel_for
-
     face = load(write_design(text), bag)
     assert face is not None, bag.render()
     device = db.get(device_id)
-    return _barrel_for(face, resolve(face, device, bake_fonts(face, device)))
+    baked = {device.id: bake_fonts(face, device)}
+    project = generate(face, [device], write_design("").parent / "build", baked)
+    return project.barrel
 
 
 _CLOCK_WITH_AOD = BASE + """
@@ -1665,13 +1665,17 @@ elements:
 def test_a_runtime_dimmed_colour_compiles_warning_free(write_design, db, tmp_path, toolchain):
     """The real `monkeyc` build, not just Python-level codegen, for a colour
     that goes through `WfbColor.dim` at runtime -- a face-level Python
-    codegen test cannot catch a barrel file the real compiler needs but
-    `wfb.emit.project._barrel_for` forgot to copy in (`Undefined symbol
+    codegen test cannot catch a barrel file the real compiler needs but the
+    barrel-selection logic of the day forgot to copy in (`Undefined symbol
     ':WfbColor'`, found by building this exact design for real while
-    developing this slice: `_barrel_for` only listed the pre-existing
-    helpers, so a design whose only dimmed colour was a `config.colors.*`
-    field failed to compile even though the Python-level codegen tests above
-    were all green)."""
+    developing this slice: the then-current `_barrel_for` only listed the
+    pre-existing helpers, so a design whose only dimmed colour was a
+    `config.colors.*` field failed to compile even though the Python-level
+    codegen tests above were all green -- plan 19 A3 later replaced that
+    ladder with `wfb.emit.usage.barrel_modules`, which scans the generated
+    text directly and cannot have this particular gap, but this real build
+    stays as the check that a future gap of the same *shape* -- Python
+    codegen green, `monkeyc` red -- gets caught)."""
     text = """
 format: 1
 face:

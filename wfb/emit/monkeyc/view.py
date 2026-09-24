@@ -7,7 +7,7 @@ import itertools
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ... import complications, expr, series
+from ... import complications, expr
 from ...availability import Guards
 from ...catalog import READERS
 from ...devices import Device
@@ -20,11 +20,11 @@ from ...layout import (
     PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
 )
 from ...palette import dim_fraction
-from ...series import Acquisition
+from .. import usage
 from .common import (
     NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _aod_font_field,
     _aod_only_fonts, _and_list, _const_prefix, _describe, _editor_slot_pairs, _field,
-    _loaded_fonts, _mc_bool, _method, _pattern_needs_math, _vector_fonts_used, header,
+    _loaded_fonts, _mc_bool, _method, _vector_fonts_used, header,
     hold_targets,
 )
 from .complication_slot import (
@@ -172,37 +172,6 @@ def _has_partial_update(resolved: ResolvedFace) -> bool:
     return resolved.in_mode("low_power") and resolved.device.supports_partial_update
 
 
-def _view_imports(resolved: ResolvedFace, plan: "ReadPlan") -> set[str]:
-    """Every `Toybox` module the view names: the bound sources' readers
-    (`plan.modules`), plus what the view's own machinery calls."""
-    face = resolved.face
-    modules = set(_BASE_IMPORTS) | plan.modules
-    if _has_partial_update(resolved):
-        modules.add("Toybox.System")  # onPowerBudgetExceeded reports via println
-    for placed in resolved.items:
-        if isinstance(placed, PlacedGraph):
-            # System.getClockTime() drives every graph's rebuild cadence.
-            src = placed.element.series_def
-            modules |= {"Toybox.System", series.ACQUISITION[src.acquisition].module}
-            if src.acquisition is Acquisition.HEART_RATE and placed.element.range_kind == "duration":
-                modules.add("Toybox.Time")  # new Time.Duration(seconds)
-        # The view computes a hand's, or a radial pattern's, own sin/cos
-        # directly, not only in the barrel (`_pattern_needs_math` is shared
-        # with `_emit_pattern` itself).
-        if isinstance(placed, PlacedHands) or (
-                isinstance(placed, PlacedPattern) and _pattern_needs_math(placed)):
-            modules.add("Toybox.Math")
-    if face.has_config:
-        # `Application has :WatchFaceConfig` (onLayout's guard), and
-        # `WatchFaceConfig.Settings`/`.getSettings` (applyConfig).
-        modules |= {"Toybox.Application", "Toybox.Application.WatchFaceConfig"}
-    if face.config_data:
-        # `Complications.Id`/`COMPLICATION_TYPE_*`, even when no ordinary
-        # `complication.*` source is bound.
-        modules.add("Toybox.Complications")
-    return modules
-
-
 def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
     face, device = resolved.face, resolved.device
     guards = guards if guards is not None else _NO_GUARDS
@@ -215,12 +184,12 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         for p in resolved.items
     )
 
+    # The header/import block is written last, once the body below is known:
+    # `usage.toybox_modules` (plan 19 A3) reads which `Toybox` modules the
+    # body actually names straight off its own rendered text -- the generated
+    # source is the one complete record of what the view calls
+    # (`wfb.emit.usage`'s own module docstring).
     w = Writer()
-    w.doc(header(face, f"Device:    {device.id}")).blank()
-    for module in sorted(_view_imports(resolved, plan)):
-        w.line(f"import {module};")
-    w.blank()
-
     w.doc(
         f"{face.name}.\n"
         "\n"
@@ -298,6 +267,15 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
                 continue
             w.blank()
             _emit_element_method(w, resolved, placed, plan, antialias_default, aod)
+
+    body_text = w.render()
+    modules = sorted(set(_BASE_IMPORTS) | usage.toybox_modules(body_text))
+    preamble = Writer()
+    preamble.doc(header(face, f"Device:    {device.id}")).blank()
+    for module in modules:
+        preamble.line(f"import {module};")
+    preamble.blank()
+    w.prepend(preamble)
     return SourceFile(f"source/{face.entry}View.mc", w.render())
 
 

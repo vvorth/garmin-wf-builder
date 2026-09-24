@@ -1,8 +1,7 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A3 approved (2026-09-24), built in that order: A0, A1 and A2
-are built (see "As built" under each); A3 is next. A4–A7 still await a user
-decision.** These change the project's shape (root
+**Status: A0–A3 approved (2026-09-24) and built, in that order (see "As
+built" under each). A4–A7 still await a user decision.** These change the project's shape (root
 `CLAUDE.md` §7: stop and ask), so **do not start an unapproved step**, and
 record each decision in §4. Plan 18 holds the bug list from the same review. Its fixes
 come first unless the user says otherwise (§3 gives the combined order).
@@ -199,6 +198,24 @@ way `compute_guards` already works for API gates. That replaces
 `_barrel_for`'s about 60-line IR ladder and grep, and the three font-use
 ladders. It changes which barrel files are copied (fewer), so run a slow
 build per target. It also fixes plan 18 item 9's barrel drift.
+
+**As built.** Recording at `Writer.call` sites would miss most uses:
+barrel calls are also built inline as strings, in compiled expressions,
+strftime rows and reader calls. So `wfb/emit/usage.py` scans the generated
+sources instead, with comments and string literals stripped.
+`barrel_modules` gives the copied set (closed over runtime-lib, and an
+unknown `Wfb<Name>` is an error), replacing `_barrel_for`'s ladder, its two
+text searches and `formatting.Code.helper`. `toybox_modules` gives the
+view's imports from its rendered body, replacing `_view_imports`. Snapshot
+against A0: 328 unchanged, and 29 generated views each gained one import
+(`Toybox.Time` next to `Toybox.Time.Gregorian` where a date is read, or
+`Toybox.System` where an AMOLED target adds `System.getDisplayMode`).
+`monkeyc` already resolved both names without the import (the old project
+for the `System` case compiles), so these are redundant-but-correct, not
+fixes. No support file was added or removed: the old ladder agreed with the
+scan on all 357 cases. Fonts are not covered and cannot be: glyph baking
+precedes layout, and the view's font loads are inputs to emission, not
+outputs. The per-kind "fonts used" fact belongs to A4.
 
 ### A4. One spec object per element kind (addresses P1; the biggest payoff)
 

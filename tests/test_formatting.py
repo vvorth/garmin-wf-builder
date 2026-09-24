@@ -4,6 +4,7 @@ import pytest
 
 from wfb import formatting
 from wfb.catalog import Type, get
+from wfb.emit import usage
 
 
 @pytest.mark.parametrize("spec,value,code", [
@@ -170,19 +171,27 @@ def test_scaling_a_source_shrinks_its_digit_count():
     assert scaled == "88.8k"
 
 
-def test_every_code_names_the_runtime_helper_its_emit_calls():
-    """`Code.helper` decides which runtime-lib file `_barrel_for` copies
-    (plan 18 item 9); it must say exactly what `emit` calls, or a build
-    either carries a dead file or fails with `Undefined symbol`."""
+def test_every_time_or_date_code_is_correctly_barrel_scanned():
+    """Plan 19 A3 superseded `Code.helper`/`formatting.helpers`, which this
+    test used to check for internal consistency (plan 18 item 9), with
+    `wfb.emit.usage.barrel_modules` scanning the actual generated text
+    instead. The same protection, aimed at the new function: for every code
+    with an `emit`, whether its own compiled Monkey C calls into `WfbTime`
+    is exactly what the scanner finds when handed that text alone -- so a
+    future code that starts (or stops) calling `WfbTime` cannot silently
+    carry a dead barrel file or fail with `Undefined symbol` at build time
+    without a codegen test noticing here first."""
     readers = formatting.Readers()
     for table in (formatting.TIME_CODES, formatting.DATE_CODES):
         for name, code in table.items():
             if code.emit is None:
                 continue
-            calls_helper = "WfbTime." in code.emit(readers)
-            assert (code.helper == "WfbTime") is calls_helper, name
+            text = code.emit(readers)
+            calls_wfbtime = "WfbTime." in text
+            assert ("WfbTime.mc" in usage.barrel_modules([text])) is calls_wfbtime, name
 
 
-def test_helpers_reads_only_the_codes_a_spec_uses():
-    assert formatting.helpers("{:%H:%M}", Type.TIME) == ()
-    assert formatting.helpers("{:%I:%M %p}", Type.TIME) == ("WfbTime",)
+def test_barrel_modules_reads_only_the_codes_a_spec_uses():
+    assert usage.barrel_modules([formatting.emit("{:%H:%M}", "clock", Type.TIME)]) == set()
+    assert (usage.barrel_modules([formatting.emit("{:%I:%M %p}", "clock", Type.TIME)])
+            == {"WfbTime.mc"})

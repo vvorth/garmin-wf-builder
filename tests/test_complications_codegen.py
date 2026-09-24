@@ -19,7 +19,7 @@ import pytest
 from wfb.build import load
 from wfb.availability import uses_complications
 from wfb.emit.manifest import api_level
-from wfb.emit.project import _barrel_for, generate
+from wfb.emit.project import generate
 from wfb.emit.resources import bake_fonts
 
 DESIGN = """
@@ -178,14 +178,12 @@ def test_absent_complication_hides_the_element(write_design, bag, db, tmp_path):
 
 def test_barrel_includes_wfb_complications(write_design, bag, db, tmp_path):
     face, project = _build(write_design, bag, db, tmp_path, BODY_BATTERY)
-    resolved = project.resolved["fenix8solar47mm"]
-    assert "WfbComplications.mc" in _barrel_for(face, resolved)
+    assert "WfbComplications.mc" in project.barrel
 
 
 def test_barrel_omits_wfb_complications_without_one(write_design, bag, db, tmp_path):
     face, project = _build(write_design, bag, db, tmp_path, NO_COMPLICATION)
-    resolved = project.resolved["fenix8solar47mm"]
-    assert "WfbComplications.mc" not in _barrel_for(face, resolved)
+    assert "WfbComplications.mc" not in project.barrel
     files = project.files()
     assert "WfbComplications.mc" not in files
     assert "WfbComplications" not in files["source/TestView.mc"]
