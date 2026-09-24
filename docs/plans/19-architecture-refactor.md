@@ -1,9 +1,9 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: proposal, awaiting user decision.** Nothing here is approved.
-These change the project's shape (root `CLAUDE.md` §7: stop and ask), so
-**do not start a step until the user approves it**, and record each
-decision in §4. Plan 18 holds the bug list from the same review. Its fixes
+**Status: A0–A3 approved (2026-09-24), in progress in that order; A4–A7
+still awaiting user decision.** These change the project's shape (root
+`CLAUDE.md` §7: stop and ask), so **do not start an unapproved step**, and
+record each decision in §4. Plan 18 holds the bug list from the same review. Its fixes
 come first unless the user says otherwise (§3 gives the combined order).
 Delete this file once every step is built or dropped.
 
@@ -262,7 +262,7 @@ cost.
 
 | Question | Options | Recommendation | User's answer |
 |---|---|---|---|
-| Approve A0–A4? | each separately | yes, all | — |
-| Parity approach | A1 (tables + parity test) / A7 (draw program) | A1 | — |
+| Approve A0–A4? | each separately | yes, all | A0–A3 approved 2026-09-24, one step at a time in order; A4 not yet decided |
+| Parity approach | A1 (tables + parity test) / A7 (draw program) | A1 | A1 (approved with A0–A3) |
 | Per-device needs (A5) | device 0 (today) / union across targets | union | — |
 | P6 comment rule in `CLAUDE.md` | add / don't | add | — |
