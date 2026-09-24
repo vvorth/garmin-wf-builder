@@ -657,6 +657,9 @@ def test_percent_and_pt_are_rejected_in_a_part_length(write_design, bag, length)
     assert face is None
     assert len(bag.errors) == 1, bag.render()
     assert "px or %r only" in bag.errors[0].message
+    # Worded for a pattern, not borrowed from hands (plan 18 item 9).
+    assert "hand" not in bag.errors[0].message
+    assert "pattern part" in bag.errors[0].message.split(";")[1]
 
 
 def test_pt_is_rejected_in_a_linear_step(write_design, bag):

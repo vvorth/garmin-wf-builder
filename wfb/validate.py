@@ -326,11 +326,6 @@ def _check_modes_always_on(doc: YamlDocument, bag: Bag) -> list[list]:
 #: A hand-frame length the schema's `handLength` pattern refuses, and why --
 #: the schema alone can only say "expected number, got string", which does
 #: not tell an author that `3%` is a perfectly good length *everywhere else*.
-_HAND_UNIT_REFUSALS = {
-    "%": "a hand frame has no parent box for '%' to measure against",
-    "pt": "a hand has no font for 'pt' to measure against",
-}
-
 #: The keys of a hand part that hold a length, and those that hold a position.
 _HAND_PART_LENGTHS = ("radius", "thickness")
 _HAND_PART_POSITIONS = ("at", "to")
@@ -382,6 +377,8 @@ class _Frame:
     origin: str
     length_note: str
     anchor_note: str
+    #: Why each refused length unit (`_hand_unit`) means nothing in this frame.
+    unit_refusals: dict[str, str]
 
 
 _HAND_FRAME = _Frame(
@@ -390,6 +387,8 @@ _HAND_FRAME = _Frame(
     "screen's minor radius) scales it with the dial",
     "the axis is the element's own 'at:'; inside a hand, "
     "{dx, dy} or {angle, radius} are offsets from it",
+    {"%": "a hand frame has no parent box for '%' to measure against",
+     "pt": "a hand has no font for 'pt' to measure against"},
 )
 _PATTERN_FRAME = _Frame(
     "pattern part", "the pattern's own 'at:'",
@@ -397,6 +396,8 @@ _PATTERN_FRAME = _Frame(
     "pattern's own 'at:'; %r (the screen's minor radius) "
     "scales it with the dial",
     "{dx, dy} or {angle, radius} are offsets from 'at:'",
+    {"%": "a pattern part's frame has no parent box for '%' to measure against",
+     "pt": "a pattern part's geometry has no font for 'pt' to measure against"},
 )
 
 
@@ -417,7 +418,7 @@ def _check_frame_part(doc: YamlDocument, bag: Bag, part: dict, path: list,
         bag.error(
             "schema",
             f"{_dotted(at)}: {container[key]!r} -- a {frame.noun}'s lengths "
-            f"are px or %r only; {_HAND_UNIT_REFUSALS[unit]}",
+            f"are px or %r only; {frame.unit_refusals[unit]}",
             doc.span(container, key),
             notes=[frame.length_note],
         )
