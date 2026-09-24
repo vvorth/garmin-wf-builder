@@ -1,8 +1,8 @@
 # Plan 18: bug fixes from the 2026-09-24 code review
 
-**Status: items 1–9 done (2026-09-24). Two small items remain (§2): one needs
-a user decision, the other is optional.** Every other item was built on
-2026-09-24, one commit per item (`d7fd497`..`2b99dfd`).
+**Status: items 1–8 and all of item 9 but §2.1 done (2026-09-24), one commit
+per item (`d7fd497`..`2b99dfd`). Two small items remain (§2): one needs a
+user decision, the other is optional.**
 Read the full plan as written with `git show 8862941:docs/plans/18-review-bug-fixes.md`.
 Delete this file once both items below are built or explicitly dropped
 (`docs/CLAUDE.md`).
