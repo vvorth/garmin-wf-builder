@@ -1,12 +1,12 @@
-"""Element emitters for the plain drawing primitives: shape, text and progress."""
+"""Element emitters for the plain drawing primitives: shape and text."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
 from ... import formatting
-from ...ir import Progress, local_name
-from ...layout import PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace
+from ...ir import local_name
+from ...layout import PlacedIcon, PlacedShape, PlacedText, ResolvedFace
 from .common import (
     NO_AOD, AodStyle, _aod_font_field, _color, _const_prefix, _field, _glyph_y_expr,
 )
@@ -366,83 +366,6 @@ def _emit_vector_text_draw(
         w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
         _emit_vector_draw_call(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
-
-
-def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str],
-                   aod: AodStyle = NO_AOD) -> None:
-    element = placed.element
-    prefix = _const_prefix(placed.id)
-    fraction_expr = _fraction(element)
-    color_code = aod.color(element, "color")
-    track_color_code = (aod.color(element, "track_color")
-                        if element.track_color is not None else None)
-    if element.when_absent == "fallback" and guards:
-        # The fill fraction falls back, not the raw value/max -- 'fallback:'
-        # supplies a number in the same 0.0-1.0 range _fraction() computes, so
-        # it slots into exactly the same drawProgress/fillRectangle call the
-        # real reading would have used.  (This is why a `progress` fallback
-        # means something different from a `text` one, which supplies the
-        # *value* and is then formatted; for progress either half of the pair
-        # can be the absent reading, so the outcome is the only well-defined
-        # thing to substitute.  wfb/ir.py checks it is in range and
-        # wfb/preview.py renders the same substitution.)
-        w.comment("when_absent: fallback")
-        available = " && ".join(f"{name} != null" for name in guards)
-        w.line(f"var fraction = {_fallback_fraction(element)};")
-        with w.block(f"if ({available})"):
-            w.line(f"fraction = {fraction_expr};")
-        w.blank()
-        fraction_expr = "fraction"
-    if element.style == "arc":
-        thickness_expr = _thickness_expr(prefix, placed, aod)
-        if element.track_color is not None:
-            w.comment("the unfilled track")
-            w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
-            _emit_arc_span(w, prefix, thickness_expr)
-            w.blank()
-        w.comment("the filled portion")
-        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-        w.call("WfbArc.drawProgress", [
-            f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
-            f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
-            fraction_expr,
-        ])
-        return
-
-    if element.track_color is not None:
-        w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
-        w.line(
-            f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, "
-            f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);"
-        )
-        w.blank()
-    w.line(f"var filled = (Layout.{prefix}_WIDTH * {fraction_expr}).toNumber();")
-    w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    w.line(
-        f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y, filled, Layout.{prefix}_HEIGHT);"
-    )
-
-
-def _fallback_fraction(element: Progress) -> str:
-    """The `progress` fallback, as a Float in 0.0-1.0.
-
-    Two things have to be true of it, and neither is automatic.  It must be a
-    **Float**: `fraction` is reassigned from `_fraction()` (a Float) in the
-    branch below, and a `var` first bound to a Number makes the whole thing a
-    `PolyType<Float or Number>` that `WfbArc.drawProgress`'s `Float` parameter
-    rejects under `-l 3`.  And it must be **in range**: the real path is
-    clamped by `WfbMath.percent`, so an unclamped fallback is the one way a
-    bar could be drawn wider than its own box.  A constant is checked at build
-    time (wfb/ir.py) and emitted bare; anything else is clamped on device.
-    """
-    fallback = element.fallback
-    if fallback.is_constant:
-        return f"{float(fallback.constant)}f"
-    return f"WfbMath.clamp({fallback.code}, 0.0, 1.0).toFloat()"
-
-
-def _fraction(element: Progress) -> str:
-    return f"WfbMath.percent({element.value.code}, {element.maximum.code}) / 100.0"
 
 
 def _emit_icon(w: Writer, placed: PlacedIcon, aod: AodStyle = NO_AOD) -> None:

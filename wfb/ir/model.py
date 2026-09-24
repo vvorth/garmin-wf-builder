@@ -1119,7 +1119,7 @@ class Progress(Element):
 
     #: `when_absent:` governs the fraction `value:`/`maximum:` compute
     #: together -- one nullable reading is as absent as the other from the
-    #: fraction's own point of view (`Builder._build_progress`).
+    #: fraction's own point of view (`wfb.kinds.progress.build`).
     VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE, ROLE_MAX})
 
     def _own_roles(self) -> list[tuple[str, Expression]]:

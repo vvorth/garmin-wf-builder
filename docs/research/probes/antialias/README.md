@@ -202,14 +202,14 @@ Built on top of §§1-4. This is the piece §3's helper shape and §4's
 **The invariant that makes "set at the start, restore at the end" safe.**
 `_emit_element_method` (`wfb/emit/monkeyc.py`) emits every guard -- `visible:`,
 the value's `when_absent`, a nullable colour/track_color/max -- *before* the
-call to `_emit_shape`/`_emit_progress`, and every one of them can `return`
+call to `_emit_shape`/`wfb.kinds.progress.emit_draw`, and every one of them can `return`
 early. Wrapping the *whole* generated method in a set/restore pair, as the
 task's own wording ("at the start of that element's draw method... at the
 end") reads most literally, would leave the Dc's anti-alias state changed on
 a frame where a guard fired and nothing was actually drawn -- breaking the
 invariant every other element's draw method silently relies on, that Dc is
 already at the face default by the time its own drawing runs. Confirmed by
-inspection that no guard sits *inside* `_emit_shape`/`_emit_progress`
+inspection that no guard sits *inside* `_emit_shape`/`wfb.kinds.progress.emit_draw`
 themselves (a `progress` arc's internal early `return` happens **after** it
 has already drawn both the track and the fill, not before), so wrapping only
 the call site -- after every guard, immediately around the actual drawing --

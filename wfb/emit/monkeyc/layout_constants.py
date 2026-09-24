@@ -7,7 +7,7 @@ from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
     PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon, PlacedPattern,
-    PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedShape, PlacedText, ResolvedFace,
 )
 from .common import (
     McLiteral, SourceFile, _NO_GUARDS, _const_prefix, _describe, _mc_number, _mc_type,
@@ -358,19 +358,6 @@ def _text_constants(prefix: str, placed: PlacedText) -> Constants:
         ))
         if placed.curve_style == "radial":
             out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))
-    return out
-
-
-def _progress_constants(prefix: str, placed: PlacedProgress) -> Constants:
-    out: Constants = [
-        (f"{prefix}_CX", placed.center[0], ""),
-        (f"{prefix}_CY", placed.center[1], ""),
-    ]
-    if placed.element.style == "arc":
-        out.extend(_arc_constants(prefix, placed))
-        out.extend(_aod_thickness_constant(prefix, placed))
-    else:
-        out.extend(_box_constants(prefix, placed.box))
     return out
 
 

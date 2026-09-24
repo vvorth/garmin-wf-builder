@@ -31,7 +31,7 @@ from .model import (
     ConfigStyle, Curve, Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group,
     HOLD_AUTO, Hand, HandPart, HandSet, HandsElement, IconElement, LayoutDecl, MAX_OUTLINE_WIDTH,
     Outline, PATTERN_LOOP_INDEX, ROLE_COLOR, ROLE_PART_VISIBLE, ROLE_VALUE, ROLE_VISIBLE,
-    PatternElement, Position, Progress, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
+    PatternElement, Position, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
     _drawn_copies, authored_draw_order, walk_elements,
 )
 from .naming import (
@@ -3154,50 +3154,6 @@ class Builder:
             ],
         )
 
-    def _build_progress(self, node: dict, common: dict) -> Element:
-        value = self._expression(node, "value")
-        maximum = self._expression(node, "max")
-        align, vertical_align = self._alignment(node)
-        element = Progress(
-            **common,
-            style=node["style"],
-            value=value,
-            maximum=maximum,
-            radius=self._length(node, "radius"),
-            thickness=self._length(node, "thickness"),
-            start_angle=self._angle(node, "start_angle"),
-            sweep=self._angle(node, "sweep"),
-            size=self._size(node.get("size")),
-            color=self._color_expression(node, "color"),
-            track_color=self._color_expression(node, "track_color"),
-            when_absent=node.get("when_absent"),
-            fallback=self._expression(node, "fallback") if "fallback" in node else None,
-            align=align,
-            vertical_align=vertical_align,
-        )
-        for name, bound in (("value", value), ("max", maximum)):
-            if bound and not bound.value.type.is_numeric():
-                self.bag.error(
-                    "type",
-                    f"progress {name} must be a number, got {bound.value}",
-                    self.doc.span(node, name),
-                )
-        if value is not None or maximum is not None:
-            combined = expr.Value(
-                Type.NUMBER,
-                bool((value and value.nullable) or (maximum and maximum.nullable)),
-            )
-            probe = Expression("value/max", "", combined, (), frozenset(), frozenset(), None)
-            self._check_absence(node, element, probe, element.when_absent, None, element.fallback,
-                                key="value")
-            self._check_fallback_fraction(node, element)
-        self._check_other_absence(node, element, "color", element.color)
-        self._check_other_absence(node, element, "track_color", element.track_color)
-        self._check_reachable_substitute(node, element, "'color'/'track_color'",
-                                         (element.value, element.maximum),
-                                         (element.color, element.track_color))
-        return element
-
     def _resolve_icon_name(self, name: str, span: Span | None) -> str | None:
         """A catalogue name -> its codepoint, or `None` plus a reported error.
 
@@ -3944,42 +3900,6 @@ class Builder:
                 if source is not None and source.guard_needed:
                     out.add(path)
         return out
-
-    def _check_fallback_fraction(self, node: dict, element: Progress) -> None:
-        """A `progress` fallback is a **fill fraction**, so it must be 0.0-1.0.
-
-        This is the one place `fallback:` means something other than "the
-        value" -- for a progress, either the value or the max can be the
-        absent reading, so the outcome is the only well-defined substitute
-        (see `wfb.emit.monkeyc.shapes._fallback_fraction`).  That makes an
-        out-of-range constant a plausible mistake -- writing the *step count*
-        you wanted rather than the fraction -- and it is the one path not
-        already clamped by `WfbMath.percent`, so a bar could be drawn wider
-        than its own box.  Only a build-time constant is checked here; a
-        computed fallback is clamped on device instead.
-        """
-        fallback = element.fallback
-        if element.when_absent != "fallback" or fallback is None or not fallback.is_constant:
-            return
-        try:
-            value = float(fallback.constant)
-        except (TypeError, ValueError):
-            return
-        if 0.0 <= value <= 1.0:
-            return
-        self.bag.error(
-            "when-absent",
-            f"{element.id}: a progress fallback is a fill fraction, so it must be "
-            f"between 0.0 and 1.0 -- got {fallback.text}",
-            self.doc.span(node, "fallback"),
-            notes=[
-                "unlike a text fallback, which supplies the value and is then "
-                "formatted, a progress fallback supplies the filled proportion "
-                "directly: either the value or the max can be the absent reading, "
-                "so the outcome is the only well-defined thing to substitute",
-                "for 'half full' write 0.5, not the reading you would have shown",
-            ],
-        )
 
     def _check_format(self, node: dict, bound: Expression, spec: str | None) -> None:
         span = self.doc.span(node, "format")

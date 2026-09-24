@@ -38,7 +38,7 @@ from .fonts import cft as cft_fonts
 from .ir import aod_color_choice, disc_perimeter_offsets
 from .layout import (
     HAND_ANGLES, PatternTextAngle, PlacedComplicationSlot, PlacedGraph, PlacedHands,
-    PlacedIcon, PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    PlacedIcon, PlacedPattern, PlacedShape, PlacedText, ResolvedFace,
     alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
     radial_align_offset, radial_direction_sign,
 )
@@ -827,53 +827,6 @@ class _Renderer:
             if override_metric is not None:
                 return None, override_metric
         return font, metric
-
-    def _progress(self, placed: PlacedProgress) -> None:
-        element = placed.element
-        value = expr.evaluate(element.value.ast, self.values) if element.value.ast else None
-        maximum = expr.evaluate(element.maximum.ast, self.values) if element.maximum.ast else None
-        if value is None or maximum is None:
-            if element.when_absent == "hide":
-                return
-            # `fallback:` on a progress substitutes the fill fraction itself,
-            # not the value, as the device does
-            # (`wfb.emit.monkeyc.shapes._fallback_fraction`).
-            fraction = 0.0
-            if element.when_absent == "fallback" and element.fallback is not None \
-                    and element.fallback.ast is not None:
-                substitute = expr.evaluate(element.fallback.ast, self.values)
-                if substitute is not None:
-                    fraction = min(1.0, max(0.0, float(substitute)))
-        else:
-            fraction = (
-                0.0 if not maximum or maximum <= 0
-                else min(1.0, max(0.0, value / maximum))
-            )
-        s = self.scale
-        color = self._aod_color(element, "color", element.color)
-
-        if element.style == "arc":
-            cx, cy, r = placed.center[0] * s, placed.center[1] * s, placed.radius * s
-            width = max(1, self._aod_geometry(placed, "thickness", placed.thickness) * s)
-            box = [cx - r, cy - r, cx + r, cy + r]
-            # The whole-degree rule WfbArc.drawSpan applies on the device --
-            # see `arc_span`.
-            track = arc_span(placed.start_angle, placed.sweep)
-            if element.track_color is not None and track is not None:
-                track_color = self._aod_color(element, "track_color", element.track_color)
-                self.draw.arc(box, *track, fill=track_color, width=width)
-            fill = arc_span(placed.start_angle, placed.sweep * fraction) if fraction > 0 else None
-            if fill is not None:
-                self.draw.arc(box, *fill, fill=color, width=width)
-            return
-
-        box = self._rect(placed.box)
-        if element.track_color is not None:
-            track_color = self._aod_color(element, "track_color", element.track_color)
-            self.draw.rectangle(box, fill=track_color)
-        filled = int(placed.box.width * fraction) * s
-        if filled > 0:
-            self.draw.rectangle([box[0], box[1], box[0] + filled, box[3]], fill=color)
 
     def _icon(self, placed: PlacedIcon) -> None:
         """One glyph from the baked icon font -- the same mechanism a

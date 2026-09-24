@@ -1359,33 +1359,6 @@ class Resolver:
         return FontMetric(symbol=face_name or "vector", face=face_name, font=filename,
                           size_px=font_px)
 
-    def _resolve_progress(self, element: Progress, parent: Box, depth: int) -> Placed:
-        cx, cy = self._point(element.at, parent)
-        min_1px = element.resolved_min_1px
-        if element.style == "arc":
-            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
-                                        min_1px=min_1px, what="radius"))
-            thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 1,
-                                                  min_1px=min_1px, what="thickness")))
-            # The author's clockwise-positive angle becomes Garmin's
-            # counter-clockwise one; a positive sweep therefore draws clockwise
-            # on the device.  `shape: arc` calls the same helper.
-            box, cx, cy, start, sweep, garmin_start, direction = _arc_box(
-                radius, thickness, cx, cy, element.align, element.vertical_align,
-                element.start_angle, element.sweep)
-            aod_thickness = self._aod_extent(element, "thickness", parent, 1)
-            return PlacedProgress(
-                element, box, (round(cx), round(cy)), depth,
-                radius=radius, thickness=thickness,
-                start_angle=start, sweep=sweep,
-                garmin_start=garmin_start,
-                garmin_direction=direction,
-                aod_thickness=aod_thickness,
-            )
-        box, cx, cy = self._sized_box(element, parent, cx, cy)
-        return PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
-                              size=(round(box.width), round(box.height)))
-
     def _resolve_icon(self, element: IconElement, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
         # Independent of `parent`, deliberately: an icon's font is baked once,
