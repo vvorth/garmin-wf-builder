@@ -10,7 +10,7 @@ from ... import __version__
 from ...availability import Guards
 from ...ir import (
     ComplicationSlot, Expression, Face, Graph, HandsElement, IconElement, PatternElement,
-    Position, Progress, Shape, Text, config_data_ids, element_const_prefix,
+    Position, Progress, Shape, Text, aod_color_choice, config_data_ids, element_const_prefix,
     element_method_name,
 )
 from ...layout import PlacedComplicationSlot, PlacedIcon, PlacedPattern, PlacedText, ResolvedFace
@@ -295,15 +295,17 @@ class AodStyle:
         An override colour is a fully resolved `Expression` built by the same
         machinery as the element's own `color:`, so it follows
         `color_scheme:`/`config.colors` at runtime exactly as the awake one
-        does (plan 14 §4.6).
+        does (plan 14 §4.6). Which of the three applies is `aod_color_choice`
+        (`wfb.ir`), the one decision `wfb.preview._aod_color` also reads --
+        this method only turns that decision into Monkey C.
         """
         expression = getattr(element, key, None)
         if awake_code is None:
             awake_code = _color(expression)
         if not self.on or element.aod is None:
             return awake_code
-        override = getattr(element.aod, key)
-        return self._choose(expression, awake_code, override.code if override is not None else None)
+        choice, override = aod_color_choice(element.aod, key, self.dim is not None)
+        return self._render(choice, override, expression, awake_code)
 
     def part_color(self, element, color_expr: Expression | None) -> str:
         """`color`'s rule for one `hands`/`pattern` part: the element-level
@@ -312,14 +314,20 @@ class AodStyle:
         awake_code = _color(color_expr)
         if not self.on or element.aod is None:
             return awake_code
-        override = element.aod.color
-        return self._choose(color_expr, awake_code, override.code if override is not None else None)
+        choice, override = aod_color_choice(element.aod, "color", self.dim is not None)
+        return self._render(choice, override, color_expr, awake_code)
 
-    def _choose(self, expression: Expression | None, awake_code: str,
-                override_code: str | None) -> str:
-        if override_code is None and self.dim is not None:
-            override_code = _dim_color_code(expression, awake_code, self.dim)
-        return self.value(override_code, awake_code)
+    def _render(self, choice: str, override: Expression | None,
+                expression: Expression | None, awake_code: str) -> str:
+        """`aod_color_choice`'s decision, printed as Monkey C: the override's
+        own compiled code, `WfbColor.dim`/a pre-dimmed literal
+        (`_dim_color_code`), or `awake_code` unchanged -- each wrapped in
+        `self.value`'s `_aod ? ... : ...` ternary."""
+        if choice == "override":
+            return self.value(override.code, awake_code)
+        if choice == "dim":
+            return self.value(_dim_color_code(expression, awake_code, self.dim), awake_code)
+        return awake_code
 
 
 #: No AOD code at all -- the default for every emitter's `aod` parameter.

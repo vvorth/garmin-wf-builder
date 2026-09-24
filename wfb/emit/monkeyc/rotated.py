@@ -6,7 +6,7 @@ import math
 
 from ... import expr, formatting
 from ...ir import PatternElement
-from ...layout import PlacedHands, PlacedPattern
+from ...layout import HAND_ANGLES, PatternTextAngle, PlacedHands, PlacedPattern
 from .common import (
     NO_AOD, AodStyle, _color, _const_prefix, _field, _glyph_y_expr, _mc_float,
     _pattern_needs_math,
@@ -15,8 +15,11 @@ from .shapes import _RADIAL_DIRECTION, _emit_outline_loop, _radial_radius_expr
 from ..writer import Writer
 
 
-#: hand name -> the `WfbHands` function that turns the time into its angle.
-_HAND_ANGLE_FUNCTIONS = (("hour", "hourAngle"), ("minute", "minuteAngle"), ("second", "secondAngle"))
+#: hand name -> the `WfbHands` function that turns the time into its angle
+#: (`wfb.layout.HAND_ANGLES`'s own Monkey C half).
+_HAND_ANGLE_FUNCTIONS = tuple(
+    (name, HAND_ANGLES[name].monkeyc_function) for name in ("hour", "minute", "second")
+)
 
 
 def _aod_thickness_override(placed, prefix: str) -> str | None:
@@ -171,13 +174,19 @@ def _emit_pattern_text_angle_expr(element: "PatternElement", part) -> str:
     design-degree rotation is a plain Garmin-degree subtraction whichever
     `curve.style` produced the local angle, so this never needs to know
     which; a linear pattern's start/step are `0.0`, leaving the local angle
-    unchanged on every copy.  Full derivation: `docs/lore/codegen.md`
-    ("Vector fonts and `curve:` on a pattern's own `shape: text` part").
+    unchanged on every copy.  `local`/`start`/`step` are the same three
+    terms `wfb.layout.PatternTextAngle` gives the lint ink and the preview
+    (`copy_curve_angle`) -- this reads them off the same object, but folds
+    `start` into a build-time literal with `local` and multiplies `step` by
+    the runtime copy index `i`, instead of calling the host evaluator.
+    Full derivation: `docs/lore/codegen.md` ("Vector fonts and `curve:` on
+    a pattern's own `shape: text` part").
     """
-    g0 = _mc_float(part.curve_angle_garmin - element.start_angle)
+    step = element.step_angle if element.pattern == "radial" else 0.0
+    angle = PatternTextAngle(part.curve_angle_garmin, element.start_angle, step)
+    g0 = _mc_float(angle.local - angle.start)
     if element.pattern == "radial":
-        step_deg = _mc_float(element.step_angle)
-        return f"{g0} - i * {step_deg}"
+        return f"{g0} - i * {_mc_float(angle.step)}"
     return g0
 
 

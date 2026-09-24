@@ -595,10 +595,9 @@ def _old_style_pattern_reach(placed: PlacedPattern) -> float:
     old_reach = 0.0
     for index in placed.copies:
         ox, oy, sin_t, cos_t = placed.transform(index)
-        copy_angle_degrees = placed.start + index * placed.step
         for part in placed.parts:
             lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(
-                part, ox, oy, sin_t, cos_t, index, copy_angle_degrees)
+                part, ox, oy, sin_t, cos_t, index, placed.start, placed.step)
             for corner_x, corner_y in ((lo_x, lo_y), (lo_x, hi_y), (hi_x, lo_y), (hi_x, hi_y)):
                 old_reach = max(old_reach, math.hypot(corner_x - cx_f, corner_y - cy_f))
     return old_reach

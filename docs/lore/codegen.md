@@ -295,16 +295,19 @@ These cost real time to discover; do not rediscover them.
   **Composition.** `ResolvedHandPart.curve_angle_garmin` is this part's own
   *local* angle (`HandPart.curve.angle`, run through `wfb.layout.
   garmin_curve_angle`), for copy 0 alone -- never combined with a radial
-  pattern's own rotation in `wfb.layout`. That combination happens twice,
-  independently, at the two places that already know which copy is being
-  drawn: codegen (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`)
-  and the lint ink box (`wfb.layout._pattern_text_ink`, given a
-  `copy_angle_degrees` computed once per copy by `Resolver._resolve_
-  pattern`'s own loop) -- both apply `g0 = part.curve_angle_garmin -
+  pattern's own rotation in `wfb.layout`. That combination is one
+  definition, `wfb.layout.PatternTextAngle` (plan 19 A1): `local`/`start`/
+  `step` are the part's local angle and the pattern's own repeat angle, and
+  `copy_curve_angle(index)` is `(local - (start + index * step)) % 360.0`,
+  the host evaluator the lint ink box (`wfb.layout._pattern_text_ink`) and
+  the preview (`wfb.preview._pattern_text`) both call. Codegen
+  (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`) reads the same
+  `local`/`start`/`step` off that object but builds Monkey C from them
+  instead of calling the evaluator: `g0 = part.curve_angle_garmin -
   element.start_angle`, then `g0 - i * step_deg` per copy, the *exact*
   shape a radial pattern's own `arc` part already used for its
   `start_angle:` (`_emit_pattern_part`'s arc branch, unchanged, one row up
-  from the new text branch). Deriving the sign: a radial pattern turns
+  from the text branch). Deriving the sign: a radial pattern turns
   copy `i` by `element.start_angle + i * element.step_angle` **design**
   degrees, clockwise from 12 -- always a *position*-style rotation of the
   whole template, regardless of the part's own `curve.style`. Composing it
@@ -324,10 +327,10 @@ These cost real time to discover; do not rediscover them.
   (`Resolver._resolve_pattern`), so `g0` reduces to the part's own local
   angle unchanged and no `i *` term is emitted at all -- the "no copy angle
   to compose with" case falls out of the shared formula for free, not a
-  separate branch. `wfb.preview._Renderer._pattern_text` performs the same
-  arithmetic a third time, in Python floats rather than generated code,
-  reading `PlacedPattern.start`/`.step` (already `element.start_angle`/
-  `.step_angle` in degrees) instead of re-deriving them.
+  separate branch. `wfb.preview._pattern_text` calls the same
+  `PatternTextAngle.copy_curve_angle`, reading `PlacedPattern.start`/`.step`
+  (already `element.start_angle`/`.step_angle` in degrees) instead of
+  re-deriving them.
 
   **Why gate 4's guard cannot stay "load once, early-return before the
   loop."** That is exactly what a *baked* custom font on a pattern text

@@ -35,11 +35,12 @@ from .catalog import Type
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
 from .fonts import cft as cft_fonts
-from .ir import disc_perimeter_offsets
+from .ir import aod_color_choice, disc_perimeter_offsets
 from .layout import (
-    PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
-    PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
+    HAND_ANGLES, PatternTextAngle, PlacedComplicationSlot, PlacedGraph, PlacedHands,
+    PlacedIcon, PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
     alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
+    radial_align_offset, radial_direction_sign,
 )
 from .palette import MIP64_LEVELS, Color, dim_fraction
 
@@ -497,16 +498,20 @@ class _Renderer:
         `--aod` renders, else ``base_expr`` (evaluated against ``values``),
         dimmed when the face has `aod: {dim: ...}` and no override took over.
         A `hands`/`pattern` part passes its own colour as ``base_expr`` and
-        ``key="color"``: the element-level override applies to every part."""
+        ``key="color"``: the element-level override applies to every part.
+
+        Which of the three applies is `aod_color_choice` (`wfb.ir`), the same
+        decision `wfb.emit.monkeyc.common.AodStyle.color`/`.part_color` read
+        for Monkey C -- this method only turns it into an RGB triple."""
         base = self._color(base_expr, values)
         if not self.options.aod or element.aod is None:
             return base
-        override = getattr(element.aod, key)
-        if override is not None:
+        choice, override = aod_color_choice(element.aod, key, self.resolved.face.aod_dim is not None)
+        if choice == "override":
             return self._color(override)
-        if self.resolved.face.aod_dim is None:
-            return base
-        return self._dim_rgb(base)
+        if choice == "dim":
+            return self._dim_rgb(base)
+        return base
 
     # -- dispatch ---------------------------------------------------------
 
@@ -576,10 +581,10 @@ class _Renderer:
             )
 
     def _hands(self, placed: PlacedHands) -> None:
-        """`type: hands` -- the same three angle formulas
-        `runtime-lib/WfbHands.mc` computes on the device, applied to the
-        *resolved* geometry so this can never disagree with the generated
-        code about a hand's shape or its axis.
+        """`type: hands` -- the same three angle rules `runtime-lib/
+        WfbHands.mc` computes on the device (`wfb.layout.HAND_ANGLES`'s own
+        `host` half), applied to the *resolved* geometry so this can never
+        disagree with the generated code about a hand's shape or its axis.
 
         `--asleep` (or `--aod`, which implies it) hides an `awake`-only
         second hand, the same choice the generated view makes while
@@ -593,9 +598,8 @@ class _Renderer:
         minute = int(self.values.get("time.minute", 0) or 0)
         second = int(self.values.get("time.second", 0) or 0)
         angles = {
-            "hour": math.radians(((hour % 12) * 60 + minute) * 0.5),
-            "minute": math.radians(minute * 6.0),
-            "second": math.radians(second * 6.0),
+            name: HAND_ANGLES[name].host(hour, minute, second)
+            for name in ("hour", "minute", "second")
         }
         asleep = self.options.asleep or self.options.aod
         for hand_name in ("hour", "minute", "second"):
@@ -718,8 +722,8 @@ class _Renderer:
 
         A baked/system font draws upright glyphs. A `face:` font's `curve:`
         turns them, at the part's own local angle composed with this copy's
-        rotation (`curve_angle_garmin - copy_angle`), the composition codegen
-        (`_emit_pattern_text_angle_expr`) and the lint box
+        rotation (:class:`~wfb.layout.PatternTextAngle`), the composition
+        codegen (`_emit_pattern_text_angle_expr`) and the lint box
         (`wfb.layout._pattern_text_ink`) also perform. `outline:` stamps the
         already-transformed anchor, so the ring is a screen-space translation
         at every copy.
@@ -733,9 +737,10 @@ class _Renderer:
         if part.font_is_vector:
             if not part.font_available:
                 return  # `if_unavailable: hide` on this device
-            copy_angle = placed.start + index * placed.step
-            angle = ((part.curve_angle_garmin - copy_angle) % 360.0
-                     if part.curve_style is not None else 0.0)
+            angle = (
+                PatternTextAngle(part.curve_angle_garmin, placed.start, placed.step)
+                .copy_curve_angle(index) if part.curve_style is not None else 0.0
+            )
 
             def draw(at, fill, box=None):
                 self._draw_vector_text(
@@ -1368,9 +1373,9 @@ class _Renderer:
         cx, cy = anchor_point[0] * s, anchor_point[1] * s
         advances = face.advances(text)
         total = sum(advances)
-        align_offset = {"left": 0.0, "center": total / 2.0, "right": total}[align]
+        align_offset = radial_align_offset(align, total)
         counter_clockwise = curve_direction == "counter_clockwise"
-        direction_sign = 1.0 if counter_clockwise else -1.0
+        direction_sign = radial_direction_sign(curve_direction)
         # Facing: outward (`pos - 90`) for clockwise, inward (`pos + 90`)
         # for counter_clockwise -- see the derivation above.
         facing_offset = 90.0 if counter_clockwise else -90.0

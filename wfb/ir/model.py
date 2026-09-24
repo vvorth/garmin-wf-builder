@@ -278,6 +278,33 @@ class AodOverride:
     visible_override: Expression | None = None
 
 
+def aod_color_choice(aod: AodOverride | None, key: str, dim_set: bool) -> tuple[str, Expression | None]:
+    """The one decision behind an AOD-shown colour role (`color`/
+    `track_color`/`icon_color`, or a `hands`/`pattern` part's own colour
+    under the element-level override -- plan 14 §4.2/§4.5, plan 19 A1):
+    this element's own `aod:` override for ``key`` wins if it set one;
+    else, when the face has an `aod: {dim: ...}` at all, the awake colour
+    is dimmed; else the awake colour is unchanged.
+
+    Returns which of the three applies -- ``"override"``, ``"dim"`` or
+    ``"awake"`` -- and, for ``"override"``, that override's own
+    `Expression`.  This is the pure decision only: `wfb.preview._aod_color`
+    (rendering the AOD frame, gated on `PreviewOptions.aod`) turns it into
+    an RGB triple, and `wfb.emit.monkeyc.common.AodStyle.color`/
+    `.part_color` (gated on whether this *build* emits AOD code at all)
+    turn it into Monkey C -- each keeps its own gate and its own way of
+    producing a colour, since one evaluates and the other prints code, but
+    neither re-derives which of the three cases applies.
+    """
+    if aod is not None:
+        override = getattr(aod, key)
+        if override is not None:
+            return "override", override
+    if dim_set:
+        return "dim", None
+    return "awake", None
+
+
 def disc_perimeter_offsets(radius: int) -> tuple[tuple[int, int], ...]:
     """The stamped-ring offset table for one ring width, in pixels
     (research 14 §1, plan 15 D3): every integer `(dx, dy)` on the outer

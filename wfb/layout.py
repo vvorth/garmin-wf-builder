@@ -12,6 +12,7 @@ directly unit-testable with no Garmin toolchain.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from . import catalog, complications, formatting, icons, units
@@ -59,6 +60,45 @@ def round_half_away(value: float) -> int:
     (``0.5`` -> ``0``).  `wfb.preview` imports this for `WfbArc`'s degrees.
     """
     return int(value - 0.5) if value < 0 else int(value + 0.5)
+
+
+@dataclass(frozen=True)
+class HandAngle:
+    """One analog hand's angle rule (plan 04), both halves side by side --
+    the `expr.Function`/`formatting.Code` pattern (plan 19 A1) applied to
+    `runtime-lib/WfbHands.mc`: `monkeyc_function`/`monkeyc_return` are that
+    function's name and its exact `return` expression, checked against the
+    real `.mc` source by `tests/test_hand_angles.py` so the two cannot
+    drift; `host` is `wfb.preview`'s own radians computation, Python's
+    degrees-to-radians conversion rather than a reimplementation of the
+    Monkey C constant, kept at exactly today's expression so a preview
+    pixel never moves.
+    """
+
+    monkeyc_function: str
+    monkeyc_return: str
+    host: Callable[[int, int, int], float]
+
+
+#: Hour: 30 degrees an hour plus half a degree a minute, so it sits between
+#: numerals at half past rather than jumping on the hour.  Minute/second:
+#: whole minutes/seconds, 6 degrees each.  `host` takes `(hour, minute,
+#: second)`, the sample the preview always has on hand, even though a given
+#: hand's rule only reads one or two of the three.
+HAND_ANGLES: dict[str, HandAngle] = {
+    "hour": HandAngle(
+        "hourAngle", "((clock.hour % 12) * 60 + clock.min) * (Math.PI / 360.0)",
+        lambda hour, minute, second: math.radians(((hour % 12) * 60 + minute) * 0.5),
+    ),
+    "minute": HandAngle(
+        "minuteAngle", "clock.min * (Math.PI / 30.0)",
+        lambda hour, minute, second: math.radians(minute * 6.0),
+    ),
+    "second": HandAngle(
+        "secondAngle", "clock.sec * (Math.PI / 30.0)",
+        lambda hour, minute, second: math.radians(second * 6.0),
+    ),
+}
 
 
 def alignment_shift(width: float, height: float, align: str, vertical_align: str) -> tuple[float, float]:
@@ -110,6 +150,51 @@ def garmin_curve_angle(style: str, angle: Angle) -> float:
     return (-angle.degrees) % 360.0
 
 
+@dataclass(frozen=True)
+class PatternTextAngle:
+    """The terms of the per-copy Garmin-degrees angle a `shape: text`
+    pattern part's own `curve:` draws at (plan 11 slice 2, plan 19 A1):
+    `local` -- the part's own local, copy-0 angle (`part.curve_angle_garmin`);
+    `start`/`step` -- the pattern's own repeat angle, design degrees
+    clockwise from 12 (`0.0`/`0.0` for a linear pattern, which then leaves
+    every copy at the local angle unchanged).  One definition of the
+    composition, shared by the lint ink (`_pattern_text_ink`), the preview
+    (`wfb.preview._pattern_text`, via :meth:`copy_curve_angle`) and codegen
+    (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`, which reads
+    `local`/`start`/`step` off this same object but builds its own Monkey C
+    from them -- `start` folded into a build-time literal with `local`,
+    `step` multiplied by the runtime copy index -- rather than calling
+    :meth:`copy_curve_angle`, since one runs at build time and the other
+    on-device).
+    """
+
+    local: float
+    start: float
+    step: float
+
+    def copy_curve_angle(self, index: int) -> float:
+        """`(local - (start + index * step)) % 360.0` -- today's exact
+        expression order, kept so a lint box or a preview pixel never
+        moves."""
+        return (self.local - (self.start + index * self.step)) % 360.0
+
+
+def radial_direction_sign(direction: str | None) -> float:
+    """`1.0` for `counter_clockwise` (increasing Garmin angle as the run is
+    walked), `-1.0` for the default `clockwise` -- shared by
+    `radial_text_angle_span` (the lint band) and the preview's own
+    glyph-by-glyph placement (`wfb.preview._draw_radial_vector_text`)."""
+    return 1.0 if direction == "counter_clockwise" else -1.0
+
+
+def radial_align_offset(align: str, total_advance: float) -> float:
+    """How far into a `curve: {style: radial}` run's own pixel length the
+    anchor angle sits: `0.0` for `left` (the run starts on it), half for
+    `center`, the whole length for `right` (it ends on it).  Shared by
+    `radial_text_angle_span` and the preview's own per-glyph placement."""
+    return {"left": 0.0, "center": total_advance / 2.0, "right": total_advance}[align]
+
+
 def radial_text_angle_span(
     curve_angle_garmin: float, direction: str | None, align: str,
     total_advance: float, radius: float, pad: float = 0.0,
@@ -126,9 +211,8 @@ def radial_text_angle_span(
     pixels.  It is added after the unpadded `align_offset`, not by widening
     `total_advance`, which would grow only the far end under `align: left`.
     """
-    counter_clockwise = direction == "counter_clockwise"
-    direction_sign = 1.0 if counter_clockwise else -1.0
-    align_offset = {"left": 0.0, "center": total_advance / 2.0, "right": total_advance}[align]
+    direction_sign = radial_direction_sign(direction)
+    align_offset = radial_align_offset(align, total_advance)
     theta_a = curve_angle_garmin - direction_sign * math.degrees((align_offset + pad) / radius)
     theta_b = curve_angle_garmin + direction_sign * math.degrees(
         (total_advance - align_offset + pad) / radius)
@@ -736,29 +820,30 @@ def pattern_text_anchor(
 
 def _pattern_text_ink(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
-    copy_angle_degrees: float, fonts_root: str | None = None,
+    start: float, step: float, fonts_root: str | None = None,
 ) -> Ink:
     """:func:`text_ink` for copy `index` of a `shape: text` pattern part:
     anchored at :func:`pattern_text_anchor`, measured by that copy's own
     string (``part.widths[index]``), and -- under `curve:` -- turned by the
     part's local angle composed with the copy's own rotation
-    (`copy_angle_degrees`, design degrees clockwise from 12; `0.0` for a
-    linear pattern), the same composition
+    (`start`/`step`, design degrees clockwise from 12; `0.0`/`0.0` for a
+    linear pattern) through :class:`PatternTextAngle`, the same composition
     `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr` emits.
     `fonts_root`: see :func:`text_ink`.
     """
     ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
+    angle_garmin = PatternTextAngle(part.curve_angle_garmin, start, step).copy_curve_angle(index)
     return text_ink(
         ax, ay, part.widths[index] if part.widths else 0, part.line_height,
         part.align, part.vertical_align, curve_style=part.curve_style,
-        angle_garmin=(part.curve_angle_garmin - copy_angle_degrees) % 360.0,
+        angle_garmin=angle_garmin,
         radius_px=part.curve_radius_px, direction=part.curve_direction,
         metric=part.font_metric, pad=float(part.outline_width), fonts_root=fonts_root)
 
 
 def _pattern_part_ink(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
-    copy_angle_degrees: float = 0.0, fonts_root: str | None = None,
+    start: float = 0.0, step: float = 0.0, fonts_root: str | None = None,
 ) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` of one resolved pattern part's ink
     for one copy, given that copy's :meth:`PlacedPattern.transform`:
@@ -768,7 +853,9 @@ def _pattern_part_ink(
     origin -- padded by half its pen width, conservatively ignoring
     `start_angle`/`sweep`; a text part's :func:`_pattern_text_ink` -- the
     one shape that needs to know *which* copy it is, since upright text is
-    not rotation-invariant and each copy draws its own string.
+    not rotation-invariant and each copy draws its own string.  `start`/
+    `step` are the pattern's own repeat angle (`PatternTextAngle`), needed
+    only by that text branch; every other shape ignores them.
     """
     def tf(x: float, y: float) -> tuple[float, float]:
         return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
@@ -788,7 +875,7 @@ def _pattern_part_ink(
         pad = part.radius + (0.0 if part.filled else part.thickness / 2.0)
         return px - pad, py - pad, px + pad, py + pad
     if part.shape == "text":
-        return _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, copy_angle_degrees,
+        return _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, start, step,
                                  fonts_root).bounds()
     # arc: always centred on the copy's own origin.
     px, py = tf(0.0, 0.0)
@@ -1649,12 +1736,12 @@ class Resolver:
         cx_f, cy_f = float(center[0]), float(center[1])
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
-            # This copy's own rotation (design degrees; `0.0` for a linear
-            # pattern) -- only a curved text part composes with it.
-            copy_angle_degrees = start + index * step
             for part in parts:
                 if part.shape == "text":
-                    ink = _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, copy_angle_degrees,
+                    # `start`/`step` are this pattern's own repeat angle
+                    # (`0.0`/`0.0` for a linear pattern) -- only a curved
+                    # text part composes with it (`PatternTextAngle`).
+                    ink = _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, start, step,
                                             self.device.fonts_root)
                     lo_x, lo_y, hi_x, hi_y = ink.bounds()
                     if element.pattern == "radial":
@@ -1987,4 +2074,6 @@ __all__ = [
     "garmin_curve_angle", "alignment_shift", "round_half_away",
     "is_full_bleed", "arc_bbox", "annulus_sector_reach", "rotated_rect_corners",
     "radial_text_band", "radial_text_angle_span",
+    "PatternTextAngle", "radial_direction_sign", "radial_align_offset",
+    "HandAngle", "HAND_ANGLES",
 ]
