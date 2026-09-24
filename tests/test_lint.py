@@ -126,48 +126,63 @@ def test_a_dithered_track_color_can_also_be_suppressed(check):
     assert "palette-dither" not in codes(bag)
 
 
-# -- the element-scoped emit path (`_suppressed_element`/`_emit_for_element`) --
+# -- the one suppression rule (`_suppressed`/`_emit_for_users`) --------------
 
 
-def test_emit_for_element_refuses_to_suppress_a_non_suppressible_code():
-    """The half of the contract the five declaration-scoped checks used to
-    drop by hand-rolling `if any(code in element.lint_allow for ...): continue`:
-    that test alone says nothing about whether the code is suppressible at
-    all.  `api-gated-unguardable` is a real, hard-platform-limit code
+def test_emit_for_users_refuses_to_suppress_a_non_suppressible_code():
+    """`api-gated-unguardable` is a real, hard-platform-limit code
     deliberately absent from `SUPPRESSIBLE` -- an element naming it in
     `lint_allow` must not silence a diagnostic routed through
-    `_emit_for_element`. (`off-screen` used to be this module's example of
-    an unsuppressible code; it is a suppressible warning now -- see
-    `wfb.lint.check_geometry`.)
+    `_emit_for_users`: `code in element.lint_allow` alone says nothing about
+    whether the code is suppressible at all.
     """
     assert "api-gated-unguardable" not in lint.SUPPRESSIBLE
     element = SimpleNamespace(lint_allow={"api-gated-unguardable"})
     bag = Bag()
-    lint._emit_for_element(bag, [element], Diagnostic(
+    lint._emit_for_users(bag, [element], Diagnostic(
         Severity.ERROR, "api-gated-unguardable", "test message",
     ))
     assert "api-gated-unguardable" in codes(bag)
 
 
-def test_suppressed_by_any_agrees_with_suppressed_element():
-    """`_suppressed_by_any` is `_suppressed_element` applied to a list of
-    candidate users -- both must reach the same answer for the same element
-    and code, since they are meant to be the one place that knows what
-    'suppressed' means (element-scoped and declaration-scoped alike)."""
-    allowed = SimpleNamespace(lint_allow={"palette-dither"})
-    not_allowed = SimpleNamespace(lint_allow=set())
-    assert lint._suppressed_element(allowed, "palette-dither")
-    assert not lint._suppressed_element(not_allowed, "palette-dither")
-    assert lint._suppressed_by_any([not_allowed, allowed], "palette-dither")
-    assert not lint._suppressed_by_any([not_allowed], "palette-dither")
-    assert not lint._suppressed_by_any([], "palette-dither")
+def test_suppressed_needs_a_suppressible_code_and_any_one_owner_accepting_it():
+    """`_suppressed` is the one place that knows what 'suppressed' means,
+    for one owner (an element) and several (a declaration's users) alike."""
+    allowed = frozenset({"palette-dither"})
+    not_allowed = frozenset()
+    assert lint._suppressed("palette-dither", [allowed])
+    assert not lint._suppressed("palette-dither", [not_allowed])
+    assert lint._suppressed("palette-dither", [not_allowed, allowed])
+    assert not lint._suppressed("palette-dither", [])
+    assert not lint._suppressed("api-gated-unguardable", [frozenset({"api-gated-unguardable"})])
+
+
+@pytest.mark.parametrize("withdrawn", [False, True])
+def test_a_style_entry_s_own_lint_allow_goes_through_the_one_suppression_rule(
+    monkeypatch, withdrawn,
+):
+    """`duplicate-style` is suppressed on a `config: style:` entry's own
+    `lint:`, not an element's -- and through the same `_suppressed` rule, so
+    withdrawing the code from `SUPPRESSIBLE` makes it fire again."""
+    if withdrawn:
+        monkeypatch.setattr(lint, "SUPPRESSIBLE", lint.SUPPRESSIBLE - {"duplicate-style"})
+
+    def entry(name, allow=()):
+        return SimpleNamespace(name=name, layout=None, colors="dark",
+                               lint_allow=frozenset(allow), span=None)
+
+    face = SimpleNamespace(config_style=SimpleNamespace(entries=[
+        entry("dark"), entry("also_dark", ["duplicate-style"])]))
+    bag = Bag()
+    lint.check_duplicate_style(face, bag)
+    assert ("duplicate-style" in codes(bag)) is withdrawn
 
 
 def test_a_declaration_scoped_warning_stops_honouring_lint_allow_if_withdrawn_from_suppressible(
     check, monkeypatch,
 ):
     """Reproduces Bug 1 (CLAUDE.md) against `check_palette` directly: before
-    `_emit_for_element` existed, this check tested only
+    `_suppressed` existed, this check tested only
     `"palette-dither" in element.lint_allow`, with no reference to
     `SUPPRESSIBLE` at all.  Withdrawing the code from `SUPPRESSIBLE` here --
     as if it had never been made suppressible -- must still make the warning
@@ -1069,10 +1084,11 @@ _BAG_CALL_RE = re.compile(r'(?:bag|self\.bag)\.(?:error|warning|note)\(\s*"([a-z
 _BAG_CALL_FALLBACK_RE = re.compile(
     r'(?:bag|self\.bag)\.(?:error|warning|note)\(\s*[\w.]+\s+or\s+"([a-zA-Z0-9_-]+)"'
 )
-#: Matches the code literal in a directly-constructed `Diagnostic(Severity.X, "code", ...)`
-#: -- `check_geometry`, `check_text_fit` and `check_contrast` build these to pass
-#: through `_emit` rather than call `bag.*` directly.
-_DIAGNOSTIC_RE = re.compile(r'Diagnostic\(\s*Severity\.\w+,\s*"([a-zA-Z0-9_-]+)"')
+#: Matches the code literal in a directly-constructed `Diagnostic(<severity>, "code", ...)`
+#: -- the checks build these to pass through `_emit` rather than call `bag.*`
+#: directly.  The severity may be a conditional (`Severity.ERROR if over else
+#: Severity.NOTE`).
+_DIAGNOSTIC_RE = re.compile(r'Diagnostic\(\s*Severity\.[\w. ]+?,\s*"([a-zA-Z0-9_-]+)"')
 #: Matches a code carried on an `expr.ExprError` (e.g. `source-renamed`,
 #: raised in `wfb/expr.py` for a moved catalogue path) -- it never calls
 #: `bag.error` itself, `wfb/ir/builder.py`'s `_expression` does that once it catches

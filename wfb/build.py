@@ -132,10 +132,7 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
     from .emit.resources import bake_fonts
     from .layout import resolve
 
-    lint.check_permissions(face, bag)
-    lint.check_lint_allow(face, bag)
-    lint.check_duplicate_style(face, bag)
-    lint.check_unreachable_layout(face, bag)
+    lint.run_design(face, bag)
 
     resolved: dict[str, ResolvedFace] = {}
     baked: dict[str, dict[str, BakedFont]] = {}
