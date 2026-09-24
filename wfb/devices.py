@@ -126,7 +126,8 @@ def _sfnt_head_hhea(path: str) -> tuple[int, int, int] | None:
         return None
 
 
-def _locate_garmin_outline_font(filename: str) -> Path | None:
+def _locate_garmin_outline_font(filename: str, fonts_root: str | os.PathLike | None = None,
+                                ) -> Path | None:
     """A local ``.ttf``/``.otf`` for ``filename`` under the user's own
     Garmin font root, or ``None`` -- **local files only**
     (`wfb.fonts.fetch_system.garmin_font_root`/`garmin_any_file`), never the
@@ -134,6 +135,13 @@ def _locate_garmin_outline_font(filename: str) -> Path | None:
     located ``.cft`` doesn't qualify: it is Garmin's bitmap container, not a
     scalable outline this reader's `head`/`hhea` model applies to (plan 17
     §3 rule 4, plan 10 §2.3's own "no verified model for `.cft` height").
+
+    ``fonts_root`` is the same ``--fonts DIR`` override every other font
+    locator takes (:attr:`Device.fonts_root`, passed straight to
+    `garmin_font_root`) -- without it, a device with no scraped page (the
+    fenix 9 family) derived its metrics from whatever root happened to be
+    installed, never the one a caller actually pointed `--fonts` at
+    (plan 18 item 8).
 
     **Imported lazily**, not at module level: `wfb.fonts` (the package
     `wfb.fonts.fetch_system` lives in) has its own `__init__` that imports
@@ -146,7 +154,7 @@ def _locate_garmin_outline_font(filename: str) -> Path | None:
     """
     from .fonts import fetch_system
 
-    root = fetch_system.garmin_font_root()
+    root = fetch_system.garmin_font_root(fonts_root)
     if root is None:
         return None
     found = fetch_system.garmin_any_file(filename, root)
@@ -191,6 +199,15 @@ class Device:
     root: Path
     compiler: dict
     simulator: dict
+    #: The ``--fonts DIR`` override this device was built with -- ``None``
+    #: for the ordinary search order (`wfb.fonts.fetch_system.
+    #: garmin_font_root`'s own candidates). Set once, by
+    #: `DeviceDatabase.discover`/`.get`, and read by :attr:`system_fonts`'
+    #: third (derived) source and by every measuring/drawing caller that
+    #: holds a `Device` (`wfb.layout`, `wfb.preview`) -- the one field that
+    #: keeps "what a build measured a font with" and "what it drew that
+    #: font with" from ever being two different roots (plan 18 item 8).
+    fonts_root: str | os.PathLike | None = None
 
     # -- geometry ---------------------------------------------------------
 
@@ -595,9 +612,9 @@ class Device:
         3. For a device with no scrape at all (the fenix 9 family): a
            documented ``FONT_*`` symbol (:func:`_documented_font_symbols`)
            whose ``ww`` ``ttf`` entry's file is a real ``.ttf``/``.otf`` under
-           the user's own Garmin font root (:func:`_locate_garmin_outline_font`,
-           never a download or a ``.cft``) gets ``size_px = round(em_px *
-           (ascent - descent) / unitsPerEm)`` from that file's own tables
+           :attr:`fonts_root` (:func:`_locate_garmin_outline_font`, never a
+           download or a ``.cft``) gets ``size_px = round(em_px * (ascent -
+           descent) / unitsPerEm)`` from that file's own tables
            (:func:`_sfnt_head_hhea`). No scraped device gains a symbol here.
 
         A symbol none of them covers is absent, and text-overflow linting
@@ -651,7 +668,7 @@ class Device:
                 filename = sim_entry.get("filename")
                 if not filename:
                     continue
-                path = _locate_garmin_outline_font(filename)
+                path = _locate_garmin_outline_font(filename, self.fonts_root)
                 if path is None:
                     continue
                 sfnt = _sfnt_head_hhea(str(path))
@@ -692,10 +709,16 @@ def version_key(v: str) -> tuple[int, ...]:
 @dataclass
 class DeviceDatabase:
     root: Path
+    #: The ``--fonts DIR`` override every `Device` this database creates is
+    #: stamped with (:attr:`Device.fonts_root`) -- one root for the whole
+    #: build, so a device's measured metrics and its drawn glyphs can never
+    #: come from two different places (plan 18 item 8).
+    fonts_root: str | os.PathLike | None = None
     _cache: dict[str, Device] = field(default_factory=dict, repr=False)
 
     @classmethod
-    def discover(cls, override: str | os.PathLike | None = None) -> "DeviceDatabase":
+    def discover(cls, override: str | os.PathLike | None = None, *,
+                fonts_root: str | os.PathLike | None = None) -> "DeviceDatabase":
         candidates = []
         if override:
             candidates.append(Path(override))
@@ -705,7 +728,7 @@ class DeviceDatabase:
         candidates.extend(DEFAULT_DEVICE_ROOTS)
         for path in candidates:
             if path.is_dir() and any(path.iterdir()):
-                return cls(path)
+                return cls(path, fonts_root=fonts_root)
         raise DeviceError(
             "no Connect IQ device definitions found.  They cannot be downloaded "
             "(api.gcs.garmin.com returns HTTP 401); run ./tools/setup-env.sh, "
@@ -727,6 +750,7 @@ class DeviceDatabase:
             root=root,
             compiler=json.loads((root / "compiler.json").read_text(encoding="utf-8")),
             simulator=json.loads((root / "simulator.json").read_text(encoding="utf-8")),
+            fonts_root=self.fonts_root,
         )
         self._cache[device_id] = device
         return device

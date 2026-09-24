@@ -162,17 +162,24 @@ These cost real time to discover; do not rediscover them.
   only for a symbol actually referenced, and only via a *local* `fontTools`
   import (the same "no dependency beyond what the caller asked for" shape
   `wfb/icons.py` and `wfb/fonts/bmfont.py` already use).
-  `wfb.fonts.fallback.system_face(metric, scale=1)` is the one place a
-  `FontMetric` becomes a Pillow `FreeTypeFont`: it locates the real file via
-  `wfb.fonts.fetch_system.locate` (the user's own Garmin font root first,
-  then the pinned free-stand-in registry, `wfb.fonts.fetch_system`'s own
-  module docstring), derives whatever the metric did not already carry from
-  that file's `hhea`/`head` tables, and returns a `SystemFace` whose
+  `wfb.fonts.fallback.system_face(metric, scale=1, fonts_root=None)` is the
+  one place a `FontMetric` becomes a Pillow `FreeTypeFont`: it locates the
+  real file via `wfb.fonts.fetch_system.locate` (`fonts_root` first --
+  `--fonts DIR`, `Device.fonts_root` for every caller that has a device --
+  then `WFB_FONTS`/`vendor/fonts/`/the per-OS SDK Manager location, then the
+  pinned free-stand-in registry, `wfb.fonts.fetch_system`'s own module
+  docstring), derives whatever the metric did not already carry from that
+  file's `hhea`/`head` tables, and returns a `SystemFace` whose
   `line_height`/`baseline` are already in the same scaled pixel units as its
-  `font` -- `wfb.layout` (measuring, always at `scale=1`) and `wfb.preview`
-  (drawing, at the preview's own upscale) both go through this one function,
-  so a monkeypatched `em_px` moves both by construction, never one without
-  the other. The preview draws a system-font line from its own line box
+  `font` -- `wfb.layout` (measuring, always at `scale=1`, `fallback.measure`/
+  `line_height`/`ascent` all taking the same `fonts_root`) and `wfb.preview`
+  (drawing, at the preview's own upscale) both go through this one function
+  **with the same root** (`Device.fonts_root`, owned by `DeviceDatabase` and
+  carried by every `Device` it builds -- plan 18 item 8), so a
+  monkeypatched `em_px` moves both by
+  construction, never one without the other, and a build measures a box
+  from the exact file it is then drawn with. The preview draws a
+  system-font line from its own line box
   (`top = anchor_y - {top: 0, center: line_height/2, bottom: line_height}`,
   then Pillow's baseline vertical anchor `"s"` at `top + baseline`) instead
   of Pillow's built-in ascender/descender anchors, which measure the
@@ -213,10 +220,12 @@ These cost real time to discover; do not rediscover them.
   vocabulary (`_documented_font_symbols`, the union of every scraped
   device's own `fonts.default.fixed` keys), only when neither earlier loop
   already covered the symbol, and only when the file resolves to a real
-  `.ttf`/`.otf` under the user's own Garmin font root
-  (`_locate_garmin_outline_font` -- local files only, never the
-  free-stand-in registry, and never a `.cft`: no verified height model for
-  one, per the `.cft` finding above). **`wfb.devices` still never imports
+  `.ttf`/`.otf` under `Device.fonts_root` (`_locate_garmin_outline_font(name,
+  self.fonts_root)` -- local files only, never the free-stand-in registry,
+  and never a `.cft`: no verified height model for one, per the `.cft`
+  finding above; `fonts_root` is `None` for the ordinary search order and
+  `--fonts DIR`'s own value for a `DeviceDatabase` built with it -- plan 18
+  item 8). **`wfb.devices` still never imports
   Pillow/fontTools**: `_sfnt_head_hhea` is a from-scratch `struct` reader
   of the sfnt table directory (`numTables` at offset 4, 16-byte table
   records from offset 12, `head.unitsPerEm` at its own offset 18,

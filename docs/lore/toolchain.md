@@ -296,6 +296,18 @@ a correctness warning, not progress. `wfb doctor`'s `Garmin fonts` line
 states the same consequence next to the root it did or did not find. Both
 commands take `--fonts DIR` as a one-off override, same as `WFB_FONTS`.
 
+**One root serves measuring, deriving and drawing.** The font root is
+owned by `wfb.devices.DeviceDatabase` (`DeviceDatabase.discover(...,
+fonts_root=...)`) and carried by every `Device` it builds
+(`Device.fonts_root`). `wfb.layout` measures system and vector text with it
+(`fallback.measure`/`line_height`/`ascent`), `Device.system_fonts`' derived
+loop locates the fenix 9 family's files with it, and `wfb preview --fonts
+DIR` passes the same value to both the database and `PreviewOptions`, so a
+box is always sized from the file it is drawn with (plan 18 item 8).
+`wfb build`/`validate` take no `--fonts`, so their root is `None`: the
+ordinary search order above. `wfb doctor --fonts` only reports what
+`garmin_font_root(override)` finds.
+
 The directory is flat: `.ttf`, `.cft` and `.md5` files, each named exactly
 after the `simulator.json` `filename` (e.g. `RobotoCondensed-Bold.ttf`,
 `FNT_FENIX6_CDPG_ROBOTO_20B.cft`). `garmin_any_file` matches the stem

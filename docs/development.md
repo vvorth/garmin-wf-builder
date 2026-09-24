@@ -65,9 +65,9 @@ wherever they already are at `~/.Garmin/ConnectIQ/Devices`.
 has a `Fonts` directory, the script copies it from `vendor/fonts/` (gitignored,
 same reasoning as `vendor/devices/`) into `~/.Garmin/ConnectIQ/Fonts`
 incrementally. `wfb doctor` reports which root it found (`--fonts DIR` or
-`WFB_FONTS` override it); a device's real file there is meant to outrank the
-registry's stand-in once a build/preview actually consults it (plan 09's Step
-B). See plan 09 R1b and `docs/lore/toolchain.md`.
+`WFB_FONTS` override it); a device's real file there outranks the
+registry's stand-in for every build/preview consumer that consults it (plan
+09 R1b). See `docs/lore/toolchain.md`.
 
 **Without the Garmin font root, `wfb preview` draws stand-in typefaces for
 any face the registry has no exact match for** — not merely "an estimate",
@@ -76,7 +76,10 @@ a genuinely different family's letterforms (`wfb.fonts.fallback`'s own
 fonts this happened to, once per run, on stderr; `wfb doctor` reports the
 same thing as one line next to the root it did or did not find. `--fonts
 DIR` on either command points at a root without installing it system-wide
-(plan 12 R1/R3).
+(plan 12 R1/R3). On `wfb preview`, that one root reaches layout measurement
+and every lint that depends on it too, not only the pixels drawn (`Device.
+fonts_root`, owned by the `DeviceDatabase` the command builds -- plan 18
+item 8): a box is always sized from the same file it is then drawn with.
 
 **Platforms.** `setup-env.sh` is tested on Linux only. It downloads the Linux
 SDK, and it appends `CIQ_SDK`/`PATH` to `/etc/sandbox-persistent.sh` when that

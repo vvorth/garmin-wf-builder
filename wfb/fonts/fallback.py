@@ -300,7 +300,7 @@ def system_face(metric: FontMetric, scale: float = 1.0, *,
     )
 
 
-def measure(text: str, metric: FontMetric) -> tuple[int, bool]:
+def measure(text: str, metric: FontMetric, *, fonts_root: str | None = None) -> tuple[int, bool]:
     """Estimate the pixel width of ``text`` at ``metric``'s size.
 
     Returns ``(width, from_real_metrics)``.  ``from_real_metrics`` is
@@ -308,39 +308,45 @@ def measure(text: str, metric: FontMetric) -> tuple[int, bool]:
     flat-coefficient path) -- a `"none"`-match Pillow default and a real
     located device face both count as `True`, since both measure per
     character rather than assuming a flat width.
+
+    ``fonts_root`` is the same `--fonts DIR` override `system_face` takes
+    (`wfb.devices.Device.fonts_root`, in every caller that has a device
+    handy) -- passing it is what keeps this measurement in step with
+    whatever file the preview then draws with (plan 18 item 8).
     """
     if not text:
         return 0, True
-    face = system_face(metric)
+    face = system_face(metric, fonts_root=fonts_root)
     if face is None:
         return round(len(text) * metric.size_px * CRUDE_WIDTH_RATIO), False
     return round(face.width(text)), True
 
 
-def line_height(metric: FontMetric) -> int:
+def line_height(metric: FontMetric, *, fonts_root: str | None = None) -> int:
     """The line box height `wfb.layout` measures with: `system_face`'s own
     (so a located `.cft`'s real `height` overrides the scraped estimate
     here exactly as it does in the preview), else `metric.height_px`, else
-    `metric.size_px`.
+    `metric.size_px`.  ``fonts_root``: see :func:`measure`.
     """
-    face = system_face(metric)
+    face = system_face(metric, fonts_root=fonts_root)
     if face is not None:
         return face.line_height
     return metric.height_px if metric.height_px is not None else metric.size_px
 
 
-def ascent(metric: FontMetric) -> int:
+def ascent(metric: FontMetric, *, fonts_root: str | None = None) -> int:
     """The baseline's distance below the line box's top -- the stand-in for
     `Graphics.getFontAscent` that `wfb.layout` measures radial text with
     (`radial_text_band`), read from the same cached `system_face` the
     preview draws with, so the lint band and the preview's own baseline
     agree by construction. Falls back to `metric.ascent_px` when stated,
     else the full line height (the whole box above the baseline -- the
-    conservative end for a band built on it).
+    conservative end for a band built on it).  ``fonts_root``: see
+    :func:`measure`.
     """
-    face = system_face(metric)
+    face = system_face(metric, fonts_root=fonts_root)
     if face is not None:
         return face.baseline
     if metric.ascent_px is not None:
         return metric.ascent_px
-    return line_height(metric)
+    return line_height(metric, fonts_root=fonts_root)

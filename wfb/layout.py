@@ -172,11 +172,15 @@ def radial_text_band(
     return radius - up - pad, radius + down + pad
 
 
-def _curve_ascent(metric: FontMetric | None, line_height: float) -> float:
+def _curve_ascent(metric: FontMetric | None, line_height: float,
+                  fonts_root: str | None = None) -> float:
     """`radial_text_band`'s `ascent` for a curved run's font -- always a
     vector font's synthesised metric in practice (`curve:` refuses any
-    other kind); a missing one takes the whole line height."""
-    return fallback.ascent(metric) if metric is not None else line_height
+    other kind); a missing one takes the whole line height. `fonts_root`
+    is the device's own `--fonts DIR` override (`Device.fonts_root`), so
+    this locates the same file `wfb.layout`/`wfb.preview` measure and draw
+    the same run with (plan 18 item 8)."""
+    return fallback.ascent(metric, fonts_root=fonts_root) if metric is not None else line_height
 
 
 def arc_bbox(
@@ -388,7 +392,7 @@ Ink = InkRect | InkQuad | InkSector | InkDisc
 def text_ink(
     x: float, y: float, width: float, height: float, align: str, vertical_align: str, *,
     curve_style: str | None, angle_garmin: float, radius_px: int, direction: str | None,
-    metric: FontMetric | None, pad: float,
+    metric: FontMetric | None, pad: float, fonts_root: str | None = None,
 ) -> Ink:
     """The ink of one measured `width`x`height` run anchored at `(x, y)` --
     the one derivation shared by a standalone `text` element
@@ -411,6 +415,10 @@ def text_ink(
     `pad` is an `outline:` ring's width (plan 15 D9): the box is dilated
     about its already-aligned centre, never re-anchored as a wider box --
     alignment still reads the unpadded `width`/`height`.
+
+    `fonts_root` (the device's own `--fonts DIR` override, `Device.
+    fonts_root`) only matters for `radial`'s own `_curve_ascent` -- the one
+    call here that can re-locate a font file.
     """
     if curve_style == "angled":
         return InkQuad(rotated_rect_corners(
@@ -421,7 +429,8 @@ def text_ink(
         theta_a, theta_b = radial_text_angle_span(
             angle_garmin, direction, align, width, radius_px, pad=pad)
         r_inner, r_outer = radial_text_band(
-            radius_px, height, vertical_align, direction, _curve_ascent(metric, height), pad=pad)
+            radius_px, height, vertical_align, direction,
+            _curve_ascent(metric, height, fonts_root), pad=pad)
         return InkSector(x, y, r_inner, r_outer, theta_a, theta_b)
     dx, dy = alignment_shift(width, height, align, vertical_align)
     box_width, box_height = width + 2 * pad, height + 2 * pad
@@ -727,7 +736,7 @@ def pattern_text_anchor(
 
 def _pattern_text_ink(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
-    copy_angle_degrees: float,
+    copy_angle_degrees: float, fonts_root: str | None = None,
 ) -> Ink:
     """:func:`text_ink` for copy `index` of a `shape: text` pattern part:
     anchored at :func:`pattern_text_anchor`, measured by that copy's own
@@ -736,6 +745,7 @@ def _pattern_text_ink(
     (`copy_angle_degrees`, design degrees clockwise from 12; `0.0` for a
     linear pattern), the same composition
     `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr` emits.
+    `fonts_root`: see :func:`text_ink`.
     """
     ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
     return text_ink(
@@ -743,12 +753,12 @@ def _pattern_text_ink(
         part.align, part.vertical_align, curve_style=part.curve_style,
         angle_garmin=(part.curve_angle_garmin - copy_angle_degrees) % 360.0,
         radius_px=part.curve_radius_px, direction=part.curve_direction,
-        metric=part.font_metric, pad=float(part.outline_width))
+        metric=part.font_metric, pad=float(part.outline_width), fonts_root=fonts_root)
 
 
 def _pattern_part_ink(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
-    copy_angle_degrees: float = 0.0,
+    copy_angle_degrees: float = 0.0, fonts_root: str | None = None,
 ) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` of one resolved pattern part's ink
     for one copy, given that copy's :meth:`PlacedPattern.transform`:
@@ -778,7 +788,8 @@ def _pattern_part_ink(
         pad = part.radius + (0.0 if part.filled else part.thickness / 2.0)
         return px - pad, py - pad, px + pad, py + pad
     if part.shape == "text":
-        return _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, copy_angle_degrees).bounds()
+        return _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, copy_angle_degrees,
+                                 fonts_root).bounds()
     # arc: always centred on the copy's own origin.
     px, py = tf(0.0, 0.0)
     pad = part.radius + part.thickness / 2.0
@@ -957,7 +968,10 @@ class _Font:
     """One text font, resolved for this device: what `_font_for_ref` finds,
     plus -- for a `face:` font -- gates 1-3's answer (`Resolver._text_font`).
     `baked` is the baked sheet (never a vector font's); `metric` the
-    `FontMetric` a system or vector font is measured through."""
+    `FontMetric` a system or vector font is measured through. `fonts_root`
+    is the device's own `--fonts DIR` override (`Device.fonts_root`), so a
+    system/vector font is measured with the same file `wfb.preview` then
+    draws with (plan 18 item 8)."""
 
     px: int
     reference: str
@@ -967,6 +981,7 @@ class _Font:
     face: str = ""
     is_vector: bool = False
     available: bool = True
+    fonts_root: str | None = None
 
     def width(self, text: str) -> int:
         """`text`'s advance: exact for a baked sheet; for a system or vector
@@ -974,13 +989,14 @@ class _Font:
         the device's published metrics; `0` with no metrics at all."""
         if self.baked is not None:
             return self.baked.measure(text)[0]
-        return fallback.measure(text, self.metric)[0] if self.metric else 0
+        return fallback.measure(text, self.metric, fonts_root=self.fonts_root)[0] if self.metric else 0
 
     @property
     def line_height(self) -> int:
         if self.baked is not None:
             return self.baked.line_height
-        return fallback.line_height(self.metric) if self.metric else self.px
+        return (fallback.line_height(self.metric, fonts_root=self.fonts_root)
+                if self.metric else self.px)
 
 
 def _curve_angles(curve: Curve | None) -> tuple[str | None, float, float, str | None]:
@@ -1167,7 +1183,7 @@ class Resolver:
             x, y, width, line_height, element.align, element.vertical_align,
             curve_style=curve_style, angle_garmin=curve_angle_garmin,
             radius_px=curve_radius_px, direction=curve_direction, metric=font.metric,
-            pad=ring_px).box()
+            pad=ring_px, fonts_root=self.device.fonts_root).box()
 
         return PlacedText(
             element, box.rounded(), (round(x), round(y)), depth,
@@ -1638,7 +1654,8 @@ class Resolver:
             copy_angle_degrees = start + index * step
             for part in parts:
                 if part.shape == "text":
-                    ink = _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, copy_angle_degrees)
+                    ink = _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, copy_angle_degrees,
+                                            self.device.fonts_root)
                     lo_x, lo_y, hi_x, hi_y = ink.bounds()
                     if element.pattern == "radial":
                         # The real ink's farthest point, not its AABB's
@@ -1743,14 +1760,15 @@ class Resolver:
         if font_is_custom:
             baked = self.fonts.get(font)
             size = baked.size if baked else self.face.fonts[font].pixel_size(self.minor_radius)
-            return _Font(size, font, True, baked, None)
+            return _Font(size, font, True, baked, None, fonts_root=self.device.fonts_root)
         metric = self.device.system_fonts.get(font)
         if metric is None:
             self.warnings.append(
                 f"{warn_id}: no pixel metrics for {font} on {self.device.id}; "
                 f"text extent is not checked"
             )
-        return _Font(metric.size_px if metric else 0, font, False, None, metric)
+        return _Font(metric.size_px if metric else 0, font, False, None, metric,
+                     fonts_root=self.device.fonts_root)
 
     def _widest_text(self, element: Text) -> str:
         if element.literal is not None:
@@ -1865,12 +1883,17 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
     return None
 
 
-def _shape_ink(placed: "Placed") -> Ink | None:
+def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:
     """The real ink shape where it is tighter than `placed.box`: a
     `circular_extent` kind's disc, or a curved `text` element's rotated box
     or sector -- rebuilt by :func:`text_ink` from the fields
     `Resolver._resolve_text` stored, so it is the shape its box came from.
-    `None` for everything else, whose box corners are its real corners."""
+    `None` for everything else, whose box corners are its real corners.
+    `fonts_root` (the device's own `--fonts DIR` override): see
+    :func:`text_ink` -- this re-derivation must locate the same file
+    `Resolver._resolve_text` already measured with, or a `safe-area`
+    check could disagree with the box it is re-checking (plan 18 item 8).
+    """
     circle = circular_extent(placed)
     if circle is not None:
         return InkDisc(*circle)
@@ -1881,19 +1904,22 @@ def _shape_ink(placed: "Placed") -> Ink | None:
             placed.line_height, placed.element.align, placed.element.vertical_align,
             curve_style=placed.curve_style, angle_garmin=placed.curve_angle_garmin,
             radius_px=placed.curve_radius_px, direction=placed.curve_direction,
-            metric=placed.font_metric, pad=float(outline.width) if outline is not None else 0.0)
+            metric=placed.font_metric, pad=float(outline.width) if outline is not None else 0.0,
+            fonts_root=fonts_root)
     return None
 
 
-def visible_reach(placed: "Placed", screen_cx: float, screen_cy: float) -> float | None:
+def visible_reach(placed: "Placed", screen_cx: float, screen_cy: float,
+                  fonts_root: str | None = None) -> float | None:
     """The farthest distance any of `placed`'s own real ink can reach from
     `(screen_cx, screen_cy)` -- the round-screen `safe-area` check's
     shape-aware replacement for `placed.box`'s corners (`_shape_ink`).
     `None` means the box already is the shape: the caller falls back to
     the AABB-corners test (`inside_visible_area`), which also stays the
     right test for the rectangular framebuffer (`off-screen`).
+    `fonts_root`: see :func:`_shape_ink`.
     """
-    ink = _shape_ink(placed)
+    ink = _shape_ink(placed, fonts_root)
     return None if ink is None else ink.reach(screen_cx, screen_cy)
 
 
@@ -1902,7 +1928,7 @@ def inside_visible_area_for(placed: "Placed", device: Device) -> bool | None:
     if device.shape != "round":
         return inside_visible_area(placed.box, device)
     screen_cx, screen_cy = device.width / 2, device.height / 2
-    reach = visible_reach(placed, screen_cx, screen_cy)
+    reach = visible_reach(placed, screen_cx, screen_cy, device.fonts_root)
     if reach is None:
         return inside_visible_area(placed.box, device)
     limit = device.minor_radius * (1.0 - BEZEL_MARGIN)

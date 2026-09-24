@@ -634,7 +634,12 @@ def _preview(args) -> int:
     if _is_stdout(args.output) and args.watch:
         _error("-o - writes one image and exits; it cannot be combined with --watch")
         return 1
-    db = DeviceDatabase.discover(args.devices_dir)
+    # `fonts_root=args.fonts_dir` is the same value `_render_preview` below
+    # hands `PreviewOptions.fonts_root` -- one CLI flag, so the geometry this
+    # resolves (`Device.fonts_root`, what `wfb.layout` measures with) and
+    # what the render then draws with can never come from two different
+    # roots (plan 18 item 8).
+    db = DeviceDatabase.discover(args.devices_dir, fonts_root=args.fonts_dir)
     if not args.watch:
         if not (args.quiet or _is_stdout(args.output)):
             print()

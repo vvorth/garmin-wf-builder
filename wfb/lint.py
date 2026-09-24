@@ -811,7 +811,7 @@ def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
                 # text's real ink) came down to -- `box` alone is not what
                 # was tested for those kinds.
                 screen_cx, screen_cy = device.width / 2, device.height / 2
-                reach = visible_reach(placed, screen_cx, screen_cy)
+                reach = visible_reach(placed, screen_cx, screen_cy, device.fonts_root)
                 limit = device.minor_radius * (1.0 - BEZEL_MARGIN)
                 if reach is not None:
                     notes.append(
