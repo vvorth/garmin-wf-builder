@@ -851,6 +851,20 @@ nothing. See research 07 §2.
 > with universal `Dc` calls only (no new per-device gate). An all-MIP
 > build is unaffected, since it has no AOD frame at all.
 
+> **Ninth amendment (2026-09-24): `fenix5`'s missing `Toybox.Weather` is a
+> guarded module gap, not an unguardable function gap (plan 18 item 2).**
+> The seventh amendment's last paragraph no longer holds. Both weather
+> readers now set `Reader.requires_module = "Weather"`, and
+> `wfb.availability.Guards.modules` generalises the `Toybox has
+> :Complications` guard to any module some target lacks. A `weather.*` read,
+> or a forecast `graph`'s acquisition, sits behind `Toybox has :Weather`,
+> reads as absent on `fenix5`/`fenix5x` and gets an `api-gated` warning,
+> not an `api-gated-unguardable` error. The "a reader function a device
+> lacks (none exist today)" line in the sixth amendment is true again.
+> `tests/test_availability.py::test_weather_guards_compile_warning_free_on_fenix5`
+> is the real build. Like the complication guard, the guard's runtime
+> behaviour on a device without the module is UNVERIFIED on hardware.
+
 ---
 
 *Original text, superseded above:*

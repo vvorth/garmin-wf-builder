@@ -885,17 +885,15 @@ guard for an individual function (`Reader.requires`/`Source.requires`'s own
 namespace). If `wfb.availability.source_unavailable` ever reports a function
 gap, `check_api_gated` raises it as a build **error**
 (`api-gated-unguardable`), not a warning, because the call would otherwise
-run unguarded and crash on that device. This is a real, installed-device gap,
-not only a stubbed-device test case: `fenix5`/`fenix5x` (ConnectIQ 3.1.6)
-lack `Toybox.Weather` outright, and neither `weather_current` (`Weather.
-getCurrentConditions`) nor `weather_daily` (`Weather.getDailyForecast`) sets
-`Reader.requires_module` (only the 42 complication readers do), so a
-`weather.*`-bound design targeting either device is refused at lint time
-with `api-gated-unguardable`, naming the missing function -- drop the
-target, drop the binding, or add a runtime guard for the missing function to
-`wfb/emit/monkeyc.py` before shipping. `tests/test_availability.py::
-test_weather_readers_track_the_weather_module` exercises this against the
-real device, not only a stubbed one.
+run unguarded and crash on that device. No installed device has such a gap
+today (`tests/test_lint.py::test_api_gated_unguardable_function_is_an_error`
+stubs one). `fenix5`/`fenix5x` (ConnectIQ 3.1.6) lack `Toybox.Weather`
+outright, but that is a whole-module gap: both weather readers set
+`Reader.requires_module = "Weather"`, so every `weather.*` read and every
+forecast `graph`'s acquisition sits behind `Toybox has :Weather`, reads as
+absent there, and gets an `api-gated` warning (plan 18 item 2;
+`tests/test_availability.py::test_weather_readers_track_the_weather_module`,
+`::test_weather_guards_compile_warning_free_on_fenix5`).
 
 **The bare-field-name approximation is a real, if currently unrealised,
 risk.** `Device.has_field` cannot tell two different classes' same-named

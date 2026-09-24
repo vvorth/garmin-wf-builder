@@ -194,16 +194,19 @@ class ReadPlan:
             return
         w.comment("data for this frame" if mode == "active"
                   else f"data for this frame ({mode}); every reader is a plain pull")
-        # A complication reader's own `call` builds `new Complications.Id(...)`
-        # inline -- that construction runs *before* WfbComplications.valueOf
-        # is ever reached, so a guard inside the barrel alone would not stop
-        # it.  One `hasComplications` local per frame (not per reader) is
-        # enough: every complication pull this mode uses reads through it.
-        guard_complications = self.device_guards.complications and any(
-            READERS[name].requires_module for name in readers
-        )
-        if guard_complications:
-            w.line("var hasComplications = Toybox has :Complications;")
+        # A reader whose whole module some target lacks
+        # (`Guards.modules`: Toybox.Complications on fenix6/fr245,
+        # Toybox.Weather on fenix5/fenix5x) is read behind `Toybox has
+        # :<Module>`.  A complication reader's own `call` builds `new
+        # Complications.Id(...)` inline -- that construction runs *before*
+        # WfbComplications.valueOf is ever reached, so a guard inside the
+        # barrel alone would not stop it.  One `has<Module>` local per frame
+        # (not per reader) is enough: every pull this mode makes from that
+        # module reads through it.
+        guarded = sorted({READERS[name].requires_module for name in readers}
+                         & self.device_guards.modules)
+        for module in guarded:
+            w.line(f"var has{module} = Toybox has :{module};")
         for name in readers:
             # Every reader is a plain pull, complications included: the value
             # each one returns is already the platform's own cached reading
@@ -211,13 +214,13 @@ class ReadPlan:
             # recently cached weather conditions"), so a second cache inside
             # the face's 128 KB would re-store what the system already holds.
             reader = READERS[name]
-            if guard_complications and reader.requires_module:
-                # Absent on a device lacking Toybox.Complications (fenix6,
-                # fr245): reads as null, the same "absence is normal"
-                # contract every other nullable reader already has -- the
-                # element's own guard downstream cannot tell this apart from
-                # an ordinary unsupported complication *type*.
-                w.line(f"var {reader.name} = hasComplications ? {reader.call} : null;")
+            if reader.requires_module in guarded:
+                # Absent on a device lacking the module: reads as null, the
+                # same "absence is normal" contract every other nullable
+                # reader already has -- the element's own guard downstream
+                # cannot tell this apart from an ordinary absent reading (or,
+                # for a complication, an unsupported complication *type*).
+                w.line(f"var {reader.name} = has{reader.requires_module} ? {reader.call} : null;")
             else:
                 w.line(f"var {reader.name} = {reader.call};")
 

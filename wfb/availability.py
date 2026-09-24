@@ -50,7 +50,8 @@ from typing import Iterable
 
 from .catalog import CATALOG, READERS, Source
 from .devices import Device
-from .ir import Face, FontSpec, PatternElement, Text
+from .ir import Face, FontSpec, Graph, PatternElement, Text
+from .series import ACQUISITION, Acquisition
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,8 @@ class Unavailable:
     reason: str
 
 
-def _module_gap(module: str, device: Device) -> Unavailable | None:
+def module_unavailable(module: str, device: Device) -> Unavailable | None:
+    """Is the bare `Toybox` module `module` absent on `device`?"""
     if device.has_module(module):
         return None
     return Unavailable("module", module, f"Toybox.{module} is absent on {device.id}")
@@ -98,16 +100,17 @@ def reader_unavailable(reader_name: str, device: Device) -> Unavailable | None:
     """Is `catalog.READERS[reader_name]`'s call unavailable on `device`?
 
     Checked in the order a call actually fails at runtime: a missing module
-    makes every symbol under it moot (`Reader.requires_module`, set only for
-    the 42 complication readers -- fenix6/fr245 lack `Toybox.Complications`
-    itself, not merely one function in it), so that is checked first; only
+    makes every symbol under it moot (`Reader.requires_module`, set for the
+    42 complication readers and the two `Toybox.Weather` readers --
+    fenix6/fr245 lack `Toybox.Complications` itself, fenix5/fenix5x
+    `Toybox.Weather`, not merely one function in it), so that is checked first; only
     then the specific function symbols `Reader.requires` names. Returns the
     first gap found, or ``None`` when the reader's call is fully available.
     """
     reader = READERS[reader_name]
     modules = () if reader.requires_module is None else (reader.requires_module,)
     return _first_gap(
-        [*(_module_gap(m, device) for m in modules),
+        [*(module_unavailable(m, device) for m in modules),
          *(_symbol_gap(symbol, device) for symbol in reader.requires)])
 
 
@@ -175,14 +178,16 @@ def design_fields(face: Face) -> frozenset[str]:
     """Bare field names (`Device.has_field`'s namespace) this design's
     bound sources actually read off a reader -- `_field_root` of every
     bound path that has one. A path with no field at all (`time.clock`) or
-    one whose reader is itself gated by a module (every `complication.*`
-    path) contributes nothing here: the latter is handled by
-    `uses_complications` instead, since a device lacking `Toybox.
-    Complications` has no field to check in the first place."""
+    a `complication.*` path contributes nothing here: the latter's reader
+    *is* the value (`Complication.value`, present wherever the module is),
+    and its module gap is handled by `uses_complications` instead. A
+    `weather.*` path does contribute: its module gap is guarded by
+    `Guards.modules`, and a device that has `Toybox.Weather` can still lack
+    one field of `CurrentConditions`, which the field guard covers."""
     fields: set[str] = set()
     for path in design_paths(face):
         source = CATALOG.get(path)
-        if source is None or READERS[source.reader].requires_module is not None:
+        if source is None or READERS[source.reader].complication_type is not None:
             continue
         root = _field_root(source)
         if root is not None:
@@ -268,6 +273,29 @@ def uses_complications(face: Face) -> bool:
     )
 
 
+def modules_used(face: Face) -> frozenset[str]:
+    """Every bare `Toybox` module name (`Device.has_module`'s namespace)
+    whose absence on some target the shared generated code can guard with
+    `Toybox has :<Module>` -- a used reader's own `Reader.requires_module`
+    (`Weather`, `Complications`), `Complications` for any of
+    `uses_complications`' other reasons, and `Weather` for a forecast
+    `graph` (its acquisition call is not a catalogue reader, but reads the
+    same module). A heart-rate or activity-history graph contributes
+    nothing: `Toybox.ActivityMonitor` is present on every installed device,
+    and its acquisition has no guarded form.
+    """
+    modules = {READERS[name].requires_module for name in face.requirements().readers
+               if READERS[name].requires_module is not None}
+    if uses_complications(face):
+        modules.add("Complications")
+    for element in face.walk():
+        if (isinstance(element, Graph) and element.series_def is not None
+                and element.series_def.acquisition in (Acquisition.HOURLY_FORECAST,
+                                                       Acquisition.DAILY_FORECAST)):
+            modules.add(ACQUISITION[element.series_def.acquisition].module.removeprefix("Toybox."))
+    return frozenset(modules)
+
+
 # --------------------------------------------------------------------------
 # the aggregate the shared generated code needs
 
@@ -334,6 +362,16 @@ class Guards:
     #: of this source to be safe, even though `_aod` is always false there
     #: at runtime.
     display_mode_guarded: bool = False
+    #: Bare `Toybox` module names (`modules_used`) this design needs that
+    #: at least one target device lacks -- e.g. ``{"Weather"}`` with
+    #: `fenix5` among the targets. Every reference to such a module in the
+    #: shared view sits behind `Toybox has :<Module>` and reads as null
+    #: where it is false: a reader pull (`ReadPlan.emit_reads`, one
+    #: `has<Module>` local per frame) and a forecast graph's acquisition
+    #: (`wfb.emit.monkeyc.graph`). Contains ``"Complications"`` exactly
+    #: when `complications` is true, which the complication-only sites
+    #: (`onLayout`, `on_hold:`, `config: data:`) keep reading.
+    modules: frozenset[str] = frozenset()
 
     @property
     def any(self) -> bool:
@@ -341,7 +379,7 @@ class Guards:
         with neither a missing module nor a missing field nor an
         unavailable-somewhere vector font generates plain, unguarded
         code."""
-        return self.complications or bool(self.fields) or bool(self.vector_fonts)
+        return bool(self.modules) or bool(self.fields) or bool(self.vector_fonts)
 
 
 def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
@@ -351,9 +389,11 @@ def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
     shared, so the guard decision has to be too).
     """
     devices = list(devices)
-    complications = uses_complications(face) and any(
-        not device.has_module("Complications") for device in devices
+    missing_modules = frozenset(
+        module for module in modules_used(face)
+        if any(not device.has_module(module) for device in devices)
     )
+    complications = "Complications" in missing_modules
     used_fields = design_fields(face)
     missing_fields = frozenset(
         field for field in used_fields
@@ -374,4 +414,4 @@ def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
     return Guards(complications=complications, fields=missing_fields,
                   vector_fonts=unavailable_vector_fonts, amoled_target=amoled_target,
                   burn_in_field_guarded=burn_in_field_guarded,
-                  display_mode_guarded=display_mode_guarded)
+                  display_mode_guarded=display_mode_guarded, modules=missing_modules)

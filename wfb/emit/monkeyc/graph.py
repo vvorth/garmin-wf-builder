@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from ... import series
+from ...availability import Guards
 from ...ir import (
     Graph, graph_built_field, graph_max_field, graph_min_field, graph_rebuild_method,
     graph_series_field,
 )
 from ...layout import PlacedGraph
 from ...series import Acquisition
-from .common import NO_AOD, AodStyle, _const_prefix
+from .common import _NO_GUARDS, NO_AOD, AodStyle, _const_prefix
 from ..writer import Writer
 
 
@@ -80,7 +81,7 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: AodStyle = NO_AOD) -> None:
     ])
 
 
-def _emit_graph_rebuild(w: Writer, placed: PlacedGraph) -> None:
+def _emit_graph_rebuild(w: Writer, placed: PlacedGraph, guards: Guards = _NO_GUARDS) -> None:
     """`rebuild<Id>()` -- recompute one graph's cached series.
 
     `heart_rate` is the one hand-written shape in `WfbSeries.mc`, shared by
@@ -97,7 +98,7 @@ def _emit_graph_rebuild(w: Writer, placed: PlacedGraph) -> None:
         if src.acquisition is Acquisition.HEART_RATE:
             _emit_hr_rebuild(w, element)
         else:
-            _emit_array_rebuild(w, element, src)
+            _emit_array_rebuild(w, element, src, guards)
 
 
 def _emit_hr_rebuild(w: Writer, element: Graph) -> None:
@@ -126,20 +127,30 @@ def _emit_hr_rebuild(w: Writer, element: Graph) -> None:
         w.line(f"{graph_series_field(element.id)} = WfbSeries.collectHeartRate(iterator);")
 
 
-def _emit_array_rebuild(w: Writer, element: Graph, src) -> None:
+def _emit_array_rebuild(w: Writer, element: Graph, src, guards: Guards) -> None:
     """`steps`/`calories`/.../`daily_precipitation_chance`: one short array,
     read into a fixed-size `Array<Float?>` -- `null` past the end when the
     acquired array is shorter than the requested sample count, which is the
     ordinary case for a design new enough not to have 7 days of history yet.
+
+    When some target lacks the acquisition's whole module
+    (`Guards.modules`: `Toybox.Weather` on fenix5/fenix5x), the call sits
+    behind `Toybox has :<Module>` and yields null there -- the graph draws
+    empty, the same as a forecast provider with nothing cached.
     """
     info = series.ACQUISITION[src.acquisition]
     n = element.sample_count
     values = graph_series_field(element.id)
-    w.line(f"var raw = {info.call};")
+    module = info.module.removeprefix("Toybox.")
+    guarded = module in guards.modules
+    if guarded:
+        w.line(f"var raw = (Toybox has :{module}) ? {info.call} : null;")
+    else:
+        w.line(f"var raw = {info.call};")
     w.line(f"var out = new [{n}] as Array<Float?>;")
     with w.block(f"for (var i = 0; i < {n}; i += 1)"):
         w.line("out[i] = null;")
-    with w.block_if("if (raw != null)" if info.array_nullable else None):
+    with w.block_if("if (raw != null)" if info.array_nullable or guarded else None):
         w.line(f"var count = WfbSeries.min({n}, raw.size());")
         with w.block("for (var i = 0; i < count; i += 1)"):
             if info.newest_first:

@@ -283,7 +283,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
         for placed in graphs:
-            _emit_graph_rebuild(w, placed)
+            _emit_graph_rebuild(w, placed, guards)
         for placed in resolved.items:
             if isinstance(placed, PlacedComplicationSlot) and placed.icon_font_key is not None:
                 _emit_complication_slot_icon_method(w, resolved, placed)

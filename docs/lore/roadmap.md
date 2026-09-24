@@ -48,12 +48,14 @@ listed as shipped.
     3.2.0 once `fenix5`/`fenix5x` were installed);
   - a device below 3.1.0 is a friendly `target` build error, not a raw
     `monkeyc` failure (`wfb.build.select_devices`);
-  - every complication touch and every missing field is `has`-guarded at
-    runtime (`wfb/availability.py`);
+  - every complication touch, every `Toybox.Weather` touch (readers and
+    forecast graphs; `fenix5`/`fenix5x` lack the module, plan 18 item 2)
+    and every missing field is `has`-guarded at runtime
+    (`wfb/availability.py`, `Guards.modules`/`fields`);
   - an unavailable binding reads as absent, and lint `api-gated` warns; a
-    missing *function* symbol (e.g. `fenix5`'s `Toybox.Weather`) is a build
-    error, `api-gated-unguardable`, since there is no runtime guard for an
-    individual function.
+    missing *function* symbol is a build error, `api-gated-unguardable`,
+    since there is no runtime guard for an individual function (no
+    installed device has one today).
 
   UNVERIFIED on a real pre-4.2.0 device: that a guarded reference to an
   absent module is harmless at load time. A reader *function* that a device

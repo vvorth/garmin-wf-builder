@@ -110,9 +110,12 @@ These cost real time to discover; do not rediscover them.
   not N."
 - **`wfb.availability.Guards`, the per-device API gating this project's one
   shared generated view/delegate needs (2026-09-15).** `compute_guards(face,
-  devices) -> Guards(complications: bool, fields: frozenset[str])` is the
-  single place that decides, once per build, whether the shared code needs
-  a `Toybox has :Complications` guard anywhere, and which bare field names
+  devices) -> Guards(complications: bool, fields: frozenset[str], modules:
+  frozenset[str], ...)` is the single place that decides, once per build,
+  which `Toybox` modules the shared code must `has`-guard (`modules`:
+  `Complications`, and since plan 18 item 2 `Weather`, which
+  `fenix5`/`fenix5x` lack; `complications` is kept as the flag the
+  complication-only sites read), and which bare field names
   (`Device.has_field`'s namespace, e.g. `stressScore`) need an `x has
   :field` guard -- aggregated over *every* device in the build (`targets:`,
   or whatever `-d` selected, which may name non-targets since 2026-09-18), not
@@ -124,8 +127,9 @@ These cost real time to discover; do not rediscover them.
   `guards` parameter to a module-level `_NO_GUARDS` constant so every
   pre-existing caller (every test, any single-device caller) is unaffected.
   Guards are emitted at: `onLayout`'s complication subscribe/register loop,
-  every complication-reader pull in `ReadPlan.declarations` (one
-  `hasComplications` local per frame, not per reader), `on_hold:`'s
+  every module-gated reader pull in `ReadPlan.emit_reads` (one
+  `has<Module>` local per module per frame, not per reader), a forecast
+  graph's acquisition (`wfb.emit.monkeyc.graph`), `on_hold:`'s
   `Complications.exitTo` (both the fixed-type and `complication_slot`
   `auto` forms), and a `config: data:` slot's `Complications.Id` field. Two
   gotchas the implementation ran into: (1) a **field initialiser** runs

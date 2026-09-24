@@ -16,12 +16,12 @@ import difflib
 import re
 from collections.abc import Iterable
 
-from . import availability, catalog, complications
+from . import availability, catalog, complications, series
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
 from .fonts import BakedFont
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Element, Face, FontSpec, HandsElement,
+    CONFIG_SYMBOL, ComplicationSlot, Element, Face, FontSpec, Graph, HandsElement,
     PatternElement, StyleEntry, Text, authored_draw_order, never_together,
 )
 from .layout import (
@@ -1732,7 +1732,7 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
     human-facing half: *which* binding degrades on *which* device, and why
     (`wfb/availability.py`, `docs/research/probes/api-gating/README.md`).
 
-    Five cases, all `api-gated` (WARNING, suppressible) except the last:
+    Six cases, all `api-gated` (WARNING, suppressible) except the fifth:
 
     1. **A catalogue read** the device's module/field table lacks
        (`wfb.availability.source_unavailable`) -- every `complication.*`
@@ -1757,6 +1757,9 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
        unguarded and crash.  A build ERROR under the distinct, deliberately
        unsuppressible code `api-gated-unguardable`
        (`tests/test_lint.py::test_api_gated_unguardable_function_is_an_error`).
+    6. **A forecast `graph` on a device with no `Toybox.Weather`** -- its
+       acquisition is not a catalogue read, so case 1 never sees it; the
+       guarded call yields null there and the graph draws empty.
     """
     device = resolved.device
     probed = _probe_symbols(bag, device, "api-gated", "API-level gating",
@@ -1795,6 +1798,26 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
                         ":Complications' (wfb.availability.compute_guards) -- the hold "
                         "compiles in but is a silent no-op here, not a crash",
                         "the face still works; the element itself still draws as usual",
+                    ],
+                    confidence=f"exact -- {device.id}'s own api.debug.xml",
+                ))
+
+        if isinstance(element, Graph) and element.series_def is not None:
+            module = series.ACQUISITION[element.series_def.acquisition].module
+            gap = availability.module_unavailable(module.removeprefix("Toybox."), device)
+            if gap is not None:
+                _emit(bag, placed, Diagnostic(
+                    Severity.WARNING,
+                    "api-gated",
+                    f"{placed.id}: series {element.series!r} needs module {module}, which "
+                    f"{device.id} lacks, so the graph draws empty there",
+                    element.span,
+                    notes=[
+                        f"confirmed against {device.id}'s own api.debug.xml -- not one of its "
+                        "<dataEntry type=\"module\"> rows",
+                        "the generated view guards the acquisition with 'Toybox has "
+                        f":{module.removeprefix('Toybox.')}' (wfb.availability.compute_guards) "
+                        "-- the build still succeeds; only this graph degrades on this device",
                     ],
                     confidence=f"exact -- {device.id}'s own api.debug.xml",
                 ))

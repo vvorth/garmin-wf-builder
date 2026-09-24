@@ -131,14 +131,17 @@ class Reader:
     requires: tuple[str, ...] = ()
     #: The bare `Toybox` module name (`Device.has_module`'s own namespace,
     #: e.g. ``"Complications"``) this reader's `call` needs to exist at all,
-    #: or ``None`` when `requires` above is enough on its own. Set only for
-    #: the 42 complication readers below: `fenix6` and `fr245` do not merely
-    #: lack the individual functions `WfbComplications.valueOf` calls, they
-    #: lack the `Toybox.Complications` module *itself* -- so every reference
-    #: to it, not only a call, fails at runtime (`wfb.devices.Device.
-    #: has_module`'s own docstring). `wfb.availability.reader_unavailable`
-    #: checks this before `requires`, since a missing module makes checking
-    #: an individual function moot.
+    #: or ``None`` when `requires` above is enough on its own. Set for the
+    #: 42 complication readers below and the two `Toybox.Weather` readers:
+    #: `fenix6` and `fr245` do not merely lack the individual functions
+    #: `WfbComplications.valueOf` calls, they lack the `Toybox.Complications`
+    #: module *itself*, and `fenix5`/`fenix5x` lack `Toybox.Weather` the same
+    #: way -- so every reference to it, not only a call, fails at runtime
+    #: (`wfb.devices.Device.has_module`'s own docstring).
+    #: `wfb.availability.reader_unavailable` checks this before `requires`,
+    #: since a missing module makes checking an individual function moot --
+    #: and a module gap is one codegen can guard (`Toybox has :Weather`,
+    #: `wfb.availability.Guards.modules`), where a function gap is not.
     requires_module: str | None = None
     #: Only set for a `complication.*` reader: the `Complications.Type`
     #: constant this reader pulls (`WfbComplications.valueOf`, a plain read --
@@ -212,6 +215,7 @@ READERS: dict[str, Reader] = {
         "Toybox.Weather",
         nullable=True,
         requires=("Weather.getCurrentConditions",),
+        requires_module="Weather",
     ),
     "weather_daily": Reader(
         "weatherDaily",
@@ -220,6 +224,7 @@ READERS: dict[str, Reader] = {
         "Toybox.Weather",
         nullable=True,
         requires=("Weather.getDailyForecast",),
+        requires_module="Weather",
     ),
     # Toybox/UserProfile.html: getProfile() itself never returns null (unlike
     # the ActivityMonitor/Activity/Weather readers above); the historical

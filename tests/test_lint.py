@@ -1672,9 +1672,11 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     """Cross-check against `wfb.availability.compute_guards`: every kind of
     gap `check_api_gated` treats as a WARNING (reads-as-absent) must be a
     kind the codegen can actually turn into a runtime guard, and the ERROR
-    kind must be exactly the one it cannot. Of `Guards`' fields, only two --
-    `complications` (a module) and `fields` (bare field names) -- are
-    `check_api_gated`'s own namespace; never one for a function, which is
+    kind must be exactly the one it cannot. Of `Guards`' fields, only three --
+    `modules` (bare module names, plan 18 item 2), `complications` (the one
+    module several non-reader sites also guard, always mirrored in
+    `modules`) and `fields` (bare field names) -- are `check_api_gated`'s
+    own namespace; never one for a function, which is
     precisely why `kind == "function"` is promoted to the different,
     unsuppressible code. `vector_fonts` (plan 11) is a third, unrelated
     guard -- a `face:` font's own gates 1-3, governed by `if_unavailable:`
@@ -1693,7 +1695,7 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
         {f.name for f in dc_fields(Guards)}
         - {"vector_fonts", "amoled_target", "burn_in_field_guarded", "display_mode_guarded"}
     )
-    assert guards_field_names == {"complications", "fields"}
+    assert guards_field_names == {"complications", "modules", "fields"}
 
     _skip_unless_installed(db, "fenix6")
     face = load(write_design(FIELD_GAP_DESIGN), Bag())

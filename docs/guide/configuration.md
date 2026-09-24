@@ -477,12 +477,16 @@ independently rather than folded into this one.
 * `api-gated` (suppressible) -- *any* catalogue binding a target device
   cannot actually provide, resolved against that device's own
   `api.debug.xml` rather than an API level (`wfb/availability.py`; CLAUDE.md
-  constraint 6/6e). Four shapes, all WARNING, all reading as absent rather
+  constraint 6/6e). Five shapes, all WARNING, all reading as absent rather
   than failing the build:
   - a `value:`/`color:`/etc. source path whose reader needs a `Toybox`
-    module (e.g. `Complications`) or a field the device's own symbol table
-    lacks -- covers every `complication.*` read this way, for free, via its
-    reader's module gate;
+    module (`Complications`, `Weather`) or a field the device's own symbol
+    table lacks -- covers every `complication.*` and `weather.*` read this
+    way, for free, via its reader's module gate (`fenix5`/`fenix5x` lack
+    `Toybox.Weather`);
+  - a forecast `graph` (`forecast_*`/`daily_*` series) on a device with no
+    `Toybox.Weather` -- the guarded acquisition yields nothing and the graph
+    draws empty there;
   - a complication *type* newer than the device's own ConnectIQ ceiling,
     checked against `wfb.complications.ComplicationType.since`
     (`COMPLICATION_TYPE_*` values are constants with no entry in
@@ -513,7 +517,8 @@ independently rather than folded into this one.
   (`wfb.availability.compute_guards`) -- there is no guard for an individual
   function, so "reads as absent" would be a lie; the call would run
   unguarded and crash on that device. No device this project vendors
-  triggers it today.
+  triggers it today: the one real gap that used to (`fenix5`'s missing
+  `Toybox.Weather`) is a whole-module gap, guarded like `Complications`.
 
 ### What this compiler cannot tell you
 
