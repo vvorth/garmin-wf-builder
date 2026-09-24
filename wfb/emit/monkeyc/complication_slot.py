@@ -9,10 +9,7 @@ from ...ir import (
     config_field, element_method_name,
 )
 from ...layout import COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, ResolvedFace
-from .common import (
-    AodDim, SourceFile, _NO_GUARDS, _aod_color, _color, _const_prefix, _dim_color_code, _field,
-    header,
-)
+from .common import NO_AOD, AodStyle, SourceFile, _NO_GUARDS, _color, _const_prefix, _field, header
 from ..writer import Writer
 
 
@@ -230,15 +227,8 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
     w.blank()
 
 
-    # `IconGlyphs.glyph` turns the catalogue name into the actual character --
-    # see `emit_icon_glyphs`'s own docstring for why a name, not a raw
-    # character, is what this method should have produced in the first
-    # place, matching the weather-icon split.
-
-
 def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot,
-                            guards: "Guards" = _NO_GUARDS, aod: bool = False,
-                            dim: AodDim = None) -> None:
+                            guards: "Guards" = _NO_GUARDS, aod: AodStyle = NO_AOD) -> None:
     """A native Data-axis slot: pull the wearer's chosen complication, choose
     an icon from its *type* alone, then draw the two as one centred pair.
 
@@ -356,34 +346,20 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
                 w.line("text += WfbComplications.unitSuffix(pulled.unit);")
     w.blank()
 
-    text_color_expr = _aod_color(element, "color", _color(element.color), aod, dim)
-    base_icon_color_expr = _color(element.icon_color) if element.icon_color is not None else None
-    icon_aod_override = (
-        element.aod.icon_color if (aod and element.aod is not None) else None
-    )
-    if icon_aod_override is None:
-        # No explicit `aod: {icon_color: ...}` -- an authored `icon_color:`
-        # is still dimmed, the same "dim reaches every AOD colour, override
-        # or not" rule `_aod_color` applies to `color:` above (plan 14
-        # §4.5). An *absent* `icon_color:` (`base_icon_color_expr is None`)
-        # needs nothing here: the icon then simply draws in whatever `dc` is
-        # already set to, which is `text_color_expr` -- itself already
-        # dimmed by the call above -- so dimming it a second time here would
-        # be dimming an already-dimmed colour.
-        if (aod and element.aod is not None and dim is not None
-                and base_icon_color_expr is not None):
-            dimmed_icon = _dim_color_code(element.icon_color, base_icon_color_expr, dim)
-            icon_color_expr = f"(_aod ? {dimmed_icon} : {base_icon_color_expr})"
-        else:
-            icon_color_expr = base_icon_color_expr
+    text_color_expr = aod.color(element, "color")
+    # `None` when the icon simply draws in the text's colour, `dc`'s state
+    # already: no `icon_color:` and no `aod: {icon_color: ...}` either. An
+    # `aod:` override with no awake `icon_color:` keeps the text's colour
+    # while awake; `dim` (applied inside `aod.color`) reaches an authored
+    # `icon_color:` but never the text colour a second time.
+    has_icon_override = (aod.on and element.aod is not None
+                         and element.aod.icon_color is not None)
+    if element.icon_color is None and not has_icon_override:
+        icon_color_expr = None
     else:
-        # No awake `icon_color:` at all falls back to whatever colour `dc`
-        # is already left at (`text_color_expr`, set unconditionally just
-        # below) -- the same "icon draws in the text's colour by default"
-        # awake behaviour this element always had, unchanged while `_aod`
-        # is false.
-        awake_icon_expr = base_icon_color_expr if base_icon_color_expr is not None else text_color_expr
-        icon_color_expr = f"(_aod ? {icon_aod_override.code} : {awake_icon_expr})"
+        awake_icon_expr = (_color(element.icon_color) if element.icon_color is not None
+                           else text_color_expr)
+        icon_color_expr = aod.color(element, "icon_color", awake_icon_expr)
     fast_path = (
         placed.icon_position == "left"
         and element.icon_gap is None

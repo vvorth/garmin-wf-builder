@@ -3,6 +3,8 @@ method per drawn element."""
 
 from __future__ import annotations
 
+import itertools
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from ... import complications, expr, series
@@ -20,7 +22,7 @@ from ...layout import (
 from ...palette import dim_fraction
 from ...series import Acquisition
 from .common import (
-    AodDim, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _aod_font_field,
+    NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _aod_font_field,
     _aod_only_fonts, _and_list, _const_prefix, _describe, _editor_slot_pairs, _field,
     _loaded_fonts, _mc_bool, _method, _pattern_needs_math, _vector_fonts_used, header,
     hold_targets,
@@ -118,21 +120,13 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
     group -> element) into one per-element boolean (`wfb.ir.Builder.
     _resolve_inherited_flag`), so "does any primitive-drawing element actually draw
     anti-aliased" is exactly "does any `ANTIALIASED_PRIMITIVES` member have
-    `resolved_antialias == True`" -- no separate walk of the face default and
-    the override tree is needed here.  The same tuple drives
-    `_emit_element_method`'s toggle and `wfb.lint.check_antialias_palette`
-    (this gate once kept a private copy without `PlacedHands`, so a face
-    whose one anti-aliased element was a `type: hands` emitted no
-    `applyAntiAlias` at all).
+    `resolved_antialias == True`".  The same tuple drives
+    `_emit_element_method`'s toggle and `wfb.lint.check_antialias_palette`.
 
-    `None` marks a design that never turns this on for a primitive-drawing
-    element -- whether because the face default is `false` and nothing
-    overrides it, or because the face default is `true` and every
-    primitive-drawing element overrides it back to `false`. Returning `None`
-    rather than `False` here is what lets every call site below skip
-    emitting anything at all, instead of dutifully emitting
-    `applyAntiAlias(dc, false)` calls that would be legal but pointless: a
-    design that never uses the feature emits none of it.
+    `None` (rather than `False`) marks a design where no primitive-drawing
+    element ends up anti-aliased, whatever the face default says, and lets
+    every call site emit nothing at all instead of pointless
+    `applyAntiAlias(dc, false)` calls.
     """
     used = any(
         isinstance(placed, ANTIALIASED_PRIMITIVES) and placed.element.resolved_antialias
@@ -174,69 +168,56 @@ def _emit_antialias_helper(w: Writer) -> None:
 def _has_partial_update(resolved: ResolvedFace) -> bool:
     """Does this build actually get an `onPartialUpdate` -- both the design
     declaring a `low_power` mode and the device itself supporting partial
-    updates (AMOLED forbids it, CLAUDE.md constraint 5).  Named once rather
-    than repeated at each of its three call sites (`emit_view`, twice, and
-    `_emit_sleep_hooks`), which otherwise have to agree independently.
-    """
+    updates (AMOLED forbids it, CLAUDE.md constraint 5)."""
     return resolved.in_mode("low_power") and resolved.device.supports_partial_update
+
+
+def _view_imports(resolved: ResolvedFace, plan: "ReadPlan") -> set[str]:
+    """Every `Toybox` module the view names: the bound sources' readers
+    (`plan.modules`), plus what the view's own machinery calls."""
+    face = resolved.face
+    modules = set(_BASE_IMPORTS) | plan.modules
+    if _has_partial_update(resolved):
+        modules.add("Toybox.System")  # onPowerBudgetExceeded reports via println
+    for placed in resolved.items:
+        if isinstance(placed, PlacedGraph):
+            # System.getClockTime() drives every graph's rebuild cadence.
+            src = placed.element.series_def
+            modules |= {"Toybox.System", series.ACQUISITION[src.acquisition].module}
+            if src.acquisition is Acquisition.HEART_RATE and placed.element.range_kind == "duration":
+                modules.add("Toybox.Time")  # new Time.Duration(seconds)
+        # The view computes a hand's, or a radial pattern's, own sin/cos
+        # directly, not only in the barrel (`_pattern_needs_math` is shared
+        # with `_emit_pattern` itself).
+        if isinstance(placed, PlacedHands) or (
+                isinstance(placed, PlacedPattern) and _pattern_needs_math(placed)):
+            modules.add("Toybox.Math")
+    if face.has_config:
+        # `Application has :WatchFaceConfig` (onLayout's guard), and
+        # `WatchFaceConfig.Settings`/`.getSettings` (applyConfig).
+        modules |= {"Toybox.Application", "Toybox.Application.WatchFaceConfig"}
+    if face.config_data:
+        # `Complications.Id`/`COMPLICATION_TYPE_*`, even when no ordinary
+        # `complication.*` source is bound.
+        modules.add("Toybox.Complications")
+    return modules
 
 
 def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
     face, device = resolved.face, resolved.device
     guards = guards if guards is not None else _NO_GUARDS
     plan = ReadPlan(resolved, guards)
-    if _has_partial_update(resolved):
-        plan.modules.add("Toybox.System")  # onPowerBudgetExceeded reports via println
-
     graphs = [p for p in resolved.items if isinstance(p, PlacedGraph)]
-    graph_modules: set[str] = set()
-    if graphs:
-        # System.getClockTime() drives the rebuild-cadence check on every
-        # graph, regardless of series -- the same call the low-power branch
-        # above adds System for, just unconditional here.
-        graph_modules.add("Toybox.System")
-        for placed in graphs:
-            src = placed.element.series_def
-            graph_modules.add(series.ACQUISITION[src.acquisition].module)
-            if src.acquisition is Acquisition.HEART_RATE and placed.element.range_kind == "duration":
-                graph_modules.add("Toybox.Time")  # new Time.Duration(seconds)
-
-    config_modules: set[str] = set()
-    if face.has_config:
-        # `Application has :WatchFaceConfig` (onLayout's guard) needs the
-        # first; `WatchFaceConfig.Settings`/`.getSettings` (applyConfig)
-        # need the second.
-        config_modules = {"Toybox.Application", "Toybox.Application.WatchFaceConfig"}
-    if face.config_data:
-        # `Complications.Id`/`Complications.COMPLICATION_TYPE_*` -- needed
-        # even when no ordinary `complication.*` source is bound, which is
-        # why this is not folded into `plan.modules` (derived from bound
-        # sources only).
-        config_modules.add("Toybox.Complications")
-
-    hands_items = [p for p in resolved.items if isinstance(p, PlacedHands)]
-    trig_modules: set[str] = set()
-    if hands_items:
-        # The view computes each hand's own sin/cos directly, not just the
-        # barrel -- so Toybox.Math is imported here too, not only in
-        # WfbHands.mc.
-        trig_modules.add("Toybox.Math")
-    pattern_items = [p for p in resolved.items if isinstance(p, PlacedPattern)]
-    if any(_pattern_needs_math(p) for p in pattern_items):
-        # Same reasoning: a radial pattern with at least one non-arc part
-        # computes its own sin/cos in the loop, so Math has to be in scope
-        # here too -- not only when hands are also on the design.
-        # `_pattern_needs_math` is the one place this decision is made,
-        # shared with `_emit_pattern` itself.
-        trig_modules.add("Toybox.Math")
-    hands_awake_second = any(
-        p.second is not None and p.element.seconds == "awake" for p in hands_items
+    # `_sleeping` exists only for an `awake`-only second hand: a field that
+    # is only ever assigned, never read, warns (`docs/lore/monkeyc.md`).
+    needs_sleeping_field = any(
+        isinstance(p, PlacedHands) and p.second is not None and p.element.seconds == "awake"
+        for p in resolved.items
     )
 
     w = Writer()
     w.doc(header(face, f"Device:    {device.id}")).blank()
-    for module in sorted(set(_BASE_IMPORTS) | plan.modules | graph_modules
-                         | config_modules | trig_modules):
+    for module in sorted(_view_imports(resolved, plan)):
         w.line(f"import {module};")
     w.blank()
 
@@ -247,39 +228,20 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         "the element's `id:` in the source YAML, so a change on screen leads back to\n"
         "a line in the design file."
     )
-    # `aod` (plan 14 D1's build-time half): whether *any* target in this
-    # build is AMOLED. Only then does the shared view carry `_aod`, its
-    # onEnterSleep/onExitSleep burn-in check, and the onUpdate branch that
-    # reads it -- an all-MIP build emits none of it, so its generated
-    # source stays byte-identical to a build before plan 14 (plan 14 §6
-    # slice 1's own test).
-    aod = guards.amoled_target
-    if aod:
-        plan.modules.add("Toybox.System")  # DeviceSettings.requiresBurnInProtection
-    # `aod: {dim: ...}` (plan 14 §4.5): computed once here, as the same
-    # `(num, den)` integer ratio every dimming call site shares -- `None`
-    # for "no dimming", which is also what a face with no `dim:` at all (or
-    # an all-MIP build, where `aod` above is already `False`) gets, so
-    # nothing downstream needs a second "does this face even dim" check.
-    dim: AodDim = dim_fraction(face.aod_dim) if aod and face.aod_dim is not None else None
-    # `_sleeping` exists only for the `awake`-only second hand (whether to
-    # draw it at all) -- `aod` no longer reads it: the AMOLED gate is `_aod`
-    # below, recomputed straight from the device settings in onEnterSleep,
-    # not derived from `_sleeping`. A field that is only ever *assigned*
-    # (never read) warns (`docs/lore/monkeyc.md`), which is exactly what
-    # `_sleeping` would do if emitted whenever `aod` alone were true and
-    # nothing reads it back.
-    needs_sleeping_field = hands_awake_second
+    # `aod` (plan 14 D1's build-time half): only when *any* target in this
+    # build is AMOLED does the shared view carry `_aod`, its sleep-hook
+    # burn-in check and the onUpdate branch reading it -- an all-MIP build
+    # emits none of it. `aod: {dim: ...}` (§4.5) is one `(num, den)` ratio
+    # every dimming call site shares.
+    aod_on = guards.amoled_target
+    aod = AodStyle(on=aod_on, dim=dim_fraction(face.aod_dim)
+                   if aod_on and face.aod_dim is not None else None)
     static = static_plan(resolved)
     antialias_default = _antialias_default(resolved)
     slot_pairs = _editor_slot_pairs(face)
-    # `aod: {font: ...}` (plan 14 §4.3): a baked font named only by an AOD
-    # override, never drawn while awake -- computed only when this build
-    # ever emits AOD code at all, so an all-MIP build never even looks
-    # (`aod_only_fonts` would be `[]` there regardless, since no element
-    # gets a resolved `aod:` worth restyling, but this keeps the intent
-    # explicit and matches every other `if aod:`-gated computation here).
-    aod_only_fonts = _aod_only_fonts(resolved) if aod else []
+    # `aod: {font: ...}` (plan 14 §4.3): baked fonts only an AOD override
+    # names, loaded in onEnterSleep instead of onLayout.
+    aod_only_fonts = _aod_only_fonts(resolved) if aod.on else []
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved, aod_only_fonts)
         _emit_config_fields(w, face, guards)
@@ -288,10 +250,16 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if slot_pairs:
             _emit_pulsing_field(w)
         if needs_sleeping_field:
-            w.doc(_sleep_flag_doc(hands_awake_second))
+            w.doc(
+                "Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep "
+                "below.\n\n"
+                "An awake-only second hand ('seconds: awake') reads it, so its own draw\n"
+                "method skips the second hand while asleep instead of drawing it frozen at\n"
+                "whatever second the once-a-minute sleeping update landed on."
+            )
             w.line("private var _sleeping as Boolean = false;")
             w.blank()
-        if aod:
+        if aod.on:
             w.doc(
                 "Whether the AMOLED always-on-display frame should draw: asleep, on a\n"
                 "device that requires burn-in protection. Recomputed in onEnterSleep\n"
@@ -308,10 +276,10 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards)
-        _emit_on_update(w, resolved, plan, aod, static, antialias_default, guards)
+        _emit_on_update(w, resolved, plan, aod.on, static, antialias_default, guards)
         if _has_partial_update(resolved):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
-        _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod, guards, aod_only_fonts)
+        _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod.on, guards, aod_only_fonts)
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
         for placed in graphs:
@@ -329,24 +297,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             if placed.kind == "group":
                 continue
             w.blank()
-            _emit_element_method(w, resolved, placed, plan, antialias_default, aod, dim)
+            _emit_element_method(w, resolved, placed, plan, antialias_default, aod)
     return SourceFile(f"source/{face.entry}View.mc", w.render())
-
-
-def _sleep_flag_doc(hands_awake_second: bool) -> str:
-    """`_sleeping`'s own doc -- unlike before plan 14, this field exists only
-    for the awake-only second hand; the AMOLED gate is `_aod`, which has its
-    own doc where it is declared (`emit_view`), computed fresh from the
-    device settings rather than derived from this flag.
-    """
-    assert hands_awake_second  # the only reason this field is ever emitted
-    return (
-        "Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep "
-        "below.\n\n"
-        "An awake-only second hand ('seconds: awake') reads it, so its own draw\n"
-        "method skips the second hand while asleep instead of drawing it frozen at\n"
-        "whatever second the once-a-minute sleeping update landed on."
-    )
 
 
 def _emit_static_field(w: Writer, static: "StaticPlan | None") -> None:
@@ -452,14 +404,13 @@ def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
         w.line("dc.clear();")
         if antialias_default is not None:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
-        calls = []
         for root, members in static.groups:
             assert all(p.element.layout == root.element.layout for p in members), (
                 f"static root {root.id!r} mixes layouts across its own members -- "
                 "_apply_static/_assign_layouts should make that unreachable"
             )
-            calls.append((root.element, f"{static.method(root)}(dc);"))
-        _emit_layout_guarded_calls(w, face, calls)
+        _emit_layout_guarded(w, face, [root for root, _ in static.groups],
+                             lambda root: w.line(f"{static.method(root)}(dc);"))
     if needs_repaint:
         w.blank()
         w.doc("Re-paint the static buffer from the current field values, in place.\n"
@@ -685,7 +636,7 @@ RESOLVE_STYLE_METHOD = "resolveStyle"
 
 
 #: The view field the active layout's declaration-order index is cached in
-#: -- `_configLayout`, read by every guard below (`_emit_layout_guarded_calls`)
+#: -- `_configLayout`, read by every guard below (`_emit_layout_guarded`)
 #: and by the view's own `configLayout()` accessor.  Emitted only when
 #: `face.layouts` is non-empty: there is nothing for it to hold otherwise.
 CONFIG_LAYOUT_FIELD = config_field("layout")
@@ -791,18 +742,6 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
     w.blank()
 
 
-def _emit_complication_subscribe_lines(w: Writer, event: list[str]) -> None:
-    """The register-callback line, then one `WfbComplications.subscribe` per
-    reader -- emitted identically whether or not it sits behind a `Toybox has
-    :Complications` guard, so `_emit_on_layout`'s guarded and unguarded
-    branches cannot drift apart.
-    """
-    w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));")
-    for name in event:
-        reader = READERS[name]
-        w.line(f"WfbComplications.subscribe(new Complications.Id(Complications.{reader.complication_type}));")
-
-
 def _emit_vector_font_construction(w: Writer, name: str, guards: "Guards") -> None:
     """One font's `Graphics.getVectorFont(...)` construction in `onLayout`
     (plan 11 §3): the plain form when every target device in this build
@@ -829,12 +768,12 @@ def _emit_vector_font_construction(w: Writer, name: str, guards: "Guards") -> No
         f"{field} = Graphics.getVectorFont("
         f"{{:face => Layout.{prefix}_FACE, :size => Layout.{prefix}_SIZE}});"
     )
-    if name in guards.vector_fonts:
+    guarded = name in guards.vector_fonts
+    if guarded:
         w.comment(f"font.{name}: some target device in this build does not publish "
                  "any requested face")
-        with w.block(f"if (Layout.{prefix}_AVAILABLE && (Graphics has :getVectorFont))"):
-            w.line(assignment)
-    else:
+    with w.block_if(f"if (Layout.{prefix}_AVAILABLE && (Graphics has :getVectorFont))"
+                    if guarded else None):
         w.line(assignment)
 
 
@@ -874,19 +813,22 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                 "onUpdate, not delivered here. WfbComplications.subscribe absorbs "
                 "a device that does not support a given type"
             )
-            if plan.device_guards.complications:
-                # Unlike an unsupported *type* (WfbComplications.subscribe's own
-                # job), a device that lacks Toybox.Complications entirely --
-                # fenix6, fr245 -- fails on the bare reference to
-                # registerComplicationChangeCallback/Complications.Id, before
-                # WfbComplications is ever reached, so the guard has to sit
-                # here, not in the barrel (CLAUDE.md: monkeyc checks the
-                # SDK-wide API, not the device's -- this only fails at runtime).
+            # Unlike an unsupported *type* (WfbComplications.subscribe's own
+            # job), a device that lacks Toybox.Complications entirely --
+            # fenix6, fr245 -- fails on the bare reference to
+            # registerComplicationChangeCallback/Complications.Id, before
+            # WfbComplications is ever reached, so the guard has to sit
+            # here, not in the barrel (CLAUDE.md: monkeyc checks the
+            # SDK-wide API, not the device's -- this only fails at runtime).
+            guarded = plan.device_guards.complications
+            if guarded:
                 w.comment("Toybox.Complications is absent on at least one target device")
-                with w.block("if (Toybox has :Complications)"):
-                    _emit_complication_subscribe_lines(w, event)
-            else:
-                _emit_complication_subscribe_lines(w, event)
+            with w.block_if("if (Toybox has :Complications)" if guarded else None):
+                w.line("Complications.registerComplicationChangeCallback("
+                       "method(:onComplicationChanged));")
+                for name in event:
+                    w.line("WfbComplications.subscribe(new Complications.Id("
+                           f"Complications.{READERS[name].complication_type}));")
         if has_config:
             if loaded or event:
                 w.blank()
@@ -942,58 +884,39 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
     w.blank()
 
 
-def _emit_layout_guarded_calls(w: Writer, face: Face, calls: list) -> None:
-    """Emit a sequence of ``(element, call_line)`` pairs, grouping
-    *consecutive* calls whose ``element.layout`` agrees into one
+def _emit_layout_guarded(w: Writer, face: Face, items: list,
+                         emit_one: Callable[[object], None]) -> None:
+    """Emit ``items`` (`Placed`s, in draw order) through ``emit_one``,
+    grouping *consecutive* items whose ``element.layout`` agrees into one
     ``if (_configLayout == N) { ... }`` block; ``layout is None`` (shared
     content) emits with no guard at all -- **guards test the layout, never
     the config entry**: however many `config: style:` entries share one
     layout, this still emits only the one guard for it.
 
-    The one place any draw sequence decides how a layout gates a call, so
-    ``_emit_mode_body``, ``_emit_on_partial_update`` and
-    ``_emit_static_methods``'s per-root calls in ``renderStatic`` cannot
-    drift into guarding differently.  A design with no `layouts:` has
-    ``element.layout is None`` on every element, so every call falls into
-    the single unguarded branch below and the emitted sequence is exactly
-    what it always was -- the golden files and the baseline byte-identity
-    both rest on that.
+    The one place any draw sequence decides how a layout gates a call --
+    `onUpdate`'s active and AOD branches, `onPartialUpdate` and
+    `renderStatic` -- so none of them can drift into guarding differently.
+    A design with no `layouts:` has ``element.layout is None`` everywhere,
+    so the emitted sequence is exactly the unguarded one.
     """
-    index = 0
-    total = len(calls)
-    while index < total:
-        element, line = calls[index]
-        layout = element.layout
-        end = index + 1
-        while end < total and calls[end][0].layout == layout:
-            end += 1
-        if layout is None:
-            for k in range(index, end):
-                w.line(calls[k][1])
-        else:
-            guard = f"{CONFIG_LAYOUT_FIELD} == {face.layouts.index(layout)}"
-            with w.block(f"if ({guard})"):
-                for k in range(index, end):
-                    w.line(calls[k][1])
-        index = end
+    for layout, run in itertools.groupby(items, key=lambda placed: placed.element.layout):
+        guard = (None if layout is None
+                 else f"if ({CONFIG_LAYOUT_FIELD} == {face.layouts.index(layout)})")
+        with w.block_if(guard):
+            for placed in run:
+                emit_one(placed)
 
 
-def _draw_calls(resolved: ResolvedFace, plan: "ReadPlan", mode: str,
-                skip: frozenset[str] = frozenset()) -> list:
-    """`(element, call_line)` pairs for every element drawn in ``mode``, in
-    draw order -- shared by `_emit_mode_body` (which passes ``skip``, a
-    static id already painted into the buffer) and `_emit_on_partial_update`
-    (which never skips anything: it draws `low_power` fresh every call, with
-    no static blit of its own).
-    """
-    calls = []
-    for placed in resolved.items:
-        if placed.kind == "group" or mode not in placed.element.modes:
-            continue
-        if placed.id in skip:
-            continue  # painted into the buffer above
-        calls.append((placed.element, f"{_method(placed.id)}(dc{plan.arguments(placed)});"))
-    return calls
+def _drawn_in(resolved: ResolvedFace, mode: str, skip: frozenset[str] | set[str] = frozenset()) -> list:
+    """Every element drawn in ``mode``, in draw order, minus ``skip`` (the
+    static ids `_emit_mode_body` already blitted from the buffer)."""
+    return [placed for placed in resolved.items
+            if placed.kind != "group" and mode in placed.element.modes and placed.id not in skip]
+
+
+def _draw_call(plan: "ReadPlan", placed) -> str:
+    """The one call statement that draws ``placed`` from a frame method."""
+    return f"{_method(placed.id)}(dc{plan.arguments(placed)});"
 
 
 def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: str,
@@ -1010,72 +933,40 @@ def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: s
     plan.emit_reads(w, mode)
     w.blank()
     skip = static.ids if static is not None else set()
-    calls = _draw_calls(resolved, plan, mode, skip)
-    _emit_layout_guarded_calls(w, resolved.face, calls)
+    _emit_layout_guarded(w, resolved.face, _drawn_in(resolved, mode, skip),
+                         lambda placed: w.line(_draw_call(plan, placed)))
 
 
 def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                    guards: "Guards" = _NO_GUARDS) -> None:
-    """The AMOLED always-on frame (plan 14 slices 1-2): every element whose
-    resolved `aod:` is not `None`, calling the exact same per-element method
-    the active frame calls, restyled by the ternaries/branches those methods
-    now read `_aod` through -- finished off by `WfbAodMask.apply` (plan 16
-    slice 1), the moving 2x2 pixel mask, when `face.aod_mask` is on and
-    something was actually drawn above for it to mask.
+    """The AMOLED always-on frame (plan 14): every element whose resolved
+    `aod:` is not `None`, calling the same per-element method the active
+    frame calls (restyled inside by `AodStyle`'s `_aod` ternaries), then
+    `WfbAodMask.apply` (plan 16) when `face.aod_mask` is on and something
+    was drawn for it to mask.
 
-    **`DISPLAY_MODE_OFF` (plan 14 slice 6, research 11 §6 F): drawn nothing,
-    before even the black clear.** `_aod` only narrows "asleep, on a
-    burn-in-protected device" -- it says nothing about *which* of the FAQ's
-    three display modes that device is actually in right now (research 11
-    §2: `System.getDisplayMode`/`DISPLAY_MODE_*`/`Application.AppBase.
-    onDisplayModeChanged`, none of which `_aod` reads). `DISPLAY_MODE_OFF`
-    ("Display is off," `Toybox/System.html`) means the panel itself is
-    unlit: no pixel this call could draw would ever become visible, so
-    there is nothing to gain from drawing -- not even the black clear
-    below, since clearing to black changes nothing an off panel would show
-    either, and skipping it is strictly cheaper. The next call that finds
-    the mode back at `DISPLAY_MODE_LOW_POWER` clears and redraws fresh, so
-    nothing is left stale by skipping a frame here. Only emitted on a
-    device that actually has the symbol (`Guards.display_mode_guarded`
-    decides whether that needs a runtime `has` check or not, mirroring
-    `Guards.burn_in_field_guarded`); a device lacking `getDisplayMode`
-    (every device installed here except `fenix847mm`/`fenix947mm`, research
-    11 §2) keeps the pre-slice-6 behaviour of drawing the resolved `aod:`
-    set on every asleep frame, `_sleeping` as the only signal it has ever
-    had.
+    **`DISPLAY_MODE_OFF` draws nothing, not even the black clear** (research
+    11 §6 F): `_aod` says "asleep, burn-in-protected", not which display
+    mode the device is in, and an unlit panel shows nothing this call could
+    draw; the next `DISPLAY_MODE_LOW_POWER` call redraws fresh. `has`-guarded
+    when some target lacks `getDisplayMode` (`Guards.display_mode_guarded`);
+    such a device simply draws the AOD set on every asleep frame.
 
-    **A static element bypasses its buffer here** (plan 14 §4.4): the
-    buffer is one opaque, all-or-nothing blit painted once, in `onLayout`,
-    from the *active* styling, so it can never stand in for a restyled AOD
-    frame. Its own generated method (`_method(placed.id)`) exists
-    regardless of `static:` -- it is what `renderStatic` itself calls to
-    fill the buffer in the first place (`_emit_static_methods`) -- so
-    calling it a second time, directly, while `_aod`, costs nothing new to
-    generate: this is simply no longer excluded from `entries` below.
+    **A static element bypasses its buffer here** (§4.4): the buffer holds
+    the *active* styling, so the element's own method (which
+    `renderStatic` calls anyway) is called directly instead.
 
-    The element's own generated method already checks its plain `visible:`
-    unconditionally (awake or asleep); only the *extra* condition an
-    `aod: {visible: ...}` override contributes, if any, is checked here, at
-    the call site (`ReadPlan.aod_guard_condition`).
+    The element's own method already checks its plain `visible:`; only an
+    `aod: {visible: ...}` extra condition is checked at the call site
+    (`ReadPlan.aod_guard_condition`).
 
-    **Starts from black, unconditionally.** `Dc` keeps its contents between
-    `onUpdate` calls -- there is no implicit clear -- and the awake frame's
-    own background element (if it has one) is exactly what the active
-    branch relies on for that. An `aod:`-drawn design's own resolved set
-    almost never includes a full-screen background (the whole point is to
-    light as little as possible), so without this the first AOD frame
-    would draw its few elements over whatever the *last awake frame*
-    happened to leave behind -- every pixel that frame lit stays lit,
-    which is precisely the burn-in this feature exists to prevent. Black
-    is the only correct AOD ground (research 11 §1.1: a pixel is "off"
-    only when it renders black), so this is not configurable the way
-    `renderStatic`'s own ground-clear isn't either.
+    **Starts from black, unconditionally**: `Dc` keeps its contents between
+    `onUpdate` calls, and the AOD set rarely includes the awake frame's
+    background, so without a clear every pixel the last awake frame lit
+    would stay lit -- the burn-in this frame exists to prevent.
     """
-    # `_emit_aod_body` is only ever called from inside `_emit_on_update`'s own
-    # `if (_aod)` branch, itself only emitted when `aod` (== `guards.
-    # amoled_target`) is true, so this check does not need to test that flag
-    # again -- only whether the device (some, all, or none) actually has the
-    # symbol, exactly the question `guards.display_mode_guarded` answers.
+    # Only ever called inside `_emit_on_update`'s `if (_aod)` branch, so
+    # the only open question is whether the device has the symbol.
     w.comment("research 11 §6 F: the panel is unlit, so there is nothing to draw --")
     w.comment("not even the black clear below, which an off panel could not show anyway")
     condition = "System.getDisplayMode() == System.DISPLAY_MODE_OFF"
@@ -1092,58 +983,25 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
     w.blank()
     ids = set(plan.aod_ids())
     entries = [placed for placed in resolved.items if placed.id in ids]
-    _emit_layout_guarded_aod_calls(w, resolved.face, plan, entries)
-    # `aod: {mask: ...}` (plan 16 slice 1): the moving 2x2 pixel mask, drawn
-    # last so it forces every element's own pixels black except the one
-    # kept lit each minute -- only when the face wants it (`aod_mask`,
-    # `True` unless `mask: false`) and there is actually something drawn
-    # above to mask; an empty `entries` means the frame is already all
-    # black, and masking that would be pure waste (mirrors the plan's own
-    # "masking an all-black frame is pure waste" note for the emission
-    # gate).
+    _emit_layout_guarded(w, resolved.face, entries,
+                         lambda placed: _emit_one_aod_call(w, plan, placed))
+    # The moving 2x2 pixel mask, drawn last; an empty frame is already black.
     if resolved.face.aod_mask and entries:
         w.blank()
         w.comment("aod: {mask: ...} (plan 16): moves the lit pixel every minute")
         w.line("WfbAodMask.apply(dc, System.getClockTime().min);")
 
 
-def _emit_layout_guarded_aod_calls(w: Writer, face: Face, plan: "ReadPlan", entries: list) -> None:
-    """`_emit_layout_guarded_calls`'s own layout-grouping shape, for the AOD
-    branch: each call may need its own `var`-declarations and an `if` guard
-    ahead of it (`_emit_one_aod_call`), which a flat `(element, line)` pair
-    cannot carry, so this walks `entries` (`Placed`, not pre-rendered lines)
-    directly instead of building on that helper.
-    """
-    index = 0
-    total = len(entries)
-    while index < total:
-        placed = entries[index]
-        layout = placed.element.layout
-        end = index + 1
-        while end < total and entries[end].element.layout == layout:
-            end += 1
-        if layout is None:
-            for k in range(index, end):
-                _emit_one_aod_call(w, plan, entries[k])
-        else:
-            guard = f"{CONFIG_LAYOUT_FIELD} == {face.layouts.index(layout)}"
-            with w.block(f"if ({guard})"):
-                for k in range(index, end):
-                    _emit_one_aod_call(w, plan, entries[k])
-        index = end
-
-
 def _emit_one_aod_call(w: Writer, plan: "ReadPlan", placed) -> None:
-    call = f"{_method(placed.id)}(dc{plan.arguments(placed)});"
+    """One element's call in the AOD frame, behind its `aod: {visible: ...}`
+    extra condition when it has one (`ReadPlan.aod_guard_condition`)."""
     condition = plan.aod_guard_condition(placed)
-    if condition is None:
-        w.line(call)
-        return
-    for name, read in plan.aod_guard_declarations(placed):
-        w.line(f"var {name} = {read};")
-    w.comment(f"aod: visible: {placed.element.aod.visible_override.text}")
-    with w.block(f"if ({condition})"):
-        w.line(call)
+    if condition is not None:
+        for name, read in plan.aod_guard_declarations(placed):
+            w.line(f"var {name} = {read};")
+        w.comment(f"aod: visible: {placed.element.aod.visible_override.text}")
+    with w.block_if(f"if ({condition})" if condition is not None else None):
+        w.line(_draw_call(plan, placed))
 
 
 def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
@@ -1173,8 +1031,8 @@ def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
         plan.emit_reads(w, "low_power")
         w.blank()
-        calls = _draw_calls(resolved, plan, "low_power")
-        _emit_layout_guarded_calls(w, resolved.face, calls)
+        _emit_layout_guarded(w, resolved.face, _drawn_in(resolved, "low_power"),
+                             lambda placed: w.line(_draw_call(plan, placed)))
         w.line("dc.clearClip();")
     w.blank()
 
@@ -1275,8 +1133,8 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
 
 
 def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadPlan",
-                         antialias_default: bool | None = None, aod: bool = False,
-                         dim: AodDim = None) -> None:
+                         antialias_default: bool | None = None,
+                         aod: AodStyle = NO_AOD) -> None:
     element = placed.element
     w.doc(_method_doc(placed))
     signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
@@ -1304,7 +1162,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             # `plan.guards`/`value_guards` to say about it -- `color:` is the
             # only ordinary expression here, and `Builder._build_complication_
             # slot` already requires it to be non-nullable.
-            _emit_complication_slot(w, resolved, placed, plan.device_guards, aod, dim)
+            _emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
             return
         value_guards = plan.value_guards(placed)
         if substitutes_value:
@@ -1336,19 +1194,19 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
             w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
         if isinstance(placed, PlacedShape):
-            _emit_shape(w, placed, aod, dim)
+            _emit_shape(w, placed, aod)
         elif isinstance(placed, PlacedText):
-            _emit_text(w, resolved, placed, value_guards, aod, dim)
+            _emit_text(w, resolved, placed, value_guards, aod)
         elif isinstance(placed, PlacedProgress):
-            _emit_progress(w, placed, value_guards, aod, dim)
+            _emit_progress(w, placed, value_guards, aod)
         elif isinstance(placed, PlacedIcon):
-            _emit_icon(w, placed, aod, dim)
+            _emit_icon(w, placed, aod)
         elif isinstance(placed, PlacedGraph):
-            _emit_graph(w, placed, aod, dim)
+            _emit_graph(w, placed, aod)
         elif isinstance(placed, PlacedHands):
-            _emit_hands(w, placed, aod, dim)
+            _emit_hands(w, placed, aod)
         elif isinstance(placed, PlacedPattern):
-            _emit_pattern(w, placed, aod, dim)
+            _emit_pattern(w, placed, aod)
         if overrides_antialias:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 

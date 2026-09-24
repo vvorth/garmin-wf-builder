@@ -585,7 +585,7 @@ The second hand's own `if (!_sleeping)` wraps only that hand's parts,
 inside its own element's draw method — the hour and minute hands, and any
 `always_on` element set elsewhere in the same design, are unaffected. See
 `docs/guide/analog-hands.md` and `wfb/emit/monkeyc/view.py`'s
-`_sleep_flag_doc`/`_emit_sleep_hooks`.
+`emit_view`/`_emit_sleep_hooks`.
 
 #### Amended (2026-09-23, plan 14 D3): `always_on` removed outright; the AMOLED sleep frame is `aod:`
 

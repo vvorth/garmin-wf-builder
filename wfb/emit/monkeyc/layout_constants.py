@@ -15,13 +15,12 @@ from .common import (
 from ..writer import Writer
 
 
-# --------------------------------------------------------------------------
-# per-device layout constants
+#: One `Layout` block: `(name, value, note)` per constant, the note (if any)
+#: rendered as a trailing comment.
+Constants = list[tuple[str, float | str | bool | McLiteral, str]]
 
 
-def _emit_constants(
-    w: Writer, constants: list[tuple[str, float | str | bool | McLiteral, str]],
-) -> None:
+def _emit_constants(w: Writer, constants: Constants) -> None:
     """Render one `const NAME as TYPE = VALUE;  // note` block -- the one
     place a `Layout` constant is rendered, shared by the font-name-level
     block (`_emit_vector_font_constants`) and the per-placed-element loop
@@ -33,9 +32,7 @@ def _emit_constants(
         w.line(f"const {name} as {_mc_type(value)} = {_mc_number(value)};{suffix}")
 
 
-def _vector_font_constants(
-    resolved: ResolvedFace, name: str, guards: "Guards",
-) -> list[tuple[str, float | str | bool | McLiteral, str]]:
+def _vector_font_constants(resolved: ResolvedFace, name: str, guards: "Guards") -> Constants:
     """The `Layout` constants for one used `face:` (vector) font, by name
     (plan 11 §3) -- `FONT_<NAME>_FACE`/`_SIZE` always, `_AVAILABLE` only
     when `guards.vector_fonts` says at least one *target* device in this
@@ -58,7 +55,7 @@ def _vector_font_constants(
     resolved_face = vector_font_face(spec, device)
     size_px = spec.pixel_size(device.minor_radius)
     requested = ", ".join(spec.face)
-    out: list[tuple[str, float | str | bool | McLiteral, str]] = [
+    out: Constants = [
         (f"{prefix}_FACE", resolved_face,
          f"requested, in author order: {requested}" if resolved_face
          else f"none of [{requested}] is published on {device.id}"),
@@ -130,15 +127,16 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
             f"{device.display_type}, family {device.device_family}",
         )
     ).blank()
-    # Toybox.Graphics only when something here is typed against it: a polygon's
-    # point array is `Array<Graphics.Point2D>`, and Point2D is the fixed-size
-    # `[Numeric, Numeric]` tuple type, not `Array<Number>` (verified by
-    # building -- docs/research/probes/polygon-const/).
+    per_item = [(placed, _layout_constants(placed) + _hold_constants(placed))
+                for placed in resolved.items]
+    # Toybox.Graphics only when some constant is typed against it (a
+    # polygon's `Array<Graphics.Point2D>`: Point2D is the fixed-size
+    # `[Numeric, Numeric]` tuple type, not `Array<Number>` -- verified by
+    # building, docs/research/probes/polygon-const/). Read off the constants
+    # themselves, so a new shape typed that way needs no second rule here.
     needs_graphics = any(
-        (isinstance(p, PlacedShape) and p.element.shape == "polygon")
-        or (isinstance(p, PlacedHands) and _hands_needs_graphics(p))
-        or (isinstance(p, PlacedPattern) and _pattern_needs_graphics(p))
-        for p in resolved.items
+        isinstance(value, McLiteral) and "Graphics." in value.type
+        for _, constants in per_item for _, value, _ in constants
     )
     imports = ["import Toybox.Graphics;", "import Toybox.Lang;"] if needs_graphics \
         else ["import Toybox.Lang;"]
@@ -184,8 +182,7 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
             )
             for width in outline_widths:
                 _emit_constants(w, _outline_offsets_constants(width))
-        for placed in resolved.items:
-            constants = _layout_constants(placed) + _hold_constants(placed)
+        for placed, constants in per_item:
             if not constants:
                 continue
             w.blank()
@@ -207,31 +204,6 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
             w.line(f"const LOW_POWER_CLIP_WIDTH as Number = {clip.width};")
             w.line(f"const LOW_POWER_CLIP_HEIGHT as Number = {clip.height};")
     return SourceFile(f"source-{device.id}/Layout.mc", w.render())
-
-
-def _hands_needs_graphics(placed: "PlacedHands") -> bool:
-    """Does this `type: hands` element draw at least one polygon part (a
-    rectangle part folded in) -- the only shape that needs
-    `Array<Graphics.Point2D>`, hence `Toybox.Graphics` in scope."""
-    for hand in (placed.hour, placed.minute, placed.second):
-        if hand is None:
-            continue
-        if any(part.shape == "polygon" for part in hand.parts):
-            return True
-    return False
-
-
-def _pattern_needs_graphics(placed: "PlacedPattern") -> bool:
-    """Does this `type: pattern` draw at least one polygon part (a rectangle
-    part folded in) -- the same "needs `Array<Graphics.Point2D>`" test
-    `_hands_needs_graphics` runs for a hand, generalised: a pattern has one
-    flat template rather than up to three named hands.  A `shape: text` part
-    needs no entry here: its `Layout` constants are plain `Number`s (an
-    anchor `_X`/`_Y`, no point array), so it never forces `Toybox.Graphics`
-    into the `Layout` module's own imports -- only the view file, which
-    already imports `Toybox.Graphics` unconditionally, ever types anything
-    against `Graphics.FontType`."""
-    return any(part.shape == "polygon" for part in placed.parts)
 
 
 def _hold_constants(placed) -> list[tuple[str, float, str]]:
@@ -302,171 +274,205 @@ def _needs_thickness_constant(element) -> bool:
     return aod is not None and aod.filled is False
 
 
-def _aod_thickness_constant(prefix: str, placed) -> list[tuple[str, float, str]]:
+def _aod_thickness_constant(prefix: str, placed,
+                            note: str = "aod: thickness override") -> list[tuple[str, float, str]]:
     """`{prefix}_AOD_THICKNESS`, only when this element's resolved `aod:`
     overrides `thickness:` (plan 14 §4.2) -- the codegen ternary at the draw
     call site falls back to the plain `_THICKNESS` constant otherwise."""
     if placed.aod_thickness is None:
         return []
-    return [(f"{prefix}_AOD_THICKNESS", placed.aod_thickness, "aod: thickness override")]
+    return [(f"{prefix}_AOD_THICKNESS", placed.aod_thickness, note)]
 
 
-def _layout_constants(placed) -> list[tuple[str, float | McLiteral, str]]:
-    prefix = _const_prefix(placed.id)
-    out: list[tuple[str, float | McLiteral, str]] = []
-    if isinstance(placed, PlacedShape):
-        element = placed.element
-        if element.shape in ("circle", "line", "arc", "ellipse"):
-            out.append((f"{prefix}_CX", placed.center[0], ""))
-            out.append((f"{prefix}_CY", placed.center[1], ""))
-        if element.shape == "circle":
-            out.append((f"{prefix}_RADIUS", placed.radius, ""))
-            # A circle's own pen width is inlined as a plain literal at the
-            # draw call site (`wfb.emit.monkeyc.shapes._emit_shape`), not
-            # routed through `Layout` -- unlike every other shape here, so
-            # its `aod_thickness` override is inlined there too, never as a
-            # constant.
-        elif element.shape == "line":
-            out.append((f"{prefix}_END_X", placed.end[0], ""))
-            out.append((f"{prefix}_END_Y", placed.end[1], ""))
-            out.append((f"{prefix}_THICKNESS", placed.thickness, ""))
-            out.extend(_aod_thickness_constant(prefix, placed))
-        elif element.shape == "arc":
-            out.extend(_arc_constants(prefix, placed))
-            out.extend(_aod_thickness_constant(prefix, placed))
-        elif element.shape == "ellipse":
-            out.append((f"{prefix}_RX", placed.rx, "semi-axis along x"))
-            out.append((f"{prefix}_RY", placed.ry, "semi-axis along y"))
-            if _needs_thickness_constant(element):
-                out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
-                out.extend(_aod_thickness_constant(prefix, placed))
-        elif element.shape == "polygon":
-            points = ", ".join(f"[{x}, {y}]" for x, y in placed.points)
-            out.append((
-                f"{prefix}_POINTS",
-                McLiteral("Array<Graphics.Point2D>", f"[{points}]"),
-                f"{len(placed.points)} vertices; fillPolygon's own limit is 64",
-            ))
-        else:
-            rect = placed.rect or placed.box
-            out.extend(_box_constants(prefix, rect))
-            if element.shape == "rounded_rectangle":
-                out.append((f"{prefix}_CORNER", placed.corner_radius, ""))
-            if _needs_thickness_constant(element):
-                out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
-                out.extend(_aod_thickness_constant(prefix, placed))
-    elif isinstance(placed, PlacedText):
-        # For `curve: {style: radial}` this is the *centre of the circle*
-        # (plan 11 §2.2's `at:` reinterpretation, `PlacedText.anchor_point`'s
-        # own docstring), not a `drawText`-style anchor -- still `_X`/`_Y`,
-        # since the codegen call site reads it that way regardless.
-        out.append((f"{prefix}_X", placed.anchor_point[0], ""))
-        out.append((f"{prefix}_Y", placed.anchor_point[1], ""))
-        note = f'widest rendering "{placed.widest}" is {placed.measured_width} px'
-        if placed.width_is_estimated:
-            note += " (estimated)"
-        out.append((f"{prefix}_WIDTH", placed.measured_width, note))
-        if placed.curve_style is not None:
-            # Both angle conventions in the comment, the same `arc`
-            # precedent `_arc_constants`'s own `_START` follows -- keeps the
-            # conversion auditable without having to re-derive it.
-            author_note = (
-                f"{placed.curve_angle_degrees:g}deg clockwise from 12 o'clock"
-                if placed.curve_style == "radial"
-                else f"{placed.curve_angle_degrees:g}deg clockwise rotation from upright"
-            )
-            out.append((
-                f"{prefix}_ANGLE", float(placed.curve_angle_garmin),
-                f"{author_note}, in Garmin's convention",
-            ))
-            if placed.curve_style == "radial":
-                out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))
-    elif isinstance(placed, PlacedProgress):
+def _shape_constants(prefix: str, placed: PlacedShape) -> Constants:
+    element = placed.element
+    out: Constants = []
+    if element.shape in ("circle", "line", "arc", "ellipse"):
         out.append((f"{prefix}_CX", placed.center[0], ""))
         out.append((f"{prefix}_CY", placed.center[1], ""))
-        if placed.element.style == "arc":
-            out.extend(_arc_constants(prefix, placed))
-            out.extend(_aod_thickness_constant(prefix, placed))
-        else:
-            out.extend(_box_constants(prefix, placed.box))
-    elif isinstance(placed, PlacedIcon):
-        # A glyph kind's anchor never itself moves for `align`/`vertical_
-        # align` -- only the device-side justify flags and `_emit_icon`'s
-        # `bottom` subtraction do -- so the constant names and
-        # values stay `_CX`/`_CY` (byte-identical for center/center) even
-        # when aligned; the comment says so only then, so the default note
-        # (`""`) is unchanged.
-        default = placed.element.align == "center" and placed.element.vertical_align == "center"
-        note = "" if default else "the anchor drawText justifies the glyph from, not its centre"
-        out.append((f"{prefix}_CX", placed.center[0], note))
-        out.append((f"{prefix}_CY", placed.center[1], note))
-    elif isinstance(placed, PlacedGraph):
-        out.extend(_box_constants(prefix, placed.box))
-        if placed.element.style == "line":
+    if element.shape == "circle":
+        out.append((f"{prefix}_RADIUS", placed.radius, ""))
+        # A circle's own pen width is inlined as a plain literal at the
+        # draw call site (`wfb.emit.monkeyc.shapes._emit_shape`), not
+        # routed through `Layout` -- unlike every other shape here, so
+        # its `aod_thickness` override is inlined there too, never as a
+        # constant.
+    elif element.shape == "line":
+        out.append((f"{prefix}_END_X", placed.end[0], ""))
+        out.append((f"{prefix}_END_Y", placed.end[1], ""))
+        out.append((f"{prefix}_THICKNESS", placed.thickness, ""))
+        out.extend(_aod_thickness_constant(prefix, placed))
+    elif element.shape == "arc":
+        out.extend(_arc_constants(prefix, placed))
+        out.extend(_aod_thickness_constant(prefix, placed))
+    elif element.shape == "ellipse":
+        out.append((f"{prefix}_RX", placed.rx, "semi-axis along x"))
+        out.append((f"{prefix}_RY", placed.ry, "semi-axis along y"))
+        if _needs_thickness_constant(element):
             out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
             out.extend(_aod_thickness_constant(prefix, placed))
-        elif placed.element.style == "bars":
-            out.append((f"{prefix}_BAR_WIDTH", placed.bar_width,
-                        "centred in each slot"))
-            if placed.aod_bar_width is not None:
-                out.append((f"{prefix}_AOD_BAR_WIDTH", placed.aod_bar_width,
-                            "aod: bar_width override"))
-    elif isinstance(placed, PlacedComplicationSlot):
-        out.append((f"{prefix}_CX", placed.anchor_point[0],
-                    "the icon+reading pair is centred here at runtime"))
-        out.append((f"{prefix}_CY", placed.anchor_point[1], ""))
-        # The editor's animated highlight needs a fixed box at build time --
-        # `getComplicationDrawable` hands the system a `Drawable` up front,
-        # before anything is pulled -- so this reuses the same estimated
-        # `box` the safe-area/overlap lints already accept as good enough for
-        # a slot's real, content-dependent extent (`PlacedComplicationSlot`'s
-        # own docstring).  Emitted for every slot regardless of `on_hold:`:
-        # the editor can animate any slot, not only ones that also launch
-        # something on a live face.
-        out.extend(_box_constants(f"{prefix}_BOX", placed.box,
-                                  "the editor's animated highlight box (estimated)"))
-        if placed.element.icon_gap is not None:
-            # Only emitted when the author actually wrote 'icon_gap:' --
-            # otherwise the generated view keeps embedding the literal
-            # COMPLICATION_SLOT_ICON_GAP it always has, so a design that
-            # never sets this emits none of it. Resolved per device ('%r'
-            # is a different pixel count per screen) the same reason
-            # `wfb.icons.font_key` keys by the *declared* size, not the
-            # resolved one.
-            out.append((f"{prefix}_ICON_GAP", placed.icon_gap_px,
-                        "icon_gap: resolved for this device"))
-    elif isinstance(placed, PlacedHands):
-        out.append((f"{prefix}_CX", placed.center[0], "the axis"))
-        out.append((f"{prefix}_CY", placed.center[1], ""))
-        if placed.aod_thickness is not None:
-            # One override, applied uniformly to every part of every hand
-            # (plan 14 §5.1) -- not one constant per part.
-            out.append((f"{prefix}_AOD_THICKNESS", placed.aod_thickness,
-                        "aod: thickness override, applied to every part"))
-        for hand_name in ("hour", "minute", "second"):
-            hand = getattr(placed, hand_name)
-            if hand is None:
-                continue
-            hand_prefix = f"{prefix}_{hand_name.upper()}"
-            for index, part in enumerate(hand.parts):
-                out.extend(_hand_part_constants(
-                    f"{hand_prefix}_{index}", f"{hand_name} hand", index, part))
-    elif isinstance(placed, PlacedPattern):
-        note = ("the centre every copy turns about" if placed.element.pattern == "radial"
-                else "copy 0's origin")
-        out.append((f"{prefix}_X", placed.center[0], note))
-        out.append((f"{prefix}_Y", placed.center[1], ""))
-        if placed.element.pattern == "linear":
-            out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
-            out.append((f"{prefix}_DY", placed.dy, ""))
-        if placed.aod_thickness is not None:
-            # See PlacedHands' own `_AOD_THICKNESS` -- one override, applied
-            # uniformly to every part (plan 14 §5.1).
-            out.append((f"{prefix}_AOD_THICKNESS", placed.aod_thickness,
-                        "aod: thickness override, applied to every part"))
-        for index, part in enumerate(placed.parts):
-            out.extend(_hand_part_constants(f"{prefix}_{index}", "template", index, part))
+    elif element.shape == "polygon":
+        points = ", ".join(f"[{x}, {y}]" for x, y in placed.points)
+        out.append((
+            f"{prefix}_POINTS",
+            McLiteral("Array<Graphics.Point2D>", f"[{points}]"),
+            f"{len(placed.points)} vertices; fillPolygon's own limit is 64",
+        ))
+    else:
+        rect = placed.rect or placed.box
+        out.extend(_box_constants(prefix, rect))
+        if element.shape == "rounded_rectangle":
+            out.append((f"{prefix}_CORNER", placed.corner_radius, ""))
+        if _needs_thickness_constant(element):
+            out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
+            out.extend(_aod_thickness_constant(prefix, placed))
     return out
+
+
+def _text_constants(prefix: str, placed: PlacedText) -> Constants:
+    # For `curve: {style: radial}` this is the *centre of the circle*
+    # (plan 11 §2.2's `at:` reinterpretation, `PlacedText.anchor_point`'s
+    # own docstring), not a `drawText`-style anchor -- still `_X`/`_Y`,
+    # since the codegen call site reads it that way regardless.
+    note = f'widest rendering "{placed.widest}" is {placed.measured_width} px'
+    if placed.width_is_estimated:
+        note += " (estimated)"
+    out: Constants = [
+        (f"{prefix}_X", placed.anchor_point[0], ""),
+        (f"{prefix}_Y", placed.anchor_point[1], ""),
+        (f"{prefix}_WIDTH", placed.measured_width, note),
+    ]
+    if placed.curve_style is not None:
+        # Both angle conventions in the comment, the same `arc`
+        # precedent `_arc_constants`'s own `_START` follows -- keeps the
+        # conversion auditable without having to re-derive it.
+        author_note = (
+            f"{placed.curve_angle_degrees:g}deg clockwise from 12 o'clock"
+            if placed.curve_style == "radial"
+            else f"{placed.curve_angle_degrees:g}deg clockwise rotation from upright"
+        )
+        out.append((
+            f"{prefix}_ANGLE", float(placed.curve_angle_garmin),
+            f"{author_note}, in Garmin's convention",
+        ))
+        if placed.curve_style == "radial":
+            out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))
+    return out
+
+
+def _progress_constants(prefix: str, placed: PlacedProgress) -> Constants:
+    out: Constants = [
+        (f"{prefix}_CX", placed.center[0], ""),
+        (f"{prefix}_CY", placed.center[1], ""),
+    ]
+    if placed.element.style == "arc":
+        out.extend(_arc_constants(prefix, placed))
+        out.extend(_aod_thickness_constant(prefix, placed))
+    else:
+        out.extend(_box_constants(prefix, placed.box))
+    return out
+
+
+def _icon_constants(prefix: str, placed: PlacedIcon) -> Constants:
+    # A glyph kind's anchor never itself moves for `align`/`vertical_
+    # align` -- only the device-side justify flags and `_emit_icon`'s
+    # `bottom` subtraction do -- so the constant names and values stay
+    # `_CX`/`_CY` even when aligned; the comment says so only then.
+    default = placed.element.align == "center" and placed.element.vertical_align == "center"
+    note = "" if default else "the anchor drawText justifies the glyph from, not its centre"
+    return [
+        (f"{prefix}_CX", placed.center[0], note),
+        (f"{prefix}_CY", placed.center[1], note),
+    ]
+
+
+def _graph_constants(prefix: str, placed: PlacedGraph) -> Constants:
+    out: Constants = list(_box_constants(prefix, placed.box))
+    if placed.element.style == "line":
+        out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
+        out.extend(_aod_thickness_constant(prefix, placed))
+    elif placed.element.style == "bars":
+        out.append((f"{prefix}_BAR_WIDTH", placed.bar_width, "centred in each slot"))
+        if placed.aod_bar_width is not None:
+            out.append((f"{prefix}_AOD_BAR_WIDTH", placed.aod_bar_width,
+                        "aod: bar_width override"))
+    return out
+
+
+def _complication_slot_constants(prefix: str, placed: PlacedComplicationSlot) -> Constants:
+    out: Constants = [
+        (f"{prefix}_CX", placed.anchor_point[0], "the icon+reading pair is centred here at runtime"),
+        (f"{prefix}_CY", placed.anchor_point[1], ""),
+    ]
+    # The editor's animated highlight needs a fixed box at build time --
+    # `getComplicationDrawable` hands the system a `Drawable` up front,
+    # before anything is pulled -- so this reuses the same estimated `box`
+    # the safe-area/overlap lints accept. Emitted for every slot regardless
+    # of `on_hold:`: the editor can animate any slot.
+    out.extend(_box_constants(f"{prefix}_BOX", placed.box,
+                              "the editor's animated highlight box (estimated)"))
+    if placed.element.icon_gap is not None:
+        # Only when the author wrote 'icon_gap:' -- otherwise the view keeps
+        # the literal COMPLICATION_SLOT_ICON_GAP. Resolved per device ('%r'
+        # is a different pixel count per screen).
+        out.append((f"{prefix}_ICON_GAP", placed.icon_gap_px,
+                    "icon_gap: resolved for this device"))
+    return out
+
+
+#: One override, applied uniformly to every part of a hands/pattern element
+#: (plan 14 §5.1) -- not one constant per part.
+_EVERY_PART_NOTE = "aod: thickness override, applied to every part"
+
+
+def _hands_constants(prefix: str, placed: PlacedHands) -> Constants:
+    out: Constants = [
+        (f"{prefix}_CX", placed.center[0], "the axis"),
+        (f"{prefix}_CY", placed.center[1], ""),
+    ]
+    out.extend(_aod_thickness_constant(prefix, placed, _EVERY_PART_NOTE))
+    for hand_name in ("hour", "minute", "second"):
+        hand = getattr(placed, hand_name)
+        if hand is None:
+            continue
+        for index, part in enumerate(hand.parts):
+            out.extend(_hand_part_constants(
+                f"{prefix}_{hand_name.upper()}_{index}", f"{hand_name} hand", index, part))
+    return out
+
+
+def _pattern_constants(prefix: str, placed: PlacedPattern) -> Constants:
+    radial = placed.element.pattern == "radial"
+    out: Constants = [
+        (f"{prefix}_X", placed.center[0],
+         "the centre every copy turns about" if radial else "copy 0's origin"),
+        (f"{prefix}_Y", placed.center[1], ""),
+    ]
+    if not radial:
+        out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
+        out.append((f"{prefix}_DY", placed.dy, ""))
+    out.extend(_aod_thickness_constant(prefix, placed, _EVERY_PART_NOTE))
+    for index, part in enumerate(placed.parts):
+        out.extend(_hand_part_constants(f"{prefix}_{index}", "template", index, part))
+    return out
+
+
+#: Placed kind -> its `Layout` constants; a group has none.
+_CONSTANTS_BY_KIND = {
+    PlacedShape: _shape_constants,
+    PlacedText: _text_constants,
+    PlacedProgress: _progress_constants,
+    PlacedIcon: _icon_constants,
+    PlacedGraph: _graph_constants,
+    PlacedComplicationSlot: _complication_slot_constants,
+    PlacedHands: _hands_constants,
+    PlacedPattern: _pattern_constants,
+}
+
+
+def _layout_constants(placed) -> Constants:
+    constants = _CONSTANTS_BY_KIND.get(type(placed))
+    return constants(_const_prefix(placed.id), placed) if constants is not None else []
 
 
 def _hand_part_constants(
@@ -489,7 +495,7 @@ def _hand_part_constants(
     A text part's own `curve: {style: radial}` (plan 11 slice 2) adds one
     more constant, `_RADIUS`, the device-dependent circle radius -- the
     same reason a standalone `curve: {style: radial}` `text` element's own
-    `PlacedText` gets one (`_layout_constants`'s own `PlacedText` branch).
+    `PlacedText` gets one (`_text_constants`).
     The angle itself is deliberately **not** a `Layout` constant: it is
     device-independent (plain degrees) and needs a *per-copy* runtime term
     for a radial pattern, so it is inlined straight into the shared view

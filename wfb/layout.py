@@ -1302,7 +1302,7 @@ class Resolver:
         # The lint box only -- like `_resolve_text`, the runtime `drawText`
         # anchor stays `(cx, cy)` unshifted: an icon's alignment is a
         # device-side justify, not a build-time box move (see
-        # `wfb.emit.monkeyc._emit_icon`).
+        # `wfb.emit.monkeyc.shapes._emit_icon`).
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         box = Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
         return PlacedIcon(
@@ -1809,7 +1809,7 @@ def _longer(current: str, candidate: str) -> str:
 
 def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
     """The widest string a `fallback:` expression could render, through the
-    same format spec the bound value uses (see `wfb.emit.monkeyc._emit_text`).
+    same format spec the bound value uses (see `wfb.emit.monkeyc.shapes._emit_text`).
 
     A literal string fallback (`fallback: "N/A"`) renders exactly as written,
     the same way `placeholder:` already does above -- `formatting.widest`'s

@@ -464,7 +464,7 @@ from wfb.layout import complication_slot_pair_geometry  # noqa: E402
 
 def test_geometry_left_matches_todays_layout():
     """`left`, the default: icon at the origin, text after it plus the gap --
-    exactly the box `wfb.emit.monkeyc._emit_complication_slot`'s fast path
+    exactly the box `wfb.emit.monkeyc.complication_slot._emit_complication_slot`'s fast path
     has always drawn."""
     g = complication_slot_pair_geometry("left", 10, 12, 30, 14, 4)
     assert (g.width, g.height) == (10 + 4 + 30, max(12, 14))

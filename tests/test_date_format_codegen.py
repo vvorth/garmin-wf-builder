@@ -14,7 +14,7 @@ second reader and thread it into the element's own generated method as a
 parameter, exactly the same "fake path" mechanism it already uses for
 `time.clock`/`device.is_24_hour` on a time format.
 
-`tests/test_formatting.py` covers `formatting.emit`/`date_extra_paths` at
+`tests/test_formatting.py` covers `formatting.emit`/`extra_paths` at
 the unit level; this covers the read plan actually wiring the extra reader
 through a real generated `View.mc`, and a real `monkeyc` build exercising
 every `DATE_CODES`/`TIME_CODES` entry at once (no existing test compiled

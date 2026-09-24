@@ -21,11 +21,9 @@ from ...palette import Color
 _BASE_IMPORTS = ("Toybox.Graphics", "Toybox.Lang", "Toybox.WatchUi")
 
 
-#: The "nothing is missing" `Guards` -- every emit function below that takes
-#: an optional `guards` parameter defaults to this, so a call site that
-#: predates `wfb.availability` (every existing test, and any caller that
-#: only ever generates for one device) keeps producing exactly the
-#: unguarded code it always did.
+#: The "nothing is missing" `Guards` -- the default of every emit function
+#: taking an optional `guards` parameter, which then generates the
+#: unguarded code (a test, or a single-device caller).
 _NO_GUARDS = Guards(complications=False, fields=frozenset())
 
 
@@ -157,23 +155,13 @@ CONFIG_LAYOUT_METHOD = "configLayout"
 def _pattern_needs_math(placed: "PlacedPattern") -> bool:
     """Does this pattern's device loop compute a `sin`/`cos` pair at all?
 
-    Only a **radial** pattern turns; a linear one only ever translates, so
-    it never needs trigonometry.  And even a radial pattern skips it when
-    every part is an `arc`: an arc's start angle turns by plain degree
-    subtraction through `WfbArc.drawSpan`'s own `startDegrees` parameter,
-    not by rotating a coordinate -- so an all-arc radial pattern
-    (`segments` in `examples/features/patterns/face.yaml`) needs no `sin`/`cos` and
-    therefore no `Toybox.Math` either.  A text part is on the same footing
-    as a filled circle's centre here: only its *anchor* is rotated (the
-    glyphs themselves stay upright), but `WfbGeom.rotatedX`/`rotatedY` (split
-    out of a single `drawTextRotated`, once a 10th parameter over CIQ 3.x's
-    ceiling -- see that function's docstring) still take `sin`/`cos` as
-    plain call arguments, exactly like `fillCircleRotated` does for a circle
-    at the origin -- so a text part counts as "not an arc" with no special
-    case needed. Shared by the
-    view's import gate and :func:`_emit_pattern` itself so the two cannot
-    drift into disagreeing about whether the loop declares
-    `angle`/`sin`/`cos`.
+    Only a **radial** pattern turns, and even one skips it when every part
+    is an `arc`: an arc's start angle turns by plain degree subtraction
+    (`WfbArc.drawSpan`'s `startDegrees`), not by rotating a coordinate.
+    Every other part -- a text part's anchor included (`WfbGeom.rotatedX`/
+    `rotatedY`) -- takes `sin`/`cos`.  Shared by the view's import gate and
+    :func:`_emit_pattern` so the two cannot disagree about whether the loop
+    declares `angle`/`sin`/`cos`.
     """
     if placed.element.pattern != "radial":
         return False
@@ -203,11 +191,9 @@ def _glyph_y_expr(y_expr: str, vertical_align: str, font_expr: str) -> str:
 # naming and small helpers
 
 
-#: The symbol-derivation logic lives in `wfb.ir` now (`element_const_prefix`,
-#: `element_method_name`) so that id uniqueness (checked in `ir.Builder`) and
-#: symbol derivation (used here) cannot drift into two different notions of
-#: "the same name" -- see `Builder._check_symbol_collision`. These aliases
-#: keep every call site below unchanged.
+#: Symbol derivation lives in `wfb.ir` so id uniqueness
+#: (`Builder._check_symbol_collision`) and the symbols used here cannot drift
+#: into two notions of "the same name"; short local aliases.
 _const_prefix = element_const_prefix
 
 
@@ -238,11 +224,7 @@ def _color(expression: Expression | None) -> str:
 #: `aod: {dim: ...}` (plan 14 slice 3), as the `(num, den)` integer ratio
 #: `wfb.palette.dim_channel`/the generated `WfbColor.dim` both read -- `None`
 #: means "no dimming", the same as the face never writing `dim:` at all
-#: (`Face.aod_dim`'s own normalisation folds `dim: 1` into this too).  Every
-#: `_emit_*` function below that can draw a colour in the AOD frame takes
-#: this as an optional trailing parameter, threaded down from `emit_view`
-#: exactly alongside `aod: bool` -- the two are always derived together, at
-#: the one place `Guards.amoled_target`/`Face.aod_dim` are both in scope.
+#: (`Face.aod_dim`'s own normalisation folds `dim: 1` into this too).
 AodDim = tuple[int, int] | None
 
 
@@ -257,14 +239,12 @@ def _dim_color_code(expression: Expression | None, awake_code: str, dim: "AodDim
     pre-dimmed into a second literal here, in Python, once, rather than
     spending a runtime call on arithmetic whose answer never changes
     (`wfb.palette.Color.dim`). Anything else -- `config.colors.<role>` (a
-    view field the wearer's own on-device pick can repoint, `Expression.
-    constant is None` by `Builder._define_config_color`'s own design) or a
+    view field the wearer's own on-device pick can repoint) or a
     conditional between several colours -- is dimmed on-device instead, with
-    the exact same integer math (`WfbColor.dim`, `runtime-lib/WfbColor.mc`),
-    since its value is not known until the device resolves it.
+    the exact same integer math (`WfbColor.dim`, `runtime-lib/WfbColor.mc`).
     `expression is None` is a `color:` an element never wrote at all, which
-    defaults to `Graphics.COLOR_WHITE` (`_color`) -- itself fixed at build
-    time, dimmed the same way as any other constant.
+    defaults to `Graphics.COLOR_WHITE` (`_color`) and is dimmed like any
+    other constant.
     """
     num, den = dim
     if expression is None or expression.is_constant:
@@ -273,90 +253,77 @@ def _dim_color_code(expression: Expression | None, awake_code: str, dim: "AodDim
     return f"WfbColor.dim({awake_code}, {num}, {den})"
 
 
-def _aod_color(element, key: str, awake_code: str, aod: bool, dim: "AodDim" = None) -> str:
-    """One colour argument (`color`/`track_color`/`icon_color`), as
-    ``_aod ? <override> : <awake>`` when this element's resolved `aod:`
-    overrides ``key`` *and* this build ever emits AOD code at all (``aod`` --
-    some target is AMOLED, `wfb.availability.Guards.amoled_target`) -- plain
-    ``awake_code`` unchanged otherwise, byte-identical to before this
-    (plan 14 §4.2). An override colour is already a fully resolved
-    `Expression` -- built by `Builder._color_expression`, the exact machinery
-    the element's own `color:` uses -- so its `.code` follows
-    `color_scheme:`/`config.colors` at runtime exactly as `awake_code`
-    already does (plan 14 §4.6): there is no second, narrower colour
-    resolution path here.
+@dataclass(frozen=True)
+class AodStyle:
+    """How this build restyles a draw call for the AMOLED always-on frame
+    (plan 14 §4.2): every override becomes an inline ``_aod ? <aod> :
+    <awake>`` ternary at the draw call site.
 
-    With no override for ``key`` but a face-wide `dim` (plan 14 §4.5), this
-    element is still shown in AOD (`element.aod is not None`, checked
-    above), so its awake colour is dimmed instead of left alone -- `dim`
-    reaches *every* colour the AOD frame draws, not only overridden ones.
+    ``on`` is whether this build emits AOD code at all (some target is
+    AMOLED, `wfb.availability.Guards.amoled_target`); ``dim`` is the
+    face-wide `aod: {dim: ...}` ratio. Both are derived once, in
+    `emit_view`, and every per-kind emitter takes this one object. With
+    ``on`` false every method hands back the awake code unchanged, which is
+    what keeps an all-MIP build byte-identical to a face with no `aod:`.
     """
-    if not aod or element.aod is None:
-        return awake_code
-    override = getattr(element.aod, key)
-    if override is not None:
-        return f"(_aod ? {override.code} : {awake_code})"
-    if dim is None:
-        return awake_code
-    dimmed = _dim_color_code(getattr(element, key, None), awake_code, dim)
-    return f"(_aod ? {dimmed} : {awake_code})"
+
+    on: bool = False
+    dim: AodDim = None
+
+    def value(self, override: str | None, awake_code: str) -> str:
+        """``(_aod ? <override> : <awake>)``, or ``awake_code`` alone when
+        there is no override (already rendered as Monkey C: a `Layout`
+        constant, a literal, a font expression, ...)."""
+        if not self.on or override is None:
+            return awake_code
+        return f"(_aod ? {override} : {awake_code})"
+
+    def layout(self, prefix: str, suffix: str, has_override: bool) -> str:
+        """``Layout.<P>_<suffix>``, ternary against ``Layout.<P>_AOD_<suffix>``
+        when the element's resolved `aod:` overrides that key -- the shape
+        every `Layout`-backed override (`thickness:`, `bar_width:`) takes."""
+        override = f"Layout.{prefix}_AOD_{suffix}" if has_override else None
+        return self.value(override, f"Layout.{prefix}_{suffix}")
+
+    def color(self, element, key: str, awake_code: str | None = None) -> str:
+        """One colour argument (`color`/`track_color`/`icon_color`) of an
+        element shown in AOD: its own `aod:` override for ``key`` if it has
+        one, else its awake colour dimmed by `dim` (which reaches every
+        colour the AOD frame draws), else the awake colour unchanged.
+        ``awake_code`` defaults to the element's own ``key`` colour.
+
+        An override colour is a fully resolved `Expression` built by the same
+        machinery as the element's own `color:`, so it follows
+        `color_scheme:`/`config.colors` at runtime exactly as the awake one
+        does (plan 14 §4.6).
+        """
+        expression = getattr(element, key, None)
+        if awake_code is None:
+            awake_code = _color(expression)
+        if not self.on or element.aod is None:
+            return awake_code
+        override = getattr(element.aod, key)
+        return self._choose(expression, awake_code, override.code if override is not None else None)
+
+    def part_color(self, element, color_expr: Expression | None) -> str:
+        """`color`'s rule for one `hands`/`pattern` part: the element-level
+        `aod: {color: ...}` applies uniformly to every part (§5.1), and
+        `dim` dims each part's own colour."""
+        awake_code = _color(color_expr)
+        if not self.on or element.aod is None:
+            return awake_code
+        override = element.aod.color
+        return self._choose(color_expr, awake_code, override.code if override is not None else None)
+
+    def _choose(self, expression: Expression | None, awake_code: str,
+                override_code: str | None) -> str:
+        if override_code is None and self.dim is not None:
+            override_code = _dim_color_code(expression, awake_code, self.dim)
+        return self.value(override_code, awake_code)
 
 
-def _aod_part_color(color_expr: Expression | None, override_code: str | None, aod: bool,
-                    dim: "AodDim") -> str:
-    """`_aod_color`'s own colour-selection rule (override, then dim, then
-    plain), for a `hands`/`pattern` part -- which has no single `element` to
-    read a `key` off of (`aod: {color: ...}` applies uniformly to every
-    part, §5.1), just this one part's own resolved `color:` `Expression` and
-    whatever ternary string the caller already derived for the element-level
-    override.  ``dim`` is expected already narrowed to `None` when this
-    element is not shown in AOD at all (`element.aod is None`) -- the same
-    "no override, no dim, nothing to do" outcome `_aod_color` reaches by
-    checking that itself.
-    """
-    awake_code = _color(color_expr)
-    if not aod:
-        return awake_code
-    if override_code is not None:
-        return f"(_aod ? {override_code} : {awake_code})"
-    if dim is None:
-        return awake_code
-    return f"(_aod ? {_dim_color_code(color_expr, awake_code, dim)} : {awake_code})"
-
-
-def _aod_layout_override_expr(prefix: str, suffix: str, has_override: bool, aod: bool) -> str:
-    """``Layout.<P>_<suffix>``, ternary against ``Layout.<P>_AOD_<suffix>``
-    when this element's resolved `aod:` overrides the corresponding key
-    (plan 14 §4.2) and this build ever emits AOD code (``aod``) -- the plain
-    constant otherwise, byte-identical to before any such override existed.
-
-    Every `Layout`-constant-backed override this project has -- a shape's,
-    a `progress` arc's or a `graph: line`'s own `thickness:`, a
-    `graph: bars`'s own `bar_width:` -- follows exactly this shape (the two
-    constants share one prefix, differing only by an `AOD_` infix), so this
-    is the one place that builds the ternary rather than each caller
-    re-deriving the same three lines (`_thickness_expr` below is now a thin
-    wrapper; `wfb.emit.monkeyc.graph._emit_graph` used to reconstruct this
-    by hand for both its `line` and `bars` styles).
-    """
-    base = f"Layout.{prefix}_{suffix}"
-    override = f"Layout.{prefix}_AOD_{suffix}" if has_override else None
-    return _aod_value(aod, override, base)
-
-
-def _aod_value(aod: bool, override: str | None, awake_code: str) -> str:
-    """The same ternary as `_aod_color`, for a call site that already has
-    the override rendered as a Monkey C expression string (a `Layout`
-    constant reference, a boolean literal, a resolved font expression, ...)
-    rather than an `Expression` object -- `thickness`/`bar_width`/`filled`/
-    `font` overrides all go through this, each building its own ``override``
-    string first. ``override`` is `None` exactly when this element's
-    resolved `aod:` sets no override for this key, in which case
-    ``awake_code`` passes through unchanged.
-    """
-    if not aod or override is None:
-        return awake_code
-    return f"(_aod ? {override} : {awake_code})"
+#: No AOD code at all -- the default for every emitter's `aod` parameter.
+NO_AOD = AodStyle()
 
 
 def _mc_bool(value: bool) -> str:
@@ -376,42 +343,30 @@ def _mc_float(value: float) -> str:
 
 def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
     """Every **bitmap** font resource this view loads once in `onLayout`
-    through `WatchUi.loadResource`.
+    through `WatchUi.loadResource`, in first-appearance draw order: an
+    author's baked text fonts (a `text` element's, a `complication_slot`'s,
+    a pattern `shape: text` part's) and the synthetic per-size icon fonts
+    (`wfb.icons.font_key`) alike.
 
-    Covers both an author's declared baked text fonts and the synthetic
-    per-size icon fonts (`wfb.icons.font_key`) -- both are bitmap fonts loaded
-    the same way, so one list and one loop serves both.  A pattern's `shape:
-    text` part is one more source of a custom font: every *drawn* copy
-    shares the one font its part resolved to, so it is a single entry here
-    regardless of `count`, the same "one load, many uses" shape
-    `_emit_pattern`'s own per-pattern ``text_fonts`` map follows.
-
-    **A `face:` (vector) font is never in this list** (plan 11): it is not a
-    resource at all -- there is no `<font>` entry for `WatchUi.loadResource`
-    to find, since `wfb.emit.resources.bake_fonts` never rasterises one --
-    so a `PlacedText` whose `font_is_vector` is true is excluded here and
-    handled by :func:`_vector_fonts_used` / `wfb.emit.monkeyc.view._emit_
-    fields`/`_emit_on_layout` instead, through `Graphics.getVectorFont`.
+    **A `face:` (vector) font is never in this list** (plan 11): it is not
+    a resource at all, and `_vector_fonts_used` covers it instead.
     """
     out: list[str] = []
     for placed in resolved.items:
-        if isinstance(placed, PlacedText) and placed.font_is_custom and not placed.font_is_vector:
-            if placed.font_reference not in out:
+        if isinstance(placed, PlacedText):
+            if placed.font_is_custom and not placed.font_is_vector:
                 out.append(placed.font_reference)
         elif isinstance(placed, PlacedIcon):
-            if placed.font_key not in out:
-                out.append(placed.font_key)
+            out.append(placed.font_key)
         elif isinstance(placed, PlacedComplicationSlot):
-            if placed.font_is_custom and placed.font_reference not in out:
+            if placed.font_is_custom:
                 out.append(placed.font_reference)
-            if placed.icon_font_key is not None and placed.icon_font_key not in out:
+            if placed.icon_font_key is not None:
                 out.append(placed.icon_font_key)
         elif isinstance(placed, PlacedPattern):
-            for part in placed.parts:
-                if (part.shape == "text" and part.font_is_custom
-                        and not part.font_is_vector and part.font_reference not in out):
-                    out.append(part.font_reference)
-    return out
+            out.extend(part.font_reference for part in placed.parts
+                       if part.shape == "text" and part.font_is_custom and not part.font_is_vector)
+    return list(dict.fromkeys(out))
 
 
 def _aod_only_fonts(resolved: ResolvedFace) -> list[str]:
@@ -449,33 +404,21 @@ def _aod_only_fonts(resolved: ResolvedFace) -> list[str]:
 
 def _vector_fonts_used(resolved: ResolvedFace) -> list[str]:
     """Every `face:` (vector) font name a `text` element, or a pattern's own
-    `shape: text` part (plan 11 slice 2), draws with in this design, in
-    first-appearance draw order -- the vector counterpart of
-    :func:`_loaded_fonts`, kept as its own list rather than folded in
-    because the two kinds are never loaded the same way (`Graphics.
-    getVectorFont` vs. `WatchUi.loadResource`, plan 11 §3).
-
-    Draw order (`resolved.items`), not `face.fonts`' declaration order, so
-    a font declared but never referenced by any element contributes
-    nothing -- the same "only what is actually drawn generates code" rule
-    `_loaded_fonts` already follows -- and so the field/constant order in
-    the generated view/Layout.mc reads top-to-bottom the way the design
-    does. `wfb.availability.vector_fonts_used(face)` answers the same
-    "which fonts are used" question for `compute_guards`, off the IR
-    rather than a resolved draw order, since a *build-wide* guard decision
-    has to be reachable before any one device has been resolved.
+    `shape: text` part, draws with, in first-appearance draw order -- the
+    vector counterpart of :func:`_loaded_fonts` (built through
+    `Graphics.getVectorFont`, not `WatchUi.loadResource`, plan 11 §3).  A
+    declared but undrawn font contributes nothing.  `wfb.availability.
+    vector_fonts_used(face)` answers the same question off the IR, for the
+    build-wide guard decision made before any device is resolved.
     """
     out: list[str] = []
     for placed in resolved.items:
         if isinstance(placed, PlacedText) and placed.font_is_vector:
-            if placed.font_reference not in out:
-                out.append(placed.font_reference)
+            out.append(placed.font_reference)
         elif isinstance(placed, PlacedPattern):
-            for part in placed.parts:
-                if (part.shape == "text" and part.font_is_vector
-                        and part.font_reference not in out):
-                    out.append(part.font_reference)
-    return out
+            out.extend(part.font_reference for part in placed.parts
+                       if part.shape == "text" and part.font_is_vector)
+    return list(dict.fromkeys(out))
 
 
 def _describe(placed) -> str:
@@ -530,18 +473,11 @@ def _article(noun: str) -> str:
 
 
 def _mc_type(value: float | str | bool | McLiteral) -> str:
-    """A `Layout` constant's declared Monkey C type.
-
-    Extended for plan 11 (`FONT_<NAME>_FACE`/`_AVAILABLE`) rather than
-    bypassed with a second, ad hoc constant-emission path: every existing
-    `Layout` constant already goes through `_mc_type`/`_mc_number`
-    (`layout_constants._layout_constants`'s own `list[tuple[str, float |
-    McLiteral, str]]` return type), so a font's resolved face name
-    (`String`) and its availability flag (`Boolean`) belong in the same
-    two functions, not a one-off `w.line(...)` that could drift from how
-    every other constant is typed and rendered.  `bool` is checked before
-    `float`/`int`: Python's `bool` is a subtype of `int`, so the order
-    matters or `True`/`False` would fall through to `Number`.
+    """A `Layout` constant's declared Monkey C type -- every constant
+    (`layout_constants.Constants`) is typed and rendered through this and
+    `_mc_number`.  `bool` is checked before `float`/`int`: Python's `bool`
+    is a subtype of `int`, so the order matters or `True`/`False` would
+    fall through to `Number`.
     """
     if isinstance(value, McLiteral):
         return value.type

@@ -55,14 +55,18 @@ def _emit_exit_to(w: Writer, exit_arg: str, guard: str | None = None) -> None:
     lines, guarded or not, and only differ in what `exit_arg` and ``guard``
     are.
     """
-    def _lines() -> None:
+    with w.block_if(f"if ({guard})" if guard is not None else None):
         w.line(f"Complications.exitTo({exit_arg});")
         w.line("return true;")
-    if guard is not None:
-        with w.block(f"if ({guard})"):
-            _lines()
-    else:
-        _lines()
+
+
+def _hit_test(box: str, extra: str = "") -> str:
+    """The `if` header testing the touch point `(x, y)` against the
+    `Layout.<box>_X/_Y/_WIDTH/_HEIGHT` rectangle, plus any ``extra`` term."""
+    return (
+        f"if (x >= Layout.{box}_X && x < Layout.{box}_X + Layout.{box}_WIDTH\n"
+        f"        && y >= Layout.{box}_Y && y < Layout.{box}_Y + Layout.{box}_HEIGHT{extra})"
+    )
 
 
 def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
@@ -179,12 +183,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                     f" && _view.{CONFIG_LAYOUT_METHOD}() == {face.layouts.index(element.layout)}"
                     if element.layout is not None else ""
                 )
-                condition = (
-                    f"if (x >= Layout.{prefix}_HOLD_X && "
-                    f"x < Layout.{prefix}_HOLD_X + Layout.{prefix}_HOLD_WIDTH\n"
-                    f"        && y >= Layout.{prefix}_HOLD_Y && "
-                    f"y < Layout.{prefix}_HOLD_Y + Layout.{prefix}_HOLD_HEIGHT{layout_test})"
-                )
+                condition = _hit_test(f"{prefix}_HOLD", layout_test)
                 if isinstance(element, ComplicationSlot):
                     w.comment(f"`{element.id}` -> whatever the wearer picked for "
                               f"config.data.{element.slot}")
@@ -208,16 +207,14 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                 w.comment(f"`{element.id}` -> {element.on_hold}")
                 exit_arg = f"new Complications.Id(Complications.{launch.constant})"
                 with w.block(condition):
-                    if guards.complications:
-                        # `Complications.exitTo`/`Complications.Id` cannot be
-                        # referenced at all on a device lacking the module --
-                        # not only a call, any reference (Device.has_module's
-                        # own docstring) -- so unlike the slot case above
-                        # (which the field's own null already gates), a fixed
-                        # `on_hold:` target needs its own `has` guard here.
-                        _emit_exit_to(w, exit_arg, guard="Toybox has :Complications")
-                    else:
-                        _emit_exit_to(w, exit_arg)
+                    # `Complications.exitTo`/`Complications.Id` cannot be
+                    # referenced at all on a device lacking the module --
+                    # not only a call, any reference (Device.has_module's
+                    # own docstring) -- so unlike the slot case above
+                    # (which the field's own null already gates), a fixed
+                    # `on_hold:` target needs its own `has` guard here.
+                    _emit_exit_to(w, exit_arg, guard="Toybox has :Complications"
+                                  if guards.complications else None)
             w.blank()
             w.line("return false;")
     return SourceFile(f"source/{face.entry}Delegate.mc", w.render())
@@ -245,13 +242,7 @@ def _emit_on_tap(w: Writer, pairs: list) -> None:
             prefix = _const_prefix(element.id)
             w.blank()
             w.comment(f"`{element.id}` (config.data.{element.slot})")
-            condition = (
-                f"if (x >= Layout.{prefix}_BOX_X && "
-                f"x < Layout.{prefix}_BOX_X + Layout.{prefix}_BOX_WIDTH\n"
-                f"        && y >= Layout.{prefix}_BOX_Y && "
-                f"y < Layout.{prefix}_BOX_Y + Layout.{prefix}_BOX_HEIGHT)"
-            )
-            with w.block(condition):
+            with w.block(_hit_test(f"{prefix}_BOX")):
                 w.line(f"setSelectedComplication({unique});")
                 w.line("return true;")
         w.blank()

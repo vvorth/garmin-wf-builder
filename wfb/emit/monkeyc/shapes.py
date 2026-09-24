@@ -8,8 +8,7 @@ from ... import formatting
 from ...ir import Progress, local_name
 from ...layout import PlacedIcon, PlacedProgress, PlacedShape, PlacedText, ResolvedFace
 from .common import (
-    AodDim, _aod_color, _aod_font_field, _aod_layout_override_expr, _aod_value, _color,
-    _const_prefix, _field, _glyph_y_expr,
+    NO_AOD, AodStyle, _aod_font_field, _color, _const_prefix, _field, _glyph_y_expr,
 )
 from ..writer import Writer
 
@@ -27,126 +26,81 @@ def _emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) ->
     """
     if thickness_expr is None:
         thickness_expr = f"Layout.{prefix}_THICKNESS"
-    w.line(
-        f"WfbArc.drawSpan(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, "
-        f"Layout.{prefix}_RADIUS,"
-    )
-    w.line(
-        f"                {thickness_expr}, Layout.{prefix}_START, "
-        f"Layout.{prefix}_SWEEP);"
-    )
+    w.call("WfbArc.drawSpan", [
+        f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
+        f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
+    ])
 
 
-def _thickness_expr(prefix: str, placed, aod: bool) -> str:
+def _thickness_expr(prefix: str, placed, aod: AodStyle) -> str:
     """`Layout.<P>_THICKNESS`, ternary against `_AOD_THICKNESS` when this
-    element's resolved `aod:` overrides `thickness:` (plan 14 §4.2) and
-    this build ever emits AOD code (`aod`) -- the plain constant otherwise,
-    byte-identical to before this override existed. A thin wrapper over
-    `_aod_layout_override_expr`, the shared shape every `Layout`-constant
-    thickness/bar-width override in this project follows.
-    """
-    return _aod_layout_override_expr(prefix, "THICKNESS", placed.aod_thickness is not None, aod)
+    element's resolved `aod:` overrides `thickness:` (plan 14 §4.2)."""
+    return aod.layout(prefix, "THICKNESS", placed.aod_thickness is not None)
 
 
-def _circle_thickness_expr(placed, aod: bool) -> str:
-    """A circle's own pen width is a plain per-device literal, not a
-    `Layout` constant (`_layout_constants`'s own note on why) -- so its
-    `aod: {thickness: ...}` override is inlined the same way."""
-    override = str(placed.aod_thickness) if placed.aod_thickness is not None else None
-    return _aod_value(aod, override, str(placed.thickness))
-
-
-def _shape_filled_override(element, aod: bool) -> bool:
+def _shape_filled_override(element, aod: AodStyle) -> bool:
     """Does this shape's resolved `aod:` flip `filled:` (plan 14 §4.2) --
     `True` only when this build ever emits AOD code, an override exists, and
     it actually differs from the awake `filled:`; a same-valued override
     changes nothing and is not worth a runtime branch.
     """
     return (
-        aod and element.aod is not None and element.aod.filled is not None
+        aod.on and element.aod is not None and element.aod.filled is not None
         and element.aod.filled != element.filled
     )
 
 
-def _emit_shape(w: Writer, placed: PlacedShape, aod: bool = False, dim: AodDim = None) -> None:
+#: The shapes with both a `Dc.fill<Name>` and a `Dc.draw<Name>` primitive:
+#: `shape:` -> (`<Name>`, the call's argument groups, one wrapped line each,
+#: as `Layout.<P>_<suffix>` suffixes).
+_FILLABLE_SHAPES: dict[str, tuple[str, tuple[tuple[str, ...], ...]]] = {
+    "rectangle": ("Rectangle", (("X", "Y"), ("WIDTH", "HEIGHT"))),
+    "rounded_rectangle": ("RoundedRectangle", (("X", "Y"), ("WIDTH", "HEIGHT"), ("CORNER",))),
+    "ellipse": ("Ellipse", (("CX", "CY"), ("RX", "RY"))),
+    "circle": ("Circle", (("CX", "CY", "RADIUS"),)),
+}
+
+
+def _emit_shape(w: Writer, placed: PlacedShape, aod: AodStyle = NO_AOD) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
-    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
-    w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    filled_override = _shape_filled_override(element, aod)
+    w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
 
-    if element.shape == "rectangle":
-        thickness_expr = _thickness_expr(prefix, placed, aod)
+    if element.shape in _FILLABLE_SHAPES:
+        name, groups = _FILLABLE_SHAPES[element.shape]
+        args = [", ".join(f"Layout.{prefix}_{suffix}" for suffix in group) for group in groups]
+        if element.shape == "circle":
+            # A circle's pen width is a plain per-device literal, not a
+            # `Layout` constant (`_shape_constants`), so its `aod:
+            # {thickness: ...}` override is inlined the same way.
+            override = str(placed.aod_thickness) if placed.aod_thickness is not None else None
+            thickness_expr = aod.value(override, str(placed.thickness))
+        else:
+            thickness_expr = _thickness_expr(prefix, placed, aod)
 
         def draw_filled() -> None:
-            w.line(f"dc.fillRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
-            w.line(f"                 Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);")
+            w.call(f"dc.fill{name}", args)
 
         def draw_outline() -> None:
             w.line(f"dc.setPenWidth({thickness_expr});")
-            w.line(f"dc.drawRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
-            w.line(f"                 Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT);")
+            w.call(f"dc.draw{name}", args)
             w.line("dc.setPenWidth(1);")
 
-        _emit_filled_toggle(w, element.filled, filled_override, draw_filled, draw_outline)
-    elif element.shape == "rounded_rectangle":
-        thickness_expr = _thickness_expr(prefix, placed, aod)
-
-        def draw_filled() -> None:
-            w.line(f"dc.fillRoundedRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
-            w.line(f"                        Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
-            w.line(f"                        Layout.{prefix}_CORNER);")
-
-        def draw_outline() -> None:
-            w.line(f"dc.setPenWidth({thickness_expr});")
-            w.line(f"dc.drawRoundedRectangle(Layout.{prefix}_X, Layout.{prefix}_Y,")
-            w.line(f"                        Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
-            w.line(f"                        Layout.{prefix}_CORNER);")
-            w.line("dc.setPenWidth(1);")
-
-        _emit_filled_toggle(w, element.filled, filled_override, draw_filled, draw_outline)
+        _emit_filled_toggle(w, element.filled, _shape_filled_override(element, aod),
+                            draw_filled, draw_outline)
     elif element.shape == "arc":
         # The same barrel call a `progress` track uses, so the two arcs cannot
         # disagree about the angle convention or about the full-circle case
         # (drawArc draws a complete circle when start == end).
         _emit_arc_span(w, prefix, _thickness_expr(prefix, placed, aod))
-    elif element.shape == "ellipse":
-        thickness_expr = _thickness_expr(prefix, placed, aod)
-
-        def draw_filled() -> None:
-            w.line(f"dc.fillEllipse(Layout.{prefix}_CX, Layout.{prefix}_CY,")
-            w.line(f"               Layout.{prefix}_RX, Layout.{prefix}_RY);")
-
-        def draw_outline() -> None:
-            w.line(f"dc.setPenWidth({thickness_expr});")
-            w.line(f"dc.drawEllipse(Layout.{prefix}_CX, Layout.{prefix}_CY,")
-            w.line(f"               Layout.{prefix}_RX, Layout.{prefix}_RY);")
-            w.line("dc.setPenWidth(1);")
-
-        _emit_filled_toggle(w, element.filled, filled_override, draw_filled, draw_outline)
     elif element.shape == "polygon":
         # There is no drawPolygon in Dc, only fillPolygon -- `filled: false`
-        # is rejected in wfb/ir/builder.py rather than silently filled here,
-        # and an `aod: {filled: ...}` override on a polygon is rejected
-        # there too (`Builder._build_aod_authored`, a friendly build error,
-        # not a schema restriction: the schema does not discriminate by
-        # `shape:` value), so `filled_override` is never true here.
+        # and an `aod: {filled: ...}` override on a polygon are both rejected
+        # in wfb/ir/builder.py (`Builder._build_aod_authored`), so there is
+        # never an outline form to switch to here.
         w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
-    elif element.shape == "circle":
-        thickness_expr = _circle_thickness_expr(placed, aod)
-
-        def draw_filled() -> None:
-            w.line(f"dc.fillCircle(Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS);")
-
-        def draw_outline() -> None:
-            w.line(f"dc.setPenWidth({thickness_expr});")
-            w.line(f"dc.drawCircle(Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS);")
-            w.line("dc.setPenWidth(1);")
-
-        _emit_filled_toggle(w, element.filled, filled_override, draw_filled, draw_outline)
     elif element.shape == "line":
-        thickness_expr = _thickness_expr(prefix, placed, aod)
-        w.line(f"dc.setPenWidth({thickness_expr});")
+        w.line(f"dc.setPenWidth({_thickness_expr(prefix, placed, aod)});")
         w.line(
             f"dc.drawLine(Layout.{prefix}_CX, Layout.{prefix}_CY, "
             f"Layout.{prefix}_END_X, Layout.{prefix}_END_Y);"
@@ -174,10 +128,10 @@ def _emit_filled_toggle(w: Writer, filled: bool, override: bool,
 
 
 def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: list[str],
-              aod: bool = False, dim: AodDim = None) -> None:
+              aod: AodStyle = NO_AOD) -> None:
     element = placed.element
     if element.literal is not None:
-        _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod, dim)
+        _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod)
         return
 
     value_code = formatting.emit(
@@ -185,7 +139,7 @@ def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: li
         element.value.code,
         element.value.value.type,
     )
-    if aod and element.aod is not None and element.aod.format is not None:
+    if aod.on and element.aod is not None and element.aod.format is not None:
         # `format:` changes the formatting code, not just an argument -- the
         # same "AOD redraws once a minute anyway, so dropping seconds is
         # free" reasoning plan 14 §2.3 states -- so both formatted strings
@@ -194,7 +148,7 @@ def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: li
         # placeholder/fallback substitution.
         aod_value_code = formatting.emit(
             element.aod.format, element.value.code, element.value.value.type)
-        value_code = _aod_value(True, aod_value_code, value_code)
+        value_code = aod.value(aod_value_code, value_code)
     if element.when_absent in ("placeholder", "fallback") and guards:
         # Build the string once rather than duplicating the draw call in both
         # branches: a placeholder is a different *value*, not a different
@@ -216,9 +170,9 @@ def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: li
         with w.block(f"if ({available})"):
             w.line(f"text = {value_code};")
         w.blank()
-        _emit_text_draw(w, resolved, placed, "text", aod, dim)
+        _emit_text_draw(w, resolved, placed, "text", aod)
         return
-    _emit_text_draw(w, resolved, placed, value_code, aod, dim)
+    _emit_text_draw(w, resolved, placed, value_code, aod)
 
 
 #: `text.curve.direction` -> `Graphics.RadialTextDirection` (verified in
@@ -255,47 +209,21 @@ def _emit_outline_loop(
 ) -> None:
     """The stamp loop `outline:` runs ahead of a text draw call's own
     (unshifted) interior pass (plan 15 §5, §8): loops over
-    `Layout.OUTLINE_OFFSETS_<width>` (the disc-perimeter table
-    `wfb.emit.monkeyc.layout_constants` already emitted for this width),
-    calling `draw` at each shifted screen-space anchor in the ring colour.
+    `Layout.OUTLINE_OFFSETS_<width>` (`layout_constants`' disc-perimeter
+    table for this width), calling ``draw(x, y)`` at each shifted
+    screen-space anchor in the ring colour.
 
-    `draw(x_expr, y_expr)` emits exactly the draw-call line(s) the interior
-    pass would emit at that anchor -- everything else about the call
-    (font, value, justify, angle, radius, direction) is left to `draw`
-    itself, unaffected by which anchor it was given: a screen-space anchor
-    shift commutes with whatever the call does with the rest of its
-    arguments (research 14 §3.2), so the very same callback the caller
-    already built for its own interior draw serves every stamp too.
+    ``draw`` emits exactly the call the interior pass makes at the given
+    anchor: a screen-space anchor shift commutes with everything else the
+    call does (research 14 §3.2), so one callback serves every stamp.  The
+    ring colour is set once before the loop -- every stamp shares it, and
+    ``draw`` never touches `dc`'s colour.
 
-    **The ring colour is set once, before the loop, not once per stamp.**
-    Every stamp draws in the same `color_code` -- `width:`/the offset table
-    change *where* each stamp lands, never *what colour* it lands in
-    (§2.3/§8: `outline.color` is one fixed expression per element, not a
-    per-offset one) -- and `draw` itself is always one of
-    `_emit_plain_text_call`/`_emit_vector_draw_call`, both pure `dc.
-    drawText`/`drawAngledText`/`drawRadialText` calls that never touch
-    `dc`'s colour state themselves. So nothing between one `dc.setColor`
-    and the next stamp can change it, and re-issuing the identical call on
-    every iteration was pure waste -- `Dc`'s colour is state that persists
-    across calls, not a per-draw argument, so setting it once before the
-    `while` is behaviourally identical and strictly fewer device-side
-    calls. (The *interior* pass's own `dc.setColor`, at each call site
-    below, is untouched: it sets a different colour and runs only once,
-    after this loop, not inside it, so there was never a duplicate there
-    to remove.)
-
-    `index_var`/`offsets_var` default to `"i"`/`"offsets"` -- the exact
-    names slice 1 always used, so every pre-slice-2 caller (a standalone
-    `text` element, one generated method per element) is byte-for-byte
-    unaffected. A pattern's own `shape: text` part (plan 15 §14 slice 2)
-    passes distinct names instead: every part of one pattern shares a
-    single generated method (`_emit_pattern`'s per-copy loop body), which
-    already declares its own `var i` for the copy index, and more than one
-    outlined text part in the same pattern would otherwise also collide
-    with each other's `offsets`/`i` -- Monkey C rejects redefining a
-    variable even across what look like separate straight-line statements
-    in the same method, confirmed by a real `monkeyc` run
-    (`Redefinition of variable 'i'`) before this parameter existed.
+    ``index_var``/``offsets_var`` let a pattern's `shape: text` part pick
+    names that cannot collide with its copy loop's own `i`, or with another
+    outlined part in the same method: Monkey C rejects redefining a
+    variable anywhere in one method (`Redefinition of variable 'i'`, from a
+    real `monkeyc` run).
     """
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     w.line(f"var {offsets_var} = Layout.OUTLINE_OFFSETS_{width};")
@@ -310,28 +238,24 @@ def _emit_plain_text_call(
     w: Writer, x_expr: str, y_expr: str, font_expr: str, value_code: str, justify: str,
     vertical_align: str,
 ) -> None:
-    """One `dc.drawText` call against a baked or system font, at the given
-    screen-space anchor -- shared by the interior pass and every
-    `outline:` stamp (plan 15 §5, §8), the only difference between them
-    being which anchor is passed in.
-    """
+    """One upright `dc.drawText` call at the given screen-space anchor --
+    a text element's interior pass and every `outline:` stamp, an upright
+    vector-font draw, and an icon's glyph."""
     y = _glyph_y_expr(y_expr, vertical_align, font_expr)
-    w.line(f"dc.drawText({x_expr}, {y}, {font_expr},")
-    w.line(f"            {value_code},")
-    w.line(f"            {justify});")
+    w.call("dc.drawText", [f"{x_expr}, {y}, {font_expr}", value_code, justify])
 
 
 def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value_code: str,
-                    aod: bool = False, dim: AodDim = None) -> None:
+                    aod: AodStyle = NO_AOD) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
-    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
+    color_code = aod.color(element, "color")
     if placed.font_is_vector:
         _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code)
         return
     override_expr = None
-    if aod and element.aod is not None and element.aod.font is not None:
+    if aod.on and element.aod is not None and element.aod.font is not None:
         if not element.aod.font_is_custom:
             override_expr = f"Graphics.{element.aod.font}"
         else:
@@ -359,8 +283,7 @@ def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value
             w.blank()
             font_expr = "font"
     else:
-        base_font_expr = f"Graphics.{placed.font_reference}"
-        font_expr = _aod_value(aod, override_expr, base_font_expr)
+        font_expr = aod.value(override_expr, f"Graphics.{placed.font_reference}")
     if element.outline is not None:
         _emit_outline_loop(
             w, element.outline.width, _color(element.outline.color),
@@ -388,25 +311,25 @@ def _emit_vector_draw_call(
     """
     element = placed.element
     if placed.curve_style == "angled":
-        w.line(f"dc.drawAngledText({x_expr}, {y_expr}, font, {value_code},")
-        w.line(f"                  {justify}, Layout.{prefix}_ANGLE);")
+        w.call("dc.drawAngledText", [
+            f"{x_expr}, {y_expr}, font, {value_code}", f"{justify}, Layout.{prefix}_ANGLE",
+        ])
     elif placed.curve_style == "radial":
         direction = _RADIAL_DIRECTION[placed.curve_direction or "clockwise"]
         radius = _radial_radius_expr(f"Layout.{prefix}_RADIUS", element.vertical_align,
                                      placed.curve_direction, "font")
-        w.line(f"dc.drawRadialText({x_expr}, {y_expr}, font, {value_code},")
-        w.line(f"                  {justify}, Layout.{prefix}_ANGLE, {radius},")
-        w.line(f"                  Graphics.{direction});")
+        w.call("dc.drawRadialText", [
+            f"{x_expr}, {y_expr}, font, {value_code}",
+            f"{justify}, Layout.{prefix}_ANGLE, {radius}",
+            f"Graphics.{direction}",
+        ])
     else:
-        y = _glyph_y_expr(y_expr, element.vertical_align, "font")
-        w.line(f"dc.drawText({x_expr}, {y}, font,")
-        w.line(f"            {value_code},")
-        w.line(f"            {justify});")
+        _emit_plain_text_call(w, x_expr, y_expr, "font", value_code, justify,
+                              element.vertical_align)
 
 
 def _emit_vector_text_draw(
-    w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str,
-    color_code: str | None = None,
+    w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str, color_code: str,
 ) -> None:
     """A `face:` (vector) font's draw call (plan 11 §3-4): plain
     `dc.drawText` with no `curve:`, or `dc.drawAngledText`/`dc.
@@ -440,22 +363,19 @@ def _emit_vector_text_draw(
                 f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
                 lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
             )
-        w.line(f"dc.setColor({color_code if color_code is not None else _color(element.color)}, "
-              "Graphics.COLOR_TRANSPARENT);")
+        w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
         _emit_vector_draw_call(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
-def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str], aod: bool = False,
-                   dim: AodDim = None) -> None:
+def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str],
+                   aod: AodStyle = NO_AOD) -> None:
     element = placed.element
     prefix = _const_prefix(placed.id)
     fraction_expr = _fraction(element)
-    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
-    track_color_code = (
-        _aod_color(element, "track_color", _color(element.track_color), aod, dim)
-        if element.track_color is not None else None
-    )
+    color_code = aod.color(element, "color")
+    track_color_code = (aod.color(element, "track_color")
+                        if element.track_color is not None else None)
     if element.when_absent == "fallback" and guards:
         # The fill fraction falls back, not the raw value/max -- 'fallback:'
         # supplies a number in the same 0.0-1.0 range _fraction() computes, so
@@ -482,15 +402,11 @@ def _emit_progress(w: Writer, placed: PlacedProgress, guards: list[str], aod: bo
             w.blank()
         w.comment("the filled portion")
         w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-        w.line(
-            f"WfbArc.drawProgress(dc, Layout.{prefix}_CX, Layout.{prefix}_CY, "
-            f"Layout.{prefix}_RADIUS,"
-        )
-        w.line(
-            f"                    {thickness_expr}, Layout.{prefix}_START, "
-            f"Layout.{prefix}_SWEEP,"
-        )
-        w.line(f"                    {fraction_expr});")
+        w.call("WfbArc.drawProgress", [
+            f"dc, Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS",
+            f"{thickness_expr}, Layout.{prefix}_START, Layout.{prefix}_SWEEP",
+            fraction_expr,
+        ])
         return
 
     if element.track_color is not None:
@@ -529,7 +445,7 @@ def _fraction(element: Progress) -> str:
     return f"WfbMath.percent({element.value.code}, {element.maximum.code}) / 100.0"
 
 
-def _emit_icon(w: Writer, placed: PlacedIcon, aod: bool = False, dim: AodDim = None) -> None:
+def _emit_icon(w: Writer, placed: PlacedIcon, aod: AodStyle = NO_AOD) -> None:
     """A `drawText` call against the icon's baked glyph -- see `wfb.icons`:
     an icon is a one-character string drawn with a bitmap font, the same
     mechanism any other bound text uses, not a hand-drawn shape.
@@ -557,7 +473,6 @@ def _emit_icon(w: Writer, placed: PlacedIcon, aod: bool = False, dim: AodDim = N
         w.line("return;  // the icon font resource failed to load")
     w.blank()
     if element.is_dynamic:
-
         condition_local = local_name(element.value_for.sources[0])
         w.comment(f"{element.value_for.text!r} -> a name (WfbWeather) -> a glyph (IconGlyphs)")
         glyph_expr = f"IconGlyphs.glyph(WfbWeather.chooseIcon({condition_local}))"
@@ -565,9 +480,6 @@ def _emit_icon(w: Writer, placed: PlacedIcon, aod: bool = False, dim: AodDim = N
         w.comment(f"{element.icon!r}")
         glyph_expr = f'"{element.codepoint}"'
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
-    y_expr = _glyph_y_expr(f"Layout.{prefix}_CY", element.vertical_align, "font")
-    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
-    w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"dc.drawText(Layout.{prefix}_CX, {y_expr}, font,")
-    w.line(f"            {glyph_expr},")
-    w.line(f"            {justify});")
+    w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
+    _emit_plain_text_call(w, f"Layout.{prefix}_CX", f"Layout.{prefix}_CY", "font", glyph_expr,
+                          justify, element.vertical_align)

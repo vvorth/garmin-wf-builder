@@ -81,7 +81,7 @@ class AcquisitionInfo:
     -- it is the one hand-written shape in `runtime-lib/WfbSeries.mc`
     (`binHeartRate`/`collectHeartRate`), called directly from the generated
     `_emit_hr_rebuild`. The other three are generated per project
-    (`wfb.emit.monkeyc._emit_array_rebuild`), because the field each reads
+    (`wfb.emit.monkeyc.graph._emit_array_rebuild`), because the field each reads
     off one entry varies with the design -- this is what that generated loop
     needs to know about the call that produces the array it loops over.
     """

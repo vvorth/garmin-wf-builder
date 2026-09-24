@@ -33,7 +33,7 @@ MODES = ("active", "low_power")
 HOLD_AUTO = "auto"
 
 #: The Monkey C a pattern colour's `copy` compiles to: the index of the loop
-#: `wfb.emit.monkeyc._emit_pattern` draws the copies in (`for (var i = 0; ...)`).
+#: `wfb.emit.monkeyc.rotated._emit_pattern` draws the copies in (`for (var i = 0; ...)`).
 PATTERN_LOOP_INDEX = "i"
 
 #: `Dc.fillPolygon`'s own 64-point limit, already recorded for `shape:

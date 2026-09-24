@@ -45,7 +45,7 @@ def config_data_ids(face: "Face") -> dict[str, int]:
     config-axes/watchface.xml` numbers from 1, following the SDK's own
     sample).  Module-level, and derived from `face.config_data` rather than
     stored on `ConfigDataSlot` itself, so `wfb.emit.resources.config_resource`
-    (writing the ids into the resource) and `wfb.emit.monkeyc._emit_apply_config`
+    (writing the ids into the resource) and `wfb.emit.monkeyc.view._emit_apply_config`
     (matching `ComplicationRef.uniqueIdentifier` back against them) cannot
     silently number the same design's slots two different ways.
     """

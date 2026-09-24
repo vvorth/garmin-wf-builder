@@ -3430,7 +3430,7 @@ class Builder:
         this validates the *slot reference* and the authoring keys that do
         not depend on the choice (`icon_size:`, `format:`), and leaves
         everything about the pulled value itself to
-        `wfb.emit.monkeyc._emit_complication_slot`, which reads it fresh
+        `wfb.emit.monkeyc.complication_slot._emit_complication_slot`, which reads it fresh
         every frame the same way any other `complication.*` source does.
         """
         slot_raw = node["slot"]

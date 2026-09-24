@@ -8,6 +8,9 @@ formatting it afterwards.
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Sequence
+
 
 class Writer:
     def __init__(self, indent: str = "    ") -> None:
@@ -52,6 +55,28 @@ class Writer:
     def block(self, header: str, closing: str = "}") -> "_Block":
         self.line(f"{header} {{" if not header.endswith("{") else header)
         return Writer._Block(self, closing)
+
+    def block_if(self, header: str | None, closing: str = "}"):
+        """`block(header)` when ``header`` is given, else a no-op context whose
+        body stays at the current level -- for a guard only some builds need,
+        so the guarded and unguarded forms share one body."""
+        if header is None:
+            return contextlib.nullcontext(self)
+        return self.block(header, closing)
+
+    def call(self, callee: str, groups: Sequence[str]) -> "Writer":
+        """One call statement, its arguments wrapped one ``groups`` entry per
+        line, each continuation aligned under the first argument:
+
+            WfbArc.drawSpan(dc, cx, cy, r,
+                            width, start, sweep);
+        """
+        head = f"{callee}("
+        pad = " " * len(head)
+        last = len(groups) - 1
+        for index, group in enumerate(groups):
+            self.line(f"{head if index == 0 else pad}{group}{');' if index == last else ','}")
+        return self
 
     def render(self) -> str:
         text = "\n".join(self._lines).rstrip("\n")

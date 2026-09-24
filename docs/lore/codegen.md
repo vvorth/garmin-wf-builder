@@ -454,7 +454,7 @@ These cost real time to discover; do not rediscover them.
   (9%) smaller**, because every duplicated method repeats its own
   declarations/guards/reads and the two-method call sites (one per branch)
   cost more than one ternary each. Kept the ternary as the unconditional
-  default (`wfb.emit.monkeyc.common._aod_color`/`_aod_value`, one call site
+  default (`wfb.emit.monkeyc.common.AodStyle`, one call site
   per overridable key), matching the plan's own prediction (§4.2) rather
   than just assuming it.
 
@@ -644,7 +644,7 @@ These cost real time to discover; do not rediscover them.
   had ever compiled every `DATE_CODES` entry in one build.
   `wfb.formatting.DATE_CODES`' `m` row is the one place "which codes need
   a second reader" is decided: its `emit` and its `extra_path` sit side by
-  side, and `date_extra_paths` (which `wfb.emit.monkeyc.readplan.ReadPlan`
+  side, and `extra_paths` (which `wfb.emit.monkeyc.readplan.ReadPlan`
   calls to add the extra reader-local parameter) reads that row, so an
   element's generated method and the parameter list supplying it cannot
   drift apart on this again. Every strftime code's Monkey C (`emit`) and

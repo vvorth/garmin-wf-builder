@@ -76,7 +76,7 @@ class Code:
     emit: Callable[[Readers], str] | None = None
     render: Callable[[dict], str] | None = None
     #: A `wfb.catalog.CATALOG` path the code reads beyond the value's own
-    #: reader -- see :func:`date_extra_paths`.
+    #: reader -- see :func:`extra_paths`.
     extra_path: str | None = None
 
 
@@ -115,7 +115,8 @@ TIME_CODES: dict[str, Code] = {
     "h": Code("hour, following the device's 12/24-hour setting", "23",
               lambda r: f"WfbTime.displayHour({r.clock}.hour, {r.settings}.is24Hour)",
               lambda v: (f"{_hour(v):02d}" if bool(v.get("device.is_24_hour", True))
-                         else f"{_hour12(v):d}")),
+                         else f"{_hour12(v):d}"),
+              extra_path="device.is_24_hour"),
     "M": Code("minute, zero-padded", "59",
               lambda r: f'{r.clock}.min.format("%02d")',
               lambda v: f"{int(v.get('time.minute', 9)):02d}"),
@@ -291,21 +292,18 @@ def _emit_numeric(spec: str, value_code: str, value_type: Type) -> str:
     return f'{value_code}.format("%{flags}.{precision or 1}f")'
 
 
-def date_extra_paths(spec: str) -> tuple[str, ...]:
-    """Extra `wfb.catalog.CATALOG` paths a DATE format spec's own codes
-    need read, beyond the value's own ``date.today`` -- e.g.
-    ``("date.weekday",)`` for a spec using ``%m`` (whose Number month only
-    exists under the `date_short` reader), ``()`` for one that does not.
-    Read off the same `DATE_CODES` rows `emit` compiles, so an element's
-    generated method and the parameter list `wfb.emit.monkeyc.readplan.
-    ReadPlan` supplies it cannot drift apart.
+def extra_paths(spec: str, value_type: Type) -> tuple[str, ...]:
+    """Extra `wfb.catalog.CATALOG` paths a strftime spec's own codes need
+    read, beyond the value's own reader -- ``("date.weekday",)`` for a DATE
+    spec using ``%m`` (whose Number month only exists under the
+    `date_short` reader), ``("device.is_24_hour",)`` for a TIME spec using
+    ``%h``, ``()`` otherwise.  Read off the same `Code` rows `emit`
+    compiles, so an element's generated method and the parameter list
+    `wfb.emit.monkeyc.readplan.ReadPlan` supplies it cannot drift apart.
     """
-    paths: list[str] = []
-    for part in parse_time(strip_braces(spec), DATE_CODES):
-        path = DATE_CODES[part.code].extra_path if part.code is not None else None
-        if path is not None and path not in paths:
-            paths.append(path)
-    return tuple(paths)
+    parts, codes = _strftime_parts(spec, value_type)
+    paths = (codes[part.code].extra_path for part in parts if part.code is not None)
+    return tuple(dict.fromkeys(path for path in paths if path is not None))
 
 
 def _quote(text: str) -> str:

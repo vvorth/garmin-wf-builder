@@ -9,7 +9,7 @@ from ...ir import (
 )
 from ...layout import PlacedGraph
 from ...series import Acquisition
-from .common import AodDim, _aod_color, _aod_layout_override_expr, _color, _const_prefix
+from .common import NO_AOD, AodStyle, _const_prefix
 from ..writer import Writer
 
 
@@ -42,7 +42,7 @@ def _emit_graph_fields(w: Writer, graphs: list) -> None:
     w.blank()
 
 
-def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False, dim: AodDim = None) -> None:
+def _emit_graph(w: Writer, placed: PlacedGraph, aod: AodStyle = NO_AOD) -> None:
     """The rebuild-cadence check, then one drawing call per `style:`.
 
     The check runs here rather than unconditionally in `onUpdate` -- after
@@ -65,24 +65,19 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: bool = False, dim: AodDim =
           else f"({element.min.code}).toFloat()")
     hi = (f"{graph_max_field(element.id)}.toFloat()" if element.max_auto
           else f"({element.max.code}).toFloat()")
-    color_code = _aod_color(element, "color", _color(element.color), aod, dim)
-    w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+    w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
+    # Every style draws into the same box from the same series; `line` and
+    # `bars` add one pen/bar width ahead of it.
     if element.style == "line":
-        thickness_expr = _aod_layout_override_expr(
-            prefix, "THICKNESS", placed.aod_thickness is not None, aod)
-        w.line(f"WfbSeries.drawLine(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
-               f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
-        w.line(f"                   {thickness_expr}, {values}, {lo}, {hi});")
-    elif element.style == "area":
-        w.line(f"WfbSeries.drawArea(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
-               f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
-        w.line(f"                   {values}, {lo}, {hi});")
-    else:  # bars
-        bar_expr = _aod_layout_override_expr(
-            prefix, "BAR_WIDTH", placed.aod_bar_width is not None, aod)
-        w.line(f"WfbSeries.drawBars(dc, Layout.{prefix}_X, Layout.{prefix}_Y, "
-               f"Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT,")
-        w.line(f"                   {bar_expr}, {values}, {lo}, {hi});")
+        width = aod.layout(prefix, "THICKNESS", placed.aod_thickness is not None) + ", "
+    elif element.style == "bars":
+        width = aod.layout(prefix, "BAR_WIDTH", placed.aod_bar_width is not None) + ", "
+    else:  # area
+        width = ""
+    w.call(f"WfbSeries.draw{element.style.capitalize()}", [
+        f"dc, Layout.{prefix}_X, Layout.{prefix}_Y, Layout.{prefix}_WIDTH, Layout.{prefix}_HEIGHT",
+        f"{width}{values}, {lo}, {hi}",
+    ])
 
 
 def _emit_graph_rebuild(w: Writer, placed: PlacedGraph) -> None:
@@ -144,8 +139,7 @@ def _emit_array_rebuild(w: Writer, element: Graph, src) -> None:
     w.line(f"var out = new [{n}] as Array<Float?>;")
     with w.block(f"for (var i = 0; i < {n}; i += 1)"):
         w.line("out[i] = null;")
-
-    def fill() -> None:
+    with w.block_if("if (raw != null)" if info.array_nullable else None):
         w.line(f"var count = WfbSeries.min({n}, raw.size());")
         with w.block("for (var i = 0; i < count; i += 1)"):
             if info.newest_first:
@@ -160,12 +154,6 @@ def _emit_array_rebuild(w: Writer, element: Graph, src) -> None:
             else:
                 w.line(f"var v = entry.{src.field_name};")
                 w.line("out[i] = (v != null) ? v.toFloat() : null;")
-
-    if info.array_nullable:
-        with w.block("if (raw != null)"):
-            fill()
-    else:
-        fill()
     w.line(f"{values} = out;")
     if element.min_auto:
         w.line(f"{graph_min_field(element.id)} = WfbSeries.autoMin(out);")

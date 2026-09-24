@@ -95,34 +95,28 @@ class ReadPlan:
                             value_paths.append(path)
                     elif path not in other_paths:
                         other_paths.append(path)
-            # A time format reads the clock (and, for %h, the device settings)
-            # even though the format string names no source.
+            # A strftime format reads the clock or the calendar even though
+            # the format string names no source, and some codes a second
+            # reader too (`formatting.extra_paths`, read off the same `Code`
+            # rows `emit` compiles: %h the 12/24-hour setting, %m the
+            # FORMAT_SHORT date).
             format_paths: list[str] = []
             if (isinstance(element, Text) and element.format
                     and formatting.is_time_spec(element.format)):
-                # A date format reads the calendar; a time format reads the clock,
-                # and %h additionally reads the 12/24-hour setting.
                 if element.value is not None and element.value.value.type is Type.DATE:
                     format_paths.append("date.today")
                 else:
                     format_paths.append("time.clock")
-                    if "%h" in element.format:
-                        format_paths.append("device.is_24_hour")
+                    format_paths.extend(formatting.extra_paths(element.format, Type.TIME))
             if (isinstance(element, Text) and element.value is not None
                     and element.value.value.type is Type.DATE):
-                # A date code like %m needs a second reader beyond `date`
-                # itself (`formatting.date_extra_paths` -- the single place
-                # that decides this, read off the same `DATE_CODES` row
-                # `emit` compiles, so the two cannot drift). Both the awake `format:` (always present
-                # and coded here, `Builder._check_format`) and an
-                # `aod: {format: ...}` override (checked the same way,
-                # `Builder._check_format_spec`) can use such a code
-                # independently of one another, so both are checked.
+                # Both the awake `format:` and an `aod: {format: ...}`
+                # override can use such a code independently of one another.
                 specs = [element.format]
                 if element.aod is not None and element.aod.format is not None:
                     specs.append(element.aod.format)
                 for spec in specs:
-                    for extra in formatting.date_extra_paths(spec):
+                    for extra in formatting.extra_paths(spec, Type.DATE):
                         if extra not in format_paths:
                             format_paths.append(extra)
             # A hands element reads the clock too, with no author expression
@@ -155,7 +149,7 @@ class ReadPlan:
         # `aod` (plan 14): not a `modes:` membership at all -- the resolved
         # `aod:` set (`Element.aod is not None`). Needs the readers every
         # aod-drawn element's own method already needs (the same per-element
-        # call it always was, `_draw_calls`-style), plus whatever `aod:
+        # call the active frame makes), plus whatever `aod:
         # {visible: ...}`'s own *extra* condition reads -- that piece is
         # checked at the call site (`aod_guard_condition`), not inside the
         # element's own generated method, so its sources need their own
@@ -273,16 +267,9 @@ class ReadPlan:
         policy governs the value, not a colour.
         """
 
-        names: list[str] = []
         visible = self._visible_bound[placed.id]
-        for path in self._bound[placed.id]:
-            if path in visible:
-                # Already null-checked by the visibility guard above.
-                continue
-            source = catalog.CATALOG[path]
-            if self._guard_needed(source):
-                names.append(local_name(path))
-        return names
+        # A path `visible:` reads is already null-checked by its own guard.
+        return self._guarded_locals([p for p in self._bound[placed.id] if p not in visible])
 
     def _guarded_locals(self, paths: list[str]) -> list[str]:
         """``paths`` narrowed to the ones that actually need a null check

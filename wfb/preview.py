@@ -339,7 +339,7 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     # entry", in which case every element (`element.layout is None`) draws,
     # exactly like today.  An element that belongs to a *different* layout
     # from the active one is skipped -- the same guard
-    # `wfb/emit/monkeyc.py`'s `_emit_layout_guarded_calls` compiles into
+    # `wfb.emit.monkeyc.view._emit_layout_guarded` compiles into
     # `if (_configLayout == N)`, run here at preview time instead.
     active_layout = entry.layout if entry is not None else None
     renderer = _Renderer(resolved, draw, image, scale, values, options, used_faces)
@@ -348,7 +348,7 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
             continue
         if options.aod:
             # `--aod`: the resolved 'aod:' set, not a `modes:` membership at
-            # all -- `wfb/emit/monkeyc.py`'s own `_aod` branch draws exactly
+            # all -- `wfb.emit.monkeyc.view._emit_aod_body` draws exactly
             # this set, unrestyled (plan 14 slice 1).
             if placed.element.aod is None:
                 continue
@@ -547,7 +547,7 @@ class _Renderer:
         and one is actually set -- `None` propagates through unchanged, so
         a caller that already handles "no colour"/"no override" the same
         way needs no extra branch (plan 14 slice 2, matching `wfb.emit.
-        monkeyc.common._aod_color`/`_aod_value`'s own codegen ternary).
+        monkeyc.common.AodStyle`'s own codegen ternary).
         """
         if not self.options.aod or element.aod is None:
             return base
@@ -571,7 +571,7 @@ class _Renderer:
     def _aod_color(self, element, key: str, base_expr) -> tuple[int, int, int]:
         """The drawn RGB for one colour role (`color`/`track_color`/
         `icon_color`) while `--aod` renders, matching `wfb.emit.monkeyc.
-        common._aod_color` exactly: this element's own resolved `aod:`
+        common.AodStyle.color` exactly: this element's own resolved `aod:`
         override for `key`, when one exists, else the plain awake colour --
         dimmed by the face's own `aod: {dim: ...}` (plan 14 §4.5) whenever
         that applies and no override took over, the same "dim reaches every
@@ -595,8 +595,7 @@ class _Renderer:
         already resolved once by the caller -- §5.1, uniform across every
         part), else this part's own plain colour, dimmed when `dim_active`
         (the caller's own "shown in AOD, no override" gate, matching
-        `wfb.emit.monkeyc.rotated._emit_hands`/`_emit_pattern`'s
-        `dim_effective`).
+        `wfb.emit.monkeyc.common.AodStyle.part_color`).
         """
         if color_override is not None:
             return color_override
@@ -843,7 +842,7 @@ class _Renderer:
         or any part's own `visible:` reads is absent in the current sample
         (`self.values` -- `SAMPLE` plus any `--sample`/`options.sample`
         overrides) -- the host-side mirror of the null guard the device
-        emits before its own loop (`wfb.emit.monkeyc._emit_pattern`'s
+        emits before its own loop (`wfb.emit.monkeyc.rotated._emit_pattern`'s
         `plan.guards(placed)`, fed by the same colours and part `visible:`s
         via `PatternElement._own_expressions`).  A build that reached this
         renderer already guarantees `when_absent: hide` is set whenever this
@@ -1317,7 +1316,7 @@ class _Renderer:
         # `align`/`vertical_align` move the pair off the anchor -- the same
         # `wfb.layout.alignment_shift` rule every other kind's preview
         # uses, mirroring the arithmetic
-        # `wfb.emit.monkeyc._emit_complication_slot` computes at runtime
+        # `wfb.emit.monkeyc.complication_slot._emit_complication_slot` computes at runtime
         # from its own (real, pulled) measurements. center/center adds
         # exactly `0.0`.
         dx, dy = alignment_shift(geometry.width, geometry.height, element.align, element.vertical_align)
@@ -1355,7 +1354,7 @@ class _Renderer:
 
     def _complication_slot_text(self, element, ctype) -> str:
         """An illustrative reading for `ctype`, formatted the same way
-        `wfb.emit.monkeyc._emit_complication_slot` renders one: an optional
+        `wfb.emit.monkeyc.complication_slot._emit_complication_slot` renders one: an optional
         label prefix, the value, and an optional unit suffix -- approximate,
         since the real label and unit come from the device at runtime."""
         value = _COMPLICATION_SLOT_SAMPLE.get(
