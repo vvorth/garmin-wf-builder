@@ -18,7 +18,7 @@ pre-existing gap in `wfb/emit/resources.py` (font baking -- codegen, a
 later slice, plan 11 §5), not something this step introduces or is asked to
 fix -- so these tests monkeypatch `bake_fonts` to skip baking (an empty
 `dict`, exactly the "resolved layout with no baked fonts" shape `wfb.layout.
-Resolver._unbaked_font_size` already documents as a normal caller) purely to
+Resolver._font_for_ref` already documents as a normal caller) purely to
 exercise `wfb.build.resolve_all`'s own per-device loop and the new
 cross-device check wired into it, without tripping over that unrelated bug.
 """

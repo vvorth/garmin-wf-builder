@@ -208,15 +208,15 @@ comparison of both radii at both sweep endpoints otherwise.
 {style: angled}`: the four *real* corners of the rotated text box, not
 its AABB's. Both a standalone element (`wfb.layout.visible_reach`, read by
 `wfb.layout.inside_visible_area_for`) and a pattern's own `shape: text`
-part (`Resolver._resolve_pattern`'s per-copy `text_reach`, sharing
-`wfb.layout._pattern_text_ink_geometry` with `_pattern_part_ink`'s own
-AABB so the two questions are always asked of the same shape) go through
-this geometry. `check_geometry`'s `safe-area` message now also names the
+part (`Resolver._resolve_pattern`'s per-copy `text_reach`) go through
+this geometry, via one `wfb.layout.text_ink` shape per run whose
+`box()`/`bounds()` and `reach()` answer both questions from the same
+shape. `check_geometry`'s `safe-area` message now also names the
 reach and the limit it compared against, not just "outside the visible
 area", so the finding can be checked, not just trusted (`ADR 0008`'s own
 confidence discipline). Full design: `wfb/layout.py`'s own docstrings
-(`annulus_sector_reach`, `rotated_rect_corners`, `visible_reach`,
-`circular_extent`), and `docs/guide/text.md`'s "`curve:` — rotated and radial
+(`text_ink`, `annulus_sector_reach`, `rotated_rect_corners`,
+`visible_reach`, `circular_extent`), and `docs/guide/text.md`'s "`curve:` — rotated and radial
 text" section. Tests: `tests/test_pattern_text_curve.py`,
 `tests/test_vector_text_layout.py`, `tests/test_patterns.py`.
 

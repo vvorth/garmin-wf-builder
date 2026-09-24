@@ -1587,7 +1587,7 @@ class _Renderer:
         Garmin's own convention (degrees counter-clockwise from the 3
         o'clock position, screen y down), never the design's 12-o'clock-
         zero/clockwise one, author-facing only.** This is the same
-        convention `wfb.layout.Resolver._rotated_text_box` rotates its own
+        convention `wfb.layout.rotated_rect_corners` rotates its own
         lint box by, verified there against the SDK's own
         `TrueTypeFontsAngledText` sample -- reused here rather than
         re-derived, so the lint box and the preview cannot silently
@@ -1771,7 +1771,7 @@ class _Renderer:
         the point matching the angle the glyph is rotated to --
         `_draw_radial_vector_text`'s own docstring has the reasoning).
 
-        The paste position reuses `wfb.layout.Resolver._rotated_text_box`'s
+        The paste position reuses `wfb.layout.rotated_rect_corners`'
         own rotation matrix (`cx = dx*cos + dy*sin`, `cy = -dx*sin +
         dy*cos`) run forward on the alignment shift, so the *anchor* this
         preview draws from is the same point that box's own maths already

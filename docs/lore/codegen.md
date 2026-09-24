@@ -285,7 +285,7 @@ These cost real time to discover; do not rediscover them.
   pattern's own rotation in `wfb.layout`. That combination happens twice,
   independently, at the two places that already know which copy is being
   drawn: codegen (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`)
-  and the lint ink box (`wfb.layout._pattern_part_ink`, given a
+  and the lint ink box (`wfb.layout._pattern_text_ink`, given a
   `copy_angle_degrees` computed once per copy by `Resolver._resolve_
   pattern`'s own loop) -- both apply `g0 = part.curve_angle_garmin -
   element.start_angle`, then `g0 - i * step_deg` per copy, the *exact*
@@ -392,10 +392,9 @@ These cost real time to discover; do not rediscover them.
   grows two exploded fields, `outline_width`/`outline_color`, carried
   through from `HandPart.outline` unchanged (the same "explode, don't
   nest" shape `curve_style`/`curve_angle_garmin`/... already use for
-  `HandPart.curve`) -- `wfb.layout._pattern_part_ink`/`_pattern_text_ink_
-  geometry` read `outline_width` as the same `pad` parameter D9 already
-  threads through `rotated_rect_corners`/`radial_text_angle_span`/
-  `radial_text_band` for a standalone element's own box growth, and
+  `HandPart.curve`) -- `wfb.layout._pattern_text_ink` reads
+  `outline_width` as the same `pad` a standalone element's own
+  `outline:` passes to `wfb.layout.text_ink` (D9), and
   `wfb.emit.monkeyc.rotated._emit_pattern_text_draw` reads both fields
   directly, the same way it already reads `part.color`.
 

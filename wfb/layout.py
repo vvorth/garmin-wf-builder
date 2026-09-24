@@ -12,7 +12,7 @@ directly unit-testable with no Garmin toolchain.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from . import catalog, complications, formatting, icons, units
 from .devices import Device, FontMetric
@@ -21,7 +21,7 @@ from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
     ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
-    HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape, Size,
+    HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape,
     Text, draw_sort_key,
 )
 from .units import Angle, Axis, Box, IntBox, Length
@@ -47,48 +47,27 @@ class Placed:
         return self.element.kind
 
 
-#: A hand frame has no parent box -- only `px`/`%r` reach a hand-frame
-#: length (schema-enforced), and neither reads `box` at all, so this never
-#: leaks a real dimension into a resolved coordinate.  Mirrors
-#: `wfb.units._UNUSED_BOX`'s own reasoning for `pixel_size`.
+#: The "parent box" of a hand/pattern part's own frame (`Resolver._hand_point`):
+#: zero-sized at the origin, so it can never leak a real dimension.
 _HAND_FRAME_BOX = Box(0.0, 0.0, 0.0, 0.0)
 
 
 def round_half_away(value: float) -> int:
-    """Round half away from zero: a mirrored ``dx: -1.5px``/
-    ``dx: 1.5px`` pair must resolve to ``-2``/``2``, so a symmetric hand
-    stays symmetric on the panel.
-
-    Plain ``round()`` (round half *to even*) happens to be sign-symmetric
-    too, but lands on a different integer for some ``.5`` cases (``0.5``
-    rounds to ``0``, not ``1``).  The one implementation, imported by
-    `wfb.preview` for the same distinction over `WfbArc`'s degrees, rather
-    than kept as two copies that could drift apart.
+    """Round half away from zero: a mirrored ``dx: -1.5px``/``dx: 1.5px``
+    pair must resolve to ``-2``/``2``, so a symmetric hand stays symmetric.
+    Plain ``round()`` is sign-symmetric too, but rounds half to even
+    (``0.5`` -> ``0``).  `wfb.preview` imports this for `WfbArc`'s degrees.
     """
     return int(value - 0.5) if value < 0 else int(value + 0.5)
 
 
 def alignment_shift(width: float, height: float, align: str, vertical_align: str) -> tuple[float, float]:
     """How far a placement box's centre sits from the point ``at:`` resolves
-    to, for a box-drawn kind: ``align``/``vertical_align`` say which edge
-    (or the centre) of the box sits on that point, independently per axis.
-    ``center``/``center`` -- the default -- adds exactly ``0.0`` on both
-    axes, so a design that never sets either key resolves unchanged.
-
-    The one implementation of the rule for every box-drawn kind:
-    :meth:`Resolver._group_box`, :meth:`Resolver._resolve_text`'s lint box
-    and :func:`_pattern_part_ink`'s text branch all call this instead of
-    keeping their own ``left``/``center``/``right`` dict literal, as do
-    :meth:`Resolver._resolve_shape` (rectangle, rounded_rectangle, ellipse,
-    circle, arc -- not polygon or line), :meth:`Resolver._resolve_progress`
-    (both styles) and :meth:`Resolver._resolve_graph`.
-    :meth:`Resolver._resolve_icon`'s lint box (a glyph kind's own box is
-    still moved this way, even though the runtime anchor is not) and
-    :meth:`Resolver._resolve_complication_slot`'s estimated box call it as
-    well. :meth:`Resolver._resolve_hand_part`'s `rectangle`/`circle`
-    branches call it a fourth way -- in the part's own frame, before
-    `round_half_away`, so the shift turns or steps with the hand or copy
-    like the rest of the part -- rather than write another copy.
+    to: ``align``/``vertical_align`` say which edge (or the centre) of the
+    box sits on that point, independently per axis.  ``center``/``center``
+    adds exactly ``0.0``.  The one rule for every box-drawn kind, for a
+    glyph kind's lint box, and -- in the part's own frame, before rounding --
+    for a hand/pattern part.
     """
     dx = {"left": width / 2, "center": 0.0, "right": -width / 2}[align]
     dy = {"top": height / 2, "center": 0.0, "bottom": -height / 2}[vertical_align]
@@ -100,11 +79,8 @@ def garmin_arc(start: float, sweep: float) -> tuple[float, str]:
 
     The format measures degrees clockwise from 12 o'clock; ``drawArc`` measures
     them counter-clockwise from 3 o'clock, so a positive (clockwise) sweep
-    travels in the ``ARC_CLOCKWISE`` direction from ``90 - start``.
-
-    There is deliberately **one** of these: `progress` with `style: arc` and
-    `shape: arc` both call it, so the two can never drift into two conventions
-    that agree on the common cases and disagree on the corners.
+    travels in the ``ARC_CLOCKWISE`` direction from ``90 - start``.  Shared by
+    `shape: arc` and `progress: {style: arc}` so they cannot drift apart.
     """
     return (
         (90.0 - start) % 360.0,
@@ -113,41 +89,21 @@ def garmin_arc(start: float, sweep: float) -> tuple[float, str]:
 
 
 def garmin_curve_angle(style: str, angle: Angle) -> float:
-    """`curve.angle` (`text.curve`/`patternCurve`, both `style:`s), in
-    Garmin's `Dc.drawAngledText`/`Dc.drawRadialText` convention (degrees
-    counter-clockwise from 3 o'clock) -- the one place this conversion
-    happens, the same "exactly one convention" precedent `garmin_arc` sets
-    for `shape: arc`/`progress: {style: arc}` just above.
+    """`curve.angle` in `Dc.drawAngledText`/`Dc.drawRadialText`'s
+    convention (degrees counter-clockwise from 3 o'clock).
 
-    The two `curve:` styles share the `angle:` key and its units, but
-    answer genuinely different questions, so they convert differently.
-    **`radial`'s angle is a POSITION** -- where around the circle the text
-    starts -- the same "which way from the centre" quantity every other
-    angle in this format answers (arc start angles, hand angles, a
-    pattern's own `start_angle:`), confirmed against `drawRadialText`'s own
-    doc ("Angle to a point on the circle to justify text"): it keeps this
-    format's universal 12-o'clock-zero/clockwise convention and converts
-    through `Angle.to_garmin()` exactly like those. **`angled`'s angle is a
-    ROTATION** -- how far the text's own baseline is tilted away from
-    level, not a direction from any centre -- so `0deg` means "unrotated",
-    not "pointing at 12 o'clock": converting it needs none of `to_garmin`'s
-    90-degree offset (which exists only to re-anchor a *position*'s zero
-    from 12 o'clock to 3 o'clock), just the sign flip that turns this
-    format's clockwise-positive sense into Garmin's counter-clockwise-
-    positive one. Confirmed against `drawAngledText`'s own doc ("Angle of
-    the text baseline in degrees counter-clockwise from the 3 o'clock
-    position"): Garmin's own `0` is already a horizontal, level baseline,
-    matching this format's `0deg` = level exactly, with no offset needed.
+    The two styles share the key but not the meaning.  **`radial`'s angle is
+    a position** -- where on the circle the text is justified ("Angle to a
+    point on the circle", the SDK doc) -- so it converts like every other
+    direction in the format (`Angle.to_garmin`, 12 o'clock = 0).  **`angled`'s
+    angle is a rotation** of the baseline from level ("Angle of the text
+    baseline ... counter-clockwise from the 3 o'clock position"), so `0deg`
+    is level text and only the sign flips.
 
-    A radial *pattern*'s own per-copy composition
-    (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`,
-    `_pattern_part_ink` below) still works unmodified for either style:
-    composing a *local* Garmin angle with a copy's own rotation (`design
-    clockwise degrees`, converted by straight negation) is valid whether
-    that local angle came from a position (`to_garmin`, offset folded in
-    once) or a rotation (no offset to begin with) -- the offset, when
-    there is one, is a fixed constant contributed once by the part's own
-    local angle, never by the per-copy delta being composed with it.
+    A radial pattern composes either with its per-copy rotation by plain
+    subtraction (`_pattern_text_ink`, `wfb.emit.monkeyc.rotated.
+    _emit_pattern_text_angle_expr`): `to_garmin`'s offset, where there is
+    one, is folded in once by the local angle, never per copy.
     """
     if style == "radial":
         return angle.to_garmin()
@@ -158,33 +114,17 @@ def radial_text_angle_span(
     curve_angle_garmin: float, direction: str | None, align: str,
     total_advance: float, radius: float, pad: float = 0.0,
 ) -> tuple[float, float]:
-    """The Garmin-degree interval a `curve: {style: radial}` run actually
-    sweeps -- derived the same way `wfb.preview._draw_radial_vector_text`
-    places each glyph, rather than a second, independently-invented model
-    that could silently disagree with it (that function's own docstring
-    carries the facing/direction derivations this reuses unchanged).
+    """The Garmin-degree interval a `curve: {style: radial}` run sweeps,
+    using `wfb.preview._draw_radial_vector_text`'s own per-glyph placement
+    model evaluated at the run's two ends: the run covers `total_advance`
+    pixels starting `align_offset` before the anchor (`left` starts on it,
+    `right` ends on it), divided by `radius` into degrees, with the sign set
+    by `direction` (counter-clockwise advances Garmin angle).  Returned as
+    `(theta_a, theta_b)`, not ordered -- `arc_bbox` takes either order.
 
-    The run covers a pixel range of `total_advance` (the whole string's
-    measured width) starting `align_offset` pixels *before* the anchor
-    (`align: left` starts exactly at `curve_angle_garmin`; `right` ends
-    there; `center` straddles it) -- exactly `_draw_radial_vector_text`'s
-    own `pixel_offset = pen - align_offset`, evaluated at the run's two
-    ends (`pen = 0` and `pen = total_advance`) instead of per glyph.
-    Dividing by `radius` turns that pixel range into an angular one, and
-    `direction` supplies the sign Garmin angle changes as the pen advances
-    (`direction_sign` there: `+1` for `counter_clockwise`, `-1` for
-    `clockwise`).  Returned as `(theta_a, theta_b)`, **not** ordered
-    min-before-max -- `arc_bbox` below takes them either order.
-
-    `pad` (plan 15 §6, D9) extends *both* ends of the run by this many
-    pixels along the arc, before converting to degrees -- deliberately
-    computed from the unpadded `align_offset` (so which end grows more
-    never depends on `align`, the same "pad the already-placed box outward,
-    do not re-derive the placement from a padded width" reasoning
-    `rotated_rect_corners`' own `pad` follows) rather than by literally
-    substituting `total_advance + 2 * pad`, which would pad only the far
-    end for `align: left` (and only the near end for `align: right`) since
-    `align_offset` itself scales with `total_advance`.
+    `pad` (an `outline:` ring, plan 15 D9) extends *both* ends by that many
+    pixels.  It is added after the unpadded `align_offset`, not by widening
+    `total_advance`, which would grow only the far end under `align: left`.
     """
     counter_clockwise = direction == "counter_clockwise"
     direction_sign = 1.0 if counter_clockwise else -1.0
@@ -199,46 +139,29 @@ def radial_text_band(
     radius: float, line_height: float, vertical_align: str, direction: str | None,
     ascent: float, pad: float = 0.0,
 ) -> tuple[float, float]:
-    """The radii (`r_inner`, `r_outer`) a `curve: {style: radial}` run's
-    lint band actually spans -- the ONE place both `Resolver._resolve_text`
-    and `_pattern_part_ink` derive it, so they cannot drift apart.
+    """The radii `(r_inner, r_outer)` a `curve: {style: radial}` run's ink
+    spans, `r_inner <= r_outer`.
 
-    **The device model (measured 2026-09-21, real simulator,
-    `fenix8solar47mm`, `examples/features/vector-text/face.yaml`'s
-    `top_cw`/`top_ccw` pair against the centred `wordmark`/`left_cw`;
-    `docs/research/12-vector-fonts.md` §5.3):** `drawRadialText` knows two
-    vertical placements only. With `TEXT_JUSTIFY_VCENTER` the line box's
-    vertical centre sits on the circle; **without it the BASELINE sits on
-    the circle** and each glyph grows toward its own "up". So:
+    **Device model** (measured on the simulator, `fenix8solar47mm`;
+    `docs/research/12-vector-fonts.md` §5.3): `drawRadialText` knows two
+    vertical placements.  With `TEXT_JUSTIFY_VCENTER` the line box's centre
+    sits on the circle; without it the *baseline* does, glyphs growing
+    toward their own "up".  So:
 
-    * `center` -- `VCENTER`: `radius -/+ line_height / 2`, direction-free.
-    * `bottom` -- no flag, the device's native mode: `ascent` on the
-      glyphs' "up" side of the circle, `line_height - ascent` (the descent)
-      on the other.
-    * `top` -- no flag, drawn at `radius -/+ Graphics.getFontAscent(font)`
-      (`wfb.emit.monkeyc.shapes._radial_radius_expr`) so the baseline sits
-      one ascent on the "down" side and the line box's top lands on the
-      circle: the whole `line_height` on the "down" side.
+    * `center` -- `VCENTER`: `radius -/+ line_height / 2`.
+    * `bottom` -- no flag: `ascent` on the "up" side, the descent
+      (`line_height - ascent`) on the other.
+    * `top` -- no flag, drawn at `radius -/+ ascent`
+      (`wfb.emit.monkeyc.shapes._radial_radius_expr`), so the whole
+      `line_height` lies on the "down" side.
 
-    "Up" is outward under `clockwise` (glyphs face out) and inward under
-    `counter_clockwise` (glyphs face in) -- `wfb.preview.
-    _draw_radial_vector_text`'s facing model, verified in both directions.
-    `ascent` is `wfb.fonts.fallback.ascent` -- the preview's own baseline,
-    the stand-in for the device's `getFontAscent`.
+    "Up" is outward under `clockwise` and inward under `counter_clockwise`.
+    `ascent` stands in for the device's `getFontAscent`
+    (`wfb.fonts.fallback.ascent`).
 
-    `pad` (plan 15 §6, D9) grows the returned band by this many pixels on
-    *both* radii -- applied uniformly at the very end, after the
-    up/down split above, rather than by folding it into `line_height`
-    beforehand: `up`/`down` are not symmetric under `vertical_align:
-    bottom` (`ascent` vs. `line_height - ascent`), so growing `line_height`
-    itself would only widen whichever side `down` names, never `up`. A
-    uniform `-pad`/`+pad` at the end is correct regardless of that split,
-    the same "pad the already-placed reach outward" reasoning
-    `radial_text_angle_span`'s own `pad` follows. `arc_bbox` already clamps
-    a negative `r_inner` to 0, so `r_inner - pad` going negative here (a
-    wide ring on a small radius) is safe.
-
-    Returned `(r_inner, r_outer)` with `r_inner <= r_outer` always.
+    `pad` grows both radii at the very end: `up`/`down` are asymmetric under
+    `bottom`, so folding it into `line_height` would widen one side only.
+    A negative `r_inner` is fine -- `arc_bbox` clamps it.
     """
     if vertical_align == "center":
         half = line_height / 2.0
@@ -260,24 +183,17 @@ def arc_bbox(
     cx: float, cy: float, r_inner: float, r_outer: float,
     theta_a_degrees: float, theta_b_degrees: float,
 ) -> Box:
-    """The axis-aligned bounding box of an annulus sector: the ring between
-    radii `r_inner`..`r_outer` (`r_inner` clamped to `>= 0`, so a sector
-    that would dip past the centre just becomes a pie slice instead of
-    wrapping to the far side), swept through the Garmin-angle interval
-    between `theta_a_degrees` and `theta_b_degrees` (either order) --
-    degrees counter-clockwise from the 3 o'clock position, screen y down
-    (`px = cx + r*cos(theta), py = cy - r*sin(theta)`), the same
-    convention `wfb.layout.Resolver._rotated_text_box` and
-    `wfb.preview._draw_radial_vector_text` both already use.
+    """The axis-aligned bounding box of an annulus sector: radii
+    `r_inner`..`r_outer` (`r_inner` clamped to `>= 0`, so a sector dipping
+    past the centre becomes a pie slice rather than wrapping), swept between
+    `theta_a_degrees` and `theta_b_degrees` (either order) -- Garmin degrees,
+    counter-clockwise from 3 o'clock, screen y down (`px = cx + r*cos`,
+    `py = cy - r*sin`).
 
-    The classic arc-bbox bug: the four corner points (both radii at both
-    angular ends) are not enough on their own. An arc that crosses due
-    north, say, has its topmost point *mid-sweep* -- at neither endpoint --
-    so the four axis-aligned extremes (Garmin 0/90/180/270 degrees: 3, 12,
-    9 and 6 o'clock) are added too, each at the OUTER radius, whenever that
-    direction actually falls inside the swept interval. The inner radius is
-    never the extreme there: it is closer to the centre than a corner
-    already collected, in every direction.
+    The four corner points alone are not enough: an arc crossing due north
+    has its topmost point mid-sweep.  So each axis extreme (3, 12, 9 and 6
+    o'clock) inside the sweep is added too, at the outer radius -- the inner
+    radius is never the extreme there.
     """
     theta_min, theta_max = min(theta_a_degrees, theta_b_degrees), max(theta_a_degrees, theta_b_degrees)
     sweep = theta_max - theta_min
@@ -309,38 +225,19 @@ def rotated_rect_corners(
     x: float, y: float, width: float, height: float, align: str, vertical_align: str,
     garmin_angle_degrees: float, pad: float = 0.0,
 ) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]:
-    """The four REAL corners of a `width`x`height` text box, anchored at
+    """The four real corners of a `width`x`height` text box anchored at
     `(x, y)`, shifted by `align`/`vertical_align` in its own unrotated frame
     (`alignment_shift`), then rotated about `(x, y)` by
-    `garmin_angle_degrees` -- Garmin's own convention, the exact rotation
-    `Resolver._rotated_text_box` (below) already applies to get its AABB.
+    `garmin_angle_degrees` -- the rotation `drawAngledText` applies
+    (verified against `$CIQ_SDK/samples/TrueTypeFonts/.../
+    TrueTypeFontsAngledText.mc`: Garmin angle 0 is unrotated).  `InkQuad`
+    keeps the corners themselves, since the AABB's corners are not points
+    of the rectangle and overreach it on a round screen.
 
-    Split out of that method so the AABB and the round-screen reach check
-    (`visible_reach`, and a radial pattern's own per-copy `text_reach` in
-    `Resolver._resolve_pattern`) can share one rotation instead of two
-    independently-written copies: an AABB's own *corners* generically
-    overreach a rotated rectangle's real ones (the axis-aligned box drawn
-    around a tilted rectangle has corners that are not points on the
-    rectangle at all), the same "the union of extremes is not a point on
-    the shape" trap `arc_bbox`'s own docstring calls out for an annulus
-    sector -- so the AABB stays the right shape for the framebuffer
-    (`off-screen`) check, but the round-screen (`safe-area`) reach check
-    needs these actual corners instead.
-
-    `pad` (plan 15 §6, D9) grows the box's own half-extents by this much on
-    every side, in the box's *local* (pre-rotation) frame, **without**
-    moving its centre: `align`/`vertical_align` still shift the *unpadded*
-    box (`dx`/`dy` below reads `width`/`height`, never `width + 2*pad`), so
-    an `outline:` ring is centred on the same point the plain ink box
-    already was, then grown outward by `pad` in every local direction --
-    the "Minkowski-dilate the pre-transform box, then apply the same
-    transform" construction `_resolve_text`'s own D9 note describes,
-    conservative by construction (it bounds, but does not exactly trace,
-    the true screen-space disc dilation a stamped ring produces -- research
-    14 §3.2's own commuting-with-rotation argument, at a corner a locally
-    padded rectangle reaches up to `pad * sqrt(2)` past the true disc's own
-    `pad`, never less). `pad=0.0` (every pre-existing caller) reproduces
-    today's corners exactly.
+    `pad` grows the half-extents in the box's local frame *without* moving
+    its centre -- alignment still reads the unpadded size.  Conservative: at
+    a corner this reaches up to `pad * sqrt(2)` past the true stamped ring
+    (research 14 §3.2).
     """
     theta = math.radians(garmin_angle_degrees)
     cos_t, sin_t = math.cos(theta), math.sin(theta)
@@ -358,35 +255,17 @@ def annulus_sector_reach(
     cx: float, cy: float, r_inner: float, r_outer: float,
     theta_a_degrees: float, theta_b_degrees: float, px: float, py: float,
 ) -> float:
-    """The farthest distance from an arbitrary point `(px, py)` to any point
-    of the annulus sector `arc_bbox` bounds -- radii `r_inner`..`r_outer`,
-    swept between `theta_a_degrees`/`theta_b_degrees` (either order, same
-    convention as `arc_bbox`). This is what the round-screen `safe-area`
-    check needs instead of `arc_bbox`'s own AABB corners: an AABB's corners
-    generically sit farther from an arbitrary external point than the
-    shape's own farthest point ever does (`arc_bbox`'s docstring already
-    makes the analogous point about the screen's own axes; this is the same
-    trap for a point that need not even be axis-aligned with the sector).
+    """The farthest distance from `(px, py)` to any point of the annulus
+    sector `arc_bbox` bounds (same arguments and convention) -- what the
+    round-screen `safe-area` check needs, since the AABB's corners sit
+    farther out than the sector ever does.
 
-    The farthest point of a *full* circle of radius `r` from an external
-    point `P` always lies in the direction from the centre straight away
-    from `P` -- colinear with `P` and the centre, at distance
-    `dist(centre, P) + r`. When that direction falls inside the sector's own
-    sweep, the sector's farthest point is that exact same one (the inner
-    radius is never the extreme there, the same "closer to centre, never
-    the extreme" reasoning `arc_bbox` already relies on). Otherwise the
-    farthest point of the *swept* range is at one of its two ends
-    (`theta_a`/`theta_b`): distance from `P` to a point at a fixed angle is
-    a convex function of that point's own radius, and a convex function's
-    max over a bounded interval is always at one of the interval's two
-    ends, so checking both radii at both ends is enough. Exact, not merely
-    conservative, for every case actually reachable through this format:
-    `radial_text_band`'s own band is always exactly one `line_height` wide,
-    and every sweep this project builds comes from one contiguous run of
-    text, never a reflex (>180 degree) sector -- documented as the same
-    "tight for the shapes this project actually produces" contract
-    `arc_bbox`'s own docstring sets, rather than an independently proven
-    bound for arbitrary radii and reflex sweeps.
+    A circle's farthest point from `P` lies straight away from `P` through
+    the centre, at `dist + r_outer`; when that direction falls inside the
+    sweep, that is the answer.  Otherwise the maximum is at one of the
+    sweep's two ends (distance at a fixed angle is convex in the radius), so
+    both radii at both ends suffice.  Exact for the sectors this project
+    builds (one run of text, never a reflex sweep).
     """
     dist_c = math.hypot(cx - px, cy - py)
     theta_min = min(theta_a_degrees, theta_b_degrees)
@@ -408,33 +287,169 @@ def annulus_sector_reach(
     return best
 
 
+# -- ink shapes ------------------------------------------------------------
+#
+# The real ink of a drawn thing, as one of four small shapes.  Each answers
+# the three questions the lints ask, from the one shape: `box()` (the AABB,
+# for the rectangular framebuffer and `Placed.box`), `bounds()` (the same
+# AABB as `(min_x, min_y, max_x, max_y)`, for unioning a pattern's copies)
+# and `reach(px, py)` (the farthest ink from a point, for the round-screen
+# `safe-area` check -- an AABB's own corners generically overreach the shape
+# they bound).  `box()`/`bounds()` each keep the arithmetic their callers
+# have always used, so neither is derived from the other.
+
+
+@dataclass(frozen=True)
+class InkRect:
+    """A screen-aligned rectangle: upright text."""
+
+    left: float
+    top: float
+    width: float
+    height: float
+
+    def box(self) -> Box:
+        return Box(self.left, self.top, self.width, self.height)
+
+    def bounds(self) -> tuple[float, float, float, float]:
+        return self.left, self.top, self.left + self.width, self.top + self.height
+
+    def reach(self, px: float, py: float) -> float:
+        left, top, right, bottom = self.bounds()
+        return max(math.hypot(x - px, y - py)
+                   for x, y in ((left, top), (right, top), (left, bottom), (right, bottom)))
+
+
+@dataclass(frozen=True)
+class InkQuad:
+    """Four real corners (:func:`rotated_rect_corners`): `angled` text."""
+
+    corners: tuple[tuple[float, float], ...]
+
+    def box(self) -> Box:
+        min_x, min_y, max_x, max_y = self.bounds()
+        return Box(min_x, min_y, max_x - min_x, max_y - min_y)
+
+    def bounds(self) -> tuple[float, float, float, float]:
+        xs = [p[0] for p in self.corners]
+        ys = [p[1] for p in self.corners]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    def reach(self, px: float, py: float) -> float:
+        return max(math.hypot(x - px, y - py) for x, y in self.corners)
+
+
+@dataclass(frozen=True)
+class InkSector:
+    """An annulus sector (:func:`arc_bbox`'s convention): `radial` text."""
+
+    cx: float
+    cy: float
+    r_inner: float
+    r_outer: float
+    theta_a: float
+    theta_b: float
+
+    def box(self) -> Box:
+        return arc_bbox(self.cx, self.cy, self.r_inner, self.r_outer, self.theta_a, self.theta_b)
+
+    def bounds(self) -> tuple[float, float, float, float]:
+        b = self.box()
+        return b.x, b.y, b.x + b.width, b.y + b.height
+
+    def reach(self, px: float, py: float) -> float:
+        return annulus_sector_reach(self.cx, self.cy, self.r_inner, self.r_outer,
+                                    self.theta_a, self.theta_b, px, py)
+
+
+@dataclass(frozen=True)
+class InkDisc:
+    """A full disc: every `circular_extent` kind."""
+
+    cx: float
+    cy: float
+    radius: float
+
+    def box(self) -> Box:
+        r = self.radius
+        return Box(self.cx - r, self.cy - r, 2 * r, 2 * r)
+
+    def bounds(self) -> tuple[float, float, float, float]:
+        r = self.radius
+        return self.cx - r, self.cy - r, self.cx + r, self.cy + r
+
+    def reach(self, px: float, py: float) -> float:
+        return math.hypot(self.cx - px, self.cy - py) + self.radius
+
+
+Ink = InkRect | InkQuad | InkSector | InkDisc
+
+
+def text_ink(
+    x: float, y: float, width: float, height: float, align: str, vertical_align: str, *,
+    curve_style: str | None, angle_garmin: float, radius_px: int, direction: str | None,
+    metric: FontMetric | None, pad: float,
+) -> Ink:
+    """The ink of one measured `width`x`height` run anchored at `(x, y)` --
+    the one derivation shared by a standalone `text` element
+    (`Resolver._resolve_text`'s box, `visible_reach`) and a pattern's
+    `shape: text` part (`_pattern_part_ink`, `Resolver._resolve_pattern`'s
+    reach), so box and reach always describe the same shape.
+
+    * upright -- the box moved by `alignment_shift`; the runtime anchor
+      stays put (a glyph kind aligns by device-side justify).
+    * `angled` -- that box rotated about the anchor by `angle_garmin`
+      (:func:`rotated_rect_corners`), conservative: the whole line box, not
+      the glyphs' own ink.
+    * `radial` -- `(x, y)` is the circle's centre; the sector swept by the
+      run (:func:`radial_text_angle_span`) over the band
+      (:func:`radial_text_band`).  A square around the circle would put its
+      corners at `(radius + line_height) * sqrt(2)`, far outside a round
+      panel the glyphs themselves never leave.  With no usable radius
+      (schema-unreachable) a conservative disc instead.
+
+    `pad` is an `outline:` ring's width (plan 15 D9): the box is dilated
+    about its already-aligned centre, never re-anchored as a wider box --
+    alignment still reads the unpadded `width`/`height`.
+    """
+    if curve_style == "angled":
+        return InkQuad(rotated_rect_corners(
+            x, y, width, height, align, vertical_align, angle_garmin, pad=pad))
+    if curve_style == "radial":
+        if radius_px <= 0:
+            return InkDisc(x, y, radius_px + height + pad)
+        theta_a, theta_b = radial_text_angle_span(
+            angle_garmin, direction, align, width, radius_px, pad=pad)
+        r_inner, r_outer = radial_text_band(
+            radius_px, height, vertical_align, direction, _curve_ascent(metric, height), pad=pad)
+        return InkSector(x, y, r_inner, r_outer, theta_a, theta_b)
+    dx, dy = alignment_shift(width, height, align, vertical_align)
+    box_width, box_height = width + 2 * pad, height + 2 * pad
+    return InkRect(x + dx - box_width / 2, y + dy - box_height / 2, box_width, box_height)
+
+
+def _stroke_pad(pen: int) -> int:
+    """How far a stroked outline's ink reaches past the declared edge it is
+    drawn on: half the pen, plus a pixel for the device's rounding."""
+    return pen // 2 + 1
+
+
 def _arc_box(
     radius: int, pen: int, cx: float, cy: float, align: str, vertical_align: str,
     start_angle: Angle | None, sweep_angle: Angle | None,
 ) -> tuple[IntBox, float, float, float, float, float, str]:
-    """The geometry `shape: arc` and `progress: {style: arc}` share once
-    `radius`/`pen` (a shape's own `max(1, thickness)`, a progress's own
-    `max(1, round(...))`) are already resolved: the alignment shift by the
-    full circle -- `start_angle:`/`sweep:` never move the centre -- the
-    pen's own reach (the same reach a `progress` arc
-    claims: the pen straddles the radius, so the ink runs half a pen width
-    past it either side), and the author-to-Garmin angle conversion
-    (`garmin_arc`).
-
-    Takes `radius`/`pen` already resolved rather than resolving them itself:
-    the two callers' own `_extent` calls for `radius` and `thickness` run in
-    opposite order (`_resolve_shape` resolves `thickness` before dispatching
-    to the `arc` branch, `_resolve_progress` resolves `radius` first inside
-    it), and preserving each one's own order is what keeps `Resolver.
-    sub_pixel`'s record order unchanged, so that part stays in each caller.
+    """What `shape: arc` and `progress: {style: arc}` share once `radius`
+    and `pen` are resolved: the alignment shift by the full circle
+    (`start_angle:`/`sweep:` never move the centre), the stroked reach and
+    `garmin_arc`.  The callers resolve `radius`/`pen` themselves because
+    they do so in opposite orders, and that order is `Resolver.sub_pixel`'s.
 
     Returns ``(box, cx, cy, start_degrees, sweep_degrees, garmin_start,
-    garmin_direction)`` -- the shifted centre, since both callers embed it
-    in their own `Placed*.center`.
+    garmin_direction)``, with the shifted centre.
     """
     dx, dy = alignment_shift(2 * radius, 2 * radius, align, vertical_align)
     cx, cy = cx + dx, cy + dy
-    reach = radius + pen // 2 + 1
+    reach = radius + _stroke_pad(pen)
     box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
     start = (start_angle or Angle(0.0)).degrees
     sweep = (sweep_angle or Angle(360.0)).degrees
@@ -466,114 +481,53 @@ class PlacedShape(Placed):
     sweep: float = 360.0
     garmin_start: float = 90.0
     garmin_direction: str = "ARC_CLOCKWISE"
-    #: The `aod: {thickness: ...}` override, resolved exactly like `thickness`
-    #: above (`Resolver._aod_thickness_extent`, plan 14 §4.2) -- `None` when
-    #: this element's resolved `aod:` sets no `thickness:` override, in which
-    #: case codegen keeps the plain `Layout.<P>_THICKNESS` reference
-    #: unchanged.  Never affects `box`/`rect` -- an AOD-only pen width is a
-    #: rendering fact, not a safe-area/overlap one; the awake box is what
-    #: those lints check either way.
+    #: The `aod: {thickness: ...}` override (`Resolver._aod_extent`), or
+    #: `None` for none -- codegen then keeps the plain `_THICKNESS` constant.
+    #: A rendering fact only: never affects `box`/`rect`.
     aod_thickness: int | None = None
 
 
 @dataclass
 class PlacedText(Placed):
     #: The point passed to ``drawText``; ``justify`` says how text sits on it.
-    #: For `curve: {style: radial}`, this is the **centre of the circle**
-    #: (plan 11 §2.2's `at:` reinterpretation), not a `drawText`-style
-    #: anchor -- codegen's radial branch reads it that way.
+    #: Under `curve: {style: radial}` it is the circle's centre instead.
     anchor_point: tuple[int, int] = (0, 0)
     justify: tuple[str, ...] = ()
     font_reference: str = "FONT_MEDIUM"
     font_is_custom: bool = False
     font_px: int = 0
-    #: The device's `FontMetric` for a system font, **or for a resolved
-    #: vector font** (plan 11 §4: `Resolver._vector_font_metric` -- a
-    #: synthetic metric naming the resolved face's real filename, so
-    #: `wfb.fonts.fallback.measure`/`line_height`/`system_face` locate and
-    #: measure the exact same TTF a later preview step would draw with, the
-    #: same "one measurement path" discipline plan 09 R2.3 already applies
-    #: to a system font). `None` only for a **baked** custom font (`font_is_
-    #: custom and not font_is_vector`), or when the device has no pixel
-    #: metrics for a plain system-font symbol at all.
+    #: What the text is measured (and previewed) through: the device's
+    #: metric for a system font, or one synthesised for a resolved vector
+    #: face (`Resolver._vector_font_metric`).  `None` for a baked font, or
+    #: when the device has no metrics for the system symbol.
     font_metric: FontMetric | None = None
     widest: str = ""
     measured_width: int = 0
     #: True when the extent was estimated rather than measured from real metrics.
     width_is_estimated: bool = False
-    #: **Vector fonts only** (plan 11 §2.1/§3). The single face name this
-    #: device actually publishes, resolved from `FontSpec.face`'s
-    #: author-ordered candidates by :meth:`Resolver._resolve_vector_face` --
-    #: what codegen emits as `:face`, never the array (see that method's
-    #: docstring for why). Empty when `font_is_vector` is false, or when
-    #: gates 1-3 (`docs/research/12-vector-fonts.md` §3) all failed on this
-    #: device (:attr:`font_available` is then also false).
+    #: **Vector fonts only.**  The one face name this device publishes out
+    #: of `FontSpec.face`'s candidates (`Resolver._resolve_vector_face`) --
+    #: what codegen emits as `:face`; empty when none resolves.
     font_face: str = ""
-    #: True when `element.font` names a `face:` (vector) `FontSpec` --
-    #: `False` for a baked custom font and for a system font alike, so a
-    #: caller can tell "device-resident, resolved per device" apart from
-    #: "the same font resource on every target" with one flag instead of
-    #: re-deriving it from `font_is_custom` plus a `Face.fonts` lookup.
+    #: True when `element.font` names a `face:` (vector) font.
     font_is_vector: bool = False
-    #: **Vector fonts only.** Whether gates 1-3 all passed for this element
-    #: on *this* device -- always `True` for a baked or system font, which
-    #: cannot fail to be available (nothing to gate). `False` here is what
-    #: `if_unavailable: hide` acts on (`wfb.lint.check_vector_font_
-    #: availability`): the element still resolves -- draw order, a box for
-    #: the geometry lints, everything else -- but `font_face` is empty and
-    #: nothing about it is ever emitted as a real device-resident face on
-    #: this device. `if_unavailable: error` never lets an unavailable
-    #: element reach a real build (`wfb.build.resolve_all` fails the whole
-    #: build first), so a `False` here only ever survives into a
-    #: `ResolvedFace` under `hide`, or in a layout-only test that calls
-    #: `wfb.layout.resolve` directly without that build-level check.
+    #: Whether vector gates 1-3 passed on this device (always `True` for a
+    #: baked or system font).  `False` survives into a build only under
+    #: `if_unavailable: hide` (`wfb.lint.check_vector_font_availability`):
+    #: the element still resolves, but nothing draws it on this device.
     font_available: bool = True
-    #: `text.curve.style` as authored (plan 11 §2.2) -- `"angled"` |
-    #: `"radial"` | `None` for ordinary upright text. Kept on the placed
-    #: element (not just reachable through `element.curve`) so a lint or
-    #: the emitter never has to re-derive "is this element curved" from the
-    #: IR once layout has already answered it.
+    #: `text.curve`, exploded: `style` (`"angled"`|`"radial"`|`None` for
+    #: upright), the angle both in author units and in Garmin's convention
+    #: (`garmin_curve_angle` -- a *position* for `radial`, a *rotation* for
+    #: `angled`), the resolved radius (`radial` only, else `0`) and the
+    #: author's `direction` word.
     curve_style: str | None = None
-    #: `text.curve.angle`, **in the design's own author-facing units** --
-    #: kept alongside :attr:`curve_angle_garmin` exactly as `PlacedShape.
-    #: start_angle`/`.garmin_start` keep both for `shape: arc`: the
-    #: generated `Layout` comment carries both values (plan 11 §2.2), and
-    #: the preview reasons in the design's own convention throughout, the
-    #: same way it already does for `arc`/`progress`. **Not one convention**:
-    #: for `radial` this is a *position* (12 o'clock = 0, clockwise
-    #: positive, the same universal direction convention every other angle
-    #: in this format uses); for `angled` it is a *rotation* (0 = level/
-    #: unrotated, clockwise positive) -- see `garmin_curve_angle`'s own
-    #: docstring for why the two differ. `0.0` when `curve_style` is `None`.
     curve_angle_degrees: float = 0.0
-    #: `garmin_curve_angle(curve_style, text.curve.angle)` -- Garmin's own
-    #: 3-o'clock/counter-clockwise convention, what `Dc.drawAngledText`/
-    #: `Dc.drawRadialText`'s own `angle` parameter actually expects, and
-    #: what this module's own box math (`Resolver._rotated_text_box`) rotates
-    #: by, since that is the rotation the device really draws. `0.0` when
-    #: `curve_style` is `None`.
     curve_angle_garmin: float = 0.0
-    #: `curve: {style: radial}` only -- the circle's radius, resolved to
-    #: whole device pixels the same way any other polar `at:` radius is
-    #: (`Resolver._len`, `Axis.MINOR`). `0` for `angled`, which has no
-    #: circle.
     curve_radius_px: int = 0
-    #: `curve: {style: radial}` only -- `"clockwise"` | `"counter_clockwise"`
-    #: | `None`, `text.curve.direction` carried straight through for
-    #: codegen to map onto `Graphics.RadialTextDirection`
-    #: (`RADIAL_TEXT_DIRECTION_CLOCKWISE`/`_COUNTER_CLOCKWISE`, a later
-    #: slice) -- this module never needs the Garmin constant name itself,
-    #: only the author's own word.
     curve_direction: str | None = None
-    #: The measured (or estimated) line height, in device pixels -- the
-    #: same value `Resolver._resolve_text` already used locally to build
-    #: `box`. Kept here too so `visible_reach` (module level) can
-    #: reconstruct a curved element's exact `angled`/`radial` geometry
-    #: later, at lint time, from this one record instead of a second,
-    #: independently-recomputed box (upright text needs no reconstruction
-    #: at all -- `box.height` already *is* the line height -- but this is
-    #: set for every `PlacedText`, not just a curved one, rather than leave
-    #: a silently-zero field on the common case).
+    #: The measured (or estimated) line height, in device pixels -- what
+    #: `visible_reach` rebuilds a curved element's ink from (`text_ink`).
     line_height: float = 0.0
 
 
@@ -588,8 +542,7 @@ class PlacedProgress(Placed):
     garmin_start: float = 90.0
     garmin_direction: str = "ARC_CLOCKWISE"
     size: tuple[int, int] = (0, 0)
-    #: See `PlacedShape.aod_thickness` -- the same override, `style: arc` only
-    #: (a bar-style progress has no pen width for it to change).
+    #: See `PlacedShape.aod_thickness` -- `style: arc` only.
     aod_thickness: int | None = None
 
 
@@ -601,51 +554,40 @@ class PlacedIcon(Placed):
     size: int = 0
     #: The synthetic font resource this icon draws from (see `wfb.icons.font_key`).
     font_key: str = ""
-    #: For a static icon, the glyph itself, resolved from `element.icon` (a
-    #: catalogue name or a literal character) at IR-build time. For a dynamic
-    #: icon (`element.is_dynamic`), the *representative* glyph measurement and
-    #: preview use -- `wfb.icons.WEATHER_BAKE_REFERENCE_GLYPH` -- never what
-    #: codegen actually draws, which it resolves on-device instead.
+    #: For a static icon, the glyph itself.  For a dynamic icon
+    #: (`element.is_dynamic`), the *representative* glyph measurement and
+    #: preview use (`wfb.icons.WEATHER_BAKE_REFERENCE_GLYPH`); codegen picks
+    #: the real one on-device.
     codepoint: str = "?"
     anchor_point: tuple[int, int] = (0, 0)
-    #: `Toybox.Graphics.TEXT_JUSTIFY_*` flags, `Resolver._justify`'s own
-    #: precedent -- an icon is a glyph kind, so its alignment is a
-    #: device-side justify on the unshifted anchor, the same mechanism
-    #: `PlacedText.justify` already uses, not a build-time box move.
+    #: `TEXT_JUSTIFY_*` flags: a glyph kind aligns by device-side justify on
+    #: the unshifted anchor, not by a build-time box move.
     justify: tuple[str, ...] = ()
 
 
 @dataclass
 class PlacedGraph(Placed):
     """A `graph`, resolved: the drawn box, and the two style-specific widths.
-
-    Nothing here is series-dependent (`wfb/ir.py`'s `Graph.sample_count` and
-    `series_def` already carry everything about *which* series and *how
-    many* samples, device-independently) -- this is only the box and the
-    two pixel widths a device's screen actually determines.
-    """
+    Everything series-dependent is device-independent and stays on the IR
+    (`Graph.sample_count`, `series_def`)."""
 
     thickness: int = 1
     bar_width: int = 1
     size: tuple[int, int] = (0, 0)
-    #: See `PlacedShape.aod_thickness`/`.aod_bar_width` -- the same two
-    #: overrides, for a `line`/`bars` graph respectively.
+    #: See `PlacedShape.aod_thickness` -- for a `line`/`bars` graph respectively.
     aod_thickness: int | None = None
     aod_bar_width: int | None = None
 
 
 @dataclass(frozen=True)
 class ResolvedHandPart:
-    """One hand part, or one pattern template part, resolved for
-    one device: whole pixels, in the shared frame (origin = the axis /
-    the pattern's own ``at:``, pointing at 12 o'clock) -- the shape the
-    watch rotates (or translates) at runtime.  One class
-    covers every runtime shape (``polygon``, ``line``, ``circle``, ``arc``)
-    the same way :class:`PlacedShape` covers every ``shape:``; a rectangle
-    part is folded into ``polygon`` here (`Resolver._resolve_hand_part`),
-    because a rotated rectangle is a polygon.  A hand never produces
-    an ``"arc"`` part -- `wfb.ir.HAND_PART_REJECTED_SHAPES` refuses it before
-    this is reached -- so ``start_angle``/``sweep`` are pattern-only.
+    """One hand part, or one pattern template part, resolved for one
+    device: whole pixels, in the part's own frame (origin = the axis / the
+    pattern's `at:`, pointing at 12 o'clock) -- the shape the watch rotates
+    (or translates) at runtime.  One class covers every runtime shape; a
+    rectangle part is folded into ``polygon`` (a rotated rectangle is a
+    polygon).  ``arc`` and ``text`` are pattern-only
+    (`wfb.ir.HAND_PART_REJECTED_SHAPES`).
     """
 
     shape: str
@@ -657,89 +599,46 @@ class ResolvedHandPart:
     y1: int = 0
     x2: int = 0
     y2: int = 0
-    #: ``circle``/``arc``: centre (``arc``'s is always the origin, x=y=0) and
-    #: radius; ``line``/unfilled ``circle``/``arc``: pen width.
+    #: ``circle``/``arc``/``text``: centre or anchor (``arc``'s is always the
+    #: origin); ``circle``/``arc``: radius; ``line``/unfilled ``circle``/
+    #: ``arc``: pen width.
     x: int = 0
     y: int = 0
     radius: int = 0
     thickness: int = 1
     filled: bool = True
-    #: ``arc`` only.  Author degrees (12 o'clock = 0, clockwise) -- a radial
-    #: pattern's runtime rotation adds ``start + i * step`` to ``start_angle``;
-    #: a linear one leaves it as authored.  The `0.0` default
-    #: is never actually relied on: `Resolver._resolve_hand_part` always sets
-    #: both explicitly for a real ``arc`` part (`sweep` defaulting to `360deg`
-    #: there, not here, when the author omitted it).
+    #: ``arc`` only.  Author degrees (12 o'clock = 0, clockwise), always set
+    #: explicitly; a radial pattern adds ``start + i * step`` at runtime.
     start_angle: float = 0.0
     sweep: float = 0.0
-    #: ``text`` only -- ``x``/``y`` double as the part's own
-    #: anchor in the template frame (rounded via `round_half_away`, the same as
-    #: a circle's centre), everything else stays at its default on every
-    #: other shape.  Upright glyphs are *not* rotation-invariant, so unlike
-    #: every other shape a text part's own ``reach`` (`Resolver.
-    #: _resolve_hand_part`'s return) is always `0.0`: the real farthest-ink
-    #: distance is folded into `Resolver._resolve_pattern`'s per-copy loop
-    #: instead, where each drawn copy's own upright box is known.
+    #: ``text`` only, from here down -- the same meaning as the matching
+    #: `PlacedText` fields.
     font_reference: str = ""
     font_is_custom: bool = False
     font_px: int = 0
-    #: See `PlacedText.font_metric` -- the same field, for a `shape: text`
-    #: pattern part.
     font_metric: FontMetric | None = None
-    #: `Toybox.Graphics.TEXT_JUSTIFY_*` flags, `Resolver._justify`'s own
-    #: precedent (a `Text` element's `PlacedText.justify`).
     justify: tuple[str, ...] = ()
     align: str = "center"
     vertical_align: str = "center"
     line_height: int = 0
     #: The host-rendered string for every copy index ``0..count-1`` (skipped
-    #: copies included, so ``texts[i]`` is copy ``i``), `HandPart.texts`
-    #: carried through layout unchanged (device-independent).
+    #: copies included, so ``texts[i]`` is copy ``i``), and each one's
+    #: measured pixel width, in the same order.
     texts: tuple[str, ...] = ()
-    #: Each string's measured pixel width, same length and order as
-    #: ``texts`` -- a baked font's `measure` or `fonts.fallback.measure` for
-    #: a system font, exactly as `Resolver._resolve_text` measures one.
     widths: tuple[int, ...] = ()
-    #: See `PlacedText.font_face`/`.font_is_vector`/`.font_available` --
-    #: the same three fields, for a `shape: text` pattern part (plan 11
-    #: slice 2).  `font_face` is this device's own resolved `:face` string
-    #: (empty when unresolved); `font_is_vector` is true only when `font:`
-    #: names a `face:` `FontSpec`; `font_available` is gates 1-3's answer
-    #: for *this* device, always `True` for a baked/system font.
     font_face: str = ""
     font_is_vector: bool = False
     font_available: bool = True
-    #: See `PlacedText.curve_style`/`.curve_angle_degrees`/`.curve_angle_
-    #: garmin`/`.curve_radius_px`/`.curve_direction` -- the same five
-    #: fields, for a `shape: text` pattern part's own `curve:` (plan 11
-    #: slice 2).  **`curve_angle_garmin` is this part's own *local*,
-    #: template-frame angle (`HandPart.curve.angle`, Garmin-converted) --
-    #: for copy 0 alone, NOT yet composed with a radial pattern's own
-    #: per-copy rotation.** That composition (`part.curve_angle_garmin -
-    #: (element.start_angle + i * element.step_angle)`, the same "local
-    #: angle plus the copy's own rotation" arithmetic a pattern's own `arc`
-    #: part's `start_angle` already gets at codegen time) happens in
-    #: `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr` and, for the
-    #: lint box, in `_pattern_part_ink` -- never here, since it genuinely
-    #: depends on which copy `i` is, a per-copy runtime loop variable this
-    #: module never sees. `None`/`0`/`0.0` defaults exactly mirror
-    #: `PlacedText`'s own, for an upright (uncurved) text part or any other
-    #: shape.
+    #: `curve_angle_garmin` is the part's *local* angle, for copy 0 only: a
+    #: radial pattern's per-copy rotation depends on the runtime copy index,
+    #: so it is composed where that index is known (`_pattern_text_ink`,
+    #: `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`).
     curve_style: str | None = None
     curve_angle_degrees: float = 0.0
     curve_angle_garmin: float = 0.0
     curve_radius_px: int = 0
     curve_direction: str | None = None
-    #: `shape: text` pattern part only (plan 15 §14 slice 2) -- carried
-    #: through from `HandPart.outline` unchanged (`color`/`width` are
-    #: device-independent, exactly the reason `color` above is just
-    #: `part.color` unchanged too), exploded into two primitive fields
-    #: rather than one nested `Outline`, the same "explode, don't nest"
-    #: shape `curve_style`/`curve_angle_garmin`/... already use for
-    #: `HandPart.curve`. `outline_color is None` is the "no outline" test
-    #: both codegen (`wfb.emit.monkeyc.rotated`) and layout
-    #: (`_pattern_part_ink`/`_pattern_text_ink_geometry`) use -- `outline_
-    #: width` is meaningless without it and stays `0`.
+    #: `HandPart.outline`, exploded; `outline_color is None` means none.
     outline_width: int = 0
     outline_color: Expression | None = None
 
@@ -751,12 +650,9 @@ class ResolvedHand:
 
 @dataclass
 class PlacedHands(Placed):
-    """A `type: hands` element, resolved: the axis, each declared hand's
-    resolved parts, and the swept disc's reach.
-
-    ``box`` is the square around that disc, and ``center`` is the axis --
-    both set by :meth:`Resolver._resolve_hands`, the same shape every other
-    ``Placed`` subclass follows.
+    """A `type: hands` element, resolved: the axis (``center``), each
+    declared hand's resolved parts, and the swept disc (``box`` is the
+    square around it).
     """
 
     hour: ResolvedHand | None = None
@@ -766,25 +662,17 @@ class PlacedHands(Placed):
     #: `circular_extent` reads this instead of `box`, so the visible-area
     #: check reasons about the real disc, not its bounding square.
     reach: float = 0.0
-    #: The `aod: {thickness: ...}` override (plan 14 §5.1) -- one value,
-    #: applied uniformly to every part of every hand in the set, resolved
-    #: once per element the same way `PlacedShape.aod_thickness` is (never
-    #: per part: there is no per-part override in v1).  `None` when this
-    #: element's resolved `aod:` sets no `thickness:` override.
+    #: The `aod: {thickness: ...}` override, one value for every part of
+    #: every hand (plan 14 §5.1); `None` for none.
     aod_thickness: int | None = None
 
 
 @dataclass
 class PlacedPattern(Placed):
-    """A `type: pattern` element, resolved: the resolved template, which
-    copies are actually drawn, and the repeat rule -- radial (turn about
-    `center`) or linear (step by `dx`/`dy`).
-
-    ``box`` is the bounding box of the ink of every *drawn* copy (computed by
-    :meth:`Resolver._resolve_pattern` from :meth:`transform`), and ``center``
-    is the origin every copy is measured from -- radial's centre of rotation,
-    or linear's own copy-0 origin -- the same shape every other ``Placed``
-    subclass follows.
+    """A `type: pattern` element, resolved: the template, which copies are
+    drawn, and the repeat rule -- radial (turn about ``center``) or linear
+    (step by `dx`/`dy` from copy 0 at ``center``).  ``box`` bounds the ink
+    of every *drawn* copy.
     """
 
     #: The template, copy 0 as authored (rectangle folded into polygon).
@@ -797,13 +685,11 @@ class PlacedPattern(Placed):
     #: Linear only, whole pixels: the offset between consecutive copies.
     dx: int = 0
     dy: int = 0
-    #: Radial only: the farthest ink of any part from `center`, rotation
-    #: -invariant so it needs no per-copy loop (`circular_extent` reads this
-    #: instead of `box`, the same reasoning `PlacedHands.reach` follows). 0
+    #: Radial only: the farthest ink of any part of any drawn copy from
+    #: `center` (`circular_extent` reads it, like `PlacedHands.reach`); `0`
     #: for a linear pattern, which reports no disc.
     reach: float = 0.0
-    #: See `PlacedHands.aod_thickness` -- the same "one override, applied
-    #: uniformly to every part" shape (plan 14 §5.1), for a pattern's parts.
+    #: See `PlacedHands.aod_thickness`.
     aod_thickness: int | None = None
 
     def transform(self, index: int) -> tuple[float, float, float, float]:
@@ -839,6 +725,27 @@ def pattern_text_anchor(
     return math.floor(tx + 0.5), math.floor(ty + 0.5)
 
 
+def _pattern_text_ink(
+    part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
+    copy_angle_degrees: float,
+) -> Ink:
+    """:func:`text_ink` for copy `index` of a `shape: text` pattern part:
+    anchored at :func:`pattern_text_anchor`, measured by that copy's own
+    string (``part.widths[index]``), and -- under `curve:` -- turned by the
+    part's local angle composed with the copy's own rotation
+    (`copy_angle_degrees`, design degrees clockwise from 12; `0.0` for a
+    linear pattern), the same composition
+    `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr` emits.
+    """
+    ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
+    return text_ink(
+        ax, ay, part.widths[index] if part.widths else 0, part.line_height,
+        part.align, part.vertical_align, curve_style=part.curve_style,
+        angle_garmin=(part.curve_angle_garmin - copy_angle_degrees) % 360.0,
+        radius_px=part.curve_radius_px, direction=part.curve_direction,
+        metric=part.font_metric, pad=float(part.outline_width))
+
+
 def _pattern_part_ink(
     part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
     copy_angle_degrees: float = 0.0,
@@ -849,34 +756,9 @@ def _pattern_part_ink(
     circle's centre padded by its radius (plus half the pen width when
     outlined); an arc's full circle -- always centred on the copy's own
     origin -- padded by half its pen width, conservatively ignoring
-    `start_angle`/`sweep`; a text part's box, from its rounded anchor
-    (:func:`pattern_text_anchor`) and this copy's own measured width
-    (``part.widths[index]``) -- the one shape here that needs
-    to know *which* copy it is, since upright text is not rotation-invariant.
-    A text part's own `outline:` (plan 15 §14 slice 2) grows that box by
-    `part.outline_width` on every side, via `_pattern_text_ink_geometry`'s
-    own `pad` parameter -- the "shape: text" branch below always passes
-    `float(part.outline_width)` (`0.0` on a part with no `outline:`).
-
-    `copy_angle_degrees` is this copy's own rotation, in the design's
-    clockwise-from-12 convention (`element.start_angle + index *
-    element.step_angle` for a radial pattern, `0.0` for a linear one --
-    computed once per copy by `Resolver._resolve_pattern`'s own loop, the
-    same value `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`
-    composes with at codegen time). Unused except by a curved text part's
-    own conservative box (plan 11 slice 2): `angled` is the measured
-    `width`x`height` rectangle rotated about the anchor by the *effective*
-    Garmin angle (`part.curve_angle_garmin - copy_angle_degrees`, the same
-    composition codegen performs), reusing `Resolver._rotated_text_box`
-    rather than a second copy of that rotation math; `radial` composes the
-    same *effective* angle and hands it to `radial_text_angle_span`/
-    `arc_bbox`, with `radial_text_band` (module level, shared with
-    `Resolver._resolve_text`'s own radial branch so the two can never
-    drift into two different bands) deriving the radii from `part.
-    vertical_align`/`part.curve_direction` -- the tight annulus-sector box
-    a standalone `curve: {style: radial}` text element's own lint box uses
-    too -- the centre here is this copy's own rotated/translated anchor,
-    not a fixed point.
+    `start_angle`/`sweep`; a text part's :func:`_pattern_text_ink` -- the
+    one shape that needs to know *which* copy it is, since upright text is
+    not rotation-invariant and each copy draws its own string.
     """
     def tf(x: float, y: float) -> tuple[float, float]:
         return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
@@ -896,108 +778,11 @@ def _pattern_part_ink(
         pad = part.radius + (0.0 if part.filled else part.thickness / 2.0)
         return px - pad, py - pad, px + pad, py + pad
     if part.shape == "text":
-        ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
-        width = part.widths[index] if part.widths else 0
-        height = part.line_height
-        kind, geo = _pattern_text_ink_geometry(
-            part, ax, ay, width, height, copy_angle_degrees, pad=float(part.outline_width))
-        if kind == "sector":
-            cx, cy, r_inner, r_outer, theta_a, theta_b = geo
-            box = arc_bbox(cx, cy, r_inner, r_outer, theta_a, theta_b)
-            return box.x, box.y, box.x + box.width, box.y + box.height
-        if kind == "rotated":
-            xs = [p[0] for p in geo]
-            ys = [p[1] for p in geo]
-            return min(xs), min(ys), max(xs), max(ys)
-        left, top, right, bottom = geo
-        return left, top, right, bottom
+        return _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, copy_angle_degrees).bounds()
     # arc: always centred on the copy's own origin.
     px, py = tf(0.0, 0.0)
     pad = part.radius + part.thickness / 2.0
     return px - pad, py - pad, px + pad, py + pad
-
-
-def _pattern_text_ink_geometry(
-    part: ResolvedHandPart, ax: float, ay: float, width: float, height: float,
-    copy_angle_degrees: float, pad: float = 0.0,
-) -> tuple[str, tuple]:
-    """The real ink shape of one pattern text part, for one copy, already
-    anchored (`ax`, `ay`) and measured (`width`, `height`) -- the one place
-    this geometry is derived, shared by :func:`_pattern_part_ink`'s own AABB
-    (above) and :meth:`Resolver._resolve_pattern`'s own per-copy reach
-    (`annulus_sector_reach`/a rotated box's own corners), so "what box
-    bounds this ink" and "how far can this ink reach from an arbitrary
-    point" are always answered from the exact same shape, never two
-    independently re-derived ones (the same discipline `radial_text_band`'s
-    own docstring already asks of `Resolver._resolve_text`).  Returns one
-    of:
-
-    * ``("rotated", corners)`` -- `angled`: the four REAL corners of the
-      rotated text box (:func:`rotated_rect_corners`), not its AABB.
-    * ``("sector", (cx, cy, r_inner, r_outer, theta_a, theta_b))`` --
-      `radial` with a usable radius: the annulus sector both
-      :func:`arc_bbox` (the AABB) and :func:`annulus_sector_reach` (the
-      exact farthest point from an arbitrary point) already understand.
-    * ``("box", (left, top, right, bottom))`` -- upright text, or the
-      schema-unreachable `radial`-with-no-radius fallback: an unrotated,
-      screen-aligned rectangle's AABB corners already ARE its real
-      corners, so this needs no further tightening either way.
-
-    `pad` (plan 15 §14 slice 2, D9's own construction) is this part's own
-    `outline.width` in pixels, `0.0` on a part with no `outline:` -- both
-    callers pass `float(part.outline_width)`, never a literal. Threaded
-    straight into `rotated_rect_corners`/`radial_text_angle_span`/
-    `radial_text_band`, exactly the way `Resolver._resolve_text` already
-    grows a standalone element's own three box shapes (§6): a Minkowski
-    dilation of the pre-transform box, about its own centre, then the same
-    transform -- never a literal `width + 2*pad` substitution, which
-    `docs/plans/15-text-outline.md` §16 found unsafe for a non-centred
-    `align:`/`vertical_align:`. The upright `"box"` branch below applies
-    the identical construction by hand (`rotated_rect_corners`/`radial_
-    text_*` do it internally): `dx`/`dy` are computed from the *unpadded*
-    `width`/`height` (so `align:`/`vertical_align:` still shift the
-    unringed box), then the returned box is grown by `pad` on every side
-    about that same shifted centre, not re-anchored by a wider box.
-    """
-    if part.curve_style == "angled":
-        effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
-        corners = rotated_rect_corners(
-            ax, ay, width, height, part.align, part.vertical_align, effective_garmin, pad=pad)
-        return "rotated", corners
-    if part.curve_style == "radial":
-        if part.curve_radius_px > 0:
-            effective_garmin = (part.curve_angle_garmin - copy_angle_degrees) % 360.0
-            theta_a, theta_b = radial_text_angle_span(
-                effective_garmin, part.curve_direction, part.align, width, part.curve_radius_px,
-                pad=pad)
-            r_inner, r_outer = radial_text_band(
-                part.curve_radius_px, height, part.vertical_align, part.curve_direction,
-                _curve_ascent(part.font_metric, height), pad=pad)
-            return "sector", (ax, ay, r_inner, r_outer, theta_a, theta_b)
-        reach = part.curve_radius_px + height + pad
-        return "box", (ax - reach, ay - reach, ax + reach, ay + reach)
-    dx, dy = alignment_shift(width, height, part.align, part.vertical_align)
-    cx, cy = ax + dx, ay + dy
-    box_width, box_height = width + 2 * pad, height + 2 * pad
-    left = cx - box_width / 2.0
-    top = cy - box_height / 2.0
-    return "box", (left, top, left + box_width, top + box_height)
-
-
-def _pattern_text_ink_reach(kind: str, geo: tuple, from_x: float, from_y: float) -> float:
-    """The farthest distance from `(from_x, from_y)` to the ink
-    :func:`_pattern_text_ink_geometry` describes -- the reach counterpart
-    to :func:`_pattern_part_ink`'s AABB, read from the exact same corners/
-    sector so the two can never silently disagree about where the glyphs
-    actually are."""
-    if kind == "sector":
-        cx, cy, r_inner, r_outer, theta_a, theta_b = geo
-        return annulus_sector_reach(cx, cy, r_inner, r_outer, theta_a, theta_b, from_x, from_y)
-    if kind == "rotated":
-        return max(math.hypot(x - from_x, y - from_y) for x, y in geo)
-    left, top, right, bottom = geo
-    return max(math.hypot(x - from_x, y - from_y)
-              for x, y in ((left, top), (right, top), (left, bottom), (right, bottom)))
 
 
 #: The placed kinds whose own drawing `antialias:` reaches as a runtime
@@ -1009,14 +794,8 @@ def _pattern_text_ink_reach(kind: str, geo: tuple, from_x: float, from_y: float)
 ANTIALIASED_PRIMITIVES = (PlacedShape, PlacedProgress, PlacedGraph, PlacedHands, PlacedPattern)
 
 
-#: Fixed pixel gap between a complication_slot's icon and its reading.  A
-#: small constant rather than a fraction of the icon's own size, the same way
-#: `PlacedShape`'s outline padding is a fixed `+1`/`+2` rather than scaled --
-#: there is no `size:`-like key in the format to derive one from, and getting
-#: this exact does not change what the element *is*.  Stays the fallback for
-#: a design that never authors `icon_gap:`: the literal
-#: `4` a generated view embeds, kept inline rather than
-#: promoted to a per-device constant when nothing asked for one.
+#: The pixel gap between a complication_slot's icon and its reading when
+#: `icon_gap:` is not authored -- a fixed literal the generated view inlines.
 COMPLICATION_SLOT_ICON_GAP = 4
 
 
@@ -1024,14 +803,10 @@ COMPLICATION_SLOT_ICON_GAP = 4
 class SlotPairGeometry:
     """The icon+reading pair's combined extent, and each piece's offset from
     the pair's own top-left corner -- shared by
-    `Resolver._resolve_complication_slot` (the estimated box the geometry
-    lints size against), `wfb.preview._complication_slot` (the pixels
-    actually drawn, from real measured extents) and mirrored, not called, in
-    hand-written Monkey C by `wfb.emit.monkeyc._emit_complication_slot`: the
-    real text is not known until the value is pulled at runtime (ADR 0004's
-    one deliberate exception), so the device computes the equivalent
-    arithmetic itself from `Dc.getTextWidthInPixels`/`Dc.getFontHeight`
-    rather than being handed these numbers.
+    `Resolver._resolve_complication_slot` (the estimated lint box) and
+    `wfb.preview` (the drawn pixels).  The generated Monkey C mirrors the
+    arithmetic rather than receiving these numbers: the real text is only
+    known once the value is pulled at runtime (ADR 0004's one exception).
     """
 
     width: int
@@ -1085,15 +860,12 @@ def complication_slot_pair_geometry(
 @dataclass
 class PlacedComplicationSlot(Placed):
     """A `complication_slot`, resolved: an estimated box for the geometry
-    lints, plus everything the emitter needs to draw the icon and reading it
-    cannot know the exact content of until the device pulls it.
+    lints, plus what the emitter needs to draw the icon and reading.
 
-    `box`/`widest` are, like `PlacedText`'s, an *estimate* -- the real drawn
-    extent depends on which type the wearer has this slot pointed at and
-    what it currently reads, neither of which exists at build time.  The
-    generated code centres the actually-drawn icon+text pair on `anchor_point`
-    at runtime (`Dc.getTextWidthInPixels`), so this box is for the safe-area/
-    off-screen checks only, not the device's own placement math.
+    `box`/`widest` are an *estimate*: the drawn extent depends on the
+    wearer's pick and its current value, neither known at build time.  The
+    device centres the real pair on `anchor_point` itself, so this box is
+    for the safe-area/off-screen checks only.
     """
 
     anchor_point: tuple[int, int] = (0, 0)
@@ -1103,31 +875,23 @@ class PlacedComplicationSlot(Placed):
     #: See `PlacedText.font_metric` -- the same field, for the slot's own
     #: reading text.
     font_metric: FontMetric | None = None
-    #: The widest plausible reading, across every declared choice -- see
-    #: `Resolver._complication_slot_widest`.
+    #: The widest plausible reading (`Resolver._complication_slot_widest`).
     widest: str = ""
-    #: The synthetic multi-glyph icon font this slot's icon draws from
-    #: (`wfb.icons.font_key`), or `None` when this slot draws no icon at all
-    #: -- `icon_size:` was omitted, or none of its declared choices has an
-    #: entry in `ConfigDataSlot.icons`.
+    #: The synthetic multi-glyph icon font (`wfb.icons.font_key`), or `None`
+    #: when the slot draws no icon (no `icon_size:`, or no choice has one).
     icon_font_key: str | None = None
     icon_px: int = 0
-    #: `element.icon_position`, carried onto the placed element so the
-    #: emitter and preview do not have to reach back into the IR for it.
     icon_position: str = "left"
-    #: The resolved pixel gap: `COMPLICATION_SLOT_ICON_GAP` when
-    #: `element.icon_gap` is `None` (unauthored), or `element.icon_gap`
-    #: resolved for this device otherwise.
+    #: `icon_gap:` resolved for this device, else `COMPLICATION_SLOT_ICON_GAP`.
     icon_gap_px: int = COMPLICATION_SLOT_ICON_GAP
 
 
 @dataclass(frozen=True)
 class SubPixelLength:
     """A nonzero %/%r extent that resolved below 1 px on this device with
-    `min_1px` off -- i.e. it rounds away to nothing here while drawing on
-    a target with a larger screen.  Collected by `Resolver`, read by
-    `wfb.lint.check_sub_pixel_length`.  Do not change this shape without
-    checking who else is coding against it.
+    `min_1px` off -- it rounds away to nothing here while drawing on a
+    larger screen.  Recorded by `Resolver._extent`, read by
+    `wfb.lint.check_sub_pixel_length`.
     """
 
     owner: str        # element id; "<id>.parts[<i>]" for a pattern part,
@@ -1151,13 +915,8 @@ class ResolvedFace:
     fonts: dict[str, BakedFont]
     screen: IntBox
     warnings: list[str] = field(default_factory=list)
-    #: Every `SubPixelLength` this device's resolve pass recorded, in resolve
-    #: order -- empty on every design that never turns
-    #: `min_1px:` off where it would have mattered (nothing here clamps by
-    #: default, so nothing here is ever sub-pixel by surprise until an
-    #: author writes a relative hairline). Not deduplicated: one record per
-    #: resolved length, same key repeated across devices where it recurs --
-    #: the lint decides how to present them.
+    #: Every `SubPixelLength` this device's resolve recorded, in resolve
+    #: order, not deduplicated -- the lint decides how to present them.
     sub_pixel: list[SubPixelLength] = field(default_factory=list)
 
     def in_mode(self, mode: str) -> list[Placed]:
@@ -1166,39 +925,23 @@ class ResolvedFace:
     def drawn_in_mode(self, mode: str) -> list[Placed]:
         """``in_mode`` minus groups -- everything that actually paints in ``mode``.
 
-        A group is a pure layout container: it emits no draw method and paints
-        nothing of its own (``wfb/emit/monkeyc.py`` skips ``kind == "group"``
-        everywhere it walks ``items``). Its box is therefore not evidence of
-        anything being drawn there -- and it can be actively misleading, since a
-        group with no explicit ``size:`` resolves to its *entire* parent box
-        (``Resolver._group_box``). A caller asking "what actually draws in this
-        mode" -- a clip rectangle, an element count -- wants this, not
-        ``in_mode``.
+        A group paints nothing of its own, and one with no ``size:`` resolves
+        to its whole parent box, so its box is no evidence of drawing.  A
+        clip rectangle or an element count wants this, not ``in_mode``.
         """
         return [p for p in self.in_mode(mode) if p.kind != "group"]
 
     def clip_for(self, mode: str) -> IntBox | None:
         """The tightest rectangle covering everything drawn in ``mode``.
 
-        ``setClip`` is charged by *region area* -- every pixel in the clip counts
-        as modified whenever any does -- so this being tight is what keeps
-        ``onPartialUpdate`` inside its budget.
+        ``setClip`` is charged by *region area*, so this being tight is what
+        keeps ``onPartialUpdate`` inside its budget.  Built from
+        :meth:`drawn_in_mode`, so a group's box never inflates it.
 
-        Built from :meth:`drawn_in_mode`, not :meth:`in_mode`: a group paints
-        nothing, so its box must not inflate the clip (see ``drawn_in_mode``'s
-        docstring -- this was a real bug, fixed after being reproduced: a
-        low-power element wrapped in a size-less group blew the clip up to the
-        full screen).
-
-        **Unions across every layout, not just the active one.**
-        `_configLayout` is a runtime value
-        this stage never resolves, so a per-layout clip is not something this
-        can compute at all -- and the guard `wfb/emit/monkeyc.py` wraps each
-        low-power call in (`_emit_on_partial_update`) only narrows *which*
-        calls run, never the clip `setClip` was already given.  A tighter,
-        per-layout clip is a real possible optimisation, deliberately not
-        built: it would need the clip computed and set *inside* each layout's
-        guard, which nothing here or in the emitter does yet.
+        Unions across every layout: `_configLayout` is a runtime value, and
+        the emitter sets one clip before its per-layout guards.  A clip per
+        layout would need setting inside each guard -- a possible
+        optimisation, not built.
         """
         boxes = [p.box for p in self.drawn_in_mode(mode)]
         if not boxes:
@@ -1207,6 +950,47 @@ class ResolvedFace:
         for box in boxes[1:]:
             clip = clip.union(box)
         return clip.inflate(1).clamp_to(self.device.width, self.device.height)
+
+
+@dataclass(frozen=True)
+class _Font:
+    """One text font, resolved for this device: what `_font_for_ref` finds,
+    plus -- for a `face:` font -- gates 1-3's answer (`Resolver._text_font`).
+    `baked` is the baked sheet (never a vector font's); `metric` the
+    `FontMetric` a system or vector font is measured through."""
+
+    px: int
+    reference: str
+    is_custom: bool
+    baked: BakedFont | None
+    metric: FontMetric | None
+    face: str = ""
+    is_vector: bool = False
+    available: bool = True
+
+    def width(self, text: str) -> int:
+        """`text`'s advance: exact for a baked sheet; for a system or vector
+        font an estimate from the device's own typeface (or a stand-in) at
+        the device's published metrics; `0` with no metrics at all."""
+        if self.baked is not None:
+            return self.baked.measure(text)[0]
+        return fallback.measure(text, self.metric)[0] if self.metric else 0
+
+    @property
+    def line_height(self) -> int:
+        if self.baked is not None:
+            return self.baked.line_height
+        return fallback.line_height(self.metric) if self.metric else self.px
+
+
+def _curve_angles(curve: Curve | None) -> tuple[str | None, float, float, str | None]:
+    """`(style, author degrees, Garmin degrees, direction)` for a `text`
+    element's or pattern part's `curve:` -- `(None, 0.0, 0.0, None)` for
+    upright text.  The radius is resolved by the caller, in its own frame."""
+    if curve is None:
+        return None, 0.0, 0.0, None
+    return curve.style, curve.angle.degrees, garmin_curve_angle(curve.style, curve.angle), \
+        curve.direction
 
 
 class Resolver:
@@ -1218,20 +1002,12 @@ class Resolver:
         self.minor_radius = device.minor_radius
         self.items: list[Placed] = []
         self.warnings: list[str] = []
-        #: Every `SubPixelLength` recorded so far -- appended
-        #: by `_extent`/`_hand_extent`, the only two call sites that can see
-        #: "this nonzero relative length is under 1 px and `min_1px` is off
-        #: here".
+        #: `SubPixelLength`s, in resolve order (`_extent`, `_record_sub_pixel`).
         self.sub_pixel: list[SubPixelLength] = []
-        #: The element/part currently being resolved, for `_record_sub_pixel`
-        #: to hang a finding on -- set for every element by `_resolve_list`
-        #: before it dispatches to that element's own `_resolve_*`, and
-        #: narrowed to a `<element id>.parts[<i>]` id/span by
-        #: `_resolve_hand_part` while it resolves one hand/pattern part
-        #: (`_owner_element` itself stays the owning `hands`/`pattern`
-        #: element throughout -- a part has no `lint:` key of its own to
-        #: suppress against). `None` only before the first element is
-        #: reached, which no call site here ever runs during.
+        #: Who a `SubPixelLength` is recorded against: the element being
+        #: resolved (`_resolve_list`), narrowed to a part's own id/span by
+        #: `_resolve_hand_part` -- the element stays the owner, since a part
+        #: has no `lint:` key of its own to suppress against.
         self._owner_id: str = ""
         self._owner_span: Span | None = None
         self._owner_element: Element | None = None
@@ -1255,10 +1031,6 @@ class Resolver:
 
     def _resolve_list(self, elements: list[Element], parent: Box, depth: int) -> None:
         for element in elements:
-            # Set before dispatch, for `_extent`/`_hand_extent` to hang a
-            # `SubPixelLength` on (`_record_sub_pixel`) -- every element gets
-            # its own id/span/self as the owner; a hand or pattern part
-            # narrows id/span further inside `_resolve_hand_part`.
             self._owner_id = element.id
             self._owner_span = element.span
             self._owner_element = element
@@ -1269,107 +1041,71 @@ class Resolver:
                            (round(box.center_x), round(box.center_y)), depth)
                 )
                 self._resolve_list(element.items, box, depth + 1)
-            elif isinstance(element, Shape):
-                self.items.append(self._resolve_shape(element, parent, depth))
-            elif isinstance(element, Text):
-                self.items.append(self._resolve_text(element, parent, depth))
-            elif isinstance(element, Progress):
-                self.items.append(self._resolve_progress(element, parent, depth))
-            elif isinstance(element, IconElement):
-                self.items.append(self._resolve_icon(element, parent, depth))
-            elif isinstance(element, Graph):
-                self.items.append(self._resolve_graph(element, parent, depth))
-            elif isinstance(element, ComplicationSlot):
-                self.items.append(self._resolve_complication_slot(element, parent, depth))
-            elif isinstance(element, HandsElement):
-                self.items.append(self._resolve_hands(element, parent, depth))
-            elif isinstance(element, PatternElement):
-                self.items.append(self._resolve_pattern(element, parent, depth))
+            else:
+                resolve = self._BY_TYPE[type(element)]
+                self.items.append(resolve(self, element, parent, depth))
 
     # -- per-kind ---------------------------------------------------------
 
-    def _sized_shift(
-        self, size: Size, parent: Box, cx: float, cy: float, align: str, vertical_align: str, *,
-        min_1px: bool,
-    ) -> tuple[float, float, float, float]:
-        """Width, height (`_extent`, width then height -- the order every
-        `SubPixelLength` record relies on) and `(cx, cy)` shifted by
-        `alignment_shift` -- the "size, then align" placement box
-        `_group_box`, `_resolve_shape`'s rectangle/rounded_rectangle/ellipse
-        tail, `_resolve_progress`'s bar branch and `_resolve_graph` all
-        share.
-
-        Takes the already-resolved anchor point rather than resolving it
-        itself: `_resolve_shape` needs that same point earlier, for its
-        circle/line/arc/polygon branches, before this is ever reached, and
-        `_point` never records a `SubPixelLength` (it calls `_len`, not
-        `_extent`), so calling it before or after these two `_extent` calls
-        makes no difference to `Resolver.sub_pixel`'s order.
+    def _sized_box(
+        self, element: Group | Shape | Progress | Graph, parent: Box, cx: float, cy: float,
+    ) -> tuple[Box, float, float]:
+        """The "size, then align" box every `size:`-placed kind shares, and
+        its shifted centre.  Width then height go through `_extent` in that
+        order -- `sub_pixel`'s order.  Takes the anchor already resolved,
+        since `_resolve_shape` needs it first (`_point` records nothing).
         """
-        width = self._extent(size.width, parent, Axis.X, parent.width,
+        min_1px = element.resolved_min_1px
+        width = self._extent(element.size.width, parent, Axis.X, parent.width,
                              min_1px=min_1px, what="size.width")
-        height = self._extent(size.height, parent, Axis.Y, parent.height,
+        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
                               min_1px=min_1px, what="size.height")
-        dx, dy = alignment_shift(width, height, align, vertical_align)
-        return width, height, cx + dx, cy + dy
+        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
+        cx, cy = cx + dx, cy + dy
+        return Box(cx - width / 2, cy - height / 2, width, height), cx, cy
 
     def _group_box(self, element: Group, parent: Box) -> Box:
         cx, cy = self._point(element.at, parent)
-        width, height, cx, cy = self._sized_shift(
-            element.size, parent, cx, cy, element.align, element.vertical_align,
-            min_1px=element.resolved_min_1px)
-        return Box(cx - width / 2, cy - height / 2, width, height)
+        return self._sized_box(element, parent, cx, cy)[0]
 
     def _resolve_shape(self, element: Shape, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
         min_1px = element.resolved_min_1px
-        thickness = round(self._extent(element.thickness, parent, Axis.MINOR, 1,
-                                       min_1px=min_1px, what="thickness"))
-        aod_thickness = self._aod_extent(
-            element.aod.thickness if element.aod is not None else None, parent, 1)
+        pen = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 1,
+                                        min_1px=min_1px, what="thickness")))
+        aod_thickness = self._aod_extent(element, "thickness", parent, 1)
+
+        def placed(box: IntBox, x: float, y: float, **fields) -> PlacedShape:
+            return PlacedShape(element, box, (round(x), round(y)), depth,
+                               thickness=pen, aod_thickness=aod_thickness, **fields)
 
         if element.shape == "circle":
             radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
                                         min_1px=min_1px, what="radius"))
-            # The placement box is the full circle (`2*radius` square)
-            # regardless of `filled`/`thickness` -- an outline's pen pad is
-            # applied to `reach` below, around the already-moved centre, so
-            # it never itself moves the shift.
+            # Aligned by the full circle; an outline's pen pad is added
+            # around the already-moved centre, so it never moves the shift.
             dx, dy = alignment_shift(2 * radius, 2 * radius, element.align, element.vertical_align)
             cx, cy = cx + dx, cy + dy
-            reach = radius if element.filled else radius + max(1, thickness) // 2 + 1
-            box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
-            return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
-                               radius=radius, thickness=max(1, thickness),
-                               aod_thickness=aod_thickness)
+            reach = radius if element.filled else radius + _stroke_pad(pen)
+            return placed(Box(cx - reach, cy - reach, 2 * reach, 2 * reach).rounded(), cx, cy,
+                          radius=radius)
 
         if element.shape == "line":
-            # No `align`/`vertical_align` on a line: `at:` and
-            # `to:` are its two ends, so there is no single point to align a
-            # box on. `SHAPE_GEOMETRY_KEYS`/`_check_shape_keys` reject the
-            # keys before this is ever reached with either one set.
+            # No `align:` on a line (rejected in `wfb.ir`): `at:`/`to:` are
+            # its two ends, so there is no single box to align.
             ex, ey = self._point(element.to or Position(), parent)
-            pad = max(1, thickness)
-            box = Box(min(cx, ex) - pad, min(cy, ey) - pad,
-                      abs(ex - cx) + 2 * pad, abs(ey - cy) + 2 * pad)
-            return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
-                               thickness=max(1, thickness), end=(round(ex), round(ey)),
-                               aod_thickness=aod_thickness)
+            box = Box(min(cx, ex) - pen, min(cy, ey) - pen,
+                      abs(ex - cx) + 2 * pen, abs(ey - cy) + 2 * pen)
+            return placed(box.rounded(), cx, cy, end=(round(ex), round(ey)))
 
         if element.shape == "arc":
             radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
                                         min_1px=min_1px, what="radius"))
-            pen = max(1, thickness)
             box, cx, cy, start, sweep, garmin_start, direction = _arc_box(
                 radius, pen, cx, cy, element.align, element.vertical_align,
                 element.start_angle, element.sweep)
-            return PlacedShape(
-                element, box, (round(cx), round(cy)), depth,
-                radius=radius, thickness=pen,
-                start_angle=start, sweep=sweep,
-                garmin_start=garmin_start, garmin_direction=direction,
-                aod_thickness=aod_thickness,
-            )
+            return placed(box, cx, cy, radius=radius, start_angle=start, sweep=sweep,
+                          garmin_start=garmin_start, garmin_direction=direction)
 
         if element.shape == "polygon":
             points = tuple(
@@ -1387,175 +1123,64 @@ class Resolver:
             centre = (round(sum(xs) / len(xs)), round(sum(ys) / len(ys)))
             return PlacedShape(element, box.rounded(), centre, depth, points=points)
 
-        # rectangle, rounded_rectangle, ellipse: the placement box is the
-        # declared `size:` -- moved before the outline's pen
-        # pad (below) is added, so the pad never itself moves the shift.
-        width, height, cx, cy = self._sized_shift(
-            element.size, parent, cx, cy, element.align, element.vertical_align, min_1px=min_1px)
+        # rectangle, rounded_rectangle, ellipse: aligned by the declared
+        # `size:`, before any outline pad is added.
+        sized, cx, cy = self._sized_box(element, parent, cx, cy)
 
         if element.shape == "ellipse":
-            rx = round(width / 2)
-            ry = round(height / 2)
-            # An outline straddles the semi-axis exactly as a circle's does, so
-            # it reaches half a pen width further out on both axes.
-            pad = 0 if element.filled else max(1, thickness) // 2 + 1
+            rx = round(sized.width / 2)
+            ry = round(sized.height / 2)
+            pad = 0 if element.filled else _stroke_pad(pen)
             box = Box(cx - rx - pad, cy - ry - pad, 2 * (rx + pad), 2 * (ry + pad))
-            return PlacedShape(element, box.rounded(), (round(cx), round(cy)), depth,
-                               rx=rx, ry=ry, thickness=max(1, thickness),
-                               aod_thickness=aod_thickness)
+            return placed(box.rounded(), cx, cy, rx=rx, ry=ry)
 
         corner = round(self._len(element.corner_radius, parent, Axis.MINOR, 0))
-        # `min_1px=min_1px`: this box's width/height is `width`/`height`
-        # straight from `_extent` above, the exact "float extent of at least
-        # 1 px" shape `Box.rounded`'s correction exists for.
-        rect = Box(cx - width / 2, cy - height / 2, width, height).rounded(min_1px=min_1px)
+        # `min_1px=min_1px`: `width`/`height` come straight from `_extent`,
+        # the "float extent of at least 1 px" `Box.rounded` protects.
+        rect = sized.rounded(min_1px=min_1px)
         if element.filled:
-            return PlacedShape(element, rect, (round(cx), round(cy)), depth,
-                               corner_radius=corner, thickness=max(1, thickness),
-                               aod_thickness=aod_thickness)
-        # An unfilled rectangle is stroked *on* its edge, so the ink straddles
-        # the declared rectangle the same way a circle's outline straddles its
-        # radius -- see `PlacedShape.rect`.
-        pad = max(1, thickness) // 2 + 1
+            return placed(rect, cx, cy, corner_radius=corner)
+        pad = _stroke_pad(pen)
         reach = Box(rect.x - pad, rect.y - pad,
                     rect.width + 2 * pad, rect.height + 2 * pad).rounded()
-        return PlacedShape(element, reach, (round(cx), round(cy)), depth,
-                           corner_radius=corner, thickness=max(1, thickness), rect=rect,
-                           aod_thickness=aod_thickness)
+        return placed(reach, cx, cy, corner_radius=corner, rect=rect)
 
     def _resolve_text(self, element: Text, parent: Box, depth: int) -> Placed:
-        font_px, reference, is_custom, baked, metric = self._font_for(element)
-        font_is_vector = False
-        font_face = ""
-        font_available = True
-        if is_custom:
-            spec = self.face.fonts[element.font]
-            if spec.is_vector:
-                # `baked`/`metric` from `_font_for` are both meaningless for a
-                # vector font: `self.fonts` (baked sheets) never holds one --
-                # `wfb.emit.resources.bake_fonts` only rasterises `is_baked`
-                # entries -- and `_font_for_ref`'s `metric` is always `None`
-                # for *any* custom font. Both are replaced below with the
-                # real per-device answer.
-                font_is_vector = True
-                baked = None
-                font_face, font_available = self._resolve_vector_face(spec, element.curve)
-                metric = self._vector_font_metric(font_face, font_px)
+        font = self._text_font(element.font, element.font_is_custom, element.id, element.curve)
         widest = self._widest_text(element)
-        if baked is not None:
-            width, line_height = baked.measure(widest)
-            estimated = False
-        else:
-            # A system font, or a vector font (`metric` synthesised just
-            # above): the device publishes its pixel height but not its
-            # per-glyph advances. Measure the device's own real typeface when
-            # `wfb.fonts.fetch_system` can locate one (the user's own Garmin
-            # font root, or a pinned free stand-in), scaled to the device's
-            # own published metrics -- still an estimate (a `substitute`/
-            # `none` match draws a different family's shape, and even an
-            # `exact` match's free release can differ in hinting/kerning),
-            # and still labelled as one. An *unavailable* vector font's
-            # `metric` names no real face at all, so this falls all the way
-            # to Pillow's own bundled default, scaled to `font_px` -- still a
-            # conservative, non-zero estimate (plan 11 §4), never an
-            # optimistic empty box, even though nothing draws here at runtime.
-            width, _ = fallback.measure(widest, metric) if metric else (0, False)
-            line_height = fallback.line_height(metric) if metric else font_px
-            estimated = True
+        # A baked sheet measures exactly; anything else is an estimate --
+        # still a conservative, non-zero one for an *unavailable* vector
+        # font, whose metric locates no face and falls to Pillow's default.
+        width = font.width(widest)
+        line_height = font.line_height
 
         x, y = self._point(element.at, parent)
-        justify = self._justify(element)
-
-        curve = element.curve
-        curve_style = curve.style if curve is not None else None
-        curve_angle_degrees = curve.angle.degrees if curve is not None else 0.0
-        curve_angle_garmin = (garmin_curve_angle(curve_style, curve.angle)
-                              if curve is not None else 0.0)
+        curve_style, curve_angle_degrees, curve_angle_garmin, curve_direction = \
+            _curve_angles(element.curve)
         curve_radius_px = 0
-        curve_direction = curve.direction if curve is not None else None
-        if curve_style == "radial" and curve.radius is not None:
-            curve_radius_px = round(self._len(curve.radius, parent, Axis.MINOR, 0))
-
-        # `outline:`'s own ring width (plan 15 §6, D9) -- 0 on every element
-        # without one, which is what keeps every pre-existing box byte-
-        # identical.  Grows whichever of the three box shapes below
-        # `curve_style` already selects, rather than re-deriving padding
-        # logic three times: `_rotated_text_box`/`radial_text_angle_span`/
-        # `radial_text_band` all take the same `pad` and apply it
-        # conservatively in their own frame (their own docstrings).
+        if curve_style == "radial" and element.curve.radius is not None:
+            curve_radius_px = round(self._len(element.curve.radius, parent, Axis.MINOR, 0))
         ring_px = float(element.outline.width) if element.outline is not None else 0.0
-
-        if curve_style == "angled":
-            # The rotated bounding box of the measured extent about the
-            # anchor (plan 11 §4) -- conservative, never optimistic: it is
-            # the box of the whole `width`x`line_height` rectangle turned by
-            # the angle the device actually draws at, not the tighter box
-            # the real glyph ink would occupy.
-            box = self._rotated_text_box(x, y, width, line_height,
-                                         element.align, element.vertical_align,
-                                         curve_angle_garmin, pad=ring_px)
-        elif curve_style == "radial":
-            # The tight arc-shaped box (2026-09-21 follow-up to plan 11 §4):
-            # a SQUARE centred on the circle over-reports badly on a round
-            # screen -- its corners sit at (radius + line_height) * sqrt(2)
-            # from centre, well outside the panel, even when every glyph is
-            # comfortably inside (confirmed on the real simulator and in
-            # `wfb preview`, `docs/research/probes/vector-fonts/
-            # radial-facing-both-directions.png`: nothing in
-            # `examples/features/vector-text/face.yaml` actually overflows).
-            # Bound the ink the run actually puts down instead: an annulus
-            # sector over the angular range `radial_text_angle_span` derives
-            # (the same per-glyph placement model `wfb.preview.
-            # _draw_radial_vector_text` draws with, so the lint box and the
-            # preview cannot silently disagree about where the text sits),
-            # at the radii `radial_text_band` derives from `vertical_align`
-            # and `direction` (2026-09-21 tightening: the previous
-            # `radius -/+ line_height` on both sides was still double the
-            # true reach -- see that function's own docstring for the
-            # concrete case that motivated it and the facing/vertical_align
-            # derivation). `(x, y)` is already the circle's own centre here
-            # (`Text.curve`'s `at:` reinterpretation, §2.2).
-            if curve_radius_px > 0:
-                theta_a, theta_b = radial_text_angle_span(
-                    curve_angle_garmin, curve_direction, element.align, width, curve_radius_px,
-                    pad=ring_px)
-                r_inner, r_outer = radial_text_band(
-                    curve_radius_px, line_height, element.vertical_align, curve_direction,
-                    _curve_ascent(metric, line_height), pad=ring_px)
-                box = arc_bbox(x, y, r_inner, r_outer, theta_a, theta_b)
-            else:
-                # No usable radius -- schema requires `radius:` > 0 with
-                # `style: radial`, so this is unreachable in practice, but
-                # stay conservative rather than divide by zero.
-                reach = curve_radius_px + line_height + ring_px
-                box = Box(x - reach, y - reach, 2 * reach, 2 * reach)
-        else:
-            # The lint box only -- the runtime `drawText` anchor stays `(x, y)`
-            # unshifted: a glyph kind's alignment is a device-side justify, not
-            # a build-time box move. `bottom` puts this box's top at
-            # `y - line_height`, matching the actual draw call and the preview.
-            # `dx`/`dy` (the align shift) are computed from the *unringed*
-            # width/height -- an `outline:` ring is centred on the same point
-            # the plain ink box already was, then grown by `ring_px` on every
-            # side (plan 15 §6, D9), not re-anchored by a wider box.
-            dx, dy = alignment_shift(width, line_height, element.align, element.vertical_align)
-            box_width, box_height = width + 2 * ring_px, line_height + 2 * ring_px
-            box = Box(x + dx - box_width / 2, y + dy - box_height / 2, box_width, box_height)
+        box = text_ink(
+            x, y, width, line_height, element.align, element.vertical_align,
+            curve_style=curve_style, angle_garmin=curve_angle_garmin,
+            radius_px=curve_radius_px, direction=curve_direction, metric=font.metric,
+            pad=ring_px).box()
 
         return PlacedText(
             element, box.rounded(), (round(x), round(y)), depth,
             anchor_point=(round(x), round(y)),
-            justify=justify,
-            font_reference=reference,
-            font_is_custom=is_custom,
-            font_px=font_px,
-            font_metric=metric,
+            justify=self._justify(element),
+            font_reference=font.reference,
+            font_is_custom=font.is_custom,
+            font_px=font.px,
+            font_metric=font.metric,
             widest=widest,
             measured_width=round(width),
-            width_is_estimated=estimated,
-            font_face=font_face,
-            font_is_vector=font_is_vector,
-            font_available=font_available,
+            width_is_estimated=font.baked is None,
+            font_face=font.face,
+            font_is_vector=font.is_vector,
+            font_available=font.available,
             curve_style=curve_style,
             curve_angle_degrees=curve_angle_degrees,
             curve_angle_garmin=curve_angle_garmin,
@@ -1564,16 +1189,29 @@ class Resolver:
             line_height=line_height,
         )
 
+    def _text_font(self, font: str, font_is_custom: bool, warn_id: str,
+                   curve: Curve | None) -> _Font:
+        """`_font_for_ref`, plus gates 1-3 for a `face:` (vector) font: its
+        baked sheet and system metric are both meaningless (nothing bakes a
+        vector font), so they give way to this device's resolved face and a
+        metric synthesised for it.  Shared by a `text` element and a
+        pattern's `shape: text` part."""
+        resolved = self._font_for_ref(font, font_is_custom, warn_id)
+        if not resolved.is_custom:
+            return resolved
+        spec = self.face.fonts[font]
+        if not spec.is_vector:
+            return resolved
+        face, available = self._resolve_vector_face(spec, curve)
+        return replace(resolved, baked=None, metric=self._vector_font_metric(face, resolved.px),
+                       face=face, is_vector=True, available=available)
+
     def _vector_gate1_ok(self, curve_style: str | None) -> bool:
         """Gate 1 (`docs/research/12-vector-fonts.md` §3): does this device
-        even have `Graphics.getVectorFont` -- and, under `curve:`, the
-        matching `Dc.drawAngledText`/`Dc.drawRadialText` -- at all?
-
-        Checked independently per plan 11 §1's own caution: the three move
-        together on every device installed for this project (verified
-        2026-09-20), but nothing in the SDK promises that holds for the
-        full 164-device fleet, so an upright `face:` text only ever needs
-        `getVectorFont` itself, never the draw call it happens not to use.
+        have `Graphics.getVectorFont` -- and, under `curve:`, the matching
+        `Dc.drawAngledText`/`Dc.drawRadialText`?  Checked separately: they
+        move together on every installed device, but nothing in the SDK
+        promises that across the fleet.
         """
         device = self.device
         if not device.has_symbol(Device.VECTOR_FONT_SYMBOL):
@@ -1585,20 +1223,12 @@ class Resolver:
         return True
 
     def _resolve_vector_face(self, spec: FontSpec, curve: "Curve | None") -> tuple[str, bool]:
-        """Gates 1-3 (plan 11 §1) for one `face:` `FontSpec`, on this
-        device: `("", False)` when gate 1 fails (`_vector_gate1_ok`) or
-        none of `spec.face`'s author-ordered candidates is one of this
-        device's own :attr:`~wfb.devices.Device.scalable_faces` (gates 2/3);
-        otherwise the *first* candidate this device actually publishes and
-        `True` -- the one resolved face codegen emits as `:face` (plan 11
-        §2.1: never the array, since a runtime array pick could not be
-        measured against or named in an error).
-
-        `wfb.lint.check_vector_font_availability` is what turns a `("",
-        False)` here into a build error or a suppressible warning, once
-        every target device has been resolved -- this method only ever
-        answers for the one device `self` was built for (`Resolver.__init__`),
-        never the whole build.
+        """Gates 1-3 (plan 11 §1) for one `face:` `FontSpec`, on this device:
+        the *first* of `spec.face`'s candidates this device publishes
+        (`Device.scalable_faces`) and `True`, or `("", False)`.  One name,
+        never the array: a runtime pick could not be measured or named in an
+        error.  `wfb.lint.check_vector_font_availability` turns a failure
+        into an error or warning once every target is resolved.
         """
         if not self._vector_gate1_ok(curve.style if curve is not None else None):
             return "", False
@@ -1608,72 +1238,18 @@ class Resolver:
         return "", False
 
     def _vector_font_metric(self, face_name: str, font_px: int) -> FontMetric:
-        """A synthetic `FontMetric` for a resolved (or unavailable) vector
-        face, so `wfb.fonts.fallback.measure`/`line_height` -- the one
-        measurement path this compiler has, plan 11 §4 -- can estimate a
-        vector font's extent exactly the way they already estimate a system
-        font's: `metric.font` is the real on-disk stem
-        (`Device.scalable_face_files`), which is what both
-        `wfb.fonts.fetch_system.garmin_font_root`'s exact-stem match and
-        `wfb/fonts/registry.json`'s own `names` table key on -- not
-        `face_name` (the `:face` string, `"RobotoCondensedBold"`), which
-        neither matches directly (confirmed against an installed device:
-        the `filename` is `"RobotoCondensed-Bold"`).
-
-        `face_name` empty (gates 1-3 failed) synthesises a metric that
-        locates nothing at all (`font=""`) -- `fallback.system_face` falls
-        back to Pillow's own bundled default scaled to `font_px`, a
-        conservative non-zero estimate rather than a crash or a silent
-        zero (see `_resolve_text`'s own note on this).  `size_px=font_px`
-        is always this font's own resolved `:size` in pixels
-        (`FontSpec.pixel_size`, already computed as `font_px` by
-        `Resolver._font_for_ref`'s `_unbaked_font_size` path) -- a vector
-        font has no separate "published line height" the way a `FONT_*`
-        symbol does, so the one pixel size doubles as both.
+        """A synthetic `FontMetric` for a vector face, so `wfb.fonts.fallback`
+        measures it exactly like a system font.  `font` is the on-disk stem
+        (`Device.scalable_face_files`: `"RobotoCondensed-Bold"`, not the
+        `:face` string `"RobotoCondensedBold"`), which is what the font
+        locators match.  An empty `face_name` locates nothing and falls to
+        Pillow's default at `font_px` -- conservative, never zero.  A vector
+        font has no separate published line height, so `size_px` is its
+        `:size` in pixels.
         """
         filename = self.device.scalable_face_files.get(face_name, face_name)
         return FontMetric(symbol=face_name or "vector", face=face_name, font=filename,
                           size_px=font_px)
-
-    @staticmethod
-    def _rotated_text_box(
-        x: float, y: float, width: float, height: float, align: str, vertical_align: str,
-        garmin_angle_degrees: float, pad: float = 0.0,
-    ) -> Box:
-        """`curve: {style: angled}`'s lint box (plan 11 §4): the axis-aligned
-        bounding box of the `width`x`height` text box, rotated about the
-        anchor `(x, y)` by `garmin_angle_degrees` -- Garmin's own convention
-        (`Curve.angle.to_garmin()`), because that is the rotation the device
-        actually draws (verified against `$CIQ_SDK/samples/TrueTypeFonts/
-        source/MenuItems/TrueTypeFontsAngledText.mc`: at Garmin angle 0 the
-        text is unrotated, reading left to right exactly like plain
-        `drawText`, and the on-screen rotation direction it demonstrates --
-        `tx = radius*cos(rad), ty = radius*-sin(rad)` -- is standard
-        math-convention rotation applied directly to screen coordinates).
-
-        `align`/`vertical_align` still shift the box the same way
-        `alignment_shift` shifts an ordinary upright text's lint box (plan
-        11 §2.3: the *runtime* anchor never moves, device-side justify
-        only) -- computed in the text's own unrotated baseline frame first,
-        then rotated along with the rest of the box, so the shift turns
-        with the text instead of staying screen-aligned.
-
-        The AABB of :func:`rotated_rect_corners`' own four real corners --
-        kept as a thin wrapper (not inlined) because this box is what
-        `off-screen`'s framebuffer test wants (the framebuffer is
-        rectangular, so its own AABB is the right shape); the round-screen
-        `safe-area` test wants the real corners instead, straight from that
-        function (`visible_reach` below).
-
-        `pad` (plan 15 §6, D9) grows the box by an `outline:` ring's own
-        width -- forwarded straight to `rotated_rect_corners`' own `pad`,
-        `0.0` (today's exact box) when the element carries no `outline:`.
-        """
-        xs_ys = rotated_rect_corners(x, y, width, height, align, vertical_align,
-                                     garmin_angle_degrees, pad=pad)
-        xs = [p[0] for p in xs_ys]
-        ys = [p[1] for p in xs_ys]
-        return Box(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
 
     def _resolve_progress(self, element: Progress, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
@@ -1689,8 +1265,7 @@ class Resolver:
             box, cx, cy, start, sweep, garmin_start, direction = _arc_box(
                 radius, thickness, cx, cy, element.align, element.vertical_align,
                 element.start_angle, element.sweep)
-            aod_thickness = self._aod_extent(
-                element.aod.thickness if element.aod is not None else None, parent, 1)
+            aod_thickness = self._aod_extent(element, "thickness", parent, 1)
             return PlacedProgress(
                 element, box, (round(cx), round(cy)), depth,
                 radius=radius, thickness=thickness,
@@ -1699,11 +1274,9 @@ class Resolver:
                 garmin_direction=direction,
                 aod_thickness=aod_thickness,
             )
-        width, height, cx, cy = self._sized_shift(
-            element.size, parent, cx, cy, element.align, element.vertical_align, min_1px=min_1px)
-        box = Box(cx - width / 2, cy - height / 2, width, height)
+        box, cx, cy = self._sized_box(element, parent, cx, cy)
         return PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
-                              size=(round(width), round(height)))
+                              size=(round(box.width), round(box.height)))
 
     def _resolve_icon(self, element: IconElement, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
@@ -1742,56 +1315,33 @@ class Resolver:
     def _resolve_graph(self, element: Graph, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
         min_1px = element.resolved_min_1px
-        width, height, cx, cy = self._sized_shift(
-            element.size, parent, cx, cy, element.align, element.vertical_align, min_1px=min_1px)
-        box = Box(cx - width / 2, cy - height / 2, width, height)
+        box, cx, cy = self._sized_box(element, parent, cx, cy)
         thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 2,
                                               min_1px=min_1px, what="thickness")))
         bar_width = max(1, round(self._extent(element.bar_width, parent, Axis.MINOR, 3,
                                               min_1px=min_1px, what="bar_width")))
-        aod = element.aod
-        aod_thickness = self._aod_extent(aod.thickness if aod is not None else None, parent, 2)
-        aod_bar_width = self._aod_extent(aod.bar_width if aod is not None else None, parent, 3)
+        aod_thickness = self._aod_extent(element, "thickness", parent, 2)
+        aod_bar_width = self._aod_extent(element, "bar_width", parent, 3)
         return PlacedGraph(
             element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
-            thickness=thickness, bar_width=bar_width, size=(round(width), round(height)),
+            thickness=thickness, bar_width=bar_width, size=(round(box.width), round(box.height)),
             aod_thickness=aod_thickness, aod_bar_width=aod_bar_width,
         )
 
     def _resolve_complication_slot(self, element: ComplicationSlot, parent: Box,
                                    depth: int) -> Placed:
-        """Resolve a `complication_slot`: an estimated box, plus the icon and
-        text font resources the emitter needs.
-
-        Unlike every other element, nothing about *what* is drawn is known
-        here -- the wearer's pick is a runtime `Complications.Id`.  So this
-        resolves only what a font baking, and the geometry lints, need
-        ahead of time: the text font/estimated extent (`_complication_slot_
-        widest`, the same "widest plausible rendering" idea `_widest_text`
-        already uses), and -- when `icon_size:` is set -- one shared,
-        multi-glyph icon font covering every icon `slot.icons` can resolve
-        (the declared choices plus any per-choice override, or, for
-        `choices: any`, the whole of `wfb.icons.COMPLICATION_ICON`), keyed
-        by this slot's own name so two different slots never collide into
-        one font resource.
-
-        The estimated box's extent, for any `icon_position:`, comes from
-        `complication_slot_pair_geometry` -- the one place this geometry is
-        computed -- using `icon_px` (the *declared* visual
-        icon height, not the measured glyph height) as the icon's height,
-        matching the `left`-position height estimate
-        (`max(line_height, icon_px, 1)`) so a design that never sets
-        `icon_position:`/`icon_gap:` generates the same numbers as one that
-        only ever used `left`.
+        """A `complication_slot`: an estimated box, plus the icon and text
+        fonts the emitter needs.  What is drawn is the wearer's runtime pick,
+        so this sizes the text by `_complication_slot_widest` and, with
+        `icon_size:`, one multi-glyph icon font keyed by the slot's name
+        (so two slots never share one), measured by a reference glyph.  The
+        pair's extent comes from `complication_slot_pair_geometry`, with the
+        *declared* icon size as the icon's height.
         """
         cx, cy = self._point(element.at, parent)
-        font_px, reference, is_custom, baked, metric = self._font_for(element)
+        font = self._font_for_ref(element.font, element.font_is_custom, element.id)
         widest = self._complication_slot_widest(element)
-        if baked is not None:
-            text_width, line_height = baked.measure(widest)
-        else:
-            text_width, _ = fallback.measure(widest, metric) if metric else (0, False)
-            line_height = fallback.line_height(metric) if metric else font_px
+        text_width, line_height = font.width(widest), font.line_height
 
         icon_font_key: str | None = None
         icon_px = 0
@@ -1809,51 +1359,39 @@ class Resolver:
                 icon_px = units.pixel_size(element.icon_size, self.device.minor_radius)
                 icon_font_key = icons.font_key(
                     element.icon_size, f"slot_{element.slot}", element.resolved_antialias)
-                font = self.fonts.get(icon_font_key)
-                if font is not None:
-                    icon_width, _ = font.measure(reference_glyph)
-                else:
-                    icon_width = icon_px
+                icon_font = self.fonts.get(icon_font_key)
+                icon_width = (icon_font.measure(reference_glyph)[0] if icon_font is not None
+                              else icon_px)
 
         gap_px = (units.pixel_size(element.icon_gap, self.device.minor_radius)
                  if element.icon_gap is not None else COMPLICATION_SLOT_ICON_GAP)
+        # `icon_width`/`icon_px` stay 0 when no icon font resolved.
         geometry = complication_slot_pair_geometry(
-            element.icon_position,
-            icon_width if icon_font_key else 0, icon_px if icon_font_key else 0,
-            text_width, line_height, gap_px,
-        )
+            element.icon_position, icon_width, icon_px, text_width, line_height, gap_px)
         height = max(geometry.height, 1)
-        # The estimated box only -- like a glyph kind's lint box, the runtime
-        # anchor (`anchor_point` below) stays `(cx, cy)` unshifted: the pair
-        # is centred on the wearer's actual pick at runtime, in
-        # `wfb.emit.monkeyc._emit_complication_slot`'s own arithmetic, not
-        # here.
+        # The lint box only: the device centres the real pair on the
+        # unshifted anchor at runtime.
         dx, dy = alignment_shift(geometry.width, height, element.align, element.vertical_align)
         box = Box(cx + dx - geometry.width / 2, cy + dy - height / 2, geometry.width, height)
         return PlacedComplicationSlot(
             element, box.rounded(), (round(cx), round(cy)), depth,
             anchor_point=(round(cx), round(cy)),
-            font_reference=reference, font_is_custom=is_custom, font_px=font_px,
-            font_metric=metric,
+            font_reference=font.reference, font_is_custom=font.is_custom, font_px=font.px,
+            font_metric=font.metric,
             widest=widest, icon_font_key=icon_font_key, icon_px=icon_px,
             icon_position=element.icon_position, icon_gap_px=gap_px,
         )
 
     def _complication_slot_widest(self, element: ComplicationSlot) -> str:
-        """The widest plausible reading a `complication_slot` can draw.
+        """The widest plausible reading a `complication_slot` can draw: the
+        digit-count estimate `formatting.widest` gives an unranged source,
+        across every declared choice (there is no per-choice `format:`),
+        and the placeholder.
 
-        There is no per-choice `format:` to size against (`Builder._build_
-        complication_slot` forbids it, because the value's concrete type
-        genuinely varies by choice) -- so this estimates across *every*
-        declared choice rather than exactly for one, the same digit-count
-        estimate `formatting.widest` already falls back to for a Number/
-        Float/String source with no documented range (every complication
-        type qualifies: none is in `wfb.formatting._SOURCE_DIGITS`).
-        `label:`/`unit:` add unbounded, localised device strings on top --
-        recorded approximately rather than precisely, the same "over-estimate
-        costs a spurious warning, under-estimate costs a clipped face"
-        tolerance this project already accepts for a Type.STRING source of
-        unknown length.
+        `label:`/`unit:` are deliberately not folded in: they are localised
+        device strings with no documented bound, so any padding is either
+        routinely wrong or large enough to push ordinary slots into spurious
+        `off-screen` warnings.  `docs/limitations.md` records the gap.
         """
         slot = self.face.config_data.get(element.slot)
         choices: tuple[str, ...] = ()
@@ -1869,26 +1407,13 @@ class Resolver:
             widest = _longer(widest, candidate)
         if element.when_absent == "placeholder" and element.placeholder:
             widest = _longer(widest, element.placeholder)
-        # `label:`/`unit:` are deliberately NOT folded in here, unlike the
-        # digit-count estimate above: `Complication.shortLabel`/`.longLabel`
-        # and a String `.unit` are localised device strings with no
-        # documented upper bound at all (unlike a digit count, which at
-        # least has a plausible ceiling), so *any* fixed padding here is a
-        # guess that would either be routinely wrong or -- picked large
-        # enough to rarely be wrong -- inflate every ordinary slot's box
-        # into a spurious `off-screen` warning (checked directly: an
-        # 8-character placeholder pushed a design that fits comfortably
-        # off the framebuffer). `docs/limitations.md` records this as a
-        # documented gap instead: the geometry/overflow checks size a
-        # slot's box from its value alone.
         return widest
 
     def _resolve_hands(self, element: HandsElement, parent: Box, depth: int) -> Placed:
-        """`type: hands` -- the axis, plus every part of every declared hand
-        resolved to whole pixels in the hand's own frame.  The rotation
-        itself is the one piece of layout arithmetic the *device* performs
-        (ADR 0004, amended) -- everything here is still a build-time
-        constant.
+        """`type: hands` -- the axis, plus every part of every drawn hand
+        resolved to whole pixels in the hand's own frame.  The rotation is
+        the one piece of layout arithmetic the device performs (ADR 0004,
+        amended).
         """
         cx, cy = self._point(element.at, parent)
         hand_set = self.face.hands[element.hands]
@@ -1896,33 +1421,18 @@ class Resolver:
         reach = 0.0
         for name, hand in hand_set.hands():
             if name == "second" and element.seconds == "never":
-                # The set's second hand is not drawn at all -- left
-                # unresolved, exactly as if the set declared no `second:` at
-                # all, so codegen's `if hand is None: continue` already
-                # covers it with no extra check, and its geometry does not
-                # inflate the swept disc's reach (only a *drawn* hand's ink
-                # counts).
+                # Not drawn: left unresolved, exactly as if the set declared
+                # no `second:`, so it neither emits nor inflates the reach.
                 continue
-            parts = []
-            for part_index, part in enumerate(hand.parts):
-                # `<id>.<hand>.parts[<i>]`, not `<id>.parts[<i>]`: a hand set
-                # has up to three independent `parts:` lists, so the plain
-                # element id would name the hour hand's first part and the
-                # minute hand's first part identically -- and a
-                # `sub-pixel-length` finding that cannot say *which* hand it
-                # is about sends the author to the wrong line.  A pattern has
-                # exactly one `parts:` list, so `_resolve_pattern` needs no
-                # such qualifier and keeps the bare id.
-                resolved_part, part_reach = self._resolve_hand_part(
-                    part, f"{element.id}.{name}", part_index,
-                    min_1px=element.resolved_min_1px)
-                parts.append(resolved_part)
-                reach = max(reach, part_reach)
-            resolved[name] = ResolvedHand(parts=tuple(parts))
+            # `<id>.<hand>`: a set has up to three `parts:` lists, so the bare
+            # id would not say which hand a `sub-pixel-length` finding means.
+            parts, hand_reach = self._resolve_parts(
+                hand.parts, f"{element.id}.{name}", min_1px=element.resolved_min_1px)
+            resolved[name] = ResolvedHand(parts=parts)
+            reach = max(reach, hand_reach)
         axis = (round(cx), round(cy))
         box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
-        aod_thickness = self._aod_extent(
-            element.aod.thickness if element.aod is not None else None, parent, 1)
+        aod_thickness = self._aod_extent(element, "thickness", parent, 1)
         return PlacedHands(
             element, box.rounded(), axis, depth,
             hour=resolved.get("hour"), minute=resolved.get("minute"),
@@ -1930,38 +1440,36 @@ class Resolver:
             aod_thickness=aod_thickness,
         )
 
+    def _resolve_parts(
+        self, parts: list[HandPart], owner: str, *, min_1px: bool,
+    ) -> tuple[tuple[ResolvedHandPart, ...], float]:
+        """Every part of one `parts:` list (a hand's, or a pattern's
+        template), plus the farthest reach among them.  `owner` prefixes
+        each part's own id, `<owner>.parts[<i>]`."""
+        resolved = []
+        reach = 0.0
+        for index, part in enumerate(parts):
+            resolved_part, part_reach = self._resolve_hand_part(part, owner, index, min_1px=min_1px)
+            resolved.append(resolved_part)
+            reach = max(reach, part_reach)
+        return tuple(resolved), reach
+
     def _resolve_hand_part(
-        self, part, element_id: str = "", part_index: int = -1, *, min_1px: bool,
+        self, part: HandPart, owner: str, index: int, *, min_1px: bool,
     ) -> tuple[ResolvedHandPart, float]:
-        """One hand part -> whole-pixel geometry in the hand's own frame,
-        plus its own reach from the axis (the farthest ink any of its
-        drawing touches).  Rounds with :func:`round_half_away`, not the plain
-        `round()` every other element here uses -- a mirror-symmetry
-        rule specific to a hand frame, which is the only geometry a
-        symmetric pair of authored coordinates (`dx: -1.5px`/`dx: 1.5px`)
-        can appear in.
+        """One hand or pattern part -> whole-pixel geometry in its own frame
+        (origin = the axis / the pattern's `at:`, 12 o'clock up), plus its
+        reach from that origin (the farthest ink it touches).  Rounds with
+        :func:`round_half_away`, so a mirrored `dx: -1.5px`/`1.5px` pair
+        stays symmetric.
 
-        `element_id`/`part_index` name the part for two independent reasons:
-        a `shape: text` part's `_font_for_ref` "no pixel metrics"
-        warning (reachable only through a pattern's template,
-        never a hand's -- `wfb.ir.HAND_PART_REJECTED_SHAPES` still refuses
-        it), and every part's own `SubPixelLength`
-        owner id (`_owner_id`, below), which every shape can reach.  Both
-        callers (`_resolve_hands`, `_resolve_pattern`) always pass real
-        values.
-
-        `min_1px` is the *inherited* value from the owning element
-        (`element.resolved_min_1px`) -- combined with this part's own
-        authored override, if any, into `effective_min_1px` below exactly
-        the way `Builder._resolve_inherited_flag` combines an element's with
-        its group's, except this happens once per element *instance* rather
-        than once in the IR: `HandPart.min_1px` has no `resolved_` twin,
-        because one `hands:` set can be placed by more than one `type:
-        hands` element, and two placements can resolve `min_1px`
-        differently (see that field's docstring).
+        The part becomes the owner (`<owner>.parts[<index>]`, its own span)
+        of any `SubPixelLength` or "no pixel metrics" warning it raises.
+        `min_1px` is the owning element's resolved value; the part's own
+        `min_1px:` overrides it here, per placement, because one `hands:`
+        set can be placed by several elements that resolve it differently.
         """
-        owner_id = f"{element_id}.parts[{part_index}]" if part_index >= 0 else element_id
-        self._owner_id = owner_id
+        self._owner_id = owner_id = f"{owner}.parts[{index}]"
         self._owner_span = part.span
         effective_min_1px = part.min_1px if part.min_1px is not None else min_1px
 
@@ -2031,73 +1539,34 @@ class Resolver:
             ), reach
 
         if part.shape == "text":
-            # A pattern's template only (`wfb.ir.HAND_PART_REJECTED_SHAPES`
-            # keeps this off a hand) -- upright glyphs, so the anchor is the
-            # only thing that goes through `_hand_point`; the glyphs
-            # themselves are measured, not rotated (unless `curve:` turns
-            # them too -- plan 11 slice 2, below). `reach` is always `0.0`
-            # here: text is not rotation-invariant, so `Resolver.
-            # _resolve_pattern`'s per-copy loop computes the real farthest
-            # corner instead.
+            # A pattern's template only.  Upright glyphs are not
+            # rotation-invariant, so reach is `0.0` here: `_resolve_pattern`
+            # measures each drawn copy's own ink instead.
             x0, y0 = self._hand_point(part.at)
-            x, y = round_half_away(x0), round_half_away(y0)
-            font_px, reference, is_custom, baked, metric = self._font_for_ref(
-                part.font, part.font_is_custom, owner_id)
-            font_is_vector = False
-            font_face = ""
-            font_available = True
-            if is_custom:
-                spec = self.face.fonts[part.font]
-                if spec.is_vector:
-                    # The exact same override `_resolve_text` applies once
-                    # `_font_for` says the reference is custom (plan 11 §4:
-                    # `baked`/`metric` from `_font_for_ref` are both
-                    # meaningless for a vector font) -- one face-resolution
-                    # path, reused here rather than duplicated.
-                    font_is_vector = True
-                    baked = None
-                    font_face, font_available = self._resolve_vector_face(spec, part.curve)
-                    metric = self._vector_font_metric(font_face, font_px)
-            if baked is not None:
-                widths = tuple(baked.measure(t)[0] for t in part.texts)
-                line_height = baked.line_height
-            elif metric is not None:
-                widths = tuple(fallback.measure(t, metric)[0] for t in part.texts)
-                line_height = fallback.line_height(metric)
-            else:
-                widths = tuple(0 for _ in part.texts)
-                line_height = font_px
-            justify = self._justify(part)
-            curve = part.curve
-            curve_style = curve.style if curve is not None else None
-            curve_angle_degrees = curve.angle.degrees if curve is not None else 0.0
-            curve_angle_garmin = (garmin_curve_angle(curve_style, curve.angle)
-                                  if curve is not None else 0.0)
+            font = self._text_font(part.font, part.font_is_custom, owner_id, part.curve)
+            curve_style, curve_angle_degrees, curve_angle_garmin, curve_direction = \
+                _curve_angles(part.curve)
             curve_radius_px = 0
-            curve_direction = curve.direction if curve is not None else None
-            if curve_style == "radial" and curve.radius is not None:
-                # `curve.radius` is a `handLength` (px/%r only -- schema
-                # `patternCurve`), resolved the same way every other
-                # pattern-part radius/thickness is: `_hand_extent`, so a
-                # relative one also gets the `min_1px`/sub-pixel-length
-                # treatment a circle or arc part's own `radius:` already
-                # gets, not a silent, unrecorded rounding.
+            if curve_style == "radial" and part.curve.radius is not None:
+                # Through `_hand_extent`, like any other part radius: a
+                # relative one gets the `min_1px`/sub-pixel-length treatment.
                 curve_radius_px = round_half_away(self._hand_extent(
-                    curve.radius, min_1px=effective_min_1px, what="curve.radius"))
-            outline_width = part.outline.width if part.outline is not None else 0
-            outline_color = part.outline.color if part.outline is not None else None
+                    part.curve.radius, min_1px=effective_min_1px, what="curve.radius"))
+            outline = part.outline
             return ResolvedHandPart(
-                "text", part.color, x=x, y=y,
-                font_reference=reference, font_is_custom=is_custom, font_px=font_px,
-                font_metric=metric,
-                font_face=font_face, font_is_vector=font_is_vector,
-                font_available=font_available,
-                justify=justify, align=part.align, vertical_align=part.vertical_align,
-                line_height=line_height, texts=part.texts, widths=widths,
+                "text", part.color, x=round_half_away(x0), y=round_half_away(y0),
+                font_reference=font.reference, font_is_custom=font.is_custom, font_px=font.px,
+                font_metric=font.metric,
+                font_face=font.face, font_is_vector=font.is_vector,
+                font_available=font.available,
+                justify=self._justify(part), align=part.align,
+                vertical_align=part.vertical_align, line_height=font.line_height,
+                texts=part.texts, widths=tuple(font.width(t) for t in part.texts),
                 curve_style=curve_style, curve_angle_degrees=curve_angle_degrees,
                 curve_angle_garmin=curve_angle_garmin, curve_radius_px=curve_radius_px,
                 curve_direction=curve_direction,
-                outline_width=outline_width, outline_color=outline_color,
+                outline_width=outline.width if outline is not None else 0,
+                outline_color=outline.color if outline is not None else None,
             ), 0.0
 
         # circle
@@ -2121,44 +1590,22 @@ class Resolver:
         ), reach
 
     def _resolve_pattern(self, element: PatternElement, parent: Box, depth: int) -> Placed:
-        """`type: pattern` -- the template resolved once, in its own frame
-        (`_resolve_hand_part`, reused: a pattern part is authored exactly
-        like a hand part), plus which copies are drawn and the
-        repeat rule.  The repeat transform itself -- turning or stepping the
-        template -- is the one piece of layout arithmetic the device
-        performs (ADR 0004, amended a second time), same bargain as hands.
+        """`type: pattern` -- the template resolved once in its own frame
+        (`_resolve_parts`, as for a hand), plus which copies are drawn and
+        the repeat rule; the device performs the repeat transform itself
+        (ADR 0004, amended).
 
-        Radial's `reach` is rotation-invariant (distance from the centre of
-        rotation is unchanged by rotating about it), so it comes straight
-        from the per-part reach `_resolve_hand_part` already returns, the
-        same shortcut `_resolve_hands` takes -- independent of which copies
-        are actually drawn, since every drawn copy shares one template.
-        `box`, unlike `reach`, really does depend on which copies draw and
-        where, so it is computed by applying :meth:`PlacedPattern.transform`
-        to every drawn copy's ink.
-
-        A `shape: text` part breaks the "rotation-invariant" half of that
-        shortcut: upright glyphs are not the same distance
-        from the centre at every angle, so `_resolve_hand_part` always
-        returns `0.0` reach for one, and the real farthest point of any
-        *drawn* copy's own ink (an upright box's real corner, a rotated
-        box's real corner (`rotated_rect_corners`) or an annulus sector's
-        real farthest point (`annulus_sector_reach`) under `curve:` --
-        never an AABB's own corners, which can sit farther out than the
-        shape they bound) is instead folded into the per-copy ink loop
-        below, alongside `box` -- the one other quantity that already has to
-        look at drawn copies individually.
+        A radial pattern's `reach` is rotation-invariant for every shape but
+        text, so it comes from the per-part reach.  Upright glyphs are not
+        (a text part's own reach is `0.0`), so each *drawn* copy's real text
+        ink (`_pattern_text_ink`) is measured in the per-copy loop that also
+        unions `box` from every drawn copy's ink.
         """
         cx, cy = self._point(element.at, parent)
         center = (round(cx), round(cy))
 
-        parts: list[ResolvedHandPart] = []
-        reach = 0.0
-        for part_index, part in enumerate(element.parts):
-            resolved_part, part_reach = self._resolve_hand_part(
-                part, element.id, part_index, min_1px=element.resolved_min_1px)
-            parts.append(resolved_part)
-            reach = max(reach, part_reach)
+        parts, reach = self._resolve_parts(
+            element.parts, element.id, min_1px=element.resolved_min_1px)
 
         if element.pattern == "radial":
             start, step = element.start_angle, element.step_angle
@@ -2170,11 +1617,10 @@ class Resolver:
             dx = round_half_away(self._len(step_position.dx, parent, Axis.X, 0))
             dy = round_half_away(self._len(step_position.dy, parent, Axis.Y, 0))
 
-        aod_thickness = self._aod_extent(
-            element.aod.thickness if element.aod is not None else None, parent, 1)
+        aod_thickness = self._aod_extent(element, "thickness", parent, 1)
         placed = PlacedPattern(
             element, IntBox(0, 0, 0, 0), center, depth,
-            parts=tuple(parts), copies=element.drawn_indices(),
+            parts=parts, copies=element.drawn_indices(),
             start=start, step=step, dx=dx, dy=dy, reach=reach,
             aod_thickness=aod_thickness,
         )
@@ -2185,38 +1631,22 @@ class Resolver:
         cx_f, cy_f = float(center[0]), float(center[1])
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
-            # Copy `index`'s own rotation, design degrees clockwise from 12
-            # -- `0.0` for a linear pattern, which never turns (`start`/
-            # `step` are both `0.0` there, set just above). A curved text
-            # part's box composes its own local `curve_angle_garmin` with
-            # this (plan 11 slice 2, `_pattern_part_ink`'s own docstring);
-            # every other shape ignores the argument.
+            # This copy's own rotation (design degrees; `0.0` for a linear
+            # pattern) -- only a curved text part composes with it.
             copy_angle_degrees = start + index * step
             for part in parts:
-                lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(
-                    part, ox, oy, sin_t, cos_t, index, copy_angle_degrees)
+                if part.shape == "text":
+                    ink = _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, copy_angle_degrees)
+                    lo_x, lo_y, hi_x, hi_y = ink.bounds()
+                    if element.pattern == "radial":
+                        # The real ink's farthest point, not its AABB's
+                        # corners -- those overreach, and used to make a
+                        # full ring of curved numerals trip `safe-area`.
+                        text_reach = max(text_reach, ink.reach(cx_f, cy_f))
+                else:
+                    lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(part, ox, oy, sin_t, cos_t, index)
                 min_x, min_y = min(min_x, lo_x), min(min_y, lo_y)
                 max_x, max_y = max(max_x, hi_x), max(max_y, hi_y)
-                if part.shape == "text" and element.pattern == "radial":
-                    # The exact farthest point of this copy's own real ink
-                    # from the axis, not its AABB's corners: an AABB's own
-                    # corners generically overreach the shape it bounds
-                    # (`annulus_sector_reach`'s own docstring), which used
-                    # to make a full ring of radial or angled text trip
-                    # `safe-area` even when every glyph sat well inside the
-                    # disc (`docs/adr/0008-validation-and-linting.md`'s
-                    # 2026-09-21 "safe-area is shape-aware" amendment).
-                    # `_pattern_text_ink_geometry` is the exact same
-                    # geometry `_pattern_part_ink` just derived its AABB
-                    # from, above -- never a second, independently
-                    # recomputed shape.
-                    ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
-                    width = part.widths[index] if part.widths else 0
-                    height = part.line_height
-                    kind, geo = _pattern_text_ink_geometry(
-                        part, ax, ay, width, height, copy_angle_degrees,
-                        pad=float(part.outline_width))
-                    text_reach = max(text_reach, _pattern_text_ink_reach(kind, geo, cx_f, cy_f))
         if min_x > max_x:
             # Unreachable once the schema and `wfb.ir` have run (`parts:`
             # needs at least one entry, and every copy skipped is a build
@@ -2230,44 +1660,17 @@ class Resolver:
             placed.reach = text_reach
         return placed
 
-    def _hand_point(self, at: Position) -> tuple[float, float]:
-        """A part position within a hand's own frame -- there is no anchor
-        and no parent box, only the axis (origin) and, for a polar position,
-        the same clockwise-from-12 convention every other polar position
-        uses (`_point`, which this deliberately does not call: that one
-        starts from `parent.anchor_point`, and a hand frame has no box to
-        anchor to at all)."""
-        if at.is_polar:
-            radius = self._hand_len(at.radius)
-            theta = math.radians(at.angle.degrees)
-            return radius * math.sin(theta), -radius * math.cos(theta)
-        return self._hand_len(at.dx), self._hand_len(at.dy)
+    # A hand/pattern part's own frame is `_point`/`_extent` over
+    # `_HAND_FRAME_BOX`: every anchor of a zero box is the origin, and the
+    # px/%r lengths a part may use (schema-enforced) never read the box.
 
-    def _hand_len(self, length: Length | None, default: float = 0) -> float:
-        """Resolve a hand-frame length: px or %r only (schema-enforced), so
-        neither the parent box nor a font is ever consulted."""
-        if length is None:
-            return float(default)
-        return length.resolve(box=_HAND_FRAME_BOX, axis=Axis.MINOR,
-                              minor_radius=self.minor_radius)
+    def _hand_point(self, at: Position) -> tuple[float, float]:
+        return self._point(at, _HAND_FRAME_BOX)
 
     def _hand_extent(self, length: Length | None, default: float = 0, *,
                      min_1px: bool, what: str) -> float:
-        """:meth:`_hand_len`, then :func:`units.at_least_one_px` -- the hand-
-        frame counterpart of :meth:`_extent`, for a hand/pattern part's own
-        size, thickness or radius (never its `at:`/`to:`/polygon points).
-
-        `min_1px`/`what` and the `SubPixelLength` recording below are the
-        same contract `_extent` documents -- see that docstring; the only
-        difference is whose `_owner_id`/`_owner_span` end up on the record:
-        `_resolve_hand_part` narrows both to this part's own
-        `<element id>.parts[<i>]` and span just before calling this, for
-        every shape branch it has.
-        """
-        value = self._hand_len(length, default)
-        if not min_1px and units.is_sub_pixel_length(length, value):
-            self._record_sub_pixel(what, length, value)
-        return units.at_least_one_px(length, value, min_1px)
+        return self._extent(length, _HAND_FRAME_BOX, Axis.MINOR, default,
+                            min_1px=min_1px, what=what)
 
     # -- helpers ----------------------------------------------------------
 
@@ -2290,65 +1693,37 @@ class Resolver:
 
     def _extent(self, length: Length | None, parent: Box, axis: Axis, default: float,
                 font_px: float | None = None, *, min_1px: bool, what: str) -> float:
-        """:meth:`_len`, then :func:`units.at_least_one_px` -- for a length
-        that is a *size, thickness or radius* rather than a position: a
-        nonzero relative one clamps to at least 1 px when `min_1px` is true
-        (see `at_least_one_px`'s own docstring for the "why a switch at all"
-        reasoning). Every call site here that places rather than sizes an
-        element (`at:`/`to:`/polygon points, a linear pattern's `step:`)
-        stays on `_len` -- this only wraps the subset the docstring on
-        `at_least_one_px` names.
+        """:meth:`_len`, then :func:`units.at_least_one_px` -- for a *size,
+        thickness or radius*, never a position (`at:`/`to:`/points/`step:`
+        stay on `_len`).  `min_1px` and `what` (the authored key, for the
+        record) are required so no call site can silently default either.
 
-        `min_1px` and `what` are both **required, with no default**: the
-        first is the caller's own gate (almost always the owning element's
-        `resolved_min_1px`), so a call site can never silently fall back to
-        "off" by omission; the second names the authored key
-        (`"size.width"`, `"size.height"`, `"thickness"`, `"bar_width"` or
-        `"radius"`) for the `SubPixelLength` record below, so a missed call
-        site cannot masquerade as a covered one under the wrong name.
-
-        When `min_1px` is false and `length`/`value` is exactly the case
-        :func:`units.is_sub_pixel_length` names -- a nonzero `%`/`%r` length
-        that resolved under 1 px, so it would have been clamped had the
-        switch been on -- this records one `SubPixelLength` against whichever
-        element/part `_owner_id`/`_owner_span`/`_owner_element` currently
-        name (`_resolve_list` sets them per element; `_resolve_hand_part`
-        narrows the first two per part). That record is exactly what the
-        suppressible `sub-pixel-length` lint reads; this is the one
-        place in the resolver that can see the condition it needs, so it is
-        also the one place responsible for capturing it.
+        With `min_1px` off, a nonzero `%`/`%r` length under 1 px
+        (:func:`units.is_sub_pixel_length`) is recorded as a
+        `SubPixelLength` against the current owner -- the one place the
+        `sub-pixel-length` lint's condition is visible.
         """
         value = self._len(length, parent, axis, default, font_px)
         if not min_1px and units.is_sub_pixel_length(length, value):
             self._record_sub_pixel(what, length, value)
         return units.at_least_one_px(length, value, min_1px)
 
-    def _aod_extent(self, aod_length: Length | None, parent: Box, default: float) -> int | None:
-        """`aod: {thickness: ...}`/`{bar_width: ...}`, resolved exactly like
-        the element's own `thickness`/`bar_width` (`_extent`, `Axis.MINOR`) --
-        `None` when the resolved `aod:` sets no override for this key, which
-        every codegen call site reads as "keep the plain, unrestyled
-        constant" (plan 14 §4.2).  `min_1px=True` unconditionally: an
-        override is a deliberate restyling choice, not authored geometry, so
-        it does not feed the `sub-pixel-length` lint (`_record_sub_pixel`) --
-        there would be nothing actionable to point the lint's own line-number
-        machinery at.  Never affects `box`/`reach`/the awake safe-area
-        geometry -- purely a second rendering-time pixel count.
+    def _aod_extent(self, element: Element, key: str, parent: Box, default: float) -> int | None:
+        """The `aod:` override of `key` (`thickness`/`bar_width`), resolved
+        like the element's own (`_extent`, `Axis.MINOR`), or `None` when the
+        resolved `aod:` does not override it -- codegen then keeps the plain
+        constant (plan 14 §4.2).  Always `min_1px`, and never recorded as a
+        `SubPixelLength`: an override is a restyling choice with no authored
+        line of geometry for the lint to point at.  Never feeds `box`.
         """
+        aod_length = getattr(element.aod, key) if element.aod is not None else None
         if aod_length is None:
             return None
         return max(1, round(self._extent(aod_length, parent, Axis.MINOR, default,
                                          min_1px=True, what="aod")))
 
     def _record_sub_pixel(self, key: str, length: Length | None, value: float) -> None:
-        """Append one `SubPixelLength` for whatever `_extent`/`_hand_extent`
-        just found -- see their docstrings for when that is. `length` is
-        never actually `None` here (both callers only reach this branch
-        after `units.is_sub_pixel_length` has already confirmed it is not),
-        but the parameter stays optional so this matches `_extent`'s own
-        `length` type rather than asserting a narrower one purely for this
-        internal call.
-        """
+        """Append one `SubPixelLength` for the current owner (`_extent`)."""
         assert length is not None
         assert self._owner_element is not None, "no element is being resolved yet"
         self.sub_pixel.append(SubPixelLength(
@@ -2356,49 +1731,24 @@ class Resolver:
             span=self._owner_span, element=self._owner_element,
         ))
 
-    def _unbaked_font_size(self, spec: FontSpec) -> int:
-        """The size to assume for a custom font that was not baked.
-
-        A real build always bakes every declared font, so this is the path a
-        caller who resolved layout with an empty ``fonts`` dict takes -- a unit
-        test, or a geometry-only pass.  `size:` is always a `Length`, and
-        its unit already refers to this device, so it resolves exactly here.
-        """
-        return spec.pixel_size(self.minor_radius)
-
-    def _font_for(self, element: Text) -> tuple[int, str, bool, BakedFont | None, FontMetric | None]:
-        return self._font_for_ref(element.font, element.font_is_custom, element.id)
-
-    def _font_for_ref(
-        self, font: str, font_is_custom: bool, warn_id: str,
-    ) -> tuple[int, str, bool, BakedFont | None, FontMetric | None]:
-        """The shared body of `_font_for`, taking a bare `font:`/`font_is_
-        custom` pair instead of a `Text` element -- what lets a `shape:
-        text` pattern part (`Resolver._resolve_hand_part`)
-        resolve its font through the exact same lookup and the exact same
-        "no pixel metrics" warning `_font_for` already gives a `Text`
-        element, with no second copy of either.
-
-        The fifth element is the device's `FontMetric` for a system font
-        (`None` for a custom one, and `None` when the device has no pixel
-        metrics for this symbol at all) -- callers hand it straight to
-        `wfb.fonts.fallback.measure`/`line_height` and carry it onto the
-        `Placed`/`ResolvedHandPart` so `wfb.preview` measures and draws
-        through the exact same face (plan 09 §4 R2.3).
-        """
+    def _font_for_ref(self, font: str, font_is_custom: bool, warn_id: str) -> _Font:
+        """A `font:` reference resolved for this device, before any vector
+        face gate (`_text_font` adds those): a custom font's baked sheet
+        (or, unbaked -- a layout-only caller -- its declared size), or a
+        system font's `FontMetric`, warning once when the device has none.
+        The metric rides onto the `Placed*` so `wfb.preview` measures and
+        draws through the same face (plan 09 §4 R2.3)."""
         if font_is_custom:
             baked = self.fonts.get(font)
-            spec = self.face.fonts[font]
-            return (baked.size if baked else self._unbaked_font_size(spec)), \
-                font, True, baked, None
+            size = baked.size if baked else self.face.fonts[font].pixel_size(self.minor_radius)
+            return _Font(size, font, True, baked, None)
         metric = self.device.system_fonts.get(font)
-        size = metric.size_px if metric else 0
         if metric is None:
             self.warnings.append(
                 f"{warn_id}: no pixel metrics for {font} on {self.device.id}; "
                 f"text extent is not checked"
             )
-        return size, font, False, None, metric
+        return _Font(metric.size_px if metric else 0, font, False, None, metric)
 
     def _widest_text(self, element: Text) -> str:
         if element.literal is not None:
@@ -2437,6 +1787,14 @@ class Resolver:
         if element.vertical_align == "center":
             out.append("TEXT_JUSTIFY_VCENTER")
         return tuple(out)
+
+    #: `_resolve_list`'s dispatch, one entry per leaf element kind.
+    _BY_TYPE = {
+        Shape: _resolve_shape, Text: _resolve_text, Progress: _resolve_progress,
+        IconElement: _resolve_icon, Graph: _resolve_graph,
+        ComplicationSlot: _resolve_complication_slot, HandsElement: _resolve_hands,
+        PatternElement: _resolve_pattern,
+    }
 
 
 def _longer(current: str, candidate: str) -> str:
@@ -2492,9 +1850,8 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
     A ring's *bounding box* has corners far outside the ring itself, so checking
     the box against a round screen would report every full-width arc as cropped.
     """
-    if isinstance(placed, PlacedProgress) and placed.element.style == "arc":
-        return (placed.center[0], placed.center[1], placed.radius + placed.thickness / 2.0)
-    if isinstance(placed, PlacedShape) and placed.element.shape == "arc":
+    if (isinstance(placed, PlacedProgress) and placed.element.style == "arc"
+            or isinstance(placed, PlacedShape) and placed.element.shape == "arc"):
         return (placed.center[0], placed.center[1], placed.radius + placed.thickness / 2.0)
     if isinstance(placed, PlacedShape) and placed.element.shape == "circle":
         reach = placed.radius + (0 if placed.element.filled else placed.thickness / 2.0)
@@ -2506,89 +1863,36 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
     return None
 
 
-def _placed_text_curve_reach(placed: "PlacedText", from_x: float, from_y: float) -> float:
-    """The exact farthest distance a curved standalone `text` element's own
-    ink can reach from an arbitrary point `(from_x, from_y)` -- shares
-    `Resolver._resolve_text`'s own local geometry (`radial_text_angle_
-    span`/`radial_text_band` for `radial`, `rotated_rect_corners` for
-    `angled`), recomputed from the fields that method already stores
-    (`anchor_point`, `measured_width`, `line_height`, `curve_angle_garmin`,
-    `curve_radius_px`, `curve_direction`, plus `element.align`/`.vertical_
-    align`) rather than a second, independently-derived model that could
-    silently disagree with the box `Resolver._resolve_text` itself built.
-    Only ever called with `placed.curve_style` set (`visible_reach`'s own
-    gate); upright text has no need of this -- its `box`'s own AABB corners
-    already are its real corners.
-
-    Reads `placed.element.outline` for the same `ring_px` pad
-    `Resolver._resolve_text` already grew `.box` by (plan 15 §6, D9): this
-    function recomputes its own geometry independently of `.box` (its own
-    docstring above), so it has to grow by the ring itself too, or a curved
-    `outline:` element's real safe-area reach would silently disagree with
-    the one `.box` already reports.
-    """
-    x, y = placed.anchor_point
-    width = float(placed.measured_width)
-    height = placed.line_height
-    align = placed.element.align
-    vertical_align = placed.element.vertical_align
-    outline = placed.element.outline if isinstance(placed.element, Text) else None
-    ring_px = float(outline.width) if outline is not None else 0.0
-    if placed.curve_style == "angled":
-        corners = rotated_rect_corners(
-            x, y, width, height, align, vertical_align, placed.curve_angle_garmin, pad=ring_px)
-        return max(math.hypot(px - from_x, py - from_y) for px, py in corners)
-    # radial -- `(x, y)` is already the circle's own centre here (`Text.
-    # curve`'s `at:` reinterpretation, plan 11 §2.2).
-    if placed.curve_radius_px <= 0:
-        # Schema-unreachable (`radius:` > 0 is required with `style:
-        # radial`) -- `Resolver._resolve_text`'s own conservative square
-        # fallback for this case, mirrored here rather than left unhandled.
-        reach = placed.curve_radius_px + height + ring_px
-        return math.hypot(x - from_x, y - from_y) + reach
-    theta_a, theta_b = radial_text_angle_span(
-        placed.curve_angle_garmin, placed.curve_direction, align, width, placed.curve_radius_px,
-        pad=ring_px)
-    r_inner, r_outer = radial_text_band(
-        placed.curve_radius_px, height, vertical_align, placed.curve_direction,
-        _curve_ascent(placed.font_metric, height), pad=ring_px)
-    return annulus_sector_reach(x, y, r_inner, r_outer, theta_a, theta_b, from_x, from_y)
+def _shape_ink(placed: "Placed") -> Ink | None:
+    """The real ink shape where it is tighter than `placed.box`: a
+    `circular_extent` kind's disc, or a curved `text` element's rotated box
+    or sector -- rebuilt by :func:`text_ink` from the fields
+    `Resolver._resolve_text` stored, so it is the shape its box came from.
+    `None` for everything else, whose box corners are its real corners."""
+    circle = circular_extent(placed)
+    if circle is not None:
+        return InkDisc(*circle)
+    if isinstance(placed, PlacedText) and placed.curve_style is not None:
+        outline = placed.element.outline if isinstance(placed.element, Text) else None
+        return text_ink(
+            placed.anchor_point[0], placed.anchor_point[1], float(placed.measured_width),
+            placed.line_height, placed.element.align, placed.element.vertical_align,
+            curve_style=placed.curve_style, angle_garmin=placed.curve_angle_garmin,
+            radius_px=placed.curve_radius_px, direction=placed.curve_direction,
+            metric=placed.font_metric, pad=float(outline.width) if outline is not None else 0.0)
+    return None
 
 
 def visible_reach(placed: "Placed", screen_cx: float, screen_cy: float) -> float | None:
     """The farthest distance any of `placed`'s own real ink can reach from
     `(screen_cx, screen_cy)` -- the round-screen `safe-area` check's
-    shape-aware replacement for `placed.box`'s corners.  `None` means "no
-    shape-aware answer for this kind" -- the caller falls back to the plain
-    AABB-corners test (`inside_visible_area`), the same test every kind
-    used before this function existed, and still the right one for the
-    rectangular *framebuffer* `off-screen` check (`docs/guide/lints.md`'s
-    "off-screen uses the box, safe-area uses the shape" split -- shape
-    genuinely does not matter there, `inside_screen`'s own docstring).
-
-    * `circular_extent`'s own kinds (`shape: arc`/`circle`, a `progress`
-      arc, `hands`, a radial `pattern` whose own `.reach` is already exact
-      -- see `Resolver._resolve_pattern`) -- unchanged: distance from the
-      shape's own centre to the screen centre, plus its reach.
-    * A curved standalone `text` element (`angled`/`radial`) --
-      `_placed_text_curve_reach`, above: `PlacedText.box` is already a
-      tight AABB (`Resolver._resolve_text`), but even a tight AABB's own
-      *corners* can sit farther from the screen centre than the shape's
-      real farthest point ever does (`annulus_sector_reach`'s own
-      docstring), so this reconstructs the real rotated rectangle or
-      annulus sector instead of trusting the box's corners.
-    * Everything else (plain shapes, icons, complication slots, upright
-      text, a linear pattern, ...) -- `None`: the box IS the real shape (or
-      close enough that the AABB corners are the real corners), so there is
-      nothing to tighten.
+    shape-aware replacement for `placed.box`'s corners (`_shape_ink`).
+    `None` means the box already is the shape: the caller falls back to
+    the AABB-corners test (`inside_visible_area`), which also stays the
+    right test for the rectangular framebuffer (`off-screen`).
     """
-    circle = circular_extent(placed)
-    if circle is not None:
-        cx, cy, reach = circle
-        return math.hypot(cx - screen_cx, cy - screen_cy) + reach
-    if isinstance(placed, PlacedText) and placed.curve_style is not None:
-        return _placed_text_curve_reach(placed, screen_cx, screen_cy)
-    return None
+    ink = _shape_ink(placed)
+    return None if ink is None else ink.reach(screen_cx, screen_cy)
 
 
 def inside_visible_area_for(placed: "Placed", device: Device) -> bool | None:
