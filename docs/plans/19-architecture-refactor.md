@@ -1,7 +1,7 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A3 approved (2026-09-24), built in that order: A0 and A1 are
-built (see "As built" under each); A2–A3 are next. A4–A7 still await a user
+**Status: A0–A3 approved (2026-09-24), built in that order: A0, A1 and A2
+are built (see "As built" under each); A3 is next. A4–A7 still await a user
 decision.** These change the project's shape (root
 `CLAUDE.md` §7: stop and ask), so **do not start an unapproved step**, and
 record each decision in §4. Plan 18 holds the bug list from the same review. Its fixes
@@ -177,6 +177,19 @@ operations and move pixels.
   by construction.
 - Changes expression order for `IconElement` and `Graph`, so `ReadPlan`
   output may reorder: expect golden diffs and explain them.
+
+**As built.** `Element.bound_expressions()` returns `(role, expression)`
+pairs in the old `expressions()` order, and `expressions()` projects it, so
+nothing reorders and no golden file moved (snapshot-identical to A0).
+`ReadPlan._value_expressions` reads a per-kind `VALUE_ROLES`, and
+`_hold_auto_sources` reads role `value`. The five absence checks stay
+separate functions because they are different rules (different codes,
+messages and policies). The two that scan take their inputs from the roles.
+`Element.color_roles()` (`ColorRole`: label, expression, ink/ring/track/icon,
+glyph, AOD) replaces `_colors_drawn_by`, `_outlined_interiors` and the plain
+branch of `_contrast_subjects`. Hands keep their resolved-part branch (the
+IR has no per-hand parts), and so do patterns (their element-default colour
+may be drawn by no part).
 
 ### A3. Emitters record what they use (addresses P3)
 

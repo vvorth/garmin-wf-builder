@@ -30,7 +30,7 @@ from .model import (
     AodOverride, ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot,
     ConfigStyle, Curve, Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group,
     HOLD_AUTO, Hand, HandPart, HandSet, HandsElement, IconElement, LayoutDecl, MAX_OUTLINE_WIDTH,
-    Outline, PATTERN_LOOP_INDEX,
+    Outline, PATTERN_LOOP_INDEX, ROLE_COLOR, ROLE_PART_VISIBLE, ROLE_VALUE, ROLE_VISIBLE,
     PatternElement, Position, Progress, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
     _drawn_copies, authored_draw_order, walk_elements,
 )
@@ -1867,20 +1867,23 @@ class Builder:
     def _hold_auto_sources(element: Element) -> tuple[str, ...]:
         """The catalogue paths `on_hold: auto` may resolve from, for one element.
 
-        The element's own **value** expression(s) only -- deliberately not
-        `color:`/`max:`, since a conditional colour's reference is not what
-        the element is *about*.  A `text`'s `value:`, a `progress`'s
-        `value:` (not `max:`), and an `icon`'s `icon_for:` (not a static
-        `icon:`/`glyph:`, which reads no source at all).
+        Every `ROLE_VALUE`-tagged bound expression's sources (plan 19 A2) --
+        deliberately not `color:`/`max:`, since a conditional colour's
+        reference is not what the element is *about*.  A `text`'s `value:`,
+        a `progress`'s `value:` (not `max:`), and an `icon`'s `icon_for:`
+        (not a static `icon:`/`glyph:`, which reads no source at all) are
+        each the one `ROLE_VALUE` expression their kind ever tags.
 
-        Deliberately not `ReadPlan._value_expressions`, which answers a
-        different question (what a `when_absent:` policy governs: it adds
-        `Progress.max`, and has no `IconElement`).
+        Deliberately not `element.VALUE_ROLES`, the set `ReadPlan.
+        _value_expressions` reads instead: that answers a different
+        question (what a `when_absent:` policy governs -- it adds
+        `Progress.max`, and has none at all for `IconElement`), so the two
+        read the *tag* the same expressions share, not the *kind-specific
+        subset* the other one narrows to.
         """
-        if isinstance(element, (Text, Progress)):
-            return element.value.sources if element.value is not None else ()
-        if isinstance(element, IconElement):
-            return element.value_for.sources if element.value_for is not None else ()
+        for role, expression in element.bound_expressions():
+            if role == ROLE_VALUE:
+                return expression.sources
         return ()
 
     def _resolve_auto_target(self, label: str, key: str, sources: tuple[str, ...],
@@ -2914,15 +2917,18 @@ class Builder:
         pattern is ever absent -- reuses `_check_absence`'s own "has no
         effect" wording, so both notes read the same across every element
         kind that has one.
+
+        Reads `element.bound_expressions()` by role (plan 19 A2) rather
+        than `element.colors`/`element.parts` directly -- `ROLE_COLOR` is
+        every colour `.colors` already dedups, `ROLE_PART_VISIBLE` every
+        part's own `visible:` -- so this is the same collection as before,
+        just named by what each expression *is* instead of where it lives.
         """
         nullable: list[Expression] = []
-        for expression in element.colors:
-            if expression.nullable and expression not in nullable:
+        for role, expression in element.bound_expressions():
+            if role in (ROLE_COLOR, ROLE_PART_VISIBLE) \
+                    and expression.nullable and expression not in nullable:
                 nullable.append(expression)
-        for part in element.parts:
-            if part.visible is not None and part.visible.nullable \
-                    and part.visible not in nullable:
-                nullable.append(part.visible)
 
         if nullable:
             if element.when_absent is not None:
@@ -3859,9 +3865,13 @@ class Builder:
             # requires a policy too, so a `when_absent:` sitting next to a
             # non-nullable value can be doing real work.  Saying it has no
             # effect there would contradict the error the author just fixed.
+            # Every *other* bound expression, `visible:` excluded -- it has
+            # its own "absent means hidden" rule with no `when_absent:` of
+            # its own to speak of (plan 19 A2: read by role, not identity,
+            # so this reads the same as the isinstance-free form below).
             others_nullable = any(
-                e is not bound and e is not element.visible and e.nullable
-                for e in element.expressions()
+                expression is not bound and role != ROLE_VISIBLE and expression.nullable
+                for role, expression in element.bound_expressions()
             )
             if when_absent is not None and not others_nullable:
                 self.bag.note(

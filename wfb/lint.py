@@ -406,11 +406,6 @@ def check_lint_allow(face: Face, bag: Bag) -> None:
 # -- check 3: palette legality ---------------------------------------------
 
 
-#: Element fields that can carry a bare colour reference.  Not every kind
-#: has all three; ``getattr`` covers the gap.
-_PALETTE_REFERENCING_FIELDS = ("color", "track_color", "icon_color")
-
-
 def _users_of(face: Face, token: str) -> list[Element]:
     """Elements with a colour whose author text is exactly ``token``
     (``palette.<name>``, ``config.<name>``, ``config.colors.<role>``).
@@ -421,35 +416,17 @@ def _users_of(face: Face, token: str) -> list[Element]:
     dithering is a property of the named colour, and tracing it through
     arbitrary expressions would overclaim what this can verify.
 
-    A `hands`/`pattern` element is matched through its `.colors` (every
-    effective part colour, already folded at build time) rather than a
-    `color:` field: a hand has none, and a pattern's is only the default a
-    part may override. A `text` element's `outline: {color: ...}`, and any
-    element's resolved `aod:` colour override, are colours it draws too
-    (plan 18 item 6).
+    Reads `Element.color_roles()` (plan 19 A2), which already answers
+    "which colours does this element draw" once for every kind -- a
+    `hands`/`pattern` element's own `.colors` (every effective part colour,
+    already folded at build time), a `text` element's `outline: {color:
+    ...}`, and any element's resolved `aod:` colour override, included.
     """
     out = []
     for element in face.walk():
-        if any(expression.text == token for expression in _colors_drawn_by(element)):
+        if any(role.expression.text == token for role in element.color_roles()):
             out.append(element)
     return out
-
-
-def _colors_drawn_by(element: Element) -> list:
-    """Every colour `Expression` ``element`` itself can draw with: its own
-    colour fields (or a hand's/pattern's folded part colours), a text's
-    outline, and its resolved AOD override's colours."""
-    if isinstance(element, (HandsElement, PatternElement)):
-        colors = list(element.colors)
-    else:
-        colors = [e for field in _PALETTE_REFERENCING_FIELDS
-                  if (e := getattr(element, field, None)) is not None]
-    if isinstance(element, Text) and element.outline is not None:
-        colors.append(element.outline.color)
-    if element.aod is not None:
-        colors += [e for field in _PALETTE_REFERENCING_FIELDS
-                   if (e := getattr(element.aod, field, None)) is not None]
-    return colors
 
 
 def _emit_dither(
@@ -993,6 +970,17 @@ def _contrast_subjects(placed):
     backdrop shape itself), which a glyph (`text`/`icon`, a `shape: text`
     part) never gets -- there an exact match is invisible content by
     mistake.  A hand part is never `shape: text`.
+
+    The `hands`/`pattern` branches stay on `placed.hour`/`.minute`/
+    `.second`/`.parts` directly (the *resolved*, per-device parts): a
+    `hands` element has no per-part structure on the IR to give
+    `Element.color_roles()` a label finer than the whole element, and a
+    pattern's own element-level default colour (which `color_roles()` does
+    report, to match `PatternElement.colors`) is drawn by *no* part at all
+    once every part overrides its own -- folding it in here would check a
+    colour that may never reach the screen.  The plain branch (every other
+    kind) has no such mismatch, so it reads `color_roles()` instead of its
+    own `getattr` pair.
     """
     element = placed.element
     if isinstance(element, HandsElement):
@@ -1007,9 +995,12 @@ def _contrast_subjects(placed):
             yield (f"{placed.id}.parts[{index}]", part.color, part.outline_color,
                    part.shape != "text")
     else:
-        outline = getattr(element, "outline", None)
-        yield (placed.id, getattr(element, "color", None),
-               outline.color if outline is not None else None, placed.kind == "shape")
+        non_aod = [role for role in element.color_roles() if not role.aod]
+        ink = next((role for role in non_aod if role.role == "ink"), None)
+        ring = next((role for role in non_aod if role.role == "ring"), None)
+        allow_backdrop_match = not ink.is_glyph if ink is not None else placed.kind == "shape"
+        yield (placed.id, ink.expression if ink is not None else None,
+               ring.expression if ring is not None else None, allow_backdrop_match)
 
 
 def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
@@ -2095,15 +2086,27 @@ def _same_provable_color(a, b) -> bool:
     return a.constant == b.constant
 
 
-def _outlined_interiors(element) -> list[tuple]:
-    """Every `(outline, interior colour)` pair this element draws: a `text`
+def _outlined_interiors(element) -> list:
+    """Every interior colour this element draws under a ring: a `text`
     element's own, or one per outlined `shape: text` part of a pattern
-    (plan 15 §14 slice 2).  `[]` for any kind that cannot have one."""
-    outline = getattr(element, "outline", None)
-    if outline is not None:
-        return [(outline, getattr(element, "color", None))]
-    parts = getattr(element, "parts", None) or ()
-    return [(part.outline, part.color) for part in parts if part.outline is not None]
+    (plan 15 §14 slice 2).  `[]` for any kind that cannot have one.
+
+    Derived from `Element.color_roles()` (plan 19 A2): the ink colour of
+    every label that also has a `"ring"` role -- the same pairing
+    `PatternElement.color_roles()` already makes per part, and the one a
+    plain `Text` makes for itself, both under one label-keyed lookup here
+    instead of two separate `getattr` reads.
+
+    A ringed label with no ink of its own (a `text` element with no
+    `color:`) contributes `None`, which no backdrop can provably match --
+    so its overlap is still reported, never silently skipped.
+    """
+    roles = [role for role in element.color_roles() if not role.aod]
+    interiors: list = []
+    for label in dict.fromkeys(role.label for role in roles if role.role == "ring"):
+        inks = [role.expression for role in roles if role.role == "ink" and role.label == label]
+        interiors.extend(inks or [None])
+    return interiors
 
 
 def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
@@ -2133,8 +2136,8 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
     """
     drawn = [p for p in resolved.items if p.kind != "group"]
     for index, later in enumerate(drawn):
-        outlines = _outlined_interiors(later.element)
-        if not outlines:
+        interiors = _outlined_interiors(later.element)
+        if not interiors:
             continue
         under: list[str] = []
         for earlier in drawn[:index]:
@@ -2144,7 +2147,7 @@ def check_text_outline_interior(resolved: ResolvedFace, bag: Bag) -> None:
             if (_is_solid_backdrop_shape(earlier)
                     and _fully_contains(earlier.box, later.box)
                     and all(_same_provable_color(interior, earlier_color)
-                            for _, interior in outlines)):
+                            for interior in interiors)):
                 continue  # provably repaints in the same colour that's already there
             under.append(earlier.id)
         if not under:

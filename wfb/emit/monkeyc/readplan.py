@@ -5,7 +5,7 @@ from __future__ import annotations
 from ... import catalog, formatting
 from ...availability import Guards
 from ...catalog import READERS, Type
-from ...ir import HandsElement, Progress, Text, local_name
+from ...ir import HandsElement, Text, local_name
 from ...layout import ResolvedFace
 from .common import _NO_GUARDS
 from ..writer import Writer
@@ -307,21 +307,23 @@ class ReadPlan:
 
     @staticmethod
     def _value_expressions(element) -> tuple:
-        """Which of an element's expressions its `when_absent:` policy governs.
+        """Which of an element's bound expressions its `when_absent:`
+        policy governs -- `element.VALUE_ROLES` (plan 19 A2): `{value}` for
+        a `Text`, `{value, max}` for a `Progress` (its fill fraction depends
+        on both together -- one nullable reading is as absent as the other,
+        from the fraction's own point of view, which is also why
+        `Builder._build_progress` checks their combined nullability as one
+        thing), empty for every other kind, which has no `when_absent:`
+        field at all -- nothing here is "the value" for one of those, so
+        every binding is an "other" one, guarded unconditionally.
 
-        A `Text`'s only substitutable value is `value:`; a `Progress`'s fill
-        fraction depends on both `value:` and `max:` together (one nullable
-        reading is as absent as the other, from the fraction's point of
-        view), which is also why `Builder._build_progress` checks their
-        combined nullability as one thing. Every other element kind has no
-        `when_absent:` field at all, so nothing here is "the value" -- every
-        binding is an "other" one, guarded unconditionally.
+        Deliberately not what `Builder._hold_auto_sources` reads off the
+        same roles: that one wants every `value`-role expression regardless
+        of kind (`IconElement.value_for` included), because `on_hold: auto`
+        asks "what is this element about", not "what does `when_absent:`
+        cover".
         """
-        if isinstance(element, Text):
-            return (element.value,) if element.value is not None else ()
-        if isinstance(element, Progress):
-            return tuple(e for e in (element.value, element.maximum) if e is not None)
-        return ()
+        return tuple(e for role, e in element.bound_expressions() if role in element.VALUE_ROLES)
 
     def declarations(self, placed) -> list[tuple[str, str]]:
         return self._declare_paths(self._bound[placed.id])

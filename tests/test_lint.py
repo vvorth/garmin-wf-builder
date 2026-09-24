@@ -1921,6 +1921,16 @@ def test_outline_interior_matching_a_fully_covering_backdrop_is_silent(check):
     assert "text-outline-interior" not in codes(bag)
 
 
+def test_outline_interior_with_no_colour_still_warns(check):
+    """A `text` element may omit `color:`; its outline interior is then no
+    build-time constant, so it can never be proven to match the backdrop
+    under it and the overlap must still be reported -- not skipped because
+    there is no interior colour to compare (plan 19 A2 review)."""
+    bag = check(_OUTLINE_TEXT.replace("    color: {color}\n", "").format(
+        outline="\n    outline: {color: palette.fg, width: 2}"))
+    assert "text-outline-interior" in codes(bag), bag.render()
+
+
 def test_outline_interior_can_be_suppressed(check):
     """Watched red (the still-warns test above, non-matching colours)
     against the same design plus `lint: {allow: [...], reason: ...}}` --

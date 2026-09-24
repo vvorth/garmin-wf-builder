@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
 
 from .. import catalog, expr, icons, units
 from ..diagnostics import Span
@@ -25,6 +26,41 @@ from .naming import _pascal, config_field, font_resource_id
 #: `aod:` now, not a mode to opt an element into. `modes:` means only the two
 #: MIP partial-update modes.
 MODES = ("active", "low_power")
+
+#: `Element.bound_expressions()` role tags (plan 19 A2): what a compiled
+#: expression *is*, not just that it exists.  Each is read by exactly the
+#: downstream logic named on it, so a role is added here once, not
+#: re-derived per reader:
+#:
+#: * `ROLE_VALUE` -- `Text.value`, `Progress.value`, `IconElement.value_for`.
+#:   `Element.VALUE_ROLES` (a per-kind subset of the roles below) is what a
+#:   `when_absent:` policy actually governs (`ReadPlan._value_expressions`);
+#:   `Builder._hold_auto_sources` reads every `ROLE_VALUE` expression
+#:   directly, regardless of `VALUE_ROLES` -- the two ask different
+#:   questions (root docs, `docs/lore/codegen.md`) and only happen to share
+#:   a tag for "the expression this element is about".
+#: * `ROLE_MAX`/`ROLE_MIN` -- `Progress.maximum`, `Graph.max`/`Graph.min`.
+#: * `ROLE_FALLBACK` -- a `when_absent: fallback` substitute.
+#: * `ROLE_COLOR`/`ROLE_TRACK_COLOR`/`ROLE_ICON_COLOR` -- any element's own
+#:   `color:`/`track_color:`/`icon_color:`, and each colour folded into
+#:   `HandsElement.colors`/`PatternElement.colors` (tagged `ROLE_COLOR`).
+#: * `ROLE_OUTLINE_COLOR` -- `Text.outline.color`.
+#: * `ROLE_PART_VISIBLE`/`ROLE_PART_TEXT` -- a pattern part's own
+#:   `visible:`/`text_value`.
+#: * `ROLE_VISIBLE` -- `Element.visible`, appended by `bound_expressions()`
+#:   itself rather than by any `_own_roles()`, so every subclass states only
+#:   its own kind-specific roles.
+ROLE_VALUE = "value"
+ROLE_MAX = "max"
+ROLE_MIN = "min"
+ROLE_FALLBACK = "fallback"
+ROLE_COLOR = "color"
+ROLE_TRACK_COLOR = "track_color"
+ROLE_ICON_COLOR = "icon_color"
+ROLE_OUTLINE_COLOR = "outline_color"
+ROLE_PART_VISIBLE = "part_visible"
+ROLE_PART_TEXT = "part_text"
+ROLE_VISIBLE = "visible"
 
 #: `on_hold: auto` -- resolved once the element has a value binding to
 #: resolve from (`Builder._resolve_hold_auto`).  A plain string, so it fits
@@ -276,6 +312,32 @@ class AodOverride:
     #: Just the `aod: {visible: ...}` half of `visible` -- all codegen needs
     #: to add, since the element's method already checks its own `visible:`.
     visible_override: Expression | None = None
+
+
+@dataclass(frozen=True)
+class ColorRole:
+    """One colour an element draws with, tagged with what role it plays
+    (`Element.color_roles()`, plan 19 A2): `wfb.lint`'s palette-declaration
+    and contrast checks read this instead of separately deciding "which
+    colours does this element draw" (`_users_of`/`_contrast_subjects`/
+    `_outlined_interiors` were three separate answers to that question
+    before this).
+    """
+
+    #: The element id, or `"<id>.parts[<i>]"` for a pattern part -- the
+    #: same label strings `wfb.lint._contrast_subjects` already prints.
+    label: str
+    expression: Expression
+    #: `"ink"` | `"ring"` | `"track"` | `"icon"`.
+    role: str
+    #: A glyph's ink may not exactly match its backdrop on purpose -- an
+    #: invisible glyph is a mistake -- where a filled shape's may (a
+    #: punched-out hole, an "off" indicator).  `wfb.lint._contrast_subjects`'
+    #: own `allow_backdrop_match`, inverted.
+    is_glyph: bool
+    #: `True` for a colour from the element's resolved `aod:` override
+    #: rather than its awake one.
+    aod: bool = False
 
 
 def aod_color_choice(aod: AodOverride | None, key: str, dim_set: bool) -> tuple[str, Expression | None]:
@@ -581,6 +643,14 @@ class ConfigDataSlot:
 
 @dataclass
 class Element:
+    #: The `bound_expressions()` roles a `when_absent:` policy on this kind
+    #: governs (plan 19 A2) -- `{ROLE_VALUE}` for `Text`, `{ROLE_VALUE,
+    #: ROLE_MAX}` for `Progress`, empty for every other kind, which has no
+    #: `when_absent:` field at all.  `ReadPlan._value_expressions` reads
+    #: this directly; `Builder._hold_auto_sources` does not (see
+    #: `ROLE_VALUE`'s own docstring for why the two differ).
+    VALUE_ROLES: ClassVar[frozenset[str]] = frozenset()
+
     id: str
     kind: str
     at: Position
@@ -661,21 +731,71 @@ class Element:
     def children(self) -> list["Element"]:
         return []
 
-    def expressions(self) -> list[Expression]:
-        """Every compiled expression on this element, `visible:` included.
+    def bound_expressions(self) -> list[tuple[str, Expression]]:
+        """Every compiled expression on this element, tagged with its role
+        (plan 19 A2), `visible:` included.
 
-        Kind-specific expressions come from :meth:`_own_expressions`; this
-        wrapper appends `visible` so that permission derivation, barrel
-        collection and the read plan pick a visibility binding up for free,
-        exactly as they do a conditional colour.
+        Kind-specific roles come from :meth:`_own_roles`; this wrapper
+        appends `(ROLE_VISIBLE, visible)` itself, so a subclass only ever
+        states its own kind-specific roles, and so permission derivation,
+        barrel collection and the read plan pick a visibility binding up
+        for free, exactly as they do a conditional colour.
         """
-        out = self._own_expressions()
+        out = self._own_roles()
         if self.visible is not None:
-            out.append(self.visible)
+            out.append((ROLE_VISIBLE, self.visible))
         return out
 
-    def _own_expressions(self) -> list[Expression]:
+    def expressions(self) -> list[Expression]:
+        """Every compiled expression on this element, `visible:` included --
+        :meth:`bound_expressions` with the role dropped.  Kept as its own
+        method since most callers (permission derivation, barrel
+        collection) want the plain list, not what each expression is."""
+        return [expression for _, expression in self.bound_expressions()]
+
+    def _own_roles(self) -> list[tuple[str, Expression]]:
         return []
+
+    def color_roles(self) -> list["ColorRole"]:
+        """Every colour this element draws with, one :class:`ColorRole` each
+        (plan 19 A2): its own ink/track/icon colours, a `Text`'s outline
+        ring, and its resolved `aod:` override's colours -- in that order.
+        `wfb.lint`'s palette-declaration and contrast checks read this
+        instead of separately deciding "which colours does this element
+        draw" (`_users_of`/`_contrast_subjects`/`_outlined_interiors` were
+        three separate answers to that question before this).
+
+        Generic over every kind whose colours are plain fields
+        (`Shape`/`Text`/`Progress`/`IconElement`/`ComplicationSlot`/`Graph`,
+        and `Group`, which has none): `getattr` covers the gap between
+        kinds rather than an `isinstance` ladder.  `HandsElement`/
+        `PatternElement` override this outright -- neither has a plain
+        `color:` a generic reader could find; their effective colours live
+        on `.colors`/`.parts` instead (`wfb.ir.builder._build_hand`/
+        `_build_pattern_element`).
+        """
+        is_glyph = self.kind != "shape"
+        out: list[ColorRole] = []
+        color = getattr(self, "color", None)
+        if color is not None:
+            out.append(ColorRole(self.id, color, "ink", is_glyph))
+        track_color = getattr(self, "track_color", None)
+        if track_color is not None:
+            out.append(ColorRole(self.id, track_color, "track", is_glyph))
+        icon_color = getattr(self, "icon_color", None)
+        if icon_color is not None:
+            out.append(ColorRole(self.id, icon_color, "icon", is_glyph))
+        outline = getattr(self, "outline", None)
+        if outline is not None:
+            out.append(ColorRole(self.id, outline.color, "ring", is_glyph))
+        if self.aod is not None:
+            for field_name, role in (
+                ("color", "ink"), ("track_color", "track"), ("icon_color", "icon"),
+            ):
+                override = getattr(self.aod, field_name)
+                if override is not None:
+                    out.append(ColorRole(self.id, override, role, is_glyph, aod=True))
+        return out
 
 
 @dataclass
@@ -710,8 +830,8 @@ class Shape(Element):
     color: Expression | None = None
     filled: bool = True
 
-    def _own_expressions(self) -> list[Expression]:
-        return [e for e in (self.color,) if e]
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        return [(ROLE_COLOR, e) for e in (self.color,) if e]
 
 
 @dataclass
@@ -823,8 +943,8 @@ class HandSet:
 @dataclass
 class HandsElement(Element):
     """`type: hands` -- places a declared `hands:` set on screen, axis at
-    `at:`.  `_own_expressions` returns every effective part colour
-    (already resolved at build time, `Builder._build_hands_element`) so
+    `at:`.  `_own_roles` tags every effective part colour (already resolved
+    at build time, `Builder._build_hands_element`) `ROLE_COLOR`, so
     permissions, the barrel, the read plan and the config-user lints pick
     them up exactly the way a shape's own `color:` does.
     """
@@ -839,8 +959,24 @@ class HandsElement(Element):
     #: override) this element's set uses, deduplicated in first-use order.
     colors: tuple[Expression, ...] = ()
 
-    def _own_expressions(self) -> list[Expression]:
-        return list(self.colors)
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        return [(ROLE_COLOR, e) for e in self.colors]
+
+    def color_roles(self) -> list[ColorRole]:
+        """Every effective part colour, ink-labelled by this element's own
+        id: the IR has no per-part structure for a `hands` set (unlike
+        `PatternElement.parts`) -- hand sets live on `Face.hands`, keyed by
+        name, not on the placing element -- so there is no finer label to
+        give each colour than the element that draws them all.  A `hands`
+        element accepts no `track_color:`/`icon_color:`/outline at all, so
+        those roles never apply here; its resolved `aod:` override (`color`/
+        `thickness` uniformly, plan 14 §5.1 -- no `track_color`/`icon_color`
+        key even reaches this element's `AodOverride`) still does.
+        """
+        out = [ColorRole(self.id, e, "ink", False) for e in self.colors]
+        if self.aod is not None and self.aod.color is not None:
+            out.append(ColorRole(self.id, self.aod.color, "ink", False, aod=True))
+        return out
 
 
 @dataclass
@@ -889,13 +1025,47 @@ class PatternElement(Element):
         empty for an element that reached the IR."""
         return _drawn_copies(self.count, self.skip, self.skip_every)
 
-    def _own_expressions(self) -> list[Expression]:
-        out = list(self.colors)
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        out: list[tuple[str, Expression]] = [(ROLE_COLOR, e) for e in self.colors]
         for part in self.parts:
             if part.visible is not None:
-                out.append(part.visible)
+                out.append((ROLE_PART_VISIBLE, part.visible))
             if part.text_value is not None:
-                out.append(part.text_value)
+                out.append((ROLE_PART_TEXT, part.text_value))
+        return out
+
+    def color_roles(self) -> list[ColorRole]:
+        """The element default (ink, label = the element id), then each
+        part's own colour and, for a `shape: text` part, its `outline.color`
+        ring (`HandPart.outline` is only ever built on a text part --
+        `Builder._build_hand_part`). Yields the same *set* `.colors` above
+        collects (`_build_pattern_element`'s `_dedup_append` calls: the
+        default, then each part's already-effective colour, then each
+        part's own outline colour) -- `part.color` is already the effective
+        colour (the part's own, or this element's default when it declared
+        none, `Builder._build_hand_part`), so nothing here re-derives it.
+
+        Deliberately not what `wfb.lint._contrast_subjects`' pattern branch
+        reads: that check judges only what a part actually paints with, so
+        it stays on `placed.parts` directly rather than this -- the element
+        default above is drawn by *some* part only when at least one part
+        left `color:` unset, and folding it in here regardless would check
+        a colour that may never reach the screen at all when every part
+        overrides its own.
+        """
+        is_glyph = self.kind != "shape"
+        out: list[ColorRole] = []
+        if self.color is not None:
+            out.append(ColorRole(self.id, self.color, "ink", is_glyph))
+        for index, part in enumerate(self.parts):
+            label = f"{self.id}.parts[{index}]"
+            part_is_glyph = part.shape == "text"
+            if part.color is not None:
+                out.append(ColorRole(label, part.color, "ink", part_is_glyph))
+            if part.outline is not None:
+                out.append(ColorRole(label, part.outline.color, "ring", part_is_glyph))
+        if self.aod is not None and self.aod.color is not None:
+            out.append(ColorRole(self.id, self.aod.color, "ink", is_glyph, aod=True))
         return out
 
 
@@ -919,10 +1089,16 @@ class Text(Element):
     #: draw call `curve:` selects.
     outline: "Outline | None" = None
 
-    def _own_expressions(self) -> list[Expression]:
-        out = [e for e in (self.value, self.color, self.fallback) if e]
+    #: `when_absent:` governs `value:` alone -- the same substitutable
+    #: binding `ROLE_VALUE` tags below.
+    VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE})
+
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        out = [(role, e) for role, e in (
+            (ROLE_VALUE, self.value), (ROLE_COLOR, self.color), (ROLE_FALLBACK, self.fallback),
+        ) if e]
         if self.outline is not None:
-            out.append(self.outline.color)
+            out.append((ROLE_OUTLINE_COLOR, self.outline.color))
         return out
 
 
@@ -941,8 +1117,17 @@ class Progress(Element):
     when_absent: str | None = None
     fallback: Expression | None = None
 
-    def _own_expressions(self) -> list[Expression]:
-        return [e for e in (self.value, self.maximum, self.color, self.track_color, self.fallback) if e]
+    #: `when_absent:` governs the fraction `value:`/`maximum:` compute
+    #: together -- one nullable reading is as absent as the other from the
+    #: fraction's own point of view (`Builder._build_progress`).
+    VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE, ROLE_MAX})
+
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        return [(role, e) for role, e in (
+            (ROLE_VALUE, self.value), (ROLE_MAX, self.maximum),
+            (ROLE_COLOR, self.color), (ROLE_TRACK_COLOR, self.track_color),
+            (ROLE_FALLBACK, self.fallback),
+        ) if e]
 
 
 @dataclass
@@ -966,8 +1151,10 @@ class IconElement(Element):
     def is_dynamic(self) -> bool:
         return self.value_for is not None
 
-    def _own_expressions(self) -> list[Expression]:
-        return [e for e in (self.color, self.value_for) if e]
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        return [(role, e) for role, e in (
+            (ROLE_COLOR, self.color), (ROLE_VALUE, self.value_for),
+        ) if e]
 
 
 @dataclass
@@ -1015,8 +1202,10 @@ class ComplicationSlot(Element):
     when_absent: str = "hide"
     placeholder: str | None = None
 
-    def _own_expressions(self) -> list[Expression]:
-        return [e for e in (self.color, self.icon_color) if e]
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        return [(role, e) for role, e in (
+            (ROLE_COLOR, self.color), (ROLE_ICON_COLOR, self.icon_color),
+        ) if e]
 
 
 @dataclass
@@ -1029,7 +1218,7 @@ class Graph(Element):
     in the :mod:`wfb.series` catalogue, and the actual samples are acquired
     and cached on-device (`runtime-lib/WfbSeries.mc`, rebuilt once a minute),
     never through the expression compiler. `color:`, `min:` and `max:` *are*
-    ordinary bound expressions (`_own_expressions` below), because a fixed
+    ordinary bound expressions (`_own_roles` below), because a fixed
     bound or a conditional colour is exactly the same kind of thing on a graph
     as on any other element.
     """
@@ -1067,8 +1256,10 @@ class Graph(Element):
     #: overrun are build errors.
     sample_count: int = 0
 
-    def _own_expressions(self) -> list[Expression]:
-        return [e for e in (self.color, self.min, self.max) if e]
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        return [(role, e) for role, e in (
+            (ROLE_COLOR, self.color), (ROLE_MIN, self.min), (ROLE_MAX, self.max),
+        ) if e]
 
 
 @dataclass
