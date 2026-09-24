@@ -1,7 +1,8 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A3 approved (2026-09-24), in progress in that order; A4–A7
-still awaiting user decision.** These change the project's shape (root
+**Status: A0–A3 approved (2026-09-24), built in that order: A0 is built
+(`tools/snapshot.py`, `docs/development.md` "Tests"); A1–A3 are next. A4–A7
+still await a user decision.** These change the project's shape (root
 `CLAUDE.md` §7: stop and ask), so **do not start an unapproved step**, and
 record each decision in §4. Plan 18 holds the bug list from the same review. Its fixes
 come first unless the user says otherwise (§3 gives the combined order).

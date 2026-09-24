@@ -160,6 +160,7 @@ examples/features/    one face per format feature, written as each landed
 examples/system-fonts/  the three system-font calibration faces
 tests/                ? tests; only the `slow` ones need the Garmin toolchain
 tests/fixtures/slice/ the Phase 2 slice: the golden files' source design
+tools/                setup, font fetchers, docs-shots.py, snapshot.py (output snapshots)
 docs/                 README.md (hub), guide/ (format reference), limitations, ADRs, research
 ```
 
@@ -174,6 +175,32 @@ Golden-file tests over the generated Monkey C are the primary compiler test, and
 they run with **no Garmin toolchain** — which matters, because the device files
 are the scarce resource. Regenerate them after an intentional change with
 `pytest tests/test_golden.py --update-golden` and read the diff.
+
+**Snapshots, for a refactor that claims "no output change".** The golden files
+cover a few fixtures; `tools/snapshot.py` covers everything the tool produces.
+It drives the real CLI over every design in `examples/` and `tests/fixtures/`
+and records:
+
+- the generated project for the design's own targets and for two extra
+  device mixes (AMOLED and older devices, without compiling);
+- the lint on every installed device;
+- eight preview variants (default, asleep, all styles, a fixed time, AOD,
+  two AOD minutes, the burn-in heatmap);
+- every listing and help command, with colour on and off.
+
+About 360 cases; a full run takes about four minutes on four cores.
+
+```sh
+./.venv/bin/python tools/snapshot.py save /tmp/before    # before the change
+./.venv/bin/python tools/snapshot.py compare /tmp/before # after: exit 0 = identical
+./.venv/bin/python tools/snapshot.py compare /tmp/before --only examples/showcase/
+```
+
+`compare` prints a unified diff for each changed text output, and the changed
+pixel count and bounding box for each changed image. Snapshots taken with
+different font roots are not comparable (`--no-garmin-fonts` pins the one the
+test suite uses). Paths, `wfb build`'s elapsed time and the UUID `wfb new`
+mints are normalised; anything else that differs is a real change.
 
 ## What is decided
 
