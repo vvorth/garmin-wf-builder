@@ -820,6 +820,48 @@ elements:
     assert ':"' in body or "':'" in body
 
 
+def test_aod_format_with_its_own_extra_reader_declares_it(write_design, bag, db):
+    """Plan 18 item 1: `%h` needs `device.is_24_hour`'s reader.  When only
+    the `aod: {format: ...}` override uses it, the awake format alone must
+    not decide which readers the draw method gets, or `monkeyc` fails with
+    `Undefined symbol ':settings'`."""
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    color: palette.fg
+    aod: {format: "{:%h:%M}"}
+"""
+    view = _view_text(text, write_design, bag, db, device_id="fenix847mm")
+    signature = view.split("function drawClock(")[1].split(")")[0]
+    assert "settings" in signature
+    body = view.split("function drawClock")[1].split("\n    }")[0]
+    assert "settings.is24Hour" in body
+
+
+@pytest.mark.slow
+def test_aod_format_with_its_own_extra_reader_compiles(write_design, db, tmp_path, toolchain):
+    """The real `monkeyc` half of the test above: before plan 18 item 1 this
+    exact design failed with `Undefined symbol ':settings'`."""
+    text = BASE + """
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H:%M}"
+    color: palette.fg
+    aod: {format: "{:%h:%M}"}
+"""
+    bag = Bag()
+    result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)
+
+
 def test_own_aod_format_with_an_unknown_strftime_code_is_a_friendly_error(write_design, bag):
     """An `aod: {format: ...}` override is a strftime-style spec exactly
     like the awake `format:` it restyles -- it must go through the same
