@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.availability import uses_complications
 from wfb.emit.manifest import api_level
 from wfb.emit.project import _barrel_for, generate
@@ -288,7 +288,7 @@ def test_delegate_holds_the_view_only_when_config_needs_it(
 
 
 @pytest.mark.slow
-def test_a_plain_hold_design_compiles_without_warnings(tmp_path, bag, db):
+def test_a_plain_hold_design_compiles_without_warnings(tmp_path, bag, db, toolchain):
     """`on_hold:` alone, through the real toolchain, warning-free.
 
     This is the gap that let F1 ship: every other `on_hold:` test inspects
@@ -298,11 +298,8 @@ def test_a_plain_hold_design_compiles_without_warnings(tmp_path, bag, db):
     from `monkeyc` into a `monkeyc`-coded warning in the bag, so this asserts
     on the compiler's own output rather than on a proxy for it.
     """
-    from wfb.build import Toolchain, build
+    from wfb.build import build
 
-    toolchain = Toolchain.discover()
-    if toolchain is None or not toolchain.key.exists():
-        pytest.skip("no Connect IQ SDK or developer key")
     design = tmp_path / "hold.yaml"
     design.write_text(DESIGN.format(elements=HOLD_DESIGN), encoding="utf-8")
 

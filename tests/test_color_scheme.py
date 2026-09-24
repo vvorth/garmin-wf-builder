@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_build import toolchain  # noqa: F401  -- a fixture, used by name
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import lint
 from wfb.diagnostics import Bag
 from wfb.palette import Color
@@ -668,7 +667,7 @@ def test_duplicate_style_is_reported_once_across_every_target(write_design, bag)
     `lint.run` check, which runs once per resolved device.  `DUPLICATE_STYLE`
     targets all three of this project's devices."""
     from wfb.build import resolve_all, select_devices
-    from tests.test_diagnostics import load
+    from wfb.build import load
 
     design = write_design(DUPLICATE_STYLE)
     face = load(design, bag)

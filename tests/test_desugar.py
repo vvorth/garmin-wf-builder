@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import desugar, yamlsrc
 from wfb.diagnostics import Bag
 
@@ -318,7 +318,7 @@ def test_a_list_form_document_is_left_exactly_as_it_was(write_design, bag):
 
 
 @pytest.mark.slow
-def test_the_two_forms_compile_to_identical_prg_files(tmp_path, db):
+def test_the_two_forms_compile_to_identical_prg_files(tmp_path, db, toolchain):
     """The same gate again, but through `monkeyc` rather than the generator.
 
     Both forms are built from the *same* design filename into the *same* output
@@ -329,11 +329,8 @@ def test_the_two_forms_compile_to_identical_prg_files(tmp_path, db):
     prints into a diagnostic, so `bag.ok()` is an assertion about the Garmin
     compiler's own output.
     """
-    from wfb.build import Toolchain, build
+    from wfb.build import build
 
-    toolchain = Toolchain.discover()
-    if toolchain is None or not toolchain.key.exists():
-        pytest.skip("no Connect IQ SDK or developer key")
 
     design = tmp_path / "src" / "face.yaml"
     design.parent.mkdir(parents=True)

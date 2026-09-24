@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_diagnostics import load
+from tests.helpers import find
+from wfb.build import load
 from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
-from wfb.layout import garmin_arc, resolve
+from wfb.layout import garmin_arc
 
 BASE = """
 format: 1
@@ -74,17 +75,6 @@ POLYGON = """
 
 
 @pytest.fixture
-def resolved_for(write_design, bag, db):
-    def _resolve(text: str, device_id: str = "fenix8solar47mm"):
-        face = load(write_design(text), bag)
-        assert face is not None, bag.render()
-        device = db.get(device_id)
-        return resolve(face, device, bake_fonts(face, device))
-
-    return _resolve
-
-
-@pytest.fixture
 def generated_for(write_design, bag, db):
     def _generate(text: str, tmp):
         face = load(write_design(text), bag)
@@ -97,10 +87,6 @@ def generated_for(write_design, bag, db):
         return generate(face, devices, tmp, baked)
 
     return _generate
-
-
-def find(resolved, element_id):
-    return next(p for p in resolved.items if p.id == element_id)
 
 
 # -- one angle convention ---------------------------------------------------

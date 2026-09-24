@@ -56,18 +56,14 @@ def should_color(stream: TextIO) -> bool:
         return True
     if os.environ.get("TERM") == "dumb":
         return False
-    isatty = getattr(stream, "isatty", None)
-    try:
-        return bool(isatty and isatty())
-    except ValueError:  # a closed stream
-        return False
+    return is_tty(stream)
 
 
 def is_tty(stream: TextIO) -> bool:
     isatty = getattr(stream, "isatty", None)
     try:
         return bool(isatty and isatty())
-    except ValueError:
+    except ValueError:  # a closed stream
         return False
 
 

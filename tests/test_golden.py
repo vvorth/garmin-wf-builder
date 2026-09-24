@@ -16,11 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
-from wfb.emit import generate
-from wfb.emit.resources import bake_fonts
-
-GOLDEN = Path(__file__).parent / "golden"
+from tests.helpers import compare_golden, generate_for_targets
 
 
 @pytest.fixture(scope="module")
@@ -34,34 +30,7 @@ def slice_design(pytestconfig) -> Path:
 
 @pytest.fixture(scope="module")
 def generated(pytestconfig, slice_design, tmp_path_factory):
-    from wfb.devices import DeviceDatabase, DeviceError
-    from wfb.diagnostics import Bag
-
-    bag = Bag()
-    face = load(slice_design, bag)
-    assert face is not None, bag.render()
-    try:
-        db = DeviceDatabase.discover()
-    except DeviceError as exc:
-        pytest.skip(str(exc))
-    ids = [d for d in face.targets if d in db.ids()]
-    if not ids:
-        pytest.skip("none of the design's targets are installed")
-    devices = [db.get(d) for d in ids]
-    baked = {d.id: bake_fonts(face, d) for d in devices}
-    return generate(face, devices, tmp_path_factory.mktemp("build"), baked)
-
-
-def compare(pytestconfig, name: str, actual: str) -> None:
-    path = GOLDEN / name
-    if pytestconfig.getoption("--update-golden"):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(actual, encoding="utf-8")
-        return
-    if not path.exists():
-        pytest.fail(f"no golden file for {name}; run pytest --update-golden")
-    expected = path.read_text(encoding="utf-8")
-    assert actual == expected, f"{name} differs from its golden file"
+    return generate_for_targets(slice_design, tmp_path_factory.mktemp("build"))
 
 
 @pytest.mark.parametrize("name", [
@@ -79,7 +48,7 @@ def test_generated_file_matches_golden(pytestconfig, generated, name):
     files = generated.files()
     if name not in files:
         pytest.skip(f"{name} was not generated for this device set")
-    compare(pytestconfig, name.replace("/", "__"), files[name])
+    compare_golden(pytestconfig, name.replace("/", "__"), files[name])
 
 
 # -- properties the golden files should never silently lose ----------------

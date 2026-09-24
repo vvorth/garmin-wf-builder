@@ -23,7 +23,8 @@ messages (R3), one error per key, not per element.
 
 from __future__ import annotations
 
-from tests.test_diagnostics import load
+from tests.helpers import find
+from wfb.build import load
 from wfb.emit.monkeyc import emit_layout
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
@@ -40,10 +41,6 @@ palette:
 """
 
 AT_CENTER = 130, 130  # fenix8solar47mm's screen centre
-
-
-def find(resolved, element_id):
-    return next(p for p in resolved.items if p.id == element_id)
 
 
 def _resolve(write_design, bag, db, elements_yaml: str):

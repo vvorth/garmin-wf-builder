@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import availability
 from wfb.availability import Guards, compute_guards, uses_complications
 from wfb.catalog import CATALOG

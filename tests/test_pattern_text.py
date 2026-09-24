@@ -14,11 +14,9 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
-from tests.test_diagnostics import load
+from tests.helpers import errors, find
+from wfb.build import load
 from wfb import lint
-from wfb.diagnostics import Bag
 from wfb.emit.resources import bake_fonts, glyph_set
 from wfb.layout import ResolvedHandPart, pattern_text_anchor, resolve
 
@@ -70,27 +68,6 @@ HOURS = """  - id: hours
         value: "(copy + 11) % 12 + 1"
         at: {dy: -80%r}
 """
-
-
-@pytest.fixture
-def resolved_for(write_design, bag, db):
-    def _resolve(text: str, device_id: str = "fenix8solar47mm"):
-        face = load(write_design(text), bag)
-        assert face is not None, bag.render()
-        device = db.get(device_id)
-        return resolve(face, device, bake_fonts(face, device))
-
-    return _resolve
-
-
-def find(resolved, element_id):
-    return next(p for p in resolved.items if p.id == element_id)
-
-
-def errors(text: str, bag: Bag, write_design) -> list:
-    face = load(write_design(text), bag)
-    assert face is None
-    return bag.errors
 
 
 # -- IR: per-copy strings ----------------------------------------------------

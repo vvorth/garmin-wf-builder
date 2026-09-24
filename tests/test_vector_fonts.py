@@ -8,7 +8,7 @@ preview are later slices (plan 11 §5; deleted once built, `docs/CLAUDE.md` --
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 
 # -- Device.scalable_faces / gate 1 symbols -----------------------------------
 

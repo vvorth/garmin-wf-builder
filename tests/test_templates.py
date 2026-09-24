@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import lint
 from wfb.cli import TEMPLATE_DIR
 from wfb.emit.resources import bake_fonts
@@ -76,12 +76,9 @@ def test_template_uses_proportional_units(tmp_path, name):
 
 @pytest.mark.slow
 @pytest.mark.parametrize("name", TEMPLATES)
-def test_template_compiles(tmp_path, bag, db, name):
-    from wfb.build import Toolchain, build
+def test_template_compiles(tmp_path, bag, db, name, toolchain):
+    from wfb.build import build
 
-    toolchain = Toolchain.discover()
-    if toolchain is None or not toolchain.key.exists():
-        pytest.skip("no Connect IQ SDK or developer key")
     design = materialise(tmp_path, name)
     result = build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()
@@ -118,12 +115,9 @@ def test_example_is_clean_on_every_target(design, bag, db):
 
 @pytest.mark.slow
 @pytest.mark.parametrize("design", EXAMPLES, ids=lambda p: p.parent.name)
-def test_example_compiles(design, tmp_path, bag, db):
-    from wfb.build import Toolchain, build
+def test_example_compiles(design, tmp_path, bag, db, toolchain):
+    from wfb.build import build
 
-    toolchain = Toolchain.discover()
-    if toolchain is None or not toolchain.key.exists():
-        pytest.skip("no Connect IQ SDK or developer key")
     result = build(design, output=tmp_path, bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()
     assert bag.ok(), bag.render()

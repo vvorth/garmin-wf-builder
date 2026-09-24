@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.emit.resources import bake_fonts
 from wfb.fonts import fetch_system
 from wfb.layout import resolve

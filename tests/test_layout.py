@@ -2,7 +2,8 @@
 
 import pytest
 
-from tests.test_diagnostics import load
+from tests.helpers import find
+from wfb.build import load
 from wfb.emit.resources import bake_fonts
 from wfb.layout import (
     PlacedGraph, PlacedIcon, PlacedProgress, PlacedShape, PlacedText, inside_screen,
@@ -83,10 +84,6 @@ def resolved_for(write_design, bag, db):
         return resolve(face, device, fonts)
 
     return _resolve
-
-
-def find(resolved, element_id):
-    return next(p for p in resolved.items if p.id == element_id)
 
 
 def test_percent_of_screen_fills_the_framebuffer(resolved_for):

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.diagnostics import Bag
 from wfb.emit.monkeyc import emit_layout, emit_view
 from wfb.emit.resources import bake_fonts
@@ -208,7 +208,7 @@ def test_wfb_geom_has_rotated_x_and_y_rounding_half_up():
 
 
 @pytest.mark.slow
-def test_a_radial_text_part_compiles_on_ciq_3x(write_design, tmp_path, db):
+def test_a_radial_text_part_compiles_on_ciq_3x(write_design, tmp_path, db, toolchain):
     """Found 2026-09-18: a combined `WfbGeom.drawTextRotated(dc, x, y, cx,
     cy, sin, cos, font, text, justify)` call is 10 arguments, and CIQ 3.x
     rejects a function past 9 outright -- `monkeyc` failed fenix6/
@@ -220,13 +220,10 @@ def test_a_radial_text_part_compiles_on_ciq_3x(write_design, tmp_path, db):
     the real `monkeyc`, on the oldest and smallest of the three affected
     devices.
     """
-    from wfb.build import Toolchain, build
+    from wfb.build import build
 
     if "fenix6" not in db.ids():
         pytest.skip("fenix6 is not installed")
-    toolchain = Toolchain.discover()
-    if toolchain is None or not toolchain.key.exists():
-        pytest.skip("no Connect IQ SDK or developer key")
     design = write_design(_design("elements:\n" + HOURS))
     bag = Bag()
     result = build(design, output=tmp_path, bag=bag, db=db, toolchain=toolchain,

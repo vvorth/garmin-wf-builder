@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.diagnostics import Bag, Severity
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -558,18 +558,15 @@ elements:
     ],
     ids=["default-on", "both-override-directions", "static-subtree", "low-power"],
 )
-def test_antialias_scenarios_compile_warning_free(design, write_design, tmp_path, bag, db):
+def test_antialias_scenarios_compile_warning_free(design, write_design, tmp_path, bag, db, toolchain):
     """Real `monkeyc`, all three targets, asserted against the bag rather than
     a proxy for it -- `wfb/build.py` turns each `WARNING:` line into a bag
     diagnostic (CLAUDE.md's own on_hold precedent for exactly this gap: every
     other test here inspects generated *text*, and text passing does not mean
     the real compiler is silent).
     """
-    from wfb.build import Toolchain, build
+    from wfb.build import build
 
-    toolchain = Toolchain.discover()
-    if toolchain is None or not toolchain.key.exists():
-        pytest.skip("no Connect IQ SDK or developer key")
     design_path = write_design(design)
     result = build(design_path, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()

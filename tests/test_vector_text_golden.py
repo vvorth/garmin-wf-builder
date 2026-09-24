@@ -17,12 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
-from tests.test_golden import compare
-from wfb.emit import generate
-from wfb.emit.resources import bake_fonts
-
-GOLDEN = Path(__file__).parent / "golden"
+from tests.helpers import compare_golden, generate_for_targets
 
 
 @pytest.fixture(scope="module")
@@ -35,28 +30,13 @@ def vector_design(pytestconfig) -> Path:
 
 @pytest.fixture(scope="module")
 def generated(pytestconfig, vector_design, tmp_path_factory):
-    from wfb.devices import DeviceDatabase, DeviceError
-    from wfb.diagnostics import Bag
-
-    bag = Bag()
-    face = load(vector_design, bag)
-    assert face is not None, bag.render()
-    try:
-        db = DeviceDatabase.discover()
-    except DeviceError as exc:
-        pytest.skip(str(exc))
-    ids = [d for d in face.targets if d in db.ids()]
-    if not ids:
-        pytest.skip("none of the design's targets are installed")
-    devices = [db.get(d) for d in ids]
-    baked = {d.id: bake_fonts(face, d) for d in devices}
-    return generate(face, devices, tmp_path_factory.mktemp("build"), baked)
+    return generate_for_targets(vector_design, tmp_path_factory.mktemp("build"))
 
 
 def _compare(pytestconfig, name: str, actual: str) -> None:
     # Own prefix ("vector_text__") so these never collide with
     # tests/test_golden.py's own files under the same tests/golden/ dir.
-    compare(pytestconfig, f"vector_text__{name}", actual)
+    compare_golden(pytestconfig, f"vector_text__{name}", actual)
 
 
 @pytest.mark.parametrize("name", [

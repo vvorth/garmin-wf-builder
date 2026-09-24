@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.palette import MIP64_LEVELS, Color, ColorError
 
 HEAD = """format: 1

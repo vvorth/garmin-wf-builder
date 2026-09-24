@@ -50,8 +50,9 @@ class GeneratedProject:
     #: error, because monkeyc would otherwise crash on them.
     string_collisions: list[strhash.Collision] = field(default_factory=list)
 
-    def files(self) -> dict[str, str]:
-        """Every text file this project consists of, for golden-file tests."""
+    def generated_text(self) -> dict[str, str]:
+        """The project-level files and every generated Monkey C source, by
+        path -- everything but the resource bundles and the barrel copy."""
         out = {
             "manifest.xml": self.manifest_text,
             "monkey.jungle": self.jungle_text,
@@ -59,6 +60,11 @@ class GeneratedProject:
         }
         for source in self.sources:
             out[source.path] = source.text
+        return out
+
+    def files(self) -> dict[str, str]:
+        """Every text file this project consists of, for golden-file tests."""
+        out = self.generated_text()
         for bundle in self.bundles:
             for relative, text in bundle.files.items():
                 out[f"{bundle.directory}/{relative}"] = text
@@ -156,20 +162,10 @@ def write(project: GeneratedProject, *, clean: bool = True) -> list[Path]:
     root.mkdir(parents=True, exist_ok=True)
 
     written: list[Path] = []
-    for relative, text in (
-        ("manifest.xml", project.manifest_text),
-        ("monkey.jungle", project.jungle_text),
-        ("resources/strings/strings.xml", project.strings_text),
-    ):
+    for relative, text in project.generated_text().items():
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-        written.append(path)
-
-    for source in project.sources:
-        path = root / source.path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(source.text, encoding="utf-8")
         written.append(path)
 
     barrel_dir = root / "runtime-lib"
@@ -190,28 +186,19 @@ def _is_time_value(element) -> bool:
 
 def _barrel_for(face: Face, resolved: ResolvedFace,
                 sources: "list[monkeyc.SourceFile] | tuple[()]" = ()) -> list[str]:
+    """The runtime-lib files the generated code calls into, sorted.
+
+    Decided from the IR, except for two helpers whose use depends on a
+    decision codegen already made and this would otherwise have to re-derive:
+    `WfbColor.dim` (whether any AOD-dimmed colour turned out non-constant,
+    `wfb.emit.monkeyc.common._dim_color_code`) and `WfbAodMask.apply`
+    (`face.aod_mask` *and* a non-empty AOD set, `_emit_aod_body`).  For those
+    the already-generated ``sources`` are searched for the call itself.
+    """
     needed: set[str] = set()
-    # `aod: {dim: ...}` (plan 14 slice 3): whether the *generated view* ends
-    # up calling `WfbColor.dim` at all is a fact about which colours turned
-    # out non-constant (`Expression.is_constant`, `wfb.emit.monkeyc.common.
-    # _dim_color_code`) -- every AOD-shown element with no override for a
-    # given key, on a build that actually dims at all. Re-deriving that here
-    # from the IR would be a second guess that could drift from the real
-    # decision codegen already made; scanning the view source it already
-    # emitted (`monkeyc.emit_view`, appended to `sources` above) for the one
-    # call this helper ever makes cannot disagree with it by construction --
-    # the same "inspect what was actually generated" shape `_avoid_string_
-    # label_collisions` already uses one function down.
-    if any("WfbColor.dim(" in source.text for source in sources):
-        needed.add("WfbColor.mc")
-    # `aod: {mask: ...}` (plan 16 slice 1): the same "inspect what was
-    # actually emitted" shape as `WfbColor.mc` just above -- whether the
-    # generated view calls `WfbAodMask.apply` at all depends on both
-    # `face.aod_mask` and whether the resolved AOD set is non-empty
-    # (`_emit_aod_body`), which this helper has no reason to re-derive when
-    # it can just look at what codegen already decided.
-    if any("WfbAodMask.apply(" in source.text for source in sources):
-        needed.add("WfbAodMask.mc")
+    for call, name in (("WfbColor.dim(", "WfbColor.mc"), ("WfbAodMask.apply(", "WfbAodMask.mc")):
+        if any(call in source.text for source in sources):
+            needed.add(name)
     plan = monkeyc.ReadPlan(resolved)
     if face.barrel_functions():
         needed.add("WfbMath.mc")

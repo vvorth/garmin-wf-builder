@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import formatting
 from wfb.catalog import Type
 from wfb.diagnostics import Bag

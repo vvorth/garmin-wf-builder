@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 
 BASE = """
 format: 1
@@ -1574,7 +1574,6 @@ def test_a_nullable_color_still_hides_the_element_with_no_when_absent_required(
     assert face is not None
 
 
-from tests.test_build import toolchain  # noqa: E402,F401 -- a fixture, used by name
 
 
 @pytest.mark.slow

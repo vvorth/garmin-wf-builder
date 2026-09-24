@@ -14,16 +14,6 @@ from wfb.diagnostics import Bag
 
 
 @pytest.fixture
-def toolchain():
-    found = Toolchain.discover()
-    if found is None:
-        pytest.skip("no Connect IQ SDK; set CIQ_SDK or run ./tools/setup-env.sh")
-    if not found.key.exists():
-        pytest.skip("no developer key")
-    return found
-
-
-@pytest.fixture
 def slice_design(repo_root):
     path = repo_root / "tests" / "fixtures" / "slice" / "face.yaml"
     assert path.exists(), path
@@ -62,8 +52,6 @@ def test_an_unparseable_build_stats_section_is_reported_not_silently_dropped(
     all, which is exactly the case `_STATS_RE` fails to match.
     """
     import subprocess as sp
-
-    from wfb.build import Toolchain
 
     def fake_run(command, cwd, capture_output, text, check):
         output_path = Path(command[command.index("-o") + 1])

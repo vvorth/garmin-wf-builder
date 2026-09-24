@@ -14,7 +14,7 @@ re-running the compiler, so they need no Garmin toolchain.
 
 from __future__ import annotations
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.emit.resources import bake_fonts, build_bundle, glyph_set
 
 

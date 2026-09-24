@@ -147,7 +147,7 @@ def test_font_key_is_a_valid_monkey_c_identifier_fragment():
 def test_every_icon_bakes_resolves_and_renders(name, tmp_path, bag, db):
     """One design per catalogue icon: it must validate, resolve to a font
     that actually contains the glyph, and draw a visible pixel in preview."""
-    from tests.test_diagnostics import load
+    from wfb.build import load
     from wfb.emit.resources import bake_fonts
     from wfb.layout import resolve
     from wfb.preview import PreviewOptions, render
@@ -290,7 +290,7 @@ def test_every_catalogue_codepoint_is_unique():
 
 
 def test_an_unknown_icon_name_is_a_build_error_not_a_silent_blank(write_design, bag, db):
-    from tests.test_diagnostics import load
+    from wfb.build import load
 
     face = load(write_design("""
 format: 1
@@ -321,7 +321,7 @@ elements:
 def test_percent_size_is_rejected_with_an_explanation(write_design, bag):
     """`%` depends on the parent box, which is not known until layout runs --
     after the icon font would already need to have been baked."""
-    from tests.test_diagnostics import load
+    from wfb.build import load
 
     face = load(write_design("""
 format: 1

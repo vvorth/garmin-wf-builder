@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import lint
 from wfb.emit.project import generate
 from wfb.emit.resources import bake_fonts

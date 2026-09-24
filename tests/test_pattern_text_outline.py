@@ -16,7 +16,7 @@ Layout box growth, codegen and the golden fixture are covered separately
 
 from __future__ import annotations
 
-from tests.test_diagnostics import load
+from wfb.build import load
 
 
 def _design(minimal: str, extra: str) -> str:

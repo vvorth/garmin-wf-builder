@@ -49,7 +49,7 @@ class Toolchain:
     def discover(cls, sdk: str | None = None, key: str | None = None) -> "Toolchain | None":
         sdk_path = Path(sdk or os.environ.get("CIQ_SDK", "")).expanduser()
         key_path = Path(key or os.environ.get("WFB_KEY", Path.home() / "ciq" / "developer_key.der"))
-        if not sdk_path or not (sdk_path / "bin" / "monkeyc").exists():
+        if not (sdk_path / "bin" / "monkeyc").exists():
             return None
         return cls(sdk_path, key_path.expanduser())
 
@@ -282,18 +282,12 @@ def _compile(result: BuildResult, device: Device, toolchain: Toolchain, bag: Bag
 
 _NOISE = re.compile(r"^.*JAVA_TOOL_OPTIONS.*$\n?", re.M)
 
-#: The JVM's own deprecated-reflective-access notice, printed by a bundled
-#: dependency (protobuf's ``UnsafeUtil``) that the resource compiler's
-#: handling of a ``<watchface-config>`` resource exercises on this SDK/JVM
-#: combination (reproducible with a hand-written resource carrying none of
-#: this project's own generated content -- ``docs/research/probes/
-#: watchface-config/``). It carries the JDK's own bare ``WARNING:`` prefix,
-#: which collides with `monkeyc`'s diagnostic-line convention below --
-#: without this filter it would read as a diagnostic about the design,
-#: when it is really a statement about the JVM this SDK ships with,
-#: independent of what the design says.  Same category `_NOISE` above
-#: exists for; matched narrowly enough that an unrelated real warning
-#: stays reported.
+#: The JVM's own deprecated-reflective-access notice, printed by protobuf's
+#: ``UnsafeUtil`` inside the resource compiler whenever a
+#: ``<watchface-config>`` resource is compiled (reproduced without any
+#: generated content, ``docs/research/probes/watchface-config/``).  Its bare
+#: ``WARNING:`` prefix would otherwise read as a `monkeyc` diagnostic about
+#: the design; matched narrowly so an unrelated real warning stays reported.
 _JVM_NOISE = re.compile(r"^.*(?:sun\.misc\.Unsafe|protobuf\.UnsafeUtil).*$\n?", re.M)
 
 

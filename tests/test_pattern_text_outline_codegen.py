@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.emit.monkeyc import emit_layout, emit_view
 from wfb.emit.resources import bake_fonts
 from wfb.layout import PlacedPattern, resolve

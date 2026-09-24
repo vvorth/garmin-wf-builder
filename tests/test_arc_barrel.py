@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.emit.resources import bake_fonts
 from wfb.layout import garmin_arc, resolve
 from wfb.preview import PreviewOptions, arc_span, render

@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.diagnostics import Bag
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve

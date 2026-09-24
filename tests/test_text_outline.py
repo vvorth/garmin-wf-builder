@@ -9,7 +9,7 @@ preview are covered separately (`tests/test_text_outline_layout.py`,
 
 from __future__ import annotations
 
-from tests.test_diagnostics import load
+from wfb.build import load
 
 
 def _design(minimal: str, extra: str) -> str:

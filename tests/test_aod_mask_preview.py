@@ -15,7 +15,7 @@ import re
 from dataclasses import replace as dc_replace
 from pathlib import Path
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import aod_mask, lint
 from wfb.diagnostics import Bag
 from wfb.emit.resources import bake_fonts

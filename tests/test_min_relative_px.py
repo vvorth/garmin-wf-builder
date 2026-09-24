@@ -32,7 +32,8 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_diagnostics import load
+from tests.helpers import find
+from wfb.build import load
 from wfb.emit.resources import bake_fonts
 from wfb.layout import PlacedHands, PlacedPattern, resolve
 from wfb.units import Box
@@ -76,10 +77,6 @@ def resolved_for(write_design, bag, db):
         return resolve(face, device, bake_fonts(face, device))
 
     return _resolve
-
-
-def find(resolved, element_id):
-    return next(p for p in resolved.items if p.id == element_id)
 
 
 def sub_pixel_keys(resolved, owner: str) -> set[str]:

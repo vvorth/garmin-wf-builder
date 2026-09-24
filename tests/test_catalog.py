@@ -507,7 +507,7 @@ elements:
 
 
 @pytest.mark.slow
-def test_every_catalog_source_compiles(tmp_path, bag, db):
+def test_every_catalog_source_compiles(tmp_path, bag, db, toolchain):
     """The catalogue-wide guard against `activity.active_minutes_week`'s bug:
     build a design binding *every* CATALOG entry, one text element each, and
     require a real BUILD SUCCESSFUL. `wfb sources`/`wfb validate` can only
@@ -516,11 +516,8 @@ def test_every_catalog_source_compiles(tmp_path, bag, db):
     `activeMinutesWeek.total` was wrong until this session's fix. This test
     would have failed before that fix, and is the reason the fix is worth
     more than its one line."""
-    from wfb.build import Toolchain, build
+    from wfb.build import build
 
-    toolchain = Toolchain.discover()
-    if toolchain is None or not toolchain.key.exists():
-        pytest.skip("no Connect IQ SDK or developer key")
     design = _full_catalog_design(tmp_path)
     result = build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()

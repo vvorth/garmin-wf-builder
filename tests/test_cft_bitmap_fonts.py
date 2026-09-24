@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 
 from tests.test_cft import write_cft
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.devices import Device, FontMetric
 from wfb.emit.resources import bake_fonts
 from wfb.fonts import fallback, fetch_system

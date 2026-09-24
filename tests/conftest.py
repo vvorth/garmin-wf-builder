@@ -62,6 +62,20 @@ def device(db):
 
 
 @pytest.fixture
+def toolchain():
+    """The Connect IQ SDK and developer key, for a `slow` test that runs the
+    real `monkeyc`; skips when either is missing."""
+    from wfb.build import Toolchain
+
+    found = Toolchain.discover()
+    if found is None:
+        pytest.skip("no Connect IQ SDK; set CIQ_SDK or run ./tools/setup-env.sh")
+    if not found.key.exists():
+        pytest.skip("no developer key")
+    return found
+
+
+@pytest.fixture
 def bag():
     from wfb.diagnostics import Bag
 
@@ -78,6 +92,19 @@ def write_design(tmp_path):
         return path
 
     return _write
+
+
+@pytest.fixture
+def resolved_for(write_design, bag, db):
+    """Load a design from its text and resolve it for one device (default
+    the golden device), through the real pipeline minus the toolchain."""
+
+    def _resolve(text: str, device_id: str = GOLDEN_DEVICE):
+        from tests.helpers import resolve_design
+
+        return resolve_design(write_design(text), bag, db, device_id)
+
+    return _resolve
 
 
 MINIMAL = """

@@ -14,7 +14,7 @@ front-end lint); codegen for `layouts:` is covered in
 
 from __future__ import annotations
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import desugar, ir, yamlsrc
 from wfb.diagnostics import Bag
 

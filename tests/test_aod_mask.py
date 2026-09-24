@@ -15,8 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_build import toolchain  # noqa: F401  -- a fixture, used by name
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.build import build as real_build
 from wfb.diagnostics import Bag
 from wfb.emit import generate

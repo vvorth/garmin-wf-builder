@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.monkeyc import ReadPlan, emit_layout, emit_view

@@ -23,17 +23,14 @@ import re
 
 import pytest
 
-from tests.test_diagnostics import load
+from tests.helpers import find
+from wfb.build import load
 from wfb.emit.monkeyc import emit_view
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 WHITE = (255, 255, 255)
-
-
-def find(resolved, element_id):
-    return next(p for p in resolved.items if p.id == element_id)
 
 
 def _white_pixels(image, x_range, y_range) -> set[tuple[int, int]]:

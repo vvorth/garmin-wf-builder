@@ -14,7 +14,7 @@ Garmin toolchain, only the device files (for font baking).
 
 from __future__ import annotations
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import icons
 from wfb.emit.project import generate
 from wfb.emit.resources import bake_fonts

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb import icons
 from wfb.build import build
 from wfb.emit import project as project_module

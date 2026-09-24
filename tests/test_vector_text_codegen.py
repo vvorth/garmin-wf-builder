@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_diagnostics import load
+from wfb.build import load
 from wfb.availability import compute_guards
 from wfb.emit.monkeyc import _mc_number, _mc_type, emit_layout, emit_view
 from wfb.emit.resources import bake_fonts, glyph_set

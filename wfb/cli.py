@@ -64,6 +64,15 @@ def _memory_share(share: float, *, color: bool) -> str:
     return term.style(text, name, enabled=color)
 
 
+def _verdict(bag: Bag, stream, word: str, *styles: str, before: str = "",
+             after: str = "") -> None:
+    """Print a command's closing ``<before><word> -- <diagnostic counts><after>``
+    line to ``stream``, coloured only when ``stream`` is."""
+    color = term.should_color(stream)
+    print(f"{before}{term.style(word, *styles, enabled=color)} -- "
+          f"{bag.summary(color=color)}{after}", file=stream)
+
+
 def _format_built(products: dict, memory: dict, *, color: bool) -> list[str]:
     """Format ``_build``'s ``built`` lines, one per compiled device.
 
@@ -381,9 +390,7 @@ def _build(args) -> int:
     )
     bag.print()
     if result is None or not bag.ok():
-        color_err = term.should_color(sys.stderr)
-        word = term.style("failed", "bold", "red", enabled=color_err)
-        print(f"\nbuild {word} -- {bag.summary(color=color_err)}", file=sys.stderr)
+        _verdict(bag, sys.stderr, "failed", "bold", "red", before="\nbuild ")
         return 1
 
     color_out = term.should_color(sys.stdout)
@@ -393,8 +400,8 @@ def _build(args) -> int:
         print(line)
     if not result.products and args.no_compile:
         print("           (not compiled: --no-compile)")
-    word = term.style("succeeded", "bold", "green", enabled=color_out)
-    print(f"\nbuild {word} -- {bag.summary(color=color_out)} in {result.duration:.1f}s")
+    _verdict(bag, sys.stdout, "succeeded", "bold", "green", before="\nbuild ",
+             after=f" in {result.duration:.1f}s")
     return 0
 
 
@@ -413,20 +420,15 @@ def _validate(args) -> int:
             db = DeviceDatabase.discover(args.devices_dir)
         except DeviceError as exc:
             bag.note("devices", str(exc))
-            db = None
-        if db is not None:
+        else:
             devices = select_devices(face, db, bag, args.devices)
             if devices:
                 resolve_all(face, devices, bag)
     bag.print()
     if face is None or not bag.ok():
-        color_err = term.should_color(sys.stderr)
-        word = term.style("invalid", "red", enabled=color_err)
-        print(f"\n{word} -- {bag.summary(color=color_err)}", file=sys.stderr)
+        _verdict(bag, sys.stderr, "invalid", "red", before="\n")
         return 1
-    color_out = term.should_color(sys.stdout)
-    word = term.style("ok", "bold", "green", enabled=color_out)
-    print(f"{args.design}: {word} -- {bag.summary(color=color_out)}")
+    _verdict(bag, sys.stdout, "ok", "bold", "green", before=f"{args.design}: ")
     return 0
 
 
@@ -444,6 +446,35 @@ def _parse_preview_time(text: str) -> tuple[int, int, int] | None:
     return (hour, minute, second)
 
 
+def _preview_time(args, minutes_per_day: int) -> tuple[int, int, int] | None:
+    """Check `wfb preview`'s flag combinations and return the moment to
+    render (``None``: the sample time).  Raises `ValueError` with the message
+    to print for a conflicting or malformed flag."""
+    # Each group names several answers to one question (which panel; which
+    # moment), so at most one of each may be given.
+    exclusive = (
+        (("--style", args.style is not None), ("--all-styles", args.all_styles)),
+        (("--time", args.time is not None), ("--minute", args.minute is not None),
+         ("--heatmap", args.heatmap)),
+    )
+    for flags in exclusive:
+        given = [name for name, on in flags if on]
+        if len(given) > 1:
+            raise ValueError(f"{' and '.join(given)} are mutually exclusive")
+    if args.heatmap and args.all_styles:
+        raise ValueError("--heatmap renders one panel; use --style to pick it, not --all-styles")
+    if args.time is not None:
+        time = _parse_preview_time(args.time)
+        if time is None:
+            raise ValueError(f"--time {args.time!r} is not HH:MM or HH:MM:SS")
+        return time
+    if args.minute is not None:
+        if not 0 <= args.minute < minutes_per_day:
+            raise ValueError(f"--minute {args.minute} is not 0..{minutes_per_day - 1}")
+        return (args.minute // 60, args.minute % 60, 0)
+    return None
+
+
 def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     """Render once.  Returns the exit code and the design's dependencies.
 
@@ -458,40 +489,14 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     )
     from .preview import stand_in_warning as preview_stand_in_warning
 
-    to_stdout = _is_stdout(getattr(args, "output", None))
-    quiet = to_stdout or getattr(args, "quiet", False)
-    style = getattr(args, "style", None)
-    all_styles = getattr(args, "all_styles", False)
-    heatmap = getattr(args, "heatmap", False)
-    time_arg = getattr(args, "time", None)
-    minute_arg = getattr(args, "minute", None)
-    # Each pair names two answers to one question (which panel; which moment),
-    # so exactly one of each may be given.
-    exclusive = (
-        (("--style", style is not None), ("--all-styles", all_styles)),
-        (("--time", time_arg is not None), ("--minute", minute_arg is not None),
-         ("--heatmap", heatmap)),
-    )
-    for flags in exclusive:
-        given = [name for name, on in flags if on]
-        if len(given) > 1:
-            _error(f"{' and '.join(given)} are mutually exclusive")
-            return 1, [args.design]
-    if heatmap and all_styles:
-        _error("--heatmap renders one panel; use --style to pick it, not --all-styles")
+    to_stdout = _is_stdout(args.output)
+    quiet = to_stdout or args.quiet
+    style, all_styles, heatmap = args.style, args.all_styles, args.heatmap
+    try:
+        time = _preview_time(args, MINUTES_PER_DAY)
+    except ValueError as exc:
+        _error(str(exc))
         return 1, [args.design]
-
-    time: tuple[int, int, int] | None = None
-    if time_arg is not None:
-        time = _parse_preview_time(time_arg)
-        if time is None:
-            _error(f"--time {time_arg!r} is not HH:MM or HH:MM:SS")
-            return 1, [args.design]
-    elif minute_arg is not None:
-        if not 0 <= minute_arg < MINUTES_PER_DAY:
-            _error(f"--minute {minute_arg} is not 0..{MINUTES_PER_DAY - 1}")
-            return 1, [args.design]
-        time = (minute_arg // 60, minute_arg % 60, 0)
 
     bag = Bag()
     face = load(args.design, bag)
@@ -516,9 +521,8 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
         return 1, watched
 
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
-                             time=time, asleep=getattr(args, "asleep", False),
-                             aod=heatmap or getattr(args, "aod", False),
-                             fonts_root=getattr(args, "fonts_dir", None))
+                             time=time, asleep=args.asleep, aod=heatmap or args.aod,
+                             fonts_root=args.fonts_dir)
     color_out = term.should_color(sys.stdout)
     label = _status("preview", color=color_out)
     # Collects every distinct face this whole call resolves, across every
@@ -682,13 +686,14 @@ def _simulate(args) -> int:
     push succeeds.
     """
     bag = Bag()
+    toolchain = Toolchain.discover(args.sdk, args.key)
     result = run_build(
         args.design,
         output=args.output,
         bag=bag,
         devices_only=[args.device] if args.device else None,
         db=DeviceDatabase.discover(args.devices_dir),
-        toolchain=Toolchain.discover(args.sdk, args.key),
+        toolchain=toolchain,
         compile_prg=True,
     )
     bag.print()
@@ -702,7 +707,6 @@ def _simulate(args) -> int:
         print(f"\nno build for {device_id}", file=sys.stderr)
         return 1
 
-    toolchain = Toolchain.discover(args.sdk, args.key)
     try:
         push(toolchain, prg, device_id)
     except SimulatorError as exc:
@@ -783,6 +787,11 @@ def _new(args) -> int:
     return 0
 
 
+#: How far `wfb doctor`'s explanatory lines are indented: past the status
+#: marker and the name column, under the detail.
+_DOCTOR_INDENT = " " * 19
+
+
 def _doctor(args) -> int:
     """check the environment and say what is missing
 
@@ -803,6 +812,17 @@ def _doctor(args) -> int:
     problems: list[str] = []
     blocking = 0
 
+    def hint(*lines: str) -> None:
+        for line in lines:
+            print(_DOCTOR_INDENT + line)
+
+    def fail(fix: str, *hints: str, blocks: bool = True) -> None:
+        """Explain a missing piece and record ``fix`` for the verdict."""
+        nonlocal blocking
+        hint(*hints)
+        problems.append(fix)
+        blocking += blocks
+
     print(f"wfb {__version__}")
     print(f"  python           {sys.version.split()[0]}  ({sys.executable})")
 
@@ -814,29 +834,24 @@ def _doctor(args) -> int:
             print(f"{ok} {package}")
         except ImportError:
             print(f"{missing} {package}")
-            problems.append(f"pip install {package}")
-            blocking += 1
+            fail(f"pip install {package}")
 
     print(f"{ok if SCHEMA_PATH.exists() else missing} schema           {SCHEMA_PATH}")
 
     # -- the icon font ----------------------------------------------------
-    if icons.FONT_PATH.is_file():
-        print(f"{ok} icon font        {icons.FONT_PATH}")
-    else:
-        print(f"{missing} icon font        {icons.FONT_PATH}")
-        print("                   run tools/setup-env.sh, or python3 tools/fetch-icon-font.py")
-        problems.append("install the icon font")
-        blocking += 1
+    have_icons = icons.FONT_PATH.is_file()
+    print(f"{ok if have_icons else missing} icon font        {icons.FONT_PATH}")
+    if not have_icons:
+        fail("install the icon font",
+             "run tools/setup-env.sh, or python3 tools/fetch-icon-font.py")
 
     # -- Garmin's own font files (optional; outrank the registry when found) --
     # Never triggers a download: doctor only reports what is already there.
-    # Both branches state the *consequence* of the finding, not only whether
-    # it is optional (plan 12 R3.2) -- "optional" alone reads as "safe to
-    # ignore", when what it actually costs is `wfb preview` drawing every
-    # non-exact-matched face with a stand-in typeface instead of the
-    # device's own (`wfb.preview.stand_in_warning`, R1, says which ones).
+    # Both branches state the *consequence* of the finding: what an absence
+    # costs is `wfb preview` drawing every non-exact-matched face with a
+    # stand-in typeface (`wfb.preview.stand_in_warning` says which ones).
     fetch_system = fonts.fetch_system
-    fonts_root = fetch_system.garmin_font_root(getattr(args, "fonts_dir", None))
+    fonts_root = fetch_system.garmin_font_root(args.fonts_dir)
     if fonts_root is not None:
         print(f"{ok} Garmin fonts     {fonts_root}  (previews draw exact glyph shapes)")
     else:
@@ -846,12 +861,12 @@ def _doctor(args) -> int:
             # vendor/ never reaches the image (.dockerignore): a mount is the
             # only way in, at the WFB_FONTS the Dockerfile sets.
             mount = os.environ.get("WFB_FONTS") or "/fonts"
-            print("                   mount the SDK Manager's Fonts directory:")
-            print(f"                     -v <SDK Manager's Fonts dir>:{mount}:ro")
-            print("                   -- see docs/container.md")
+            hint("mount the SDK Manager's Fonts directory:",
+                 f"  -v <SDK Manager's Fonts dir>:{mount}:ro",
+                 "-- see docs/container.md")
         else:
-            print("                   copy the SDK Manager's Fonts directory into vendor/fonts/,")
-            print("                   or set WFB_FONTS / pass --fonts DIR -- see docs/container.md")
+            hint("copy the SDK Manager's Fonts directory into vendor/fonts/,",
+                 "or set WFB_FONTS / pass --fonts DIR -- see docs/container.md")
 
     # -- the system fonts each target device needs (registry stand-ins) ---
     for device_id in fetch_system.DEFAULT_TARGET_DEVICES:
@@ -862,10 +877,9 @@ def _doctor(args) -> int:
         # not something an install could fix, so it never flips the marker.
         tiers = {"garmin": 0, "installed": 0, "cached": 0, "missing": 0, "unmapped": 0}
         for name, face in needed:
-            # `garmin_any_file` counts a `.cft` bitmap hit as usable too
-            # (plan 10 §3 B.2) -- the same lookup `fetch_system.locate`
-            # uses, so this summary and the actual measure/preview path
-            # can never disagree about what counts as "found".
+            # `garmin_any_file` counts a `.cft` bitmap hit as usable too --
+            # the same lookup `fetch_system.locate` uses, so this summary and
+            # the measure/preview path agree on what counts as "found".
             if fonts_root is not None and fetch_system.garmin_any_file(name, fonts_root) is not None:
                 tiers["garmin"] += 1
                 continue
@@ -877,9 +891,9 @@ def _doctor(args) -> int:
         summary = ", ".join(f"{count} {label}" for label, count in tiers.items() if count)
         marker = ok if tiers["missing"] == 0 else absent
         print(f"{marker} fonts: {device_id:<16} {summary}")
-    print("                   never downloads -- run tools/setup-env.sh, or "
-          "python3 tools/fetch-system-fonts.py; not blocking, falls back to a "
-          "substitute face at build time")
+    hint("never downloads -- run tools/setup-env.sh, or "
+         "python3 tools/fetch-system-fonts.py; not blocking, falls back to a "
+         "substitute face at build time")
 
     # -- device definitions -----------------------------------------------
     try:
@@ -887,53 +901,47 @@ def _doctor(args) -> int:
         ids = db.ids()
         print(f"{ok} devices          {len(ids)} installed: {', '.join(ids[:4])}"
               f"{' ...' if len(ids) > 4 else ''}")
-        print(f"                   {db.root}")
+        hint(str(db.root))
     except DeviceError:
         print(f"{missing} devices")
-        print("                   they cannot be downloaded -- api.gcs.garmin.com "
-              "returns HTTP 401.")
-        print("                   copy them from a machine where the Connect IQ SDK")
-        print("                   Manager has installed them:")
-        print("                     macOS  ~/Library/Application Support/Garmin/"
-              "ConnectIQ/Devices")
-        print("                     Linux  ~/.Garmin/ConnectIQ/Devices")
-        print("                   then set WFB_DEVICES to that directory.")
-        problems.append("install the device definitions")
-        blocking += 1
+        fail("install the device definitions",
+             "they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401.",
+             "copy them from a machine where the Connect IQ SDK",
+             "Manager has installed them:",
+             "  macOS  ~/Library/Application Support/Garmin/ConnectIQ/Devices",
+             "  Linux  ~/.Garmin/ConnectIQ/Devices",
+             "then set WFB_DEVICES to that directory.")
 
     # -- the Garmin toolchain ---------------------------------------------
+    can_compile = False
     toolchain = Toolchain.discover()
     if toolchain is None:
         print(f"{missing} Connect IQ SDK")
-        print("                   set CIQ_SDK, or run tools/setup-env.sh")
-        problems.append("install the Connect IQ SDK")
+        fail("install the Connect IQ SDK", "set CIQ_SDK, or run tools/setup-env.sh",
+             blocks=False)
     else:
         print(f"{ok} Connect IQ SDK   {toolchain.version}  ({toolchain.sdk})")
         key_dir = toolchain.key.parent
+        can_compile = True
         if toolchain.key.exists():
             print(f"{ok} developer key    {toolchain.key}")
         elif os.access(key_dir, os.W_OK):
-            # Reporting this as missing would be misleading: the key is created
-            # on the first build that needs one, and a build is what a caller is
-            # usually about to run.
+            # Not missing: the first build that needs a key creates it, and a
+            # build is what a caller is usually about to run.
             print(f"{ok} developer key    will be generated at {toolchain.key}")
         else:
+            can_compile = False
             print(f"{missing} developer key    expected at {toolchain.key},")
-            print(f"                   and {key_dir} is not writable.  Create one with:")
-            print("                     openssl genpkey -algorithm RSA "
-                  "-pkeyopt rsa_keygen_bits:4096 \\")
-            print("                       -out key.pem")
-            print("                     openssl pkcs8 -topk8 -inform PEM -outform DER \\")
-            print(f"                       -in key.pem -out {toolchain.key} -nocrypt")
-            problems.append("generate a developer key")
+            fail("generate a developer key",
+                 f"and {key_dir} is not writable.  Create one with:",
+                 "  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \\",
+                 "    -out key.pem",
+                 "  openssl pkcs8 -topk8 -inform PEM -outform DER \\",
+                 f"    -in key.pem -out {toolchain.key} -nocrypt",
+                 blocks=False)
 
     # -- verdict -----------------------------------------------------------
     print()
-    can_compile = (
-        toolchain is not None
-        and blocking == 0
-        and (toolchain.key.exists() or os.access(toolchain.key.parent, os.W_OK))
-    )
     if blocking == 0 and can_compile:
         word = term.style("ready", "green", enabled=color_out)
         print(f"{word}: validate, preview and build all work.")
@@ -995,6 +1003,14 @@ def _dim(text: str, *, color: bool) -> str:
     return term.style(text, "dim", enabled=color)
 
 
+#: The vector-text entry points `wfb fonts` reports, by the name it prints.
+_VECTOR_GATES = (
+    ("getVectorFont", Device.VECTOR_FONT_SYMBOL),
+    ("drawRadialText", Device.DRAW_RADIAL_TEXT_SYMBOL),
+    ("drawAngledText", Device.DRAW_ANGLED_TEXT_SYMBOL),
+)
+
+
 def _print_all_device_fonts_summary(db: DeviceDatabase) -> None:
     """Print every installed device's id, vector-text API gates, scalable
     (vector) faces and system (bitmap) font symbols, one paragraph each.
@@ -1023,14 +1039,8 @@ def _print_all_device_fonts_summary(db: DeviceDatabase) -> None:
             print("  cannot run a watch face")
             continue
 
-        has_vector = device.has_symbol(Device.VECTOR_FONT_SYMBOL)
-        gates = []
-        if has_vector:
-            gates.append("getVectorFont")
-        if device.has_symbol(Device.DRAW_RADIAL_TEXT_SYMBOL):
-            gates.append("drawRadialText")
-        if device.has_symbol(Device.DRAW_ANGLED_TEXT_SYMBOL):
-            gates.append("drawAngledText")
+        gates = [name for name, symbol in _VECTOR_GATES if device.has_symbol(symbol)]
+        has_vector = "getVectorFont" in gates
         gates_str = ", ".join(gates) if gates else _dim("none", color=color_out)
         print(f"  vector text:   {gates_str}")
 
@@ -1205,6 +1215,23 @@ def _fonts(args) -> int:
     return 0
 
 
+#: `config.*`, listed by `wfb sources` after the catalogue: declared per
+#: design, not read from a device API, so not in `wfb.catalog`.
+_CONFIG_SOURCES = (
+    ("config.accent_color", "color",
+     "the one accent-colour axis (<accentColors>, Settings.accentColor)"),
+    ("config.data_color", "color",
+     "the one data-colour axis (<dataColors>, Settings.complicationColor)"),
+    ("config.colors.<role>", "color",
+     "the Styles axis -- one role of a declared 'color_scheme:' entry, picked via the "
+     "active 'config: style:' entry's 'colors:' (<styles>, Settings.styleId)"),
+    ("config.data.<name>", "",
+     "the Data axis -- a named native complication slot declared in 'config: data:' "
+     "(<data><complication>, Settings.complicationSettings); drawn by a "
+     "'type: complication_slot' element ('slot:'), not bound as an ordinary expression"),
+)
+
+
 def _sources(args) -> int:
     """list the data-source catalogue: every value a design may bind
 
@@ -1239,17 +1266,8 @@ def _sources(args) -> int:
             print(f"  {path:<34} {source.type.value:<8} {source.doc}{suffix}{ref}")
     print(f"\n{term.style('config', 'bold', enabled=color_out)}  (declared per design in "
           "'config:' -- fēnix 8 Solar's native editor only, see docs/guide/configuration.md)")
-    print(f"  {'config.accent_color':<34} {'color':<8} the one accent-colour axis "
-          "(<accentColors>, Settings.accentColor)")
-    print(f"  {'config.data_color':<34} {'color':<8} the one data-colour axis "
-          "(<dataColors>, Settings.complicationColor)")
-    print(f"  {'config.colors.<role>':<34} {'color':<8} the Styles axis -- one role of a "
-          "declared 'color_scheme:' entry, picked via the active 'config: style:' "
-          "entry's 'colors:' (<styles>, Settings.styleId)")
-    print(f"  {'config.data.<name>':<34} {'':<8} the Data axis -- a named native "
-          "complication slot declared in 'config: data:' (<data><complication>, "
-          "Settings.complicationSettings); drawn by a 'type: complication_slot' "
-          "element ('slot:'), not bound as an ordinary expression")
+    for path, kind, doc in _CONFIG_SOURCES:
+        print(f"  {path:<34} {kind:<8} {doc}")
     print(f"\nicons: {', '.join(icons.names())}")
     print("\nrun `wfb complications` for the full list of on_hold: targets")
     return 0

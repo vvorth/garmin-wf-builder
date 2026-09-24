@@ -28,7 +28,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_diagnostics import load
+from tests.helpers import find
+from wfb.build import load
 from wfb.devices import Device, FontMetric
 from wfb.emit.resources import bake_fonts
 from wfb.fonts import fallback, fetch_system
@@ -47,10 +48,6 @@ def _no_garmin_fonts(monkeypatch):
 def _require_font(key: str) -> None:
     if fetch_system.path_for(key) is None:
         pytest.skip(f"{key}.ttf is not installed at wfb/assets/system-fonts/")
-
-
-def find(resolved, element_id):
-    return next(p for p in resolved.items if p.id == element_id)
 
 
 def _independent(device: Device) -> Device:

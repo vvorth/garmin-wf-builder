@@ -11,7 +11,8 @@ height: 30px}`. The centred (default) box is therefore
 before this feature existed.
 """
 
-from tests.test_diagnostics import load
+from tests.helpers import find
+from wfb.build import load
 
 
 def _design(align: str = "", vertical_align: str = "") -> str:
@@ -42,10 +43,6 @@ elements:
         size: {{width: 100%, height: 100%}}
         color: palette.fg
 """
-
-
-def find(resolved, element_id):
-    return next(p for p in resolved.items if p.id == element_id)
 
 
 def _resolve(write_design, bag, db, align: str = "", vertical_align: str = ""):
