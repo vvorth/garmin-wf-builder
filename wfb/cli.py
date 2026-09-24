@@ -759,8 +759,10 @@ def _new(args) -> int:
               file=sys.stderr)
         return 1
 
+    # A template *name*, never a path: joined unchecked, `../x` or an
+    # absolute path would read any .yaml on disk.
     source = TEMPLATE_DIR / f"{args.template}.yaml"
-    if not source.exists():
+    if args.template not in templates:
         _error(f"no template {args.template!r}")
         print(f"       available: {', '.join(templates)}", file=sys.stderr)
         return 1

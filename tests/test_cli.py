@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -107,6 +108,22 @@ def test_new_refuses_to_overwrite(tmp_path):
     assert result.returncode == 1
     assert "already exists" in result.stderr
     assert (tmp_path / "taken.yaml").read_text(encoding="utf-8") == "existing"
+
+
+@pytest.mark.parametrize("escape", ["absolute", "relative"])
+def test_new_only_reads_its_own_templates(tmp_path, escape):
+    """Plan 18 item 9: `--template` names a template, not a path. Before, it
+    was joined onto the template directory unchecked, so `../x` or an
+    absolute path read any `.yaml` on disk."""
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("format: 1\nface: {name: MARKER}\n", encoding="utf-8")
+    template_dir = ROOT / "wfb" / "templates"
+    name = (str(outside.with_suffix("")) if escape == "absolute"
+            else os.path.relpath(outside.with_suffix(""), template_dir))
+    result = run("new", "Escape", "--template", name, "-o", str(tmp_path / "out.yaml"))
+    assert result.returncode != 0, result.stdout
+    assert "no template" in result.stderr
+    assert not (tmp_path / "out.yaml").exists()
 
 
 def test_new_gives_every_face_its_own_id(tmp_path):
