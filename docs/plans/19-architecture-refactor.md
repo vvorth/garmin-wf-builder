@@ -1,8 +1,8 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A3 approved (2026-09-24), built in that order: A0 is built
-(`tools/snapshot.py`, `docs/development.md` "Tests"); A1–A3 are next. A4–A7
-still await a user decision.** These change the project's shape (root
+**Status: A0–A3 approved (2026-09-24), built in that order: A0 and A1 are
+built (see "As built" under each); A2–A3 are next. A4–A7 still await a user
+decision.** These change the project's shape (root
 `CLAUDE.md` §7: stop and ask), so **do not start an unapproved step**, and
 record each decision in §4. Plan 18 holds the bug list from the same review. Its fixes
 come first unless the user says otherwise (§3 gives the combined order).
@@ -152,6 +152,18 @@ function or table row with both halves side by side. First targets:
 Add a **slow parity test** that compiles each `Function`/`Code` row with
 `monkeyc`, runs it (or a probe), and compares against the host half. This
 is what would have caught plan 18 items 3–4.
+
+**As built.** `layout.PatternTextAngle` (the per-copy angle, one definition
+for lint, preview and codegen), `layout.radial_direction_sign`/
+`radial_align_offset`, `ir.aod_color_choice`, and `layout.HAND_ANGLES`
+(pinned to `WfbHands.mc` by a test that parses it). The transform was
+already shared (`PlacedPattern.transform`). Snapshot-identical to A0. The
+parity test (`tests/test_expr_parity.py`, slow) cannot *run* Monkey C (no
+simulator). It checks operators against `monkeyc`'s own constant folder
+and compile-checks every function; runtime-only behaviour (`Math.round`,
+the `WfbMath` bodies) stays hand-ported. The radial glyph formula itself
+stays at both call sites, because sharing it would reorder float
+operations and move pixels.
 
 ### A2. Role-tagged expressions and colour roles on the IR (addresses P3)
 

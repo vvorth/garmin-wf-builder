@@ -41,3 +41,8 @@ after `-O 3z`'s constant-folding pass.
 - `round` uses half-up (`wfb.expr._round`). A negative exact half is never
   constant-folded (`_round_foldable`): the call stays in the generated code
   so the device decides. The preview uses half-up there too, a guess.
+
+`tests/test_expr_parity.py` (slow) makes findings 1 and 2 permanent. It
+folds a table of operator cases through `monkeyc` and compares
+`optimizer.mir` with the host, and it compiles every expression function
+with Number and Float arguments under `-l 3`.
