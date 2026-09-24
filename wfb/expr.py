@@ -19,6 +19,7 @@ import math
 import operator
 import re
 from dataclasses import dataclass, field
+from typing import Callable, Iterator
 
 from . import catalog
 from .catalog import Type
@@ -92,6 +93,9 @@ def tokenize(text: str) -> list[Token]:
 class Node:
     offset: int = 0
 
+    def children(self) -> tuple["Node", ...]:
+        return ()
+
 
 @dataclass
 class Literal(Node):
@@ -112,6 +116,9 @@ class Unary(Node):
     operand: Node
     offset: int = 0
 
+    def children(self) -> tuple[Node, ...]:
+        return (self.operand,)
+
 
 @dataclass
 class Binary(Node):
@@ -119,6 +126,9 @@ class Binary(Node):
     left: Node
     right: Node
     offset: int = 0
+
+    def children(self) -> tuple[Node, ...]:
+        return (self.left, self.right)
 
 
 @dataclass
@@ -128,6 +138,9 @@ class Conditional(Node):
     otherwise: Node
     offset: int = 0
 
+    def children(self) -> tuple[Node, ...]:
+        return (self.cond, self.then, self.otherwise)
+
 
 @dataclass
 class Call(Node):
@@ -135,11 +148,14 @@ class Call(Node):
     args: list[Node]
     offset: int = 0
 
+    def children(self) -> tuple[Node, ...]:
+        return tuple(self.args)
+
 
 # --------------------------------------------------------------------------
 # parser
 
-#: (precedence, right-associative).  Higher binds tighter.
+#: Binary operator precedence; higher binds tighter.  All left-associative.
 _BINARY: dict[str, int] = {
     "or": 1, "||": 1,
     "and": 2, "&&": 2,
@@ -149,16 +165,47 @@ _BINARY: dict[str, int] = {
     "*": 6, "/": 6, "%": 6,
 }
 
-#: name -> (arity or None for variadic-min, description)
-FUNCTIONS: dict[str, tuple[tuple[int, ...], str]] = {
-    "min": ((2,), "smaller of two numbers"),
-    "max": ((2,), "larger of two numbers"),
-    "clamp": ((3,), "clamp(value, lo, hi)"),
-    "round": ((1,), "round to the nearest whole number"),
-    "floor": ((1,), "round down"),
-    "abs": ((1,), "absolute value"),
-    "percent": ((2,), "percent(value, goal) -> 0..100"),
+@dataclass(frozen=True)
+class Function:
+    """One function of the language: its type rule and both implementations.
+
+    `host` (constant folding, and `evaluate` for the preview) and `emit`
+    (the Monkey C call) sit in one row so they can be checked against each
+    other; `WfbMath.mc` holds the barrel half of `emit`.
+    """
+
+    arity: int
+    description: str
+    #: The result type, or ``None`` when it follows the arguments: Float if
+    #: any argument is (for folding: if the folded value is a float).
+    result: Type | None
+    #: Host evaluation over argument values; ``None`` means "no value".
+    host: Callable[[list], object]
+    #: Toybox module the emitted call needs, or ``None`` for a barrel call
+    #: (`WfbMath.<name>`, runtime-lib/WfbMath.mc).
+    module: str | None = None
+
+
+def _percent(args: list) -> object:
+    return None if args[1] == 0 else 100.0 * args[0] / args[1]
+
+
+FUNCTIONS: dict[str, Function] = {
+    "min": Function(2, "smaller of two numbers", None, lambda a: min(a)),
+    "max": Function(2, "larger of two numbers", None, lambda a: max(a)),
+    "clamp": Function(3, "clamp(value, lo, hi)", None, lambda a: max(a[1], min(a[0], a[2]))),
+    "round": Function(1, "round to the nearest whole number", Type.NUMBER,
+                      lambda a: int(round(a[0])), module="Toybox.Math"),
+    "floor": Function(1, "round down", Type.NUMBER,
+                      lambda a: int(math.floor(a[0])), module="Toybox.Math"),
+    "abs": Function(1, "absolute value", None, lambda a: abs(a[0])),
+    "percent": Function(2, "percent(value, goal) -> 0..100", Type.FLOAT, _percent),
 }
+
+#: Toybox modules the emitted code needs, keyed by expression function name.
+CALL_MODULES = {name: f.module for name, f in FUNCTIONS.items() if f.module is not None}
+#: Expression functions that compile to a support-barrel call.
+CALL_BARREL = frozenset(name for name, f in FUNCTIONS.items() if f.module is None)
 
 
 class Parser:
@@ -257,13 +304,12 @@ class Parser:
                 self.advance()
                 args.append(self.parse_ternary())
         self.expect(")")
-        arities, description = FUNCTIONS[name.text]
-        if len(args) not in arities:
-            want = " or ".join(str(a) for a in arities)
+        function = FUNCTIONS[name.text]
+        if len(args) != function.arity:
             raise ExprError(
-                f"{name.text}() takes {want} argument(s), got {len(args)}",
+                f"{name.text}() takes {function.arity} argument(s), got {len(args)}",
                 name.offset,
-                [description],
+                [function.description],
             )
         return Call(name.text, args, name.offset)
 
@@ -301,6 +347,7 @@ class Binding:
     code: str
     #: Set when the value is known at build time, enabling constant folding.
     constant: object | None = None
+    #: Descriptive only: nothing reads it (ADR 0006's `config:` amendment cites it).
     kind: str = "source"  # source | palette | config | copy
 
 
@@ -350,53 +397,8 @@ def check(node: Node, scope: Scope) -> Value:
 
     if isinstance(node, Ref):
         binding = scope.lookup(node.path)
-        if binding is None and node.path == COPY:
-            raise ExprError(
-                f"{COPY!r} is only defined in a 'type: pattern' element's colours, "
-                "its parts' 'visible:' and a text part's 'value:'",
-                node.offset,
-                [f"{COPY!r} is the index of the copy being drawn, 0-based -- "
-                 "nothing but a pattern has copies",
-                 "to hide some copies, put 'visible:' on the parts, or use 'skip:'"],
-            )
         if binding is None:
-            renamed = catalog.renamed_to(node.path)
-            if renamed is not None:
-                raise ExprError(
-                    f"{node.path!r} has been renamed to {renamed!r}",
-                    node.offset,
-                    ["complications now have their own namespace -- "
-                     "'complication.<type>' is always read through "
-                     "Toybox.Complications, and every other catalogue path is "
-                     "always a direct API read",
-                     "the value is unchanged; only the path moves",
-                     "run `wfb sources` for the current catalogue"],
-                    code="source-renamed",
-                )
-
-            notes = []
-            # Prefer suggestions from the same namespace: a mistyped palette
-            # entry wants the palette listed, not the data-source catalogue.
-            namespace = node.path.split(".", 1)[0] if "." in node.path else ""
-            siblings = sorted(
-                name for name in scope.bindings if name.startswith(f"{namespace}.")
-            )
-            near = difflib.get_close_matches(node.path, siblings, n=3, cutoff=0.4)
-            if near:
-                notes.append("did you mean: " + ", ".join(near) + "?")
-            elif siblings:
-                notes.append(f"{namespace} has: " + ", ".join(siblings))
-            else:
-                catalogued = catalog.suggest(node.path)
-                if catalogued:
-                    notes.append("did you mean: " + ", ".join(catalogued) + "?")
-                else:
-                    notes.append(
-                        "known namespaces: "
-                        + ", ".join(sorted(catalog.namespaces()))
-                        + ", palette"
-                    )
-            raise ExprError(f"unknown data source {node.path!r}", node.offset, notes)
+            raise _unknown_ref(node, scope)
         return binding.value
 
     if isinstance(node, Unary):
@@ -454,15 +456,51 @@ def check(node: Node, scope: Scope) -> Value:
         nullable = any(a.nullable for a in args)
         for arg in args:
             _require_numeric(arg, f"{node.name}()", node.offset)
-        if node.name in ("round", "floor"):
-            return Value(Type.NUMBER, nullable)
-        if node.name == "percent":
-            return Value(Type.FLOAT, nullable)
-        if any(a.type is Type.FLOAT for a in args):
-            return Value(Type.FLOAT, nullable)
-        return Value(Type.NUMBER, nullable)
+        result = FUNCTIONS[node.name].result
+        if result is None:
+            result = Type.FLOAT if any(a.type is Type.FLOAT for a in args) else Type.NUMBER
+        return Value(result, nullable)
 
     raise ExprError(f"cannot type {type(node).__name__}")
+
+
+def _unknown_ref(node: Ref, scope: Scope) -> ExprError:
+    """The error for a reference nothing in ``scope`` binds."""
+    if node.path == COPY:
+        return ExprError(
+            f"{COPY!r} is only defined in a 'type: pattern' element's colours, "
+            "its parts' 'visible:' and a text part's 'value:'",
+            node.offset,
+            [f"{COPY!r} is the index of the copy being drawn, 0-based -- "
+             "nothing but a pattern has copies",
+             "to hide some copies, put 'visible:' on the parts, or use 'skip:'"],
+        )
+    renamed = catalog.renamed_to(node.path)
+    if renamed is not None:
+        return ExprError(
+            f"{node.path!r} has been renamed to {renamed!r}",
+            node.offset,
+            ["complications now have their own namespace -- "
+             "'complication.<type>' is always read through "
+             "Toybox.Complications, and every other catalogue path is "
+             "always a direct API read",
+             "the value is unchanged; only the path moves",
+             "run `wfb sources` for the current catalogue"],
+            code="source-renamed",
+        )
+    # Prefer suggestions from the same namespace: a mistyped palette entry
+    # wants the palette listed, not the data-source catalogue.
+    namespace = node.path.split(".", 1)[0] if "." in node.path else ""
+    siblings = sorted(name for name in scope.bindings if name.startswith(f"{namespace}."))
+    near = difflib.get_close_matches(node.path, siblings, n=3, cutoff=0.4) or (
+        [] if siblings else catalog.suggest(node.path))
+    if near:
+        note = "did you mean: " + ", ".join(near) + "?"
+    elif siblings:
+        note = f"{namespace} has: " + ", ".join(siblings)
+    else:
+        note = "known namespaces: " + ", ".join(sorted(catalog.namespaces())) + ", palette"
+    return ExprError(f"unknown data source {node.path!r}", node.offset, [note])
 
 
 def _require(value: Value, want: Type, op: str, offset: int) -> None:
@@ -546,61 +584,47 @@ def fold(node: Node, scope: Scope, *, fold_colors: bool = True) -> Node:
     return node
 
 
+#: Host implementations of the foldable binary operators.
+_HOST_BINARY: dict[str, Callable[[object, object], object]] = {
+    "+": operator.add, "-": operator.sub, "*": operator.mul,
+    "/": operator.truediv, "%": operator.mod,
+    "<": operator.lt, "<=": operator.le, ">": operator.gt, ">=": operator.ge,
+    "==": operator.eq, "!=": operator.ne,
+    "and": lambda a, b: bool(a) and bool(b),
+    "or": lambda a, b: bool(a) or bool(b),
+}
+
+
+def _numeric_type(value: object) -> Type:
+    return Type.FLOAT if isinstance(value, float) else Type.NUMBER
+
+
 def _apply(op: str, a: object, b: object) -> tuple[object, Type] | None:
+    """``a op b`` on the host, typed; ``None`` when it has no value (an
+    unknown operator, a zero divisor, mismatched operands)."""
+    fn = _HOST_BINARY.get(op)
+    if fn is None or (op in ("/", "%") and b == 0):
+        return None
     try:
-        if op == "+":
-            result = a + b  # type: ignore[operator]
-        elif op == "-":
-            result = a - b  # type: ignore[operator]
-        elif op == "*":
-            result = a * b  # type: ignore[operator]
-        elif op == "/":
-            if b == 0:
-                return None
-            result = a / b  # type: ignore[operator]
-            return (result, Type.FLOAT)
-        elif op == "%":
-            if b == 0:
-                return None
-            result = a % b  # type: ignore[operator]
-        elif op in ("<", "<=", ">", ">=", "==", "!="):
-            fn = {"<": operator.lt, "<=": operator.le, ">": operator.gt,
-                  ">=": operator.ge, "==": operator.eq, "!=": operator.ne}[op]
-            return (bool(fn(a, b)), Type.BOOLEAN)
-        elif op == "and":
-            return (bool(a) and bool(b), Type.BOOLEAN)
-        elif op == "or":
-            return (bool(a) or bool(b), Type.BOOLEAN)
-        else:
-            return None
+        result = fn(a, b)
     except TypeError:
         return None
-    return (result, Type.FLOAT if isinstance(result, float) else Type.NUMBER)
+    if op in _COMPARISON_OPS or op in _EQUALITY_OPS or op in _BOOLEAN_OPS:
+        return (bool(result), Type.BOOLEAN)
+    return (result, Type.FLOAT if op == "/" else _numeric_type(result))
 
 
 def _apply_call(name: str, args: list) -> tuple[object, Type] | None:
+    function = FUNCTIONS.get(name)
+    if function is None:
+        return None
     try:
-        if name == "min":
-            value = min(args)
-        elif name == "max":
-            value = max(args)
-        elif name == "clamp":
-            value = max(args[1], min(args[0], args[2]))
-        elif name == "round":
-            return (int(round(args[0])), Type.NUMBER)
-        elif name == "floor":
-            return (int(math.floor(args[0])), Type.NUMBER)
-        elif name == "abs":
-            value = abs(args[0])
-        elif name == "percent":
-            if args[1] == 0:
-                return None
-            return (100.0 * args[0] / args[1], Type.FLOAT)
-        else:
-            return None
+        value = function.host(args)
     except (TypeError, ValueError):
         return None
-    return (value, Type.FLOAT if isinstance(value, float) else Type.NUMBER)
+    if value is None:
+        return None
+    return (value, function.result or _numeric_type(value))
 
 
 def emit(node: Node, scope: Scope) -> str:
@@ -682,25 +706,15 @@ def _emit_literal(node: Literal) -> str:
 def _emit_call(name: str, args: list[str]) -> str:
     """Emit a call.
 
-    ``min``/``max``/``clamp``/``abs`` go through the support barrel rather than
-    being expanded inline as ternaries.  Inlining would evaluate the argument
-    expression two or three times -- correct, since expressions are pure, but it
-    triples the generated text for no gain and makes the output hard to read,
-    which ADR 0003 does not allow.
+    A barrel function (``min``/``max``/``clamp``/``abs``/``percent``) is a
+    `WfbMath` call rather than an inline ternary, which would evaluate an
+    argument two or three times -- correct, since expressions are pure, but
+    triple the generated text, which ADR 0003 does not allow.  ``round``/
+    ``floor`` are `Toybox.Math` calls brought back to a Number.
     """
     if name in CALL_BARREL:
         return f"WfbMath.{name}({', '.join(args)})"
-    if name == "round":
-        return f"Math.round({args[0]}).toNumber()"
-    if name == "floor":
-        return f"Math.floor({args[0]}).toNumber()"
-    raise ExprError(f"no emitter for {name}()")
-
-
-#: Toybox modules the emitted code needs, keyed by expression function name.
-CALL_MODULES = {"round": "Toybox.Math", "floor": "Toybox.Math"}
-#: Expression functions that compile to a support-barrel call.
-CALL_BARREL = frozenset({"min", "max", "clamp", "abs", "percent"})
+    return f"Math.{name}({args[0]}).toNumber()"
 
 
 def compile_expression(text: str, scope: Scope, *,
@@ -716,20 +730,11 @@ def compile_expression(text: str, scope: Scope, *,
     return emit(folded, scope), value, folded
 
 
-def walk(node: Node):
+def walk(node: Node) -> Iterator[Node]:
+    """``node`` and every node under it, pre-order."""
     yield node
-    if isinstance(node, Unary):
-        yield from walk(node.operand)
-    elif isinstance(node, Binary):
-        yield from walk(node.left)
-        yield from walk(node.right)
-    elif isinstance(node, Conditional):
-        yield from walk(node.cond)
-        yield from walk(node.then)
-        yield from walk(node.otherwise)
-    elif isinstance(node, Call):
-        for arg in node.args:
-            yield from walk(arg)
+    for child in node.children():
+        yield from walk(child)
 
 
 # --------------------------------------------------------------------------

@@ -112,8 +112,8 @@ class ReadPlan:
                     and element.value.value.type is Type.DATE):
                 # A date code like %m needs a second reader beyond `date`
                 # itself (`formatting.date_extra_paths` -- the single place
-                # that decides this, shared with `_emit_date` so the two
-                # cannot drift). Both the awake `format:` (always present
+                # that decides this, read off the same `DATE_CODES` row
+                # `emit` compiles, so the two cannot drift). Both the awake `format:` (always present
                 # and coded here, `Builder._check_format`) and an
                 # `aod: {format: ...}` override (checked the same way,
                 # `Builder._check_format_spec`) can use such a code

@@ -149,8 +149,8 @@ def test_other_date_codes_are_unaffected_by_the_month_fix():
 def test_date_extra_paths_flags_only_specs_using_percent_m(spec, extra):
     """The single source of truth `wfb.emit.monkeyc.readplan.ReadPlan`
     consults to know a `%m` spec needs the `date_short` reader-local
-    declared and passed as a parameter -- `_emit_date` and this helper read
-    the same table, so the two cannot drift apart."""
+    declared and passed as a parameter -- `emit` and this helper read
+    the same `DATE_CODES` row, so the two cannot drift apart."""
     assert formatting.date_extra_paths(spec) == extra
 
 

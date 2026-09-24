@@ -89,6 +89,11 @@ def _field_gap(field: str, device: Device) -> Unavailable | None:
     return Unavailable("field", field, f"field {field!r} is absent on {device.id}")
 
 
+def _first_gap(gaps: Iterable[Unavailable | None]) -> Unavailable | None:
+    """The first real gap in ``gaps`` (checked in order), or ``None``."""
+    return next((gap for gap in gaps if gap is not None), None)
+
+
 def reader_unavailable(reader_name: str, device: Device) -> Unavailable | None:
     """Is `catalog.READERS[reader_name]`'s call unavailable on `device`?
 
@@ -100,15 +105,10 @@ def reader_unavailable(reader_name: str, device: Device) -> Unavailable | None:
     first gap found, or ``None`` when the reader's call is fully available.
     """
     reader = READERS[reader_name]
-    if reader.requires_module is not None:
-        gap = _module_gap(reader.requires_module, device)
-        if gap is not None:
-            return gap
-    for symbol in reader.requires:
-        gap = _symbol_gap(symbol, device)
-        if gap is not None:
-            return gap
-    return None
+    modules = () if reader.requires_module is None else (reader.requires_module,)
+    return _first_gap(
+        [*(_module_gap(m, device) for m in modules),
+         *(_symbol_gap(symbol, device) for symbol in reader.requires)])
 
 
 def _field_root(source: Source) -> str | None:
@@ -146,19 +146,12 @@ def source_unavailable(path: str, device: Device) -> Unavailable | None:
     source = CATALOG.get(path)
     if source is None:
         return None
-    gap = reader_unavailable(source.reader, device)
-    if gap is not None:
-        return gap
-    for symbol in source.requires:
-        gap = _symbol_gap(symbol, device)
-        if gap is not None:
-            return gap
     root = _field_root(source)
-    if root is not None:
-        gap = _field_gap(root, device)
-        if gap is not None:
-            return gap
-    return None
+    return _first_gap([
+        reader_unavailable(source.reader, device),
+        *(_symbol_gap(symbol, device) for symbol in source.requires),
+        None if root is None else _field_gap(root, device),
+    ])
 
 
 # --------------------------------------------------------------------------
@@ -238,20 +231,15 @@ def vector_fonts_used(face: Face) -> dict[str, FontSpec]:
     simply `{name: spec for name, spec in face.fonts.items() if spec.is_
     vector}`.
     """
-    used: set[str] = set()
+    named: set[str] = set()
     for element in face.walk():
         if isinstance(element, Text) and element.font_is_custom:
-            spec = face.fonts.get(element.font)
-            if spec is not None and spec.is_vector:
-                used.add(element.font)
+            named.add(element.font)
         elif isinstance(element, PatternElement):
-            for part in element.parts:
-                if part.shape != "text" or not part.font_is_custom:
-                    continue
-                spec = face.fonts.get(part.font)
-                if spec is not None and spec.is_vector:
-                    used.add(part.font)
-    return {name: spec for name, spec in face.fonts.items() if name in used}
+            named.update(part.font for part in element.parts
+                         if part.shape == "text" and part.font_is_custom)
+    return {name: spec for name, spec in face.fonts.items()
+            if name in named and spec.is_vector}
 
 
 def uses_complications(face: Face) -> bool:
@@ -316,18 +304,11 @@ class Guards:
     #: plain, unguarded construction, because every target already
     #: resolves it. Empty when every used vector font resolves on every
     #: target (including "this design uses no vector font at all").
-    #: Defaulted (unlike `complications`/`fields`) so every pre-existing
-    #: `Guards(complications=..., fields=...)` call site -- `_NO_GUARDS`,
-    #: and any test written before plan 11 -- keeps constructing a valid
-    #: value without being touched.
     vector_fonts: frozenset[str] = frozenset()
     #: True iff at least one target device is AMOLED (`Device.is_amoled`) --
     #: plan 14 D1's *build-time* half of "burn-in device". `_aod` (the field,
     #: the `onUpdate` branch, the sleep hooks' burn-in check) is emitted only
-    #: when this is true, so an all-MIP build emits none of it and generates
-    #: byte-identical source to a pre-plan-14 build (plan 14 §6 slice 1's own
-    #: test). Defaulted for the same reason `vector_fonts` is: every
-    #: pre-existing `Guards(...)` call site keeps constructing a valid value.
+    #: when this is true, so an all-MIP build emits none of it.
     amoled_target: bool = False
     #: True iff `amoled_target` and at least one target device's own symbol
     #: table lacks `Device.BURN_IN_FIELD` -- plan 14 D1's *runtime* half:

@@ -91,9 +91,7 @@ class ComplicationType:
     doc: str
 
 
-def _t(name: str, constant: str, since: str, value_type: str, nullable: bool,
-       unit: str | None, doc: str) -> ComplicationType:
-    return ComplicationType(name, constant, since, value_type, nullable, unit, doc)
+_t = ComplicationType
 
 
 #: The API level ``Complications.exitTo`` itself needs, independent of the

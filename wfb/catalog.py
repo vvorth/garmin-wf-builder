@@ -389,8 +389,7 @@ class Source:
         return self.nullable or READERS[self.reader].nullable
 
 
-def _s(*args, **kwargs) -> Source:
-    return Source(*args, **kwargs)
+_s = Source
 
 
 CATALOG: dict[str, Source] = {

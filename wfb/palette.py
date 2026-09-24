@@ -56,13 +56,11 @@ class Color:
 
     def is_palette_legal(self, display_colors: int | None) -> bool:
         """``True`` when the panel can show this colour without dithering."""
-        if display_colors is None:
-            return True  # not checked -- see Device.display_colors
-        if display_colors >= 65536:
+        # Only the 64-colour MIP rule is known; no rule for any other palette
+        # size (or an unknown one, `Device.display_colors`) is guessed at.
+        if display_colors != 64:
             return True
-        if display_colors == 64:
-            return all(c in MIP64_LEVELS for c in (self.r, self.g, self.b))
-        return True  # no rule known for this palette size; do not guess
+        return all(c in MIP64_LEVELS for c in (self.r, self.g, self.b))
 
     def nearest_legal(self, display_colors: int | None) -> "Color":
         if display_colors != 64:

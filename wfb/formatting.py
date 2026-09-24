@@ -19,6 +19,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from typing import Callable, NamedTuple
 
 from .catalog import Source, Type
 
@@ -48,33 +49,119 @@ class TimePart:
     text: str = ""
 
 
-#: strftime codes for a **date**, with the widest string each can produce.
-#:
-#: The widths assume English: the weekday and month arrive from the firmware as
-#: localised strings, so a longer language makes these under-estimates and the
-#: overflow lint correspondingly optimistic.  Three characters is what
-#: ``FORMAT_MEDIUM`` yields in English, which is the common case.
-DATE_CODES: dict[str, tuple[str, str]] = {
-    "a": ("abbreviated weekday, e.g. Thu", "Wed"),
-    "d": ("day of the month, zero-padded", "30"),
-    "e": ("day of the month, unpadded", "30"),
-    "b": ("abbreviated month, e.g. Sep", "Sep"),
-    "m": ("month number, zero-padded", "12"),
-    "Y": ("four-digit year", "2026"),
-    "y": ("two-digit year", "26"),
-    "%": ("a literal percent sign", "%"),
+class Readers(NamedTuple):
+    """The generated reader locals a strftime code's Monkey C reads off."""
+
+    clock: str = "clock"
+    settings: str = "settings"
+    date: str = "date"
+    date_short: str = "dateShort"
+
+
+@dataclass(frozen=True)
+class Code:
+    """One strftime code, with both of its implementations in one row.
+
+    `emit` (the Monkey C String expression, given the reader locals) and
+    `render` (the host rendering `wfb preview` draws, given values keyed like
+    `wfb.preview.SAMPLE`) must agree for every input; keeping them side by
+    side is what lets the two be checked against each other one code at a
+    time.  ``%%`` has neither: :func:`parse_time` turns it into literal text.
+    """
+
+    description: str
+    #: The widest string the code can produce -- for the overflow lint and a
+    #: subsetted font's glyph set.
+    widest: str
+    emit: Callable[[Readers], str] | None = None
+    render: Callable[[dict], str] | None = None
+    #: A `wfb.catalog.CATALOG` path the code reads beyond the value's own
+    #: reader -- see :func:`date_extra_paths`.
+    extra_path: str | None = None
+
+
+_PERCENT = Code("a literal percent sign", "%")
+
+
+def _hour(values: dict) -> int:
+    return int(values.get("time.hour", 10))
+
+
+def _hour12(values: dict) -> int:
+    return (_hour(values) % 12) or 12
+
+
+def _day(values: dict) -> int:
+    return int(values.get("date.day", 3))
+
+
+def _year(values: dict) -> int:
+    return int(values.get("date.year", 2026))
+
+
+#: strftime codes for a **clock** reading.
+TIME_CODES: dict[str, Code] = {
+    "H": Code("hour, 24-hour, zero-padded", "23",
+              lambda r: f'{r.clock}.hour.format("%02d")',
+              lambda v: f"{_hour(v):02d}"),
+    "I": Code("hour, 12-hour, zero-padded", "12",
+              lambda r: f'WfbTime.hour12({r.clock}.hour).format("%02d")',
+              lambda v: f"{_hour12(v):02d}"),
+    "l": Code("hour, 12-hour, unpadded", "12",
+              lambda r: f'WfbTime.hour12({r.clock}.hour).format("%d")',
+              lambda v: f"{_hour12(v):d}"),
+    # `WfbTime.displayHour` (runtime-lib/WfbTime.mc): zero-padded 24-hour, or
+    # unpadded 12-hour, following `DeviceSettings.is24Hour`.
+    "h": Code("hour, following the device's 12/24-hour setting", "23",
+              lambda r: f"WfbTime.displayHour({r.clock}.hour, {r.settings}.is24Hour)",
+              lambda v: (f"{_hour(v):02d}" if bool(v.get("device.is_24_hour", True))
+                         else f"{_hour12(v):d}")),
+    "M": Code("minute, zero-padded", "59",
+              lambda r: f'{r.clock}.min.format("%02d")',
+              lambda v: f"{int(v.get('time.minute', 9)):02d}"),
+    "S": Code("second, zero-padded", "59",
+              lambda r: f'{r.clock}.sec.format("%02d")',
+              lambda v: f"{int(v.get('time.second', 0)):02d}"),
+    "p": Code("AM or PM", "AM",
+              lambda r: f"WfbTime.meridiem({r.clock}.hour)",
+              lambda v: "AM" if _hour(v) < 12 else "PM"),
+    "%": _PERCENT,
 }
 
-#: strftime codes we implement, with the widest string each can produce.
-TIME_CODES: dict[str, tuple[str, str]] = {
-    "H": ("hour, 24-hour, zero-padded", "23"),
-    "I": ("hour, 12-hour, zero-padded", "12"),
-    "l": ("hour, 12-hour, unpadded", "12"),
-    "h": ("hour, following the device's 12/24-hour setting", "23"),
-    "M": ("minute, zero-padded", "59"),
-    "S": ("second, zero-padded", "59"),
-    "p": ("AM or PM", "AM"),
-    "%": ("a literal percent sign", "%"),
+#: strftime codes for a **date** reading.
+#:
+#: The widths assume English: the weekday and month arrive from the firmware as
+#: localised strings (``FORMAT_MEDIUM``, the ``date`` reader, needs no
+#: conversion for them), so a longer language makes these under-estimates and
+#: the overflow lint correspondingly optimistic.
+DATE_CODES: dict[str, Code] = {
+    "a": Code("abbreviated weekday, e.g. Thu", "Wed",
+              lambda r: f"{r.date}.day_of_week",
+              lambda v: str(v.get("date.day_of_week", "Wed"))),
+    "d": Code("day of the month, zero-padded", "30",
+              lambda r: f'{r.date}.day.format("%02d")',
+              lambda v: f"{_day(v):02d}"),
+    "e": Code("day of the month, unpadded", "30",
+              lambda r: f'{r.date}.day.format("%d")',
+              lambda v: f"{_day(v)}"),
+    "b": Code("abbreviated month, e.g. Sep", "Sep",
+              lambda r: f"{r.date}.month",
+              lambda v: str(v.get("date.month", "Sep"))),
+    # FORMAT_MEDIUM's `month` is a localised String with no numeric form, so
+    # the Number month only exists under FORMAT_SHORT (the `date_short`
+    # reader), cast from its declared `Number or String` the same way
+    # `date.weekday` is.
+    "m": Code("month number, zero-padded", "12",
+              lambda r: f'({r.date_short}.month as Number).format("%02d")',
+              lambda v: f"{int(v.get('date.month_number', 9)):02d}",
+              extra_path="date.weekday"),
+    "Y": Code("four-digit year", "2026",
+              lambda r: f'{r.date}.year.format("%04d")',
+              lambda v: f"{_year(v):04d}"),
+    "y": Code("two-digit year", "26",
+              lambda r: f'({r.date}.year % 100).format("%02d")',
+              lambda v: f"{_year(v) % 100:02d}"),
+    "%": _PERCENT,
 }
 
 
@@ -94,7 +181,7 @@ def parse(spec: str) -> list:
     return parts
 
 
-def parse_time(spec: str, codes: dict[str, tuple[str, str]] | None = None) -> list[TimePart]:
+def parse_time(spec: str, codes: dict[str, Code] | None = None) -> list[TimePart]:
     """Split a strftime-style field spec into codes and literal text."""
     codes = TIME_CODES if codes is None else codes
     what = "date" if codes is DATE_CODES else "time"
@@ -138,6 +225,35 @@ def is_time_spec(spec: str) -> bool:
     return any(isinstance(part, Field) and "%" in part.spec for part in parts)
 
 
+def _strftime_parts(spec: str, value_type: Type) -> tuple[list[TimePart], dict[str, Code]]:
+    """A TIME/DATE spec's field, parsed against the code table for its type."""
+    codes = DATE_CODES if value_type is Type.DATE else TIME_CODES
+    return parse_time(strip_braces(spec), codes), codes
+
+
+def strip_braces(spec: str) -> str:
+    parts = parse(spec)
+    for part in parts:
+        if isinstance(part, Field):
+            return part.spec
+    return spec
+
+
+def _numeric_spec(spec: str) -> tuple[str, str, str | None]:
+    """A non-empty numeric field spec as ``(kind, flags, precision)``.
+
+    Shared by `_emit_numeric` and `_render_numeric_field`, so the device and
+    the preview accept exactly the same specs and read them the same way.
+    """
+    m = _NUMERIC_SPEC_RE.match(spec)
+    if not m:
+        raise FormatError(
+            f"{'{'}:{spec}{'}'} is not a supported format -- use {{:d}}, {{:02d}}, {{:.1f}} or {{}}"
+        )
+    flags = f"{'0' if m.group('zero') else ''}{m.group('width') or ''}"
+    return m.group("kind"), flags, m.group("precision")
+
+
 # --------------------------------------------------------------------------
 # Monkey C emission
 
@@ -146,12 +262,14 @@ def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
          settings: str = "settings", date: str = "date",
          date_short: str = "dateShort") -> str:
     """Compile a format spec to a Monkey C String expression."""
-    if value_type is Type.DATE:
-        return _emit_date(spec, date=date, date_short=date_short)
-    if is_time_spec(spec):
-        return _emit_time(spec, clock=clock, settings=settings)
+    if value_type is Type.DATE or is_time_spec(spec):
+        readers = Readers(clock, settings, date, date_short)
+        parts, codes = _strftime_parts(spec, value_type)
+        pieces = [_quote(part.text) if part.code is None else codes[part.code].emit(readers)
+                  for part in parts]
+        return " + ".join(pieces) if pieces else '""'
 
-    pieces: list[str] = []
+    pieces = []
     for part in parse(spec):
         if isinstance(part, Literal):
             pieces.append(_quote(part.text))
@@ -163,64 +281,14 @@ def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
 def _emit_numeric(spec: str, value_code: str, value_type: Type) -> str:
     if spec == "":
         return f"{value_code}.toString()"
-    m = _NUMERIC_SPEC_RE.match(spec)
-    if not m:
-        raise FormatError(
-            f"{'{'}:{spec}{'}'} is not a supported format -- use {{:d}}, {{:02d}}, {{:.1f}} or {{}}"
-        )
-    kind = m.group("kind")
+    kind, flags, precision = _numeric_spec(spec)
     if kind == "s":
         return f"{value_code}.toString()"
-    zero, width, precision = m.group("zero"), m.group("width"), m.group("precision")
     if kind == "d":
         if value_type is Type.FLOAT:
             value_code = f"{value_code}.toNumber()"
-        flags = f"{'0' if zero else ''}{width or ''}"
         return f'{value_code}.format("%{flags}d")'
-    # float
-    flags = f"{'0' if zero else ''}{width or ''}"
     return f'{value_code}.format("%{flags}.{precision or 1}f")'
-
-
-def _emit_time(spec: str, *, clock: str, settings: str) -> str:
-    pieces: list[str] = []
-    for part in parse_time(strip_braces(spec)):
-        if part.code is None:
-            pieces.append(_quote(part.text))
-        elif part.code == "H":
-            pieces.append(f'{clock}.hour.format("%02d")')
-        elif part.code == "I":
-            pieces.append(f"WfbTime.hour12({clock}.hour).format(\"%02d\")")
-        elif part.code == "l":
-            pieces.append(f"WfbTime.hour12({clock}.hour).format(\"%d\")")
-        elif part.code == "h":
-            pieces.append(f"WfbTime.displayHour({clock}.hour, {settings}.is24Hour)")
-        elif part.code == "M":
-            pieces.append(f'{clock}.min.format("%02d")')
-        elif part.code == "S":
-            pieces.append(f'{clock}.sec.format("%02d")')
-        elif part.code == "p":
-            pieces.append(f"WfbTime.meridiem({clock}.hour)")
-    return " + ".join(pieces) if pieces else '""'
-
-
-#: DATE codes whose Monkey C reads a *second* reader (`date_short`,
-#: `Gregorian.info(Time.now(), Time.FORMAT_SHORT)`, local `dateShort`)
-#: instead of the value's own `date` (FORMAT_MEDIUM) reader, keyed by
-#: `DATE_CODES` letter and mapped to the `wfb.catalog.CATALOG` path whose
-#: `.reader` is `date_short` -- currently just ``%m``: FORMAT_MEDIUM's
-#: ``month`` is a localised String ("Sep"), with no numeric form at all, so
-#: the zero-padded *Number* month `%m` only exists under FORMAT_SHORT --
-#: the same reason `date.weekday` (FORMAT_SHORT's Number `day_of_week`)
-#: exists as a second reader rather than a second field on `date`
-#: (`wfb.catalog.READERS` docstring). **The one place this fact lives**:
-#: `_emit_date`'s own ``m`` branch below is hand-written to match exactly
-#: this table's one entry, and `date_extra_paths` reads the table itself to
-#: tell `wfb.emit.monkeyc.readplan.ReadPlan` which extra reader-local
-#: parameter an element using the code needs declared -- so a future code
-#: needing a second reader has one table to add it to, not two ladders that
-#: can silently disagree.
-_DATE_CODE_EXTRA_PATH: dict[str, str] = {"m": "date.weekday"}
 
 
 def date_extra_paths(spec: str) -> tuple[str, ...]:
@@ -228,55 +296,16 @@ def date_extra_paths(spec: str) -> tuple[str, ...]:
     need read, beyond the value's own ``date.today`` -- e.g.
     ``("date.weekday",)`` for a spec using ``%m`` (whose Number month only
     exists under the `date_short` reader), ``()`` for one that does not.
-    See `_DATE_CODE_EXTRA_PATH`.
+    Read off the same `DATE_CODES` rows `emit` compiles, so an element's
+    generated method and the parameter list `wfb.emit.monkeyc.readplan.
+    ReadPlan` supplies it cannot drift apart.
     """
     paths: list[str] = []
     for part in parse_time(strip_braces(spec), DATE_CODES):
-        path = _DATE_CODE_EXTRA_PATH.get(part.code) if part.code is not None else None
+        path = DATE_CODES[part.code].extra_path if part.code is not None else None
         if path is not None and path not in paths:
             paths.append(path)
     return tuple(paths)
-
-
-def _emit_date(spec: str, *, date: str, date_short: str = "dateShort") -> str:
-    """Compile a date spec.
-
-    ``day_of_week`` and ``month`` are already Strings under ``FORMAT_MEDIUM``
-    (the ``date`` reader), so they need no conversion; ``day``/``year`` are
-    Numbers either way. ``%m`` is the one code that cannot be read off
-    ``date`` at all: FORMAT_MEDIUM's ``month`` field is that same localised
-    String, with no numeric form -- the zero-padded Number month has to come
-    from ``date_short`` (FORMAT_SHORT) instead, cast from its declared
-    ``Number or String`` the same way `date.weekday` already is
-    (`wfb.catalog.CATALOG["date.weekday"].cast`). See `_DATE_CODE_EXTRA_PATH`.
-    """
-    pieces: list[str] = []
-    for part in parse_time(strip_braces(spec), DATE_CODES):
-        if part.code is None:
-            pieces.append(_quote(part.text))
-        elif part.code == "a":
-            pieces.append(f"{date}.day_of_week")
-        elif part.code == "d":
-            pieces.append(f'{date}.day.format("%02d")')
-        elif part.code == "e":
-            pieces.append(f'{date}.day.format("%d")')
-        elif part.code == "b":
-            pieces.append(f"{date}.month")
-        elif part.code == "m":
-            pieces.append(f'({date_short}.month as Number).format("%02d")')
-        elif part.code == "Y":
-            pieces.append(f'{date}.year.format("%04d")')
-        elif part.code == "y":
-            pieces.append(f"({date}.year % 100).format(\"%02d\")")
-    return " + ".join(pieces) if pieces else '""'
-
-
-def strip_braces(spec: str) -> str:
-    parts = parse(spec)
-    for part in parts:
-        if isinstance(part, Field):
-            return part.spec
-    return spec
 
 
 def _quote(text: str) -> str:
@@ -292,14 +321,10 @@ def render(spec: str, value, value_type: Type, values: dict | None = None) -> st
     """The host-side rendering of ``spec`` for ``value`` -- what `wfb preview`
     draws in place of the Monkey C `emit` produces for the same declaration.
 
-    Shares `_emit_time`/`_emit_date`/`_emit_numeric`'s own tables and spec
-    parsing (`parse`, `parse_time`, `_NUMERIC_SPEC_RE`) rather than a second,
-    hand-written ladder, which is what keeps this answer and the device's
-    from disagreeing: `{:d}` on a Float must render the same truncated digits
-    here as on the wrist, and a second ladder is exactly how that drifts --
-    Python's `format(8.5, 'd')` raises where Monkey C's `.toNumber()`
-    truncates silently, so a hand-written fallback here would paper over
-    the difference instead of catching it.
+    Walks the same code tables and spec parsing as `emit`, which is what
+    keeps this answer and the device's from disagreeing: `{:d}` on a Float
+    must render the same truncated digits here as on the wrist (Python's
+    `format(8.5, 'd')` raises where Monkey C's `.toNumber()` truncates).
 
     ``values`` supplies the clock/date fields, by the same keys
     `wfb.preview.SAMPLE` uses: ``time.hour``, ``time.minute``, ``time.second``,
@@ -307,99 +332,31 @@ def render(spec: str, value, value_type: Type, values: dict | None = None) -> st
     ``date.month_number``, ``date.year`` -- read only when ``value_type`` is
     TIME or DATE, so a numeric caller may omit it.
 
-    An unparseable numeric spec raises `FormatError`, the same as `emit`.
-    Every spec that reaches here has already passed `wfb.ir`'s
-    `_check_format` before either preview or codegen ever sees it, so this
-    should be unreachable in practice; raising rather than falling back to
-    `str(value)` keeps that invariant instead of letting a preview quietly
-    show something the device would never produce.
+    An unparseable numeric spec raises `FormatError`, the same as `emit`,
+    rather than falling back to `str(value)`: every spec reaching here has
+    already passed `Builder._check_format`, and a fallback would let a
+    preview show something the device never would.
     """
     values = values or {}
-    if value_type is Type.DATE:
-        return _render_date(spec, values)
-    if value_type is Type.TIME:
-        return _render_time(spec, values)
-    return _render_numeric(spec, value)
-
-
-def _render_time(spec: str, values: dict) -> str:
-    hour = int(values.get("time.hour", 10))
-    minute = int(values.get("time.minute", 9))
-    second = int(values.get("time.second", 0))
-    is24 = bool(values.get("device.is_24_hour", True))
-    out = ""
-    for part in parse_time(strip_braces(spec)):
-        if part.code is None:
-            out += part.text
-        elif part.code == "H":
-            out += f"{hour:02d}"
-        elif part.code == "I":
-            out += f"{(hour % 12) or 12:02d}"
-        elif part.code == "l":
-            out += f"{(hour % 12) or 12:d}"
-        elif part.code == "h":
-            out += f"{hour:02d}" if is24 else f"{(hour % 12) or 12:d}"
-        elif part.code == "M":
-            out += f"{minute:02d}"
-        elif part.code == "S":
-            out += f"{second:02d}"
-        elif part.code == "p":
-            out += "AM" if hour < 12 else "PM"
-    return out
-
-
-def _render_date(spec: str, values: dict) -> str:
-    out = ""
-    for part in parse_time(strip_braces(spec), DATE_CODES):
-        if part.code is None:
-            out += part.text
-        elif part.code == "a":
-            out += str(values.get("date.day_of_week", "Wed"))
-        elif part.code == "d":
-            out += f"{int(values.get('date.day', 3)):02d}"
-        elif part.code == "e":
-            out += f"{int(values.get('date.day', 3))}"
-        elif part.code == "b":
-            out += str(values.get("date.month", "Sep"))
-        elif part.code == "m":
-            out += f"{int(values.get('date.month_number', 9)):02d}"
-        elif part.code == "Y":
-            out += f"{int(values.get('date.year', 2026)):04d}"
-        elif part.code == "y":
-            out += f"{int(values.get('date.year', 2026)) % 100:02d}"
-    return out
-
-
-def _render_numeric(spec: str, value) -> str:
-    out = ""
-    for part in parse(spec):
-        if isinstance(part, Literal):
-            out += part.text
-        else:
-            out += _render_numeric_field(part.spec, value)
-    return out
+    if value_type in (Type.DATE, Type.TIME):
+        parts, codes = _strftime_parts(spec, value_type)
+        return "".join(part.text if part.code is None else codes[part.code].render(values)
+                       for part in parts)
+    return "".join(part.text if isinstance(part, Literal)
+                   else _render_numeric_field(part.spec, value)
+                   for part in parse(spec))
 
 
 def _render_numeric_field(spec: str, value) -> str:
-    """Mirror `_emit_numeric` field-for-field, so this can never show a digit
-    the device would not: same truncation for `{:d}` on a Float (Monkey C's
-    `.toNumber()` truncates toward zero, i.e. `math.trunc`, not `round`), same
-    zero/width handling, same `precision or 1` default -- including that a
-    written-out `0` precision (`{:.0f}`) stays zero decimals, since the regex
-    group is the *string* `"0"`, which is truthy.
-    """
+    """Mirror `_emit_numeric` field-for-field: `{:d}` on a Float truncates
+    toward zero like Monkey C's `.toNumber()` (`math.trunc`, not `round`),
+    and a written-out `.0` precision stays zero decimals (the group is the
+    truthy *string* `"0"`)."""
     if spec == "":
         return str(value)
-    m = _NUMERIC_SPEC_RE.match(spec)
-    if not m:
-        raise FormatError(
-            f"{'{'}:{spec}{'}'} is not a supported format -- use {{:d}}, {{:02d}}, {{:.1f}} or {{}}"
-        )
-    kind = m.group("kind")
+    kind, flags, precision = _numeric_spec(spec)
     if kind == "s":
         return str(value)
-    zero, width, precision = m.group("zero"), m.group("width"), m.group("precision")
-    flags = f"{'0' if zero else ''}{width or ''}"
     if kind == "d":
         return format(math.trunc(value), f"{flags}d")
     return format(float(value), f"{flags}.{precision or 1}f")
@@ -418,17 +375,10 @@ def widest(spec: str, source: Source | None, value_type: Type,
     to a stated assumption otherwise -- an over-estimate here costs a spurious
     warning, an under-estimate costs a clipped face on the wrist.
     """
-    if value_type is Type.DATE:
-        out = ""
-        for part in parse_time(strip_braces(spec), DATE_CODES):
-            out += part.text if part.code is None else DATE_CODES[part.code][1]
-        return out
-
-    if is_time_spec(spec):
-        out = ""
-        for part in parse_time(strip_braces(spec)):
-            out += part.text if part.code is None else TIME_CODES[part.code][1]
-        return out
+    if value_type is Type.DATE or is_time_spec(spec):
+        parts, codes = _strftime_parts(spec, value_type)
+        return "".join(part.text if part.code is None else codes[part.code].widest
+                       for part in parts)
 
     out = ""
     for part in parse(spec):
@@ -502,15 +452,14 @@ def glyphs(spec: str, source: Source | None, value_type: Type,
         out |= set("0123456789 ")
         return out
 
+    out |= set("0123456789")
     if is_time_spec(spec):
-        out |= set("0123456789")
         if "%p" in spec:
             out |= set("AMP")
     else:
-        out |= set("0123456789")
         for part in parse(spec):
-            if isinstance(part, Field) and part.spec.endswith("f"):
-                out.add(".")
             if isinstance(part, Field):
                 out.add("-")  # a negative value is always possible
+                if part.spec.endswith("f"):
+                    out.add(".")
     return out

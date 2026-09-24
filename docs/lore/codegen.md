@@ -643,9 +643,11 @@ These cost real time to discover; do not rediscover them.
   `%m`-using face failed `monkeyc` outright (`Cannot find symbol ':format'
   on type '$.Toybox.Lang.String'`) until this was fixed, because nothing
   had ever compiled every `DATE_CODES` entry in one build.
-  `wfb.formatting._DATE_CODE_EXTRA_PATH` is the one table "which codes need
-  a second reader" is decided from -- `_emit_date`'s own `m` branch and
-  `date_extra_paths` (which `wfb.emit.monkeyc.readplan.ReadPlan` calls to
-  add the extra reader-local parameter) are both built from it, so an
+  `wfb.formatting.DATE_CODES`' `m` row is the one place "which codes need
+  a second reader" is decided: its `emit` and its `extra_path` sit side by
+  side, and `date_extra_paths` (which `wfb.emit.monkeyc.readplan.ReadPlan`
+  calls to add the extra reader-local parameter) reads that row, so an
   element's generated method and the parameter list supplying it cannot
-  drift apart on this again.
+  drift apart on this again. Every strftime code's Monkey C (`emit`) and
+  host rendering (`render`, what `wfb preview` draws) share that same row
+  (`wfb.formatting.Code`).

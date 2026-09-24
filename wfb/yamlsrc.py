@@ -61,11 +61,11 @@ class YamlDocument:
         span = self.span(node)
         for part in parts:
             try:
-                child_span = self.span(node, part)
+                # A node this compiler minted (`wfb.desugar`) can carry an
+                # `lc` with no line at all, which `span` does not survive.
+                span = self.span(node, part) or span
             except Exception:
-                child_span = None
-            if child_span is not None:
-                span = child_span
+                pass
             try:
                 node = node[part]
             except (KeyError, IndexError, TypeError):
@@ -96,11 +96,3 @@ def load(path: Path, bag: Bag) -> YamlDocument | None:
         return None
     return YamlDocument(path, text, data)
 
-
-def dump(data: Any) -> str:
-    """Serialise back to YAML, preserving what the loader preserved."""
-    yaml = YAML()
-    yaml.preserve_quotes = True
-    buf = io.StringIO()
-    yaml.dump(data, buf)
-    return buf.getvalue()

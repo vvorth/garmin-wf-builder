@@ -88,14 +88,10 @@ class Length:
 
 def is_sub_pixel_length(length: "Length | None", value: float) -> bool:
     """True when ``length`` is a nonzero `%`/`%r` length whose resolved
-    magnitude is under 1 px -- the exact condition :func:`at_least_one_px`
-    clamps away when its switch is on, and the one `wfb.layout.Resolver`
-    records a `wfb.layout.SubPixelLength` for when its switch is off.
-    Pulled out as its own predicate, rather than folded into
-    `at_least_one_px` alone, so both call sites -- "should this be clamped"
-    and "would this have been clamped had the switch been on" -- share
-    exactly one definition of "sub-pixel", and can never drift apart the way
-    two independent `0 < abs(value) < 1` checks eventually would.
+    magnitude is under 1 px -- the one definition of "sub-pixel" shared by
+    :func:`at_least_one_px` (which clamps it away when switched on) and
+    `wfb.layout.Resolver` (which records a `wfb.layout.SubPixelLength` for
+    it when switched off).
 
     ``length`` is the original :class:`Length` (``None`` for "no length was
     authored, a default applied" -- never sub-pixel, the default is not a
@@ -122,10 +118,9 @@ def at_least_one_px(length: "Length | None", value: float, enabled: bool) -> flo
     site states its own gate (the owning element's `resolved_min_1px`)
     explicitly, so the rule and its switch can never quietly drift apart --
     see `wfb.layout.Resolver._extent`/`._hand_extent`, the only callers. When
-    `enabled` is false this returns `value` untouched -- today's pre-feature
-    arithmetic, exactly -- even where :func:`is_sub_pixel_length` is true;
-    the caller is the one that turns that case into a `SubPixelLength`
-    record for the suppressible `sub-pixel-length` lint.
+    `enabled` is false this returns `value` untouched even where
+    :func:`is_sub_pixel_length` is true; the caller turns that case into a
+    `SubPixelLength` record for the suppressible `sub-pixel-length` lint.
 
     ``length`` is the original :class:`Length` (``None`` for "no length was
     authored, a default applied" -- never clamped, the default is not a
@@ -318,11 +313,9 @@ class Box:
         ink-bounds box) never hits this exact tie in the first place, so
         those call sites are left at the default.
 
-        Any other width/height, rounded or not, is left exactly as the
-        edge-rounding above produces it -- in particular the same rounding
-        can still turn some other float extent (say 25 px at a half-integer
-        left edge) into a different integer width; that is pre-existing
-        behaviour, unchanged here.
+        Any other width/height is left exactly as the edge-rounding produces
+        it -- a 25 px float extent at a half-integer left edge can still
+        round to a different integer width.
         """
         left, top = round(self.x), round(self.y)
         width, height = round(self.right) - left, round(self.bottom) - top
@@ -368,17 +361,13 @@ class IntBox:
     def clamp_to(self, width: int, height: int) -> "IntBox":
         """Intersect with ``(0, 0, width, height)``.
 
-        A box that does not overlap the frame at all -- now reachable since
-        `off-screen` is a suppressible warning rather than a hard build
-        error (`wfb.lint.check_geometry`) -- must clamp to a genuinely empty
-        box, never a *negative*-width/height one: this feeds
-        `ResolvedFace.clip_for`, whose result is emitted straight into
-        generated Monkey C as `dc.setClip(x, y, width, height)`
-        (`wfb.emit.monkeyc.view._emit_on_partial_update`), and a negative
-        extent there is nonsense at runtime. Clamping each edge separately
-        (as an earlier version of this method did) gets this wrong: it can
-        clamp `x` up to `0` while `right` clamps down to a value still left
-        of it, yielding a negative width instead of zero.
+        A box that does not overlap the frame at all (`off-screen` is a
+        suppressible warning, `wfb.lint.check_geometry`) must clamp to a
+        genuinely empty box, never a *negative*-width/height one: this feeds
+        `ResolvedFace.clip_for`, emitted straight into generated Monkey C as
+        `dc.setClip(x, y, width, height)`.  So both corners are clamped and
+        the extent taken from them, rather than each edge separately (which
+        can clamp `x` up to `0` while `right` clamps down left of it).
         """
         x0, y0 = max(0, min(self.x, width)), max(0, min(self.y, height))
         x1, y1 = max(0, min(self.right, width)), max(0, min(self.bottom, height))

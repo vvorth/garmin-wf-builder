@@ -1,7 +1,7 @@
 """Stage 0.5: rewrite the author's conveniences into the one shape everything
 downstream already understands.
 
-Two rewrites live here.  The first is **an element list written as a mapping
+Three rewrites live here.  The first is **an element list written as a mapping
 whose key is the element id**.
 
 .. code-block:: yaml
@@ -27,7 +27,7 @@ line (ADR 0002), so the rewritten sequence is not a fresh data structure: it is
 a :class:`~ruamel.yaml.comments.CommentedSeq` holding the *same*
 ``CommentedMap`` bodies, with each item's position taken from the position of
 the key that named it, and with the injected ``id`` key recorded in the body's
-own ``lc`` so ``doc.span(node, "id")`` -- which is what ``wfb/ir.py`` already
+own ``lc`` so ``doc.span(node, "id")`` -- which is what the IR builder
 calls for a duplicate id -- lands on the author's key rather than on nothing.
 
 Only two places in the schema take a list of elements -- the top-level
@@ -93,17 +93,13 @@ Same argument as the other two rewrites, extended one step further: a layout
 body is not even a second *spelling*, it is authoring sugar for two more
 ``group``\\ s the IR, layout, lint and emitter never have to know are special
 -- ``Element.layout`` is assigned to these groups and their descendants
-afterwards, by id (`wfb/ir.py`'s ``Builder._assign_layouts``), which is the
-only place "this element belongs to layout X" is decided at all.  The two
-reserved ids one layout named ``<name>`` claims --
-``layout_<name>_static``/``layout_<name>`` -- are minted by
-:func:`layout_ids`, the one place that naming convention is defined; nothing
-else in this file or ``wfb/ir.py`` re-derives it.  A layout's own content is
-always **appended** after the top-level ``static:`` block's group (if any),
-never interleaved with it -- draw order is not decided here, though: it is
-``wfb/ir.py``'s ``draw_sort_key`` that gives layout content its own rank, so
-appending here only has to avoid disturbing anything already in
-``elements:``, not get the final order right.
+afterwards, by id (``Builder._assign_layouts``), which is the only place
+"this element belongs to layout X" is decided at all.  The two reserved ids
+one layout named ``<name>`` claims -- ``layout_<name>_static``/
+``layout_<name>`` -- are minted by :func:`layout_ids`, the one place that
+naming convention is defined.  A layout's own content is always **appended**
+after the top-level ``static:`` block's group (if any); draw order itself is
+``draw_sort_key``'s job (layout content gets its own rank), not this pass's.
 """
 
 from __future__ import annotations
@@ -141,7 +137,7 @@ def layout_ids(name: str) -> tuple[str, str]:
     ``static:``/``elements:`` halves are rewritten into --
     ``(static_id, elements_id)``.
 
-    The single place this naming convention is defined.  ``wfb/ir.py``
+    The single place this naming convention is defined.  The IR builder
     imports this rather than re-deriving the strings, so the desugar
     rewrite and the IR's later ``Element.layout`` assignment can never
     drift out of step.
@@ -157,6 +153,35 @@ def desugar(doc: YamlDocument, bag: Bag) -> bool:
     ok = _rewrite(doc, data, "elements", bag)
     ok = _static_block(doc, data, bag) and ok
     return _layouts_block(doc, data, bag) and ok
+
+
+def _synthetic_group(group_id: str, children: Any, *, static: bool,
+                     span: Any) -> CommentedMap:
+    """A ``group`` this pass mints around ``children``, with every key's
+    position recorded at ``span`` (the author's own key) so a diagnostic
+    against it lands on a real line."""
+    group = CommentedMap()
+    group["id"] = group_id
+    group["type"] = "group"
+    if static:
+        group["static"] = True
+    group["children"] = children
+    if span is not None:
+        line, col = span.line - 1, span.col - 1
+        group.lc.line, group.lc.col = line, col
+        for key in group:
+            group.lc.add_kv_line_col(key, [line, col, line, col])
+    return group
+
+
+def _elements_list(data: Any) -> Any:
+    """``data["elements"]``, created empty when absent.  Anything but a list
+    means the mapping-form rewrite already failed and said why."""
+    elements = data.get("elements")
+    if elements is None:
+        elements = CommentedSeq()
+        data["elements"] = elements
+    return elements
 
 
 # --------------------------------------------------------------------------
@@ -187,27 +212,12 @@ def _static_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
         )
         return False
 
-    group = CommentedMap()
-    group["id"] = STATIC_GROUP_ID
-    group["type"] = "group"
-    group["static"] = True
-    group["children"] = node
-    if span is not None:
-        line, col = span.line - 1, span.col - 1
-        group.lc.line, group.lc.col = line, col
-        for key in ("id", "type", "static", "children"):
-            group.lc.add_kv_line_col(key, [line, col, line, col])
-
+    group = _synthetic_group(STATIC_GROUP_ID, node, static=True, span=span)
     ok = _rewrite(doc, group, "children", bag)
 
-    elements = data.get("elements")
-    if elements is None:
-        elements = CommentedSeq()
-        data["elements"] = elements
+    elements = _elements_list(data)
     if not isinstance(elements, list):
-        # The mapping-form rewrite above failed and already said why; leaving
-        # `elements:` as the author wrote it keeps that diagnostic honest.
-        return False
+        return False  # leaving `elements:` as written keeps that diagnostic honest
     for existing in elements:
         if isinstance(existing, dict) and existing.get("id") == STATIC_GROUP_ID:
             bag.error(
@@ -245,15 +255,10 @@ def _layouts_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
 
     Runs *after* :func:`_static_block`, so the top-level ``static:`` group
     (if any) is already at the front of ``elements:`` and this pass only ever
-    appends after it -- draw order itself is a `wfb/ir.py` concern
-    (``draw_sort_key``'s layer rank), not this one's; appending merely avoids
-    disturbing anything already there.  Each group is built exactly the way
-    :func:`_static_block` builds its own: ``static: true`` on the static
-    half, and the content put through :func:`_rewrite` first so a layout's
-    own ``static:``/``elements:`` accept both spellings too.  The two
-    reserved ids -- :func:`layout_ids` -- are the one place that naming
-    convention is defined; ``wfb/ir.py`` looks elements back up by those same
-    ids to assign ``Element.layout``.
+    appends after it.  Each group is built exactly the way
+    :func:`_static_block` builds its own (:func:`_synthetic_group`), and the
+    content put through :func:`_rewrite` first so a layout's own
+    ``static:``/``elements:`` accept both spellings too.
 
     After this returns, ``data["layouts"]`` is left as a mapping of name ->
     ``{}`` (or ``{lint: ...}``, if the author wrote one) -- ``static:``/
@@ -272,14 +277,9 @@ def _layouts_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
     if not isinstance(layouts, dict):
         return True  # the schema reports this
 
-    elements = data.get("elements")
-    if elements is None:
-        elements = CommentedSeq()
-        data["elements"] = elements
+    elements = _elements_list(data)
     if not isinstance(elements, list):
-        # The mapping-form rewrite (or `_static_block`) already failed and
-        # said why; leaving `elements:` alone keeps that diagnostic honest.
-        return False
+        return False  # leaving `elements:` as written keeps that diagnostic honest
 
     # Every id already spoken for, so a layout's generated id can be checked
     # against an ordinary element *and* against another layout's own
@@ -326,20 +326,7 @@ def _layouts_block(doc: YamlDocument, data: Any, bag: Bag) -> bool:
                 ok = False
                 continue
 
-            group = CommentedMap()
-            group["id"] = generated_id
-            group["type"] = "group"
-            if wrap_static:
-                group["static"] = True
-            group["children"] = node
-            if key_span is not None:
-                line, col = key_span.line - 1, key_span.col - 1
-                group.lc.line, group.lc.col = line, col
-                keys = ("id", "type", "static", "children") if wrap_static \
-                    else ("id", "type", "children")
-                for k in keys:
-                    group.lc.add_kv_line_col(k, [line, col, line, col])
-
+            group = _synthetic_group(generated_id, node, static=wrap_static, span=key_span)
             ok = _rewrite(doc, group, "children", bag) and ok
             # Register this group's own id *and every descendant's*, so a
             # later layout's generated id is checked against everything
@@ -431,7 +418,7 @@ def _to_sequence(doc: YamlDocument, mapping: Any, bag: Bag) -> CommentedSeq | No
                 ],
             )
             ok = False
-        elif isinstance(body, CommentedMap) or isinstance(body, dict):
+        elif isinstance(body, dict):
             ok = _inject_id(doc, body, name, pos, key_span, seen, bag) and ok
         seq.append(body)
     return seq if ok else None

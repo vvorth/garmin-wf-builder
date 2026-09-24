@@ -166,8 +166,7 @@ class SeriesDef:
     source_ref: str
 
 
-def _s(*args, **kwargs) -> SeriesDef:
-    return SeriesDef(*args, **kwargs)
+_s = SeriesDef
 
 
 #: Transcribed from `Toybox/ActivityMonitor.html`, `Toybox/ActivityMonitor/

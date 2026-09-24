@@ -280,7 +280,8 @@ def test_a_graphs_geometry_matches_its_resolved_box(write_design, bag, db):
 # -- formatting.render parity -------------------------------------------------
 #
 # `wfb.formatting.render` is the host-side twin of `wfb.formatting.emit`: both
-# now walk the same tables (`parse`, `parse_time`, `_NUMERIC_SPEC_RE`), which is
+# now walk the same tables (`parse`, `parse_time`, `TIME_CODES`/`DATE_CODES`,
+# `_numeric_spec`), which is
 # what makes it impossible for `wfb preview` and the generated Monkey C to show
 # a different string for the same declaration. Before this, `wfb/preview.py`
 # had a *third*, hand-written ladder (`_render_numeric`/`_apply_spec`) that
@@ -302,8 +303,8 @@ def test_a_graphs_geometry_matches_its_resolved_box(write_design, bag, db):
 #
 # Each row below is (spec, value_type, value, values, expected) where
 # `expected` is *not* derived by running Python's `format()` -- it is the
-# device's own answer, worked out by hand from `_emit_numeric`/`_emit_time`/
-# `_emit_date`'s own Monkey C (`.toNumber()`, `.format("%...")`, string
+# device's own answer, worked out by hand from `_emit_numeric`'s and each
+# `TIME_CODES`/`DATE_CODES` row's own Monkey C (`.toNumber()`, `.format("%...")`, string
 # concatenation), so a parity bug in `render` can't hide by agreeing with
 # itself.
 _TIME_VALUES = {"time.hour": 7, "time.minute": 5, "time.second": 9}

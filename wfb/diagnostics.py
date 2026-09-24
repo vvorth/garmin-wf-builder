@@ -122,15 +122,10 @@ def _render_note(note: str, *, color: bool, width: int | None) -> list[str]:
     """
     label = term.style("note:", "bold", "cyan", enabled=color)
     if "\n" in note or not width:
-        first, *rest = note.splitlines() or [""]
-        out = [f"      {label} {first}"]
-        out.extend(f"{_NOTE_INDENT}{line}" for line in rest)
-        return out
-    wrap_width = max(1, width - len(_NOTE_PREFIX))
-    wrapped = textwrap.wrap(note, width=wrap_width) or [""]
-    out = [f"      {label} {wrapped[0]}"]
-    out.extend(f"{_NOTE_INDENT}{line}" for line in wrapped[1:])
-    return out
+        lines = note.splitlines() or [""]
+    else:
+        lines = textwrap.wrap(note, width=max(1, width - len(_NOTE_PREFIX))) or [""]
+    return [f"      {label} {lines[0]}"] + [f"{_NOTE_INDENT}{line}" for line in lines[1:]]
 
 
 class Bag:
@@ -193,17 +188,10 @@ class Bag:
             print(self.render(color=term.should_color(stream), width=term.width(stream)), file=stream)
 
     def summary(self, *, color: bool = False) -> str:
-        n_e = sum(1 for d in self.items if d.severity is Severity.ERROR)
-        n_w = sum(1 for d in self.items if d.severity is Severity.WARNING)
-        n_n = sum(1 for d in self.items if d.severity is Severity.NOTE)
         parts = []
-        if n_e:
-            text = f"{n_e} error{'s' if n_e != 1 else ''}"
-            parts.append(term.style(text, *SEVERITY_STYLE["error"], enabled=color))
-        if n_w:
-            text = f"{n_w} warning{'s' if n_w != 1 else ''}"
-            parts.append(term.style(text, *SEVERITY_STYLE["warning"], enabled=color))
-        if n_n:
-            text = f"{n_n} note{'s' if n_n != 1 else ''}"
-            parts.append(term.style(text, *SEVERITY_STYLE["note"], enabled=color))
+        for severity in (Severity.ERROR, Severity.WARNING, Severity.NOTE):
+            n = sum(1 for d in self.items if d.severity is severity)
+            if n:
+                text = f"{n} {severity.value}{'s' if n != 1 else ''}"
+                parts.append(term.style(text, *SEVERITY_STYLE[severity.value], enabled=color))
         return ", ".join(parts) if parts else "no diagnostics"

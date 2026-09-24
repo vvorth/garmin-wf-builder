@@ -8,6 +8,15 @@ representation.
 ``oneOf`` over the element types would otherwise produce one useless error per
 branch.  :func:`_narrow` picks the branch the author clearly meant -- the one
 whose ``type`` discriminator matched -- and reports only its errors.
+
+The ``_check_*`` functions are **friendly pre-checks**: each catches one
+mistake the schema already refuses (a removed or renamed value, a unit a
+boxless frame cannot measure, a key that belongs to the other style) and
+says *why*, then returns the paths it accounted for so :func:`validate` drops
+the schema's own, blunter error there.  The schema stays normative; a
+pre-check only supplies the reason.  A returned path is as narrow as the
+schema error allows, so an unrelated mistake on the same element is still
+reported ("one error, not N", ``docs/lore/codegen.md``).
 """
 
 from __future__ import annotations
@@ -15,7 +24,8 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Iterable
+from dataclasses import dataclass
+from typing import Any, Callable, Iterable
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
@@ -155,43 +165,51 @@ ELEMENT_NOT_YET = {
 }
 
 
-def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
-    """Report unknown element types, returning the paths already accounted for."""
-    bad: list[list] = []
-
-    def visit(elements, path: list) -> None:
+def _visit_elements(doc: YamlDocument, visit: Callable[[dict, list], bool | None]) -> None:
+    """Call ``visit(element, path)`` for every element mapping under
+    ``elements:``, recursing into each one's ``children:`` unless ``visit``
+    returns ``True``.  ``path`` is the jsonschema-style path to the element."""
+    def walk(elements: object, path: list) -> None:
         if not isinstance(elements, list):
             return
         for index, element in enumerate(elements):
             if not isinstance(element, dict):
                 continue
             here = path + [index]
-            if _check_progress_style(doc, bag, element):
-                bad.append(here)
-                continue
-            if _check_hands_seconds_always(doc, bag, element):
-                bad.append(here)
-                continue
-            kind = element.get("type")
-            if isinstance(kind, str) and kind not in ELEMENT_TYPES:
-                notes = []
-                alias = ELEMENT_ALIASES.get(kind)
-                pending = ELEMENT_NOT_YET.get(kind)
-                if alias:
-                    notes.append(f"write it as:\n    {alias}")
-                elif pending:
-                    notes.append(pending)
-                notes.append("this format version has: " + ", ".join(ELEMENT_TYPES))
-                bag.error(
-                    "schema",
-                    f"unknown element type {kind!r}",
-                    doc.span(element, "type"),
-                    notes=notes,
-                )
-                bad.append(here)
-            visit(element.get("children"), here + ["children"])
+            if not visit(element, here):
+                walk(element.get("children"), here + ["children"])
 
-    visit(doc.data.get("elements"), ["elements"])
+    walk(doc.data.get("elements"), ["elements"])
+
+
+def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
+    """Report unknown element types, returning the paths already accounted for."""
+    bad: list[list] = []
+
+    def visit(element: dict, here: list) -> bool:
+        if _check_progress_style(doc, bag, element) or _check_hands_seconds_always(doc, bag, element):
+            bad.append(here)
+            return True
+        kind = element.get("type")
+        if isinstance(kind, str) and kind not in ELEMENT_TYPES:
+            notes = []
+            alias = ELEMENT_ALIASES.get(kind)
+            pending = ELEMENT_NOT_YET.get(kind)
+            if alias:
+                notes.append(f"write it as:\n    {alias}")
+            elif pending:
+                notes.append(pending)
+            notes.append("this format version has: " + ", ".join(ELEMENT_TYPES))
+            bag.error(
+                "schema",
+                f"unknown element type {kind!r}",
+                doc.span(element, "type"),
+                notes=notes,
+            )
+            bad.append(here)
+        return False
+
+    _visit_elements(doc, visit)
     return bad
 
 
@@ -226,15 +244,8 @@ def _check_progress_style(doc: YamlDocument, bag: Bag, element: dict) -> bool:
 
 
 def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> bool:
-    """Catch `seconds: always` before the schema does, so the message can
-    explain *why* it is not implemented instead of just listing the two
-    values the enum does accept.
-
-    Follows `_check_progress_style`'s precedent: the friendly explanation
-    goes through this hand-written check, and the schema's own `seconds:`
-    enum lists only `awake`/`never` -- an author who reaches for `always`
-    never sees the blunt "not valid here" a bare enum mismatch would give.
-    """
+    """`seconds: always` is not implemented; say why rather than list the
+    two values the schema's `seconds:` enum does accept."""
     if element.get("type") != "hands":
         return False
     if element.get("seconds") != "always":
@@ -253,24 +264,9 @@ def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> b
 
 
 def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
-    """Catch `vertical_align: baseline` before the schema does: the schema's
-    `verticalAlign` enum no longer has the value at all, so a bare
-    "'baseline' is not valid here" would not tell an author it was renamed,
-    or why. Checked on a `text` element and on a pattern's `shape: text`
-    part -- the two glyph-drawn kinds that ever accepted the old `baseline`
-    spelling. Every other kind that accepts `vertical_align:` (`group`,
-    `shape`, `progress`, `graph`, `icon`, `complication_slot`, a hand or
-    pattern `rectangle`/`circle` part) never accepted `baseline` as a value,
-    so needs no check here (`docs/guide/placement.md`'s "Placement" section).
-
-    Follows `_check_hands_seconds_always`'s precedent: the friendly
-    explanation goes through this hand-written check, the schema stays
-    normative (closed to the old spelling), and this only supplies the
-    reason. Returns the exact `vertical_align` leaf path for each
-    occurrence, not the whole element -- so only that one (now-inevitable)
-    schema `enum` error is dropped, and any other, unrelated mistake on the
-    same element still gets its own error ("one error, not N" per
-    occurrence, `docs/lore/codegen.md`, not one error per *element*).
+    """`vertical_align: baseline` was renamed `bottom`; say so.  Checked on
+    a `text` element and a pattern's `shape: text` part, the only two kinds
+    that ever accepted `baseline`.  Returns each `vertical_align` leaf path.
     """
     bad: list[list] = []
 
@@ -287,43 +283,21 @@ def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
         )
         bad.append(path)
 
-    def visit(elements, path: list) -> None:
-        if not isinstance(elements, list):
-            return
-        for index, element in enumerate(elements):
-            if not isinstance(element, dict):
-                continue
-            here = path + [index]
-            if element.get("type") == "text" and element.get("vertical_align") == "baseline":
-                report(element, here + ["vertical_align"])
-            if element.get("type") == "pattern":
-                parts = element.get("parts")
-                if isinstance(parts, list):
-                    for i, part in enumerate(parts):
-                        if isinstance(part, dict) and part.get("shape") == "text" \
-                                and part.get("vertical_align") == "baseline":
-                            report(part, here + ["parts", i, "vertical_align"])
-            visit(element.get("children"), here + ["children"])
+    def visit(element: dict, here: list) -> None:
+        if element.get("type") == "text" and element.get("vertical_align") == "baseline":
+            report(element, here + ["vertical_align"])
+        if element.get("type") == "pattern":
+            for i, part in _parts(element):
+                if part.get("shape") == "text" and part.get("vertical_align") == "baseline":
+                    report(part, here + ["parts", i, "vertical_align"])
 
-    visit(doc.data.get("elements"), ["elements"])
+    _visit_elements(doc, visit)
     return bad
 
 
 def _check_modes_always_on(doc: YamlDocument, bag: Bag) -> list[list]:
-    """Catch `modes: [... always_on ...]` before the schema does: `always_on`
-    was removed from the `modes` enum outright (plan 14 D3), replaced by
-    `aod:`. A bare enum mismatch would just say "not one of active,
-    low_power" and leave an author who reaches for the old spelling with no
-    pointer to what replaced it.
-
-    Same precedent as `_check_hands_seconds_always`/`_check_baseline_
-    renamed`: the schema stays closed to the removed value, and this only
-    supplies the reason -- one path per occurrence (the `modes:` leaf, not
-    the whole element) so an unrelated mistake on the same element still
-    gets its own error. Checked on every element kind uniformly (`modes:`
-    is accepted everywhere), not just the kind(s) that used to combine it
-    with something else.
-    """
+    """`modes: [... always_on ...]` was replaced by `aod:` (plan 14 D3);
+    point at the replacement.  Returns each `modes:` leaf path."""
     bad: list[list] = []
 
     def report(container: dict, path: list) -> None:
@@ -340,19 +314,12 @@ def _check_modes_always_on(doc: YamlDocument, bag: Bag) -> list[list]:
         )
         bad.append(path)
 
-    def visit(elements, path: list) -> None:
-        if not isinstance(elements, list):
-            return
-        for index, element in enumerate(elements):
-            if not isinstance(element, dict):
-                continue
-            here = path + [index]
-            modes = element.get("modes")
-            if isinstance(modes, list) and "always_on" in modes:
-                report(element, here + ["modes"])
-            visit(element.get("children"), here + ["children"])
+    def visit(element: dict, here: list) -> None:
+        modes = element.get("modes")
+        if isinstance(modes, list) and "always_on" in modes:
+            report(element, here + ["modes"])
 
-    visit(doc.data.get("elements"), ["elements"])
+    _visit_elements(doc, visit)
     return bad
 
 
@@ -385,189 +352,164 @@ def _hand_unit(value: object) -> str | None:
 
 
 def _dotted(path: list) -> str:
-    """``hands.a.minute.parts[0].radius`` -- the spelling `wfb/ir.py` uses."""
-    return "".join(f"[{p}]" if isinstance(p, int) else f".{p}" for p in path).lstrip(".")
+    """``hands.a.minute.parts[0].radius`` -- a jsonschema-style path as an
+    author reads it."""
+    out: list[str] = []
+    for part in path:
+        if isinstance(part, int):
+            out.append(f"[{part}]")
+        elif out:
+            out.append(f".{part}")
+        else:
+            out.append(str(part))
+    return "".join(out)
 
 
-def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list]:
-    """Explain the two things a hand part's frame refuses that every other
-    position accepts -- `%`/`pt` lengths and `anchor:` -- before the schema
-    reports them bluntly.  Returns the value paths already accounted for,
-    so the schema's own error for each is dropped.
+def _parts(element: dict) -> Iterable[tuple[int, dict]]:
+    """``(index, part)`` for every mapping in a hand's or pattern's ``parts:``."""
+    parts = element.get("parts")
+    if isinstance(parts, list):
+        for index, part in enumerate(parts):
+            if isinstance(part, dict):
+                yield index, part
 
-    Same precedent as `_check_hands_seconds_always`: the schema stays
-    normative (it refuses both), and this only supplies the reason.
+
+@dataclass(frozen=True)
+class _Frame:
+    """How to word a hand part's or a pattern part's boxless frame."""
+
+    noun: str
+    origin: str
+    length_note: str
+    anchor_note: str
+
+
+_HAND_FRAME = _Frame(
+    "hand part", "the hand's axis",
+    "every coordinate in a hand is measured from its axis; %r (the "
+    "screen's minor radius) scales it with the dial",
+    "the axis is the element's own 'at:'; inside a hand, "
+    "{dx, dy} or {angle, radius} are offsets from it",
+)
+_PATTERN_FRAME = _Frame(
+    "pattern part", "the pattern's own 'at:'",
+    "every coordinate in a pattern part is measured from the "
+    "pattern's own 'at:'; %r (the screen's minor radius) "
+    "scales it with the dial",
+    "{dx, dy} or {angle, radius} are offsets from 'at:'",
+)
+
+
+def _check_frame_part(doc: YamlDocument, bag: Bag, part: dict, path: list,
+                      frame: _Frame) -> list[list]:
+    """Explain the two things a hand or pattern part's frame refuses that
+    every other position accepts -- `%`/`pt` lengths and `anchor:` -- before
+    the schema reports them bluntly.  Returns the value paths accounted for,
+    so the schema's own error for each is dropped.  The schema stays
+    normative (it refuses both); this only supplies the reason.
     """
     bad: list[list] = []
-    sets = doc.data.get("hands")
-    if not isinstance(sets, dict):
-        return bad
 
-    def length(container: dict, key: str, path: list) -> None:
+    def length(container: dict, key: str, at: list) -> None:
         unit = _hand_unit(container.get(key))
         if unit is None:
             return
         bag.error(
             "schema",
-            f"{_dotted(path)}: {container[key]!r} -- a hand "
-            f"part's lengths are px or %r only; {_HAND_UNIT_REFUSALS[unit]}",
+            f"{_dotted(at)}: {container[key]!r} -- a {frame.noun}'s lengths "
+            f"are px or %r only; {_HAND_UNIT_REFUSALS[unit]}",
             doc.span(container, key),
-            notes=["every coordinate in a hand is measured from its axis; %r (the "
-                   "screen's minor radius) scales it with the dial"],
+            notes=[frame.length_note],
         )
-        bad.append(path)
+        bad.append(at)
 
-    def position(raw: object, path: list) -> None:
+    def position(raw: object, at: list) -> None:
         if not isinstance(raw, dict):
             return
         if "anchor" in raw:
             bag.error(
                 "schema",
-                f"{_dotted(path)}: 'anchor:' is not accepted in a "
-                "hand part -- its coordinates are measured from the hand's axis, "
-                "and there is no box to anchor to",
+                f"{_dotted(at)}: 'anchor:' is not accepted in a {frame.noun} -- "
+                f"its coordinates are measured from {frame.origin}, and there "
+                "is no box to anchor to",
                 doc.span(raw, "anchor"),
-                notes=["the axis is the element's own 'at:'; inside a hand, "
-                       "{dx, dy} or {angle, radius} are offsets from it"],
+                notes=[frame.anchor_note],
             )
-            bad.append(path)  # the schema reports an unknown key at its object
+            bad.append(at)  # the schema reports an unknown key at its object
         for key in _HAND_POSITION_LENGTHS:
-            length(raw, key, path + [key])
+            length(raw, key, at + [key])
 
+    for key in _HAND_PART_LENGTHS:
+        length(part, key, path + [key])
+    for key in _HAND_PART_POSITIONS:
+        position(part.get(key), path + [key])
+    size = part.get("size")
+    if isinstance(size, dict):
+        for key in ("width", "height"):
+            length(size, key, path + ["size", key])
+    points = part.get("points")
+    if isinstance(points, list):
+        for i, point in enumerate(points):
+            position(point, path + ["points", i])
+    return bad
+
+
+def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list]:
+    """`_check_frame_part` over every part of every top-level `hands:` set."""
+    bad: list[list] = []
+    sets = doc.data.get("hands")
+    if not isinstance(sets, dict):
+        return bad
     for set_name, spec in sets.items():
         if not isinstance(spec, dict):
             continue
         for hand_name in ("hour", "minute", "second"):
             hand = spec.get(hand_name)
-            if not isinstance(hand, dict) or not isinstance(hand.get("parts"), list):
+            if not isinstance(hand, dict):
                 continue
-            for index, part in enumerate(hand["parts"]):
-                if not isinstance(part, dict):
-                    continue
-                here = ["hands", set_name, hand_name, "parts", index]
-                for key in _HAND_PART_LENGTHS:
-                    length(part, key, here + [key])
-                for key in _HAND_PART_POSITIONS:
-                    position(part.get(key), here + [key])
-                size = part.get("size")
-                if isinstance(size, dict):
-                    for key in ("width", "height"):
-                        length(size, key, here + ["size", key])
-                points = part.get("points")
-                if isinstance(points, list):
-                    for i, point in enumerate(points):
-                        position(point, here + ["points", i])
+            for index, part in _parts(hand):
+                bad += _check_frame_part(doc, bag, part,
+                                         ["hands", set_name, hand_name, "parts", index],
+                                         _HAND_FRAME)
     return bad
 
 
-def _pattern_step_unit(value: object) -> str | None:
-    """`pt` when ``value`` is a length string in that unit -- the only one a
-    linear pattern's ``{dx, dy}`` step refuses.  Unlike a hand-frame length,
-    `px`, `%` and `%r` are all fine here: a step is resolved against the
-    parent box, not a boxless frame."""
-    if not isinstance(value, str):
-        return None
-    text = value.strip()
-    if text.endswith("pt"):
-        return "pt"
-    return None
-
-
 def _check_pattern_frame(doc: YamlDocument, bag: Bag) -> list[list]:
-    """The same friendly explanation `_check_hand_frame` gives a hand part,
-    for a pattern's template (a pattern part is authored exactly like a
-    hand part -- px/%r only, no `anchor:`) plus one more of its own: a
-    linear pattern's `step:` refuses `pt` (no font in scope), though
-    `%`/`%r` are fine there since a step resolves against the parent box,
-    unlike a part's own position.
-
-    Returns the value paths already accounted for, so the schema's own
-    (blunter) error for each is dropped -- same contract as
-    `_check_hand_frame`.
+    """`_check_frame_part` over every `type: pattern` element's parts, plus
+    one refusal of its own: a linear pattern's `step:` refuses `pt` (no font
+    in scope), though `%`/`%r` are fine there since a step resolves against
+    the parent box, unlike a part's own position.
     """
     bad: list[list] = []
 
-    def length(container: dict, key: str, path: list) -> None:
-        unit = _hand_unit(container.get(key))
-        if unit is None:
+    def visit(element: dict, here: list) -> None:
+        if element.get("type") != "pattern":
             return
-        bag.error(
-            "schema",
-            f"{_dotted(path)}: {container[key]!r} -- a pattern part's "
-            f"lengths are px or %r only; {_HAND_UNIT_REFUSALS[unit]}",
-            doc.span(container, key),
-            notes=["every coordinate in a pattern part is measured from the "
-                   "pattern's own 'at:'; %r (the screen's minor radius) "
-                   "scales it with the dial"],
-        )
-        bad.append(path)
+        step = element.get("step")
+        if isinstance(step, dict):
+            for key in ("dx", "dy"):
+                value = step.get(key)
+                if isinstance(value, str) and value.strip().endswith("pt"):
+                    # Recorded as the whole `step` object, not `step.dx`:
+                    # `step:` is an angle-or-{dx, dy} oneOf with no
+                    # discriminator, so the schema's own error for it
+                    # narrows only as far as `step` itself.
+                    step_path = here + ["step"]
+                    bag.error(
+                        "schema",
+                        f"{_dotted(step_path + [key])}: {step[key]!r} -- a "
+                        "linear pattern's step is px, % or %r, not "
+                        "pt: there is no font in scope to measure a "
+                        "pt against",
+                        doc.span(step, key),
+                        notes=["px, %r and a bare number are also "
+                               "fine here"],
+                    )
+                    bad.append(step_path)
+        for i, part in _parts(element):
+            bad.extend(_check_frame_part(doc, bag, part, here + ["parts", i], _PATTERN_FRAME))
 
-    def position(raw: object, path: list) -> None:
-        if not isinstance(raw, dict):
-            return
-        if "anchor" in raw:
-            bag.error(
-                "schema",
-                f"{_dotted(path)}: 'anchor:' is not accepted in a pattern "
-                "part -- its coordinates are measured from the pattern's "
-                "own 'at:', and there is no box to anchor to",
-                doc.span(raw, "anchor"),
-                notes=["{dx, dy} or {angle, radius} are offsets from 'at:'"],
-            )
-            bad.append(path)
-        for key in _HAND_POSITION_LENGTHS:
-            length(raw, key, path + [key])
-
-    def visit(elements, path: list) -> None:
-        if not isinstance(elements, list):
-            return
-        for index, element in enumerate(elements):
-            if not isinstance(element, dict):
-                continue
-            here = path + [index]
-            if element.get("type") == "pattern":
-                step = element.get("step")
-                if isinstance(step, dict):
-                    for key in ("dx", "dy"):
-                        if _pattern_step_unit(step.get(key)) == "pt":
-                            # Recorded as the whole `step` object, not
-                            # `step.dx`: `step:` is an angle-or-{dx, dy}
-                            # oneOf with no discriminator, so the schema's
-                            # own error for it narrows only as far as
-                            # `step` itself, never down to the one bad key.
-                            step_path = here + ["step"]
-                            bag.error(
-                                "schema",
-                                f"{_dotted(step_path + [key])}: {step[key]!r} -- a "
-                                "linear pattern's step is px, % or %r, not "
-                                "pt: there is no font in scope to measure a "
-                                "pt against",
-                                doc.span(step, key),
-                                notes=["px, %r and a bare number are also "
-                                       "fine here"],
-                            )
-                            bad.append(step_path)
-                parts = element.get("parts")
-                if isinstance(parts, list):
-                    for i, part in enumerate(parts):
-                        if not isinstance(part, dict):
-                            continue
-                        part_path = here + ["parts", i]
-                        for key in _HAND_PART_LENGTHS:
-                            length(part, key, part_path + [key])
-                        for key in _HAND_PART_POSITIONS:
-                            position(part.get(key), part_path + [key])
-                        size = part.get("size")
-                        if isinstance(size, dict):
-                            for key in ("width", "height"):
-                                length(size, key, part_path + ["size", key])
-                        points = part.get("points")
-                        if isinstance(points, list):
-                            for i2, point in enumerate(points):
-                                position(point, part_path + ["points", i2])
-            visit(element.get("children"), here + ["children"])
-
-    visit(doc.data.get("elements"), ["elements"])
+    _visit_elements(doc, visit)
     return bad
 
 
@@ -582,81 +524,55 @@ _PIVOT_ALIGNMENT_REASON = {
 }
 
 
+#: The keys `_check_hands_pattern_alignment` reports and
+#: `_drop_pivot_alignment_keys` strips -- one tuple so the two stay in lockstep.
+_PIVOT_ALIGNMENT_KEYS = ("align", "vertical_align")
+
+
 def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list]:
-    """Friendly refusal of `align:`/`vertical_align:` on `type: hands`/
-    `type: pattern` -- the schema stays closed to both keys on
-    `handsElement`/`patternElement`, so this supplies the reason a bare
-    "unknown key" would not give.
+    """Refuse `align:`/`vertical_align:` on `type: hands`/`type: pattern`
+    with the reason a bare "unknown key" would not give.
 
-    Unlike `_check_hand_frame`/`_check_pattern_frame`/`_check_baseline_renamed`,
-    whose bad paths each point at one value the schema itself still has a
-    property for, `align`/`vertical_align` are not in either element's
-    `properties` at all -- an author who writes one trips the element's own
-    `additionalProperties` failure, which `jsonschema` reports *once per
-    object*, bundling every unexpected key of that object into a single
-    message (`_unexpected_keys`). Returning the whole element's path here
-    (as `bad_types`' prefix-skip expects) would therefore also swallow any
-    other, unrelated unexpected key on the same element -- and everything
-    nested under it, `_check_hands_seconds_always`'s coarser precedent, which
-    this deliberately avoids: any other, unrelated mistake on the same
-    element must still be reported. So nothing is returned for `bad_types`
-    here; `validate()` instead rewrites that one bundled schema error itself
-    (`_drop_pivot_alignment_keys`), dropping only 'align'/'vertical_align'
-    from its "unexpected" list and leaving any other offending key on the
-    same element reported exactly as before.
+    Returns no paths: both keys trip the element's own
+    `additionalProperties` failure, which `jsonschema` reports once per
+    object with every unexpected key bundled in, so skipping the element's
+    path would also hide an unrelated unknown key.  `validate()` instead
+    strips just these two keys from that bundled error
+    (`_drop_pivot_alignment_keys`).
     """
-    def visit(elements, path: list) -> None:
-        if not isinstance(elements, list):
+    def visit(element: dict, here: list) -> None:
+        kind = element.get("type")
+        reason = _PIVOT_ALIGNMENT_REASON.get(kind)
+        if reason is None:
             return
-        for index, element in enumerate(elements):
-            if not isinstance(element, dict):
-                continue
-            here = path + [index]
-            kind = element.get("type")
-            reason = _PIVOT_ALIGNMENT_REASON.get(kind)
-            if reason is not None:
-                for key in ("align", "vertical_align"):
-                    if key in element:
-                        bag.error(
-                            "schema",
-                            f"{_dotted(here + [key])}: {key!r} is not accepted "
-                            f"on 'type: {kind}' -- {reason}",
-                            doc.span(element, key),
-                            notes=["align a hand or pattern part instead, or "
-                                   "move 'at:'"],
-                        )
-            visit(element.get("children"), here + ["children"])
+        for key in _PIVOT_ALIGNMENT_KEYS:
+            if key in element:
+                bag.error(
+                    "schema",
+                    f"{_dotted(here + [key])}: {key!r} is not accepted "
+                    f"on 'type: {kind}' -- {reason}",
+                    doc.span(element, key),
+                    notes=["align a hand or pattern part instead, or "
+                           "move 'at:'"],
+                )
 
-    visit(doc.data.get("elements"), ["elements"])
+    _visit_elements(doc, visit)
     return []
 
 
-#: `align`/`vertical_align`: the only two keys `_check_hands_pattern_
-#: alignment` ever reports on `type: hands`/`type: pattern` -- shared with
-#: `_drop_pivot_alignment_keys` below so the two stay in lockstep.
-_PIVOT_ALIGNMENT_KEYS = frozenset({"align", "vertical_align"})
-
-
 def _drop_pivot_alignment_keys(error: ValidationError) -> ValidationError | None:
-    """Narrow an `additionalProperties` failure on a `type: hands`/
-    `type: pattern` element so it no longer mentions `align`/`vertical_align`
-    -- `_check_hands_pattern_alignment` already gave the real reason for each
-    of those, one error per key. Leaves every *other* unexpected key on the
-    same element exactly as `jsonschema` reported it -- any other,
-    unrelated mistake on the same element is still reported in full.
-
-    Returns the error unchanged when it has nothing to do with this (not an
-    `additionalProperties` failure, not on a hands/pattern element, or an
-    unexpected-keys set that never included an alignment key), and ``None``
-    when alignment keys were the *only* thing wrong -- the caller drops the
-    error entirely in that case, since it is now fully explained elsewhere.
+    """Strip `align`/`vertical_align` from an `additionalProperties` failure
+    on a `type: hands`/`type: pattern` element -- `_check_hands_pattern_
+    alignment` already explained each -- leaving any other unexpected key
+    reported as `jsonschema` gave it.  Returns the error unchanged when no
+    alignment key is involved, and ``None`` when they were the only keys.
     """
     if error.validator != "additionalProperties":
         return error
     if not isinstance(error.instance, dict) or error.instance.get("type") not in _PIVOT_ALIGNMENT_REASON:
         return error
     offending = set(_unexpected_keys(error))
-    remaining = sorted(offending - _PIVOT_ALIGNMENT_KEYS)
+    remaining = sorted(offending.difference(_PIVOT_ALIGNMENT_KEYS))
     if len(remaining) == len(offending):
         return error  # no alignment key was among the unexpected ones
     if not remaining:
@@ -776,23 +692,8 @@ def _merge_alternatives(error: ValidationError) -> ValidationError:
 def _report(doc: YamlDocument, bag: Bag, error: ValidationError) -> None:
     path = list(error.absolute_path)
     span = doc.span_for_path(path)
-    where = _describe(path)
     message, notes = _humanise(error)
-    bag.error("schema", f"{where}{message}" if where else message, span, notes=notes)
-
-
-def _describe(path: list) -> str:
-    if not path:
-        return ""
-    parts: list[str] = []
-    for part in path:
-        if isinstance(part, int):
-            parts.append(f"[{part}]")
-        elif parts:
-            parts.append(f".{part}")
-        else:
-            parts.append(str(part))
-    return "".join(parts) + ": "
+    bag.error("schema", f"{_dotted(path)}: {message}" if path else message, span, notes=notes)
 
 
 def _humanise(error: ValidationError) -> tuple[str, list[str]]:
