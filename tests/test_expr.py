@@ -174,5 +174,89 @@ def test_evaluate_propagates_absence(scope):
 
 
 def test_percent_of_a_zero_goal_is_zero_not_a_crash(scope):
+    """`WfbMath.percent` returns 0.0 for a goal <= 0 (an unset step goal is
+    a real reading), so the preview must show 0, not treat it as absent."""
     node = parse("percent(activity.steps, activity.step_goal)")
-    assert evaluate(node, {"activity.steps": 100, "activity.step_goal": 0}) is None
+    assert evaluate(node, {"activity.steps": 100, "activity.step_goal": 0}) == 0.0
+    assert evaluate(node, {"activity.steps": 100, "activity.step_goal": -5}) == 0.0
+
+
+# -- host/device parity (plan 18 items 3-4) ---------------------------------
+#
+# The host half of every function and operator is what constant folding bakes
+# into generated code and what the preview draws, so it must compute exactly
+# what the device computes: `Math.round` ("Decimal values >= .5 will be
+# rounded up", $CIQ_SDK/doc/Toybox/Math.html), `WfbMath.percent`/`clamp`
+# (runtime-lib/WfbMath.mc), and Monkey C's truncating `%`
+# (docs/research/probes/math-parity/).
+
+
+@pytest.mark.parametrize("value,expected", [
+    (2.5, 3), (72.5, 73), (0.5, 1), (2.4999, 2), (2.0, 2), (3, 3),
+    (0.49999999999999994, 0), (-2.4, -2), (-2.6, -3),
+])
+def test_round_is_half_up_like_math_round(value, expected):
+    assert evaluate(parse("round(x)"), {"x": value}) == expected
+
+
+def test_round_of_a_half_folds_up(scope):
+    assert compile_expression("round(2.5)", scope)[0] == "3"
+    assert compile_expression("round(72.5)", scope)[0] == "73"
+
+
+def test_round_of_a_negative_half_is_left_to_the_device(scope):
+    """`Math.round(-2.5)` is -2 under "half up" and -3 under "half away from
+    zero"; the SDK does not say which, and no simulator runs here to find
+    out. So the build never bakes either answer in: the call stays."""
+    assert compile_expression("round(-2.5)", scope)[0] == "Math.round(-2.5f).toNumber()"
+    assert compile_expression("round(-2.6)", scope)[0] == "-3"
+
+
+@pytest.mark.parametrize("steps,goal,expected", [
+    (12000, 10000, 100.0),   # over goal: clamped, not 120
+    (8432, 10000, 84.32),
+    (-50, 100, 0.0),         # clamped at the bottom too
+    (100, 0, 0.0),           # zero goal: 0, not absent
+])
+def test_percent_matches_wfbmath(steps, goal, expected):
+    node = parse("percent(activity.steps, activity.step_goal)")
+    got = evaluate(node, {"activity.steps": steps, "activity.step_goal": goal})
+    assert got == pytest.approx(expected)
+
+
+def test_constant_percent_folds_clamped(scope):
+    assert compile_expression("percent(150, 100)", scope)[0] == "100.0f"
+    assert compile_expression("percent(5, 0)", scope)[0] == "0.0f"
+
+
+def test_clamp_checks_lo_before_hi_like_wfbmath(scope):
+    """With lo > hi, `WfbMath.clamp` returns lo for a value below lo and hi
+    for one above hi -- `max(lo, min(v, hi))` returned lo for both."""
+    assert compile_expression("clamp(50, 10, 0)", scope)[0] == "0"
+    assert compile_expression("clamp(5, 10, 0)", scope)[0] == "10"
+    assert evaluate(parse("clamp(x, 10, 0)"), {"x": 50}) == 0
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("-7 % 3", "-1"), ("7 % -3", "1"), ("7 % 3", "1"), ("-7 % -3", "-1"),
+])
+def test_modulo_truncates_like_monkey_c(scope, text, expected):
+    """`monkeyc`'s own constant folder turns `-7 % 3` into -1 and `7 % -3`
+    into 1 (docs/research/probes/math-parity/): the remainder takes the
+    dividend's sign. Python's floor modulo gives 2 and -2."""
+    assert compile_expression(text, scope)[0] == expected
+
+
+def test_modulo_evaluates_truncated_in_the_preview():
+    assert evaluate(parse("x % 3"), {"x": -7}) == -1
+
+
+@pytest.mark.parametrize("text", [
+    "system.battery % 10", "activity.steps % 2.5", "7.5 % 2",
+])
+def test_modulo_on_a_float_is_refused(scope, text):
+    """`monkeyc -l 3` rejects `mod` on a Float operand ("Cannot perform
+    operation 'mod' on types ... Float and ... Number"), so the design must
+    be refused here rather than fail at compile time."""
+    with pytest.raises(ExprError, match="%"):
+        compile_expression(text, scope)

@@ -307,6 +307,17 @@ Literals; references to sources and palette entries; `+ - * / %`; comparisons;
 `and` / `or` / `not`; `cond ? a : b`; and exactly seven functions — `min`, `max`,
 `clamp`, `round`, `floor`, `abs`, `percent`.
 
+They compute what the watch computes, because the build folds constants
+and the preview draws values with the same rules:
+
+- `round` rounds `.5` up (`round(72.5)` is 73), like `Math.round`.
+- `percent(value, goal)` is clamped to 0–100, and a goal of 0 or less gives
+  0, not an absent value.
+- `clamp(value, lo, hi)` checks `lo` first, then `hi`.
+- `%` takes two whole numbers, and its sign follows the left side:
+  `-7 % 3` is -1. A Float on either side is an error, because Monkey C has
+  no Float remainder; wrap it in `floor()` or `round()`.
+
 One name is bound in one place: **`copy`**, the index of the copy being
 drawn, in a `type: pattern`'s colours *and* its parts' `visible:`
 (see [`pattern`](patterns.md#pattern)) -- both compile to the same

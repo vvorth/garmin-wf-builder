@@ -184,18 +184,68 @@ class Function:
     #: Toybox module the emitted call needs, or ``None`` for a barrel call
     #: (`WfbMath.<name>`, runtime-lib/WfbMath.mc).
     module: str | None = None
+    #: Whether constant folding may bake `host`'s answer for these argument
+    #: values into generated code; ``None`` means always. `evaluate` (the
+    #: preview) ignores it: a best guess is fine for a picture, not for code.
+    foldable: Callable[[list], bool] | None = None
+
+
+def _round(args: list) -> int:
+    """`Math.round`: "Decimal values >= .5 will be rounded up"
+    ($CIQ_SDK/doc/Toybox/Math.html) -- not Python's half-to-even `round`.
+    Computed from the fractional part, which is exact for a double, rather
+    than as `floor(x + 0.5)`, which rounds 0.49999999999999994 up."""
+    x = args[0]
+    whole = math.floor(x)
+    return int(whole) + (1 if x - whole >= 0.5 else 0)
+
+
+def _round_foldable(args: list) -> bool:
+    """A negative exact half is the one input the SDK's "rounded up" leaves
+    open (-2.5 is -2 rounded up, -3 rounded away from zero), and no
+    simulator runs here to observe it (docs/lore/monkeyc.md), so the call is
+    left for the device to compute."""
+    x = args[0]
+    return not (x < 0 and x - math.floor(x) == 0.5)
+
+
+def _clamp(args: list) -> object:
+    """`WfbMath.clamp`, in its order: below `lo` first, then above `hi` --
+    which differs from `max(lo, min(v, hi))` only when `lo > hi`."""
+    value, lo, hi = args
+    if value < lo:
+        return lo
+    if value > hi:
+        return hi
+    return value
 
 
 def _percent(args: list) -> object:
-    return None if args[1] == 0 else 100.0 * args[0] / args[1]
+    """`WfbMath.percent`: 0.0 for a goal <= 0 (an unset goal is a real
+    reading, not an absent one), otherwise clamped to 0..100."""
+    value, goal = args
+    if goal <= 0:
+        return 0.0
+    return _clamp([100.0 * value / goal, 0.0, 100.0])
+
+
+def _mod(a: object, b: object) -> object:
+    """Monkey C's `%`: the remainder takes the dividend's sign (`-7 % 3` is
+    -1; `monkeyc`'s own constant folder, docs/research/probes/math-parity/),
+    where Python's floor modulo gives 2. Integers only -- `check` refuses a
+    Float operand, as `monkeyc -l 3` does."""
+    if not (isinstance(a, int) and isinstance(b, int)) or isinstance(a, bool) or isinstance(b, bool):
+        raise TypeError("% needs integers")
+    remainder = abs(a) % abs(b)
+    return -remainder if a < 0 else remainder
 
 
 FUNCTIONS: dict[str, Function] = {
     "min": Function(2, "smaller of two numbers", None, lambda a: min(a)),
     "max": Function(2, "larger of two numbers", None, lambda a: max(a)),
-    "clamp": Function(3, "clamp(value, lo, hi)", None, lambda a: max(a[1], min(a[0], a[2]))),
-    "round": Function(1, "round to the nearest whole number", Type.NUMBER,
-                      lambda a: int(round(a[0])), module="Toybox.Math"),
+    "clamp": Function(3, "clamp(value, lo, hi)", None, _clamp),
+    "round": Function(1, "round to the nearest whole number (.5 rounds up)", Type.NUMBER,
+                      _round, module="Toybox.Math", foldable=_round_foldable),
     "floor": Function(1, "round down", Type.NUMBER,
                       lambda a: int(math.floor(a[0])), module="Toybox.Math"),
     "abs": Function(1, "absolute value", None, lambda a: abs(a[0])),
@@ -415,6 +465,12 @@ def check(node: Node, scope: Scope) -> Value:
         if node.op in _NUMERIC_OPS:
             _require_numeric(left, node.op, node.offset)
             _require_numeric(right, node.op, node.offset)
+            if node.op == "%" and Type.FLOAT in (left.type, right.type):
+                raise ExprError(
+                    f"% needs two whole numbers, got {left} % {right}", node.offset,
+                    ["Monkey C has no remainder of a Float ('monkeyc' refuses it); "
+                     "wrap the Float side in floor() or round() first"],
+                )
             if node.op == "/" or Type.FLOAT in (left.type, right.type):
                 return Value(Type.FLOAT, nullable)
             return Value(Type.NUMBER, nullable)
@@ -577,9 +633,12 @@ def fold(node: Node, scope: Scope, *, fold_colors: bool = True) -> Node:
     if isinstance(node, Call):
         args = [fold(a, scope, fold_colors=fold_colors) for a in node.args]
         if all(isinstance(a, Literal) and a.value is not None for a in args):
-            folded = _apply_call(node.name, [a.value for a in args])  # type: ignore[union-attr]
-            if folded is not None:
-                return Literal(*folded, node.offset)
+            values = [a.value for a in args]  # type: ignore[union-attr]
+            function = FUNCTIONS.get(node.name)
+            if function is None or function.foldable is None or function.foldable(values):
+                folded = _apply_call(node.name, values)
+                if folded is not None:
+                    return Literal(*folded, node.offset)
         return Call(node.name, args, node.offset)
     return node
 
@@ -587,7 +646,7 @@ def fold(node: Node, scope: Scope, *, fold_colors: bool = True) -> Node:
 #: Host implementations of the foldable binary operators.
 _HOST_BINARY: dict[str, Callable[[object, object], object]] = {
     "+": operator.add, "-": operator.sub, "*": operator.mul,
-    "/": operator.truediv, "%": operator.mod,
+    "/": operator.truediv, "%": _mod,
     "<": operator.lt, "<=": operator.le, ">": operator.gt, ">=": operator.ge,
     "==": operator.eq, "!=": operator.ne,
     "and": lambda a, b: bool(a) and bool(b),

@@ -86,6 +86,14 @@ to grow the language. Growing it is how these formats become unmaintainable.
 > place".** The operators and functions are unchanged; one reference name was
 > added, in `type: pattern` colours only.
 
+> **Amended (2026-09-24, plan 18 items 3–4): `%` takes whole numbers only.**
+> Monkey C has no Float remainder (`monkeyc -l 3` refuses one,
+> `docs/research/probes/math-parity/`), so a Float operand is now a
+> validation error instead of a compile failure. The host half of every
+> function and operator now matches the device: half-up `round`, truncating
+> `%`, `WfbMath`'s own `percent`/`clamp`. It is what both constant folding
+> and the preview use.
+
 ### 3. Null handling is part of the binding, not an afterthought
 
 Every binding declares what absence renders as. The compiler **requires** this

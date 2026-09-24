@@ -120,3 +120,12 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   api-gating/`, 2026-09-15). UNVERIFIED at runtime on real hardware that
   lacks the module — the SDK docs' idiom, not observed (no simulator in
   this container).
+- **`%` truncates, and refuses a Float** (`docs/research/probes/math-parity/`,
+  2026-09-24). `monkeyc`'s own constant folder turns `-7 % 3` into `-1` and
+  `7 % -3` into `1`, so the remainder takes the dividend's sign, unlike
+  Python's floor modulo. That is the compiler, not an observed VM. Under
+  `-l 3`, either operand being a `Float` is a compile error ("Cannot perform
+  operation 'mod' on types ..."), so `wfb.expr.check` refuses it up front.
+  **`Math.round` of a negative exact half is UNVERIFIED.** The SDK says only
+  ".5 will be rounded up", so -2.5 could be -2 or -3. `wfb.expr` never
+  constant-folds that one input, and leaves the call for the device.
