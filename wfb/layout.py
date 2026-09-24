@@ -1159,7 +1159,9 @@ class Resolver:
             _curve_angles(element.curve)
         curve_radius_px = 0
         if curve_style == "radial" and element.curve.radius is not None:
-            curve_radius_px = round(self._len(element.curve.radius, parent, Axis.MINOR, 0))
+            curve_radius_px = round(self._extent(element.curve.radius, parent, Axis.MINOR, 0,
+                                                 min_1px=element.resolved_min_1px,
+                                                 what="curve.radius"))
         ring_px = float(element.outline.width) if element.outline is not None else 0.0
         box = text_ink(
             x, y, width, line_height, element.align, element.vertical_align,

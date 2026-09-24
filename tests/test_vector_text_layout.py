@@ -777,3 +777,14 @@ def test_visible_reach_is_none_for_upright_text_and_ordinary_shapes(write_design
     placed = _placed(resolved, "upright")
     assert placed.curve_style is None
     assert visible_reach(placed, device.width / 2, device.height / 2) is None
+
+
+def test_a_sub_pixel_curve_radius_is_recorded_for_the_lint(write_design, bag, db):
+    """Plan 18 item 9: a standalone text's `curve.radius` resolved through
+    the plain length path, so a relative radius under 1 px never reached the
+    `sub-pixel-length` lint (a pattern part's `curve.radius` already did)."""
+    element = _text("radial", "    curve: {style: radial, angle: 0deg, radius: 0.3%r}\n")
+    face = _load(write_design, bag, _design(_SINGLE_FONT, element))
+    device = db.get("fenix8solar47mm")
+    resolved = resolve(face, device, {})
+    assert [(s.owner, s.key) for s in resolved.sub_pixel] == [("radial", "curve.radius")]
