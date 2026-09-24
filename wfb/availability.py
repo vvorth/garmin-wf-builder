@@ -373,14 +373,6 @@ class Guards:
     #: (`onLayout`, `on_hold:`, `config: data:`) keep reading.
     modules: frozenset[str] = frozenset()
 
-    @property
-    def any(self) -> bool:
-        """Whether the shared code needs *any* guard at all -- a design
-        with neither a missing module nor a missing field nor an
-        unavailable-somewhere vector font generates plain, unguarded
-        code."""
-        return bool(self.modules) or bool(self.fields) or bool(self.vector_fonts)
-
 
 def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
     """The `Guards` the shared generated code needs for `face`, across every

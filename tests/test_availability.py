@@ -324,14 +324,12 @@ def test_compute_guards_flags_both_gaps_when_fenix6_is_a_target(db, write_design
     guards = compute_guards(face, devices)
     assert guards.complications is True
     assert guards.fields == frozenset({"stressScore"})
-    assert guards.any is True
 
 
 def test_compute_guards_is_empty_when_every_target_has_everything(db, write_design, bag):
     face = _face(write_design, bag, targets="fenix8solar47mm")
     guards = compute_guards(face, [db.get("fenix8solar47mm")])
     assert guards == Guards(complications=False, fields=frozenset())
-    assert guards.any is False
 
 
 def test_compute_guards_field_gap_is_independent_of_the_complications_gap(db, write_design, bag):
@@ -398,7 +396,6 @@ def test_compute_guards_guards_weather_when_fenix5_is_a_target(db, write_design,
     guards = compute_guards(face, [db.get("fenix5"), db.get("fenix8solar47mm")])
     assert guards.modules == frozenset({"Weather"})
     assert guards.complications is False
-    assert guards.any is True
 
 
 def test_compute_guards_leaves_weather_alone_when_every_target_has_it(db, write_design, bag):
