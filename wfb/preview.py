@@ -12,15 +12,12 @@ What the preview does *not* claim: it is not a firmware-accurate renderer.
 Anti-aliasing, the exact arc cap shape and the transflective panel's real
 appearance are approximations, and the header on every image says so.
 
-**Typeface, not just position, can silently drift too** (plan 12): a system
-or vector font resolves through `wfb.fonts.fallback.system_face`, which
-prefers the user's own licensed Garmin font root but falls back to a free
-stand-in, or even Pillow's bundled default, with no error -- the geometry
-still agrees with the device, but the glyph *shapes* do not.
-`render`/`render_all_styles`' own `used_faces` parameter is how a caller
-(`wfb.cli._render_preview`) finds out: every distinct face a run actually
-drew with, `stand_in_warning` turning it into the one warning R1.2 wants
-when any of them was a `"substitute"`/`"none"` match.
+**Typeface, not just position, can silently drift too**: a system or
+vector font resolves through `wfb.fonts.fallback.system_face`, which prefers
+the user's own Garmin font root but falls back to a free stand-in, or even
+Pillow's bundled default, with no error -- the geometry still agrees with
+the device, but the glyph *shapes* do not. `render`'s `used_faces` parameter
+is how a caller finds out (`stand_in_warning`).
 """
 
 from __future__ import annotations
@@ -127,45 +124,23 @@ class PreviewOptions:
     #: ordinary `time.hour`/`time.minute`/`time.second` sources.
     time: tuple[int, int, int] | None = None
     #: Hide every `awake`-only second hand -- `wfb preview --asleep`, the
-    #: same choice the generated view makes while `_sleeping` (`seconds:
-    #: awake`'s own docstring). Before plan 14 this flag *also* switched
-    #: which `modes:` set drew (`always_on` vs. `active`); that half is gone
-    #: with the mode itself (D3) -- this is now purely the hands-only
-    #: "simulate a sleeping glance" preview, on every device shape, not just
-    #: AMOLED. `aod` below implies this too, since AOD only ever runs while
-    #: asleep.
+    #: same choice the generated view makes while `_sleeping`. `aod` below
+    #: implies this too, since AOD only ever runs while asleep.
     asleep: bool = False
     #: Render the AMOLED always-on-display frame instead of the awake one --
-    #: `wfb preview --aod` (plan 14). Draws the resolved `aod:` set
-    #: (`Element.aod is not None`), restyled by every override key exactly
-    #: as codegen restyles it (plan 14 slice 2, `_Renderer._aod_field` and
-    #: its call sites), and dimmed exactly as codegen dims it (slice 3,
-    #: `_Renderer._aod_color`/`_dim_rgb`, sharing `wfb.palette.dim_channel`'s
-    #: own rounding with both codegen paths). A `pattern`/`complication_slot`
-    #: `font:` override and any `font:` override naming a `face:` (vector)
-    #: font are rejected as friendly build errors (`Builder._build_aod_
-    #: authored`, `docs/limitations.md` §2), so no face that reaches this
-    #: renderer can carry one -- there is nothing left here for those two
-    #: cases to draw. A design with no `aod:` anywhere renders blank under
-    #: the face default (`hide`, D2) -- see `asleep` above for a plain "hide
-    #: the second hand" preview that needs no `aod:` at all.
+    #: `wfb preview --aod`. Draws the resolved `aod:` set (`Element.aod is
+    #: not None`), restyled and dimmed exactly as codegen does
+    #: (`_Renderer._aod_field`/`_aod_color`). A design with no `aod:`
+    #: anywhere renders blank under the face default (`hide`).
     aod: bool = False
     #: `--fonts DIR` -- overrides `wfb.fonts.fetch_system.garmin_font_root`'s
-    #: search (`WFB_FONTS`, `vendor/fonts/`, the per-OS SDK Manager
-    #: locations), the same override `wfb doctor --fonts` already takes.
-    #: Threaded straight through every `fallback.system_face` call this
-    #: renderer makes (plan 12 R1.5) -- today there was no way to point a
-    #: preview at a font root at all.
+    #: search, the same override `wfb doctor --fonts` takes; threaded through
+    #: every `fallback.system_face` call this renderer makes.
     fonts_root: str | None = None
-    #: Apply the face's own `aod: {mask: ...}` (plan 16) when rendering
-    #: `--aod` -- `wfb.aod_mask.apply`, using the frame's own minute
-    #: (`time` above, or the sample clock). `True` by default, matching
-    #: `Face.aod_mask`'s own default: an ordinary `--aod`/`--heatmap`/
-    #: `--minute` preview shows exactly what the device will, mask
-    #: included. `check_aod_burn_in` sets this `False` so it can render the
-    #: frame once, unmasked, and apply each of the four phases itself
-    #: (worst-of-four, not just the frame's own minute's phase) -- the one
-    #: caller this field exists for besides the CLI.
+    #: Apply the face's own `aod: {mask: ...}` when rendering `--aod`, at the
+    #: frame's own minute, so a preview shows exactly what the device will.
+    #: `check_aod_burn_in` sets this `False` to render the frame once,
+    #: unmasked, and apply each of the four phases itself (worst-of-four).
     aod_mask: bool = True
 
 
@@ -178,21 +153,12 @@ class PreviewOptions:
 #: change the glyph shapes a preview actually draws.
 _STAND_IN_MATCHES = frozenset({"substitute", "none"})
 
-#: Plan 12 R2.1: how much larger `_paste_rotated_run` renders its throwaway
-#: layer before rotating, so the rotation samples a raster fine enough to
-#: approximate Garmin's own rotated-*outline* rasterisation instead of
-#: Pillow's `Image.rotate` blurring an already-upright, already-aliased
-#: bitmap. 4x: a run's layer is typically well under 200x80 px at the
-#: preview's own scale, so the supersampled layer stays under 800x320 --
-#: rotating and `Image.LANCZOS`-downsampling an image that size costs well
-#: under a millisecond, and an informal comparison against renders at 2x
-#: and 8x found 4x already visually indistinguishable from 8x (stem edges
-#: sharp, no visible ringing) while 2x still showed the soft edges this
-#: slice exists to fix -- the same "supersample, then filter down" shape
-#: `docs/lore/codegen.md`'s glyph-baking finding used for a different
-#: symptom (sub-pixel asymmetry, not rotation blur) at a higher factor
-#: because it is baking many tiny glyphs once at build time, not rotating
-#: a whole run on every preview render.
+#: How much larger `_paste_rotated_run` renders its throwaway layer before
+#: rotating, so the rotation samples a raster fine enough to approximate
+#: Garmin's own rotated-*outline* rasterisation instead of `Image.rotate`
+#: blurring an already-aliased bitmap. 4x was visually indistinguishable
+#: from 8x (sharp stems, no ringing) while 2x still showed soft edges, at
+#: well under a millisecond per run.
 _ROTATED_TEXT_SUPERSAMPLE = 4
 
 
@@ -204,28 +170,16 @@ def _drawn_with(face: "fallback.SystemFace") -> str:
 
 
 def stand_in_warning(used_faces: dict[FontMetric, "fallback.SystemFace"]) -> str | None:
-    """R1.2's one warning block naming every face `used_faces` recorded at
-    match level `"substitute"`/`"none"` (`_STAND_IN_MATCHES`), or `None`
-    when there are none -- the common case, and every case on a machine
-    with the Garmin font root installed.
+    """One warning block naming every face `used_faces` recorded at match
+    level `"substitute"`/`"none"`, or `None` when there are none (always,
+    with the Garmin font root installed).
 
-    `used_faces` is exactly what `render`/`render_all_styles`'s own
-    `used_faces` parameter collected: `wfb.cli._render_preview` passes one
-    dict to every render across a whole `wfb preview` invocation (every
-    device, every `--all-styles` panel) and calls this once at the end, so
-    the warning fires once per *run*, not once per device or panel (R1.2).
-    Sorted by display name for a stable, rerun-to-rerun-identical order --
-    dict iteration order would otherwise depend on which device/style
-    happened to resolve a given face first.
-
-    **One row per substituted *typeface*, not per `FontMetric`.** The
-    metrics are keyed per symbol *and* size, so one `face:` font used at
-    two sizes -- or one `FONT_*` symbol resolved on two devices in the same
-    run -- arrives here as several entries naming the identical
-    substitution. Collapsing on `(name, file, match)` is what makes the
-    count read as "1 font was drawn with a stand-in" rather than "2 fonts",
-    which is what a reader would have to reconcile against a design that
-    declares one.
+    `wfb.cli._render_preview` passes one dict to every render of a run and
+    calls this once at the end, so the warning fires once per *run*, not
+    per device or panel. Rows are sorted for a rerun-stable order, and
+    collapsed to one per substituted *typeface* `(name, file, match)`: the
+    metrics are keyed per symbol and size, so one font at two sizes or on
+    two devices would otherwise count twice.
     """
     affected = sorted(
         {
@@ -281,17 +235,11 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     """Render `resolved` to an `Image`.
 
     `used_faces`, when given, is a caller-owned dict this render **adds
-    into** (never replaces) -- every distinct `FontMetric` this render
-    actually resolved a `fallback.SystemFace` for, keyed by the metric
-    itself (`FontMetric` is frozen/hashable exactly for this).  Plan 12
-    R1.1: a caller (`wfb.cli._render_preview`) that wants to know what
-    typefaces a whole run drew with passes the *same* dict to every
-    `render`/`render_all_styles` call in that run -- one device, one
-    style, or all of them -- and reads it back once at the end
-    (`stand_in_warning`).  `None` (every test in this repo, and any other
-    direct caller) costs nothing beyond the one extra `is not None` check
-    per glyph run; this is how `wfb.preview` itself stays free of any
-    global mutable state for something only `wfb.cli` needs to aggregate.
+    into**: every distinct `FontMetric` it resolved a `fallback.SystemFace`
+    for. A caller wanting one report for a whole run (`wfb.cli.
+    _render_preview`) passes the same dict to every call and reads it once
+    at the end (`stand_in_warning`), which keeps this module free of global
+    state.
     """
     options = options or PreviewOptions()
     entry = _resolve_style_entry(resolved.face, options.style)
@@ -335,21 +283,18 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     image = Image.new("RGB", size, (0, 0, 0))
     draw = ImageDraw.Draw(image)
 
-    # The active layout -- `None` means "no layouts:, or a colour-only
-    # entry", in which case every element (`element.layout is None`) draws,
-    # exactly like today.  An element that belongs to a *different* layout
-    # from the active one is skipped -- the same guard
+    # The active layout (`None`: no `layouts:`, or a colour-only entry). An
+    # element of a *different* layout is skipped -- the guard
     # `wfb.emit.monkeyc.view._emit_layout_guarded` compiles into
-    # `if (_configLayout == N)`, run here at preview time instead.
+    # `if (_configLayout == N)`.
     active_layout = entry.layout if entry is not None else None
     renderer = _Renderer(resolved, draw, image, scale, values, options, used_faces)
     for placed in resolved.items:
         if placed.kind == "group":
             continue
         if options.aod:
-            # `--aod`: the resolved 'aod:' set, not a `modes:` membership at
-            # all -- `wfb.emit.monkeyc.view._emit_aod_body` draws exactly
-            # this set, unrestyled (plan 14 slice 1).
+            # `--aod`: the resolved `aod:` set, exactly what
+            # `wfb.emit.monkeyc.view._emit_aod_body` draws.
             if placed.element.aod is None:
                 continue
         elif "active" not in placed.element.modes:
@@ -359,14 +304,10 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
         renderer.render_element(placed)
 
     if options.aod and resolved.face.aod_mask and options.aod_mask:
-        # plan 16: the same moving 2x2 mask the device applies, over the
-        # frame's own minute -- `values["time.minute"]` is exactly
-        # `options.time`'s minute when given, else the sample clock's, so
-        # this agrees with every other `time.*`-bound element already drawn
-        # above. Runs before `_quantise_mip64`/`_mask_round`: quantising a
-        # pure-black masked pixel is a no-op (black is already an exact MIP
-        # palette entry), but doing it after would let a stray anti-aliased
-        # fringe on the round bezel crop leak back in as non-black.
+        # The same moving 2x2 mask the device applies, at the frame's own
+        # minute. Before quantising/cropping: black is already an exact MIP
+        # colour, but masking after would let an anti-aliased bezel fringe
+        # leak back in as non-black.
         image = aod_mask.apply(image, int(values["time.minute"]), scale)
 
     if options.quantise and device.display_colors == 64:
@@ -388,10 +329,7 @@ def render_all_styles(resolved: ResolvedFace, options: PreviewOptions | None = N
     `<style label=...>` resource uses), so the two never disagree about
     what an entry is called either.
 
-    `used_faces` is passed straight through to every panel's own `render`
-    call, so one dict collects across every entry -- the same "one warning
-    per run, not per panel" shape `_render_preview` relies on (plan 12
-    R1.2).
+    `used_faces` is passed through to every panel's `render` call.
 
     Raises `UnknownStyleError` the same way `render` does when the design
     declares no `config: style:` at all -- there is nothing to lay out side
@@ -480,19 +418,12 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
 
 @lru_cache(maxsize=4096)
 def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
-    """`char`'s `.cft` glyph cell as an `"L"` ink mask, upscaled `scale`×
-    with `Image.NEAREST` (plan 10 §3 B.4) --
-    what `_Renderer._draw_bitmap_line` pastes a solid colour through, in
-    place of Pillow's own `ImageDraw.text` (a bitmap `SystemFace` has no
-    `FreeTypeFont` to hand that). Each pixel's mask value is
-    `level * 255 // max_level` (plan §2.4's linear blend, at full
-    saturation for a solid-colour paste). `lru_cache`d on `(path, char,
-    scale)` so a repeated glyph -- the common case for a clock face -- is
-    built once per size actually drawn at, matching `wfb.fonts.cft`'s own
-    per-(path, glyph index) glyph-decode cache one level up. Returns a
-    zero-size mask (a no-op paste) for a glyph with no pixels, or when the
-    file cannot be (re-)loaded -- `cft.load` is itself cached and never
-    raises, so this never does either.
+    """`char`'s `.cft` glyph cell as an `"L"` ink mask (`level * 255 //
+    max_level`), upscaled `scale`x with `Image.NEAREST` -- what
+    `_Renderer._draw_bitmap_line` pastes a colour through, since a bitmap
+    `SystemFace` has no `FreeTypeFont` for `ImageDraw.text`. Cached per
+    `(path, char, scale)`. A zero-size (no-op) mask for an ink-less glyph
+    or an unloadable file; never raises.
     """
     font = cft_fonts.load(path)
     if font is None:
@@ -516,68 +447,58 @@ class _Renderer:
         self.scale = scale
         self.values = values
         self.options = options
-        #: `render`'s own `used_faces` (plan 12 R1.1), or `None` -- see
-        #: `_system_face`, the one place every one of this renderer's three
-        #: `fallback.system_face` call sites now goes through.
+        #: `render`'s own `used_faces`, or `None` -- see `_system_face`.
         self.used_faces = used_faces
 
     def _system_face(self, metric: FontMetric, *, scale: float | None = None):
-        """`fallback.system_face`, plus (a) threading `PreviewOptions.
-        fonts_root` through (plan 12 R1.5 -- `--fonts DIR`/`WFB_FONTS`
-        reaching every draw, not just `wfb doctor`'s own report) and (b)
-        recording the resolved face into `self.used_faces`, when the
-        caller asked for one, so a whole run's worth of "what did this
-        actually draw with" can be reported in one place after every
-        device/style is done (`stand_in_warning`). The three call sites
-        this replaces (`_complication_slot`, `_approximate_text`,
-        `_draw_vector_text`) differ only in which `scale` they pass --
-        `self.scale` when omitted, matching what all three already used.
-        """
+        """`fallback.system_face` at `scale` (default `self.scale`), with
+        `PreviewOptions.fonts_root` threaded through and the resolved face
+        recorded into `self.used_faces` for `stand_in_warning`. Every system
+        or vector face this renderer draws with comes through here."""
         face = fallback.system_face(metric, scale=self.scale if scale is None else scale,
                                     fonts_root=self.options.fonts_root)
         if self.used_faces is not None and face is not None:
             self.used_faces.setdefault(metric, face)
         return face
 
-    # -- dispatch ---------------------------------------------------------
+    # -- aod: restyling -----------------------------------------------------
+    #
+    # The host twins of `wfb.emit.monkeyc.common.AodStyle`: while `--aod`
+    # renders, an element's own resolved `aod:` override for a key wins;
+    # a colour with no override is dimmed by the face's `aod: {dim: ...}`.
 
     def _aod_field(self, element, key: str, base):
-        """``base`` (an `Expression`, `bool` or `str`), replaced by this
-        element's resolved `aod:` override for ``key`` while `--aod` is on
-        and one is actually set -- `None` propagates through unchanged, so
-        a caller that already handles "no colour"/"no override" the same
-        way needs no extra branch (plan 14 slice 2, matching `wfb.emit.
-        monkeyc.common.AodStyle`'s own codegen ternary).
-        """
+        """``base``, replaced by this element's resolved `aod:` override for
+        ``key`` while `--aod` renders and one is set."""
         if not self.options.aod or element.aod is None:
             return base
         override = getattr(element.aod, key)
         return override if override is not None else base
 
+    def _aod_geometry(self, placed, key: str, base):
+        """``base`` (a resolved pixel length), replaced by ``placed.aod_<key>``
+        (`thickness`, `bar_width`) while `--aod` renders and it is set. A
+        `hands`/`pattern` override applies uniformly to every part."""
+        override = getattr(placed, f"aod_{key}") if self.options.aod else None
+        return base if override is None else override
+
     def _dim_rgb(self, rgb: tuple[int, int, int]) -> tuple[int, int, int]:
-        """`aod: {dim: ...}` (plan 14 §4.5), applied to an already-resolved
-        RGB triple -- the preview's own twin of `wfb.emit.monkeyc.common.
-        _dim_color_code`, sharing its exact integer arithmetic
-        (`wfb.palette.Color.dim`/`dim_channel`) so a colour dims to the
-        identical value here and on the device, whichever of the two paths
-        (a build-time-precomputed literal, or a runtime `WfbColor.dim` call)
-        codegen took for it. Callers only reach this when `self.resolved.
-        face.aod_dim is not None`.
-        """
+        """`aod: {dim: ...}` applied to a resolved RGB triple, through the
+        same integer arithmetic (`wfb.palette.Color.dim`) both codegen paths
+        use, so a colour dims to the identical value here and on the device."""
         num, den = dim_fraction(self.resolved.face.aod_dim)
         dimmed = Color(*rgb).dim(num, den)
         return (dimmed.r, dimmed.g, dimmed.b)
 
-    def _aod_color(self, element, key: str, base_expr) -> tuple[int, int, int]:
+    def _aod_color(self, element, key: str, base_expr,
+                   values: dict | None = None) -> tuple[int, int, int]:
         """The drawn RGB for one colour role (`color`/`track_color`/
-        `icon_color`) while `--aod` renders, matching `wfb.emit.monkeyc.
-        common.AodStyle.color` exactly: this element's own resolved `aod:`
-        override for `key`, when one exists, else the plain awake colour --
-        dimmed by the face's own `aod: {dim: ...}` (plan 14 §4.5) whenever
-        that applies and no override took over, the same "dim reaches every
-        AOD colour, override or not" rule the codegen ternary follows.
-        """
-        base = self._color(base_expr)
+        `icon_color`): this element's own `aod:` override for ``key`` while
+        `--aod` renders, else ``base_expr`` (evaluated against ``values``),
+        dimmed when the face has `aod: {dim: ...}` and no override took over.
+        A `hands`/`pattern` part passes its own colour as ``base_expr`` and
+        ``key="color"``: the element-level override applies to every part."""
+        base = self._color(base_expr, values)
         if not self.options.aod or element.aod is None:
             return base
         override = getattr(element.aod, key)
@@ -587,69 +508,16 @@ class _Renderer:
             return base
         return self._dim_rgb(base)
 
-    def _resolve_part_color(self, part_color, values: dict | None,
-                            color_override: tuple[int, int, int] | None,
-                            dim_active: bool) -> tuple[int, int, int]:
-        """A `hands`/`pattern` part's own drawn RGB: the element-level
-        `aod: {color: ...}` override when one exists (`color_override`,
-        already resolved once by the caller -- §5.1, uniform across every
-        part), else this part's own plain colour, dimmed when `dim_active`
-        (the caller's own "shown in AOD, no override" gate, matching
-        `wfb.emit.monkeyc.common.AodStyle.part_color`).
-        """
-        if color_override is not None:
-            return color_override
-        color = self._color(part_color, values)
-        return self._dim_rgb(color) if dim_active else color
-
-    def _aod_part_overrides(
-        self, element, placed,
-    ) -> tuple[tuple[int, int, int] | None, bool, int | None]:
-        """`aod: {color: ...}`/`{thickness: ...}`/`{dim: ...}` (plan 14
-        §4.5/§5.1), resolved once per `hands`/`pattern` element -- the one
-        override applied uniformly to every part -- and shared by `_hands`
-        and `_pattern`, which otherwise computed the identical three values
-        from the identical fields (`element.aod`, `placed.aod_thickness`,
-        `self.resolved.face.aod_dim`) independently, a duplication this
-        collapses rather than risk the two drifting apart.  Returns
-        `(color_override, dim_active, thickness_override)`, consumed by
-        `_resolve_part_color`/`_hand_part`/`_pattern_arc` exactly as before.
-        """
-        color_override = (
-            self._color(element.aod.color) if (self.options.aod and element.aod is not None
-                                               and element.aod.color is not None) else None
-        )
-        dim_active = self.options.aod and element.aod is not None and self.resolved.face.aod_dim is not None
-        thickness_override = (
-            placed.aod_thickness if (self.options.aod and placed.aod_thickness is not None)
-            else None
-        )
-        return color_override, dim_active, thickness_override
+    # -- dispatch ---------------------------------------------------------
 
     def render_element(self, placed) -> None:
         # `--aod`: the fully resolved AOD gate (`element.visible` already
-        # folded in, plan 14 §3) -- not the element's own plain `visible:`,
-        # which an `aod: {visible: ...}` may narrow further.
+        # folded in), which an `aod: {visible: ...}` may narrow further.
         visible = (placed.element.aod.visible if self.options.aod and placed.element.aod
                    else placed.element.visible)
         if not self._visible(visible):
             return
-        if isinstance(placed, PlacedShape):
-            self._shape(placed)
-        elif isinstance(placed, PlacedText):
-            self._text(placed)
-        elif isinstance(placed, PlacedProgress):
-            self._progress(placed)
-        elif isinstance(placed, PlacedIcon):
-            self._icon(placed)
-        elif isinstance(placed, PlacedGraph):
-            self._graph(placed)
-        elif isinstance(placed, PlacedComplicationSlot):
-            self._complication_slot(placed)
-        elif isinstance(placed, PlacedHands):
-            self._hands(placed)
-        elif isinstance(placed, PlacedPattern):
-            self._pattern(placed)
+        self._BY_TYPE[type(placed)](self, placed)
 
     # -- elements ---------------------------------------------------------
 
@@ -657,8 +525,7 @@ class _Renderer:
         element = placed.element
         fill = self._aod_color(element, "color", element.color)
         filled = self._aod_field(element, "filled", element.filled)
-        thickness = placed.aod_thickness if (
-            self.options.aod and placed.aod_thickness is not None) else placed.thickness
+        thickness = self._aod_geometry(placed, "thickness", placed.thickness)
         s = self.scale
         if element.shape == "rectangle":
             box = self._rect(placed.rect or placed.box)
@@ -710,15 +577,14 @@ class _Renderer:
 
     def _hands(self, placed: PlacedHands) -> None:
         """`type: hands` -- the same three angle formulas
-        `runtime-lib/WfbHands.mc` computes on the device, applied here to
-        the *resolved* geometry so this can never disagree with the
-        generated code about a hand's shape or its axis.
+        `runtime-lib/WfbHands.mc` computes on the device, applied to the
+        *resolved* geometry so this can never disagree with the generated
+        code about a hand's shape or its axis.
 
         `--asleep` (or `--aod`, which implies it) hides an `awake`-only
-        second hand, the same choice the generated view's hands codegen
-        makes while `_sleeping`; a `seconds: never` hand was already
-        excluded at resolve time (`Resolver._resolve_hands`), so there is
-        nothing here to skip for it.
+        second hand, the same choice the generated view makes while
+        `_sleeping`; a `seconds: never` hand was already excluded at resolve
+        time.
         """
         element = placed.element
         s = self.scale
@@ -731,30 +597,26 @@ class _Renderer:
             "minute": math.radians(minute * 6.0),
             "second": math.radians(second * 6.0),
         }
-        # `aod: {color: ...}`/`{thickness: ...}`/`{dim: ...}` (plan 14
-        # §4.5/§5.1): one override, applied uniformly to every part of every
-        # hand -- the preview's own twin of `wfb.emit.monkeyc.rotated.
-        # _emit_hands`'s ternary (`_aod_part_overrides`, shared with `_pattern`).
-        color_override, dim_active, thickness_override = self._aod_part_overrides(element, placed)
+        asleep = self.options.asleep or self.options.aod
         for hand_name in ("hour", "minute", "second"):
             hand = getattr(placed, hand_name)
             if hand is None:
                 continue
-            asleep = self.options.asleep or self.options.aod
             if hand_name == "second" and element.seconds == "awake" and asleep:
                 continue
             sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
             for part in hand.parts:
-                self._hand_part(part, cx, cy, s, sin_t, cos_t,
-                                color_override=color_override, thickness_override=thickness_override,
-                                dim_active=dim_active)
+                self._hand_part(placed, part, cx, cy, sin_t, cos_t)
 
-    def _hand_part(self, part, cx: float, cy: float, s: int,
-                   sin_t: float, cos_t: float, values: dict | None = None,
-                   color_override: tuple[int, int, int] | None = None,
-                   thickness_override: int | None = None, dim_active: bool = False) -> None:
-        fill = self._resolve_part_color(part.color, values, color_override, dim_active)
-        thickness = thickness_override if thickness_override is not None else part.thickness
+    def _hand_part(self, placed: PlacedHands | PlacedPattern, part, cx: float, cy: float,
+                   sin_t: float, cos_t: float, values: dict | None = None) -> None:
+        """One polygon/line/circle part of a hand or pattern copy, its
+        vertices rotated by `(sin_t, cos_t)` about the scaled `(cx, cy)`.
+        The element-level `aod:` colour/thickness override applies to every
+        part (`_aod_color`, `_aod_geometry`)."""
+        s = self.scale
+        fill = self._aod_color(placed.element, "color", part.color, values)
+        thickness = self._aod_geometry(placed, "thickness", part.thickness)
 
         def rotated(x: float, y: float) -> tuple[float, float]:
             return (cx + (x * cos_t - y * sin_t) * s, cy + (x * sin_t + y * cos_t) * s)
@@ -778,80 +640,45 @@ class _Renderer:
     def _pattern(self, placed: PlacedPattern) -> None:
         """`type: pattern` -- one template, drawn once per copy through
         :meth:`PlacedPattern.transform`: the very same `(ox, oy, sin, cos)`
-        the generated draw method computes on the device, so this preview
-        and codegen cannot disagree about where a copy lands. Copies draw
-        ascending, parts in list order within a copy -- the same
-        nested-loop order the generated code uses. A polygon/line/circle
-        part reuses `_hand_part` (a pattern part is authored exactly like a
-        hand part); an `arc` part has no rotate-the-vertices equivalent --
-        its *start angle* turns with the copy instead (`_pattern_arc`); a
-        `text` part draws upright glyphs at the copy's own rounded anchor
-        instead of rotating vertices (`_pattern_text`).
+        the generated draw method computes on the device. Copies draw
+        ascending, parts in list order within a copy -- the generated
+        nested-loop order. A polygon/line/circle part reuses `_hand_part`;
+        an `arc` part turns its start angle with the copy instead
+        (`_pattern_arc`); a `text` part draws at the copy's own rounded
+        anchor (`_pattern_text`).
 
-        `when_absent: hide`: the device reads every nullable source a
-        pattern's colours/part `visible:`s use once, before its loop, and
-        returns early if any is null -- mirrored here by
-        `_pattern_absent`, checked once for the whole element, not per copy
-        (the reading is a fact about the frame, not about one copy). Per
-        copy, each part's own `visible:` (B) is evaluated with the same
-        `copy`-bound `values` its colour uses; false/`None` skips only that
-        part, for that copy.
+        `when_absent: hide` is checked once for the whole element
+        (`_pattern_absent`), the device's own pre-loop null guard. Per copy,
+        each part's own `visible:` is evaluated with `copy` bound, the same
+        `values` its colour uses.
         """
         element = placed.element
         if self._pattern_absent(element):
             return
         s = self.scale
-        # `aod: {color: ...}`/`{thickness: ...}`/`{dim: ...}` (plan 14
-        # §4.5/§5.1): one override, applied uniformly to every part -- the
-        # preview's own twin of `wfb.emit.monkeyc.rotated._emit_pattern`'s
-        # ternary (`_aod_part_overrides`, shared with `_hands`).
-        # (A pattern's own `aod: {font: ...}` never reaches here at all --
-        # it is a friendly build error, `Builder._build_aod_authored`,
-        # docs/limitations.md §2.)
-        color_override, dim_active, thickness_override = self._aod_part_overrides(element, placed)
         for index in placed.copies:
             ox, oy, sin_t, cos_t = placed.transform(index)
-            cx, cy = ox * s, oy * s
-            # This copy's own rotation, design degrees clockwise from 12 --
-            # `0.0` for a linear pattern (`placed.start`/`.step` are both
-            # `0.0` there). A curved text part's effective angle composes
-            # its own local `curve_angle_garmin` with this, the same
-            # composition `wfb.layout._pattern_part_ink` and codegen's
-            # `_emit_pattern_text_angle_expr` both perform (plan 11 slice 2).
-            copy_angle_degrees = placed.start + index * placed.step
             # `copy` is the generated loop's `i`: a colour reading it is
             # evaluated afresh for every copy, exactly as the device does.
             values = {**self.values, expr.COPY: index}
             for part_index, part in enumerate(placed.parts):
-                visible = element.parts[part_index].visible
-                if not self._visible(visible, values):
+                if not self._visible(element.parts[part_index].visible, values):
                     continue
                 if part.shape == "arc":
-                    self._pattern_arc(part, ox, oy, index, placed, s, values,
-                                      color_override, thickness_override, dim_active)
+                    self._pattern_arc(placed, part, ox, oy, index, values)
                 elif part.shape == "text":
-                    self._pattern_text(part, ox, oy, sin_t, cos_t, index, values,
-                                       copy_angle_degrees, color_override, dim_active)
+                    self._pattern_text(placed, part, ox, oy, sin_t, cos_t, index, values)
                 else:
-                    self._hand_part(part, cx, cy, s, sin_t, cos_t, values,
-                                    color_override, thickness_override, dim_active)
+                    self._hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
 
     def _pattern_absent(self, element) -> bool:
-        """Whether any nullable source this pattern's colours (`element.colors`,
-        already the element default plus every part's override, deduplicated)
-        or any part's own `visible:` reads is absent in the current sample
-        (`self.values` -- `SAMPLE` plus any `--sample`/`options.sample`
-        overrides) -- the host-side mirror of the null guard the device
-        emits before its own loop (`wfb.emit.monkeyc.rotated._emit_pattern`'s
-        `plan.guards(placed)`, fed by the same colours and part `visible:`s
-        via `PatternElement._own_expressions`).  A build that reached this
-        renderer already guarantees `when_absent: hide` is set whenever this
-        can be `True` (`Builder._check_pattern_absence`) -- checked on the
-        sources themselves, not the flag, so this cannot drift from the
-        guard the device actually runs.  The element's own `visible:` is
-        deliberately not consulted here -- that is a different, already-
-        handled axis (`_visible`), covering the whole element regardless of
-        `when_absent:`.
+        """Whether any nullable source this pattern's colours
+        (`element.colors`: the default plus every part's own) or any part's
+        own `visible:` reads is absent in the sample -- the host mirror of
+        the null guard the device emits before its copy loop
+        (`wfb.emit.monkeyc.rotated._emit_pattern`, fed by the same
+        expressions). The element's own `visible:` is a separate axis
+        (`render_element`).
         """
         sources: set[str] = set()
         for expression in element.colors:
@@ -864,22 +691,16 @@ class _Renderer:
             for path in sources
         )
 
-    def _pattern_arc(self, part, ox: float, oy: float, index: int,
-                     placed: PlacedPattern, s: int, values: dict,
-                     color_override: tuple[int, int, int] | None = None,
-                     thickness_override: int | None = None,
-                     dim_active: bool = False) -> None:
-        """An `arc` template part -- always centred on the copy's own
-        origin (`at:` is rejected on it), so there are no vertices to
-        rotate: only its *start angle* turns with the copy, exactly as
-        `WfbArc.drawSpan` is called on the device: `part.start_angle +
-        start + index * step`, which collapses to plain `part.start_angle`
-        for a linear pattern (`placed.start`/`placed.step` are both `0`
-        there). Drawn through the same whole-degree `arc_span` rule a
-        `shape: arc` element uses.
-        """
-        fill = self._resolve_part_color(part.color, values, color_override, dim_active)
-        thickness = thickness_override if thickness_override is not None else part.thickness
+    def _pattern_arc(self, placed: PlacedPattern, part, ox: float, oy: float, index: int,
+                     values: dict) -> None:
+        """An `arc` template part -- always centred on the copy's own origin
+        (`at:` is rejected on it), so only its *start angle* turns with the
+        copy, as `WfbArc.drawSpan` is called on the device: `part.start_angle
+        + start + index * step` (plain `part.start_angle` for a linear
+        pattern, whose `start`/`step` are `0`)."""
+        s = self.scale
+        fill = self._aod_color(placed.element, "color", part.color, values)
+        thickness = self._aod_geometry(placed, "thickness", part.thickness)
         cx, cy = ox * s, oy * s
         r = part.radius * s
         author_start = part.start_angle + placed.start + index * placed.step
@@ -888,100 +709,62 @@ class _Renderer:
             self.draw.arc([cx - r, cy - r, cx + r, cy + r], *span,
                           fill=fill, width=max(1, thickness * s))
 
-    def _pattern_text(self, part, ox: float, oy: float, sin_t: float, cos_t: float,
-                      index: int, values: dict, copy_angle_degrees: float = 0.0,
-                      color_override: tuple[int, int, int] | None = None,
-                      dim_active: bool = False) -> None:
-        """A `shape: text` template part: upright glyphs at this copy's own
-        anchor, rounded the same half-up way `runtime-lib/WfbGeom.mc`'s
-        `rotatedX`/`rotatedY` round it on the device
-        (:func:`pattern_text_anchor`) -- the anchor *turns* (radial) or
-        *steps* (linear) with the copy.  A baked/system font's glyphs never
-        rotate (upright text is not rotation-invariant), so `_hand_part`'s
-        vertex rotation does not apply to them, and this draws through the
-        very same `_draw_text` a `text` element uses (`_text`), so a
-        pattern's numerals and a standalone `text` element can never
-        disagree about how a font/align/vertical_align combination looks.
+    def _pattern_text(self, placed: PlacedPattern, part, ox: float, oy: float,
+                      sin_t: float, cos_t: float, index: int, values: dict) -> None:
+        """A `shape: text` template part, drawn at this copy's own anchor,
+        rounded half-up the way `runtime-lib/WfbGeom.mc`'s `rotatedX`/
+        `rotatedY` round it (:func:`pattern_text_anchor`), through the same
+        `_draw_text`/`_draw_vector_text` a `text` element uses.
 
-        **A `face:` (vector) font's own `curve:` turns the glyphs too**
-        (plan 11 slice 2), through `_draw_vector_text` -- the same method a
-        curved `text` element uses -- with this copy's own rotated/
-        translated anchor and its *effective* angle: `part.curve_angle_
-        garmin - copy_angle_degrees`, the same "local angle composed with
-        the copy's own rotation" arithmetic codegen performs
-        (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`) and the
-        lint box already used (`wfb.layout._pattern_part_ink`). `font_
-        available is False` is `if_unavailable: hide` acting on this one
-        device (gates 1-3 failed) -- the honest preview is to draw nothing,
-        the same as `_text` does for a standalone element.
-
-        **`outline:` (plan 15 §14 slice 2)** stamps this copy's own already-
-        rotated/translated `anchor` through `_stamp_outline` -- the exact
-        same helper `_text` uses for a standalone element -- before the
-        interior call, whichever of `_draw_vector_text`/`_draw_text` this
-        part resolves to. `part.outline_color`/`.outline_width` are
-        `ResolvedHandPart` fields carried through unchanged from `HandPart.
-        outline` (`wfb.layout.Resolver._resolve_hand_part`), the same way
-        `part.color` already is. Since the offset is applied to `anchor`
-        (already this copy's own transformed point) rather than to any
-        pre-transform coordinate, and the *angle* passed to `_draw_vector_
-        text` is unaffected by which anchor is given, the ring is a plain
-        screen-space translation at every copy -- never smeared by the
-        pattern's own rotation or by this part's own `curve:` (research 14
-        §3.2's "commutes with rotation" argument, the same one the codegen
-        stamp loop relies on).
+        A baked/system font draws upright glyphs. A `face:` font's `curve:`
+        turns them, at the part's own local angle composed with this copy's
+        rotation (`curve_angle_garmin - copy_angle`), the composition codegen
+        (`_emit_pattern_text_angle_expr`) and the lint box
+        (`wfb.layout._pattern_text_ink`) also perform. `outline:` stamps the
+        already-transformed anchor, so the ring is a screen-space translation
+        at every copy.
         """
         text = part.texts[index]
-        color = self._resolve_part_color(part.color, values, color_override, dim_active)
+        color = self._aod_color(placed.element, "color", part.color, values)
         anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
         ring_color = (
             self._color(part.outline_color, values) if part.outline_color is not None else None
         )
         if part.font_is_vector:
             if not part.font_available:
-                return
-            angle = ((part.curve_angle_garmin - copy_angle_degrees) % 360.0
+                return  # `if_unavailable: hide` on this device
+            copy_angle = placed.start + index * placed.step
+            angle = ((part.curve_angle_garmin - copy_angle) % 360.0
                      if part.curve_style is not None else 0.0)
-            if ring_color is not None:
-                self._stamp_outline(
-                    anchor, part.outline_width,
-                    lambda a: self._draw_vector_text(
-                        text, a, part.align, part.vertical_align, part.font_metric, ring_color,
-                        part.curve_style, angle, part.curve_radius_px, part.curve_direction),
-                )
-            self._draw_vector_text(
-                text, anchor, part.align, part.vertical_align, part.font_metric, color,
-                part.curve_style, angle, part.curve_radius_px, part.curve_direction)
-            return
-        font: BakedFont | None = (
-            self.resolved.fonts.get(part.font_reference) if part.font_is_custom else None
-        )
-        if ring_color is not None:
-            self._stamp_outline(
-                anchor, part.outline_width,
-                lambda a: self._draw_text(
-                    font, text, a, part.align, part.vertical_align, part.font_metric, ring_color),
-            )
-        self._draw_text(font, text, anchor, part.align, part.vertical_align, part.font_metric, color)
 
-    def _stamp_outline(
-        self, anchor: tuple[int, int], width: int, draw: Callable[[tuple[int, int]], None],
-    ) -> None:
-        """The host-side twin of the codegen stamp loop (plan 15 §9): the
-        same disc-perimeter offset table (`wfb.ir.disc_perimeter_offsets`)
-        codegen emits as `Layout.OUTLINE_OFFSETS_<width>`, drawn at each
-        shifted anchor through `draw` -- whichever of `_draw_text`/
-        `_draw_vector_text` the caller already resolved to, called with
-        `color` already bound to the ring colour -- so the preview and the
-        generated Monkey C cannot silently stamp different pixels. `anchor`
-        is in real device pixels, matching every other anchor this
-        renderer's draw methods take; `_draw_text`/`_draw_vector_text`
-        themselves apply the preview's own upscale (`self.scale`) to
-        whatever anchor they are given, offset included.
-        """
-        ax, ay = anchor
-        for dx, dy in disc_perimeter_offsets(width):
-            draw((ax + dx, ay + dy))
+            def draw(at, fill, box=None):
+                self._draw_vector_text(
+                    text, at, part.align, part.vertical_align, part.font_metric, fill,
+                    part.curve_style, angle, part.curve_radius_px, part.curve_direction)
+        else:
+            font: BakedFont | None = (
+                self.resolved.fonts.get(part.font_reference) if part.font_is_custom else None
+            )
+
+            def draw(at, fill, box=None):
+                self._draw_text(font, text, at, part.align, part.vertical_align,
+                                part.font_metric, fill)
+        self._draw_outlined(draw, anchor, color, ring_color, part.outline_width)
+
+    def _draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color,
+                       ring_color, ring_width: int, box=None) -> None:
+        """`draw(anchor, color, box)` once for the interior, preceded by one
+        ring-coloured stamp per `wfb.ir.disc_perimeter_offsets(ring_width)`
+        offset when `ring_color` is set -- the host twin of the codegen stamp
+        loop, using the same offset table, so preview and device stamp the
+        same pixels. `anchor` and the offsets are device pixels; `draw`
+        applies the preview's own upscale. Only the interior gets `box` (the
+        "no face at all" outline fallback)."""
+        if ring_color is not None:
+            ax, ay = anchor
+            for dx, dy in disc_perimeter_offsets(ring_width):
+                draw((ax + dx, ay + dy), ring_color)
+        draw(anchor, color, box)
 
     def _text(self, placed: PlacedText) -> None:
         element = placed.element
@@ -990,70 +773,55 @@ class _Renderer:
             return
         color = self._aod_color(element, "color", element.color)
         if placed.font_is_vector:
-            # `curve:` (plan 11): a `face:` font draws upright, angled or
-            # radial, never through a baked sheet -- `_draw_vector_text`
-            # handles all three; `font_available is False` is `if_unavailable:
-            # hide` acting on this one device (gates 1-3 failed, plan 11 §1),
-            # and the honest preview of that is to draw nothing at all, the
-            # same as the real watch.
+            # A `face:` font draws upright, angled or radial, never through a
+            # baked sheet; `font_available is False` is `if_unavailable: hide`
+            # on this device, which draws nothing, as the watch does.
             if not placed.font_available:
                 return
-            if element.outline is not None:
-                ring_color = self._color(element.outline.color)
-                self._stamp_outline(
-                    placed.anchor_point, element.outline.width,
-                    lambda anchor: self._draw_vector_text(
-                        text, anchor, element.align, element.vertical_align,
-                        placed.font_metric, ring_color, placed.curve_style,
-                        placed.curve_angle_garmin, placed.curve_radius_px,
-                        placed.curve_direction),
-                )
-            self._draw_vector_text(
-                text, placed.anchor_point, element.align, element.vertical_align,
-                placed.font_metric, color, placed.curve_style, placed.curve_angle_garmin,
-                placed.curve_radius_px, placed.curve_direction, box=placed.box)
-            return
+
+            def draw(anchor, fill, box=None):
+                self._draw_vector_text(
+                    text, anchor, element.align, element.vertical_align, placed.font_metric,
+                    fill, placed.curve_style, placed.curve_angle_garmin,
+                    placed.curve_radius_px, placed.curve_direction, box=box)
+        else:
+            font, metric = self._text_font(placed)
+
+            def draw(anchor, fill, box=None):
+                self._draw_text(font, text, anchor, element.align, element.vertical_align,
+                                metric, fill, box=box)
+        outline = element.outline
+        self._draw_outlined(draw, placed.anchor_point, color,
+                            self._color(outline.color) if outline is not None else None,
+                            outline.width if outline is not None else 0, box=placed.box)
+
+    def _text_font(self, placed: PlacedText) -> tuple[BakedFont | None, FontMetric | None]:
+        """The baked font (or `None` for a system one) and metric a non-vector
+        `text` element draws with, after its `aod: {font: ...}` override --
+        the same scope as codegen's `wfb.emit.monkeyc.shapes._emit_text_draw`:
+        an override naming a *different* baked font swaps the sheet, one
+        naming a system `FONT_*` swaps the metric. A vector override is a
+        build error (`Builder._build_aod_authored`), so the `is_vector`
+        check is defensive."""
+        element = placed.element
         font: BakedFont | None = (
             self.resolved.fonts.get(placed.font_reference) if placed.font_is_custom else None
         )
         metric = placed.font_metric
         aod_font = self._aod_field(element, "font", None)
-        # Matches codegen's own scope exactly (`wfb.emit.monkeyc.shapes.
-        # _emit_text_draw`): a *different* font override actually swaps
-        # something here, whichever kind it names -- a baked (non-vector)
-        # custom font (`element.aod.font_is_custom`), swapping the drawn
-        # `BakedFont`, or a system one, swapping the `FontMetric` the
-        # fallback typeface is drawn at (`_emit_text_draw`'s own
-        # `override_expr = f"Graphics.{element.aod.font}"` branch, exercised
-        # regardless of whether the *awake* font is itself custom or
-        # system). Naming the same resource is a legitimate no-op (nothing
-        # to swap); naming a `face:` (vector) font never reaches this
-        # renderer at all -- it is a friendly build error
-        # (`Builder._build_aod_authored`, `docs/limitations.md` §2) -- so
-        # the `is_vector` check below is defensive, not a live case.
-        if aod_font is not None and aod_font != placed.font_reference:
-            if element.aod.font_is_custom:
-                override_spec = self.resolved.face.fonts.get(aod_font)
-                if override_spec is not None and not override_spec.is_vector:
-                    override_font = self.resolved.fonts.get(aod_font)
-                    if override_font is not None:
-                        font = override_font
-                        metric = None
-            else:
-                override_metric = self.resolved.device.system_fonts.get(aod_font)
-                if override_metric is not None:
-                    font = None
-                    metric = override_metric
-        if element.outline is not None:
-            ring_color = self._color(element.outline.color)
-            self._stamp_outline(
-                placed.anchor_point, element.outline.width,
-                lambda anchor: self._draw_text(
-                    font, text, anchor, element.align, element.vertical_align,
-                    metric, ring_color),
-            )
-        self._draw_text(font, text, placed.anchor_point, element.align, element.vertical_align,
-                        metric, color, box=placed.box)
+        if aod_font is None or aod_font == placed.font_reference:
+            return font, metric
+        if element.aod.font_is_custom:
+            override_spec = self.resolved.face.fonts.get(aod_font)
+            if override_spec is not None and not override_spec.is_vector:
+                override_font = self.resolved.fonts.get(aod_font)
+                if override_font is not None:
+                    return override_font, None
+        else:
+            override_metric = self.resolved.device.system_fonts.get(aod_font)
+            if override_metric is not None:
+                return None, override_metric
+        return font, metric
 
     def _progress(self, placed: PlacedProgress) -> None:
         element = placed.element
@@ -1063,10 +831,8 @@ class _Renderer:
             if element.when_absent == "hide":
                 return
             # `fallback:` on a progress substitutes the fill fraction itself,
-            # not the value -- see wfb/emit/monkeyc.py's `_fallback_fraction`.
-            # Rendering the same substitution the device does is what keeps
-            # this preview and the generated code from disagreeing, which is
-            # the whole reason the resolved geometry is shared.
+            # not the value, as the device does
+            # (`wfb.emit.monkeyc.shapes._fallback_fraction`).
             fraction = 0.0
             if element.when_absent == "fallback" and element.fallback is not None \
                     and element.fallback.ast is not None:
@@ -1083,9 +849,7 @@ class _Renderer:
 
         if element.style == "arc":
             cx, cy, r = placed.center[0] * s, placed.center[1] * s, placed.radius * s
-            thickness = placed.aod_thickness if (
-                self.options.aod and placed.aod_thickness is not None) else placed.thickness
-            width = max(1, thickness * s)
+            width = max(1, self._aod_geometry(placed, "thickness", placed.thickness) * s)
             box = [cx - r, cy - r, cx + r, cy + r]
             # The whole-degree rule WfbArc.drawSpan applies on the device --
             # see `arc_span`.
@@ -1112,13 +876,12 @@ class _Renderer:
         ``wfb.icons``: this is what makes preview and device agree on an icon's
         appearance without a second, hand-maintained drawing implementation."""
         font = self.resolved.fonts.get(placed.font_key)
-        sheet = getattr(font, "sheet_image", None) if font else None
-        glyph = font.glyphs.get(placed.codepoint) if font else None
-        if sheet is None or glyph is None:
+        glyph = _baked_glyph(font, placed.codepoint)
+        if glyph is None:
             return  # the font failed to bake, or the glyph is missing from it
         s = self.scale
         color = self._aod_color(placed.element, "color", placed.element.color)
-        self._paste_glyph(sheet, glyph, placed.box.x * s, placed.box.y * s, color)
+        self._paste_glyph(font.sheet, glyph, placed.box.x * s, placed.box.y * s, color)
 
     def _graph(self, placed: PlacedGraph) -> None:
         """A synthetic series -- shape and placement only, never real data.
@@ -1186,8 +949,7 @@ class _Renderer:
                 continue
             point = self._graph_point(placed, i, n, value, lo, span)
             if previous is not None:
-                thickness = placed.aod_thickness if (
-                    self.options.aod and placed.aod_thickness is not None) else placed.thickness
+                thickness = self._aod_geometry(placed, "thickness", placed.thickness)
                 self.draw.line([previous, point], fill=color, width=max(1, thickness * s))
             previous = point
 
@@ -1226,8 +988,7 @@ class _Renderer:
         x, y = placed.box.x, placed.box.y
         w, h = placed.size
         pitch = w / n
-        bar_width = placed.aod_bar_width if (
-            self.options.aod and placed.aod_bar_width is not None) else placed.bar_width
+        bar_width = self._aod_geometry(placed, "bar_width", placed.bar_width)
         for i, value in enumerate(values):
             if value is None:
                 continue
@@ -1290,18 +1051,8 @@ class _Renderer:
         else:
             text_width, text_height = 0, placed.font_px
 
-        icon_width = 0
-        icon_height = 0
-        icon_sheet = None
-        glyph_obj = None
-        if icon_font is not None and icon_glyph is not None:
-            icon_sheet = getattr(icon_font, "sheet_image", None)
-            glyph_obj = icon_font.glyphs.get(icon_glyph)
-            if icon_sheet is not None and glyph_obj is not None:
-                icon_width, icon_height = icon_font.measure(icon_glyph)
-            else:
-                icon_sheet = None
-                glyph_obj = None
+        glyph_obj = _baked_glyph(icon_font, icon_glyph)
+        icon_width, icon_height = icon_font.measure(icon_glyph) if glyph_obj else (0, 0)
 
         # One shared geometry function for every position --
         # `wfb.layout.complication_slot_pair_geometry`, the same one
@@ -1323,23 +1074,16 @@ class _Renderer:
         origin_x = ax + dx - geometry.width / 2
         origin_y = ay + dy - geometry.height / 2
 
-        if icon_sheet is not None and glyph_obj is not None:
-            self._paste_glyph(icon_sheet, glyph_obj,
+        if glyph_obj is not None:
+            self._paste_glyph(icon_font.sheet, glyph_obj,
                               (origin_x + geometry.icon_x) * s,
                               (origin_y + geometry.icon_y) * s, icon_color)
 
         pen_x = origin_x + geometry.text_x
         top = origin_y + geometry.text_y
-        if text_font is not None:
-            sheet = getattr(text_font, "sheet_image", None)
-            if sheet is not None:
-                for char in text:
-                    glyph = text_font.glyphs.get(char)
-                    if glyph is None:
-                        continue
-                    self._paste_glyph(sheet, glyph, pen_x * s, top * s, color)
-                    pen_x += glyph.xadvance
-                return
+        if text_font is not None and text_font.sheet is not None:
+            self._blit_baked_line(text_font, text, pen_x * s, top * s, color)
+            return
         if placed.font_metric is not None:
             face = self._system_face(placed.font_metric, scale=s)
             if face is not None:
@@ -1396,17 +1140,11 @@ class _Renderer:
     def _draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
                    align: str, vertical_align: str, metric: FontMetric | None,
                    color: tuple[int, int, int], box=None) -> None:
-        """Draw `text` upright at `anchor`, exactly as a `text` element and a
-        pattern `shape: text` part both want: through the baked sheet when
-        `font` is a custom one, the device's own real typeface (or its
-        Pillow-default stand-in, `wfb.fonts.fallback.system_face`)
-        otherwise. The one place either kind of element actually puts ink
-        down, so `_text` and `_pattern_text` cannot drift apart. `box`, an
-        `IntBox` or `None`, is only ever used by the rare "no scalable
-        system face at all" fallback in `_approximate_text` -- a `text`
-        element has one (its own resolved box) to outline instead of
-        drawing nothing; a pattern text part has none to give, so it simply
-        draws nothing in that (untested, essentially unreachable) case.
+        """Draw `text` upright at `anchor` -- through the baked sheet when
+        `font` is a custom one, the device's own typeface (or its stand-in)
+        otherwise. Shared by `_text` and `_pattern_text`. `box` is only the
+        "no scalable system face at all" outline fallback of
+        `_approximate_text`; a pattern part has none to give.
         """
         if font is not None:
             self._blit_bitmap_text(font, text, anchor, align, vertical_align, metric, color, box)
@@ -1417,7 +1155,9 @@ class _Renderer:
                           align: str, vertical_align: str, metric: FontMetric | None,
                           color: tuple[int, int, int], box=None) -> None:
         """Draw with the *baked sheet*, so the preview shows the real glyphs."""
-        sheet = getattr(font, "sheet_image", None)
+        if font.sheet is None:
+            self._approximate_text(text, anchor, align, vertical_align, metric, color, box)
+            return
         s = self.scale
         width, _ = font.measure(text)
         x, y = anchor[0] * s, anchor[1] * s
@@ -1428,17 +1168,19 @@ class _Renderer:
         dx, dy = alignment_shift(width * s, line_height, align, vertical_align)
         left = x + dx - width * s / 2
         top = y + dy - line_height / 2
+        self._blit_baked_line(font, text, left, top, color)
 
-        if sheet is None:
-            self._approximate_text(text, anchor, align, vertical_align, metric, color, box)
-            return
+    def _blit_baked_line(self, font: BakedFont, text: str, left: float, top: float,
+                         color: tuple[int, int, int]) -> None:
+        """Paste `text`'s baked glyphs pen-wise from the (already scaled)
+        top-left of their line box, skipping any glyph the sheet lacks."""
         pen = left
         for char in text:
             glyph = font.glyphs.get(char)
             if glyph is None:
                 continue
-            self._paste_glyph(sheet, glyph, pen, top, color)
-            pen += glyph.xadvance * s
+            self._paste_glyph(font.sheet, glyph, pen, top, color)
+            pen += glyph.xadvance * self.scale
 
     def _paste_glyph(self, sheet: Image.Image, glyph, x: float, y: float,
                      color: tuple[int, int, int]) -> None:
@@ -1459,28 +1201,17 @@ class _Renderer:
 
     def _approximate_text(self, text: str, anchor: tuple[int, int], align: str,
                           vertical_align: str, metric: FontMetric | None, color, box=None) -> None:
-        """Draw system-font text with the device's own real typeface when
-        `wfb.fonts.fetch_system` can locate one, from its own line box --
-        never through Pillow's own multi-character vertical anchors
-        (`"a"`/`"m"`/`"d"`), which measure the *stand-in* face's own
-        ascender/descender and so would not agree with the line height/
-        baseline `wfb.layout` (and `wfb.lint.check_text_fit`) computed from
-        the metric.  Plan 09 §4 R2.4's model instead: the line box's own top
-        is `anchor_y - {top: 0, center: line_height/2, bottom: line_height}`
-        (`wfb.layout.alignment_shift`'s own vertical rule, read off just the
-        `dy` a *top*-anchored box would need -- matching exactly what
-        `Resolver._resolve_text`'s lint box and `wfb.layout.PlacedText.box`
-        already agree the line box's top edge is), and the glyphs are drawn
-        at `top + baseline` with Pillow's own baseline vertical anchor
-        (`"s"`), never at the box's top or middle. `align`/vertical_align`'s
-        horizontal half is still handed straight to Pillow (`"l"`/`"m"`/
-        `"r"`) -- only the vertical half needed replacing.
+        """Draw system-font text from its own line box: the box top is
+        `anchor_y - {top: 0, center: line_height/2, bottom: line_height}`
+        (`wfb.layout.alignment_shift`'s vertical rule, the same top edge
+        `PlacedText.box` and the lint box use), and glyphs are drawn at
+        `top + baseline`. Never Pillow's own vertical anchors, which measure
+        the *stand-in* face's ascender/descender and would disagree with the
+        line height the metric defines.
 
-        A `substitute`/`none` match still draws through this same path: the
-        glyph *shapes* are not the ones the watch will draw (a different
-        family entirely, for `"none"`), but the *position* is exact, and the
-        extent is the same estimate the compiler recorded, because both come
-        from this one face at this one size -- they cannot disagree.
+        A `substitute`/`none` match draws through this same path: the glyph
+        *shapes* differ from the watch's, but position and extent are exact,
+        because layout measured with this very face.
         """
         if metric is None:
             # No pixel metrics for this symbol on this device at all
@@ -1515,18 +1246,12 @@ class _Renderer:
     def _draw_system_line(self, face, left: float, baseline_y: float, text: str, color,
                           *, draw=None, image=None) -> None:
         """Draw a system-font line glyph by glyph, each on the pen position
-        `wfb.fonts.fallback.SystemFace.advances` gives -- the same advances
-        `wfb.layout` measured with, rather than Pillow's own layout, which
-        disagrees with the device by up to a pixel per glyph.
-
-        A bitmap face (`face.bitmap` set, plan 10 §3 B.4) has no
-        `FreeTypeFont` in `face.font` to hand `ImageDraw.text`
-        -- `_draw_bitmap_line` pastes each glyph's own decoded cell instead.
-
-        `draw`/`image` default to `self.draw`/`self.image` -- overridden by
-        `_paste_rotated_run` (plan 11 §4) so the exact same glyph-drawing
-        code can render onto a throwaway transparent layer instead of the
-        canvas directly, for the caller to rotate before compositing.
+        `SystemFace.advances` gives -- the advances `wfb.layout` measured
+        with, not Pillow's own layout, which disagrees with the device by up
+        to a pixel per glyph. A bitmap face (`face.bitmap` set) has no
+        `FreeTypeFont` and pastes each `.cft` cell instead
+        (`_draw_bitmap_line`). `draw`/`image` default to the canvas;
+        `_paste_rotated_run` passes a throwaway layer to rotate.
         """
         draw = self.draw if draw is None else draw
         image = self.image if image is None else image
@@ -1541,14 +1266,8 @@ class _Renderer:
     def _draw_bitmap_line(self, face, left: float, baseline_y: float, text: str, color,
                           *, image=None) -> None:
         """The bitmap half of `_draw_system_line`: paste each glyph's own
-        `.cft` cell (`_bitmap_glyph_mask`, cached per (font path, char,
-        `self.scale`)) at `(pen, baseline_y - face.baseline)` -- the cell's
-        own top, `ascent × scale` above the baseline every glyph shares
-        (plan 10 §3 B.4) -- tinted `color` through the mask's ink levels,
-        never through Pillow's `ImageDraw`, which has no bitmap-glyph
-        support at all. Pen advances come from `face.advances`, exactly the
-        same as the outline branch. `image` defaults to `self.image` -- see
-        `_draw_system_line`'s own note on why a caller might override it."""
+        `.cft` cell (`_bitmap_glyph_mask`) with its top `face.baseline` above
+        the shared baseline, tinted `color` through its ink levels."""
         image = self.image if image is None else image
         s = self.scale
         top = baseline_y - face.baseline
@@ -1568,32 +1287,18 @@ class _Renderer:
         curve_radius_px: int, curve_direction: str | None, *, box=None,
     ) -> None:
         """A `face:` (vector) font's draw -- upright (`curve_style is None`,
-        drawn exactly like a system font through `_approximate_text`:
-        `Dc.drawText` with a `VectorFont` behaves the same as with a
-        resource one), `angled` (`Dc.drawAngledText`: the whole string
-        rotated about the anchor) or `radial` (`Dc.drawRadialText`:
-        per-glyph placement around a circle).  Shared by a standalone
-        `text` element (`_text`, passing its own `PlacedText` fields
-        straight through) and a pattern's own `shape: text` part (`_pattern_
-        text`, plan 11 slice 2 -- passing that copy's own rotated/translated
-        anchor and its *effective*, copy-composed angle) -- one place either
-        kind of curved vector text is actually drawn, so the two cannot
-        drift apart.  `box` is the "no scalable face at all" fallback
-        outline (only a standalone element has one to give; a pattern part
-        passes none, the same `_draw_text`/`_approximate_text` precedent).
+        exactly like a system font, `_approximate_text`), `angled`
+        (`Dc.drawAngledText`: the whole string rotated about the anchor) or
+        `radial` (`Dc.drawRadialText`: per-glyph placement around a circle).
+        Shared by `_text` and `_pattern_text` (which passes its copy's own
+        anchor and copy-composed angle). `box` is the upright path's "no
+        scalable face" outline fallback.
 
-        **Angle convention consumed here: `curve_angle_garmin` throughout --
-        Garmin's own convention (degrees counter-clockwise from the 3
-        o'clock position, screen y down), never the design's 12-o'clock-
-        zero/clockwise one, author-facing only.** This is the same
-        convention `wfb.layout.rotated_rect_corners` rotates its own
-        lint box by, verified there against the SDK's own
-        `TrueTypeFontsAngledText` sample -- reused here rather than
-        re-derived, so the lint box and the preview cannot silently
-        disagree about which way is positive. Getting this backwards is the
-        likely bug: it would silently mirror or misdirect the rotation
-        direction of every curved element this preview draws, so every
-        angle read past this point is a Garmin one.
+        **`curve_angle_garmin` is Garmin's convention throughout** (degrees
+        counter-clockwise from 3 o'clock, screen y down), the same one
+        `wfb.layout.rotated_rect_corners` rotates the lint box by, verified
+        against the SDK's `TrueTypeFontsAngledText` sample. Getting the sign
+        backwards would silently mirror every curved element.
         """
         if curve_style is None:
             # Delegates to `_approximate_text` wholesale, including its own
@@ -1624,101 +1329,33 @@ class _Renderer:
         font_metric=None,
     ) -> None:
         """`curve: {style: radial}` -- each glyph is its own tiny "angled"
-        run (`_paste_rotated_run`), placed at its own position around the
-        circle of `curve_radius_px` centred on `anchor_point`
-        (the *centre*, per `Curve`'s own `at:` reinterpretation, plan 11
-        §2.2).
+        run (`_paste_rotated_run`), placed around the circle of
+        `curve_radius_px` centred on `anchor_point` (radial `at:` is the
+        centre).
 
-        **Facing: `clockwise` faces outward, `counter_clockwise` faces
-        inward.** This is standard text-on-a-path behaviour (a circular
-        badge: the top arc reads clockwise with glyphs facing out, the
-        bottom arc reads counter-clockwise with glyphs facing in, and BOTH
-        read normally). It was originally an inference from that convention
-        plus Garmin's own `$CIQ_SDK/samples/TrueTypeFonts/source/MenuItems/
-        TrueTypeFontsRadialText.mc` (`RADIAL_TEXT_SCENARIO` draws at
-        `:angle => 270`, the 6 o'clock point, with BOTH
-        `RADIAL_TEXT_DIRECTION_CLOCKWISE` and
-        `RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE` in the same demo -- a
-        comparison only meaningful if the two differ in glyph facing, not
-        merely in the order letters advance), since `drawRadialText`'s
-        glyph facing is not documented in SDK prose. **VERIFIED, both
-        directions** against the real simulator (2026-09-21,
-        `fenix8solar47mm`, the user's host,
-        `examples/features/vector-text/face.yaml`'s `wordmark`
-        (`counter_clockwise`) and `left_cw` (`clockwise`), plus the
-        `top_ccw`/`top_cw` pair -- one shared `angle:`/`radius:`, opposite
-        `direction:`, the controlled comparison that isolates facing from
-        position): the simulator's rendering matches this facing model in
-        both directions -- see `docs/research/12-vector-fonts.md` and
-        `docs/research/probes/vector-fonts/README.md` for the comparison
-        images (`radial-facing-both-directions.png`,
-        `radial-facing-top-pair.png`). Still just one device
-        (`fenix8solar47mm`) and the simulator, not physical hardware.
+        **Facing: `clockwise` faces outward, `counter_clockwise` inward** --
+        standard text-on-a-path behaviour, verified in both directions
+        against the real simulator (2026-09-21, `fenix8solar47mm`,
+        `examples/features/vector-text/`; `docs/research/12-vector-fonts.md`).
+        A glyph's local "up" `(0, -1)` must map onto the outward radial
+        `(cos pos, -sin pos)` (clockwise) or inward `(-cos pos, sin pos)`
+        (counter-clockwise) at its circle position `pos`, which solves to a
+        glyph rotation of `pos - 90` or `pos + 90` respectively.
 
-        Per-glyph angle derivation: a glyph whose local "up" (the
-        unrotated `(0, -1)` direction `_paste_rotated_run`'s own rotation
-        formula turns) must map onto the *outward* radial unit vector
-        `(cos(pos), -sin(pos))` at that glyph's own circle position `pos`
-        (Garmin degrees) for `clockwise`, or onto the *inward* unit vector
-        `(-cos(pos), sin(pos))` for `counter_clockwise`. Solving
-        `(-sin t, -cos t) = (cos pos, -sin pos)` gives `t = pos - 90`\N{DEGREE SIGN}
-        (outward); solving `(-sin t, -cos t) = (-cos pos, sin pos)` gives
-        `t = pos + 90`\N{DEGREE SIGN} (inward) -- each a two-line trig-identity
-        solve, not reproduced in the loop below.
+        **Pen direction:** `clockwise` walks the string with *decreasing*
+        Garmin angle, `counter_clockwise` with increasing (the SDK's
+        `RADIAL_TEXT_SCENARIO`: `angle=0, CLOCKWISE, LEFT` reads from 3
+        o'clock toward 6). In both facings the glyph's mapped local "right"
+        then equals the arc's walking direction, so reading order is right.
 
-        **`direction_sign` (which way the pen advances through the string
-        as Garmin angle changes) is unaffected by the facing flip.** Reading
-        direction only comes out right if a glyph's local "right" (reading
-        axis) lines up with the actual direction of travel along the arc as
-        the pen advances; working that dot product through both cases shows
-        it already does, for the *existing* `direction_sign` assignment, in
-        both facings:
-        - `clockwise` (outward, `t = pos - 90`, `direction_sign = -1`, so
-          Garmin angle *decreases* as the pen advances): the glyph's mapped
-          local-right is `(sin pos, cos pos)`, which equals the arc's own
-          walking direction at that sign of `direction_sign`.
-        - `counter_clockwise` (inward, `t = pos + 90`, `direction_sign =
-          +1`, Garmin angle *increases* as the pen advances): the glyph's
-          mapped local-right is `(-sin pos, -cos pos)`, which equals the
-          arc's own walking direction at *that* sign.
-        Both check out, so `direction_sign` keeps its existing meaning --
-        only the per-glyph facing (`glyph_angle_garmin` below) depends on
-        `direction`.
-
-        `align` places the *whole string* along the arc exactly as
-        `TEXT_JUSTIFY_LEFT/CENTER/RIGHT` would (`left`: the string starts
-        at `curve_angle_garmin`; `right`: it ends there; `center`: it is
-        centred on it) -- unaffected by the per-glyph placement below.
-        **Per-glyph placement: each glyph's own slot is the arc position
-        of the *middle* of its own advance
-        (`pen + advance / 2 - align_offset`), and it is pasted `align:
-        "center"` there, using the rotation for that *same* angle --
-        verified on the real simulator (2026-09-21, `fenix8solar51mm`,
-        large roman numerals in `examples/showcase`): every glyph's own
-        vertical midline lies on the radius through that glyph's own
-        centre, like spokes.** A glyph pasted `align: "left"` at the angle
-        computed for its *left edge* (the pre-fix bug) rotates about a
-        point its own ink does not sit at once the paste's own alignment
-        shift moves the box away from that anchor, so the glyph's midline
-        no longer points at the circle's centre and the ring looks
-        twisted -- `align: "center"` needs no such shift (`alignment_
-        shift`'s own `dx == 0`), so the point used for rotation and the
-        point ink physically ends up at are the same point. `direction:
-        clockwise` advances through the string with *decreasing* Garmin
-        angle and `counter_clockwise` with increasing -- verified against
-        the SDK's own `RADIAL_TEXT_SCENARIO` sample (`angle=0,
-        orientation=CLOCKWISE, justification=LEFT` reads starting at the 3
-        o'clock point and sweeping toward 6 o'clock, i.e. decreasing
-        Garmin angle).
-
-        `font_metric` (plan 12 R2.3) is threaded straight through to every
-        per-glyph `_paste_rotated_run` call below, unchanged -- it is what
-        lets that method fetch the *same* face at a supersampled scale
-        instead of resampling the already-rasterised `face` this method
-        itself draws with, and it has to be the caller's `FontMetric`
-        (`_draw_vector_text`'s own `font_metric` parameter), not something
-        re-derived from `face`, because a `SystemFace` does not carry its
-        own metric back.
+        `align` places the whole string along the arc as
+        `TEXT_JUSTIFY_LEFT/CENTER/RIGHT` would (starting, centred on or
+        ending at the angle). Each glyph is pasted `align: "center"` at the
+        arc position of the *middle* of its own advance, rotated for that
+        same angle, so every glyph's midline lies on its own radius like a
+        spoke -- verified on the simulator (2026-09-21, `fenix8solar51mm`).
+        `font_metric` lets `_paste_rotated_run` refetch this face
+        supersampled.
         """
         s = self.scale
         radius = curve_radius_px * s
@@ -1761,77 +1398,29 @@ class _Renderer:
                            align: str, vertical_align: str,
                            anchor_xy: tuple[float, float], color,
                            font_metric: FontMetric | None = None) -> None:
-        """Render `run` upright, rotate it by `angle_garmin_degrees`
-        (Garmin's own convention -- see `_draw_vector_text`'s docstring)
-        about the point `align`/`vertical_align` would place it at, and
-        composite the result so that point lands exactly at `anchor_xy`
-        (already scaled preview pixels). Shared by `angled` (one call, the
-        whole string) and `radial` (one call per glyph, `align="center"`,
-        the point matching the angle the glyph is rotated to --
-        `_draw_radial_vector_text`'s own docstring has the reasoning).
+        """Render `run` upright, rotate it by `angle_garmin_degrees` about the
+        point `align`/`vertical_align` would place it at, and composite it so
+        that point lands at `anchor_xy` (scaled preview pixels). Shared by
+        `angled` (the whole string) and `radial` (one glyph at a time).
 
-        The paste position reuses `wfb.layout.rotated_rect_corners`'
-        own rotation matrix (`cx = dx*cos + dy*sin`, `cy = -dx*sin +
-        dy*cos`) run forward on the alignment shift, so the *anchor* this
-        preview draws from is the same point that box's own maths already
-        rotates around -- not a second, independently-derived formula that
-        could silently disagree about which way positive is.
+        The paste offset runs `wfb.layout.rotated_rect_corners`' own rotation
+        (`cx = dx*cos + dy*sin`, `cy = -dx*sin + dy*cos`) forward on the
+        alignment shift, so the preview rotates about the same point the
+        lint box does. `Image.rotate` turns counter-clockwise for a positive
+        angle, Garmin's own positive sense, so the angle passes straight
+        through.
 
-        `Image.rotate(angle, expand=True)` turns **counter-clockwise for a
-        positive `angle`, as normally displayed** (verified empirically:
-        a single marked pixel at a square image's centre stays exactly at
-        the expanded image's own centre for every angle, and a point
-        placed up-and-right of centre moves toward "up-and-left" as the
-        angle increases) -- exactly the visual sense Garmin's own
-        3-o'clock/counter-clockwise-positive convention calls positive
-        too, so `angle_garmin_degrees` is passed straight through with no
-        sign flip. **That convention is unaffected by everything below**:
-        R2 changes what gets rotated, at what resolution, never the sign or
-        the rotation formula itself.
-
-        **R2 (plan 12): rasterised, not resampled.** Before this, `layer`
-        was rendered at the preview's own scale and `Image.rotate(...,
-        BICUBIC)`d directly -- Garmin rotates the *outline* and rasterises
-        the result, so a device render has crisp stems at any angle, while
-        rotating an already-rasterised, already-anti-aliased bitmap through
-        BICUBIC softens and thins them further. `_ROTATED_TEXT_SUPERSAMPLE`
-        (4, see its own module-level comment) closes most of that gap
-        without hand-rolling outline rotation: `render_face` -- the *same*
-        `font_metric`, fetched through `_system_face` at
-        `self.scale * _ROTATED_TEXT_SUPERSAMPLE` instead of `self.scale`
-        (R2.3 -- one cached call, the same advances model, no new
-        `SystemFace` field) -- draws the run onto a layer `ss` times larger
-        in each dimension, which is rotated exactly as before and then
-        downsampled by `ss` with `Image.LANCZOS` (a real reconstruction
-        filter, unlike the nearest/bilinear-ish softening `Image.rotate`
-        alone produces) before the paste below.
-
-        **Geometry must not move (R2.2).** `width`, `line_height`, `pad`,
-        `layer_w`/`layer_h`, `dx`/`dy` (`alignment_shift`) and the final
-        `top_left` are all computed from `face` at the *ordinary* preview
-        scale, exactly as before supersampling existed -- `ss` only widens
-        and heightens the throwaway layer that gets drawn into and later
-        shrunk back down; every placement number downstream of it is
-        untouched. `rotated`'s own width/height after the LANCZOS downsample
-        are what `top_left` is still computed from, so a `layer_w`/`ss` that
-        rounds slightly differently than `layer_w` itself can only ever
-        shift the paste by a fraction of a preview pixel, not by `ss`
-        pixels -- a test (`test_vector_text_preview.py`) asserts the centre
-        of mass of a rotated run drawn with supersampling on vs. off (i.e.
-        `ss == 1`, which collapses every line below to exactly this
-        method's pre-R2 behaviour) moves by under a pixel across a spread
-        of angles, both `angled` and `radial`.
-
-        **A bitmap (`.cft`) face has no outline to supersample (R2.4).**
-        `render_face` only replaces `face` when `face.bitmap is None` --
-        `font_metric` given, `_system_face` resolving to another outline
-        face -- so a bitmap face keeps today's behaviour (`ss = 1`,
-        draw/rotate/composite, no downsample) unconditionally. Purely
-        defensive: gate 2 (`docs/lore/codegen.md`) only ever publishes an
-        outline face as a vector `face:` font, so `_draw_vector_text` can
-        never actually reach this method with a bitmap `face` in the first
-        place -- but this method has no way to see that guarantee from
-        here, so it checks rather than assumes.
+        **Rasterised, not resampled.** Garmin rotates the *outline* and then
+        rasterises; rotating an already-aliased bitmap softens stems. So an
+        outline face is refetched at `_ROTATED_TEXT_SUPERSAMPLE`x the preview
+        scale (same `font_metric`, through `_system_face`), drawn onto a
+        layer that much larger, rotated, and `LANCZOS`-downsampled back.
+        **Geometry does not move**: every placement number (`width`,
+        `line_height`, `pad`, the layer size, `dx`/`dy`, `top_left`) comes
+        from `face` at the ordinary scale; `tests/test_vector_text_preview.py`
+        checks the centre of mass moves under a pixel with supersampling on
+        vs off. A bitmap (`.cft`) face has no outline to supersample and keeps
+        `ss = 1` (defensive -- only outline faces are published as `face:`).
         """
         if not run:
             return
@@ -1927,6 +1516,24 @@ class _Renderer:
             return (255, 255, 255)
         color = Color.parse(int(value))
         return (color.r, color.g, color.b)
+
+    #: `render_element`'s dispatch, one entry per leaf element kind --
+    #: the twin of `wfb.layout.Resolver._BY_TYPE`.
+    _BY_TYPE = {
+        PlacedShape: _shape, PlacedText: _text, PlacedProgress: _progress,
+        PlacedIcon: _icon, PlacedGraph: _graph,
+        PlacedComplicationSlot: _complication_slot, PlacedHands: _hands,
+        PlacedPattern: _pattern,
+    }
+
+
+def _baked_glyph(font: BakedFont | None, char: str | None):
+    """`char`'s `GlyphBox` in `font`, or `None` when there is no font, no
+    sheet to crop from, or no such glyph -- the one "can this baked glyph
+    be drawn" check `_icon` and `_complication_slot` share."""
+    if font is None or font.sheet is None or char is None:
+        return None
+    return font.glyphs.get(char)
 
 
 def _round_away(degrees: float) -> int:

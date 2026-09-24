@@ -494,10 +494,7 @@ def garmin_font_file(name: str, root: Path) -> Path | None:
     the ``simulator.json`` ``filename`` (``docs/research/10-system-fonts.md``
     §9). Outline fonts only; :func:`garmin_any_file` adds ``.cft``.
     """
-    for path in _font_index(root).get(name.lower(), ()):
-        if path.suffix.lower() in (".ttf", ".otf"):
-            return path
-    return None
+    return _indexed(name, root, (".ttf", ".otf"))
 
 
 def garmin_cft_file(name: str, root: Path) -> Path | None:
@@ -505,8 +502,14 @@ def garmin_cft_file(name: str, root: Path) -> Path | None:
     (case-insensitively) -- no ``FNT_`` prefix guessing here, that is
     :func:`garmin_any_file`'s job. `.cft` is Garmin's bitmap-font container
     format, decoded by :mod:`wfb.fonts.cft`."""
+    return _indexed(name, root, (".cft",))
+
+
+def _indexed(name: str, root: Path, suffixes: tuple[str, ...]) -> Path | None:
+    """The first file under ``root`` whose stem is ``name`` (ignoring case)
+    and whose suffix is one of ``suffixes``."""
     for path in _font_index(root).get(name.lower(), ()):
-        if path.suffix.lower() == ".cft":
+        if path.suffix.lower() in suffixes:
             return path
     return None
 
@@ -524,17 +527,10 @@ def garmin_any_file(name: str, root: Path) -> Path | None:
     drops it (``FENIX6_CDPG_ROBOTO_20B``). Guessing it last means a real
     filename is never second-guessed.
     """
-    found = garmin_font_file(name, root)
-    if found is not None:
-        return found
-    found = garmin_cft_file(name, root)
-    if found is not None:
-        return found
-    if not name.upper().startswith("FNT_"):
+    found = garmin_font_file(name, root) or garmin_cft_file(name, root)
+    if found is None and not name.upper().startswith("FNT_"):
         found = garmin_cft_file(f"FNT_{name}", root)
-        if found is not None:
-            return found
-    return None
+    return found
 
 
 def locate(name: str, face: str | None = None,
@@ -581,10 +577,7 @@ def _installed_devices_root(override: os.PathLike | str | None = None) -> Path |
     if env:
         candidates.append(Path(env))
     candidates.extend(_DEFAULT_DEVICE_ROOTS)
-    for path in candidates:
-        if path.is_dir() and any(path.iterdir()):
-            return path
-    return None
+    return _first_non_empty(candidates)
 
 
 def device_needed_names(device_id: str,
@@ -606,16 +599,11 @@ def device_needed_names(device_id: str,
         sim_path = root / device_id / "simulator.json"
         if sim_path.is_file():
             sim = json.loads(sim_path.read_text(encoding="utf-8"))
-            seen: set[str] = set()
-            names: list[tuple[str, str | None]] = []
-            for block in sim.get("fonts", []):
-                if block.get("fontSet") != "ww":
-                    continue
-                for entry in block.get("fonts", []):
-                    name = entry.get("filename")
-                    if name and name not in seen:
-                        seen.add(name)
-                        names.append((name, None))
+            names = _first_per_name(
+                (entry.get("filename"), None)
+                for block in sim.get("fonts", []) if block.get("fontSet") == "ww"
+                for entry in block.get("fonts", [])
+            )
             if names:
                 return names
 
@@ -623,16 +611,20 @@ def device_needed_names(device_id: str,
     if scraped_path.is_file():
         data = json.loads(scraped_path.read_text(encoding="utf-8"))
         fixed = data.get("fonts", {}).get("default", {}).get("fixed", {})
-        seen = set()
-        out: list[tuple[str, str | None]] = []
-        for entry in fixed.values():
-            name = entry.get("font")
-            if name and name not in seen:
-                seen.add(name)
-                out.append((name, entry.get("face")))
-        return out
+        return _first_per_name((entry.get("font"), entry.get("face"))
+                               for entry in fixed.values())
 
     return []
+
+
+def _first_per_name(pairs: Iterable[tuple[str | None, str | None]],
+                    ) -> list[tuple[str, str | None]]:
+    """``pairs`` in order, dropping an empty name and every repeat of one."""
+    out: dict[str, str | None] = {}
+    for name, face in pairs:
+        if name and name not in out:
+            out[name] = face
+    return list(out.items())
 
 
 def all_scraped_device_ids() -> list[str]:

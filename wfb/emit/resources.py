@@ -57,35 +57,27 @@ _COMPLICATION_TEXT_ALPHABET = (
 
 def glyph_set(face: Face) -> dict[str, str]:
     """The characters each declared **baked** font must contain, derived
-    from the design.
-
-    A `face:` (vector) `FontSpec` (plan 11) is never rasterised by this
-    compiler at all -- it is drawn straight from the device's own resident
-    face at runtime -- so it has no sheet to subset and is excluded from
-    `needed` outright, the same way :func:`bake_fonts` below never bakes
-    one. Every per-element branch below checks :attr:`FontSpec.is_vector`
-    before touching `needed` for exactly that reason: `needed.setdefault`
-    would otherwise silently manufacture an entry for it, which
-    :func:`bake_fonts`/`build_bundle` would then never read (nothing bakes
-    a vector font) but which would misleadingly suggest one is being
-    subsetted.
-    """
+    from the design. A `face:` (vector) font is drawn from the device's own
+    resident face at runtime, so it has no sheet to subset and gets no entry
+    (`bucket` refuses it)."""
     needed: dict[str, set[str]] = {
         name: set() for name, spec in face.fonts.items() if spec.is_baked
     }
+
+    def bucket(font_name: str) -> set[str] | None:
+        if face.fonts[font_name].is_vector:
+            return None
+        return needed.setdefault(font_name, set())
+
     for element in face.walk():
         if isinstance(element, ComplicationSlot) and element.font_is_custom:
-            if face.fonts[element.font].is_vector:
+            glyphs = bucket(element.font)
+            if glyphs is None:
                 continue
             # The wearer can point this slot at any of its declared choices,
-            # and `Complication.value`'s concrete type genuinely varies by
-            # choice (there is no per-choice `format:` to size against --
-            # `Builder._build_complication_slot` forbids it) -- so the font
-            # has to carry everything *any* choice could render, not one
-            # choice's glyphs. See `wfb.layout.Resolver.
-            # _complication_slot_widest`'s docstring for the same reasoning
-            # applied to the overflow estimate.
-            bucket = needed.setdefault(element.font, set())
+            # each with its own value type and no per-choice `format:`, so
+            # the font must carry everything *any* choice could render
+            # (`wfb.layout.Resolver._complication_slot_widest`, same reason).
             slot = face.config_data.get(element.slot)
             choices: tuple[str, ...] = ()
             if slot is not None:
@@ -96,80 +88,63 @@ def glyph_set(face: Face) -> dict[str, str]:
                     continue
                 value_type = (catalog.Type.STRING if ctype.value_type == "string"
                              else catalog.Type.NUMBER)
-                bucket |= formatting.glyphs("{}", None, value_type)
+                glyphs |= formatting.glyphs("{}", None, value_type)
                 if ctype.value_type == "float":
-                    bucket |= set(".")
+                    glyphs |= set(".")
             if element.placeholder:
-                bucket |= set(element.placeholder)
+                glyphs |= set(element.placeholder)
             if element.label != "none" or element.unit:
                 # A label is always a localised device string; a unit can be
                 # too (`Complications.Unit or Lang.String`) -- both unbounded.
-                bucket |= set(_COMPLICATION_TEXT_ALPHABET)
+                glyphs |= set(_COMPLICATION_TEXT_ALPHABET)
             if element.unit:
-                bucket |= set("".join(complications.UNIT_SUFFIX.values()))
+                glyphs |= set("".join(complications.UNIT_SUFFIX.values()))
             continue
         if isinstance(element, PatternElement):
-            # A `shape: text` template part: every *drawn*
-            # copy's string is already known at build time
-            # (`HandPart.texts`, `Builder._build_pattern_element`), so --
-            # unlike a `complication_slot`'s "every choice could render
-            # anything" widening above -- the font needs exactly those
-            # characters, nothing more.
+            # Every drawn copy's string is known at build time
+            # (`HandPart.texts`), so a text part's font needs exactly those.
             for part in element.parts:
                 if part.shape != "text" or not part.font_is_custom:
                     continue
-                if face.fonts[part.font].is_vector:
-                    # Not built by this slice (plan 11 §5, slice 2: a
-                    # pattern part gains `curve:` later) -- but a plain,
-                    # upright `face:` font on a part is not rejected by the
-                    # builder either, so this still has to be excluded from
-                    # subsetting for the same "no sheet" reason as every
-                    # other branch here, rather than assuming it cannot
-                    # happen.
+                glyphs = bucket(part.font)
+                if glyphs is None:
                     continue
-                bucket = needed.setdefault(part.font, set())
                 for index in element.drawn_indices():
-                    bucket |= set(part.texts[index])
+                    glyphs |= set(part.texts[index])
             continue
         if not isinstance(element, Text) or not element.font_is_custom:
             continue
-        if face.fonts[element.font].is_vector:
+        glyphs = bucket(element.font)
+        if glyphs is None:
             continue
-        bucket = needed.setdefault(element.font, set())
-        # An `aod: {font: ...}` override naming a *different* baked font
-        # (plan 14 §4.3) draws the exact same string, through the exact same
-        # format spec unless that too is overridden -- so its own bucket
-        # needs the same glyphs, not the "0123456789" fallback an empty
-        # bucket would otherwise bake with. A vector-font override is
-        # excluded the same way the awake font is above (not built yet,
-        # `docs/limitations.md` §2); naming the same resource as the awake
-        # font is simply a second `setdefault` of the same bucket, which is
-        # harmless.
+        # An `aod: {font: ...}` override naming a different baked font draws
+        # the same string (through its own `format:` override, if any), so
+        # its bucket needs the same glyphs -- not the "0123456789" fallback
+        # an empty bucket would otherwise bake with.
         aod = element.aod
-        aod_bucket = None
-        if (aod is not None and aod.font is not None and aod.font_is_custom
-                and not face.fonts[aod.font].is_vector):
-            aod_bucket = needed.setdefault(aod.font, set())
+        aod_glyphs = (bucket(aod.font) if aod is not None and aod.font is not None
+                      and aod.font_is_custom else None)
         if element.literal is not None:
-            bucket |= set(element.literal)
-            if aod_bucket is not None:
-                aod_bucket |= set(element.literal)
+            glyphs |= set(element.literal)
+            if aod_glyphs is not None:
+                aod_glyphs |= set(element.literal)
             continue
         if element.value is None:
             continue
         source = catalog.get(element.value.sources[0]) if element.value.sources else None
         spec = element.format or "{}"
-        glyphs = formatting.glyphs(spec, source, element.value.value.type, element.value.scale)
-        bucket |= glyphs
-        if aod_bucket is not None:
+        value_glyphs = formatting.glyphs(spec, source, element.value.value.type,
+                                         element.value.scale)
+        glyphs |= value_glyphs
+        if aod_glyphs is not None:
             aod_spec = (aod.format if aod.format is not None else spec)
-            aod_bucket |= (
-                glyphs if aod_spec == spec
+            aod_glyphs |= (
+                value_glyphs if aod_spec == spec
                 else formatting.glyphs(aod_spec, source, element.value.value.type,
                                        element.value.scale)
             )
         if element.placeholder:
-            bucket |= set(element.placeholder)
+            glyphs |= set(element.placeholder)
         if element.when_absent == "fallback" and element.fallback is not None:
             # 'fallback:' is drawn through the same format spec as the real
             # value (see `_emit_text` in `wfb/emit/monkeyc/shapes.py`) -- a
@@ -178,10 +153,10 @@ def glyph_set(face: Face) -> dict[str, str]:
             # same digit-set formatting.glyphs already adds for the value.
             fallback = element.fallback
             if fallback.value.type is catalog.Type.STRING and fallback.constant is not None:
-                bucket |= set(str(fallback.constant))
+                glyphs |= set(str(fallback.constant))
             else:
                 fallback_source = catalog.get(fallback.sources[0]) if fallback.sources else None
-                bucket |= formatting.glyphs(spec, fallback_source, fallback.value.type,
+                glyphs |= formatting.glyphs(spec, fallback_source, fallback.value.type,
                                             fallback.scale)
     out: dict[str, str] = {}
     for name, chars in needed.items():
@@ -283,42 +258,30 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
     baked: dict[str, BakedFont] = {}
     for name, spec in face.fonts.items():
         if spec.is_vector:
-            # A `face:` font (plan 11) is never rasterised at all -- it is
-            # drawn straight from the device's own resident face at
-            # runtime, so it has no `source:` to bake (`spec.source is
-            # None`) and contributes no `<font>` resource or glyph set.
-            # Skipping it here is what keeps a real build of a vector-font
-            # design from dying with a confusing "cannot open resource"
-            # error before anything else runs -- `spec.source` would
-            # otherwise be handed to `bake()` as `None`.
+            # A `face:` font is drawn from the device's own resident face: it
+            # has no `source:` to bake and no `<font>` resource.
             continue
-        # `size:` is a `Length`, resolved through `wfb.units.pixel_size` --
-        # the same resolver the synthetic icon fonts below go through, so
-        # `12px` means the same thing on a font and on an icon.
-        size = spec.pixel_size(device.minor_radius)
-        font, sheet = bake(
+        # `size:` goes through `wfb.units.pixel_size`, the same resolver the
+        # synthetic icon fonts below use, so `12px` means one thing on both.
+        baked[name], _ = bake(
             spec.source,
             name=name,
-            size=size,
+            size=spec.pixel_size(device.minor_radius),
             glyphs=sets[name] or "0123456789",
             antialias=spec.antialias,
             monospace=spec.monospace,
             align=spec.align,
         )
-        baked[name] = font
-        font.sheet_image = sheet  # type: ignore[attr-defined]
 
     for name, spec in icon_font_specs(face, device).items():
         # Not `spec.pixel_size(...)`: an icon font's spec is synthesised, not
         # authored, and its `size` is already this device's final nominal size
         # -- `icon_font_specs` has run the declared `Length` through
         # `units.pixel_size` and then `icons.bake_size` to get there.
-        font, sheet = bake(
+        baked[name], _ = bake(
             spec.source, name=name, size=round(spec.size), glyphs=spec.glyphs,
             antialias=spec.antialias,
         )
-        baked[name] = font
-        font.sheet_image = sheet  # type: ignore[attr-defined]
     return baked
 
 
@@ -534,7 +497,6 @@ def write_bundle(bundle: ResourceBundle, root: Path) -> list[Path]:
         image.save(path, format="PNG", optimize=True)
         written.append(path)
     for font in bundle.fonts.values():
-        sheet = getattr(font, "sheet_image", None)
-        if sheet is not None:
-            written.extend(write_font(font, sheet, base / "fonts"))
+        if font.sheet is not None:
+            written.extend(write_font(font, font.sheet, base / "fonts"))
     return written

@@ -65,6 +65,10 @@ def _documented_font_symbols() -> frozenset[str]:
     return frozenset(vocabulary)
 
 
+#: One ``name="value"`` attribute of an ``api.debug.xml`` tag.
+_XML_ATTR = re.compile(r'([\w:.-]+)="([^"]*)"')
+
+
 #: The two sfnt version tags this project's minimal reader accepts --
 #: TrueType outlines (``0x00010000``) and OpenType/CFF outlines (``OTTO``).
 #: Anything else (a bitmap-only ``.cft``, a corrupt file, ``true``/``typ1``
@@ -153,60 +157,23 @@ def _locate_garmin_outline_font(filename: str) -> Path | None:
 
 @dataclass(frozen=True)
 class FontMetric:
-    """A system font's real pixel metrics on one device, for one language.
+    """A system font's real pixel metrics on one device, for one language
+    (see :attr:`Device.system_fonts` for where each field comes from).
 
-    ``face``/``font``/``size_px`` come from the scraped SDK device reference
-    (``docs/research/data/devices/<id>.json``, English/default table) and are
-    always present when this device has an entry for the symbol at all --
     ``size_px`` is the published *line height*, and stays authoritative for
-    layout even when the fields below add more precision, so a face that
-    never gains better data does not shift (plan 09 R2.1). ``font`` is
-    replaced by the installed device's own ``simulator.json`` ``filename``
-    when there is one, TTF or bitmap alike (plan 10 §3 B.1) -- for a bitmap
-    symbol this is the real, ``FNT_``-prefixed `.cft` file stem, which is
-    what lets `wfb.fonts.fetch_system.locate` find it by an exact match.
+    layout even when the fields below add precision, so a face that never
+    gains better data does not shift. ``font`` is the installed
+    ``simulator.json`` ``filename`` when there is one -- for a bitmap symbol
+    the real ``FNT_``-prefixed ``.cft`` stem `wfb.fonts.fetch_system.locate`
+    matches exactly.
 
-    **`size_px` is itself overridden for a bitmap symbol** once a `.cft` is
-    actually located: its own `height`/`ascent` become the line box/
-    baseline instead (plan 10 §2.3) -- it is the very file the simulator
-    loads, so it outranks the scraped estimate. That
-    override happens in `wfb.fonts.fallback` (`system_face`/`line_height`),
-    never here: this dataclass only ever holds what the scraped table and
-    `simulator.json` state outright, not a location-dependent result.
-
-    ``em_px``/``ascent_px``/``height_px`` are enrichments from the installed
-    device's own ``simulator.json`` ``ww`` font set, **`type: "ttf"` entries
-    only** (plan 09 §2's metric model, verified in ``docs/research/
-    10-system-fonts.md`` §3): ``em_px`` is the real em size in pixels
-    (``size_pt * ppi / 72``, only known when the device file gives both a
-    point ``size`` and a top-level ``ppi``), and ``ascent_px``/``height_px``
-    are the device's own published values where it bothers to state them
-    (about a third of `ww` `ttf` entries do).
-
-    **A third source (plan 17), for a device the scraped reference has no
-    page for at all** (the fenix 9 family): when a standard `FONT_*` symbol
-    (the documented vocabulary, `_documented_font_symbols`) has nothing from
-    either loop above, and its `simulator.json` `ww` entry's `filename`
-    resolves to a real, locatable `.ttf`/`.otf` under the user's own Garmin
-    font root (`_locate_garmin_outline_font` -- local files only, never a
-    download), `size_px` itself is *derived* from that file's own `head`/
-    `hhea` tables (`_sfnt_head_hhea`, a stdlib `struct` reader) rather than
-    read from a scrape: `size_px = round(em_px * (ascent - descent) /
-    unitsPerEm)`, with `em_px` set the same way the second loop's does. Both
-    `face`/`ascent_px` stay `""`/`None` here too, matching the second loop's
-    own shape -- `wfb.fonts.fallback` already derives the ascent from the
-    located TTF once one is found again at draw/measure time. This source
-    never fires for a device the scrape already covers, or for a symbol
-    outside the vocabulary, or without the user's own licensed Garmin fonts
-    installed.
-
-    All three stay `None` for a bitmap entry -- its `.cft` carries height/
-    ascent directly, so there is nothing here to estimate -- and also when a
-    TTF entry's own data is incomplete; `wfb.fonts.fallback` derives whatever
-    is missing from a
-    *located* TTF's own `hhea` table instead in that case (kept out of this
-    module so ``wfb.devices`` never needs Pillow/fontTools: see that
-    module's docstring).
+    ``em_px`` (``size_pt * ppi / 72``), ``ascent_px`` and ``height_px`` are
+    enrichments from a ``type: "ttf"`` ``ww`` entry, ``None`` for a bitmap
+    entry or when the device file does not state them. A located ``.cft``'s
+    own ``height``/``ascent`` override ``size_px`` for a bitmap symbol, but
+    that is location-dependent and happens in `wfb.fonts.fallback`, never
+    here: this dataclass only holds what the device data states outright.
+    Frozen and hashable, so it keys `fallback.system_face`'s cache.
     """
 
     symbol: str
@@ -321,15 +288,20 @@ class Device:
     # -- limits -----------------------------------------------------------
 
     @property
+    def _watchface_app_type(self) -> dict | None:
+        return next((e for e in self.compiler.get("appTypes", [])
+                     if e.get("type") == "watchFace"), None)
+
+    @property
     def watchface_memory_limit(self) -> int:
-        for entry in self.compiler.get("appTypes", []):
-            if entry.get("type") == "watchFace":
-                return int(entry["memoryLimit"])
-        raise DeviceError(f"{self.id} declares no watchFace app type")
+        entry = self._watchface_app_type
+        if entry is None:
+            raise DeviceError(f"{self.id} declares no watchFace app type")
+        return int(entry["memoryLimit"])
 
     @property
     def supports_watchface(self) -> bool:
-        return any(e.get("type") == "watchFace" for e in self.compiler.get("appTypes", []))
+        return self._watchface_app_type is not None
 
     @property
     def api_level(self) -> str:
@@ -358,39 +330,32 @@ class Device:
     @cached_property
     def _api_debug_xml(self) -> str:
         """The raw text of the device's own ``<id>.api.debug.xml``, read once
-        and shared by :attr:`_symbols`, :attr:`_modules` and :attr:`_fields`,
-        which each scan it for a different tag.
+        and shared by every :meth:`_tags` scan.
         """
         path = self.root / f"{self.id}.api.debug.xml"
         if not path.exists():
             raise DeviceError(f"{self.id}: missing {path.name}")
         return path.read_text(encoding="utf-8", errors="replace")
 
+    def _tags(self, tag: str) -> list[dict[str, str]]:
+        """The attributes of every ``<tag ...>`` in the symbol table, one dict
+        per tag -- read by name, since attribute order in this XML is not
+        guaranteed."""
+        return [dict(_XML_ATTR.findall(m.group(0)))
+                for m in re.finditer(rf"<{tag}\b[^>]*>", self._api_debug_xml)]
+
     @cached_property
     def _symbols(self) -> tuple[set[tuple[str, str]], dict[str, str]]:
         """``({(parent, name)}, {classId: fully_qualified_label})``."""
-        text = self._api_debug_xml
         functions = {
-            (m.group("parent"), m.group("name"))
-            for m in re.finditer(
-                r'<functionEntry\b[^>]*?\bname="(?P<name>[^"]*)"[^>]*?\bparent="(?P<parent>[^"]*)"',
-                text,
-            )
-        }
-        # attribute order is not guaranteed; catch the reversed spelling too
-        functions |= {
-            (m.group("parent"), m.group("name"))
-            for m in re.finditer(
-                r'<functionEntry\b[^>]*?\bparent="(?P<parent>[^"]*)"[^>]*?\bname="(?P<name>[^"]*)"',
-                text,
-            )
+            (attrs["parent"], attrs["name"])
+            for attrs in self._tags("functionEntry")
+            if "parent" in attrs and "name" in attrs
         }
         scopes = {
-            m.group("cls"): m.group("label")
-            for m in re.finditer(
-                r'<apiScopeEntry\b[^>]*?\bclassId="(?P<cls>[^"]*)"[^>]*?\blabel="(?P<label>[^"]*)"',
-                text,
-            )
+            attrs["classId"]: attrs["label"]
+            for attrs in self._tags("apiScopeEntry")
+            if "classId" in attrs and "label" in attrs
         }
         return functions, scopes
 
@@ -420,23 +385,10 @@ class Device:
         """Every ``symbolId`` the device's own ``<dataEntry type="module">``
         rows declare -- e.g. ``Complications``, ``Weather``.
 
-        Used by :meth:`has_module`. Built the same tolerant way as
-        `_symbols`: attribute order in this XML is not guaranteed (the same
-        finding `_symbols`' own comment already records for
-        ``functionEntry``), so this matches ``symbolId="..."`` and
-        ``type="module"`` independently within one tag rather than assuming
-        either comes first.
+        Used by :meth:`has_module`.
         """
-        text = self._api_debug_xml
-        modules: set[str] = set()
-        for tag in re.finditer(r"<dataEntry\b[^>]*/>", text):
-            body = tag.group(0)
-            if 'type="module"' not in body:
-                continue
-            m = re.search(r'\bsymbolId="([^"]*)"', body)
-            if m:
-                modules.add(m.group(1))
-        return frozenset(modules)
+        return frozenset(attrs["symbolId"] for attrs in self._tags("dataEntry")
+                         if attrs.get("type") == "module" and "symbolId" in attrs)
 
     def has_module(self, name: str) -> bool:
         """Is the ``Toybox`` (or nested) module ``name`` present on this
@@ -477,16 +429,8 @@ class Device:
         also check the *reader* it comes off is available
         (`has_symbol`/`has_module`), which narrows the class independently.
         """
-        text = self._api_debug_xml
-        fields: set[str] = set()
-        for tag in re.finditer(r"<entry\b[^>]*/>", text):
-            body = tag.group(0)
-            if 'field="true"' not in body:
-                continue
-            m = re.search(r'\bsymbol="([^"]*)"', body)
-            if m:
-                fields.add(m.group(1))
-        return frozenset(fields)
+        return frozenset(attrs["symbol"] for attrs in self._tags("entry")
+                         if attrs.get("field") == "true" and "symbol" in attrs)
 
     def has_field(self, name: str) -> bool:
         """Is the bare field ``name`` present on this device -- e.g.
@@ -562,21 +506,24 @@ class Device:
         return "FONT_" + re.sub(r"(?<!^)(?=[A-Z])", "_", name).upper()
 
     @cached_property
+    def _ww_font_entries(self) -> tuple[dict, ...]:
+        """Every font entry in this device's ``simulator.json`` ``ww`` font
+        set, in file order -- empty for a hand-built test `Device` with none."""
+        return tuple(
+            entry
+            for block in self.simulator.get("fonts", [])
+            if block.get("fontSet") == self._SIMULATOR_FONT_SET
+            for entry in block.get("fonts", [])
+        )
+
+    @cached_property
     def _simulator_ww_fonts(self) -> dict[str, dict]:
         """``FONT_*`` symbol -> this device's own ``simulator.json`` ``ww``
-        font entry, when installed. Empty for a device with no `simulator.
-        json` `fonts` list at all, or none of it in the `ww` set (never the
-        case for an installed device, per `docs/research/10-system-fonts.md`
-        §1, but the discovery is expressed defensively so a hand-built
-        `Device` in a test does not need one)."""
+        font entry (the first, when several derive the same symbol)."""
         out: dict[str, dict] = {}
-        for block in self.simulator.get("fonts", []):
-            if block.get("fontSet") != self._SIMULATOR_FONT_SET:
-                continue
-            for entry in block.get("fonts", []):
-                name = entry.get("name")
-                if not name:
-                    continue
+        for entry in self._ww_font_entries:
+            name = entry.get("name")
+            if name:
                 out.setdefault(self._symbol_for_simulator_name(name), entry)
         return out
 
@@ -586,10 +533,8 @@ class Device:
         research/12-vector-fonts.md` §3.1): the device-resident face names
         this device publishes to ``Graphics.getVectorFont``.
 
-        Reads the same ``simulator.json`` ``ww`` font-set block
-        :attr:`_simulator_ww_fonts` reads, but the entries that block
-        deliberately excludes: ``type: "system_ttf"`` (the scalable
-        catalogue) rather than ``type: "ttf"`` (fixed, ``FONT_*``-only
+        The ``type: "system_ttf"`` entries of :attr:`_ww_font_entries` (the
+        scalable catalogue), not ``type: "ttf"`` (fixed, ``FONT_*``-only
         system fonts, no ``:face`` string of their own). An entry's own
         ``name`` field *is* the ``:face`` string an author's ``face:``
         names -- there is no separate id to translate through, unlike
@@ -601,19 +546,10 @@ class Device:
         watch-face-capable devices, per the research doc's own count --
         which is the ordinary, expected case, not a degraded one.
         """
-        out: list[str] = []
-        seen: set[str] = set()
-        for block in self.simulator.get("fonts", []):
-            if block.get("fontSet") != self._SIMULATOR_FONT_SET:
-                continue
-            for entry in block.get("fonts", []):
-                if entry.get("type") != "system_ttf":
-                    continue
-                name = entry.get("name")
-                if name and name not in seen:
-                    seen.add(name)
-                    out.append(name)
-        return tuple(out)
+        return tuple(dict.fromkeys(
+            entry["name"] for entry in self._ww_font_entries
+            if entry.get("type") == "system_ttf" and entry.get("name")
+        ))
 
     @cached_property
     def scalable_face_files(self) -> dict[str, str]:
@@ -638,79 +574,37 @@ class Device:
         face name itself in that case rather than raising.
         """
         out: dict[str, str] = {}
-        for block in self.simulator.get("fonts", []):
-            if block.get("fontSet") != self._SIMULATOR_FONT_SET:
-                continue
-            for entry in block.get("fonts", []):
-                if entry.get("type") != "system_ttf":
-                    continue
-                name = entry.get("name")
-                filename = entry.get("filename")
-                if name and filename:
-                    out.setdefault(name, filename)
+        for entry in self._ww_font_entries:
+            if entry.get("type") == "system_ttf" and entry.get("name") and entry.get("filename"):
+                out.setdefault(entry["name"], entry["filename"])
         return out
 
     @cached_property
     def system_fonts(self) -> dict[str, FontMetric]:
-        """``FONT_*`` pixel metrics for the default language.
+        """``FONT_*`` pixel metrics for the default language, from three
+        sources in priority order (see :class:`FontMetric` for the fields):
 
-        The base table (``face``/``font``/``size_px``) is the SDK's scraped
-        device reference pages (ADR 0004 5); the device files carry point
-        sizes only. Empty when unavailable, in which case text-overflow
-        linting degrades to "not checked" rather than to a confident wrong
-        answer.
+        1. The SDK's scraped device reference (``face``/``font``/``size_px``,
+           ADR 0004 5), enriched from the installed ``simulator.json`` ``ww``
+           entry: its ``filename`` always replaces ``font``, and a ``type:
+           "ttf"`` entry adds ``em_px``/``ascent_px``/``height_px``
+           (:func:`_ttf_enrichment`; `docs/research/10-system-fonts.md` §3).
+        2. A ``ww`` ``ttf`` entry for a symbol the scrape lacks
+           (``FONT_SYSTEM_*``, mostly), only when it states ``height``
+           outright -- there is no other line height to use.
+        3. For a device with no scrape at all (the fenix 9 family): a
+           documented ``FONT_*`` symbol (:func:`_documented_font_symbols`)
+           whose ``ww`` ``ttf`` entry's file is a real ``.ttf``/``.otf`` under
+           the user's own Garmin font root (:func:`_locate_garmin_outline_font`,
+           never a download or a ``.cft``) gets ``size_px = round(em_px *
+           (ascent - descent) / unitsPerEm)`` from that file's own tables
+           (:func:`_sfnt_head_hhea`). No scraped device gains a symbol here.
 
-        Enriched, per plan 09 R2.1, from the installed device's own
-        ``simulator.json`` ``ww`` set when present: its own ``filename``
-        always replaces the scraped ``font`` name (TTF or bitmap alike) -- it is the more precise of the two, and
-        for a bitmap symbol it is also the real
-        ``.cft`` file's own stem, always ``FNT_``-prefixed, which the
-        scraped ``font`` column never carries the prefix for
-        (`docs/research/10-system-fonts.md` §1). A `type: "ttf"` entry
-        additionally supplies ``em_px`` (``size * ppi / 72``, when the
-        device file gives both a point ``size`` and a top-level ``ppi``,
-        ``docs/research/10-system-fonts.md`` §3's verified model) and, when
-        the device file bothers to state them, ``ascent_px``/``height_px``.
-        A bitmap entry (no `type` key) leaves `em_px`/`ascent_px`/
-        `height_px` `None` regardless -- its `.cft` file carries its own
-        `height`/`ascent` directly (plan 10 §2.3), consulted by
-        `wfb.fonts.fallback.system_face` once the file is actually located,
-        never estimated here (this module stays free of Pillow/fontTools
-        imports either way). A device with no `.cft` locatable for a bitmap
-        symbol (or with no `ppi`/`size` on a TTF one) still measures: `wfb.
-        fonts.fallback` derives whatever is missing from a *located* TTF's
-        own `hhea` table instead, for the TTF case.
-
-        A `simulator.json` `ttf` entry naming a symbol the scraped table has
-        nothing for at all (`FONT_SYSTEM_*`, mostly) is added too, but only
-        when its own `height` is stated outright -- there is no scraped
-        `size_px` to use as the line height for such a symbol, and deriving
-        one from the TTF here would need Pillow/fontTools, which this module
-        deliberately does not import (`wfb/fonts/fallback.py`'s docstring:
-        that derivation happens there instead, lazily, only for a symbol
-        actually referenced). An entry with no `height` is simply left out --
-        the same "not checked" degradation as a totally unknown symbol.
-
-        **A third source (plan 17), only for a symbol still missing after
-        both loops above** -- a device the scraped reference has no page for
-        at all (the fenix 9 family: `fenix947mm`, `fenix9prosolar47mm`,
-        `fenix9prosolar51mm`). For each of the 9 standard `FONT_*` symbols
-        (`_documented_font_symbols`'s vocabulary) whose own `ww` entry is a
-        `type: "ttf"` with a point `size`, when the device has a `ppi` and
-        that entry's `filename` resolves to a real, locatable `.ttf`/`.otf`
-        under the user's own Garmin font root (`_locate_garmin_outline_font`
-        -- never the free-stand-in registry, and never a `.cft`), `size_px`
-        itself is derived from that file's own `head.unitsPerEm`/
-        `hhea.ascent`/`hhea.descent` (`_sfnt_head_hhea`, a stdlib `struct`
-        reader): `size_px = round(em_px * (ascent - descent) / unitsPerEm)`,
-        `em_px` computed the same `size * ppi / 72` way as the second loop's.
-        No scraped device gains a symbol from this (checked against every
-        installed device that does have a scrape): a scraped device's `fixed`
-        table already covers every symbol this loop would otherwise reach,
-        so the first loop's `if symbol in metrics` guard always wins first.
-        Without the user's own licensed Garmin fonts installed, this source
-        never fires and an unscraped device stays "not checked", exactly as
-        before (`docs/limitations.md`).
+        A symbol none of them covers is absent, and text-overflow linting
+        degrades to "not checked" rather than a confident wrong answer.
+        Whatever is still missing for a located TTF (the em, the ascent) is
+        derived in `wfb.fonts.fallback`, which may import fontTools; this
+        module stays stdlib-only.
         """
         fixed = self._scraped.get("fonts", {}).get("default", {}).get("fixed", {})
         ppi = self.simulator.get("ppi")
@@ -720,44 +614,31 @@ class Device:
         for symbol, entry in fixed.items():
             if "size_px" not in entry:
                 continue
-            face = entry.get("face", "")
             font = entry.get("font", "")
-            size_px = int(entry["size_px"])
-            em_px: float | None = None
-            ascent_px: int | None = None
-            height_px: int | None = None
+            enrichment: tuple[float | None, int | None, int | None] = (None, None, None)
             sim_entry = sim_fonts.get(symbol)
             if sim_entry is not None:
                 # The installed device's own filename always replaces the
-                # scraped `font`, TTF or bitmap alike (plan 10 §3 B.1): it is
-                # the more precise of the two, and for a bitmap symbol it is
-                # also the exact `.cft` file stem (`FNT_...`), which the
-                # scraped `font` column never carries the prefix for. Only a
-                # `type: "ttf"` entry supplies em/ascent/height this way --
-                # a bitmap entry's `.cft` carries its own height/ascent,
-                # consulted directly by `wfb.fonts.fallback.system_face`
-                # (plan 10 §2.3), never estimated here.
+                # scraped `font`, TTF or bitmap alike: it is the more precise
+                # of the two, and for a bitmap symbol it is the exact `.cft`
+                # file stem (`FNT_...`), which the scraped column never
+                # carries the prefix for. A bitmap entry's `.cft` carries its
+                # own height/ascent, read by `wfb.fonts.fallback`.
                 font = sim_entry.get("filename", font)
                 if sim_entry.get("type") == "ttf":
-                    if ppi and "size" in sim_entry:
-                        em_px = sim_entry["size"] * ppi / 72
-                    if "ascent" in sim_entry:
-                        ascent_px = int(sim_entry["ascent"])
-                    if "height" in sim_entry:
-                        height_px = int(sim_entry["height"])
-            metrics[symbol] = FontMetric(symbol, face, font, size_px, em_px, ascent_px, height_px)
+                    enrichment = _ttf_enrichment(sim_entry, ppi)
+            metrics[symbol] = FontMetric(symbol, entry.get("face", ""), font,
+                                         int(entry["size_px"]), *enrichment)
 
         for symbol, sim_entry in sim_fonts.items():
             if symbol in metrics or sim_entry.get("type") != "ttf":
                 continue
-            height = sim_entry.get("height")
-            if height is None:
+            em_px, ascent_px, height_px = _ttf_enrichment(sim_entry, ppi)
+            if height_px is None:
                 continue
-            em_px = sim_entry["size"] * ppi / 72 if ppi and "size" in sim_entry else None
-            ascent_px = int(sim_entry["ascent"]) if "ascent" in sim_entry else None
             metrics[symbol] = FontMetric(
-                symbol, "", sim_entry.get("filename", ""), int(height),
-                em_px, ascent_px, int(height),
+                symbol, "", sim_entry.get("filename", ""), height_px,
+                em_px, ascent_px, height_px,
             )
 
         if ppi:
@@ -777,13 +658,24 @@ class Device:
                 if sfnt is None:
                     continue
                 units_per_em, ascent, descent = sfnt
-                em_px = sim_entry["size"] * ppi / 72
+                em_px, _, _ = _ttf_enrichment(sim_entry, ppi)
                 size_px = round(em_px * (ascent - descent) / units_per_em)
                 metrics[symbol] = FontMetric(symbol, "", filename, size_px, em_px, None, size_px)
         return metrics
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<Device {self.id} {self.width}x{self.height} {self.shape} {self.display_type}>"
+
+
+def _ttf_enrichment(sim_entry: dict, ppi) -> tuple[float | None, int | None, int | None]:
+    """``(em_px, ascent_px, height_px)`` from one ``simulator.json`` ``type:
+    "ttf"`` font entry: ``em_px = size * ppi / 72`` when both are known, the
+    other two only where the device file states them outright."""
+    em_px = sim_entry["size"] * ppi / 72 if ppi and "size" in sim_entry else None
+    ascent_px = int(sim_entry["ascent"]) if "ascent" in sim_entry else None
+    height = sim_entry.get("height")
+    height_px = int(height) if height is not None else None
+    return em_px, ascent_px, height_px
 
 
 def version_key(v: str) -> tuple[int, ...]:

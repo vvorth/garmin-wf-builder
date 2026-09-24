@@ -55,6 +55,9 @@ class BakedFont:
     #: Filenames written by :meth:`write`, relative to the resource directory.
     fnt_name: str = ""
     png_name: str = ""
+    #: The packed glyph sheet (`"L"` mode) :func:`bake` rasterised -- what
+    #: :func:`write` saves and `wfb.preview` crops glyph tiles from.
+    sheet: Image.Image | None = field(default=None, repr=False, compare=False)
 
     def measure(self, text: str) -> tuple[int, int]:
         """The pixel extent of ``text``: (advance width, line height)."""
@@ -225,11 +228,12 @@ def bake(
         cell_width=_cell_width(rendered) if monospace else 0,
         fnt_name=f"{name}.fnt",
         png_name=f"{name}.png",
+        sheet=sheet,
     )
     for (char, tile, left, top, advance), (x, y) in zip(rendered, placements):
-        if tile.size != (1, 1) or tile.getpixel((0, 0)):
+        empty = _is_empty(tile)
+        if not empty:
             sheet.paste(tile, (x, y))
-        empty = tile.size == (1, 1) and not tile.getpixel((0, 0))
         ink_width = 0 if empty else tile.width
         if monospace:
             # The cell replaces the natural advance *and* the natural left
@@ -263,11 +267,16 @@ def _cell_width(rendered: list[tuple[str, Image.Image, int, int, int]]) -> int:
     """
     widest_advance = max(advance for *_, advance in rendered)
     widest_ink = max(
-        (tile.width for _, tile, *_ in rendered
-         if tile.size != (1, 1) or tile.getpixel((0, 0))),
+        (tile.width for _, tile, *_ in rendered if not _is_empty(tile)),
         default=0,
     )
     return max(1, widest_advance, widest_ink)
+
+
+def _is_empty(tile: Image.Image) -> bool:
+    """The 1x1 blank placeholder `bake` packs for an ink-less glyph (a space):
+    it still takes a sheet slot, but has no ink width or height."""
+    return tile.size == (1, 1) and not tile.getpixel((0, 0))
 
 
 def _ink_offset(align: str, cell: int, ink_width: int) -> int:
@@ -301,12 +310,18 @@ def _pack(tiles: list[tuple[str, Image.Image]]) -> tuple[int, int, list[tuple[in
     total = sum((im.width + _PADDING) for _, im in tiles)
     side = 16
     while side < _MAX_SHEET:
-        if side >= widest and _shelf_height(tiles, side) <= side:
+        if side >= widest and _shelve(tiles, side)[1] <= side:
             break
         side *= 2
     if side > _MAX_SHEET or total == 0:
         raise ValueError("glyph sheet would exceed 1024x1024 -- reduce the font size or glyph set")
 
+    return side, side, _shelve(tiles, side)[0]
+
+
+def _shelve(tiles: list[tuple[str, Image.Image]],
+            side: int) -> tuple[list[tuple[int, int]], int]:
+    """Each tile's top-left on shelves `side` wide, and the total height used."""
     placements: list[tuple[int, int]] = []
     x = y = row_height = 0
     for _, tile in tiles:
@@ -316,18 +331,7 @@ def _pack(tiles: list[tuple[str, Image.Image]]) -> tuple[int, int, list[tuple[in
         placements.append((x, y))
         x += tile.width + _PADDING
         row_height = max(row_height, tile.height)
-    return side, side, placements
-
-
-def _shelf_height(tiles: list[tuple[str, Image.Image]], side: int) -> int:
-    x = y = row_height = 0
-    for _, tile in tiles:
-        if x + tile.width + _PADDING > side:
-            x, y = 0, y + row_height + _PADDING
-            row_height = 0
-        x += tile.width + _PADDING
-        row_height = max(row_height, tile.height)
-    return y + row_height
+    return placements, y + row_height
 
 
 def _face_name(source: Path) -> str:

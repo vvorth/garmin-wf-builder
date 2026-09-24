@@ -3943,7 +3943,7 @@ class Builder:
         This is the one place `fallback:` means something other than "the
         value" -- for a progress, either the value or the max can be the
         absent reading, so the outcome is the only well-defined substitute
-        (see `wfb/emit/monkeyc.py`'s `_fallback_fraction`).  That makes an
+        (see `wfb.emit.monkeyc.shapes._fallback_fraction`).  That makes an
         out-of-range constant a plausible mistake -- writing the *step count*
         you wanted rather than the fraction -- and it is the one path not
         already clamped by `WfbMath.percent`, so a bar could be drawn wider
