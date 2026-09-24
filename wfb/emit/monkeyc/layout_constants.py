@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
@@ -457,22 +458,8 @@ def _pattern_constants(prefix: str, placed: PlacedPattern) -> Constants:
     return out
 
 
-#: Placed kind -> its `Layout` constants; a group has none.
-_CONSTANTS_BY_KIND = {
-    PlacedShape: _shape_constants,
-    PlacedText: _text_constants,
-    PlacedProgress: _progress_constants,
-    PlacedIcon: _icon_constants,
-    PlacedGraph: _graph_constants,
-    PlacedComplicationSlot: _complication_slot_constants,
-    PlacedHands: _hands_constants,
-    PlacedPattern: _pattern_constants,
-}
-
-
 def _layout_constants(placed) -> Constants:
-    constants = _CONSTANTS_BY_KIND.get(type(placed))
-    return constants(_const_prefix(placed.id), placed) if constants is not None else []
+    return kinds.for_placed(placed).layout_constants(_const_prefix(placed.id), placed)
 
 
 def _hand_part_constants(

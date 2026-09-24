@@ -48,9 +48,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
+from . import kinds
 from .catalog import CATALOG, READERS, Source
 from .devices import Device
-from .ir import Face, FontSpec, Graph, PatternElement, Text
+from .ir import Face, FontSpec, Graph
 from .series import ACQUISITION, Acquisition
 
 
@@ -238,11 +239,7 @@ def vector_fonts_used(face: Face) -> dict[str, FontSpec]:
     """
     named: set[str] = set()
     for element in face.walk():
-        if isinstance(element, Text) and element.font_is_custom:
-            named.add(element.font)
-        elif isinstance(element, PatternElement):
-            named.update(part.font for part in element.parts
-                         if part.shape == "text" and part.font_is_custom)
+        named.update(kinds.for_element(element).vector_font_names(element))
     return {name: spec for name, spec in face.fonts.items()
             if name in named and spec.is_vector}
 

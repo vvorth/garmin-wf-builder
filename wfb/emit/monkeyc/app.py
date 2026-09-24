@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ... import icons
-from ...ir import ComplicationSlot, Face, IconElement
+from ... import icons, kinds
+from ...ir import Face
 from .common import SourceFile, _editor_slot_pairs, header, needs_delegate
 from ..writer import Writer
 
@@ -145,15 +145,6 @@ def icon_glyph_entries(face: Face) -> dict[str, str]:
     See `emit_icon_glyphs` for which keys, and why only those.
     """
     entries: dict[str, str] = {}  # key -> codepoint
-    if any(isinstance(e, IconElement) and e.is_dynamic for e in face.walk()):
-        for name in set(icons.GARMIN_WEATHER_CONDITION_ICON.values()):
-            entries[name] = icons.CATALOG[name].codepoint
     for element in face.walk():
-        if not (isinstance(element, ComplicationSlot) and element.icon_size is not None):
-            continue
-        slot = face.config_data.get(element.slot)
-        if slot is None:
-            continue
-        for slot_icon in slot.icons.values():
-            entries[slot_icon.key] = slot_icon.codepoint
+        entries.update(kinds.for_element(element).icon_glyph_entries(element, face))
     return entries

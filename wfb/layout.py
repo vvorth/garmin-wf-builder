@@ -15,7 +15,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
-from . import catalog, complications, formatting, icons, units
+from . import catalog, complications, formatting, icons, kinds, units
 from .devices import Device, FontMetric
 from .diagnostics import Span
 from .fonts import BakedFont, fallback
@@ -883,13 +883,16 @@ def _pattern_part_ink(
     return px - pad, py - pad, px + pad, py + pad
 
 
-#: The placed kinds whose own drawing `antialias:` reaches as a runtime
-#: `Dc.setAntiAlias` -- primitives, not glyphs (`text`/`icon` anti-alias in
-#: their baked font instead).  One tuple, read by the emitter's "is the
-#: feature used" gate, its per-element toggle, and the `antialias-dither`
-#: lint: three private copies once drifted, so a hands-only anti-aliased face
-#: emitted no `setAntiAlias` at all, and a graph-only one never linted.
-ANTIALIASED_PRIMITIVES = (PlacedShape, PlacedProgress, PlacedGraph, PlacedHands, PlacedPattern)
+def is_antialiased_primitive(placed: "Placed") -> bool:
+    """Does this placed element's own drawing `antialias:` reach as a
+    runtime `Dc.setAntiAlias` -- true for a primitive-drawing kind
+    (`shape`/`progress`/`graph`/`hands`/`pattern`), never for a glyph kind
+    (`text`/`icon`/`complication_slot`, which anti-alias in their baked
+    font instead) or a `group`.  Read by the emitter's "is the feature used"
+    gate, its per-element toggle, and the `antialias-dither` lint: three
+    private copies once drifted, so a hands-only anti-aliased face emitted
+    no `setAntiAlias` at all, and a graph-only one never linted."""
+    return kinds.for_placed(placed).antialiased
 
 
 #: The pixel gap between a complication_slot's icon and its reading when
@@ -1145,7 +1148,7 @@ class Resolver:
                 )
                 self._resolve_list(element.items, box, depth + 1)
             else:
-                resolve = self._BY_TYPE[type(element)]
+                resolve = kinds.for_element(element).resolve
                 self.items.append(resolve(self, element, parent, depth))
 
     # -- per-kind ---------------------------------------------------------
@@ -1895,14 +1898,6 @@ class Resolver:
             out.append("TEXT_JUSTIFY_VCENTER")
         return tuple(out)
 
-    #: `_resolve_list`'s dispatch, one entry per leaf element kind.
-    _BY_TYPE = {
-        Shape: _resolve_shape, Text: _resolve_text, Progress: _resolve_progress,
-        IconElement: _resolve_icon, Graph: _resolve_graph,
-        ComplicationSlot: _resolve_complication_slot, HandsElement: _resolve_hands,
-        PatternElement: _resolve_pattern,
-    }
-
 
 def _longer(current: str, candidate: str) -> str:
     """`candidate` if it is strictly longer than `current`, else `current`
@@ -1957,17 +1952,7 @@ def circular_extent(placed: "Placed") -> tuple[float, float, float] | None:
     A ring's *bounding box* has corners far outside the ring itself, so checking
     the box against a round screen would report every full-width arc as cropped.
     """
-    if (isinstance(placed, PlacedProgress) and placed.element.style == "arc"
-            or isinstance(placed, PlacedShape) and placed.element.shape == "arc"):
-        return (placed.center[0], placed.center[1], placed.radius + placed.thickness / 2.0)
-    if isinstance(placed, PlacedShape) and placed.element.shape == "circle":
-        reach = placed.radius + (0 if placed.element.filled else placed.thickness / 2.0)
-        return (placed.center[0], placed.center[1], reach)
-    if isinstance(placed, PlacedHands):
-        return (placed.center[0], placed.center[1], placed.reach)
-    if isinstance(placed, PlacedPattern) and placed.element.pattern == "radial":
-        return (placed.center[0], placed.center[1], placed.reach)
-    return None
+    return kinds.for_placed(placed).circular_extent(placed)
 
 
 def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:
@@ -1984,16 +1969,7 @@ def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:
     circle = circular_extent(placed)
     if circle is not None:
         return InkDisc(*circle)
-    if isinstance(placed, PlacedText) and placed.curve_style is not None:
-        outline = placed.element.outline if isinstance(placed.element, Text) else None
-        return text_ink(
-            placed.anchor_point[0], placed.anchor_point[1], float(placed.measured_width),
-            placed.line_height, placed.element.align, placed.element.vertical_align,
-            curve_style=placed.curve_style, angle_garmin=placed.curve_angle_garmin,
-            radius_px=placed.curve_radius_px, direction=placed.curve_direction,
-            metric=placed.font_metric, pad=float(outline.width) if outline is not None else 0.0,
-            fonts_root=fonts_root)
-    return None
+    return kinds.for_placed(placed).ink(placed, fonts_root)
 
 
 def visible_reach(placed: "Placed", screen_cx: float, screen_cy: float,
@@ -2070,7 +2046,8 @@ __all__ = [
     "ResolvedHand",
     "ResolvedHandPart",
     "ResolvedFace", "resolve", "safe_area", "inside_screen", "inside_visible_area",
-    "inside_visible_area_for", "circular_extent", "visible_reach", "garmin_arc",
+    "inside_visible_area_for", "circular_extent", "is_antialiased_primitive",
+    "visible_reach", "garmin_arc",
     "garmin_curve_angle", "alignment_shift", "round_half_away",
     "is_full_bleed", "arc_bbox", "annulus_sector_reach", "rotated_rect_corners",
     "radial_text_band", "radial_text_angle_span",

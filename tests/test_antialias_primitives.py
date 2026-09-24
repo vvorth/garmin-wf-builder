@@ -5,7 +5,7 @@
 Task A shipped: the top-level default, per-element inheritance, the `text`
 rejection, and `wfb.icons.font_key`. This file covers what reads
 `Element.resolved_antialias` on a primitive-drawing element
-(`wfb.layout.ANTIALIASED_PRIMITIVES`) and turns it
+(`wfb.layout.is_antialiased_primitive`) and turns it
 into a guarded `Dc.setAntiAlias` call --
 
 * R1: the guarded helper, named anything but `setAntiAlias`
@@ -403,7 +403,7 @@ def test_antialias_dither_counts_every_element_the_emitter_antialiases(kind, wri
     emitter toggles `Dc.setAntiAlias` around both, so the lint must see both.
     Watched fail first for `graph`: `check_antialias_palette` once kept its
     own tuple, which omitted `PlacedGraph`, while the emitter's omitted
-    `PlacedHands` -- both now read `wfb.layout.ANTIALIASED_PRIMITIVES`."""
+    `PlacedHands` -- both now read `wfb.layout.is_antialiased_primitive`."""
     from wfb import lint
 
     element = {

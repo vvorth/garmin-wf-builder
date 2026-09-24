@@ -19,13 +19,12 @@ from xml.sax.saxutils import escape
 
 from PIL import Image, ImageDraw
 
-from .. import catalog, complications, formatting, icons, units
+from .. import complications, icons, kinds, units
 from ..devices import Device
 from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
 from ..ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Face, FontSpec, IconElement, PatternElement, Text,
-    config_data_ids, config_label_id, config_style_label_id,
+    CONFIG_SYMBOL, Face, FontSpec, config_data_ids, config_label_id, config_style_label_id,
 )
 from ..palette import Color
 
@@ -70,94 +69,7 @@ def glyph_set(face: Face) -> dict[str, str]:
         return needed.setdefault(font_name, set())
 
     for element in face.walk():
-        if isinstance(element, ComplicationSlot) and element.font_is_custom:
-            glyphs = bucket(element.font)
-            if glyphs is None:
-                continue
-            # The wearer can point this slot at any of its declared choices,
-            # each with its own value type and no per-choice `format:`, so
-            # the font must carry everything *any* choice could render
-            # (`wfb.layout.Resolver._complication_slot_widest`, same reason).
-            slot = face.config_data.get(element.slot)
-            choices: tuple[str, ...] = ()
-            if slot is not None:
-                choices = (slot.default,) if slot.allow_any else slot.choices
-            for name in choices:
-                ctype = complications.TYPES.get(name)
-                if ctype is None:
-                    continue
-                value_type = (catalog.Type.STRING if ctype.value_type == "string"
-                             else catalog.Type.NUMBER)
-                glyphs |= formatting.glyphs("{}", None, value_type)
-                if ctype.value_type == "float":
-                    glyphs |= set(".")
-            if element.placeholder:
-                glyphs |= set(element.placeholder)
-            if element.label != "none" or element.unit:
-                # A label is always a localised device string; a unit can be
-                # too (`Complications.Unit or Lang.String`) -- both unbounded.
-                glyphs |= set(_COMPLICATION_TEXT_ALPHABET)
-            if element.unit:
-                glyphs |= set("".join(complications.UNIT_SUFFIX.values()))
-            continue
-        if isinstance(element, PatternElement):
-            # Every drawn copy's string is known at build time
-            # (`HandPart.texts`), so a text part's font needs exactly those.
-            for part in element.parts:
-                if part.shape != "text" or not part.font_is_custom:
-                    continue
-                glyphs = bucket(part.font)
-                if glyphs is None:
-                    continue
-                for index in element.drawn_indices():
-                    glyphs |= set(part.texts[index])
-            continue
-        if not isinstance(element, Text) or not element.font_is_custom:
-            continue
-        glyphs = bucket(element.font)
-        if glyphs is None:
-            continue
-        # An `aod: {font: ...}` override naming a different baked font draws
-        # the same string (through its own `format:` override, if any), so
-        # its bucket needs the same glyphs -- not the "0123456789" fallback
-        # an empty bucket would otherwise bake with.
-        aod = element.aod
-        aod_glyphs = (bucket(aod.font) if aod is not None and aod.font is not None
-                      and aod.font_is_custom else None)
-        if element.literal is not None:
-            glyphs |= set(element.literal)
-            if aod_glyphs is not None:
-                aod_glyphs |= set(element.literal)
-            continue
-        if element.value is None:
-            continue
-        source = catalog.get(element.value.sources[0]) if element.value.sources else None
-        spec = element.format or "{}"
-        value_glyphs = formatting.glyphs(spec, source, element.value.value.type,
-                                         element.value.scale)
-        glyphs |= value_glyphs
-        if aod_glyphs is not None:
-            aod_spec = (aod.format if aod.format is not None else spec)
-            aod_glyphs |= (
-                value_glyphs if aod_spec == spec
-                else formatting.glyphs(aod_spec, source, element.value.value.type,
-                                       element.value.scale)
-            )
-        if element.placeholder:
-            glyphs |= set(element.placeholder)
-        if element.when_absent == "fallback" and element.fallback is not None:
-            # 'fallback:' is drawn through the same format spec as the real
-            # value (see `_emit_text` in `wfb/emit/monkeyc/shapes.py`) -- a
-            # literal string fallback renders exactly as written, the same way
-            # 'placeholder:' is handled above; anything else goes through the
-            # same digit-set formatting.glyphs already adds for the value.
-            fallback = element.fallback
-            if fallback.value.type is catalog.Type.STRING and fallback.constant is not None:
-                glyphs |= set(str(fallback.constant))
-            else:
-                fallback_source = catalog.get(fallback.sources[0]) if fallback.sources else None
-                glyphs |= formatting.glyphs(spec, fallback_source, fallback.value.type,
-                                            fallback.scale)
+        kinds.for_element(element).glyph_needs(element, face, bucket)
     out: dict[str, str] = {}
     for name, chars in needed.items():
         declared = face.fonts[name].glyphs
@@ -199,43 +111,10 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     # key -> (size, glyphs, bake_reference, antialias)
     by_key: dict[str, tuple[object, str, str, bool]] = {}
     for element in face.walk():
-        if isinstance(element, ComplicationSlot):
-            if element.icon_size is None:
-                continue
-            slot = face.config_data.get(element.slot)
-            if slot is None:
-                continue  # rejected slot
-            mapped = slot.icons  # 'choices: any' resolves against the whole
-                                 # of COMPLICATION_ICON -- see
-                                 # ConfigDataSlot.icons's own docstring.
-            if not mapped:
-                # None of this slot's choices has a catalogue icon -- it
-                # simply draws none, which is a documented, legitimate
-                # outcome (`wfb.icons.COMPLICATION_ICON`'s own docstring),
-                # not something to bake a font for.
-                continue
-            glyphs = "".join(sorted({si.codepoint for si in mapped.values()}))
-            # The default choice's own icon normalises the shared nominal
-            # size, the same "pick one reference glyph" trade-off
-            # `WEATHER_BAKE_REFERENCE_GLYPH` makes for the weather set --
-            # documented in `docs/guide/configuration.md`'s `complication_slot` section.
-            default_icon = mapped.get(slot.default)
-            reference_icon = default_icon or sorted(mapped.values(), key=lambda si: si.key)[0]
-            reference = reference_icon.codepoint
-            key = icons.font_key(element.icon_size, f"slot_{element.slot}",
-                                 element.resolved_antialias)
-            by_key[key] = (element.icon_size, glyphs, reference, element.resolved_antialias)
-            continue
-        if not isinstance(element, IconElement):
-            continue
-        if element.is_dynamic:
-            glyph_key = icons.DYNAMIC_WEATHER_TAG
-            glyphs = icons.WEATHER_GLYPH_SET
-            reference = icons.WEATHER_BAKE_REFERENCE_GLYPH
-        else:
-            glyph_key = glyphs = reference = element.codepoint
-        key = icons.font_key(element.size, glyph_key, element.resolved_antialias)
-        by_key[key] = (element.size, glyphs, reference, element.resolved_antialias)
+        need = kinds.for_element(element).icon_font_need(element, face)
+        if need is not None:
+            key, entry = need
+            by_key[key] = entry
     return {
         key: FontSpec(
             name=key,

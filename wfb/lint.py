@@ -16,17 +16,17 @@ import difflib
 import re
 from collections.abc import Iterable
 
-from . import availability, catalog, complications, series
+from . import availability, catalog, complications, kinds, series
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity
-from .fonts import BakedFont
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Element, Face, FontSpec, Graph, HandsElement,
-    PatternElement, StyleEntry, Text, authored_draw_order, never_together,
+    CONFIG_SYMBOL, ComplicationSlot, Element, Face, FontSpec, Graph,
+    PatternElement, StyleEntry, authored_draw_order, never_together,
 )
 from .layout import (
-    ANTIALIASED_PRIMITIVES, BEZEL_MARGIN, PlacedPattern, PlacedText, ResolvedFace,
-    inside_screen, inside_visible_area_for, is_full_bleed, visible_reach,
+    BEZEL_MARGIN, PlacedPattern, PlacedText, ResolvedFace,
+    inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
+    visible_reach,
 )
 from .palette import Color
 from .units import IntBox
@@ -233,21 +233,8 @@ def _vector_text_carriers(face: Face):
     carrier has the `font`/`font_is_custom`/`curve`/`if_unavailable`/`span`
     the check reads; `element` owns the `lint:` block (a part has none)."""
     for element in face.walk():
-        if isinstance(element, Text):
-            yield element.id, element, None, element
-        elif isinstance(element, PatternElement):
-            for index, part in enumerate(element.parts):
-                if part.shape == "text":
-                    yield f"{element.id}.parts[{index}]", part, index, element
-
-
-def _font_unavailable(placed, part_index: int | None) -> bool:
-    """Did layout decide this carrier's vector font failed gates 1-3 on the
-    device `placed` was resolved for?  `False` when it is not placed there."""
-    if part_index is None:
-        return isinstance(placed, PlacedText) and not placed.font_available
-    return (isinstance(placed, PlacedPattern) and part_index < len(placed.parts)
-            and not placed.parts[part_index].font_available)
+        for what, carrier, part_index in kinds.for_element(element).vector_text_carriers(element):
+            yield what, carrier, part_index, element
 
 
 def check_vector_font_availability(
@@ -285,9 +272,10 @@ def check_vector_font_availability(
         spec = face.fonts.get(carrier.font)
         if spec is None or not spec.is_vector:
             continue
+        kind = kinds.for_element(element)
         failing = sorted(
             device_id for device_id, placed in placed_by_device.items()
-            if _font_unavailable(placed.get(element.id), part_index)
+            if kind.font_unavailable(placed.get(element.id), part_index)
         )
         if not failing:
             continue
@@ -510,7 +498,7 @@ def check_antialias_palette(resolved: ResolvedFace, bag: Bag) -> None:
         return
     users = [
         placed for placed in resolved.items
-        if isinstance(placed, ANTIALIASED_PRIMITIVES)
+        if is_antialiased_primitive(placed)
         and placed.element.resolved_antialias
     ]
     if not users:
@@ -917,32 +905,11 @@ def check_glyphs(resolved: ResolvedFace, bag: Bag) -> None:
 
     A `text` element is checked on its widest rendering; a pattern's
     `shape: text` part on every drawn copy's exact string, collected into
-    one error per part ("one error, not N", docs/lore/codegen.md).
+    one error per part ("one error, not N", docs/lore/codegen.md) -- each
+    kind's own `ElementKind.check_glyphs` hook.
     """
     for placed in resolved.items:
-        if isinstance(placed, PlacedPattern):
-            for index, part in enumerate(placed.parts):
-                if part.shape != "text" or not part.font_is_custom:
-                    continue
-                font = resolved.fonts.get(part.font_reference)
-                if font is None:
-                    continue
-                missing: set[str] = set()
-                for copy_index in placed.copies:
-                    missing |= font.missing(part.texts[copy_index])
-                if missing:
-                    _missing_glyph_error(
-                        bag, f"{placed.id}.parts[{index}]", part.font_reference, missing,
-                        placed.element.parts[index].span, [])
-        elif isinstance(placed, PlacedText) and placed.font_is_custom:
-            font: BakedFont | None = resolved.fonts.get(placed.font_reference)
-            if font is None:
-                continue
-            missing = font.missing(placed.widest)
-            if missing:
-                _missing_glyph_error(
-                    bag, placed.id, placed.font_reference, missing, placed.element.span,
-                    [f"the widest rendering of this element is {placed.widest!r}"])
+        kinds.for_placed(placed).check_glyphs(placed, resolved, bag)
 
 
 # -- check 10: contrast -----------------------------------------------------
@@ -980,27 +947,9 @@ def _contrast_subjects(placed):
     once every part overrides its own -- folding it in here would check a
     colour that may never reach the screen.  The plain branch (every other
     kind) has no such mismatch, so it reads `color_roles()` instead of its
-    own `getattr` pair.
+    own `getattr` pair.  Each branch is a kind's own `contrast_subjects` hook.
     """
-    element = placed.element
-    if isinstance(element, HandsElement):
-        for hand in ("hour", "minute", "second"):
-            resolved_hand = getattr(placed, hand)
-            if resolved_hand is None:
-                continue
-            for index, part in enumerate(resolved_hand.parts):
-                yield f"{placed.id}.{hand}.parts[{index}]", part.color, None, True
-    elif isinstance(element, PatternElement):
-        for index, part in enumerate(placed.parts):
-            yield (f"{placed.id}.parts[{index}]", part.color, part.outline_color,
-                   part.shape != "text")
-    else:
-        non_aod = [role for role in element.color_roles() if not role.aod]
-        ink = next((role for role in non_aod if role.role == "ink"), None)
-        ring = next((role for role in non_aod if role.role == "ring"), None)
-        allow_backdrop_match = not ink.is_glyph if ink is not None else placed.kind == "shape"
-        yield (placed.id, ink.expression if ink is not None else None,
-               ring.expression if ring is not None else None, allow_backdrop_match)
+    return kinds.for_placed(placed).contrast_subjects(placed)
 
 
 def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:

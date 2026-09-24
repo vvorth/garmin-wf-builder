@@ -17,7 +17,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from .. import catalog, complications, expr, formatting, icons, series, units
+from .. import catalog, complications, expr, formatting, icons, kinds, series, units
 from ..catalog import Type
 from ..desugar import layout_ids
 from ..diagnostics import Bag, Span
@@ -35,8 +35,7 @@ from .model import (
     _drawn_copies, authored_draw_order, walk_elements,
 )
 from .naming import (
-    _pascal, complication_slot_hold_method, complication_slot_icon_method, config_field,
-    element_const_prefix, element_method_name, local_name, static_group_method,
+    _pascal, config_field, element_const_prefix, element_method_name, local_name,
 )
 
 #: Sentinels for `Builder._resolve_choice_icon_override`'s result: "no
@@ -231,16 +230,14 @@ class _NamedBlock:
 
 def _aod_kind(element: Element) -> tuple[str | None, str | None, bool]:
     """``(kind, shape, literal_text)`` of a built element, in the same terms
-    `Builder._aod_refusal` reads off a raw node."""
-    if isinstance(element, PatternElement):
-        return "pattern", None, False
-    if isinstance(element, ComplicationSlot):
-        return "complication_slot", None, False
-    if isinstance(element, Shape):
-        return "shape", element.shape, False
-    if isinstance(element, Text):
-        return "text", None, element.value is None
-    return None, None, False
+    `Builder._aod_refusal` reads off a raw node.  `shape`/`literal_text` are
+    each one kind's own extra fact (a `Shape`'s own `.shape`, a `Text`'s own
+    "was this a fixed 'text:'"); every other kind passes `None`/`False`,
+    which is also what its own `aod_refusal` hook ignores."""
+    kind = kinds.for_element(element)
+    shape = element.shape if isinstance(element, Shape) else None
+    literal_text = isinstance(element, Text) and element.value is None
+    return kind.name, shape, literal_text
 
 
 class Builder:
@@ -1740,34 +1737,13 @@ class Builder:
             aod_own=aod_own,
         )
 
-        builders: dict[str, Callable[[dict, dict], Element | None]] = {
-            "group": lambda node, common: self._build_group(node, common, path),
-            "shape": self._build_shape,
-            "text": self._build_text,
-            "progress": self._build_progress,
-            "icon": self._build_icon,
-            "graph": self._build_graph,
-            "complication_slot": self._build_complication_slot,
-            "hands": self._build_hands_element,
-            "pattern": self._build_pattern_element,
-        }
-        builder = builders.get(node["type"])
-        if builder is None:  # unreachable once the schema has run
+        if node["type"] not in kinds.names():  # unreachable once the schema has run
             self.bag.error("element", f"unsupported element type {node['type']!r}", span)
             return None
-        element = builder(node, common)
+        element = kinds.get(node["type"]).build(self, node, common, path)
         if element is not None:
             self._resolve_hold_auto(element)
         return element
-
-    #: Extra symbols an element kind can own, reserved whether or not this
-    #: element ends up emitting them (a static group's `drawStatic<Id>`, a
-    #: slot's icon/hold methods): a name that only collides after an
-    #: unrelated later edit is the worst kind.
-    _KIND_SYMBOLS: dict[str, tuple[Callable[[str], str], ...]] = {
-        "group": (static_group_method,),
-        "complication_slot": (complication_slot_icon_method, complication_slot_hold_method),
-    }
 
     def _check_symbol_collision(self, element_id: str, node: dict, span: Span | None) -> bool:
         """Reject two distinct ids that derive the same Monkey C symbol.
@@ -1781,8 +1757,10 @@ class Builder:
         they fold case and separators independently; in practice they collide
         together, but there is no reason to assume that stays true forever.
         """
+        node_kind = node.get("type")
+        extra_symbols = kinds.get(node_kind).extra_symbols if node_kind in kinds.names() else ()
         candidates = [element_const_prefix(element_id), element_method_name(element_id)]
-        candidates += [derive(element_id) for derive in self._KIND_SYMBOLS.get(node.get("type"), ())]
+        candidates += [derive(element_id) for derive in extra_symbols]
         collisions: list[tuple[str, str, Span | None]] = []
         for symbol in candidates:
             claimed = self.seen_symbols.get(symbol)
@@ -2060,39 +2038,17 @@ class Builder:
         self.face_aod_dim = None if dim_raw is None or float(dim_raw) == 1.0 else float(dim_raw)
         self.face_aod_mask = bool(raw.get("mask", True))
 
-    #: Kinds whose `aod: {font: ...}` override is not implemented yet
-    #: (plan 14, `docs/limitations.md` §2) -> (who, what to restyle instead).
-    _AOD_FONT_UNSUPPORTED = {
-        "pattern": ("a pattern's", "restyle this pattern's colour/thickness in AOD instead"),
-        "complication_slot": ("a complication_slot's",
-                              "restyle this slot's colour/icon_color in AOD instead"),
-    }
-
     def _aod_refusal(self, key: str, kind: str | None, shape: str | None,
                      literal_text: bool) -> tuple[str, str, list[str]] | None:
         """``(code, what, notes)`` when an `aod:` override's `key` cannot
         apply to an element of this kind, else ``None`` -- the one table
         both an element's own block (`_build_aod_authored`, `_build_text`)
         and a key it inherits from a group (`_resolve_aod`) are checked
-        against, so the two cannot drift (plan 18 item 5)."""
-        if key == "font" and kind in self._AOD_FONT_UNSUPPORTED:
-            who, instead = self._AOD_FONT_UNSUPPORTED[kind]
-            return ("aod",
-                    f"{who} 'aod: {{font: ...}}' override is not implemented yet (plan 14)",
-                    [f"{instead}, or drop the font override for now"])
-        if key == "filled" and kind == "shape" and shape == "polygon":
-            # Dc has fillPolygon and no drawPolygon, so there is no outline
-            # primitive for an override to switch to -- the same reason
-            # `_build_shape` refuses `filled: false` on a polygon.
-            return ("aod",
-                    "'aod: {filled: ...}' is not accepted on 'shape: polygon' -- "
-                    "Toybox.Graphics.Dc has fillPolygon but no drawPolygon",
-                    ["for an outline, draw the edges as separate 'shape: line' "
-                     "elements, and override those instead"])
-        if key == "format" and kind == "text" and literal_text:
-            return ("format", "'aod: {format: ...}' applies only to 'value:', not a fixed 'text:'",
-                    [])
-        return None
+        against, so the two cannot drift (plan 18 item 5).  Each kind's own
+        refusal rule lives on its `ElementKind.aod_refusal` hook."""
+        if kind is None or kind not in kinds.names():
+            return None
+        return kinds.get(kind).aod_refusal(key, shape, literal_text)
 
     def _build_aod_authored(self, node: dict) -> tuple[bool, dict[str, object] | None]:
         """Parse one element/group's own `aod:` (plan 14 §2.1) into
@@ -2343,37 +2299,17 @@ class Builder:
         for child in element.children():
             self._mark_static(root, child)
 
-    #: `_check_static_subtrees`'s per-kind "cannot be static" table: each of
-    #: these reads its picture from something that is not an `Expression` at
-    #: all -- a graph's series, a complication_slot's pull, a hand's clock
-    #: angle -- so the generic "nothing here may read a data source" sweep
-    #: the method falls through to below would never catch any of them.
-    #: `phrase` fills "{element.id!r} is {phrase} and cannot be static", so
-    #: it carries its own article ("a graph", but "analog hands" -- hands
-    #: are plural, not "a analog hands").
-    _STATIC_FORBIDDEN_KINDS: tuple[tuple[type, str, str], ...] = (
-        (Graph, "a graph",
-         "a graph's series is recomputed once a minute -- a buffer filled "
-         "once would freeze it at whatever it showed on the first frame"),
-        (ComplicationSlot, "a complication_slot",
-         "its reading is pulled fresh every frame, and the wearer can "
-         "repoint it to a different complication at any time -- a buffer "
-         "filled once would freeze both"),
-        (HandsElement, "analog hands",
-         "a hand's angle is the time -- a buffer filled once would freeze "
-         "it at whatever it showed on the first frame"),
-    )
-
     def _check_static_subtrees(self, roots: list[Element]) -> None:
+        """A kind whose own `static_forbidden` hook is set (`graph`,
+        `complication_slot`, `hands`) reads its picture from something that
+        is not an `Expression` at all -- a series, a wearer's runtime pick,
+        the clock -- so the generic "nothing here may read a data source"
+        sweep below would never catch any of them on its own."""
         for root in roots:
             for element in walk_elements([root]):
-                forbidden = next(
-                    (entry for entry in self._STATIC_FORBIDDEN_KINDS
-                     if isinstance(element, entry[0])),
-                    None,
-                )
+                forbidden = kinds.for_element(element).static_forbidden
                 if forbidden is not None:
-                    _, phrase, note = forbidden
+                    phrase, note = forbidden
                     self.bag.error(
                         "static",
                         f"{element.id!r} is {phrase} and cannot be static",

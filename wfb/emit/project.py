@@ -6,6 +6,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .. import kinds
 from ..availability import compute_guards
 from ..devices import Device
 from ..fonts import BakedFont
@@ -94,10 +95,8 @@ def generate(face: Face, devices: list[Device], root: Path,
     # The view is shared across devices; generate it from the first resolved
     # device, since only the Layout constants differ between them.
     first = project.resolved[devices[0].id]
-    needs_icon_glyphs = (
-        any(placed.kind == "icon" and placed.element.is_dynamic for placed in first.items)
-        or any(placed.kind == "complication_slot" and placed.element.icon_size is not None
-               for placed in first.items)
+    needs_icon_glyphs = any(
+        kinds.for_placed(placed).needs_icon_glyphs(placed.element, face) for placed in first.items
     )
     if needs_icon_glyphs:
         project.sources.append(monkeyc.emit_icon_glyphs(face))

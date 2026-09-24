@@ -6,14 +6,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from ... import __version__
+from ... import __version__, kinds
 from ...availability import Guards
-from ...ir import (
-    ComplicationSlot, Expression, Face, Graph, HandsElement, IconElement, PatternElement,
-    Position, Progress, Shape, Text, aod_color_choice, config_data_ids, element_const_prefix,
-    element_method_name,
-)
-from ...layout import PlacedComplicationSlot, PlacedIcon, PlacedPattern, PlacedText, ResolvedFace
+from ...ir import ComplicationSlot, Expression, Face, aod_color_choice, config_data_ids, \
+    element_const_prefix, element_method_name
+from ...layout import PlacedPattern, PlacedText, ResolvedFace
 from ...palette import Color
 
 
@@ -361,19 +358,7 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
     """
     out: list[str] = []
     for placed in resolved.items:
-        if isinstance(placed, PlacedText):
-            if placed.font_is_custom and not placed.font_is_vector:
-                out.append(placed.font_reference)
-        elif isinstance(placed, PlacedIcon):
-            out.append(placed.font_key)
-        elif isinstance(placed, PlacedComplicationSlot):
-            if placed.font_is_custom:
-                out.append(placed.font_reference)
-            if placed.icon_font_key is not None:
-                out.append(placed.icon_font_key)
-        elif isinstance(placed, PlacedPattern):
-            out.extend(part.font_reference for part in placed.parts
-                       if part.shape == "text" and part.font_is_custom and not part.font_is_vector)
+        out.extend(kinds.for_placed(placed).loaded_fonts(placed))
     return list(dict.fromkeys(out))
 
 
@@ -421,52 +406,12 @@ def _vector_fonts_used(resolved: ResolvedFace) -> list[str]:
     """
     out: list[str] = []
     for placed in resolved.items:
-        if isinstance(placed, PlacedText) and placed.font_is_vector:
-            out.append(placed.font_reference)
-        elif isinstance(placed, PlacedPattern):
-            out.extend(part.font_reference for part in placed.parts
-                       if part.shape == "text" and part.font_is_vector)
+        out.extend(kinds.for_placed(placed).vector_fonts(placed))
     return list(dict.fromkeys(out))
 
 
 def _describe(placed) -> str:
-    element = placed.element
-    if isinstance(element, Shape):
-        if element.shape == "polygon":
-            return f"a polygon of {len(element.points)} points"
-        noun = _article(element.shape.replace("_", " "))
-        if element.shape in ("rectangle", "rounded_rectangle", "circle", "ellipse") \
-                and not element.filled:
-            return f"{noun}, outlined"
-        return noun
-    if isinstance(element, Text):
-        return "text" if element.value is not None else "fixed text"
-    if isinstance(element, Progress):
-        return _article(f"{element.style} progress indicator")
-    if isinstance(element, IconElement):
-        if element.is_dynamic:
-            return f"an icon chosen at runtime from {element.value_for.text!r}"
-        return f"the {element.icon!r} icon"
-    if isinstance(element, Graph):
-        return f"{_article(f'{element.style} graph')} of {element.series}"
-    if isinstance(element, ComplicationSlot):
-        return f"a native Data-axis slot (config.data.{element.slot})"
-    if isinstance(element, HandsElement):
-        drawn = [n for n in ("hour", "minute", "second") if getattr(placed, n, None) is not None]
-        seconds_note = f", seconds: {element.seconds}" if element.seconds else ""
-        return f"analog hands (hands.{element.hands}): {_and_list(drawn)}{seconds_note}"
-    if isinstance(element, PatternElement):
-        total = element.count
-        drawn_count = len(placed.copies)
-        note = "" if drawn_count == total else f" ({drawn_count} drawn)"
-        if element.pattern == "radial":
-            return f"a radial pattern: {total} copies, {element.step_angle:g} degrees apart{note}"
-        step = element.step or Position()
-        offsets = [f"{axis} {length}" for axis, length in
-                  (("dx", step.dx), ("dy", step.dy)) if length is not None]
-        step_desc = ", ".join(offsets) if offsets else "0px"
-        return f"a linear pattern: {total} copies, step {step_desc}{note}"
-    return element.kind
+    return kinds.for_placed(placed).describe(placed)
 
 
 def _and_list(items) -> str:

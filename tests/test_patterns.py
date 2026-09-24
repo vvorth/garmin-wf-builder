@@ -19,7 +19,7 @@ from wfb.build import load
 from wfb import lint
 from wfb.emit.resources import bake_fonts
 from wfb.ir import HandsElement, PatternElement
-from wfb.layout import ANTIALIASED_PRIMITIVES, PlacedPattern, circular_extent, resolve
+from wfb.layout import PlacedPattern, circular_extent, is_antialiased_primitive, resolve
 
 BASE = """
 format: 1
@@ -781,8 +781,9 @@ def test_linear_row_box(resolved_for):
     assert placed.box.height == 10
 
 
-def test_placed_pattern_is_in_antialiased_primitives():
-    assert PlacedPattern in ANTIALIASED_PRIMITIVES
+def test_placed_pattern_is_in_antialiased_primitives(resolved_for):
+    placed = find(resolved_for(design(RADIAL_RING)), "ring")
+    assert is_antialiased_primitive(placed)
 
 
 # -- antialias inheritance -----------------------------------------------------

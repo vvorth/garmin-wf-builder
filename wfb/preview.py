@@ -30,7 +30,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-from . import aod_mask, catalog, complications, expr, formatting
+from . import aod_mask, catalog, complications, expr, formatting, kinds
 from .catalog import Type
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
@@ -522,7 +522,7 @@ class _Renderer:
                    else placed.element.visible)
         if not self._visible(visible):
             return
-        self._BY_TYPE[type(placed)](self, placed)
+        kinds.for_placed(placed).draw_preview(self, placed)
 
     # -- elements ---------------------------------------------------------
 
@@ -1525,15 +1525,6 @@ class _Renderer:
             return (255, 255, 255)
         color = Color.parse(int(value))
         return (color.r, color.g, color.b)
-
-    #: `render_element`'s dispatch, one entry per leaf element kind --
-    #: the twin of `wfb.layout.Resolver._BY_TYPE`.
-    _BY_TYPE = {
-        PlacedShape: _shape, PlacedText: _text, PlacedProgress: _progress,
-        PlacedIcon: _icon, PlacedGraph: _graph,
-        PlacedComplicationSlot: _complication_slot, PlacedHands: _hands,
-        PlacedPattern: _pattern,
-    }
 
 
 def _baked_glyph(font: BakedFont | None, char: str | None):

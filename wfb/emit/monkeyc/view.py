@@ -7,7 +7,7 @@ import itertools
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ... import complications, expr
+from ... import complications, expr, kinds
 from ...availability import Guards
 from ...catalog import READERS
 from ...devices import Device
@@ -15,10 +15,7 @@ from ...ir import (
     HOLD_AUTO, Face, config_data_ids, config_field, font_resource_id, local_name,
     static_group_method,
 )
-from ...layout import (
-    ANTIALIASED_PRIMITIVES, PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon,
-    PlacedPattern, PlacedProgress, PlacedShape, PlacedText, ResolvedFace,
-)
+from ...layout import PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
 from ...palette import dim_fraction
 from .. import usage
 from .common import (
@@ -28,14 +25,11 @@ from .common import (
     hold_targets,
 )
 from .complication_slot import (
-    _emit_complication_slot, _emit_complication_slot_editor_methods,
-    _emit_complication_slot_hold_method, _emit_complication_slot_icon_method,
-    _emit_pulsing_field,
+    _emit_complication_slot_editor_methods, _emit_complication_slot_hold_method,
+    _emit_complication_slot_icon_method, _emit_pulsing_field,
 )
-from .graph import _emit_graph, _emit_graph_fields, _emit_graph_rebuild
+from .graph import _emit_graph_fields, _emit_graph_rebuild
 from .readplan import ReadPlan
-from .rotated import _emit_hands, _emit_pattern
-from .shapes import _emit_icon, _emit_progress, _emit_shape, _emit_text
 from ..writer import Writer
 
 
@@ -119,8 +113,8 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
     `Element.resolved_antialias` already folds every inheritance step (face ->
     group -> element) into one per-element boolean (`wfb.ir.Builder.
     _resolve_inherited_flag`), so "does any primitive-drawing element actually draw
-    anti-aliased" is exactly "does any `ANTIALIASED_PRIMITIVES` member have
-    `resolved_antialias == True`".  The same tuple drives
+    anti-aliased" is exactly "does any placed item whose kind is `antialiased`
+    have `resolved_antialias == True`".  The same test drives
     `_emit_element_method`'s toggle and `wfb.lint.check_antialias_palette`.
 
     `None` (rather than `False`) marks a design where no primitive-drawing
@@ -129,7 +123,7 @@ def _antialias_default(resolved: ResolvedFace) -> bool | None:
     `applyAntiAlias(dc, false)` calls.
     """
     used = any(
-        isinstance(placed, ANTIALIASED_PRIMITIVES) and placed.element.resolved_antialias
+        kinds.for_placed(placed).antialiased and placed.element.resolved_antialias
         for placed in resolved.items
     )
     return resolved.face.antialias if used else None
@@ -1114,15 +1108,18 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
                          antialias_default: bool | None = None,
                          aod: AodStyle = NO_AOD) -> None:
     element = placed.element
+    kind = kinds.for_placed(placed)
     w.doc(_method_doc(placed))
     signature = f"private function {_method(placed.id)}(dc as Dc{plan.parameters(placed)}) as Void"
     # 'placeholder'/'fallback' are policies for the *value* -- a substitute
     # text or fill fraction takes over instead of the element simply not
     # drawing.  They say nothing about a nullable colour, track colour or
     # max: there is no placeholder for a colour, so those always get a real
-    # guard regardless of which policy the value chose.
+    # guard regardless of which policy the value chose.  `text`/`progress`
+    # are exactly the kinds with a `when_absent:` on their own value
+    # (`Element.VALUE_ROLES`).
     substitutes_value = (
-        isinstance(placed, (PlacedText, PlacedProgress))
+        bool(element.VALUE_ROLES)
         and getattr(element, "when_absent", None) in ("placeholder", "fallback")
     )
     with w.block(signature):
@@ -1133,14 +1130,15 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
                 w.line(f"var {name} = {read};")
             w.blank()
         _emit_visible_guard(w, placed, plan)
-        if isinstance(placed, PlacedComplicationSlot):
-            # Deliberately no element-level guard: the reading is not an
-            # element-level binding at all (it is a fresh per-frame pull off
-            # a wearer-editable `Complications.Id`), so there is nothing for
-            # `plan.guards`/`value_guards` to say about it -- `color:` is the
-            # only ordinary expression here, and `Builder._build_complication_
-            # slot` already requires it to be non-nullable.
-            _emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
+        if kind.emits_own_guards:
+            # Deliberately no element-level guard: `complication_slot`'s
+            # reading is not an element-level binding at all (it is a fresh
+            # per-frame pull off a wearer-editable `Complications.Id`), so
+            # there is nothing for `plan.guards`/`value_guards` to say
+            # about it -- `color:` is the only ordinary expression here,
+            # and `Builder._build_complication_slot` already requires it
+            # to be non-nullable.
+            kind.emit_draw(w, resolved, placed, None, plan, aod)
             return
         value_guards = plan.value_guards(placed)
         if substitutes_value:
@@ -1153,8 +1151,8 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             other_guards = plan.guards(placed)
             if other_guards:
                 _emit_guard(w, placed, other_guards)
-        # Anti-aliasing only ever varies for a primitive-drawing element
-        # (`ANTIALIASED_PRIMITIVES`) -- text and icons draw glyphs, whose anti-aliasing is a font-resource matter
+        # Anti-aliasing only ever varies for a primitive-drawing kind
+        # (`kind.antialiased`) -- text and icons draw glyphs, whose anti-aliasing is a font-resource matter
         # (baked at build time, see wfb.icons/wfb.fonts), not a per-frame Dc
         # call, so they emit no setAntiAlias-related code at all.  The toggle
         # brackets only the actual drawing call below, deliberately *after*
@@ -1165,26 +1163,13 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
         # own drawing runs.
         overrides_antialias = (
             antialias_default is not None
-            and isinstance(placed, ANTIALIASED_PRIMITIVES)
+            and kind.antialiased
             and element.resolved_antialias != antialias_default
         )
         if overrides_antialias:
             w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
             w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
-        if isinstance(placed, PlacedShape):
-            _emit_shape(w, placed, aod)
-        elif isinstance(placed, PlacedText):
-            _emit_text(w, resolved, placed, value_guards, aod)
-        elif isinstance(placed, PlacedProgress):
-            _emit_progress(w, placed, value_guards, aod)
-        elif isinstance(placed, PlacedIcon):
-            _emit_icon(w, placed, aod)
-        elif isinstance(placed, PlacedGraph):
-            _emit_graph(w, placed, aod)
-        elif isinstance(placed, PlacedHands):
-            _emit_hands(w, placed, aod)
-        elif isinstance(placed, PlacedPattern):
-            _emit_pattern(w, placed, aod)
+        kind.emit_draw(w, resolved, placed, value_guards, plan, aod)
         if overrides_antialias:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 
