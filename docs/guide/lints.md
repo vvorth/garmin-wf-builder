@@ -16,7 +16,7 @@ messages; see `wfb/lint.py` if unsure.
 
 | Code | Meaning |
 |---|---|
-| `palette-dither` | a `color:`/`track_color:` isn't an exact MIP palette colour (each channel `00`/`55`/`AA`/`FF`) and dithers |
+| `palette-dither` | a declared colour an element draws isn't an exact MIP palette colour (each channel `00`/`55`/`AA`/`FF`) and dithers |
 | `safe-area` | the element's box falls outside the round screen's visible area |
 | `off-screen` | the element's box falls partly or fully outside the framebuffer |
 | `text-overflow` | the rendered text is wider than its box |
@@ -92,8 +92,10 @@ acknowledges the crop, the geometry check does not also raise `safe-area`
 for the same box — there is nothing further to acknowledge.
 
 Five of them are not element-scoped diagnostics, so the allow goes on the
-element that causes them: `palette-dither` on an element whose `color:` or
-`track_color:` is exactly `palette.<name>` **or** `config.<name>`,
+element that causes them: `palette-dither` on an element that draws
+exactly `palette.<name>` **or** `config.<name>` (as its `color:`,
+`track_color:`, `icon_color:`, a text's `outline: {color:}`, or an `aod:`
+override's colour),
 `partial-update-budget` on any element drawn in `low_power` mode,
 `graphics-pool` on the first element declaring `static: true`,
 `antialias-dither` on the first element (in document order) whose

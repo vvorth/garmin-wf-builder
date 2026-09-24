@@ -126,6 +126,48 @@ def test_a_dithered_track_color_can_also_be_suppressed(check):
     assert "palette-dither" not in codes(bag)
 
 
+def test_a_dithered_outline_color_can_be_suppressed_on_its_text(check):
+    """Plan 18 item 6: a palette entry used only as a text element's
+    `outline: {color: ...}` has a real user -- the warning must not claim
+    there is "nowhere to put" the suppression, and the text's own
+    `lint: allow` must work."""
+    extra = """
+  - id: label
+    type: text
+    text: "12"
+    color: palette.bg
+    outline: {color: palette.fg}
+"""
+    bag = check(extra, palette='  bg: "#000000"\n  fg: "#123456"')
+    warning = next(d for d in bag.items if d.code == "palette-dither")
+    assert not any("nowhere to put" in note for note in warning.notes), warning.notes
+
+    bag.items.clear()
+    bag = check(extra + """    lint:
+      allow: [palette-dither]
+      reason: "probing"
+""", palette='  bg: "#000000"\n  fg: "#123456"')
+    assert "palette-dither" not in codes(bag)
+
+
+def test_a_dithered_aod_color_can_be_suppressed_on_its_element(check):
+    """The same for an `aod: {color: ...}` override: the element whose AOD
+    frame draws the colour is its user."""
+    bag = check("""
+  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 5px
+    color: palette.bg
+    aod: {color: palette.fg}
+    lint:
+      allow: [palette-dither]
+      reason: "probing"
+""", palette='  bg: "#000000"\n  fg: "#123456"')
+    assert "palette-dither" not in codes(bag)
+
+
 # -- the one suppression rule (`_suppressed`/`_emit_for_users`) --------------
 
 

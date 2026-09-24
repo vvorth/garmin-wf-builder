@@ -438,9 +438,10 @@ independently rather than folded into this one.
   and, for `style`, every role of every scheme some entry actually
   references (a scheme no entry references is unreachable on any device, so
   it is not checked). Reported as `palette-dither` against whichever
-  element's `color:`/`track_color:`/`icon_color:` is exactly
-  `config.<name>`/`config.colors.<role>` (a plain `palette.<name>` reference
-  is checked the same way, against the same three fields).
+  element draws exactly `config.<name>`/`config.colors.<role>` -- as its
+  `color:`/`track_color:`/`icon_color:`, a text's `outline: {color: ...}`,
+  or an `aod:` override's colour (a plain `palette.<name>` reference is
+  checked the same way, against the same fields).
 * `config-unsupported` (suppressible) -- at least one target has no native
   editor, so the declared defaults are all that device ever shows (now
   including every slot's default); when `style` has more than one entry, the

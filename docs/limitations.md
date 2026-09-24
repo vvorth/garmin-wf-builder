@@ -952,8 +952,10 @@ them rather than to an arbitrary one:
 
 * **`palette-dither`** is about a `palette:` entry, and `palette:` is a flat
   mapping with nowhere to hang a `lint:` block. The allow is honoured on any
-  element whose `color:` or `track_color:` is exactly `palette.<name>` — the
-  match is on the author's own expression text, so an element that merely
+  element that draws exactly `palette.<name>` -- as its `color:`,
+  `track_color:` or `icon_color:`, a text's `outline: {color: ...}`, or an
+  `aod:` override's colour (a hand's or pattern's folded part colours count
+  too) -- the match is on the author's own expression text, so an element that merely
   *mentions* the entry inside a larger conditional does not count. When no
   element references the entry that way, the warning says so instead of printing
   instructions that would not work.
@@ -974,8 +976,8 @@ them rather than to an arbitrary one:
   a device that still has `Toybox.Complications`) or show as absent (a slot
   on a device that also lacks it, see "Per-device API availability" above) --
   so one `allow:` anywhere among the elements it names suppresses it entirely --
-  the allow is honoured on any element whose `color:`/`track_color:` is
-  exactly `config.accent_color`, `config.data_color`, or one role of
+  the allow is honoured on any element that draws (the same fields as
+  above) exactly `config.accent_color`, `config.data_color`, or one role of
   `config.colors.<role>`, the same exact-text match `palette-dither` uses and
   for the same reason. `palette-dither` reached through a `color_scheme:`
   role is scoped narrower, per-role like every other `palette-dither` case:

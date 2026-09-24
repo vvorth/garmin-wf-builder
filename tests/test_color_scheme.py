@@ -549,6 +549,22 @@ def test_config_unsupported_is_suppressible_from_any_one_referencing_element(wri
     assert not any(d.code == "config-unsupported" for d in fr955.items), fr955.render()
 
 
+def test_config_unsupported_is_suppressible_from_an_outline_only_user(write_design, db):
+    """Plan 18 item 6: an element that reaches `config.colors.dim` only
+    through `outline: {color: ...}` is a user of it, so its `lint: allow`
+    counts -- before, `_users_of` never looked at an outline."""
+    text = DESIGN.replace(
+        "    color: config.colors.dim\n",
+        "    color: \"#FFFFFF\"\n"
+        "    outline: {color: config.colors.dim}\n"
+        "    lint:\n"
+        "      allow: [config-unsupported]\n"
+        "      reason: \"test\"\n",
+    )
+    fr955 = _lint(text, write_design, db, "fr955")
+    assert not any(d.code == "config-unsupported" for d in fr955.items), fr955.render()
+
+
 # -- lint: palette-dither, reached through config.colors -----------------------
 
 

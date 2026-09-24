@@ -424,20 +424,32 @@ def _users_of(face: Face, token: str) -> list[Element]:
     A `hands`/`pattern` element is matched through its `.colors` (every
     effective part colour, already folded at build time) rather than a
     `color:` field: a hand has none, and a pattern's is only the default a
-    part may override.
+    part may override. A `text` element's `outline: {color: ...}`, and any
+    element's resolved `aod:` colour override, are colours it draws too
+    (plan 18 item 6).
     """
     out = []
     for element in face.walk():
-        if isinstance(element, (HandsElement, PatternElement)):
-            if any(color.text == token for color in element.colors):
-                out.append(element)
-        elif any(
-            (expression := getattr(element, field, None)) is not None
-            and expression.text == token
-            for field in _PALETTE_REFERENCING_FIELDS
-        ):
+        if any(expression.text == token for expression in _colors_drawn_by(element)):
             out.append(element)
     return out
+
+
+def _colors_drawn_by(element: Element) -> list:
+    """Every colour `Expression` ``element`` itself can draw with: its own
+    colour fields (or a hand's/pattern's folded part colours), a text's
+    outline, and its resolved AOD override's colours."""
+    if isinstance(element, (HandsElement, PatternElement)):
+        colors = list(element.colors)
+    else:
+        colors = [e for field in _PALETTE_REFERENCING_FIELDS
+                  if (e := getattr(element, field, None)) is not None]
+    if isinstance(element, Text) and element.outline is not None:
+        colors.append(element.outline.color)
+    if element.aod is not None:
+        colors += [e for field in _PALETTE_REFERENCING_FIELDS
+                   if (e := getattr(element.aod, field, None)) is not None]
+    return colors
 
 
 def _emit_dither(
@@ -447,14 +459,15 @@ def _emit_dither(
     suppressible on any element that uses the declaration."""
     if users:
         suppress_note = (
-            f"set 'lint: {{allow: [palette-dither], reason: ...}}' on the element "
-            f"whose 'color:' or 'track_color:' is '{token}' to keep it"
+            f"set 'lint: {{allow: [palette-dither], reason: ...}}' on an element "
+            f"that draws '{token}' ({', '.join(u.id for u in users)}) to keep it"
         )
     else:
         # Never claim a suppression site that does not exist.
         suppress_note = (
-            f"no element's 'color:' or 'track_color:' is exactly '{token}', "
-            f"so there is nowhere to put 'lint: {{allow: [palette-dither]}}' for it"
+            f"no element draws exactly '{token}' (as 'color:', 'track_color:', "
+            f"'icon_color:', 'outline:' or an 'aod:' override), so there is nowhere "
+            f"to put 'lint: {{allow: [palette-dither]}}' for it"
         )
     _emit_for_users(bag, users, Diagnostic(
         Severity.WARNING,
