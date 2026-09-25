@@ -353,6 +353,11 @@
       "note": "vivoactive4/vivoactive4s FNT_VIVOACTIVE4[S]_ROBOTO_{XTINY,TINY,TINY_PLUS,SMALL}_BOLD -- scraped face for FONT_XTINY..SMALL is 'Roboto Condensed' (docs/research/data/devices/vivoactive4.json), filename drops CONDENSED but says BOLD explicitly. MEDIUM/MEDIUM_PLUS siblings already resolve via the ROBOTO_MEDIUM pattern above and are left alone."
     },
     {
+      "regex": "_ROBOTO_(LARGE_PLUS|LARGE)_BOLD$",
+      "key": "roboto-condensed-bold",
+      "note": "venu FNT_VENU_ROBOTO_{LARGE,LARGE_PLUS}_BOLD (FONT_MEDIUM/FONT_LARGE) -- scraped face is 'Roboto Condensed' (docs/research/data/devices/venu.json), the same naming as the vivoactive4 pattern above: CONDENSED dropped, BOLD stated. Its TINY/SMALL siblings already match that pattern; FNT_VENU_ROBOTO_MEDIUM_BOLD resolves via ROBOTO_MEDIUM above, left alone like vivoactive4's."
+    },
+    {
       "regex": "REGULAR_NUMBER_FONT_\\d+$",
       "key": "roboto-condensed-regular",
       "note": "vivoactive4/vivoactive4s FNT_VIVOACTIVE4[S]_REGULAR_NUMBER_FONT_{1,2} (FONT_NUMBER_MILD/_MEDIUM) -- scraped face is 'Roboto Condensed' (docs/research/data/devices/vivoactive4.json) and the filename states REGULAR explicitly, unlike the unweighted NUMBER_FONT_* ladder above where bold is only assumed for lack of a stated weight."

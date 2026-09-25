@@ -30,8 +30,10 @@ Loaded automatically when working under `tests/`.
   control moved to `ActivityMonitor`/`battery` with a real positive-gap test
   for `fenix5`'s `Weather` absence, the weather readers get their own
   per-device contrast test, and the 22 filenames are mapped in
-  `wfb/fonts/registry.json`. The three tests above now assert real,
-  currently-true invariants again and are part of the green fast suite.
+  `wfb/fonts/registry.json` (a later `venu` install surfaced two more,
+  `FNT_VENU_ROBOTO_LARGE[_PLUS]_BOLD`, mapped the same way). The three
+  tests above now assert real, currently-true invariants again and are
+  part of the green fast suite.
 - **Shared helpers live in `tests/helpers.py`**: loading, resolving and
   linting a design from text (`load_face`, `resolve_text`, `lint_text`, ...),
   running `wfb` in-process (`run_cli`; use a real subprocess only to test

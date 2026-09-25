@@ -296,14 +296,17 @@ exposed via a `FONT_*` symbol at all — see §6.
 
 ---
 
-## 5. Simulator-only `ww` filenames (13 installed devices)
+## 5. Simulator-only `ww` filenames (22 installed devices)
 
-**VERIFIED.** 93 unique `filename`s appear across the 13 installed devices'
-`fontSet == "ww"` entries. All 93 resolve through `wfb/fonts/registry.json`
-(exact `names`, then `patterns`, then — for the scraped source only, since
-`simulator.json` carries no `face` — the `faces` table), or are explicitly
-listed in `unmapped`; `tests/test_font_registry.py` checks this on every
-run. No new families appear beyond §4's 22 fixed-table faces plus the
+**VERIFIED** (recounted 2026-09-25). 146 unique `filename`s appear across
+the 22 installed devices' `fontSet == "ww"` entries. 124 resolve through
+`wfb/fonts/registry.json` (exact `names`, then `patterns`, then — for the
+scraped source only, since `simulator.json` carries no `face` — the
+`faces` table) and the other 22 are explicitly listed in `unmapped`;
+`tests/test_font_registry.py` checks this on every run. `venu` needed one
+more pattern: its `FNT_VENU_ROBOTO_LARGE_BOLD`/`…_LARGE_PLUS_BOLD`
+(`FONT_MEDIUM`/`FONT_LARGE`, scraped face Roboto Condensed) follow the
+vivoactive4 naming but were outside that pattern's size list. No new families appear beyond §4's 22 fixed-table faces plus the
 scalable-only CJK/Thai/Arabic/Hebrew/Armenian ones (§6) — the `ww` set is a
 subset of names already accounted for above, just spelled differently
 (`FNT_FENIX6_CDPG_ROBOTO_20B` instead of `006B399100_CDPG_ROBOTO_20B`, same
