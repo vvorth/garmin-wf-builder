@@ -145,7 +145,7 @@ def test_angled_box_grows_by_the_ring(write_design, bag, db):
         write_design, bag, db, _design(_VECTOR_FONT, element_plain + "\n" + element_ringed))
     plain = _placed(resolved, "plain")
     ringed = _placed(resolved, "ringed")
-    assert plain.curve_style == "angled"
+    assert plain.curve.style == "angled"
     assert ringed.box.width > plain.box.width
     assert ringed.box.height > plain.box.height
 
@@ -166,7 +166,7 @@ def test_radial_box_grows_by_the_ring(write_design, bag, db):
         write_design, bag, db, _design(_VECTOR_FONT, element_plain + "\n" + element_ringed))
     plain = _placed(resolved, "plain")
     ringed = _placed(resolved, "ringed")
-    assert plain.curve_style == "radial"
+    assert plain.curve.style == "radial"
     plain_area = plain.box.width * plain.box.height
     ringed_area = ringed.box.width * ringed.box.height
     assert ringed_area > plain_area

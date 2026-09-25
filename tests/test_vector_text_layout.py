@@ -118,9 +118,9 @@ def test_vector_face_resolves_to_the_first_published_candidate(write_design, bag
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, {})
     placed = _placed(resolved, "brand")
-    assert placed.font_is_vector is True
-    assert placed.font_available is True
-    assert placed.font_face == "RobotoCondensedBold"
+    assert placed.font.is_vector is True
+    assert placed.font.available is True
+    assert placed.font.face == "RobotoCondensedBold"
 
 
 def test_vector_face_unavailable_on_a_gate1_device(write_design, bag, db):
@@ -130,9 +130,9 @@ def test_vector_face_unavailable_on_a_gate1_device(write_design, bag, db):
     device = db.get("fenix6")
     resolved = resolve(face, device, {})
     placed = _placed(resolved, "brand")
-    assert placed.font_is_vector is True
-    assert placed.font_available is False
-    assert placed.font_face == ""
+    assert placed.font.is_vector is True
+    assert placed.font.available is False
+    assert placed.font.face == ""
 
 
 def test_vector_face_unavailable_when_no_candidate_is_published(write_design, bag, db):
@@ -142,14 +142,14 @@ def test_vector_face_unavailable_when_no_candidate_is_published(write_design, ba
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, {})
     placed = _placed(resolved, "brand")
-    assert placed.font_available is False
-    assert placed.font_face == ""
+    assert placed.font.available is False
+    assert placed.font.face == ""
 
 
 def test_gate1_alone_blocks_resolution_even_when_the_face_is_published(write_design, bag, db):
     """Isolates gate 1 from gates 2/3: on every currently installed device
     the three move together (a device either has none of `getVectorFont`/
-    `scalable_faces` or all of them), so `font_available` alone cannot tell
+    `scalable_faces` or all of them), so `font.available` alone cannot tell
     "gate 1 failed" apart from "gates 2/3 failed" using only real devices --
     both give the same `False`. This constructs the case no installed
     device can: fenix6's own symbol table (genuinely missing
@@ -169,8 +169,8 @@ def test_gate1_alone_blocks_resolution_even_when_the_face_is_published(write_des
 
     resolved = resolve(face, patched, {})
     placed = _placed(resolved, "brand")
-    assert placed.font_available is False
-    assert placed.font_face == ""
+    assert placed.font.available is False
+    assert placed.font.face == ""
 
 
 def test_baked_font_text_is_never_marked_vector(write_design, bag, db, repo_root):
@@ -186,9 +186,9 @@ def test_baked_font_text_is_never_marked_vector(write_design, bag, db, repo_root
     from wfb.emit.resources import bake_fonts
     resolved = resolve(face, device, bake_fonts(face, device))
     placed = _placed(resolved, "brand")
-    assert placed.font_is_vector is False
-    assert placed.font_available is True
-    assert placed.font_face == ""
+    assert placed.font.is_vector is False
+    assert placed.font.available is True
+    assert placed.font.face == ""
 
 
 # -- gate-1 vs gate-2/3 failure reasons ----------------------------------------
@@ -341,9 +341,9 @@ def test_angled_box_is_the_rotated_bounding_box(write_design, bag, db):
     upright = _placed(resolved, "upright")
     angled = _placed(resolved, "angled")
 
-    assert angled.curve_style == "angled"
-    assert angled.curve_angle_degrees == pytest.approx(90.0)
-    assert angled.curve_angle_garmin == pytest.approx(270.0)
+    assert angled.curve.style == "angled"
+    assert angled.curve.angle_degrees == pytest.approx(90.0)
+    assert angled.curve.angle_garmin == pytest.approx(270.0)
     assert upright.box.width > upright.box.height, (
         "the fixture assumes 'GARMIN' measures wider than one line is tall"
     )
@@ -370,15 +370,15 @@ def test_radial_box_is_a_tight_arc_not_the_old_square(write_design, bag, db):
     resolved = resolve(face, device, {})
     placed = _placed(resolved, "radial")
 
-    assert placed.curve_style == "radial"
-    assert placed.curve_direction == "clockwise"
+    assert placed.curve.style == "radial"
+    assert placed.curve.direction == "clockwise"
     expected_radius = round(0.40 * device.minor_radius)
-    assert placed.curve_radius_px == expected_radius
+    assert placed.curve.radius_px == expected_radius
 
     # A synthetic vector-font `FontMetric` never carries `height_px`, so
     # `wfb.fonts.fallback.line_height` falls back to `metric.size_px` --
     # which is exactly `font_px` (`Resolver._vector_font_metric`).
-    old_reach = expected_radius + placed.font_px
+    old_reach = expected_radius + placed.font.px
     old_square_area = (2 * old_reach) ** 2
     new_area = placed.box.width * placed.box.height
     assert new_area < old_square_area, (
@@ -446,15 +446,15 @@ def test_radial_band_is_line_height_over_two_not_line_height(write_design, bag, 
     resolved = resolve(face, device, {})
     placed = _placed(resolved, "radial")
 
-    assert placed.font_px == 36  # pins "line_height 36" from the case above
-    assert placed.curve_radius_px == 105  # pins "radius 75%r == 105px"
+    assert placed.font.px == 36  # pins "line_height 36" from the case above
+    assert placed.curve.radius_px == 105  # pins "radius 75%r == 105px"
 
     theta_a, theta_b = radial_text_angle_span(
-        placed.curve_angle_garmin, placed.curve_direction, "center",
-        placed.measured_width, placed.curve_radius_px)
+        placed.curve.angle_garmin, placed.curve.direction, "center",
+        placed.measured_width, placed.curve.radius_px)
     old_box = arc_bbox(
         placed.center[0], placed.center[1],
-        placed.curve_radius_px - placed.font_px, placed.curve_radius_px + placed.font_px,
+        placed.curve.radius_px - placed.font.px, placed.curve.radius_px + placed.font.px,
         theta_a, theta_b)
     assert not inside_screen(old_box, device), (
         "the old +/-line_height band must still overflow this exact case"
@@ -589,9 +589,9 @@ def test_upright_vector_font_text_measures_like_any_other_estimated_text(write_d
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, {})
     placed = _placed(resolved, "brand")
-    assert placed.curve_style is None
-    assert placed.font_is_vector is True
-    assert placed.font_available is True
+    assert placed.curve.style is None
+    assert placed.font.is_vector is True
+    assert placed.font.available is True
     assert placed.width_is_estimated is True
     assert placed.measured_width > 0
     assert placed.box.width > 0 and placed.box.height > 0
@@ -764,7 +764,7 @@ def test_visible_reach_is_none_for_upright_text_and_ordinary_shapes(write_design
     device = db.get("fenix8solar47mm")
     resolved = resolve(face, device, {})
     placed = _placed(resolved, "upright")
-    assert placed.curve_style is None
+    assert placed.curve.style is None
     assert visible_reach(placed, device.width / 2, device.height / 2) is None
 
 

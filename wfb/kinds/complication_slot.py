@@ -320,8 +320,7 @@ def resolve(r, element: ComplicationSlot, parent: Box, depth: int) -> Placed:
     return PlacedComplicationSlot(
         element, box.rounded(), (round(cx), round(cy)), depth,
         anchor_point=(round(cx), round(cy)),
-        font_reference=font.reference, font_is_custom=font.is_custom, font_px=font.px,
-        font_metric=font.metric,
+        font=font.resolved(),
         widest=widest, icon_font_key=icon_font_key, icon_px=icon_px,
         icon_position=element.icon_position, icon_gap_px=gap_px,
     )
@@ -393,11 +392,11 @@ def draw_preview(renderer, placed: PlacedComplicationSlot) -> None:
             icon_glyph = icon.codepoint
 
     text = _complication_slot_text(element, ctype)
-    text_font = (renderer.resolved.fonts.get(placed.font_reference)
-                 if placed.font_is_custom else None)
+    text_font = (renderer.resolved.fonts.get(placed.font.reference)
+                 if placed.font.is_custom else None)
     if text_font is not None:
         text_width, text_height = text_font.measure(text)
-    elif placed.font_metric is not None:
+    elif placed.font.metric is not None:
         # `fallback.measure`'s second return is whether real metrics were
         # used, not a height -- `resolve` uses `fallback.line_height` for
         # exactly this case, and
@@ -405,11 +404,11 @@ def draw_preview(renderer, placed: PlacedComplicationSlot) -> None:
         # same `PreviewOptions.fonts_root` every other measurement this
         # renderer makes goes through), so a slot's box is sized from the
         # same file it is then drawn with (plan 18 item 8).
-        text_width, _ = fallback.measure(text, placed.font_metric,
+        text_width, _ = fallback.measure(text, placed.font.metric,
                                          fonts_root=renderer.options.fonts_root)
-        text_height = fallback.line_height(placed.font_metric, fonts_root=renderer.options.fonts_root)
+        text_height = fallback.line_height(placed.font.metric, fonts_root=renderer.options.fonts_root)
     else:
-        text_width, text_height = 0, placed.font_px
+        text_width, text_height = 0, placed.font.px
 
     glyph_obj = _baked_glyph(icon_font, icon_glyph)
     icon_width, icon_height = icon_font.measure(icon_glyph) if glyph_obj else (0, 0)
@@ -444,8 +443,8 @@ def draw_preview(renderer, placed: PlacedComplicationSlot) -> None:
     if text_font is not None and text_font.sheet is not None:
         renderer._blit_baked_line(text_font, text, pen_x * s, top * s, color)
         return
-    if placed.font_metric is not None:
-        face = renderer._system_face(placed.font_metric, scale=s)
+    if placed.font.metric is not None:
+        face = renderer._system_face(placed.font.metric, scale=s)
         if face is not None:
             # `top` is the text box's own top edge (`geometry.text_y`,
             # sized from `fallback.line_height` above); draw at its
@@ -507,8 +506,8 @@ def layout_constants(prefix: str, placed: PlacedComplicationSlot) -> "layout_con
 
 def loaded_fonts(placed: PlacedComplicationSlot) -> list[str]:
     out = []
-    if placed.font_is_custom:
-        out.append(placed.font_reference)
+    if placed.font.is_custom:
+        out.append(placed.font.reference)
     if placed.icon_font_key is not None:
         out.append(placed.icon_font_key)
     return out

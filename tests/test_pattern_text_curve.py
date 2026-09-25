@@ -208,7 +208,7 @@ def test_if_unavailable_is_accepted_on_a_pattern_part_with_a_face_font(write_des
 
 
 def test_curve_angle_garmin_on_the_resolved_part_is_the_local_angle_only(write_design, bag, db):
-    """`ResolvedHandPart.curve_angle_garmin` must be `wfb.layout.
+    """`ResolvedHandPart.curve.angle_garmin` must be `wfb.layout.
     garmin_curve_angle` of the *authored* angle alone -- composition with a
     radial pattern's own `start`/`step` happens downstream (codegen,
     preview, the lint ink box), never here. Proven by giving the pattern a
@@ -216,7 +216,7 @@ def test_curve_angle_garmin_on_the_resolved_part_is_the_local_angle_only(write_d
     unaffected."""
     elements = _radial_hours(count=4).rstrip("\n")
     # non-default start/step: if composition leaked into layout, this would
-    # change `curve_angle_garmin` away from `garmin_curve_angle("angled",
+    # change `curve.angle_garmin` away from `garmin_curve_angle("angled",
     # 0deg) == 0.0` (a rotation, not a position: `0deg` is unrotated, so it
     # converts to Garmin `0.0` with no offset, unlike `radial`'s `to_garmin`).
     elements = elements.replace("pattern: radial\n", "pattern: radial\n    start: 45deg\n"
@@ -226,9 +226,9 @@ def test_curve_angle_garmin_on_the_resolved_part_is_the_local_angle_only(write_d
     resolved = resolve(face, device, {})
     placed = _placed_pattern(resolved, "hours")
     part = placed.parts[0]
-    assert part.curve_style == "angled"
-    assert part.curve_angle_garmin == pytest.approx(0.0)  # garmin_curve_angle("angled", 0deg)
-    assert part.curve_angle_degrees == 0.0
+    assert part.curve.style == "angled"
+    assert part.curve.angle_garmin == pytest.approx(0.0)  # garmin_curve_angle("angled", 0deg)
+    assert part.curve.angle_degrees == 0.0
 
 
 def test_font_face_and_availability_resolve_per_device_for_a_pattern_part(write_design, bag, db):
@@ -237,11 +237,11 @@ def test_font_face_and_availability_resolve_per_device_for_a_pattern_part(write_
     bad = db.get("fenix6")
     good_part = _placed_pattern(resolve(face, good, {}), "hours").parts[0]
     bad_part = _placed_pattern(resolve(face, bad, {}), "hours").parts[0]
-    assert good_part.font_is_vector is True
-    assert good_part.font_available is True
-    assert good_part.font_face == "RobotoCondensedBold"
-    assert bad_part.font_available is False
-    assert bad_part.font_face == ""
+    assert good_part.font.is_vector is True
+    assert good_part.font.available is True
+    assert good_part.font.face == "RobotoCondensedBold"
+    assert bad_part.font.available is False
+    assert bad_part.font.face == ""
 
 
 def test_radial_style_curve_gets_a_radius_on_the_resolved_part(write_design, bag, db):
@@ -252,8 +252,8 @@ def test_radial_style_curve_gets_a_radius_on_the_resolved_part(write_design, bag
     device = db.get("fenix8solar47mm")
     placed = _placed_pattern(resolve(face, device, {}), "hours")
     part = placed.parts[0]
-    assert part.curve_style == "radial"
-    assert part.curve_radius_px > 0
+    assert part.curve.style == "radial"
+    assert part.curve.radius_px > 0
 
 
 def test_pattern_radial_band_is_line_height_over_two_not_line_height(write_design, bag, db):
@@ -275,8 +275,8 @@ def test_pattern_radial_band_is_line_height_over_two_not_line_height(write_desig
     resolved = resolve(face, device, {})
     placed = _placed_pattern(resolved, "badge")
     part = placed.parts[0]
-    assert part.font_px == 36  # pins "line_height 36" from the standalone case
-    assert part.curve_radius_px == 105  # pins "radius 75%r == 105px"
+    assert part.font.px == 36  # pins "line_height 36" from the standalone case
+    assert part.curve.radius_px == 105  # pins "radius 75%r == 105px"
 
     fresh = Bag()
     lint.check_geometry(resolved, fresh)
@@ -294,7 +294,7 @@ def test_pattern_radial_band_flips_inward_outward_with_facing(write_design, bag,
     `clockwise` (outward-facing) keeps the inward band, which still fits;
     `counter_clockwise` (inward-facing) keeps the outward band, which
     still reaches the same edge the direction-blind old band did --
-    proving `_pattern_part_ink` reads `part.curve_direction`, not just
+    proving `_pattern_part_ink` reads `part.curve.direction`, not just
     `part.vertical_align` alone (CLAUDE.md §7)."""
     def _resolved(direction: str):
         face = _load(write_design, bag, _design(
@@ -334,7 +334,7 @@ def test_linear_pattern_curve_has_no_copy_angle_to_compose_with(write_design, ba
 
 
 def test_angle_expr_composes_local_angle_with_element_start_for_radial(write_design, bag, db):
-    """`g0 = part.curve_angle_garmin - element.start_angle`, then `- i *
+    """`g0 = part.curve.angle_garmin - element.start_angle`, then `- i *
     step` per copy -- the exact arithmetic `_emit_pattern_text_angle_expr`
     performs, checked against hand-derived numbers rather than a substring
     of generated code, so a sign error cannot hide behind a passing

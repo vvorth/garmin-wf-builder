@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from .. import catalog, expr, formatting, lint
 from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
 from ..ir.model import Element, Expression, Text
-from ..layout import Placed, PlacedText, _curve_angles, _longer, text_ink
+from ..layout import Placed, PlacedText, _longer, resolved_curve, text_ink
 from ..units import Axis, Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
@@ -117,39 +119,27 @@ def resolve(r, element: Text, parent: Box, depth: int) -> Placed:
     line_height = font.line_height
 
     x, y = r._point(element.at, parent)
-    curve_style, curve_angle_degrees, curve_angle_garmin, curve_direction = \
-        _curve_angles(element.curve)
-    curve_radius_px = 0
-    if curve_style == "radial" and element.curve.radius is not None:
-        curve_radius_px = round(r._extent(element.curve.radius, parent, Axis.MINOR, 0,
-                                          min_1px=element.resolved_min_1px,
-                                          what="curve.radius"))
+    curve = resolved_curve(element.curve)
+    if curve.style == "radial" and element.curve.radius is not None:
+        curve = replace(curve, radius_px=round(r._extent(
+            element.curve.radius, parent, Axis.MINOR, 0,
+            min_1px=element.resolved_min_1px, what="curve.radius")))
     ring_px = float(element.outline.width) if element.outline is not None else 0.0
     box = text_ink(
         x, y, width, line_height, element.align, element.vertical_align,
-        curve_style=curve_style, angle_garmin=curve_angle_garmin,
-        radius_px=curve_radius_px, direction=curve_direction, metric=font.metric,
+        curve_style=curve.style, angle_garmin=curve.angle_garmin,
+        radius_px=curve.radius_px, direction=curve.direction, metric=font.metric,
         pad=ring_px, fonts_root=r.device.fonts_root).box()
 
     return PlacedText(
         element, box.rounded(), (round(x), round(y)), depth,
         anchor_point=(round(x), round(y)),
         justify=r._justify(element),
-        font_reference=font.reference,
-        font_is_custom=font.is_custom,
-        font_px=font.px,
-        font_metric=font.metric,
+        font=font.resolved(),
         widest=widest,
         measured_width=round(width),
         width_is_estimated=font.baked is None,
-        font_face=font.face,
-        font_is_vector=font.is_vector,
-        font_available=font.available,
-        curve_style=curve_style,
-        curve_angle_degrees=curve_angle_degrees,
-        curve_angle_garmin=curve_angle_garmin,
-        curve_radius_px=curve_radius_px,
-        curve_direction=curve_direction,
+        curve=curve,
         line_height=line_height,
     )
 
@@ -198,15 +188,15 @@ def ink(placed: PlacedText, fonts_root: str | None = None):
     """A curved element's rotated box/sector, rebuilt from the fields
     `resolve` stored -- `None` for upright text, whose box corners are
     already its real corners."""
-    if placed.curve_style is None:
+    if placed.curve.style is None:
         return None
     outline = placed.element.outline
     return text_ink(
         placed.anchor_point[0], placed.anchor_point[1], float(placed.measured_width),
         placed.line_height, placed.element.align, placed.element.vertical_align,
-        curve_style=placed.curve_style, angle_garmin=placed.curve_angle_garmin,
-        radius_px=placed.curve_radius_px, direction=placed.curve_direction,
-        metric=placed.font_metric, pad=float(outline.width) if outline is not None else 0.0,
+        curve_style=placed.curve.style, angle_garmin=placed.curve.angle_garmin,
+        radius_px=placed.curve.radius_px, direction=placed.curve.direction,
+        metric=placed.font.metric, pad=float(outline.width) if outline is not None else 0.0,
         fonts_root=fonts_root)
 
 
@@ -216,18 +206,18 @@ def draw_preview(renderer, placed: PlacedText) -> None:
     if text is None:
         return
     color = renderer._aod_color(element, "color", element.color)
-    if placed.font_is_vector:
+    if placed.font.is_vector:
         # A `face:` font draws upright, angled or radial, never through a
-        # baked sheet; `font_available is False` is `if_unavailable: hide`
+        # baked sheet; `font.available is False` is `if_unavailable: hide`
         # on this device, which draws nothing, as the watch does.
-        if not placed.font_available:
+        if not placed.font.available:
             return
 
         def draw(anchor, fill, box=None):
             renderer._draw_vector_text(
-                text, anchor, element.align, element.vertical_align, placed.font_metric,
-                fill, placed.curve_style, placed.curve_angle_garmin,
-                placed.curve_radius_px, placed.curve_direction, box=box)
+                text, anchor, element.align, element.vertical_align, placed.font.metric,
+                fill, placed.curve.style, placed.curve.angle_garmin,
+                placed.curve.radius_px, placed.curve.direction, box=box)
     else:
         font, metric = _text_font(renderer, placed)
 
@@ -250,11 +240,11 @@ def _text_font(renderer, placed: PlacedText) -> tuple[BakedFont | None, FontMetr
     check is defensive."""
     element = placed.element
     font: BakedFont | None = (
-        renderer.resolved.fonts.get(placed.font_reference) if placed.font_is_custom else None
+        renderer.resolved.fonts.get(placed.font.reference) if placed.font.is_custom else None
     )
-    metric = placed.font_metric
+    metric = placed.font.metric
     aod_font = renderer._aod_field(element, "font", None)
-    if aod_font is None or aod_font == placed.font_reference:
+    if aod_font is None or aod_font == placed.font.reference:
         return font, metric
     if element.aod.font_is_custom:
         override_spec = renderer.resolved.face.fonts.get(aod_font)
@@ -297,17 +287,17 @@ def describe(placed: PlacedText) -> str:
 
 
 def loaded_fonts(placed: PlacedText) -> list[str]:
-    if placed.font_is_custom and not placed.font_is_vector:
-        return [placed.font_reference]
+    if placed.font.is_custom and not placed.font.is_vector:
+        return [placed.font.reference]
     return []
 
 
 def vector_fonts(placed: PlacedText) -> list[str]:
-    return [placed.font_reference] if placed.font_is_vector else []
+    return [placed.font.reference] if placed.font.is_vector else []
 
 
 def font_unavailable(placed, part_index: int | None) -> bool:
-    return isinstance(placed, PlacedText) and not placed.font_available
+    return isinstance(placed, PlacedText) and not placed.font.available
 
 
 def glyph_needs(element: Text, face, bucket) -> None:
@@ -365,15 +355,15 @@ def vector_text_carriers(element: Text) -> list:
 
 
 def check_glyphs(placed: PlacedText, resolved, bag) -> None:
-    if not placed.font_is_custom:
+    if not placed.font.is_custom:
         return
-    font = resolved.fonts.get(placed.font_reference)
+    font = resolved.fonts.get(placed.font.reference)
     if font is None:
         return
     missing = font.missing(placed.widest)
     if missing:
         lint._missing_glyph_error(
-            bag, placed.id, placed.font_reference, missing, placed.element.span,
+            bag, placed.id, placed.font.reference, missing, placed.element.span,
             [f"the widest rendering of this element is {placed.widest!r}"])
 
 
@@ -431,7 +421,7 @@ def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
     prefix = _const_prefix(placed.id)
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
     color_code = aod.color(element, "color")
-    if placed.font_is_vector:
+    if placed.font.is_vector:
         _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code)
         return
     override_expr = None
@@ -447,10 +437,10 @@ def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
             # *same* resource the element already draws with while awake is
             # a legitimate no-op (nothing to load a second time).
             if (override_spec is not None and not override_spec.is_vector
-                    and element.aod.font != placed.font_reference):
+                    and element.aod.font != placed.font.reference):
                 override_expr = f"_{_aod_font_field(element.aod.font)}"
-    if placed.font_is_custom:
-        w.line(f"var font = _{_field(placed.font_reference)};")
+    if placed.font.is_custom:
+        w.line(f"var font = _{_field(placed.font.reference)};")
         if override_expr is not None:
             w.line(f"var fontFinal = _aod ? {override_expr} : font;")
             with w.block("if (fontFinal == null)"):
@@ -463,7 +453,7 @@ def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
             w.blank()
             font_expr = "font"
     else:
-        font_expr = aod.value(override_expr, f"Graphics.{placed.font_reference}")
+        font_expr = aod.value(override_expr, f"Graphics.{placed.font.reference}")
     if element.outline is not None:
         shapes._emit_outline_loop(
             w, element.outline.width, _color(element.outline.color),
@@ -490,14 +480,14 @@ def _emit_vector_draw_call(
     arguments (research 14 §3.2, §5's own table).
     """
     element = placed.element
-    if placed.curve_style == "angled":
+    if placed.curve.style == "angled":
         w.call("dc.drawAngledText", [
             f"{x_expr}, {y_expr}, font, {value_code}", f"{justify}, Layout.{prefix}_ANGLE",
         ])
-    elif placed.curve_style == "radial":
-        direction = shapes._RADIAL_DIRECTION[placed.curve_direction or "clockwise"]
+    elif placed.curve.style == "radial":
+        direction = shapes._RADIAL_DIRECTION[placed.curve.direction or "clockwise"]
         radius = shapes._radial_radius_expr(f"Layout.{prefix}_RADIUS", element.vertical_align,
-                                            placed.curve_direction, "font")
+                                            placed.curve.direction, "font")
         w.call("dc.drawRadialText", [
             f"{x_expr}, {y_expr}, font, {value_code}",
             f"{justify}, Layout.{prefix}_ANGLE, {radius}",
@@ -534,7 +524,7 @@ def _emit_vector_text_draw(
     it draws nothing today -- one `if (font != null)`, never two.
     """
     element = placed.element
-    field = f"_{_field(placed.font_reference)}"
+    field = f"_{_field(placed.font.reference)}"
     w.line(f"var font = {field};")
     with w.block("if (font != null)"):
         if element.outline is not None:
@@ -561,21 +551,21 @@ def layout_constants(prefix: str, placed: PlacedText) -> "layout_constants_mod.C
         (f"{prefix}_Y", placed.anchor_point[1], ""),
         (f"{prefix}_WIDTH", placed.measured_width, note),
     ]
-    if placed.curve_style is not None:
+    if placed.curve.style is not None:
         # Both angle conventions in the comment, the same `arc`
         # precedent `_arc_constants`'s own `_START` follows -- keeps the
         # conversion auditable without having to re-derive it.
         author_note = (
-            f"{placed.curve_angle_degrees:g}deg clockwise from 12 o'clock"
-            if placed.curve_style == "radial"
-            else f"{placed.curve_angle_degrees:g}deg clockwise rotation from upright"
+            f"{placed.curve.angle_degrees:g}deg clockwise from 12 o'clock"
+            if placed.curve.style == "radial"
+            else f"{placed.curve.angle_degrees:g}deg clockwise rotation from upright"
         )
         out.append((
-            f"{prefix}_ANGLE", float(placed.curve_angle_garmin),
+            f"{prefix}_ANGLE", float(placed.curve.angle_garmin),
             f"{author_note}, in Garmin's convention",
         ))
-        if placed.curve_style == "radial":
-            out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))
+        if placed.curve.style == "radial":
+            out.append((f"{prefix}_RADIUS", placed.curve.radius_px, ""))
     return out
 
 

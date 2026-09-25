@@ -370,7 +370,7 @@ def _aod_only_fonts(resolved: ResolvedFace) -> list[str]:
         aod = placed.element.aod
         if aod is None or aod.font is None or not aod.font_is_custom:
             continue
-        if aod.font == placed.font_reference or aod.font in awake or aod.font in out:
+        if aod.font == placed.font.reference or aod.font in awake or aod.font in out:
             continue
         spec = resolved.face.fonts.get(aod.font)
         if spec is None or spec.is_vector:

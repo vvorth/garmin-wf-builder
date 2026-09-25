@@ -310,8 +310,8 @@ def _hand_part_constants(
             (f"{part_prefix}_X", part.x, f"{owner}, part {index}: text (the anchor)"),
             (f"{part_prefix}_Y", part.y, ""),
         ]
-        if part.curve_style == "radial":
-            out.append((f"{part_prefix}_RADIUS", part.curve_radius_px,
+        if part.curve.style == "radial":
+            out.append((f"{part_prefix}_RADIUS", part.curve.radius_px,
                         "curve: radial's own circle radius"))
         return out
     if part.shape == "polygon":

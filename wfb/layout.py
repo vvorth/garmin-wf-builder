@@ -512,45 +512,72 @@ class PlacedShape(Placed):
     aod_thickness: int | None = None
 
 
+@dataclass(frozen=True)
+class ResolvedFont:
+    """A text font resolved for one device -- the part of `Resolver._text_font`
+    a placed text, a pattern's text part and a complication slot's reading
+    carry into codegen, preview and lint."""
+
+    #: The `Rez.Fonts` key of a baked font, the `FONT_*` symbol of a system
+    #: font, or the declared name of a `face:` (vector) font.
+    reference: str = ""
+    is_custom: bool = False
+    px: int = 0
+    #: What the text is measured (and previewed) through: the device's
+    #: metric for a system font, or one synthesised for a resolved vector
+    #: face (`Resolver._vector_font_metric`).  `None` for a baked font, or
+    #: when the device has no metrics for the system symbol.
+    metric: FontMetric | None = None
+    #: **Vector fonts only.**  The one face name this device publishes out
+    #: of `FontSpec.face`'s candidates (`Resolver._resolve_vector_face`) --
+    #: what codegen emits as `:face`; empty when none resolves.
+    face: str = ""
+    #: True when the font is a `face:` (vector) font.
+    is_vector: bool = False
+    #: Whether vector gates 1-3 passed on this device (always `True` for a
+    #: baked or system font).  `False` survives into a build only under
+    #: `if_unavailable: hide` (`wfb.lint.check_vector_font_availability`):
+    #: the element still resolves, but nothing draws it on this device.
+    available: bool = True
+
+
+@dataclass(frozen=True)
+class ResolvedCurve:
+    """A text's `curve:` resolved for one device. `style` is `"angled"`,
+    `"radial"`, or `None` for upright text (the default). The angle is kept
+    in author units and in Garmin's convention (`garmin_curve_angle` -- a
+    *position* for `radial`, a *rotation* for `angled`); `radius_px` is
+    the resolved radius (`radial` only, else `0`); `direction` is the
+    author's word."""
+
+    style: str | None = None
+    angle_degrees: float = 0.0
+    angle_garmin: float = 0.0
+    radius_px: int = 0
+    direction: str | None = None
+
+
+def resolved_curve(curve: Curve | None) -> ResolvedCurve:
+    """`curve:`'s style, angles and direction; the caller resolves the
+    radius in its own frame (`dataclasses.replace(..., radius_px=...)`)."""
+    if curve is None:
+        return ResolvedCurve()
+    return ResolvedCurve(curve.style, curve.angle.degrees,
+                         garmin_curve_angle(curve.style, curve.angle), 0, curve.direction)
+
+
 @dataclass
 class PlacedText(Placed):
     #: The point passed to ``drawText``; ``justify`` says how text sits on it.
     #: Under `curve: {style: radial}` it is the circle's centre instead.
     anchor_point: tuple[int, int] = (0, 0)
     justify: tuple[str, ...] = ()
-    font_reference: str = "FONT_MEDIUM"
-    font_is_custom: bool = False
-    font_px: int = 0
-    #: What the text is measured (and previewed) through: the device's
-    #: metric for a system font, or one synthesised for a resolved vector
-    #: face (`Resolver._vector_font_metric`).  `None` for a baked font, or
-    #: when the device has no metrics for the system symbol.
-    font_metric: FontMetric | None = None
+    font: ResolvedFont = ResolvedFont()
     widest: str = ""
     measured_width: int = 0
     #: True when the extent was estimated rather than measured from real metrics.
     width_is_estimated: bool = False
-    #: **Vector fonts only.**  The one face name this device publishes out
-    #: of `FontSpec.face`'s candidates (`Resolver._resolve_vector_face`) --
-    #: what codegen emits as `:face`; empty when none resolves.
-    font_face: str = ""
-    #: True when `element.font` names a `face:` (vector) font.
-    font_is_vector: bool = False
-    #: Whether vector gates 1-3 passed on this device (always `True` for a
-    #: baked or system font).  `False` survives into a build only under
-    #: `if_unavailable: hide` (`wfb.lint.check_vector_font_availability`):
-    #: the element still resolves, but nothing draws it on this device.
-    font_available: bool = True
-    #: `text.curve`, exploded: `style` (`"angled"`|`"radial"`|`None` for
-    #: upright), the angle both in author units and in Garmin's convention
-    #: (`garmin_curve_angle` -- a *position* for `radial`, a *rotation* for
-    #: `angled`), the resolved radius (`radial` only, else `0`) and the
-    #: author's `direction` word.
-    curve_style: str | None = None
-    curve_angle_degrees: float = 0.0
-    curve_angle_garmin: float = 0.0
-    curve_radius_px: int = 0
-    curve_direction: str | None = None
+    curve: ResolvedCurve = ResolvedCurve()
     #: The measured (or estimated) line height, in device pixels -- what
     #: `visible_reach` rebuilds a curved element's ink from (`text_ink`).
     line_height: float = 0.0
@@ -638,10 +665,7 @@ class ResolvedHandPart:
     sweep: float = 0.0
     #: ``text`` only, from here down -- the same meaning as the matching
     #: `PlacedText` fields.
-    font_reference: str = ""
-    font_is_custom: bool = False
-    font_px: int = 0
-    font_metric: FontMetric | None = None
+    font: ResolvedFont = ResolvedFont()
     justify: tuple[str, ...] = ()
     align: str = "center"
     vertical_align: str = "center"
@@ -651,18 +675,11 @@ class ResolvedHandPart:
     #: measured pixel width, in the same order.
     texts: tuple[str, ...] = ()
     widths: tuple[int, ...] = ()
-    font_face: str = ""
-    font_is_vector: bool = False
-    font_available: bool = True
-    #: `curve_angle_garmin` is the part's *local* angle, for copy 0 only: a
+    #: `curve.angle_garmin` is the part's *local* angle, for copy 0 only: a
     #: radial pattern's per-copy rotation depends on the runtime copy index,
     #: so it is composed where that index is known (`wfb.kinds.pattern.
     #: _pattern_text_ink`, `wfb.kinds.pattern._emit_pattern_text_angle_expr`).
-    curve_style: str | None = None
-    curve_angle_degrees: float = 0.0
-    curve_angle_garmin: float = 0.0
-    curve_radius_px: int = 0
-    curve_direction: str | None = None
+    curve: ResolvedCurve = ResolvedCurve()
     #: `HandPart.outline`, exploded; `outline_color is None` means none.
     outline_width: int = 0
     outline_color: Expression | None = None
@@ -819,12 +836,9 @@ class PlacedComplicationSlot(Placed):
     """
 
     anchor_point: tuple[int, int] = (0, 0)
-    font_reference: str = "FONT_SMALL"
-    font_is_custom: bool = False
-    font_px: int = 0
-    #: See `PlacedText.font_metric` -- the same field, for the slot's own
-    #: reading text.
-    font_metric: FontMetric | None = None
+    #: The slot's own reading text; never a vector font (the builder
+    #: rejects one).
+    font: ResolvedFont = ResolvedFont()
     #: The widest plausible reading
     #: (`wfb.kinds.complication_slot._complication_slot_widest`).
     widest: str = ""
@@ -947,15 +961,10 @@ class _Font:
         return (fallback.line_height(self.metric, fonts_root=self.fonts_root)
                 if self.metric else self.px)
 
-
-def _curve_angles(curve: Curve | None) -> tuple[str | None, float, float, str | None]:
-    """`(style, author degrees, Garmin degrees, direction)` for a `text`
-    element's or pattern part's `curve:` -- `(None, 0.0, 0.0, None)` for
-    upright text.  The radius is resolved by the caller, in its own frame."""
-    if curve is None:
-        return None, 0.0, 0.0, None
-    return curve.style, curve.angle.degrees, garmin_curve_angle(curve.style, curve.angle), \
-        curve.direction
+    def resolved(self) -> ResolvedFont:
+        """What a placed element carries of this font."""
+        return ResolvedFont(self.reference, self.is_custom, self.px, self.metric,
+                            self.face, self.is_vector, self.available)
 
 
 class Resolver:
@@ -1216,27 +1225,20 @@ class Resolver:
             # instead.
             x0, y0 = self._hand_point(part.at)
             font = self._text_font(part.font, part.font_is_custom, owner_id, part.curve)
-            curve_style, curve_angle_degrees, curve_angle_garmin, curve_direction = \
-                _curve_angles(part.curve)
-            curve_radius_px = 0
-            if curve_style == "radial" and part.curve.radius is not None:
+            curve = resolved_curve(part.curve)
+            if curve.style == "radial" and part.curve.radius is not None:
                 # Through `_hand_extent`, like any other part radius: a
                 # relative one gets the `min_1px`/sub-pixel-length treatment.
-                curve_radius_px = round_half_away(self._hand_extent(
-                    part.curve.radius, min_1px=effective_min_1px, what="curve.radius"))
+                curve = replace(curve, radius_px=round_half_away(self._hand_extent(
+                    part.curve.radius, min_1px=effective_min_1px, what="curve.radius")))
             outline = part.outline
             return ResolvedHandPart(
                 "text", part.color, x=round_half_away(x0), y=round_half_away(y0),
-                font_reference=font.reference, font_is_custom=font.is_custom, font_px=font.px,
-                font_metric=font.metric,
-                font_face=font.face, font_is_vector=font.is_vector,
-                font_available=font.available,
+                font=font.resolved(),
                 justify=self._justify(part), align=part.align,
                 vertical_align=part.vertical_align, line_height=font.line_height,
                 texts=part.texts, widths=tuple(font.width(t) for t in part.texts),
-                curve_style=curve_style, curve_angle_degrees=curve_angle_degrees,
-                curve_angle_garmin=curve_angle_garmin, curve_radius_px=curve_radius_px,
-                curve_direction=curve_direction,
+                curve=curve,
                 outline_width=outline.width if outline is not None else 0,
                 outline_color=outline.color if outline is not None else None,
             ), 0.0

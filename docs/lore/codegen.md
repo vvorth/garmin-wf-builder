@@ -212,7 +212,7 @@ These cost real time to discover; do not rediscover them.
   preview draws glyph by glyph on those pen positions, never with Pillow's
   own layout. The test suite sets `WFB_NO_GARMIN_FONTS=1`, so results never
   depend on the user's licensed fonts. None of this reaches
-  `monkeyc`'s input: a `Placed*`'s `font_metric` only feeds `wfb.layout`'s
+  `monkeyc`'s input: a `Placed*`'s `font.metric` only feeds `wfb.layout`'s
   own lint boxes and `wfb.preview`'s ink, never a baked pixel position --
   the runtime anchor a `text`/`complication_slot` draws at was already
   unshifted before this (this file, finding 7's sibling reasoning: a glyph
@@ -312,7 +312,7 @@ These cost real time to discover; do not rediscover them.
   only new work is the angle's *composition* and one codegen-side behaviour
   change.
 
-  **Composition.** `ResolvedHandPart.curve_angle_garmin` is this part's own
+  **Composition.** `ResolvedHandPart.curve.angle_garmin` is this part's own
   *local* angle (`HandPart.curve.angle`, run through `wfb.layout.
   garmin_curve_angle`), for copy 0 alone -- never combined with a radial
   pattern's own rotation in `wfb.layout`. That combination is one
@@ -323,7 +323,7 @@ These cost real time to discover; do not rediscover them.
   the preview (`wfb.kinds.pattern._pattern_text`) both call. Codegen
   (`wfb.kinds.pattern._emit_pattern_text_angle_expr`) reads the same
   `local`/`start`/`step` off that object but builds Monkey C from them
-  instead of calling the evaluator: `g0 = part.curve_angle_garmin -
+  instead of calling the evaluator: `g0 = part.curve.angle_garmin -
   element.start_angle`, then `g0 - i * step_deg` per copy, the *exact*
   shape a radial pattern's own `arc` part already used for its
   `start_angle:` (`_emit_pattern_part`'s arc branch, unchanged, one row up
@@ -332,7 +332,7 @@ These cost real time to discover; do not rediscover them.
   degrees, clockwise from 12 -- always a *position*-style rotation of the
   whole template, regardless of the part's own `curve.style`. Composing it
   into a Garmin-space angle by straight subtraction is valid whichever
-  style `part.curve_angle_garmin` itself came from: for `radial` it is
+  style `part.curve.angle_garmin` itself came from: for `radial` it is
   `Angle.to_garmin()`'s `90 - degrees` (a position, one fixed offset folded
   in once by the part's own local angle); for `angled` (2026-09-20:
   `curve.angle` redefined as a rotation from upright, not a direction --
@@ -373,7 +373,7 @@ These cost real time to discover; do not rediscover them.
   **`style: radial`'s circle is centred on that copy's own anchor**, not a
   fixed point -- the same `at:` reinterpretation a standalone `curve:
   {style: radial}` text element already gives, applied per copy: the
-  circle's radius (`curve_radius_px`, a `handLength` -- px/%r only, plan
+  circle's radius (`curve.radius_px`, a `handLength` -- px/%r only, plan
   11 slice 2's `patternCurve` schema def -- resolved once, the same for
   every copy) gets a `Layout` constant (`<part>_RADIUS`, `wfb.emit.monkeyc.
   layout_constants._hand_part_constants`'s `text` branch), the same as an
@@ -426,9 +426,7 @@ These cost real time to discover; do not rediscover them.
   whole element over `PatternElement.colors`, which a part's own
   `outline.color` now feeds into alongside `part.color`). `ResolvedHandPart`
   grows two exploded fields, `outline_width`/`outline_color`, carried
-  through from `HandPart.outline` unchanged (the same "explode, don't
-  nest" shape `curve_style`/`curve_angle_garmin`/... already use for
-  `HandPart.curve`) -- `wfb.kinds.pattern._pattern_text_ink` reads
+  through from `HandPart.outline` unchanged -- `wfb.kinds.pattern._pattern_text_ink` reads
   `outline_width` as the same `pad` a standalone element's own
   `outline:` passes to `wfb.layout.text_ink` (D9), and
   `wfb.kinds.pattern._emit_pattern_text_draw` reads both fields

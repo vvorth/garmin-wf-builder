@@ -343,7 +343,7 @@ elements:
 
 def test_a_percent_r_font_size_reaches_the_placed_text_per_device(
         write_design, bag, db, repo_root):
-    """`font_px` on the placed text is the number **both** renderers read --
+    """`font.px` on the placed text is the number **both** renderers read --
     `wfb.emit.monkeyc` loads the resource it names and `wfb.preview` draws the
     baked sheet at it -- so asserting it here is asserting that preview and
     device cannot disagree about a `%r` font size.
@@ -373,7 +373,7 @@ elements:
         device = db.get(device_id)
         fonts = bake_fonts(face, device)
         placed = find(resolve(face, device, fonts), "clock")
-        sizes[device_id] = placed.font_px
+        sizes[device_id] = placed.font.px
     assert sizes == {"fenix8solar47mm": 23, "fenix8solar51mm": 25}
 
 

@@ -733,7 +733,7 @@ def _render_with_resolved(write_design, db, bag, body: str, *, target: str = "fe
     `wfb.layout.resolve`'s own output, built by the *same* pipeline `wfb
     build`/`wfb preview` use, never by `wfb.preview`'s per-glyph loop
     (`_draw_radial_vector_text`, the code under test here). The two tests
-    below read `curve_radius_px`/`curve_angle_garmin`/`anchor_point` off it
+    below read `curve.radius_px`/`curve.angle_garmin`/`anchor_point` off it
     directly (`wfb.layout`'s own resolved geometry -- already verified
     elsewhere, e.g. `tests/test_vector_text_layout.py`) and real glyph
     advances off `wfb.fonts.fallback.system_face` -- both independent of
@@ -771,13 +771,13 @@ def _expected_radial_slot(placed, text: str, index: int) -> float:
     prediction it is checked against. `sum(text[:index])`'s pen still
     counts a space's own advance even though a space draws no ink -- the
     same pen a real render advances by."""
-    face = system_face(placed.font_metric)
+    face = system_face(placed.font.metric)
     advances = face.advances(text)
     align_offset = sum(advances) / 2.0
     pen = sum(advances[:index])
     pixel_offset = pen + advances[index] / 2.0 - align_offset
-    direction_sign = 1.0 if placed.curve_direction == "counter_clockwise" else -1.0
-    theta = math.radians(placed.curve_angle_garmin) + direction_sign * (pixel_offset / placed.curve_radius_px)
+    direction_sign = 1.0 if placed.curve.direction == "counter_clockwise" else -1.0
+    theta = math.radians(placed.curve.angle_garmin) + direction_sign * (pixel_offset / placed.curve.radius_px)
     return math.degrees(theta) % 360.0
 
 
@@ -821,10 +821,10 @@ def test_radial_wide_glyph_centre_of_mass_sits_on_its_own_radius(write_design, d
     placed = _placed(resolved, "glyph")
     centroid = _weighted_centroid(image)
     cx, cy = placed.anchor_point
-    dist = _perp_distance_from_ray(cx, cy, placed.curve_angle_garmin, centroid)
+    dist = _perp_distance_from_ray(cx, cy, placed.curve.angle_garmin, centroid)
     assert dist < 3.0, (
         f"glyph centre of mass is {dist:.2f}px off the radius through "
-        f"curve.angle ({placed.curve_angle_garmin:.1f}deg Garmin) -- "
+        f"curve.angle ({placed.curve.angle_garmin:.1f}deg Garmin) -- "
         "expected it to sit on that radius (R1); a distance anywhere near "
         "the glyph's own half-advance width means the pre-fix left-edge-"
         "anchored placement bug is back"

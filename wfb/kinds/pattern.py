@@ -32,7 +32,7 @@ from . import ElementKind
 class PatternTextAngle:
     """The terms of the per-copy Garmin-degrees angle a `shape: text`
     pattern part's own `curve:` draws at (plan 11 slice 2, plan 19 A1):
-    `local` -- the part's own local, copy-0 angle (`part.curve_angle_garmin`);
+    `local` -- the part's own local, copy-0 angle (`part.curve.angle_garmin`);
     `start`/`step` -- the pattern's own repeat angle, design degrees
     clockwise from 12 (`0.0`/`0.0` for a linear pattern, which then leaves
     every copy at the local angle unchanged).  One definition of the
@@ -89,13 +89,13 @@ def _pattern_text_ink(
     `fonts_root`: see :func:`text_ink`.
     """
     ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
-    angle_garmin = PatternTextAngle(part.curve_angle_garmin, start, step).copy_curve_angle(index)
+    angle_garmin = PatternTextAngle(part.curve.angle_garmin, start, step).copy_curve_angle(index)
     return text_ink(
         ax, ay, part.widths[index] if part.widths else 0, part.line_height,
-        part.align, part.vertical_align, curve_style=part.curve_style,
+        part.align, part.vertical_align, curve_style=part.curve.style,
         angle_garmin=angle_garmin,
-        radius_px=part.curve_radius_px, direction=part.curve_direction,
-        metric=part.font_metric, pad=float(part.outline_width), fonts_root=fonts_root)
+        radius_px=part.curve.radius_px, direction=part.curve.direction,
+        metric=part.font.metric, pad=float(part.outline_width), fonts_root=fonts_root)
 
 
 def _pattern_part_ink(
@@ -624,26 +624,26 @@ def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
     ring_color = (
         renderer._color(part.outline_color, values) if part.outline_color is not None else None
     )
-    if part.font_is_vector:
-        if not part.font_available:
+    if part.font.is_vector:
+        if not part.font.available:
             return  # `if_unavailable: hide` on this device
         angle = (
-            PatternTextAngle(part.curve_angle_garmin, placed.start, placed.step)
-            .copy_curve_angle(index) if part.curve_style is not None else 0.0
+            PatternTextAngle(part.curve.angle_garmin, placed.start, placed.step)
+            .copy_curve_angle(index) if part.curve.style is not None else 0.0
         )
 
         def draw(at, fill, box=None):
             renderer._draw_vector_text(
-                text, at, part.align, part.vertical_align, part.font_metric, fill,
-                part.curve_style, angle, part.curve_radius_px, part.curve_direction)
+                text, at, part.align, part.vertical_align, part.font.metric, fill,
+                part.curve.style, angle, part.curve.radius_px, part.curve.direction)
     else:
         font: BakedFont | None = (
-            renderer.resolved.fonts.get(part.font_reference) if part.font_is_custom else None
+            renderer.resolved.fonts.get(part.font.reference) if part.font.is_custom else None
         )
 
         def draw(at, fill, box=None):
             renderer._draw_text(font, text, at, part.align, part.vertical_align,
-                                part.font_metric, fill)
+                                part.font.metric, fill)
     renderer._draw_outlined(draw, anchor, color, ring_color, part.outline_width)
 
 
@@ -729,7 +729,7 @@ def _pattern_angle_expr(element: PatternElement) -> tuple[str, str]:
 def _emit_pattern_text_angle_expr(element: PatternElement, part) -> str:
     """The per-copy Garmin-degrees angle a `shape: text` part's own
     `curve:` draws at (plan 11 slice 2): the part's own local, copy-0 angle
-    (`part.curve_angle_garmin`) composed with the copy's rotation, `g0 - i *
+    (`part.curve.angle_garmin`) composed with the copy's rotation, `g0 - i *
     step_deg` with `element.start_angle` folded into `g0` -- the same shape
     an `arc` part's `start_angle` gets (`_emit_pattern_part`).  A clockwise
     design-degree rotation is a plain Garmin-degree subtraction whichever
@@ -744,7 +744,7 @@ def _emit_pattern_text_angle_expr(element: PatternElement, part) -> str:
     a pattern's own `shape: text` part").
     """
     step = element.step_angle if element.pattern == "radial" else 0.0
-    angle = PatternTextAngle(part.curve_angle_garmin, element.start_angle, step)
+    angle = PatternTextAngle(part.curve.angle_garmin, element.start_angle, step)
     g0 = _mc_float(angle.local - angle.start)
     if element.pattern == "radial":
         return f"{g0} - i * {_mc_float(angle.step)}"
@@ -764,7 +764,7 @@ def _emit_pattern_text_call(
     rotated/translated, and a stamp's screen-space offset commutes with
     both the copy's rotation and the curve angle (research 14 §3.2).
     """
-    curve_style = part.curve_style
+    curve_style = part.curve.style
     if curve_style is None and not radial:
         groups = [f"{x_expr}, {y_expr}, {font_expr}", value_code, justify]
     elif curve_style is None:
@@ -774,9 +774,9 @@ def _emit_pattern_text_call(
         groups = [x_expr, f"{y_expr}, {font_expr}, {value_code}", f"{justify}, {angle_expr}"]
     else:  # "radial"
         angle_expr = _emit_pattern_text_angle_expr(element, part)
-        direction = _RADIAL_DIRECTION[part.curve_direction or "clockwise"]
+        direction = _RADIAL_DIRECTION[part.curve.direction or "clockwise"]
         radius_expr = _radial_radius_expr(f"Layout.{part_prefix}_RADIUS", part.vertical_align,
-                                          part.curve_direction, font_expr)
+                                          part.curve.direction, font_expr)
         groups = [x_expr, f"{y_expr}, {font_expr}, {value_code}",
                   f"{justify}, {angle_expr}, {radius_expr}", f"Graphics.{direction}"]
     callee = {None: "dc.drawText", "angled": "dc.drawAngledText"}.get(curve_style, "dc.drawRadialText")
@@ -804,7 +804,7 @@ def _emit_pattern_text_draw(
     trap `docs/lore/monkeyc.md` warns about. A baked custom font never
     reaches this guard: `emit_draw`'s own pre-loop loading early-returns
     on a null baked font instead (a structural resource-load failure, not
-    the ordinary case a vector font's null is), so `part.font_is_vector`
+    the ordinary case a vector font's null is), so `part.font.is_vector`
     alone decides which of the two this part gets. `outline:`'s stamp loop
     and the interior call both move inside this one guard together, never
     two guards -- the same shape `wfb.kinds.text._emit_vector_text_draw`
@@ -819,7 +819,7 @@ def _emit_pattern_text_draw(
     value the outer loop already believed was current both before and
     after, so the outer loop's own bookkeeping needs no change.
     """
-    curve_style = part.curve_style
+    curve_style = part.curve.style
     if radial:
         # `bottom` shifts the shared `cy` translation term only for this
         # call, not the variable itself (other parts of the same copy
@@ -846,7 +846,7 @@ def _emit_pattern_text_draw(
         y_expr = oy_expr if curve_style is not None else _glyph_y_expr(
             oy_expr, part.vertical_align, font_expr)
 
-    with w.block_if(f"if ({font_expr} != null)" if part.font_is_vector else None):
+    with w.block_if(f"if ({font_expr} != null)" if part.font.is_vector else None):
         if part.outline_color is not None:
             # `index_var`/`offsets_var` are unique per part (`part_prefix`
             # already is): the copy loop wrapping this whole method already
@@ -893,10 +893,10 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
                 ir_part.text_value.value.type,
             )
         justify = " | ".join(f"Graphics.{flag}" for flag in part.justify)
-        if part.font_is_custom:
-            font_expr = text_fonts[part.font_reference]
+        if part.font.is_custom:
+            font_expr = text_fonts[part.font.reference]
         else:
-            font_expr = f"Graphics.{part.font_reference}"
+            font_expr = f"Graphics.{part.font.reference}"
         _emit_pattern_text_draw(w, element, part, part_prefix, radial, font_expr, value_code, justify)
         return
     thickness_expr = aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
@@ -987,10 +987,10 @@ def emit_draw(w: Writer, resolved, placed: PlacedPattern, value_guards, plan,
     text_fonts: dict[str, str] = {}
     vector_text_fonts: set[str] = set()
     for _, part in live:
-        if part.shape == "text" and part.font_is_custom and part.font_reference not in text_fonts:
-            text_fonts[part.font_reference] = f"font{len(text_fonts)}"
-            if part.font_is_vector:
-                vector_text_fonts.add(part.font_reference)
+        if part.shape == "text" and part.font.is_custom and part.font.reference not in text_fonts:
+            text_fonts[part.font.reference] = f"font{len(text_fonts)}"
+            if part.font.is_vector:
+                vector_text_fonts.add(part.font.reference)
     for reference, local in text_fonts.items():
         w.line(f"var {local} = _{_field(reference)};")
         if reference not in vector_text_fonts:
@@ -1066,18 +1066,18 @@ def emit_draw(w: Writer, resolved, placed: PlacedPattern, value_guards, plan,
 
 
 def loaded_fonts(placed: PlacedPattern) -> list[str]:
-    return [part.font_reference for part in placed.parts
-            if part.shape == "text" and part.font_is_custom and not part.font_is_vector]
+    return [part.font.reference for part in placed.parts
+            if part.shape == "text" and part.font.is_custom and not part.font.is_vector]
 
 
 def vector_fonts(placed: PlacedPattern) -> list[str]:
-    return [part.font_reference for part in placed.parts
-            if part.shape == "text" and part.font_is_vector]
+    return [part.font.reference for part in placed.parts
+            if part.shape == "text" and part.font.is_vector]
 
 
 def font_unavailable(placed, part_index: int | None) -> bool:
     return (isinstance(placed, PlacedPattern) and part_index is not None
-            and part_index < len(placed.parts) and not placed.parts[part_index].font_available)
+            and part_index < len(placed.parts) and not placed.parts[part_index].font.available)
 
 
 def glyph_needs(element: PatternElement, face, bucket) -> None:
@@ -1105,9 +1105,9 @@ def vector_text_carriers(element: PatternElement) -> list:
 
 def check_glyphs(placed: PlacedPattern, resolved, bag) -> None:
     for index, part in enumerate(placed.parts):
-        if part.shape != "text" or not part.font_is_custom:
+        if part.shape != "text" or not part.font.is_custom:
             continue
-        font = resolved.fonts.get(part.font_reference)
+        font = resolved.fonts.get(part.font.reference)
         if font is None:
             continue
         missing: set[str] = set()
@@ -1115,7 +1115,7 @@ def check_glyphs(placed: PlacedPattern, resolved, bag) -> None:
             missing |= font.missing(part.texts[copy_index])
         if missing:
             lint._missing_glyph_error(
-                bag, f"{placed.id}.parts[{index}]", part.font_reference, missing,
+                bag, f"{placed.id}.parts[{index}]", part.font.reference, missing,
                 placed.element.parts[index].span, [])
 
 

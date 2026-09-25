@@ -273,8 +273,8 @@ def check_vector_font_availability(
     gates 1-3 fail on any target?"), so unlike :func:`run`'s per-device
     checks this takes every target's `ResolvedFace` and `wfb.build.
     resolve_all` calls it once, after all of them are resolved.  Layout has
-    already decided each device's gates (`PlacedText.font_available`, and
-    a pattern part's `ResolvedHandPart.font_available`); this only reports.
+    already decided each device's gates (`PlacedText.font.available`, and
+    a pattern part's `ResolvedHandPart.font.available`); this only reports.
 
     **`error` (the default) is a hard build failure, never suppressible**,
     even though `font-unavailable` is in `SUPPRESSIBLE` for `hide`: an
@@ -886,9 +886,9 @@ def check_text_fit(resolved: ResolvedFace, bag: Bag) -> None:
     for placed in resolved.items:
         if not isinstance(placed, PlacedText):
             continue
-        if placed.font_px == 0:
+        if placed.font.px == 0:
             continue
-        if placed.curve_style is not None:
+        if placed.curve.style is not None:
             # The box is the rotated/radial one, which `check_geometry`
             # already judges; this check's horizontal-framing message would
             # not describe what happened.

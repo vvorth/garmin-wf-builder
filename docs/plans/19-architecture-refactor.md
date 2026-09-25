@@ -126,10 +126,13 @@ cross-check makes that hold by construction from now on.
 
 ### A6. IR shape cleanups (addresses P5; independent, do opportunistically)
 
-- `ResolvedFont` and `ResolvedCurve` value objects on `PlacedText`,
-  `ResolvedHandPart` and `PlacedComplicationSlot` (about 150 reads to
-  update). Plan 18 item 8 had to thread `fonts_root` through six layout
-  functions because font data travels as loose fields.
+- **Built:** `ResolvedFont` and `ResolvedCurve` value objects replace the
+  seven loose font fields and five `curve_*` fields on `PlacedText`,
+  `ResolvedHandPart` and `PlacedComplicationSlot` (`placed.font.metric`,
+  `part.curve.angle_garmin`; 150 reads). Their defaults mean "unresolved"
+  and "upright", so every old read maps one to one. `_Font.resolved()`
+  builds the font, and `layout.resolved_curve` the curve for both text
+  elements and pattern text parts, replacing `_curve_angles`.
 - Split `ResolvedHandPart` into one frozen class per shape, each owning
   `ink()`/`reach()`. The same for `HandPart` in the IR, with a shared
   `TextStyle` for text and pattern-text parts.

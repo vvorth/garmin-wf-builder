@@ -301,13 +301,13 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
         w.blank()
         icon_font_expr = "iconFont"
 
-    if placed.font_is_custom:
-        w.line(f"var textFont = _{_field(placed.font_reference)};")
+    if placed.font.is_custom:
+        w.line(f"var textFont = _{_field(placed.font.reference)};")
         with w.block("if (textFont == null)"):
             w.line("return;  // the font resource failed to load")
         font_expr = "textFont"
     else:
-        font_expr = f"Graphics.{placed.font_reference}"
+        font_expr = f"Graphics.{placed.font.reference}"
     w.blank()
 
     def _emit_absent() -> None:
