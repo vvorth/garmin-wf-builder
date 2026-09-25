@@ -2,7 +2,7 @@
 """Compare a target picture of a watch face with a design's `wfb preview`.
 
     skills/face-compare.py TARGET.png design.yaml [-d DEVICE] [--time HH:MM[:SS]]
-                           [--crop L,T,R,B] [--zoom REGION] [--style NAME] [--asleep]
+                           [--crop L,T,R,B] [--zoom REGION] [--style NAME] [--asleep] [--aod]
                            [-o OUT.png]
 
 Renders the design with `wfb preview` (same geometry, fonts and 64-colour
@@ -66,6 +66,8 @@ def render_preview(design: Path, args: argparse.Namespace) -> Image.Image:
         cmd += ["--style", args.style]
     if args.asleep:
         cmd.append("--asleep")
+    if args.aod:
+        cmd.append("--aod")
     proc = subprocess.run(cmd, capture_output=True)
     stderr = proc.stderr.decode(errors="replace")
     if proc.returncode != 0 or not proc.stdout:
@@ -131,6 +133,8 @@ def main() -> None:
     parser.add_argument("--time", help="HH:MM[:SS] -- set it to the time the target shows")
     parser.add_argument("--style", help="a config: style: entry to render")
     parser.add_argument("--asleep", action="store_true", help="render the sleeping frame")
+    parser.add_argument("--aod", action="store_true",
+                        help="render the AMOLED always-on frame (for an always-on screenshot)")
     parser.add_argument("--crop", help="L,T,R,B pixel box of the dial in the target "
                                        "(default: centred square)")
     parser.add_argument("--zoom", help="also blow up one region 3x: a region name "
