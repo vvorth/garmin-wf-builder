@@ -427,157 +427,108 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
         if icon_color_expr is not None and icon_font_expr is not None:
             w.line(f"dc.setColor({text_color_expr}, Graphics.COLOR_TRANSPARENT);")
 
-    if placed.icon_position in ("left", "right"):
-        # 'textWidth'/'iconGlyphWidth'/'gap' are declared only when something
-        # actually reads them afterwards -- not merely when the value could
-        # in principle be non-zero. The position's own final offset for
-        # 'left' is unconditional (it always adds 'iconGlyphWidth + gap',
-        # icon present or not), but for 'right' the offset that reads
-        # 'textWidth + gap' sits inside 'if (icon_present_guard)' -- when
-        # this slot can never draw an icon at all (`has_icon` false: no
-        # choice resolves one), that whole block is never emitted, so
-        # 'textWidth'/'gap' would be declared and never read again unless
-        # 'totalWidth' below also needs them (whenever 'align:' is not
-        # 'left'). Checked exhaustively in `tests/test_align_glyph_kinds.py`
-        # (every `icon_position:` x every `align:`/`vertical_align:` x
-        # icon-present/icon-less).
-        need_icon_glyph_width = placed.icon_position == "left" or element.align != "left"
-        need_text_width = (placed.icon_position == "right" and has_icon) or element.align != "left"
-        need_gap = (
-            placed.icon_position == "left"
-            or (placed.icon_position == "right" and has_icon)
-            or element.align != "left"
-        )
-        if need_text_width:
-            w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
-        if need_icon_glyph_width:
-            w.line("var iconGlyphWidth = 0;")
-            if icon_present_guard is not None:
-                with w.block(f"if ({icon_present_guard})"):
-                    w.line(f"iconGlyphWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr});")
-        if need_gap:
-            w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
-                   if icon_present_guard is not None else "var gap = 0;")
-        # 'align:' shifts the row's horizontal start: 'startX = CX - {0,
-        # total/2, total}' for left/center/right -- center
-        # is the plain expression above with no shift. 'totalWidth' is declared only when
-        # 'align:' actually reads it ('left' does not -- an unused local
-        # warns under -l 3).
-        if element.align == "left":
-            w.line(f"var startX = Layout.{prefix}_CX;")
-        elif element.align == "right":
-            w.line("var totalWidth = iconGlyphWidth + gap + textWidth;")
-            w.line(f"var startX = Layout.{prefix}_CX - totalWidth;")
+    # One axis table for both layouts: the pair lies along a row
+    # (`icon_position: left`/`right`) or a column (`top`/`bottom`). Along it,
+    # the `lead` position draws the icon first; `main_align` (`align:` for a
+    # row, `vertical_align:` for a column) shifts where the pair starts.
+    # Across it, the other alignment key shifts the shared axis the pieces
+    # are drawn on.
+    row = placed.icon_position in ("left", "right")
+    if row:
+        lead, trail, main_align, cross_align = "left", "right", element.align, element.vertical_align
+        size, icon_local, start, center = "Width", "iconGlyphWidth", "startX", f"Layout.{prefix}_CX"
+        text_size = f"dc.getTextWidthInPixels(text, {font_expr})"
+        icon_size = f"dc.getTextWidthInPixels(iconGlyph, {icon_font_expr})"
+        justify = "Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER"
+    else:
+        lead, trail, main_align, cross_align = "top", "bottom", element.vertical_align, element.align
+        size, icon_local, start, center = "Height", "iconHeight", "startY", f"Layout.{prefix}_CY"
+        text_size = f"dc.getFontHeight({font_expr})"
+        icon_size = f"dc.getFontHeight({icon_font_expr})"
+        justify = "Graphics.TEXT_JUSTIFY_CENTER"
+    text_local, total = f"text{size}", f"total{size}"
+    position = placed.icon_position
+
+    # Each local is declared only when something reads it afterwards -- an
+    # unused local warns under -l 3. The `lead` position's final offset
+    # always reads the icon's size and the gap; the `trail` position's reads
+    # the text's size and the gap only inside `if (icon_present_guard)`,
+    # which is never emitted when this slot can draw no icon (`has_icon`
+    # false); `total` needs all three unless `main_align` is `lead`. Checked
+    # exhaustively in `tests/test_align_glyph_kinds.py` (every
+    # `icon_position:` x every `align:`/`vertical_align:` x
+    # icon-present/icon-less).
+    if (position == trail and has_icon) or main_align != lead:
+        w.line(f"var {text_local} = {text_size};")
+    if position == lead or main_align != lead:
+        w.line(f"var {icon_local} = 0;")
+        if icon_present_guard is not None:
+            with w.block(f"if ({icon_present_guard})"):
+                w.line(f"{icon_local} = {icon_size};")
+    if position == lead or (position == trail and has_icon) or main_align != lead:
+        w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
+               if icon_present_guard is not None else "var gap = 0;")
+    # `main_align` sets the start: `center - {0, total/2, total}` for
+    # lead/center/trail.
+    if main_align == lead:
+        w.line(f"var {start} = {center};")
+    elif main_align == trail:
+        w.line(f"var {total} = {icon_local} + gap + {text_local};")
+        w.line(f"var {start} = {center} - {total};")
+    else:
+        w.line(f"var {total} = {icon_local} + gap + {text_local};")
+        w.line(f"var {start} = {center} - {total} / 2;")
+
+    # `cross_align` shifts the shared axis by half the larger of the two
+    # pieces across the pair, measured on-device, since only one of them may
+    # draw at all (an icon-less slot, or a frame whose icon did not resolve).
+    if row:
+        if cross_align == "center":
+            cross_expr = f"Layout.{prefix}_CY"
         else:
-            w.line("var totalWidth = iconGlyphWidth + gap + textWidth;")
-            w.line(f"var startX = Layout.{prefix}_CX - totalWidth / 2;")
-        if element.vertical_align == "center":
-            row_y_expr = f"Layout.{prefix}_CY"
-        else:
-            # 'vertical_align:' shifts the row's own VCENTER axis by half the
-            # taller of the two drawn fonts' heights --
-            # measured on-device, since only one of the two may draw at all
-            # (an icon-less slot, or a frame the icon glyph did not resolve).
             w.line(f"var rowHeight = dc.getFontHeight({font_expr});")
             if icon_present_guard is not None:
                 with w.block(f"if ({icon_present_guard})"):
                     w.line(f"var iconRowHeight = dc.getFontHeight({icon_font_expr});")
                     with w.block("if (iconRowHeight > rowHeight)"):
                         w.line("rowHeight = iconRowHeight;")
-            if element.vertical_align == "top":
-                w.line(f"var rowY = Layout.{prefix}_CY + rowHeight / 2;")
-            else:  # bottom
-                w.line(f"var rowY = Layout.{prefix}_CY - rowHeight / 2;")
-            row_y_expr = "rowY"
-        if placed.icon_position == "left":
-            if icon_present_guard is not None:
-                with w.block(f"if ({icon_present_guard})"):
-                    _set_icon_color()
-                    w.line(f"dc.drawText(startX, {row_y_expr}, {icon_font_expr}, iconGlyph,")
-                    w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
-            _reset_text_color()
-            w.line(f"dc.drawText(startX + iconGlyphWidth + gap, {row_y_expr}, {font_expr}, text,")
-            w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
-        else:  # right
-            w.line(f"dc.drawText(startX, {row_y_expr}, {font_expr}, text,")
-            w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
-            if icon_present_guard is not None:
-                with w.block(f"if ({icon_present_guard})"):
-                    _set_icon_color()
-                    w.line(f"dc.drawText(startX + textWidth + gap, {row_y_expr}, "
-                           f"{icon_font_expr}, iconGlyph,")
-                    w.line("            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);")
-    else:  # "top" / "bottom"
-        # Same reasoning as the left/right branch above, on the vertical
-        # axis, `has_icon` included: 'top's own final offset (unconditional)
-        # always reads 'iconHeight + gap'; 'bottom's matching offset reads
-        # 'textHeight + gap' only inside 'if (icon_present_guard)', which is
-        # never emitted at all when this slot can draw no icon
-        # ('has_icon` false). 'totalHeight' below needs all three, but only
-        # when 'vertical_align:' is not 'top'.
-        need_icon_height = placed.icon_position == "top" or element.vertical_align != "top"
-        need_text_height = (placed.icon_position == "bottom" and has_icon) or element.vertical_align != "top"
-        need_gap = (
-            placed.icon_position == "top"
-            or (placed.icon_position == "bottom" and has_icon)
-            or element.vertical_align != "top"
-        )
-        if need_text_height:
-            w.line(f"var textHeight = dc.getFontHeight({font_expr});")
-        if need_icon_height:
-            w.line("var iconHeight = 0;")
-            if icon_present_guard is not None:
-                with w.block(f"if ({icon_present_guard})"):
-                    w.line(f"iconHeight = dc.getFontHeight({icon_font_expr});")
-        if need_gap:
-            w.line(f"var gap = ({icon_present_guard}) ? {gap_expr} : 0;"
-                   if icon_present_guard is not None else "var gap = 0;")
-        # 'vertical_align:' shifts the column's vertical start: 'startY = CY
-        # - {0, total/2, total}' for top/center/bottom --
-        # center is the plain expression above with no shift. 'totalHeight' is declared
-        # only when 'vertical_align:' actually reads it ('top' does not --
-        # an unused local warns under -l 3).
-        if element.vertical_align == "top":
-            w.line(f"var startY = Layout.{prefix}_CY;")
-        elif element.vertical_align == "bottom":
-            w.line("var totalHeight = iconHeight + gap + textHeight;")
-            w.line(f"var startY = Layout.{prefix}_CY - totalHeight;")
+            sign = "+" if cross_align == "top" else "-"
+            w.line(f"var rowY = Layout.{prefix}_CY {sign} rowHeight / 2;")
+            cross_expr = "rowY"
+    else:
+        if cross_align == "center":
+            cross_expr = f"Layout.{prefix}_CX"
         else:
-            w.line("var totalHeight = iconHeight + gap + textHeight;")
-            w.line(f"var startY = Layout.{prefix}_CY - totalHeight / 2;")
-        if element.align == "center":
-            col_x_expr = f"Layout.{prefix}_CX"
-        else:
-            # 'align:' shifts the pair's own TEXT_JUSTIFY_CENTER axis by half
-            # the wider of the two drawn pieces -- the same
-            # "measure both, take the icon-guarded max" shape as the row case
-            # above, on the perpendicular axis.
             w.line(f"var textWidth = dc.getTextWidthInPixels(text, {font_expr});")
             w.line("var iconGlyphWidth = 0;")
             if icon_present_guard is not None:
                 with w.block(f"if ({icon_present_guard})"):
                     w.line(f"iconGlyphWidth = dc.getTextWidthInPixels(iconGlyph, {icon_font_expr});")
             w.line("var pairWidth = (iconGlyphWidth > textWidth) ? iconGlyphWidth : textWidth;")
-            if element.align == "left":
-                w.line(f"var pairX = Layout.{prefix}_CX + pairWidth / 2;")
-            else:  # right
-                w.line(f"var pairX = Layout.{prefix}_CX - pairWidth / 2;")
-            col_x_expr = "pairX"
-        if placed.icon_position == "top":
-            if icon_present_guard is not None:
-                with w.block(f"if ({icon_present_guard})"):
-                    _set_icon_color()
-                    w.line(f"dc.drawText({col_x_expr}, startY, {icon_font_expr}, iconGlyph,")
-                    w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
-            _reset_text_color()
-            w.line(f"dc.drawText({col_x_expr}, startY + iconHeight + gap, {font_expr}, text,")
-            w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
-        else:  # bottom
-            w.line(f"dc.drawText({col_x_expr}, startY, {font_expr}, text,")
-            w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
-            if icon_present_guard is not None:
-                with w.block(f"if ({icon_present_guard})"):
-                    _set_icon_color()
-                    w.line(f"dc.drawText({col_x_expr}, startY + textHeight + gap, "
-                           f"{icon_font_expr}, iconGlyph,")
-                    w.line("            Graphics.TEXT_JUSTIFY_CENTER);")
+            sign = "+" if cross_align == "left" else "-"
+            w.line(f"var pairX = Layout.{prefix}_CX {sign} pairWidth / 2;")
+            cross_expr = "pairX"
+
+    def _at(offset: str) -> str:
+        """`x, y` for a piece `offset` along the pair from its start."""
+        along = f"{start}{offset}"
+        return f"{along}, {cross_expr}" if row else f"{cross_expr}, {along}"
+
+    if position == lead:
+        if icon_present_guard is not None:
+            with w.block(f"if ({icon_present_guard})"):
+                _set_icon_color()
+                w.line(f"dc.drawText({_at('')}, {icon_font_expr}, iconGlyph,")
+                w.line(f"            {justify});")
+        _reset_text_color()
+        w.line(f"dc.drawText({_at(f' + {icon_local} + gap')}, {font_expr}, text,")
+        w.line(f"            {justify});")
+    else:
+        w.line(f"dc.drawText({_at('')}, {font_expr}, text,")
+        w.line(f"            {justify});")
+        if icon_present_guard is not None:
+            with w.block(f"if ({icon_present_guard})"):
+                _set_icon_color()
+                w.line(f"dc.drawText({_at(f' + {text_local} + gap')}, "
+                       f"{icon_font_expr}, iconGlyph,")
+                w.line(f"            {justify});")

@@ -161,9 +161,11 @@ gets most of the safety for a fraction of the cost.
 - Tests: run most CLI tests in-process via `cli.main(argv)` + `capsys`
   (about −20 s), and cache resolved examples per session (`dashboard`
   resolves are 4 s each, repeated across modules).
-- `complication_slot.py:~430/~510`: left/right vs top/bottom branches
-  mirror each other with the axes swapped; one axis-descriptor table saves
-  about 60 lines (risky; snapshot first).
+- **Built:** `wfb/emit/monkeyc/complication_slot.py`'s left/right and
+  top/bottom pair layouts are one axis table (49 lines shorter), proven
+  byte-identical over all 234 `icon_position:` x `align:` x
+  `vertical_align:` x icon/no-icon x `icon_gap:`/`icon_color:` x guards
+  cases against the old emitter, as well as by the snapshot.
 - **Built:** `Binding.kind` (`wfb/expr.py`) removed, with a dated ADR 0006
   note.
 - **Built:** dead or test-only code removed: `Source.intermediate_guard`,
