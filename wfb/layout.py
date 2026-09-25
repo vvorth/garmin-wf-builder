@@ -12,6 +12,7 @@ directly unit-testable with no Garmin toolchain.
 from __future__ import annotations
 
 import math
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 
 from . import kinds, units
@@ -837,6 +838,15 @@ class PlacedComplicationSlot(Placed):
 
 
 @dataclass(frozen=True)
+class _Owner:
+    """Who a `SubPixelLength` is recorded against (`Resolver._owned_by`)."""
+
+    id: str
+    span: Span | None
+    element: Element
+
+
+@dataclass(frozen=True)
 class SubPixelLength:
     """A nonzero %/%r extent that resolved below 1 px on this device with
     `min_1px` off -- it rounds away to nothing here while drawing on a
@@ -959,13 +969,12 @@ class Resolver:
         self.warnings: list[str] = []
         #: `SubPixelLength`s, in resolve order (`_extent`, `_record_sub_pixel`).
         self.sub_pixel: list[SubPixelLength] = []
-        #: Who a `SubPixelLength` is recorded against: the element being
-        #: resolved (`_resolve_list`), narrowed to a part's own id/span by
-        #: `_resolve_hand_part` -- the element stays the owner, since a part
-        #: has no `lint:` key of its own to suppress against.
-        self._owner_id: str = ""
-        self._owner_span: Span | None = None
-        self._owner_element: Element | None = None
+        #: Who a `SubPixelLength` is recorded against (`_owned_by`): the
+        #: element being resolved (`_resolve_list`), narrowed to a part's own
+        #: id/span while `_resolve_hand_part` runs -- the element stays the
+        #: owner, since a part has no `lint:` key of its own to suppress
+        #: against. Each scope restores the previous owner when it ends.
+        self._owner: _Owner | None = None
 
     def resolve(self) -> ResolvedFace:
         self._resolve_list(self.face.elements, self.screen, depth=0)
@@ -986,19 +995,27 @@ class Resolver:
 
     def _resolve_list(self, elements: list[Element], parent: Box, depth: int) -> None:
         for element in elements:
-            self._owner_id = element.id
-            self._owner_span = element.span
-            self._owner_element = element
-            if isinstance(element, Group):
-                box = self._group_box(element, parent)
-                self.items.append(
-                    Placed(element, box.rounded(min_1px=element.resolved_min_1px),
-                           (round(box.center_x), round(box.center_y)), depth)
-                )
-                self._resolve_list(element.items, box, depth + 1)
-            else:
-                resolve = kinds.for_element(element).resolve
-                self.items.append(resolve(self, element, parent, depth))
+            with self._owned_by(_Owner(element.id, element.span, element)):
+                if isinstance(element, Group):
+                    box = self._group_box(element, parent)
+                    self.items.append(
+                        Placed(element, box.rounded(min_1px=element.resolved_min_1px),
+                               (round(box.center_x), round(box.center_y)), depth)
+                    )
+                    self._resolve_list(element.items, box, depth + 1)
+                else:
+                    resolve = kinds.for_element(element).resolve
+                    self.items.append(resolve(self, element, parent, depth))
+
+    @contextmanager
+    def _owned_by(self, owner: "_Owner"):
+        """Record every `SubPixelLength` inside this scope against `owner`,
+        then restore whoever owned them before."""
+        previous, self._owner = self._owner, owner
+        try:
+            yield
+        finally:
+            self._owner = previous
 
     # -- per-kind ---------------------------------------------------------
 
@@ -1102,20 +1119,29 @@ class Resolver:
     def _resolve_hand_part(
         self, part: HandPart, owner: str, index: int, *, min_1px: bool,
     ) -> tuple[ResolvedHandPart, float]:
+        """:meth:`_hand_part_geometry`, with the part (`<owner>.parts[<index>]`,
+        its own span) as the owner of any `SubPixelLength` it raises, for
+        the part's duration only."""
+        owner_id = f"{owner}.parts[{index}]"
+        assert self._owner is not None, "no element is being resolved yet"
+        with self._owned_by(replace(self._owner, id=owner_id, span=part.span)):
+            return self._hand_part_geometry(part, owner_id, min_1px=min_1px)
+
+    def _hand_part_geometry(
+        self, part: HandPart, owner_id: str, *, min_1px: bool,
+    ) -> tuple[ResolvedHandPart, float]:
         """One hand or pattern part -> whole-pixel geometry in its own frame
         (origin = the axis / the pattern's `at:`, 12 o'clock up), plus its
         reach from that origin (the farthest ink it touches).  Rounds with
         :func:`round_half_away`, so a mirrored `dx: -1.5px`/`1.5px` pair
         stays symmetric.
 
-        The part becomes the owner (`<owner>.parts[<index>]`, its own span)
-        of any `SubPixelLength` or "no pixel metrics" warning it raises.
-        `min_1px` is the owning element's resolved value; the part's own
-        `min_1px:` overrides it here, per placement, because one `hands:`
-        set can be placed by several elements that resolve it differently.
+        `owner_id` (`<owner>.parts[<index>]`) names the part in any "no
+        pixel metrics" warning it raises. `min_1px` is the owning element's
+        resolved value; the part's own `min_1px:` overrides it here, per
+        placement, because one `hands:` set can be placed by several
+        elements that resolve it differently.
         """
-        self._owner_id = owner_id = f"{owner}.parts[{index}]"
-        self._owner_span = part.span
         effective_min_1px = part.min_1px if part.min_1px is not None else min_1px
 
         if part.shape == "polygon":
@@ -1300,10 +1326,10 @@ class Resolver:
     def _record_sub_pixel(self, key: str, length: Length | None, value: float) -> None:
         """Append one `SubPixelLength` for the current owner (`_extent`)."""
         assert length is not None
-        assert self._owner_element is not None, "no element is being resolved yet"
+        assert self._owner is not None, "no element is being resolved yet"
         self.sub_pixel.append(SubPixelLength(
-            owner=self._owner_id, key=key, length=length, value=value,
-            span=self._owner_span, element=self._owner_element,
+            owner=self._owner.id, key=key, length=length, value=value,
+            span=self._owner.span, element=self._owner.element,
         ))
 
     def _font_for_ref(self, font: str, font_is_custom: bool, warn_id: str) -> _Font:

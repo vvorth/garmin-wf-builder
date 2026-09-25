@@ -170,9 +170,12 @@ gets most of the safety for a fraction of the cost.
   `icons.weather_icon_for_condition`, `icons.METRIC_ICON`/`icon_for_source`/
   `icons.get`. The `*_night` icon entries stay: they are documented,
   author-usable `icon:` names (`docs/guide/icons.md`), not dead code.
-- The sub-pixel owner in `layout.Resolver` is mutable state
-  (`_owner_id/_span/_element`) that `_resolve_hand_part` narrows and never
-  restores. Pass the owner explicitly.
+- **Built:** the sub-pixel owner in `layout.Resolver` is now one `_Owner`,
+  set per scope by `_owned_by`, which restores the previous owner on exit:
+  `_resolve_hand_part` narrows it for the part's duration only. Threading
+  it as a parameter was the proposal; it would add an argument to 34
+  `_extent` call sites that almost all pass "the element being resolved",
+  so the scope is the smaller fix for the same bug.
 
 ## 4. Suggested order
 

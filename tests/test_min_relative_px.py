@@ -848,3 +848,29 @@ def test_box_rounded_other_ties_are_unchanged_either_way():
     box = Box(117.5, 0, 25, 1)
     assert box.rounded().width == 24
     assert box.rounded(min_1px=True).width == 24
+
+
+def test_the_element_owns_again_once_its_parts_are_resolved(write_design, bag, db):
+    """A part narrows the `SubPixelLength` owner to `<id>.parts[<i>]` only
+    while it resolves; a length resolved after the parts (as `_aod_extent`
+    is in hands and patterns) belongs to the element again, not to
+    whichever part came last."""
+    from wfb.layout import Resolver, _Owner
+
+    face = load(write_design(design(f"""  - id: pat
+    type: pattern
+    pattern: radial
+    at: {{anchor: center}}
+    count: 1
+    color: palette.fg
+    parts:
+      - {{shape: circle, radius: {HAIRLINE}}}
+""")), bag)
+    assert face is not None, bag.render()
+    element = face.elements[0]
+    resolver = Resolver(face, db.get("fenix8solar47mm"), {})
+    with resolver._owned_by(_Owner(element.id, element.span, element)):
+        resolver._resolve_parts(element.parts, element.id, min_1px=False)
+        resolver._record_sub_pixel("radius", element.parts[0].radius, 0.39)
+    assert [sp.owner for sp in resolver.sub_pixel] == ["pat.parts[0]", "pat"]
+    assert resolver._owner is None
