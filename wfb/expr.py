@@ -23,6 +23,7 @@ from typing import Callable, Iterator
 
 from . import catalog
 from .catalog import Type
+from .diagnostics import did_you_mean
 
 # --------------------------------------------------------------------------
 # tokens
@@ -547,9 +548,9 @@ def _unknown_ref(node: Ref, scope: Scope) -> ExprError:
     namespace = node.path.split(".", 1)[0] if "." in node.path else ""
     siblings = sorted(name for name in scope.bindings if name.startswith(f"{namespace}."))
     near = difflib.get_close_matches(node.path, siblings, n=3, cutoff=0.4) or (
-        [] if siblings else catalog.suggest(node.path))
+        [] if siblings else catalog.CATALOG.suggest(node.path))
     if near:
-        note = "did you mean: " + ", ".join(near) + "?"
+        note = did_you_mean(near)[0]
     elif siblings:
         note = f"{namespace} has: " + ", ".join(siblings)
     else:

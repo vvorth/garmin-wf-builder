@@ -2,7 +2,7 @@
 document and produces a `wfb.ir.model.Face`, resolving data sources against
 the catalogue, type-checking and compiling expressions, and requiring null
 handling wherever the platform makes absence normal.  Also holds
-`_NamedBlock` (the declared/accepted/rejected bookkeeping a named top-level
+`NamedRegistry` (the declared/accepted/rejected bookkeeping a named top-level
 block keeps), `_dedup_append`, and the per-shape/part/style key and
 rejection-reason tables this pass alone consults.
 
@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from pathlib import Path
+from typing import Generic, TypeVar
 
 from .. import catalog, complications, expr, formatting, icons, kinds, units
 from ..catalog import Type
@@ -144,27 +145,28 @@ _CONFIG_COLORS_RE = re.compile(
 # the semantic pass
 
 
-class _NamedBlock:
-    """The declared/accepted/rejected bookkeeping a named top-level block
-    keeps -- `fonts:`, `palette:`, `layouts:`, `color_scheme:`,
-    `config: data:` and `hands:` each build one of these as they parse their
-    own entries.
+T = TypeVar("T")
+
+
+class NamedRegistry(dict[str, T], Generic[T]):
+    """A named top-level block -- `fonts:`, `palette:`, `layouts:`,
+    `color_scheme:`, `config: data:` or `hands:` -- as it parses: a dict of
+    the *accepted* entries, in declaration order, plus the bookkeeping for
+    references to the rest.
 
     `declared` is every name the block saw, whether or not it survived; a
     rejected entry is still a *declared* one, so a reference to a name that
     was declared and then rejected can be told apart from one that was never
     declared at all.  `rejected` is the subset that failed the block's own
-    check.  A resolver elsewhere first looks a name up in whatever dict the
-    block's *accepted* values actually live in (`self.fonts`, `self.palette`,
-    ... -- shaped differently per block, so that lookup stays at the call
-    site); once that misses, :meth:`unknown` gives the shared "one error, not
-    N" cascade tail: a name that was declared and then rejected here stays
-    quiet, because the real mistake already has its own error against this
-    block, and anything else is `unknown X`, with a note listing every
-    declared name (`docs/lore/codegen.md`).
+    check.  :meth:`resolve` is the one lookup: the accepted value, or the
+    shared "one error, not N" cascade tail -- a name that was declared and
+    then rejected stays quiet, because the real mistake already has its own
+    error against this block, and anything else is `unknown X`, with a note
+    listing every declared name (`docs/lore/codegen.md`).
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self.declared: dict[str, Span | None] = {}
         self.rejected: set[str] = set()
 
@@ -174,21 +176,24 @@ class _NamedBlock:
     def reject(self, name: str) -> None:
         self.rejected.add(name)
 
-    def unknown(
+    def resolve(
         self, bag: Bag, name: str, span: Span | None, *,
         code: str, message: str, note: str, prefix: str = "",
-    ) -> None:
-        """Report the shared "unknown X" diagnostic for `name`, or stay
-        quiet when it was declared and then rejected here.  `message` is the
-        error's full text; `note` is the fixed lead-in for the one note
-        ("declared palette entries", "declared fonts", ...), followed by the
-        declared names, sorted and `prefix`-qualified (`"palette."`,
-        `"font."`, `"config.data."`, or `""`), or "(none declared)".
+    ) -> T | None:
+        """The accepted entry `name`, or `None` after reporting it.
+        `message` is the error's full text; `note` is the fixed lead-in for
+        the one note ("declared palette entries", "declared fonts", ...),
+        followed by the declared names, sorted and `prefix`-qualified
+        (`"palette."`, `"font."`, `"config.data."`, or `""`), or "(none
+        declared)".  Nothing is reported for a declared-then-rejected name.
         """
+        if name in self:
+            return self[name]
         if name in self.rejected:
-            return
+            return None
         known = ", ".join(f"{prefix}{n}" for n in sorted(self.declared)) or "(none declared)"
         bag.error(code, message, span, notes=[f"{note}: {known}"])
+        return None
 
 
 def _aod_kind(element: Element) -> tuple[str | None, str | None, bool]:
@@ -207,27 +212,21 @@ class Builder:
     def __init__(self, doc: YamlDocument, bag: Bag) -> None:
         self.doc = doc
         self.bag = bag
-        # Named top-level blocks: each keeps its accepted values plus a
-        # `_NamedBlock` of every declared name, so a reference to a
+        # Named top-level blocks: each is a `NamedRegistry` of its accepted
+        # values plus every declared name, so a reference to a
         # declared-then-rejected entry stays quiet ("one error, not N",
         # `docs/lore/codegen.md`).
-        self.palette: dict[str, Color] = {}
+        self.palette: NamedRegistry[Color] = NamedRegistry()
         #: Accepted long-form `palette:` entries' labels, keyed by name --
         #: read when a `config:` choice names `palette.<name>`.
         self.palette_labels: dict[str, str] = {}
-        self.palette_block = _NamedBlock()
-        self.fonts: dict[str, FontSpec] = {}
-        self.fonts_block = _NamedBlock()
+        self.fonts: NamedRegistry[FontSpec] = NamedRegistry()
         #: `layouts:` entries in declaration order; built before `config:`
         #: so a style entry's `layout:` resolves in the same pass.
-        self.layouts: list[LayoutDecl] = []
-        self.layouts_block = _NamedBlock()
-        self.color_scheme: dict[str, ColorScheme] = {}
-        self.color_scheme_block = _NamedBlock()
-        self.config_data: dict[str, ConfigDataSlot] = {}
-        self.config_data_block = _NamedBlock()
-        self.hand_sets: dict[str, HandSet] = {}
-        self.hand_sets_block = _NamedBlock()
+        self.layouts: NamedRegistry[LayoutDecl] = NamedRegistry()
+        self.color_scheme: NamedRegistry[ColorScheme] = NamedRegistry()
+        self.config_data: NamedRegistry[ConfigDataSlot] = NamedRegistry()
+        self.hand_sets: NamedRegistry[HandSet] = NamedRegistry()
         #: `accent_color`/`data_color` axes.  A rejected axis (or `"style"`)
         #: goes in `rejected_config` instead, and is still bound into scope
         #: by `_build_scope` for the same cascade reason.
@@ -307,8 +306,6 @@ class Builder:
 
         face = data["face"]
         name = face["name"]
-        accepted_layouts = tuple(
-            n for n in self.layouts_block.declared if n not in self.layouts_block.rejected)
         return Face(
             format=int(data["format"]),
             uuid=face["id"],
@@ -316,20 +313,20 @@ class Builder:
             version=face.get("version", "1.0.0"),
             entry=face.get("entry") or _pascal(name) or "WatchFace",
             targets=tuple(data["targets"]),
-            palette=self.palette,
+            palette=dict(self.palette),
             palette_labels=dict(self.palette_labels),
-            fonts=self.fonts,
+            fonts=dict(self.fonts),
             elements=elements,
             source_path=self.doc.path,
             antialias=self.face_antialias,
             min_1px=self.face_min_1px,
             config=self.config,
-            color_scheme=self.color_scheme,
-            layouts=accepted_layouts,
-            layout_decls={l.name: l for l in self.layouts if l.name in accepted_layouts},
+            color_scheme=dict(self.color_scheme),
+            layouts=tuple(self.layouts),
+            layout_decls=dict(self.layouts),
             config_style=self.config_style,
-            config_data=self.config_data,
-            hands=self.hand_sets,
+            config_data=dict(self.config_data),
+            hands=dict(self.hand_sets),
             aod_default_hide=self.face_aod_default_hide,
             aod_lint_allow=self.face_aod_lint_allow,
             aod_lint_reason=self.face_aod_lint_reason,
@@ -347,17 +344,17 @@ class Builder:
         top-level groups (`layout_ids`), which `_assign_layouts` walks
         later.  So this records only the names, in declaration order, and
         each layout's own `lint:` (for `unreachable-layout`).  Nothing can
-        reject a layout today, but it keeps a `_NamedBlock` like every other
+        reject a layout today, but it is a `NamedRegistry` like every other
         named block, so a future rejection cascades correctly.
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.layouts_block.declare(name, span)
-            self.layouts.append(LayoutDecl(
+            self.layouts.declare(name, span)
+            self.layouts[name] = LayoutDecl(
                 name=name,
                 **_lint_suppression(spec),
                 span=span,
-            ))
+            )
 
     def _assign_layouts(self, elements: list[Element]) -> None:
         """Stamp `Element.layout` on each layout's synthetic groups and their
@@ -374,9 +371,7 @@ class Builder:
         """
         if self.layouts:
             by_id = {e.id: e for e in elements}
-            for decl in self.layouts:
-                if decl.name in self.layouts_block.rejected:
-                    continue
+            for decl in self.layouts.values():
                 for generated_id in layout_ids(decl.name):
                     group = by_id.get(generated_id)
                     if group is None:
@@ -419,7 +414,7 @@ class Builder:
             "layouts: is declared, but no 'config: style:' entry ever names "
             "one as its 'layout:' -- nothing lets the wearer pick it",
             self.doc.span(data, "layouts", of="key"),
-            notes=["declared layouts: " + ", ".join(d.name for d in self.layouts),
+            notes=["declared layouts: " + ", ".join(self.layouts),
                    "add a 'config: style:' block with an entry naming one, "
                    "or remove 'layouts:'"],
         )
@@ -436,7 +431,7 @@ class Builder:
         """
         for name, value in raw.items():
             span = self.doc.span(raw, name)
-            self.palette_block.declare(name, span)
+            self.palette.declare(name, span)
             if isinstance(value, dict):
                 raw_value = value.get("value")
                 value_span = self.doc.span(value, "value") or span
@@ -457,13 +452,13 @@ class Builder:
                         "through a palette entry",
                     ],
                 )
-                self.palette_block.reject(name)
+                self.palette.reject(name)
                 continue
             try:
                 self.palette[name] = Color.parse(raw_value, what=f"palette.{name}")
             except ColorError as exc:
                 self.bag.error("palette", str(exc), value_span)
-                self.palette_block.reject(name)
+                self.palette.reject(name)
                 continue
             if label is not None:
                 self.palette_labels[name] = label
@@ -477,18 +472,15 @@ class Builder:
         `_build_palette` (an out-of-range colour, a `config.*` reference).  In
         the rejected case this stays quiet: the real mistake already has its
         own error pointing at the `palette:` block, and the same cascade fix
-        every `_NamedBlock` applies here -- one error at the real mistake,
+        every `NamedRegistry` applies here -- one error at the real mistake,
         not one more per reference blaming the wrong line.
         """
         key = name[len("palette."):]
-        if key in self.palette:
-            return self.palette[key]
-        self.palette_block.unknown(
+        return self.palette.resolve(
             self.bag, key, span, code="config",
             message=f"unknown palette entry {name!r}",
             note="declared palette entries", prefix="palette.",
         )
-        return None
 
     def _resolve_config_color(self, raw: object, what: str, span: Span | None) -> Color | None:
         """A `config:` `default:`/`choices:` colour: a literal hex, or a
@@ -523,7 +515,7 @@ class Builder:
         role_sets: dict[str, dict[str, Color]] = {}
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.color_scheme_block.declare(name, span)
+            self.color_scheme.declare(name, span)
             label = spec.get("label")
             raw_colors = spec["colors"]
             colors: dict[str, Color] = {}
@@ -537,7 +529,7 @@ class Builder:
                     continue
                 colors[role] = color
             if not ok:
-                self.color_scheme_block.reject(name)
+                self.color_scheme.reject(name)
                 continue
             self.color_scheme[name] = ColorScheme(name=name, label=label, colors=colors, span=span)
             role_sets[name] = colors
@@ -564,7 +556,7 @@ class Builder:
                     "whenever the wearer picks the scheme that lacks it",
                 ],
             )
-            self.color_scheme_block.reject(name)
+            self.color_scheme.reject(name)
             del self.color_scheme[name]
 
     def _scheme_reference(self, name: str, span: Span | None) -> str | None:
@@ -584,14 +576,12 @@ class Builder:
         mistake already has its own error pointing at the `color_scheme:`
         block.
         """
-        if name in self.color_scheme:
-            return name
-        self.color_scheme_block.unknown(
+        scheme = self.color_scheme.resolve(
             self.bag, name, span, code="config",
             message=f"unknown color scheme {name!r}",
             note="declared color_scheme entries",
         )
-        return None
+        return name if scheme is not None else None
 
     def _layout_reference(self, name: str, span: Span | None) -> str | None:
         """Resolve a bare `layouts:` name used from a `config: style:`
@@ -602,13 +592,11 @@ class Builder:
         layout (`_build_layouts`), but the cascade exists anyway so a future
         rejection needs no change here.
         """
-        if name in self.layouts_block.declared and name not in self.layouts_block.rejected:
-            return name
-        self.layouts_block.unknown(
+        decl = self.layouts.resolve(
             self.bag, name, span, code="config",
             message=f"unknown layout {name!r}", note="declared layouts",
         )
-        return None
+        return name if decl is not None else None
 
     def _build_config_style(self, spec: dict, span: Span | None) -> None:
         """`config: style:` -- an author-named, ordered set of entries riding
@@ -659,7 +647,7 @@ class Builder:
                     "design declares 'layouts:', so every entry must pick one",
                     item_span,
                     notes=["declared layouts: "
-                           + ", ".join(d.name for d in self.layouts)],
+                           + ", ".join(self.layouts)],
                 )
                 self.rejected_config.add("style")
                 return
@@ -764,16 +752,13 @@ class Builder:
     @staticmethod
     def _complication_suggestion_notes(name: str, noun: str) -> list[str]:
         """The shared "unknown complication" notes: a "did you mean: ...?"
-        when :func:`wfb.complications.suggest` finds a near match, then
+        when `wfb.complications.TYPES.suggest` finds a near match, then
         "run `wfb complications` for the full list of N <noun>" -- built
         identically by `_complication_reference` (`noun="types"`) and
         `_hold_target` (`noun="launch targets"`), which name the same table
         for two different reasons.
         """
-        near = complications.suggest(name)
-        notes = []
-        if near:
-            notes.append("did you mean: " + ", ".join(near) + "?")
+        notes = complications.TYPES.did_you_mean_notes(name)
         notes.append(f"run `wfb complications` for the full list of "
                      f"{len(complications.TYPES)} {noun}")
         return notes
@@ -807,12 +792,12 @@ class Builder:
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.config_data_block.declare(name, span)
+            self.config_data.declare(name, span)
             default_span = self.doc.span(spec, "default")
             default = self._complication_reference(
                 spec["default"], f"config.data.{name}.default", default_span)
             if default is None:
-                self.config_data_block.reject(name)
+                self.config_data.reject(name)
                 continue
 
             raw_choices = spec["choices"]
@@ -870,7 +855,7 @@ class Builder:
                 seen[resolved] = index
                 choices.append(resolved)
             if not ok:
-                self.config_data_block.reject(name)
+                self.config_data.reject(name)
                 continue
 
             if default not in choices:
@@ -878,7 +863,7 @@ class Builder:
                     f"config.data.{name}", spec["default"], default_span,
                     noun="type", tag="type",
                     listed="listed types: " + ", ".join(f"complication.{n}" for n in choices))
-                self.config_data_block.reject(name)
+                self.config_data.reject(name)
                 continue
 
             self.config_data[name] = ConfigDataSlot(
@@ -963,14 +948,14 @@ class Builder:
         base = self.doc.path.parent
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.fonts_block.declare(name, span)
+            self.fonts.declare(name, span)
             # The schema's `oneOf` guarantees exactly one of `source`/`face`.
             if "face" in spec:
                 font = self._build_vector_font(name, spec, span)
             else:
                 font = self._build_baked_font(name, spec, base, span)
             if font is None:
-                self.fonts_block.reject(name)
+                self.fonts.reject(name)
                 continue
             self.fonts[name] = font
 
@@ -1137,14 +1122,14 @@ class Builder:
         """`hands:` -- named analog-hand sets, declared once, placed by name.
 
         The same declared/rejected cascade every other named block keeps
-        (`fonts:`, `color_scheme:`, `layouts:`, via `_NamedBlock`): a set
-        rejected for its own fault stays bound in `hand_sets_block.declared`,
+        (`fonts:`, `color_scheme:`, `layouts:`, via `NamedRegistry`): a set
+        rejected for its own fault stays bound in `hand_sets.declared`,
         so a `type: hands` element naming it gets exactly one error, at the
         real mistake (`docs/lore/codegen.md`).
         """
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
-            self.hand_sets_block.declare(name, span)
+            self.hand_sets.declare(name, span)
             ok = True
             hands: dict[str, Hand | None] = {}
             for hand_name in ("hour", "minute", "second"):
@@ -1167,7 +1152,7 @@ class Builder:
                 )
                 ok = False
             if not ok:
-                self.hand_sets_block.reject(name)
+                self.hand_sets.reject(name)
                 continue
             self.hand_sets[name] = HandSet(
                 name=name, hour=hands["hour"], minute=hands["minute"],
@@ -1591,9 +1576,9 @@ class Builder:
         # Declared-then-rejected palette entries and `config:` axes are bound
         # too, so a reference to one gets only the real error already
         # reported against its block, not a second "unknown data source"
-        # (the `_NamedBlock` cascade).  A design with an error emits
+        # (the `NamedRegistry` cascade).  A design with an error emits
         # nothing, so the placeholder constant/field is never reached.
-        for name in sorted(self.palette_block.rejected):
+        for name in sorted(self.palette.rejected):
             self._define_palette_color(name, 0)
         for name, entry in self.config.items():
             self._define_config_color(f"config.{name}", entry.field)
@@ -2469,7 +2454,7 @@ class Builder:
         `Dc.drawAngledText`/`drawRadialText` refuse a resource font, so
         `font:` must name a `face:` font -- checked only when `font_ok`: a
         font reference that itself failed already has its own error (the
-        `_NamedBlock` cascade discipline).  `font_note` is the extra
+        `NamedRegistry` cascade discipline).  `font_note` is the extra
         "what this font is" note a `text` element's message carries.
 
         On a pattern part the angle is authored in the template's own local
@@ -3003,7 +2988,7 @@ class Builder:
         `monospace:`): the build is already failing, with an error pointing
         at the real mistake in the `fonts:` block, so this stays quiet
         rather than adding one more error per element blaming the element
-        for it -- see `_NamedBlock`'s docstring for why the name still
+        for it -- see `NamedRegistry`'s docstring for why the name still
         resolves here.
         """
         if not name.startswith("font."):
@@ -3016,14 +3001,12 @@ class Builder:
             )
             return None
         key = name[len("font."):]
-        if key in self.fonts:
-            return key, True
-        self.fonts_block.unknown(
+        spec = self.fonts.resolve(
             self.bag, key, span, code="font",
             message=f"unknown font {name!r}",
             note="declared fonts", prefix="font.",
         )
-        return None
+        return (key, True) if spec is not None else None
 
     def _resolve_font(self, node: dict, element: Text | ComplicationSlot) -> bool:
         """Set `.font`/`.font_is_custom` from `node["font"]`.
@@ -3034,7 +3017,7 @@ class Builder:
         `font:` failed to resolve, which already has its own error.  Callers
         use it to skip a further font-kind check that would otherwise blame
         the untouched default for a mistake reported one line up -- the
-        "declared and rejected stays quiet" cascade `_NamedBlock` follows.
+        "declared and rejected stays quiet" cascade `NamedRegistry` follows.
         """
         raw = node.get("font")
         if raw is None:

@@ -41,11 +41,11 @@ Every entry below needs no permission -- `Toybox.ActivityMonitor` and
 
 from __future__ import annotations
 
-import difflib
 from dataclasses import dataclass
 from enum import Enum
 
 from .catalog import Type
+from .diagnostics import Catalogue
 
 
 class Acquisition(str, Enum):
@@ -175,7 +175,7 @@ _s = SeriesDef
 #: DailyForecast.html` -- every field name and "or Null" checked directly
 #: against the real SDK doc (`$CIQ_SDK/doc/Toybox/...`), not typed from
 #: memory, for the same reason `wfb.complications`' own table gives.
-SERIES: dict[str, SeriesDef] = {
+SERIES: Catalogue[SeriesDef] = Catalogue({
     s.name: s
     for s in [
         _s("heart_rate", Acquisition.HEART_RATE, None, Type.NUMBER, None,
@@ -234,7 +234,7 @@ SERIES: dict[str, SeriesDef] = {
            "daily forecast chance of precipitation, 0-100",
            "Toybox/Weather/DailyForecast.html"),
     ]
-}
+})
 
 
 def get(name: str) -> SeriesDef | None:
@@ -243,11 +243,6 @@ def get(name: str) -> SeriesDef | None:
 
 def names() -> list[str]:
     return sorted(SERIES)
-
-
-def suggest(name: str, limit: int = 3) -> list[str]:
-    """Nearest series names, for the "unknown series" diagnostic."""
-    return difflib.get_close_matches(name, SERIES, n=limit, cutoff=0.5)
 
 
 #: Series an author will reasonably reach for and **cannot have**, mapped to
@@ -283,7 +278,7 @@ def unavailable_reason(name: str) -> str | None:
     `ambient.pressure` and `sensor_pressure` land here too -- an author
     reaching for a forbidden quantity rarely guesses this module's exact
     spelling for it. The underscored segment only counts when the name is
-    not a near miss of a real series (:func:`suggest`): `hourly_temperature`
+    not a near miss of a real series (`SERIES.suggest`): `hourly_temperature`
     is one edit from `forecast_temperature`, and "did you mean" serves that
     author better than "temperature cannot be plotted".
     """
@@ -292,6 +287,6 @@ def unavailable_reason(name: str) -> str | None:
     dotted = name.rsplit(".", 1)[-1]
     if dotted in UNAVAILABLE:
         return UNAVAILABLE[dotted]
-    if suggest(name):
+    if SERIES.suggest(name):
         return None
     return UNAVAILABLE.get(dotted.rsplit("_", 1)[-1])

@@ -23,7 +23,7 @@ def test_get_and_names_and_suggest():
     assert series.get("heart_rate") is not None
     assert series.get("nope") is None
     assert series.names() == sorted(SERIES)
-    assert "steps" in series.suggest("stps")
+    assert "steps" in series.SERIES.suggest("stps")
 
 
 def test_heart_rate_has_no_natural_interval_or_documented_max():

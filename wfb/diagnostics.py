@@ -7,11 +7,13 @@ to carry a severity and, where the check rests on estimation, to say so.
 
 from __future__ import annotations
 
+import difflib
 import sys
 import textwrap
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Generic, TypeVar
 
 from . import term
 from .term import SEVERITY_STYLE
@@ -198,3 +200,26 @@ class Bag:
                 text = f"{n} {severity.value}{'s' if n != 1 else ''}"
                 parts.append(term.style(text, *SEVERITY_STYLE[severity.value], enabled=color))
         return ", ".join(parts) if parts else "no diagnostics"
+
+
+def did_you_mean(near: list[str]) -> list[str]:
+    """The shared "did you mean" note for a misspelled name: one note
+    naming `near`, or none when there is nothing near."""
+    return ["did you mean: " + ", ".join(near) + "?"] if near else []
+
+
+T = TypeVar("T")
+
+
+class Catalogue(dict[str, T], Generic[T]):
+    """A fixed, name-keyed table an author picks from (data sources, graph
+    series, complication types), with the one fuzzy lookup its "unknown
+    name" diagnostics share."""
+
+    def suggest(self, name: str, limit: int = 3) -> list[str]:
+        """The nearest names, best first."""
+        return difflib.get_close_matches(name, self, n=limit, cutoff=0.5)
+
+    def did_you_mean_notes(self, name: str, limit: int = 3) -> list[str]:
+        """:func:`did_you_mean` over :meth:`suggest`."""
+        return did_you_mean(self.suggest(name, limit))

@@ -51,8 +51,9 @@ no device this project targets that would ever see the old shape.
 
 from __future__ import annotations
 
-import difflib
 from dataclasses import dataclass
+
+from .diagnostics import Catalogue
 
 
 @dataclass(frozen=True)
@@ -107,7 +108,7 @@ EXIT_TO_PERMISSION = "ComplicationSubscriber"
 #: ``COMPLICATION_TYPE_*`` values (``COMPLICATION_TYPE_INVALID`` is not a
 #: value and is excluded) -- transcribed from
 #: ``$CIQ_SDK/doc/Toybox/Complications.html``'s "Type" constant table.
-TYPES: dict[str, ComplicationType] = {t.name: t for t in [
+TYPES: Catalogue[ComplicationType] = Catalogue({t.name: t for t in [
     _t('battery', 'COMPLICATION_TYPE_BATTERY', '4.2.0', 'number', True, 'percent',
        'a non-negative Number percent 0 to 100 representing battery charge'),
     _t('steps', 'COMPLICATION_TYPE_STEPS', '4.2.0', 'number', False, None,
@@ -203,7 +204,7 @@ TYPES: dict[str, ComplicationType] = {t.name: t for t in [
        'even-par, a negative value for under par, or a positive value for over par'),
     _t('sleep_score', 'COMPLICATION_TYPE_SLEEP_SCORE', '6.0.2', 'number', True, None,
        'a non-negative number from 0 to 100 representing sleep score'),
-]}
+]})
 
 
 #: `Complications.Unit` (`Toybox/Complications.html`'s own "Unit" constant
@@ -255,8 +256,3 @@ def get(name: str) -> ComplicationType | None:
 
 def names() -> list[str]:
     return sorted(TYPES)
-
-
-def suggest(name: str, limit: int = 3) -> list[str]:
-    """Nearest names, for the "misspelled hold target" diagnostic."""
-    return difflib.get_close_matches(name, TYPES, n=limit, cutoff=0.5)

@@ -93,13 +93,12 @@ def build(b, node: dict, common: dict, path: tuple) -> Element | None:
     """
     name = node["hands"]
     element_id = common["id"]
-    hand_set = b.hand_sets.get(name)
+    hand_set = b.hand_sets.resolve(
+        b.bag, name, b.doc.span(node, "hands"), code="hands",
+        message=f"{element_id}: unknown hand set {name!r}",
+        note="declared hand sets",
+    )
     if hand_set is None:
-        b.hand_sets_block.unknown(
-            b.bag, name, b.doc.span(node, "hands"), code="hands",
-            message=f"{element_id}: unknown hand set {name!r}",
-            note="declared hand sets",
-        )
         return None
 
     seconds = node.get("seconds")

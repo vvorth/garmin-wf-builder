@@ -51,12 +51,11 @@ def build(b, node: dict, common: dict, path: tuple) -> Element:
                        "the evidence"],
             )
         else:
-            near = series.suggest(str(name)) if name else []
             b.bag.error(
                 "graph",
                 f"unknown series {name!r}",
                 b.doc.span(node, "series"),
-                notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
+                notes=(series.SERIES.did_you_mean_notes(str(name)) if name else [])
                 + ["run `wfb series` for the full list"],
             )
 

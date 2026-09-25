@@ -147,10 +147,17 @@ cross-check makes that hold by construction from now on.
   `TextStyle` was not built: it only pays off if the `text` element
   adopts it too, and that would rename the element's own `font:`/`curve:`
   fields that `aod:` overrides are keyed by.
-- `NamedRegistry[T]` for the named blocks (accepted/declared/rejected plus
-  one `resolve()`); `Catalogue[T]` with one `did_you_mean_notes` for
-  `catalog`, `series`, `complications` and `icons` (the notes are
-  hand-built in 5 places today).
+- **Built:** `NamedRegistry[T]` (`wfb/ir/builder.py`) replaces each named
+  block's dict plus `_NamedBlock`: a dict of the accepted entries with the
+  declared/rejected bookkeeping and one `resolve()`, used for `palette:`,
+  `fonts:`, `layouts:` (previously a list), `color_scheme:`, `config: data:`
+  and `hands:`. `Catalogue[T]` (`wfb/diagnostics.py`) is the type of
+  `catalog.CATALOG`, `series.SERIES` and `complications.TYPES`, replacing
+  their three `suggest()` functions with `suggest()`/`did_you_mean_notes()`;
+  `diagnostics.did_you_mean` formats the note for the expression
+  checker's namespace-scoped guess too. `icons` is left out: its unknown-
+  icon error lists the whole catalogue rather than guessing, and the lint
+  code check's "did you mean" has its own wording, so neither changes.
 - Preview: one glyph-source interface (baked sheet / system outline face /
   `.cft`) with one "place line box, blit glyph by glyph" loop, replacing
   `_draw_text`, `_blit_bitmap_text`, `_approximate_text`,

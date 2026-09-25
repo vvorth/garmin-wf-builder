@@ -41,11 +41,11 @@ the generated one, and each entry cites the SDK page it came from.
 
 from __future__ import annotations
 
-import difflib
 from dataclasses import dataclass, field
 from enum import Enum
 
 from . import complications
+from .diagnostics import Catalogue
 
 
 class Type(str, Enum):
@@ -390,7 +390,7 @@ class Source:
 _s = Source
 
 
-CATALOG: dict[str, Source] = {
+CATALOG: Catalogue[Source] = Catalogue({
     s.path: s
     for s in [
         # -- time ---------------------------------------------------------
@@ -643,7 +643,7 @@ CATALOG: dict[str, Source] = {
             for t in complications.TYPES.values()
         ],
     ]
-}
+})
 
 
 #: The nine paths superseded by `complication.*`, now the one and only way
@@ -703,16 +703,6 @@ WATCHFACE_PERMISSIONS: frozenset[str] = frozenset({
 
 def get(path: str) -> Source | None:
     return CATALOG.get(path)
-
-
-def suggest(path: str, limit: int = 3) -> list[str]:
-    """Nearest catalogue paths, for the "misspelled data source" diagnostic.
-
-    Does not consider `RENAMED_SOURCES` keys -- those are exact former names
-    with their own, more specific diagnostic (`renamed_to`), not something a
-    fuzzy match should surface as a "did you mean" guess.
-    """
-    return difflib.get_close_matches(path, CATALOG.keys(), n=limit, cutoff=0.5)
 
 
 def namespaces() -> dict[str, list[str]]:

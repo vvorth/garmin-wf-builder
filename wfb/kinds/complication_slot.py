@@ -73,14 +73,11 @@ def _resolve_slot_reference(b, raw: str, span: Span | None) -> ConfigDataSlot | 
         )
         return None
     name = raw[len("config.data."):]
-    if name in b.config_data:
-        return b.config_data[name]
-    b.config_data_block.unknown(
+    return b.config_data.resolve(
         b.bag, name, span, code="complication-slot",
         message=f"unknown slot {raw!r}",
         note="declared slots", prefix="config.data.",
     )
-    return None
 
 
 def build(b, node: dict, common: dict, path: tuple) -> Element:
