@@ -40,10 +40,6 @@ def test_names_are_unique_and_lowercase():
         assert re.match(r"^[a-z][a-z_]*$", name)
 
 
-def test_get_returns_none_for_an_unknown_name():
-    assert icons.get("nonexistent") is None
-
-
 def test_resolve_codepoint_finds_catalogue_entries():
     assert icons.resolve_codepoint("heart") == icons.CATALOG["heart"].codepoint
 
@@ -213,42 +209,6 @@ def test_every_night_variant_has_a_matching_day_entry():
         if name.endswith("_night"):
             day_name = name[: -len("_night")]
             assert day_name in icons.CATALOG, f"{name!r} has no day counterpart {day_name!r}"
-
-
-def test_weather_icon_for_condition_resolves_day_and_night():
-    day = icons.weather_icon_for_condition(3)  # CONDITION_RAIN
-    night = icons.weather_icon_for_condition(3, night=True)
-    assert day == icons.CATALOG["weather_rain"].codepoint
-    assert night == icons.CATALOG["weather_rain_night"].codepoint
-    assert day != night
-
-
-def test_weather_icon_for_condition_falls_back_for_no_night_variant():
-    """`strong_wind` has no night glyph -- night=True should still resolve,
-    to the day glyph, not raise."""
-    assert "weather_strong_wind_night" not in icons.CATALOG
-    assert (icons.weather_icon_for_condition(36, night=True)
-            == icons.CATALOG["weather_strong_wind"].codepoint)
-
-
-def test_weather_icon_for_condition_handles_unknown_and_none():
-    unknown = icons.CATALOG["weather_unknown"].codepoint
-    assert icons.weather_icon_for_condition(53) == unknown  # CONDITION_UNKNOWN
-    assert icons.weather_icon_for_condition(None) == unknown
-
-
-def test_metric_icon_values_all_resolve_in_the_catalogue():
-    for source, name in icons.METRIC_ICON.items():
-        assert icons.get(name) is not None, f"METRIC_ICON[{source!r}] names {name!r}, not in CATALOG"
-
-
-def test_icon_for_source_returns_the_aliased_icon():
-    assert icons.icon_for_source("activity.steps") is icons.CATALOG["steps"]
-    assert icons.icon_for_source("heart_rate.current") is icons.CATALOG["heart"]
-
-
-def test_icon_for_source_returns_none_for_an_unaliased_source():
-    assert icons.icon_for_source("activity.step_goal") is None
 
 
 # -- COMPLICATION_ICON: all 42 types mapped (plan 03 §6.4/§6.7) -------------

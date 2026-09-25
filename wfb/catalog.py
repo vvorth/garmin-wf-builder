@@ -382,13 +382,6 @@ class Source:
         return f"{reader.name}.size() > {self.array_index}"
 
     @property
-    def intermediate_guard(self) -> str | None:
-        """The null check a dotted `field_name` needs for its intermediate object."""
-        if self.intermediate is None:
-            return None
-        return f"{READERS[self.reader].name}.{self.intermediate} != null"
-
-    @property
     def guard_needed(self) -> bool:
         """Whether the generated code must null-check before using the value."""
         return self.nullable or READERS[self.reader].nullable
@@ -497,7 +490,7 @@ CATALOG: dict[str, Source] = {
            source_ref="Toybox/ActivityMonitor/Info.html",
            # activeMinutesWeek is itself "ActiveMinutes or Null" -- the
            # generated code cannot dereference `.total` on it unconditionally.
-           # See Source.intermediate_guard.
+           # `ReadPlan._declare_paths` reads it into its own local first.
            intermediate="activeMinutesWeek",
            launch_complication="intensity_minutes"),
         _s("activity.active_minutes_week_goal", Type.NUMBER, "activity",
@@ -683,7 +676,7 @@ def renamed_to(path: str) -> str | None:
 
 #: The only sources `icon_for:` may bind to (`wfb.ir`) -- a Weather.CONDITION_*
 #: value is meaningless without the specific glyph-mapping WfbWeather.mc and
-#: wfb.icons.weather_icon_for_condition() both provide, so this is deliberately
+#: wfb.icons.GARMIN_WEATHER_CONDITION_ICON both provide, so this is deliberately
 #: not a generic "bind any Number source" mechanism.
 WEATHER_CONDITION_SOURCES: frozenset[str] = frozenset({
     "weather.condition", "weather.condition_today", "weather.condition_tomorrow",

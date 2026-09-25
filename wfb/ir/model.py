@@ -1142,7 +1142,7 @@ class IconElement(Element):
     #: bound value -- currently only `wfb.catalog.WEATHER_CONDITION_SOURCES`
     #: (`icon_for: weather.condition`, e.g.), resolved through
     #: `WfbWeather.mc`'s lookup, the on-device twin of
-    #: `wfb.icons.weather_icon_for_condition`.
+    #: `wfb.icons.GARMIN_WEATHER_CONDITION_ICON`.
     value_for: Expression | None = None
     size: Length | None = None
     color: Expression | None = None

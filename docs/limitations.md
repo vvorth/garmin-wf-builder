@@ -636,7 +636,7 @@ data-source gap rather than a layout one:
 | A history graph of Body Battery, stress, pressure or elevation | these are `Toybox.SensorHistory`-backed, and a watch face may not declare that permission at all — see "`SensorHistory` is closed to a watch face..." above. Body Battery and stress each have a *current-value* route (`complication.body_battery`, `activity.stress_score`), but neither is a series |
 
 Weather's condition icon (`icon_for: weather.condition`, resolved on-device
-through `WfbWeather.mc`, mirroring `wfb.icons.weather_icon_for_condition()`)
+through `WfbWeather.mc`, mirroring `wfb.icons.GARMIN_WEATHER_CONDITION_ICON`)
 and its full reading set -- temperature, feels-like, today's high/low and
 precipitation chance, humidity, wind speed -- both shipped; see
 `docs/guide/icons.md`'s `icon_for` section and `docs/guide/data.md`'s "Data binding" section. Body Battery

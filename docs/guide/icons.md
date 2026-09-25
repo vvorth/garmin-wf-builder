@@ -97,10 +97,7 @@ dedicated Weather Icons set instead, because it covers more distinct conditions
 and day/night pairs than MDI's own `weather_*` glyphs and — unlike them — its
 codepoints fit in the Basic Multilingual Plane (see the comment above
 `CATALOG` in `wfb/icon_catalog.py`). `wfb.icons.GARMIN_WEATHER_CONDITION_ICON` maps every
-`Toybox.Weather.CONDITION_*` value (0–53) to one of these, and
-`wfb.icons.METRIC_ICON` maps common data-source paths (`activity.steps`,
-`heart_rate.current`, and so on) to their conventional icon, for a design or
-tool that wants a sensible default rather than the compiler enforcing one.
+`Toybox.Weather.CONDITION_*` value (0–53) to one of these.
 
 **Beyond the named icons**, the icon font has on the order of ten thousand
 glyphs, including codepoints above the Basic Multilingual Plane (all of MDI's

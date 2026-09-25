@@ -166,9 +166,10 @@ gets most of the safety for a fraction of the cost.
   about 60 lines (risky; snapshot first).
 - `Binding.kind` (`wfb/expr.py`) is read by nothing, but ADR 0006 cites it;
   removing it needs a dated ADR note.
-- Dead or test-only code: `Source.intermediate_guard`,
-  `icons.weather_icon_for_condition` and the `*_night` entries,
-  `icons.METRIC_ICON`/`icon_for_source`/`icons.get`.
+- **Built:** dead or test-only code removed: `Source.intermediate_guard`,
+  `icons.weather_icon_for_condition`, `icons.METRIC_ICON`/`icon_for_source`/
+  `icons.get`. The `*_night` icon entries stay: they are documented,
+  author-usable `icon:` names (`docs/guide/icons.md`), not dead code.
 - The sub-pixel owner in `layout.Resolver` is mutable state
   (`_owner_id/_span/_element`) that `_resolve_hand_part` narrows and never
   restores. Pass the owner explicitly.

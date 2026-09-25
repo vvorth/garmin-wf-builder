@@ -18,10 +18,10 @@ is two independent steps, kept independent on both sides of the build:
    a hand-written barrel function (the mapping is fixed and shared across
    every design, the same reasoning that keeps `WfbArc.mc`/`WfbTime.mc`
    hand-written) that returns a *name*, never a glyph.
-2. **Which glyph for that name?** :func:`weather_icon_for_condition` (here)
-   and `source/IconGlyphs.mc`'s `glyph()` (generated per project by
-   :mod:`wfb.emit.monkeyc` directly from :data:`wfb.icon_catalog.CATALOG`, not
-   hand-written) both just index the one catalogue by name.
+2. **Which glyph for that name?** `source/IconGlyphs.mc`'s `glyph()`
+   (generated per project by :mod:`wfb.emit.monkeyc` directly from
+   :data:`wfb.icon_catalog.CATALOG`, not hand-written) just indexes the one
+   catalogue by name.
 
 Keeping the split on the device, not just in Python, matters: `WfbWeather.mc`
 only ever deals in ASCII catalogue *names*, so every actual glyph character
@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from .icon_catalog import CATALOG, Icon
+from .icon_catalog import CATALOG
 from .units import Length
 
 
@@ -85,10 +85,6 @@ def font_path() -> Path:
 FALLBACK_CODEPOINT = "\uf128"  # preview:  (fa-question)
 
 
-
-
-def get(name: str) -> Icon | None:
-    return CATALOG.get(name)
 
 
 def names() -> list[str]:
@@ -437,24 +433,6 @@ GARMIN_WEATHER_CONDITION_ICON: dict[int, str] = {
 }
 
 
-def weather_icon_for_condition(condition: int | None, *, night: bool = False) -> str:
-    """The codepoint for a `Weather.CONDITION_*` value.
-
-    `night` selects a night-drawn variant where one exists in the font and
-    falls back to the day glyph otherwise -- there is no sensible "night dust
-    storm" icon, so dust, for instance, does not change. `condition=None` (the
-    API returns null when no forecast is available) maps to the same "unknown"
-    glyph as the explicit `CONDITION_UNKNOWN` value.
-    """
-    name = GARMIN_WEATHER_CONDITION_ICON.get(condition, "weather_unknown") \
-        if condition is not None else "weather_unknown"
-    if night:
-        night_name = f"{name}_night"
-        if night_name in CATALOG:
-            name = night_name
-    return CATALOG[name].codepoint
-
-
 #: Every glyph a *dynamic* weather icon's font must contain (`icon_for:`,
 #: `wfb.emit.resources.icon_font_specs`) -- the whole set, since the actual
 #: glyph is chosen on-device at runtime (`WfbWeather.mc`) and the font has to
@@ -482,45 +460,14 @@ WEATHER_BAKE_REFERENCE_GLYPH: str = CATALOG["weather_rain"].codepoint
 
 
 # ============================================================================
-# Data-source-to-icon aliases
-#
-# The most commonly-paired icon for a catalogue source in wfb/catalog.py, so a
-# design (or a future auto-suggest feature) does not have to re-derive "which
-# icon goes with activity.floors_climbed" from scratch. Adjust freely -- this
-# is a default, not a constraint the compiler enforces.
-# ============================================================================
-
-METRIC_ICON: dict[str, str] = {
-    "activity.steps": "steps",
-    "activity.calories": "flame",
-    "activity.distance": "distance",
-    "activity.floors_climbed": "floors",
-    "heart_rate.current": "heart",
-    "system.battery": "battery",
-    "system.battery_in_days": "battery",
-    "system.charging": "battery",
-    "device.do_not_disturb": "dnd",
-    "device.alarm_count": "alarm",
-    "device.notification_count": "notification",
-    "device.phone_connected": "phone",
-}
-
-
-def icon_for_source(source_path: str) -> Icon | None:
-    """The catalogue icon conventionally paired with a data-source path, if any."""
-    name = METRIC_ICON.get(source_path)
-    return CATALOG.get(name) if name else None
-
-
-# ============================================================================
 # Complication-type-to-icon aliases (docs/research/09-data-library-and-config-axes.md §4)
 #
 # A `type: complication_slot` element draws whichever complication the wearer
 # repointed the slot at, and `Complications.Id.getType()` is readable
 # on-device regardless of whether the pulled *value* is available -- so the
 # icon can be resolved from the type alone, the same "which name, then which
-# glyph" split `GARMIN_WEATHER_CONDITION_ICON`/`weather_icon_for_condition`
-# already use. This is the "which name" half; `wfb.emit.monkeyc.emit_icon_glyphs`
+# glyph" split `GARMIN_WEATHER_CONDITION_ICON`/`IconGlyphs.glyph` already
+# use. This is the "which name" half; `wfb.emit.monkeyc.emit_icon_glyphs`
 # is the "which glyph" half, generated straight from `CATALOG` like every other
 # dynamic icon.
 # ============================================================================

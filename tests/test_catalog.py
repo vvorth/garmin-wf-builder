@@ -69,7 +69,7 @@ def test_read_expr_for_a_plain_field_has_no_array_indexing():
     assert "[" not in source.read_expr
 
 
-def test_dotted_field_name_has_an_intermediate_guard():
+def test_dotted_field_name_names_its_intermediate():
     """`activity.active_minutes_week` reads `activeMinutesWeek.total`, and
     `activeMinutesWeek` is itself `ActiveMinutes or Null` (Toybox/
     ActivityMonitor/Info.html) -- dereferencing `.total` unconditionally
@@ -77,22 +77,19 @@ def test_dotted_field_name_has_an_intermediate_guard():
     field is genuinely absent, which is the common case on this platform, not
     an edge case."""
     source = CATALOG["activity.active_minutes_week"]
-    reader = READERS[source.reader]
     assert "." in source.field_name
     assert source.intermediate == "activeMinutesWeek"
-    assert source.intermediate_guard == f"{reader.name}.activeMinutesWeek != null"
 
 
-def test_plain_field_name_has_no_intermediate_guard():
+def test_plain_field_name_has_no_intermediate():
     """The converse: a source whose `field_name` is not itself a dotted path
     needs no extra guard beyond its own/reader nullability."""
     source = CATALOG["activity.steps"]
     assert "." not in source.field_name
     assert source.intermediate is None
-    assert source.intermediate_guard is None
 
 
-def test_no_other_dotted_field_names_are_missing_an_intermediate_guard():
+def test_no_other_dotted_field_names_are_missing_an_intermediate():
     """A future entry copy-pasting a dotted `field_name` (the same mistake
     `activity.active_minutes_week` made) must not silently ship without a
     guard -- this is the audit `activity.active_minutes_week`'s fix was
@@ -104,7 +101,6 @@ def test_no_other_dotted_field_names_are_missing_an_intermediate_guard():
                 "'intermediate' guard -- its intermediate object may itself be "
                 "nullable, the exact bug activity.active_minutes_week had"
             )
-            assert source.intermediate_guard is not None, path
 
 
 # -- the broader catalogue expansion (weather fields, ambient, user profile) -
@@ -438,7 +434,7 @@ def test_pulse_ox_is_a_direct_source_not_a_complication():
 # -- every catalogue entry actually compiles ---------------------------------
 #
 # This is the test the activity.active_minutes_week bug (the dotted
-# field_name / intermediate_guard fix above) should have made unnecessary to
+# field_name / intermediate fix above) should have made unnecessary to
 # discover by hand: `wfb sources` advertises a binding as soon as it is in
 # CATALOG, but nothing short of a real `monkeyc` build proves the generated
 # Monkey C for that binding actually typechecks. One catalogue entry failing

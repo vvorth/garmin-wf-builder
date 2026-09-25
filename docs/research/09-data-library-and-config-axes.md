@@ -149,8 +149,8 @@ Two findings make the authored side much smaller than the sketch assumes.
 **`Complications.Id.getType()` works on the id the wearer picked.** So one
 authored *template* can serve every metric in the slot's list: the icon comes
 from a generated `switch` over the chosen type (the same shape as
-`WfbWeather.chooseIcon`, feeding the existing `IconGlyphs.glyph` and
-`METRIC_ICON` machinery), and only the glyphs the slot's `choices:` can
+`WfbWeather.chooseIcon`, feeding the existing `IconGlyphs.glyph` machinery;
+the type-to-name table became `wfb.icons.COMPLICATION_ICON`), and only the glyphs the slot's `choices:` can
 actually produce need baking. Verified under `-l 3`.
 
 **`Complication.shortLabel` and `.unit` come back with the value**, so a slot
