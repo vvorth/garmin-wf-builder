@@ -20,7 +20,7 @@ messages; see `wfb/lint.py` if unsure.
 | `safe-area` | the element's box falls outside the round screen's visible area |
 | `off-screen` | the element's box falls partly or fully outside the framebuffer |
 | `text-overflow` | the rendered text is wider than its box |
-| `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring colour instead (against the backdrop, and against the element's own interior), never the interior colour |
+| `contrast` | the element's colour against its backdrop is below the contrast threshold — for an `outline:`-bearing element, judged on the ring colour instead (against the backdrop, and against the element's own interior), never the interior colour; a complication slot's `icon_color` is judged too, a progress `track_color` is not |
 | `partial-update-budget` | an element drawn in `low_power` mode risks overrunning the partial-update budget, whose overrun is permanent |
 | `hold-overlap` | two elements' `on_hold:` regions overlap, so a touch in the shared area only ever reaches the first |
 | `hold-unsupported` | the device has no `WatchFaceDelegate.onPress`, so this `on_hold:` can never fire there |
@@ -150,7 +150,11 @@ layout, or `palette.bg` when there is none. So a night layout's text is
 judged against the night background, not the day one. Shared content (no
 layout) is on screen in every layout, so it is judged against each
 layout's background, and a full-screen background shape is never judged
-itself. `contrast` also treats an `outline:`-bearing element differently: see
+itself. A complication slot's `icon_color` is judged as well, named
+`<id>.icon_color`, and like a glyph's own colour it may not simply match
+the backdrop. A progress `track_color` is not judged: a track is meant to
+recede behind the fill, so a dim one (`#555555` on black is a 2.8 ratio)
+is the design, not a mistake. `contrast` also treats an `outline:`-bearing element differently: see
 `wfb.lint.check_contrast`'s own docstring for the two ring comparisons it
 makes in place of judging the interior. On a `type: hands`/`type: pattern`
 element, `contrast` is checked per **part**, not once for the whole

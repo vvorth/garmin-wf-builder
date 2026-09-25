@@ -43,7 +43,12 @@ def _default_describe(placed: "Placed") -> str:
 def _default_contrast_subjects(placed: "Placed"):
     """`lint.check_contrast`'s fall-through arm: every kind but `hands`/
     `pattern` has no finer label to give than `Element.color_roles()`
-    itself already reports."""
+    itself already reports. After the element's own ink (or ring), a
+    complication slot's `icon_color` is judged too, labelled by its key, and
+    may not match the backdrop exactly -- the same rule a glyph's own ink
+    follows. A progress `track_color` is not judged: a track is decoration
+    meant to recede behind the fill (every track in the examples is
+    `#555555` on black, a 2.8 ratio, by design)."""
     element = placed.element
     non_aod = [role for role in element.color_roles() if not role.aod]
     ink = next((role for role in non_aod if role.role == "ink"), None)
@@ -51,6 +56,9 @@ def _default_contrast_subjects(placed: "Placed"):
     allow_backdrop_match = not ink.is_glyph if ink is not None else placed.kind == "shape"
     yield (placed.id, ink.expression if ink is not None else None,
            ring.expression if ring is not None else None, allow_backdrop_match)
+    for role in non_aod:
+        if role.role == "icon":
+            yield (f"{placed.id}.icon_color", role.expression, None, False)
 
 
 @dataclass(frozen=True)

@@ -761,6 +761,76 @@ def test_low_contrast_warns_and_labels_the_threshold_as_a_judgement(check):
     assert "judgement call" in warning.confidence
 
 
+_SLOT_PALETTE = (
+    '  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#555555"\n'
+    "config:\n  data:\n    top:\n      default: complication.steps\n"
+    "      choices: [complication.steps]"
+)
+
+
+def test_a_low_contrast_slot_icon_colour_warns_by_its_own_key(check):
+    """A complication slot's `icon_color` is content, judged like its
+    reading's own `color:`."""
+    bag = check(
+        """
+  - id: slot
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    color: palette.fg
+    icon_color: palette.dim
+""",
+        palette=_SLOT_PALETTE,
+    )
+    hits = [d for d in bag.items if d.code == "contrast"]
+    assert [d.message.split(":")[0] for d in hits] == ["slot.icon_color"], bag.render()
+
+
+def test_a_slot_icon_matching_the_backdrop_warns(check):
+    """An icon is a glyph: drawn in the backdrop's own colour it is
+    invisible by mistake, not a deliberate cut-out."""
+    bag = check(
+        """
+  - id: slot
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center}
+    icon_size: 8%r
+    color: palette.fg
+    icon_color: palette.bg
+""",
+        palette=_SLOT_PALETTE,
+    )
+    assert any(d.code == "contrast" and d.message.startswith("slot.icon_color")
+               for d in bag.items), bag.render()
+
+
+def test_a_dim_progress_track_is_not_judged_for_contrast(check):
+    """A track is decoration meant to recede behind the fill -- every
+    example's is `#555555` on black, ratio 2.8, by design -- so only the
+    fill colour is judged."""
+    bag = check(
+        """
+  - id: ring
+    type: progress
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    when_absent: hide
+    at: {anchor: center}
+    radius: 40%r
+    thickness: 4px
+    start_angle: 0deg
+    sweep: 360deg
+    color: palette.fg
+    track_color: palette.dim
+""",
+        palette='  bg: "#000000"\n  fg: "#FFFFFF"\n  dim: "#555555"',
+    )
+    assert "contrast" not in codes(bag), bag.render()
+
+
 def test_outline_interior_matching_the_backdrop_is_not_judged_for_contrast(check):
     """The hollow idiom's whole point is interior == backdrop
     (`docs/guide/text.md`) -- judging contrast on the interior (the old

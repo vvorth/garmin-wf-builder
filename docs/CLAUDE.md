@@ -37,6 +37,7 @@ they record when and why a decision changed.
 | 14 `aod:`, always-on display | `git show 2892263:docs/plans/14-aod.md` (§6 "Slices" is what shipped; slice 0 `02c375d`, slice 1 `1af607e`, slice 2 `b786723`, slice 3 `616b646`, slice 4 `65bca8a`, slice 5 `2892263`, slice 6 `1f8358e`, which deleted it; §7's decisions D1-D5 and §8's open questions live on in ADR 0006's 2026-09-23 amendment and research 11 §5/`docs/limitations.md` §3) |
 | 16 AOD pixel mask | `git show 965518a:docs/plans/16-aod-pixel-mask.md` (§5 "Slices" is what shipped; plan `fd49cab`, slice 1 `3c2b40d`, slice 2 `965518a`, slice 3 the docs closeout that deleted it) |
 | 17 derived system-font metrics | `git show f03d413:docs/plans/17-derived-system-font-metrics.md` (built as written in one commit, the one that deleted it; §2 is the 45/45 evidence, also in research 10 §3.1) |
+| 18 review bug fixes | `git show 45c40b7:docs/plans/18-review-bug-fixes.md` (§1 lists items 1–9 with their commits; §2.1, Float complications converted with `.toFloat()`, is `45c40b7`; §2.2, `contrast` for a slot's `icon_color` but not a progress `track_color`, is the commit that deleted it) |
 | 19 architecture refactor | `git show d325e77:docs/plans/19-architecture-refactor.md` (§1 "Done" lists A0–A6 and the small items with their commits and how each was proven output-identical; §2 P2 and §3 A7 are the one option not taken, see `docs/lore/roadmap.md`) |
 
 **Same-commit rule** (root `CLAUDE.md` §7): a change that makes any of

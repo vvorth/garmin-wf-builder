@@ -161,7 +161,7 @@ ALTITUDE_KM = """
 
 
 def test_altitude_is_a_real_float_even_where_it_arrives_as_a_number(write_design, bag, db, tmp_path):
-    """`ALTITUDE` was a Number before API 5.1.0 (plan 18 item 9): dividing
+    """`ALTITUDE` was a Number before API 5.1.0: dividing
     it must not truncate there, so the read converts rather than casts, and
     the division sees the converted local."""
     view = _view(write_design, bag, db, tmp_path, ALTITUDE_KM)
@@ -340,7 +340,7 @@ def test_a_plain_hold_design_compiles_without_warnings(tmp_path, bag, db, toolch
 @pytest.mark.slow
 def test_a_converted_float_complication_compiles_without_warnings(tmp_path, bag, db, toolchain):
     """The `as Numeric?` read and its `.toFloat()` conversion typecheck
-    under `-l 3` (plan 18 item 9) -- only the real compiler can say so."""
+    under `-l 3` -- only the real compiler can say so."""
     from wfb.build import build
 
     design = tmp_path / "altitude.yaml"
