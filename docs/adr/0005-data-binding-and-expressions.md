@@ -335,7 +335,7 @@ went missing would be a silent no-op." That reasoning is about *silence* --
 a reading vanishing and the whole pattern quietly disappearing with no
 policy on record. It does not hold once the author writes
 `when_absent: hide` explicitly: the policy is then declared, required by the
-compiler (`Builder._check_pattern_absence`), and reported as a note if it
+compiler (`wfb.kinds.pattern._check_pattern_absence`), and reported as a note if it
 turns out to do nothing -- so it is never silent, the same standard every
 other element's `when_absent:` is already held to (§3: "every binding
 declares what absence renders as"). The old rule was a *blanket* refusal

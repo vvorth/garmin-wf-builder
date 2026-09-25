@@ -4,7 +4,7 @@ fonts, on-device config, and analog hands/patterns -- plus the tree/draw-order
 helpers (`walk_elements`, `authored_draw_order`, `draw_sort_key`, `draw_order`,
 `never_together`) that read that tree, and `_drawn_copies`, the pure
 computation :meth:`PatternElement.drawn_indices` shares with
-`wfb.ir.builder.Builder._build_pattern_element`.  The semantic pass that
+`wfb.kinds.pattern.build`.  The semantic pass that
 builds a `Face` from YAML is :mod:`wfb.ir.builder`; nothing here validates
 anything.
 """
@@ -69,7 +69,7 @@ ROLE_VISIBLE = "visible"
 HOLD_AUTO = "auto"
 
 #: The Monkey C a pattern colour's `copy` compiles to: the index of the loop
-#: `wfb.emit.monkeyc.rotated._emit_pattern` draws the copies in (`for (var i = 0; ...)`).
+#: `wfb.kinds.pattern.emit_draw` draws the copies in (`for (var i = 0; ...)`).
 PATTERN_LOOP_INDEX = "i"
 
 #: `Dc.fillPolygon`'s own 64-point limit, already recorded for `shape:
@@ -772,7 +772,7 @@ class Element:
         `PatternElement` override this outright -- neither has a plain
         `color:` a generic reader could find; their effective colours live
         on `.colors`/`.parts` instead (`wfb.ir.builder._build_hand`/
-        `_build_pattern_element`).
+        `wfb.kinds.pattern.build`).
         """
         is_glyph = self.kind != "shape"
         out: list[ColorRole] = []
@@ -885,7 +885,7 @@ class HandPart:
     align: str = "center"
     vertical_align: str = "center"
     #: The host-rendered string for every copy index `0..count-1`, set by
-    #: `Builder._render_pattern_texts` once `count:` is known.
+    #: `wfb.kinds.pattern._render_pattern_texts` once `count:` is known.
     texts: tuple[str, ...] = ()
     #: `curve:` (vector font only), authored in the template's own local
     #: frame: a radial pattern's per-copy rotation composes with it
@@ -1010,7 +1010,7 @@ class PatternElement(Element):
     colors: tuple[Expression, ...] = ()
     #: `when_absent: hide` as authored, or `None` (schema: `enum: ["hide"]`,
     #: the only value -- a pattern has no placeholder/fallback, see
-    #: `Builder._check_pattern_absence`).  Required once any colour or part
+    #: `wfb.kinds.pattern._check_pattern_absence`).  Required once any colour or part
     #: `visible:` reads a source that can be absent; absence then hides the
     #: whole pattern, every copy and every part, because the reading is
     #: taken once per frame, before the loop.
@@ -1019,7 +1019,7 @@ class PatternElement(Element):
     def drawn_indices(self) -> tuple[int, ...]:
         """Copy indices actually drawn, ascending: `0..count-1` minus `skip`
         and minus every multiple of `skip_every`.  A pattern with
-        nothing left to draw is a build error (`Builder._build_pattern_element`,
+        nothing left to draw is a build error (`wfb.kinds.pattern.build`,
         which computes the same thing through :func:`_drawn_copies` before
         this element exists, to report an empty result), so this is never
         empty for an element that reached the IR."""
@@ -1039,7 +1039,7 @@ class PatternElement(Element):
         part's own colour and, for a `shape: text` part, its `outline.color`
         ring (`HandPart.outline` is only ever built on a text part --
         `Builder._build_hand_part`). Yields the same *set* `.colors` above
-        collects (`_build_pattern_element`'s `_dedup_append` calls: the
+        collects (`wfb.kinds.pattern.build`'s `_dedup_append` calls: the
         default, then each part's already-effective colour, then each
         part's own outline colour) -- `part.color` is already the effective
         colour (the part's own, or this element's default when it declared
@@ -1393,7 +1393,7 @@ def _drawn_copies(
 ) -> tuple[int, ...]:
     """Copy indices actually drawn, ascending: `0..count-1` minus `skip` and
     minus every multiple of `skip_every` -- the pure computation
-    :meth:`PatternElement.drawn_indices` and `Builder._build_pattern_element`
+    :meth:`PatternElement.drawn_indices` and `wfb.kinds.pattern.build`
     (which needs the answer before the element exists, to report an empty
     result as a build error) share.
     """

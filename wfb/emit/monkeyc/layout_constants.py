@@ -6,7 +6,7 @@ from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
-    PlacedComplicationSlot, PlacedPattern,
+    PlacedComplicationSlot,
     ResolvedFace,
 )
 from .common import (
@@ -297,22 +297,6 @@ def _complication_slot_constants(prefix: str, placed: PlacedComplicationSlot) ->
 _EVERY_PART_NOTE = "aod: thickness override, applied to every part"
 
 
-def _pattern_constants(prefix: str, placed: PlacedPattern) -> Constants:
-    radial = placed.element.pattern == "radial"
-    out: Constants = [
-        (f"{prefix}_X", placed.center[0],
-         "the centre every copy turns about" if radial else "copy 0's origin"),
-        (f"{prefix}_Y", placed.center[1], ""),
-    ]
-    if not radial:
-        out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
-        out.append((f"{prefix}_DY", placed.dy, ""))
-    out.extend(_aod_thickness_constant(prefix, placed, _EVERY_PART_NOTE))
-    for index, part in enumerate(placed.parts):
-        out.extend(_hand_part_constants(f"{prefix}_{index}", "template", index, part))
-    return out
-
-
 def _layout_constants(placed) -> Constants:
     return kinds.for_placed(placed).layout_constants(_const_prefix(placed.id), placed)
 
@@ -341,7 +325,7 @@ def _hand_part_constants(
     The angle itself is deliberately **not** a `Layout` constant: it is
     device-independent (plain degrees) and needs a *per-copy* runtime term
     for a radial pattern, so it is inlined straight into the shared view
-    instead (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`) --
+    instead (`wfb.kinds.pattern._emit_pattern_text_angle_expr`) --
     exactly the precedent an arc part's own `start_angle`/`sweep` already
     set one row down: those get no `_START`/`_SWEEP` constants here either.
     """

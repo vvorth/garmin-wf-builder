@@ -10,7 +10,7 @@ from ... import __version__, kinds
 from ...availability import Guards
 from ...ir import ComplicationSlot, Expression, Face, aod_color_choice, config_data_ids, \
     element_const_prefix, element_method_name
-from ...layout import PlacedPattern, PlacedText, ResolvedFace
+from ...layout import PlacedText, ResolvedFace
 from ...palette import Color
 
 
@@ -147,22 +147,6 @@ def _editor_slot_pairs(face: Face) -> list:
 #: is the only cross-class reader (`_view.configLayout()`), and `private`
 #: genuinely blocks a cross-class call (docs/lore/monkeyc.md).
 CONFIG_LAYOUT_METHOD = "configLayout"
-
-
-def _pattern_needs_math(placed: "PlacedPattern") -> bool:
-    """Does this pattern's device loop compute a `sin`/`cos` pair at all?
-
-    Only a **radial** pattern turns, and even one skips it when every part
-    is an `arc`: an arc's start angle turns by plain degree subtraction
-    (`WfbArc.drawSpan`'s `startDegrees`), not by rotating a coordinate.
-    Every other part -- a text part's anchor included (`WfbGeom.rotatedX`/
-    `rotatedY`) -- takes `sin`/`cos`.  Shared by the view's import gate and
-    :func:`_emit_pattern` so the two cannot disagree about whether the loop
-    declares `angle`/`sin`/`cos`.
-    """
-    if placed.element.pattern != "radial":
-        return False
-    return any(part.shape != "arc" for part in placed.parts)
 
 
 def _glyph_y_expr(y_expr: str, vertical_align: str, font_expr: str) -> str:

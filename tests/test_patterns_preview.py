@@ -1,7 +1,7 @@
 """The host-side preview renderer, `type: pattern` (plan 05, phase 2b).
 
 Each test exercises a contrast a broken `PlacedPattern.transform` (or a
-broken draw-order/part-shape branch in `wfb.preview._pattern`) could fail --
+broken draw-order/part-shape branch in `wfb.kinds.pattern.draw_preview`) could fail --
 not just "the preview doesn't crash" (`docs/lore/working-agreement.md` on the
 `00:00`/`11:11` trap). Every design here is a minimal, self-contained face
 built with `write_design` -- a solid black background plus one or two

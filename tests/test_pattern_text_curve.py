@@ -7,9 +7,9 @@ Slice 1 (`tests/test_vector_fonts.py`, `tests/test_vector_text_*.py`)
 covers a standalone `text` element's own `curve:`; this file covers what is
 *different* about a pattern's own text part: the authored angle is in the
 template's own local (copy-0) frame, and a radial pattern composes it with
-each copy's own rotation at codegen/preview time (`wfb.emit.monkeyc.
-rotated._emit_pattern_text_angle_expr`, `wfb.layout._pattern_part_ink`,
-`wfb.preview._Renderer._pattern_text`) -- never in `wfb.layout.Resolver.
+each copy's own rotation at codegen/preview time (`wfb.kinds.
+pattern._emit_pattern_text_angle_expr`, `wfb.kinds.pattern._pattern_part_ink`,
+`wfb.kinds.pattern._pattern_text`) -- never in `wfb.layout.Resolver.
 _resolve_hand_part`, which stores the part's own *local* angle only (see
 its own docstring). Every check here was driven red first (`tests/
 CLAUDE.md`): run against a design that should fail with the corresponding
@@ -31,9 +31,9 @@ from wfb.build import load
 from wfb import build, lint
 from wfb.diagnostics import Bag
 from wfb.emit.monkeyc import emit_layout, emit_view
-from wfb.emit.monkeyc.rotated import _emit_pattern_text_angle_expr
 from wfb.emit.resources import bake_fonts
-from wfb.layout import PlacedPattern, _pattern_part_ink, inside_screen, resolve
+from wfb.kinds.pattern import _emit_pattern_text_angle_expr, _pattern_part_ink
+from wfb.layout import PlacedPattern, inside_screen, resolve
 from wfb.preview import PreviewOptions, render
 
 
@@ -329,7 +329,7 @@ def test_pattern_radial_band_flips_inward_outward_with_facing(write_design, bag,
 
 def test_linear_pattern_curve_has_no_copy_angle_to_compose_with(write_design, bag, db):
     """`element.start_angle`/`.step_angle` are always `0.0` on a linear
-    pattern (`wfb.layout.Resolver._resolve_pattern`), so the composition
+    pattern (`wfb.kinds.pattern.resolve`), so the composition
     formula reduces to the part's own local angle unchanged -- checked at
     the `PatternElement` level, since that is what codegen/preview actually
     read for the per-copy composition."""

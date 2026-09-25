@@ -4,7 +4,7 @@ structure one level down: both spellings (D7), the width cap (D6),
 `outline.color`'s full parity with `color:` including `copy` (D8, plan 15
 §3 -- the one thing a pattern part's `outline.color` can do that a
 standalone element's cannot), and the absence rule -- deferred here to
-`Builder._check_pattern_absence` rather than an immediate per-key check,
+`wfb.kinds.pattern._check_pattern_absence` rather than an immediate per-key check,
 since a pattern polices absence once for the whole element (`tests/
 test_pattern_text.py`'s own `when_absent` tests are the precedent).
 

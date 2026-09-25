@@ -2195,7 +2195,7 @@ def check_pattern_step(resolved: ResolvedFace, bag: Bag) -> None:
     """A linear pattern's `step:` that rounds to `{0, 0}` px on this
     device -- every copy lands on top of copy 0, the same "draws nothing
     distinguishable" failure a radial `step: 0deg` is a
-    build-time error for (`Builder._build_pattern_element`).  This one can
+    build-time error for (`wfb.kinds.pattern.build`).  This one can
     only be caught per device: `step: {dx: 1%}` is a real, nonzero gap on a
     280x280 screen and rounds away to nothing on a screen too small (or an
     axis too short) for 1% of it to reach a whole pixel.

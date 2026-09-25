@@ -1,16 +1,15 @@
-"""`wfb.layout.PatternTextAngle` (plan 19 A1): the one definition of a
+"""`wfb.kinds.pattern.PatternTextAngle` (plan 19 A1): the one definition of a
 `shape: text` pattern part's per-copy curved-text angle, shared by the lint
-ink (`wfb.layout._pattern_text_ink`), the preview
-(`wfb.preview._pattern_text`) and codegen
-(`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`) instead of each
-recomputing `(local - (start + index * step)) % 360.0` on its own.
+ink (`_pattern_text_ink`), the preview (`_pattern_text`) and codegen
+(`_emit_pattern_text_angle_expr`) instead of each recomputing
+`(local - (start + index * step)) % 360.0` on its own.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from wfb.layout import PatternTextAngle
+from wfb.kinds.pattern import PatternTextAngle
 
 
 def test_linear_pattern_keeps_the_local_angle_on_every_copy():

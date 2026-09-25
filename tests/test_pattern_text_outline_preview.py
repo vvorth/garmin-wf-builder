@@ -14,7 +14,8 @@ and leave the other three copies bare.
 from __future__ import annotations
 
 from wfb import build
-from wfb.layout import PlacedPattern, pattern_text_anchor, resolve
+from wfb.kinds.pattern import pattern_text_anchor
+from wfb.layout import PlacedPattern, resolve
 from wfb.preview import PreviewOptions, render
 
 FG = (255, 255, 255)

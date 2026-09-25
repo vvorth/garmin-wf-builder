@@ -297,12 +297,12 @@ These cost real time to discover; do not rediscover them.
   *local* angle (`HandPart.curve.angle`, run through `wfb.layout.
   garmin_curve_angle`), for copy 0 alone -- never combined with a radial
   pattern's own rotation in `wfb.layout`. That combination is one
-  definition, `wfb.layout.PatternTextAngle` (plan 19 A1): `local`/`start`/
+  definition, `wfb.kinds.pattern.PatternTextAngle` (plan 19 A1): `local`/`start`/
   `step` are the part's local angle and the pattern's own repeat angle, and
   `copy_curve_angle(index)` is `(local - (start + index * step)) % 360.0`,
-  the host evaluator the lint ink box (`wfb.layout._pattern_text_ink`) and
-  the preview (`wfb.preview._pattern_text`) both call. Codegen
-  (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`) reads the same
+  the host evaluator the lint ink box (`wfb.kinds.pattern._pattern_text_ink`) and
+  the preview (`wfb.kinds.pattern._pattern_text`) both call. Codegen
+  (`wfb.kinds.pattern._emit_pattern_text_angle_expr`) reads the same
   `local`/`start`/`step` off that object but builds Monkey C from them
   instead of calling the evaluator: `g0 = part.curve_angle_garmin -
   element.start_angle`, then `g0 - i * step_deg` per copy, the *exact*
@@ -325,17 +325,17 @@ These cost real time to discover; do not rediscover them.
   the local angle, never re-derived per copy -- so `g0 - i * step_deg`
   composes correctly with no special-casing for which style the part uses.
   A linear pattern's `element.start_angle`/`.step_angle` are always `0.0`
-  (`Resolver._resolve_pattern`), so `g0` reduces to the part's own local
+  (`wfb.kinds.pattern.resolve`), so `g0` reduces to the part's own local
   angle unchanged and no `i *` term is emitted at all -- the "no copy angle
   to compose with" case falls out of the shared formula for free, not a
-  separate branch. `wfb.preview._pattern_text` calls the same
+  separate branch. `wfb.kinds.pattern._pattern_text` calls the same
   `PatternTextAngle.copy_curve_angle`, reading `PlacedPattern.start`/`.step`
   (already `element.start_angle`/`.step_angle` in degrees) instead of
   re-deriving them.
 
   **Why gate 4's guard cannot stay "load once, early-return before the
   loop."** That is exactly what a *baked* custom font on a pattern text
-  part still does (`_emit_pattern`'s own `text_fonts` pre-loop loading,
+  part still does (`wfb.kinds.pattern.emit_draw`'s own `text_fonts` pre-loop loading,
   unchanged) -- reasonable there, because a baked resource failing to load
   is a structural failure, essentially never observed. A vector font's
   null is the *ordinary* case under `if_unavailable: hide`, or even under
@@ -343,8 +343,8 @@ These cost real time to discover; do not rediscover them.
   `return;` before the loop would silently cancel every *other* part of
   the *same* pattern too -- unrelated shapes, unrelated fonts, all sharing
   this one generated draw method. So a vector font's local is still loaded
-  once before the loop (`_emit_pattern`'s new `vector_text_fonts` split),
-  but never early-return-guarded; instead `wfb.emit.monkeyc.rotated.
+  once before the loop (`wfb.kinds.pattern.emit_draw`'s new `vector_text_fonts` split),
+  but never early-return-guarded; instead `wfb.kinds.pattern.
   _emit_pattern_text_draw` wraps only its own draw call in `if (<local> !=
   null)`, every copy, the same shape `wfb.emit.monkeyc.shapes._emit_
   vector_text_draw` already uses for a standalone element -- and this
@@ -409,10 +409,10 @@ These cost real time to discover; do not rediscover them.
   grows two exploded fields, `outline_width`/`outline_color`, carried
   through from `HandPart.outline` unchanged (the same "explode, don't
   nest" shape `curve_style`/`curve_angle_garmin`/... already use for
-  `HandPart.curve`) -- `wfb.layout._pattern_text_ink` reads
+  `HandPart.curve`) -- `wfb.kinds.pattern._pattern_text_ink` reads
   `outline_width` as the same `pad` a standalone element's own
   `outline:` passes to `wfb.layout.text_ink` (D9), and
-  `wfb.emit.monkeyc.rotated._emit_pattern_text_draw` reads both fields
+  `wfb.kinds.pattern._emit_pattern_text_draw` reads both fields
   directly, the same way it already reads `part.color`.
 
   **Screen-space offsets survive both transforms a pattern text part can

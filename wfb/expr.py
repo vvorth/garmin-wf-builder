@@ -420,7 +420,7 @@ class Scope:
 
 #: The index of the copy being drawn, 0-based -- bound only while a `type:
 #: pattern`'s colours, its parts' `visible:` and a text part's `value:` are
-#: compiled (`Builder._build_pattern_element`), to the generated loop's own
+#: compiled (`wfb.kinds.pattern.build`), to the generated loop's own
 #: `i`. Every other expression sees it unbound -- including the *element's
 #: own* `visible:`, compiled before the pattern builder binds `copy` -- and
 #: `check` gives that its own error rather than "unknown data source".

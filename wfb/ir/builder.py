@@ -12,7 +12,6 @@ Nothing here knows a screen size -- per-device work happens in
 
 from __future__ import annotations
 
-import math
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -29,9 +28,9 @@ from .model import (
     AodOverride, ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot,
     ConfigStyle, Curve, Element, Expression, Face, FontSpec, Group,
     HOLD_AUTO, Hand, HandPart, HandSet, LayoutDecl, MAX_OUTLINE_WIDTH,
-    Outline, PATTERN_LOOP_INDEX, ROLE_COLOR, ROLE_PART_VISIBLE, ROLE_VALUE, ROLE_VISIBLE,
+    Outline, ROLE_VALUE, ROLE_VISIBLE,
     PatternElement, Position, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
-    _drawn_copies, authored_draw_order, walk_elements,
+    authored_draw_order, walk_elements,
 )
 from .naming import (
     _pascal, config_field, element_const_prefix, element_method_name, local_name,
@@ -1244,8 +1243,8 @@ class Builder:
         reading it named turned out absent.
 
         Hand-only: a pattern colour may read any source; the pattern-wide
-        absence policy is `_check_pattern_absence`, one error for the whole
-        element.  Returns whether the colour was rejected.
+        absence policy is `wfb.kinds.pattern._check_pattern_absence`, one
+        error for the whole element.  Returns whether the colour was rejected.
         """
         if not color.sources:
             return False
@@ -1473,7 +1472,8 @@ class Builder:
             self._check_if_unavailable(node, part_where, font_is_vector)
 
         # A failed `outline:` aborts the part; `outline: none` (or no key)
-        # is not a failure.  Absence is deferred to `_check_pattern_absence`
+        # is not a failure.  Absence is deferred to
+        # `wfb.kinds.pattern._check_pattern_absence`
         # (`_build_outline`'s own docstring).
         outline: Outline | None = None
         if "outline" in node:
@@ -1897,7 +1897,8 @@ class Builder:
 
         Reused verbatim for a `type: pattern` part's own `visible:`, with
         `copy` bound in scope -- but there "absent is hidden" means the whole
-        *pattern* is hidden, not just this part: `_check_pattern_absence`
+        *pattern* is hidden, not just this part:
+        `wfb.kinds.pattern._check_pattern_absence`
         governs that, not this method, because the reading is taken once per
         frame, before the loop, so its absence is not a per-copy fact.
         """
@@ -2392,300 +2393,6 @@ class Builder:
             ok = False
         return ok
 
-    def _build_pattern_element(self, node: dict, common: dict) -> Element | None:
-        """`type: pattern` -- one template, drawn `count:` times, turned
-        about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
-        (`pattern: linear`).
-
-        Every check is a build-time error, and each returns `None` on its
-        own violation rather than falling through to the next, so a design
-        with exactly one mistake gets exactly one error ("one error, not
-        N", `docs/lore/codegen.md`).
-        """
-        element_id = common["id"]
-        count = node["count"]
-
-        if "low_power" in common["modes"]:
-            self.bag.error(
-                "pattern",
-                f"{element_id}: 'modes:' may not include 'low_power' on a pattern",
-                self.doc.span(node, "modes") or common["span"],
-                notes=["a fixed pattern gains nothing from onPartialUpdate -- its "
-                       "geometry never changes -- and its clip would be its whole "
-                       "extent"],
-            )
-            return None
-
-        steps = self._pattern_steps(node, common, count)
-        if steps is None:
-            return None
-        step_degrees, start_degrees, step_position = steps
-
-        skip = tuple(sorted({int(i) for i in (node.get("skip") or [])}))
-        out_of_range = [i for i in skip if i >= count]
-        if out_of_range:
-            self.bag.error(
-                "pattern",
-                f"{element_id}.skip: index" + ("es" if len(out_of_range) > 1 else "")
-                + f" {', '.join(str(i) for i in out_of_range)} out of range for "
-                f"'count: {count}' (0..{count - 1})",
-                self.doc.span(node, "skip"),
-            )
-            return None
-        skip_every = node.get("skip_every")
-        if skip_every is not None and skip_every > count:
-            self.bag.error(
-                "pattern",
-                f"{element_id}.skip_every: {skip_every} is greater than "
-                f"'count: {count}', so it skips nothing",
-                self.doc.span(node, "skip_every"),
-            )
-            return None
-        if not _drawn_copies(count, skip, skip_every):
-            self.bag.error(
-                "pattern",
-                f"{element_id}: 'skip:'/'skip_every:' leave every copy undrawn",
-                self.doc.span(node, "skip_every") or self.doc.span(node, "skip")
-                or common["span"],
-                notes=["remove the element, or skip fewer copies"],
-            )
-            return None
-
-        parts: list[HandPart] = []
-        # `copy` -- the index of the copy being drawn -- exists only here,
-        # compiled to the generated loop's own index (`_emit_pattern`).
-        self.scope.define(expr.COPY, expr.Binding(
-            expr.Value(Type.NUMBER), code=PATTERN_LOOP_INDEX, kind="copy"))
-        try:
-            # Any source is allowed here, absent-able or not:
-            # `_check_pattern_absence` polices absence for the whole element.
-            element_color, color_failed = self._owned_color(node, element_id, hand=False)
-            ok = not color_failed
-            for index, raw_part in enumerate(node.get("parts") or []):
-                part = self._build_hand_part(
-                    raw_part, element_id, index, element_color, color_failed,
-                    context="pattern",
-                )
-                if part is None:
-                    ok = False
-                    continue
-                parts.append(part)
-        finally:
-            del self.scope.bindings[expr.COPY]
-
-        if not ok or not self._render_pattern_texts(element_id, parts, count):
-            return None
-
-        colors: list[Expression] = []
-        _dedup_append(colors, element_color)
-        for part in parts:
-            _dedup_append(colors, part.color)
-            if part.outline is not None:
-                _dedup_append(colors, part.outline.color)
-
-        element = PatternElement(
-            **common,
-            pattern=node["pattern"],
-            count=count,
-            step_angle=step_degrees,
-            start_angle=start_degrees,
-            step=step_position,
-            skip=skip,
-            skip_every=skip_every,
-            parts=parts,
-            color=element_color,
-            colors=tuple(colors),
-            when_absent=node.get("when_absent"),
-        )
-        self._check_pattern_absence(node, element)
-        return element
-
-    def _pattern_steps(
-        self, node: dict, common: dict, count: int,
-    ) -> tuple[float, float, Position | None] | None:
-        """A pattern's `step:`/`start:` as `(step_degrees, start_degrees,
-        step_position)`, or `None` once an error is reported.  Radial: an
-        angle step (default 360deg / count) that must neither be zero nor
-        wrap a full turn, plus an optional start angle.  Linear: a required
-        `{dx, dy}` step and no `start:`; both angles are 0.
-        """
-        element_id = common["id"]
-        step_raw = node.get("step")
-        if node["pattern"] != "radial":
-            if "start" in node:
-                self.bag.error(
-                    "pattern",
-                    f"{element_id}.start: not accepted on 'pattern: linear' -- "
-                    "only a radial pattern has a start copy angle",
-                    self.doc.span(node, "start"),
-                    notes=["'step: {dx, dy}' already places copy 0 relative to 'at:'"],
-                )
-                return None
-            if step_raw is None:
-                self.bag.error(
-                    "pattern",
-                    f"{element_id}.step: a linear pattern needs a "
-                    "'step: {dx, dy}' between copies",
-                    self.doc.span(node) or common["span"],
-                    notes=["radial's angle default (360deg / count) has no linear "
-                           "equivalent -- there is no natural spacing to assume"],
-                )
-                return None
-            if not isinstance(step_raw, dict):
-                self.bag.error(
-                    "pattern",
-                    f"{element_id}.step: 'pattern: linear' takes {{dx, dy}} for "
-                    "'step:', not an angle",
-                    self.doc.span(node, "step"),
-                    notes=["an angle 'step:' is for 'pattern: radial'"],
-                )
-                return None
-            return 0.0, 0.0, self._position(step_raw, node, "step")
-
-        if isinstance(step_raw, dict):
-            self.bag.error(
-                "pattern",
-                f"{element_id}.step: 'pattern: radial' takes an angle for "
-                "'step:' (default 360deg / count), not {dx, dy}",
-                self.doc.span(node, "step"),
-                notes=["'{dx, dy}' is for 'pattern: linear'"],
-            )
-            return None
-        if step_raw is None:
-            step_degrees = 360.0 / count
-        else:
-            step_angle = self._angle(node, "step")
-            if step_angle is None:
-                return None  # _angle already reported the real mistake
-            step_degrees = step_angle.degrees
-        start_angle = self._angle(node, "start") if "start" in node else None
-        if "start" in node and start_angle is None:
-            return None  # _angle already reported the real mistake
-        start_degrees = start_angle.degrees if start_angle is not None else 0.0
-
-        if step_degrees == 0.0:
-            self.bag.error(
-                "pattern",
-                f"{element_id}.step: 'step: 0deg' draws every copy on top "
-                "of copy 0",
-                self.doc.span(node, "step") or common["span"],
-                notes=["a radial pattern's whole point is turning between "
-                       "copies -- give it a nonzero step, or write one "
-                       "element if a single copy is all you want"],
-            )
-            return None
-        if count > 1:
-            span = abs(step_degrees) * (count - 1)
-            if span >= 360.0 - 1e-9:
-                wrap_index = min(count - 1, math.ceil(360.0 / abs(step_degrees)))
-                self.bag.error(
-                    "pattern",
-                    f"{element_id}: copies 0 and {wrap_index} land on the same "
-                    f"angle -- 'step:' x (count - 1) = {span:g}deg reaches a "
-                    "full turn",
-                    self.doc.span(node, "step") or common["span"],
-                    notes=[f"count: {count}, step: {step_degrees:g}deg -- "
-                           "reduce count or step so the copies do not wrap "
-                           "past 360deg"],
-                )
-                return None
-        return step_degrees, start_degrees, None
-
-    def _render_pattern_texts(self, element_id: str, parts: list[HandPart], count: int) -> bool:
-        """Fill each `shape: text` part's per-copy strings (`HandPart.texts`),
-        device-independently -- the same evaluation the host preview does
-        for an ordinary `text` element, which is what makes a text part's
-        font subset, measured extent and glyph lint exact.  Returns `False`
-        if any part's copy fails to evaluate (each reported)."""
-        ok = True
-        for part in parts:
-            if part.shape != "text":
-                continue
-            if part.text_literal is not None:
-                part.texts = (part.text_literal,) * count
-                continue
-            texts: list[str] = []
-            for i in range(count):
-                value = expr.evaluate(part.text_value.ast, {expr.COPY: i})
-                if value is None:
-                    self.bag.error(
-                        "pattern",
-                        f"{element_id}: a pattern text part's value could "
-                        f"not be evaluated for copy {i}",
-                        part.text_value.span,
-                        notes=["expected a copy-only expression to "
-                               "evaluate for every copy index"],
-                    )
-                    ok = False
-                    break
-                texts.append(formatting.render(
-                    part.format or "{}", value, part.text_value.value.type))
-            else:
-                part.texts = tuple(texts)
-        return ok
-
-    def _check_pattern_absence(self, node: dict, element: PatternElement) -> None:
-        """One element-level `when_absent:` check for a pattern, in place of
-        a per-colour refusal: a pattern colour may read a source that can be
-        absent, so the compiler needs a policy from the author instead of a
-        blanket rejection.
-
-        Collects every nullable colour (the element's own `color:`, and
-        each part's) and every nullable part `visible:` -- deliberately
-        **not** the element's own `visible:`, which keeps its ordinary
-        "absent means hidden, no policy" rule (`_visible`'s own docstring) --
-        and reports **one** error naming every nullable source found, not
-        one per expression, the same "one error, not N" discipline
-        `docs/lore/codegen.md` asks for everywhere else.  The wording is the
-        house `_check_other_absence` style, adapted: a pattern has no
-        `placeholder:`/`fallback:` to offer, only `hide`, and absence hides
-        the *whole* pattern (every copy, every part), not just the one
-        binding that went missing -- the reading is taken once per frame,
-        before the loop.
-
-        The mirror case -- `when_absent: hide` declared but nothing on the
-        pattern is ever absent -- reuses `_check_absence`'s own "has no
-        effect" wording, so both notes read the same across every element
-        kind that has one.
-
-        Reads `element.bound_expressions()` by role (plan 19 A2) rather
-        than `element.colors`/`element.parts` directly -- `ROLE_COLOR` is
-        every colour `.colors` already dedups, `ROLE_PART_VISIBLE` every
-        part's own `visible:` -- so this is the same collection as before,
-        just named by what each expression *is* instead of where it lives.
-        """
-        nullable: list[Expression] = []
-        for role, expression in element.bound_expressions():
-            if role in (ROLE_COLOR, ROLE_PART_VISIBLE) \
-                    and expression.nullable and expression not in nullable:
-                nullable.append(expression)
-
-        if nullable:
-            if element.when_absent is not None:
-                return
-            sources = tuple(sorted(self._nullable_sources(tuple(nullable))))
-            first = nullable[0]
-            self.bag.error(
-                "when-absent",
-                f"{element.id}: reads {_and_paths(sources)}, which can be "
-                "absent, so 'when_absent: hide' is required",
-                first.span,
-                notes=[
-                    _ABSENCE_IS_NORMAL,
-                    "a pattern has no placeholder or fallback -- absence hides "
-                    "the whole pattern, every copy and every part, because the "
-                    "reading is taken once per frame, before the loop",
-                    "add 'when_absent: hide' to the pattern",
-                ],
-            )
-            return
-        if element.when_absent is not None:
-            self.bag.note(
-                "when-absent",
-                f"{element.id}: 'when_absent' has no effect -- nothing this "
-                "pattern reads is ever absent",
-                self.doc.span(node, "when_absent"),
-            )
 
     def _build_outline(
         self, node: dict, key: str, label: str, *, element: Element | None = None,
@@ -2706,9 +2413,9 @@ class Builder:
         **Absence.** A `text` element (`element` given) gets its own
         `_check_other_absence` here.  A pattern part does not: a pattern
         polices absence once for the whole element over
-        `PatternElement.colors` (`_check_pattern_absence`), which the
-        caller folds `outline.color` into -- checking here too would
-        double-report the same source.
+        `PatternElement.colors` (`wfb.kinds.pattern._check_pattern_absence`),
+        which the caller folds `outline.color` into -- checking here too
+        would double-report the same source.
         """
         raw = node.get(key)
         if raw is None or raw == "none":
@@ -2797,8 +2504,8 @@ class Builder:
 
         On a pattern part the angle is authored in the template's own local
         frame; a radial pattern's per-copy rotation composes with it
-        downstream (`wfb.layout._pattern_part_ink`, `wfb.emit.monkeyc.
-        rotated._emit_pattern_text_angle_expr`), so twelve hour numerals
+        downstream (`wfb.kinds.pattern._pattern_part_ink`, `wfb.kinds.
+        pattern._emit_pattern_text_angle_expr`), so twelve hour numerals
         share one authored angle.
         """
         raw = node["curve"]

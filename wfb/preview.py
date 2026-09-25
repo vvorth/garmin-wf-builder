@@ -30,15 +30,15 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-from . import aod_mask, catalog, complications, expr, kinds
+from . import aod_mask, complications, expr, kinds
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
 from .fonts import cft as cft_fonts
 from .ir import aod_color_choice, disc_perimeter_offsets
 from .layout import (
-    PatternTextAngle, PlacedComplicationSlot, PlacedHands,
+    PlacedComplicationSlot, PlacedHands,
     PlacedPattern, ResolvedFace,
-    alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
+    alignment_shift, complication_slot_pair_geometry,
     radial_align_offset, radial_direction_sign,
 )
 from .palette import MIP64_LEVELS, Color, dim_fraction
@@ -553,121 +553,6 @@ class _Renderer:
                 self.draw.ellipse(box, fill=fill)
             else:
                 self.draw.ellipse(box, outline=fill, width=max(1, thickness * s))
-
-    def _pattern(self, placed: PlacedPattern) -> None:
-        """`type: pattern` -- one template, drawn once per copy through
-        :meth:`PlacedPattern.transform`: the very same `(ox, oy, sin, cos)`
-        the generated draw method computes on the device. Copies draw
-        ascending, parts in list order within a copy -- the generated
-        nested-loop order. A polygon/line/circle part reuses `_hand_part`;
-        an `arc` part turns its start angle with the copy instead
-        (`_pattern_arc`); a `text` part draws at the copy's own rounded
-        anchor (`_pattern_text`).
-
-        `when_absent: hide` is checked once for the whole element
-        (`_pattern_absent`), the device's own pre-loop null guard. Per copy,
-        each part's own `visible:` is evaluated with `copy` bound, the same
-        `values` its colour uses.
-        """
-        element = placed.element
-        if self._pattern_absent(element):
-            return
-        s = self.scale
-        for index in placed.copies:
-            ox, oy, sin_t, cos_t = placed.transform(index)
-            # `copy` is the generated loop's `i`: a colour reading it is
-            # evaluated afresh for every copy, exactly as the device does.
-            values = {**self.values, expr.COPY: index}
-            for part_index, part in enumerate(placed.parts):
-                if not self._visible(element.parts[part_index].visible, values):
-                    continue
-                if part.shape == "arc":
-                    self._pattern_arc(placed, part, ox, oy, index, values)
-                elif part.shape == "text":
-                    self._pattern_text(placed, part, ox, oy, sin_t, cos_t, index, values)
-                else:
-                    self._hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
-
-    def _pattern_absent(self, element) -> bool:
-        """Whether any nullable source this pattern's colours
-        (`element.colors`: the default plus every part's own) or any part's
-        own `visible:` reads is absent in the sample -- the host mirror of
-        the null guard the device emits before its copy loop
-        (`wfb.emit.monkeyc.rotated._emit_pattern`, fed by the same
-        expressions). The element's own `visible:` is a separate axis
-        (`render_element`).
-        """
-        sources: set[str] = set()
-        for expression in element.colors:
-            sources.update(expression.sources)
-        for part in element.parts:
-            if part.visible is not None:
-                sources.update(part.visible.sources)
-        return any(
-            catalog.CATALOG[path].guard_needed and self.values.get(path) is None
-            for path in sources
-        )
-
-    def _pattern_arc(self, placed: PlacedPattern, part, ox: float, oy: float, index: int,
-                     values: dict) -> None:
-        """An `arc` template part -- always centred on the copy's own origin
-        (`at:` is rejected on it), so only its *start angle* turns with the
-        copy, as `WfbArc.drawSpan` is called on the device: `part.start_angle
-        + start + index * step` (plain `part.start_angle` for a linear
-        pattern, whose `start`/`step` are `0`)."""
-        s = self.scale
-        fill = self._aod_color(placed.element, "color", part.color, values)
-        thickness = self._aod_geometry(placed, "thickness", part.thickness)
-        cx, cy = ox * s, oy * s
-        r = part.radius * s
-        author_start = part.start_angle + placed.start + index * placed.step
-        span = arc_span(author_start, part.sweep)
-        if r > 0 and span is not None:
-            self.draw.arc([cx - r, cy - r, cx + r, cy + r], *span,
-                          fill=fill, width=max(1, thickness * s))
-
-    def _pattern_text(self, placed: PlacedPattern, part, ox: float, oy: float,
-                      sin_t: float, cos_t: float, index: int, values: dict) -> None:
-        """A `shape: text` template part, drawn at this copy's own anchor,
-        rounded half-up the way `runtime-lib/WfbGeom.mc`'s `rotatedX`/
-        `rotatedY` round it (:func:`pattern_text_anchor`), through the same
-        `_draw_text`/`_draw_vector_text` a `text` element uses.
-
-        A baked/system font draws upright glyphs. A `face:` font's `curve:`
-        turns them, at the part's own local angle composed with this copy's
-        rotation (:class:`~wfb.layout.PatternTextAngle`), the composition
-        codegen (`_emit_pattern_text_angle_expr`) and the lint box
-        (`wfb.layout._pattern_text_ink`) also perform. `outline:` stamps the
-        already-transformed anchor, so the ring is a screen-space translation
-        at every copy.
-        """
-        text = part.texts[index]
-        color = self._aod_color(placed.element, "color", part.color, values)
-        anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
-        ring_color = (
-            self._color(part.outline_color, values) if part.outline_color is not None else None
-        )
-        if part.font_is_vector:
-            if not part.font_available:
-                return  # `if_unavailable: hide` on this device
-            angle = (
-                PatternTextAngle(part.curve_angle_garmin, placed.start, placed.step)
-                .copy_curve_angle(index) if part.curve_style is not None else 0.0
-            )
-
-            def draw(at, fill, box=None):
-                self._draw_vector_text(
-                    text, at, part.align, part.vertical_align, part.font_metric, fill,
-                    part.curve_style, angle, part.curve_radius_px, part.curve_direction)
-        else:
-            font: BakedFont | None = (
-                self.resolved.fonts.get(part.font_reference) if part.font_is_custom else None
-            )
-
-            def draw(at, fill, box=None):
-                self._draw_text(font, text, at, part.align, part.vertical_align,
-                                part.font_metric, fill)
-        self._draw_outlined(draw, anchor, color, ring_color, part.outline_width)
 
     def _draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color,
                        ring_color, ring_width: int, box=None) -> None:

@@ -475,7 +475,7 @@ def test_copy_does_not_leak_past_a_rejected_pattern(write_design, bag):
 def test_copy_in_the_element_level_visible_is_its_own_error(write_design, bag):
     """B4: `copy` is bound only while a pattern's colours/parts' `visible:`
     compile -- the element's own `visible:` is compiled earlier, in
-    `_build_element`, before `_build_pattern_element` (and its `copy`
+    `_build_element`, before `wfb.kinds.pattern.build` (and its `copy`
     binding) ever runs, so it gets the same "only defined in ..." error as
     anywhere else outside a pattern."""
     text = RADIAL_RING.replace(

@@ -30,7 +30,8 @@ import pytest
 from wfb.build import load
 from tests.test_patterns_preview import BACKGROUND, CX, CY, RED, WHITE, _near, _polar
 from wfb.emit.resources import bake_fonts
-from wfb.layout import pattern_text_anchor, resolve
+from wfb.kinds.pattern import pattern_text_anchor
+from wfb.layout import resolve
 from wfb.preview import PreviewOptions, render
 
 #: A generous-but-safe tolerance for "is there ink near this anchor":

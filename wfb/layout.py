@@ -21,7 +21,7 @@ from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
     ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
-    HandPart, IconElement, PatternElement, Position, Progress, Shape,
+    HandPart, IconElement, Position, Progress, Shape,
     Text, draw_sort_key,
 )
 from .units import Angle, Axis, Box, IntBox, Length
@@ -108,35 +108,6 @@ def garmin_curve_angle(style: str, angle: Angle) -> float:
     if style == "radial":
         return angle.to_garmin()
     return (-angle.degrees) % 360.0
-
-
-@dataclass(frozen=True)
-class PatternTextAngle:
-    """The terms of the per-copy Garmin-degrees angle a `shape: text`
-    pattern part's own `curve:` draws at (plan 11 slice 2, plan 19 A1):
-    `local` -- the part's own local, copy-0 angle (`part.curve_angle_garmin`);
-    `start`/`step` -- the pattern's own repeat angle, design degrees
-    clockwise from 12 (`0.0`/`0.0` for a linear pattern, which then leaves
-    every copy at the local angle unchanged).  One definition of the
-    composition, shared by the lint ink (`_pattern_text_ink`), the preview
-    (`wfb.preview._pattern_text`, via :meth:`copy_curve_angle`) and codegen
-    (`wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`, which reads
-    `local`/`start`/`step` off this same object but builds its own Monkey C
-    from them -- `start` folded into a build-time literal with `local`,
-    `step` multiplied by the runtime copy index -- rather than calling
-    :meth:`copy_curve_angle`, since one runs at build time and the other
-    on-device).
-    """
-
-    local: float
-    start: float
-    step: float
-
-    def copy_curve_angle(self, index: int) -> float:
-        """`(local - (start + index * step)) % 360.0` -- today's exact
-        expression order, kept so a lint box or a preview pixel never
-        moves."""
-        return (self.local - (self.start + index * self.step)) % 360.0
 
 
 def radial_direction_sign(direction: str | None) -> float:
@@ -441,8 +412,9 @@ def text_ink(
     """The ink of one measured `width`x`height` run anchored at `(x, y)` --
     the one derivation shared by a standalone `text` element
     (`wfb.kinds.text.resolve`'s box, `visible_reach`) and a pattern's
-    `shape: text` part (`_pattern_part_ink`, `Resolver._resolve_pattern`'s
-    reach), so box and reach always describe the same shape.
+    `shape: text` part (`wfb.kinds.pattern._pattern_part_ink`,
+    `wfb.kinds.pattern.resolve`'s reach), so box and reach always describe
+    the same shape.
 
     * upright -- the box moved by `alignment_shift`; the runtime anchor
       stays put (a glyph kind aligns by device-side justify).
@@ -684,8 +656,8 @@ class ResolvedHandPart:
     font_available: bool = True
     #: `curve_angle_garmin` is the part's *local* angle, for copy 0 only: a
     #: radial pattern's per-copy rotation depends on the runtime copy index,
-    #: so it is composed where that index is known (`_pattern_text_ink`,
-    #: `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr`).
+    #: so it is composed where that index is known (`wfb.kinds.pattern.
+    #: _pattern_text_ink`, `wfb.kinds.pattern._emit_pattern_text_angle_expr`).
     curve_style: str | None = None
     curve_angle_degrees: float = 0.0
     curve_angle_garmin: float = 0.0
@@ -758,89 +730,6 @@ class PlacedPattern(Placed):
             theta = math.radians(self.start + index * self.step)
             return float(self.center[0]), float(self.center[1]), math.sin(theta), math.cos(theta)
         return float(self.center[0] + index * self.dx), float(self.center[1] + index * self.dy), 0.0, 1.0
-
-
-def pattern_text_anchor(
-    part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float,
-) -> tuple[int, int]:
-    """The whole-pixel anchor point of one copy of a `shape: text` pattern
-    part: the template-frame point ``(part.x, part.y)``
-    put through this copy's :meth:`PlacedPattern.transform`, then rounded
-    **half up** (``floor(v + 0.5)``, not `round_half_away`'s half-*away-from-
-    zero* -- a hand-frame mirror-symmetry rule that does not apply here) --
-    the device does the same ``(v + 0.5).toNumber()`` (`runtime-lib/
-    WfbGeom.mc`), so the preview pixel and the device pixel agree.  A
-    module-level function, not a method, so codegen and the preview can
-    share it without importing a `Resolver`.
-    """
-    tx = ox + part.x * cos_t - part.y * sin_t
-    ty = oy + part.x * sin_t + part.y * cos_t
-    return math.floor(tx + 0.5), math.floor(ty + 0.5)
-
-
-def _pattern_text_ink(
-    part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
-    start: float, step: float, fonts_root: str | None = None,
-) -> Ink:
-    """:func:`text_ink` for copy `index` of a `shape: text` pattern part:
-    anchored at :func:`pattern_text_anchor`, measured by that copy's own
-    string (``part.widths[index]``), and -- under `curve:` -- turned by the
-    part's local angle composed with the copy's own rotation
-    (`start`/`step`, design degrees clockwise from 12; `0.0`/`0.0` for a
-    linear pattern) through :class:`PatternTextAngle`, the same composition
-    `wfb.emit.monkeyc.rotated._emit_pattern_text_angle_expr` emits.
-    `fonts_root`: see :func:`text_ink`.
-    """
-    ax, ay = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
-    angle_garmin = PatternTextAngle(part.curve_angle_garmin, start, step).copy_curve_angle(index)
-    return text_ink(
-        ax, ay, part.widths[index] if part.widths else 0, part.line_height,
-        part.align, part.vertical_align, curve_style=part.curve_style,
-        angle_garmin=angle_garmin,
-        radius_px=part.curve_radius_px, direction=part.curve_direction,
-        metric=part.font_metric, pad=float(part.outline_width), fonts_root=fonts_root)
-
-
-def _pattern_part_ink(
-    part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
-    start: float = 0.0, step: float = 0.0, fonts_root: str | None = None,
-) -> tuple[float, float, float, float]:
-    """``(min_x, min_y, max_x, max_y)`` of one resolved pattern part's ink
-    for one copy, given that copy's :meth:`PlacedPattern.transform`:
-    polygon vertices; a line's ends padded by half its pen width; a
-    circle's centre padded by its radius (plus half the pen width when
-    outlined); an arc's full circle -- always centred on the copy's own
-    origin -- padded by half its pen width, conservatively ignoring
-    `start_angle`/`sweep`; a text part's :func:`_pattern_text_ink` -- the
-    one shape that needs to know *which* copy it is, since upright text is
-    not rotation-invariant and each copy draws its own string.  `start`/
-    `step` are the pattern's own repeat angle (`PatternTextAngle`), needed
-    only by that text branch; every other shape ignores them.
-    """
-    def tf(x: float, y: float) -> tuple[float, float]:
-        return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
-
-    if part.shape == "polygon":
-        pts = [tf(x, y) for x, y in part.points]
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        return min(xs), min(ys), max(xs), max(ys)
-    if part.shape == "line":
-        x1, y1 = tf(part.x1, part.y1)
-        x2, y2 = tf(part.x2, part.y2)
-        pad = part.thickness / 2.0
-        return min(x1, x2) - pad, min(y1, y2) - pad, max(x1, x2) + pad, max(y1, y2) + pad
-    if part.shape == "circle":
-        px, py = tf(part.x, part.y)
-        pad = part.radius + (0.0 if part.filled else part.thickness / 2.0)
-        return px - pad, py - pad, px + pad, py + pad
-    if part.shape == "text":
-        return _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, start, step,
-                                 fonts_root).bounds()
-    # arc: always centred on the copy's own origin.
-    px, py = tf(0.0, 0.0)
-    pad = part.radius + part.thickness / 2.0
-    return px - pad, py - pad, px + pad, py + pad
 
 
 def is_antialiased_primitive(placed: "Placed") -> bool:
@@ -1377,8 +1266,9 @@ class Resolver:
 
         if part.shape == "text":
             # A pattern's template only.  Upright glyphs are not
-            # rotation-invariant, so reach is `0.0` here: `_resolve_pattern`
-            # measures each drawn copy's own ink instead.
+            # rotation-invariant, so reach is `0.0` here:
+            # `wfb.kinds.pattern.resolve` measures each drawn copy's own ink
+            # instead.
             x0, y0 = self._hand_point(part.at)
             font = self._text_font(part.font, part.font_is_custom, owner_id, part.curve)
             curve_style, curve_angle_degrees, curve_angle_garmin, curve_direction = \
@@ -1425,78 +1315,6 @@ class Resolver:
             x=round_half_away(cx), y=round_half_away(cy), radius=radius,
             thickness=thickness, filled=part.filled,
         ), reach
-
-    def _resolve_pattern(self, element: PatternElement, parent: Box, depth: int) -> Placed:
-        """`type: pattern` -- the template resolved once in its own frame
-        (`_resolve_parts`, as for a hand), plus which copies are drawn and
-        the repeat rule; the device performs the repeat transform itself
-        (ADR 0004, amended).
-
-        A radial pattern's `reach` is rotation-invariant for every shape but
-        text, so it comes from the per-part reach.  Upright glyphs are not
-        (a text part's own reach is `0.0`), so each *drawn* copy's real text
-        ink (`_pattern_text_ink`) is measured in the per-copy loop that also
-        unions `box` from every drawn copy's ink.
-        """
-        cx, cy = self._point(element.at, parent)
-        center = (round(cx), round(cy))
-
-        parts, reach = self._resolve_parts(
-            element.parts, element.id, min_1px=element.resolved_min_1px)
-
-        if element.pattern == "radial":
-            start, step = element.start_angle, element.step_angle
-            dx = dy = 0
-        else:
-            start = step = 0.0
-            reach = 0.0  # only a radial pattern reports a disc
-            step_position = element.step or Position()
-            dx = round_half_away(self._len(step_position.dx, parent, Axis.X, 0))
-            dy = round_half_away(self._len(step_position.dy, parent, Axis.Y, 0))
-
-        aod_thickness = self._aod_extent(element, "thickness", parent, 1)
-        placed = PlacedPattern(
-            element, IntBox(0, 0, 0, 0), center, depth,
-            parts=parts, copies=element.drawn_indices(),
-            start=start, step=step, dx=dx, dy=dy, reach=reach,
-            aod_thickness=aod_thickness,
-        )
-
-        min_x = min_y = math.inf
-        max_x = max_y = -math.inf
-        text_reach = 0.0
-        cx_f, cy_f = float(center[0]), float(center[1])
-        for index in placed.copies:
-            ox, oy, sin_t, cos_t = placed.transform(index)
-            for part in parts:
-                if part.shape == "text":
-                    # `start`/`step` are this pattern's own repeat angle
-                    # (`0.0`/`0.0` for a linear pattern) -- only a curved
-                    # text part composes with it (`PatternTextAngle`).
-                    ink = _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, start, step,
-                                            self.device.fonts_root)
-                    lo_x, lo_y, hi_x, hi_y = ink.bounds()
-                    if element.pattern == "radial":
-                        # The real ink's farthest point, not its AABB's
-                        # corners -- those overreach, and used to make a
-                        # full ring of curved numerals trip `safe-area`.
-                        text_reach = max(text_reach, ink.reach(cx_f, cy_f))
-                else:
-                    lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(part, ox, oy, sin_t, cos_t, index)
-                min_x, min_y = min(min_x, lo_x), min(min_y, lo_y)
-                max_x, max_y = max(max_x, hi_x), max(max_y, hi_y)
-        if min_x > max_x:
-            # Unreachable once the schema and `wfb.ir` have run (`parts:`
-            # needs at least one entry, and every copy skipped is a build
-            # error) -- kept so a malformed element resolves to something
-            # rather than crash.
-            box = Box(cx, cy, 0, 0)
-        else:
-            box = Box(min_x, min_y, max_x - min_x, max_y - min_y)
-        placed.box = box.rounded()
-        if text_reach > placed.reach:
-            placed.reach = text_reach
-        return placed
 
     # A hand/pattern part's own frame is `_point`/`_extent` over
     # `_HAND_FRAME_BOX`: every anchor of a zero box is the origin, and the
@@ -1741,5 +1559,5 @@ __all__ = [
     "garmin_curve_angle", "alignment_shift", "round_half_away",
     "is_full_bleed", "arc_bbox", "annulus_sector_reach", "rotated_rect_corners",
     "radial_text_band", "radial_text_angle_span",
-    "PatternTextAngle", "radial_direction_sign", "radial_align_offset",
+    "radial_direction_sign", "radial_align_offset",
 ]

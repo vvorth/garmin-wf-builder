@@ -18,7 +18,8 @@ from tests.helpers import errors, find
 from wfb.build import load
 from wfb import lint
 from wfb.emit.resources import bake_fonts, glyph_set
-from wfb.layout import ResolvedHandPart, pattern_text_anchor, resolve
+from wfb.kinds.pattern import pattern_text_anchor
+from wfb.layout import ResolvedHandPart, resolve
 
 BASE = """
 format: 1
@@ -253,7 +254,7 @@ def test_radial_text_anchor_turns_with_the_copy(resolved_for):
 def test_radial_text_box_is_the_union_of_every_drawn_copy(resolved_for):
     """`placed.box` contains every drawn copy's own text box -- computed
     here from `pattern_text_anchor` and `part.widths` independently of
-    `wfb.layout._pattern_part_ink`, so a broken box union (or a broken
+    `wfb.kinds.pattern._pattern_part_ink`, so a broken box union (or a broken
     per-copy width lookup) fails this even if the private helper itself is
     never touched."""
     resolved = resolved_for(design(LAYOUT_RING))

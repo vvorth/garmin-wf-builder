@@ -312,7 +312,7 @@ def test_pattern_color_roles_parts_and_aod(write_design, bag):
         ("dial", "ink", True, True),
     ]
     # the *set* of colours drawn (ink + ring, awake only) is exactly
-    # `PatternElement.colors` -- `_build_pattern_element`'s own dedup.
+    # `PatternElement.colors` -- `wfb.kinds.pattern.build`'s own dedup.
     drawn = [r.expression for r in roles if not r.aod]
     assert len(drawn) == len(dial.colors)
     assert all(any(e is c for e in drawn) for c in dial.colors)
