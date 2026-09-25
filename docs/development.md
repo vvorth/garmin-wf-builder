@@ -137,7 +137,9 @@ wfb/                  the compiler
   validate.py           JSON Schema, reported against the author's lines
   catalog.py            the typed data-source catalogue
   expr.py               the expression language -> Monkey C
-  ir.py                 the IR, and the semantic pass
+  ir/                   the IR (model.py, naming.py) and the semantic pass (builder.py)
+  kinds/                one module per element kind: its own build, resolve, preview,
+                        emit and layout-constant code, behind the ElementKind registry
   layout.py             relative units -> absolute pixels, per device
   lint.py               ADR 0008's checks, each with a stated confidence
   fonts/                TrueType -> BMFont sheet, subsetted to the used glyphs
@@ -163,6 +165,31 @@ tests/fixtures/slice/ the Phase 2 slice: the golden files' source design
 tools/                setup, font fetchers, docs-shots.py, snapshot.py (output snapshots)
 docs/                 README.md (hub), guide/ (format reference), limitations, ADRs, research
 ```
+
+## Element kinds
+
+Each element kind (`group`, `shape`, `text`, `progress`, `icon`, `graph`,
+`complication_slot`, `hands`, `pattern`) is one module in `wfb/kinds/`,
+holding one `ElementKind` (plan 19 A4). A stage never switches on kind: it
+asks the registry (`kinds.for_element`, `kinds.for_placed`) and calls a
+hook. **Adding a tenth kind** is an IR class (`wfb/ir/model.py`), a `Placed`
+class (`wfb/layout.py`), one kind module and its schema entry;
+`tests/test_kinds.py` fails until all four agree.
+
+Where code goes:
+
+- A function lives in `wfb/kinds/<kind>.py` if and only if only that kind
+  uses it. A helper two kinds share (`Builder._build_hand_part`, preview's
+  text blitting, `layout._longer`) stays in its stage module.
+- A site goes through the registry if adding a kind would force an edit
+  there (a ladder over kinds, a per-kind table, a list of kind names); it
+  becomes a hook whose default is the ladder's fall-through. A site about
+  one kind's own feature (collecting every `complication_slot`, a
+  `graph`'s series barrel) stays as it is.
+- Kind modules import stage modules and may call their underscored
+  helpers; stage modules import the `wfb.kinds` package only, never a kind
+  submodule, and read the registry only at call time. The registry loads
+  lazily, so this cannot form an import cycle.
 
 ## Tests
 

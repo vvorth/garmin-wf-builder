@@ -1,10 +1,11 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A3 done (2026-09-24). A4–A7 and the small items in §3 are open
-and await a user decision.** These change the project's shape (root
-`CLAUDE.md` §7: stop and ask), so **do not start an unapproved step**, and
-record each decision in §5. Delete this file once every step is built or
-dropped. The full plan as written, including the A0–A3 sections, is at
+**Status: A0–A4 done (A4 2026-09-25). A5 is approved (union) and next. A6,
+A7, the P6 comment rule and the small items in §3 await a user decision.**
+These change the project's shape (root `CLAUDE.md` §7: stop and ask), so
+**do not start an unapproved step**, and record each decision in §5. Delete
+this file once every step is built or dropped. The full plan as written,
+including the A0–A3 sections, is at
 `git show c0b0601:docs/plans/19-architecture-refactor.md`.
 
 ## 1. Done
@@ -16,13 +17,16 @@ installed device, eight preview variants, every CLI command).
 | Step | Commits | As built |
 |---|---|---|
 | A0 snapshot harness | `927e4f9` | `tools/snapshot.py save`/`diff`/`compare` (`docs/development.md`, "Tests"). |
-| A1 host/device parity | `d7d8edd`, `56ad550` | `layout.PatternTextAngle`, `layout.radial_direction_sign`/`radial_align_offset`, `ir.aod_color_choice`, `layout.HAND_ANGLES` (pinned to `WfbHands.mc` by a test). The slow `tests/test_expr_parity.py` checks operators against `monkeyc`'s constant folder and compile-checks every function. It cannot *run* Monkey C, so runtime-only behaviour (`Math.round`, the `WfbMath` bodies) stays hand-ported. Output identical. |
+| A1 host/device parity | `d7d8edd`, `56ad550` | `wfb.kinds.pattern.PatternTextAngle`, `layout.radial_direction_sign`/`radial_align_offset`, `ir.aod_color_choice`, `wfb.kinds.hands.HAND_ANGLES` (pinned to `WfbHands.mc` by a test; both moved to their kind modules by A4). The slow `tests/test_expr_parity.py` checks operators against `monkeyc`'s constant folder and compile-checks every function. It cannot *run* Monkey C, so runtime-only behaviour (`Math.round`, the `WfbMath` bodies) stays hand-ported. Output identical. |
 | A2 roles | `9fdd7c1` | `Element.bound_expressions()` (role-tagged, in the old order) with a per-kind `VALUE_ROLES`, and `Element.color_roles()` (`ColorRole`). The five absence checks stay separate (different rules) but read the roles. Output identical. |
 | A3 usage from emitted code | `c0b0601` | `wfb/emit/usage.py` scans the generated sources: `barrel_modules` for the copied runtime-lib files, `toybox_modules` for the view's imports. It replaces `_barrel_for`, `Code.helper` and `_view_imports`. 29 views gained one redundant-but-correct import each. Fonts are out of reach: baking precedes layout, and font loads are inputs to emission. |
+| A4 kind registry | `60a8769` (design), `901f90d` (scaffolding), then one commit per kind: `3631f3f` progress, `2126318` icon, `8f76928` graph, `f3c5807` shape, `e44a5dd` text, `929df0e` hands, `d633b68` pattern, `508f044` complication_slot, `45b9e2f` group | `wfb/kinds/`: one `ElementKind` per kind, whose hooks replace every per-kind ladder and table in the stages (the hook table is `ElementKind`'s own fields). Each kind module holds the builder, resolver, preview, emitter and layout-constant code only that kind uses; shared helpers stay in their stage. `group` owns only `build`: its resolution stays `Resolver._resolve_list`'s structural recursion, and preview and emit filter it out before dispatch. Stage modules import the package, never a kind submodule, and read the registry only at call time. `tests/test_kinds.py` pins the registry to the schema's discriminators. Output identical at every commit. |
 
 ## 2. Open problems, with evidence
 
 ### P1. Adding an element kind doesn't scale
+
+**Addressed by A4 (built, §1).** The evidence as measured:
 
 About **120 kind/shape switch sites** (`isinstance(…, Placed*)`,
 `kind ==`, `shape ==`), measured after the review:
@@ -98,70 +102,12 @@ belongs in git. The review cut about 2k.
 
 ## 3. Proposed steps
 
-### A4. One spec object per element kind (addresses P1; approved 2026-09-24)
+### A4. One spec object per element kind (addresses P1)
 
-**Design.** A registry package, `wfb/kinds/`:
-
-- `wfb/kinds/__init__.py` defines a frozen `ElementKind` dataclass and the
-  registry: `get(name)`, `for_element(element)`, `for_placed(placed)`,
-  `all()` and `names()`. The registry is **loaded lazily**: the first
-  lookup imports the nine kind modules, in schema order (`group`, `shape`,
-  `text`, `progress`, `icon`, `graph`, `complication_slot`, `hands`,
-  `pattern`). `__init__` imports no stage module. Stage modules import the
-  package, never a kind submodule, and **never read the registry at
-  import time**. A module-level table built from it would re-enter a
-  half-imported stage module.
-- `wfb/kinds/<kind>.py` holds one `ElementKind` and that kind's own code
-  from every stage, as module-level functions whose first argument is the
-  stage object (`b: Builder`, `r: Resolver`, `r: Renderer`). A function
-  moves there **iff only that kind uses it**. Helpers shared between kinds
-  (for example `Builder._build_hand_part`, which is shared by `hands:` sets
-  and patterns, or preview's text blitting, which is shared by text, slots
-  and pattern text) stay in their stage module. Kind modules are friends
-  of every stage and may call its underscored helpers.
-- The IR classes (`wfb/ir/model.py`) and `Placed*` classes
-  (`wfb/layout.py`) stay where they are: they are the data model, and the
-  spec references them. A 10th kind is therefore an IR class, a `Placed`
-  class, one kind module and the schema.
-
-**Rule for a switch site.** A site goes through the registry if adding a
-10th kind would force an edit there: a ladder over kinds, a per-kind table
-or a list of kind names. Each such site becomes one hook on
-`ElementKind`. The hook's default returns the ladder's fallthrough value,
-and each kind module implements its own arm verbatim. A site that asks
-about one kind's own feature stays as it is: collecting every
-`complication_slot`, a `graph`'s series barrel, `check_pattern_step`, or
-`p.kind != "group"` ("a group draws nothing").
-
-**Hooks** (the known sites; the migration may add more under the same
-rule):
-
-| Hook | Replaces |
-|---|---|
-| `name`, `ir_class`, `placed_class` | `validate.ELEMENT_TYPES` (now read from the schema's discriminator `const`s, in schema order) and every `isinstance` ladder's class list |
-| `build(b, node, common)` | `Builder._build_element`'s `builders` dict |
-| `extra_symbols` | `Builder._KIND_SYMBOLS` |
-| `static_forbidden: (phrase, note) \| None` | `Builder._STATIC_FORBIDDEN_KINDS` |
-| `aod_refusal(key, shape, literal_text)` | `Builder._AOD_FONT_UNSUPPORTED`, the shape/text arms of `_aod_refusal`, `_aod_kind` |
-| `precheck(doc, bag, node) -> bool` | `validate._check_progress_style`, `_check_hands_seconds_always` |
-| `resolve(r, element, parent, depth)` | `Resolver._BY_TYPE` (a group keeps its structural recursion) |
-| `antialiased: bool` | `layout.ANTIALIASED_PRIMITIVES` |
-| `circular_extent(placed)`, `ink(placed, fonts_root)` | the ladders in `layout.circular_extent` and `_shape_ink` |
-| `draw_preview(r, placed)` | `Renderer._BY_TYPE` |
-| `emit_draw(...)`, `describe(placed)` | `view._emit_element_method`'s ladder, `common._describe` |
-| `layout_constants(prefix, placed)` | `layout_constants._CONSTANTS_BY_KIND` |
-| `loaded_fonts(placed)`, `vector_fonts(placed)`, IR-level font/glyph hooks | `common._loaded_fonts`/`_vector_fonts_used`, `resources.glyph_set`/`icon_font_specs`, `availability.vector_fonts_used`, `lint._vector_text_carriers`/`check_glyphs` |
-| `contrast_subjects(placed)` | `lint._contrast_subjects`'s ladder |
-
-**Migration.** First a scaffolding commit: the package, nine thin kind
-modules whose hooks point at the existing stage functions (such as
-`build=Builder._build_progress`), and every site above switched to the
-registry. Then one commit per kind moves that kind's code into its module,
-starting with `progress`. Every commit must be output-identical under
-`tools/snapshot.py compare`, with the fast suite at its known state.
-`tests/test_kinds.py` pins the registry: its names equal the schema's
-discriminators in order, and every `Element` and `Placed` subclass has
-exactly one kind.
+Built; see §1. The approved design, with its hook table and migration
+plan, is at `git show 60a8769:docs/plans/19-architecture-refactor.md`. The
+rule it set for where code goes is in `docs/development.md` ("Element
+kinds").
 
 ### A5. Resolve once, and decide per-device (addresses P4)
 
@@ -225,8 +171,8 @@ gets most of the safety for a fraction of the cost.
 
 ## 4. Suggested order
 
-1. **A5** once its decision is made (it touches `generate`, which A4 moves).
-2. **A4**, one kind per commit.
+1. **A4** (built), one kind per commit.
+2. **A5**, approved (union).
 3. **A6** items and the small items as convenient; plan 18 §2 leftovers.
 4. **A7** only on an explicit decision.
 
@@ -236,7 +182,7 @@ gets most of the safety for a fraction of the cost.
 |---|---|---|---|
 | Approve A0–A3? | each separately | yes | approved 2026-09-24, built |
 | Parity approach | A1 (shared definitions + parity test) / A7 (draw program) | A1 | A1 |
-| Approve A4? | yes / no | yes | approved 2026-09-24 |
+| Approve A4? | yes / no | yes | approved 2026-09-24, built 2026-09-25 |
 | Per-device needs (A5) | device 0 (today) / union across targets | union | union, 2026-09-24 |
 | Approve A6 items? | each separately | yes, opportunistically | — |
 | P6 comment rule in `CLAUDE.md` | add / don't | add | — |

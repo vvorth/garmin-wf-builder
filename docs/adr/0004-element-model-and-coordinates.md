@@ -94,6 +94,17 @@ satisfiability question), and it still owns its `on_hold:` hit region (the
 generated delegate has none of the frame's readings, and re-reading them at
 touch time would answer about a different moment than the pixels on screen).
 
+> **Amendment (2026-09-25, plan 19 A4): each kind's code lives in one
+> module.** The vocabulary above is now a registry, `wfb/kinds/`: one
+> `ElementKind` per kind, holding that kind's own builder, resolver,
+> preview, emitter and layout-constant code, and a hook for each place a
+> stage used to switch on kind. The model itself is unchanged: the IR and
+> `Placed` classes stay where they were, and a `group` is still resolved by
+> structural recursion. Adding a kind is an IR class, a `Placed` class, one
+> kind module and the schema (`docs/development.md`, "Element kinds"). Code
+> paths this ADR and ADRs 0005 and 0008 cite were updated in place to the
+> functions' new homes; no decision changed.
+
 ### 2. Coordinate system — anchors plus relative units, with polar as a first-class option
 
 Absolute pixels are rejected as the primary model; they are available only as a
