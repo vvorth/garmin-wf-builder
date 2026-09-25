@@ -370,7 +370,7 @@ def _white_rows(image, x_range, y_range):
 
 
 def test_system_font_bottom_ink_lies_above_the_anchor_row(write_design, bag, db):
-    """R7, system-font path (`_approximate_text`): drive this red first by
+    """R7, system-font path (`_draw_text` over a device face): drive this red first by
     checking it against the *old* meaning of `baseline` (§1.2) -- the old
     code drew a bottom-anchored line exactly like `top`, hanging down from
     the anchor, so this same assertion made against that code fails (see

@@ -156,7 +156,7 @@ def test_lowering_the_supersample_factor_would_be_caught():
 def _cell_origins(font, text: str) -> list[int]:
     """Where each character's *cell* starts, which is where the device's pen
     lands: `drawText` walks the string adding `xadvance`, exactly as
-    `wfb.preview._blit_bitmap_text` does."""
+    `wfb.preview._blit_baked_line` does."""
     origins, pen = [], 0
     for char in text:
         origins.append(pen)

@@ -1,8 +1,7 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A5 done (A4 and A5 2026-09-25). The P6 rule is in `CLAUDE.md`
-§7. A6 and the small items in §3 are approved and in progress. A7 awaits a
-user decision.**
+**Status: A0–A6 and the small items in §3 are done (2026-09-25); the P6
+rule is in `CLAUDE.md` §7. Only A7 is open, awaiting a user decision.**
 These change the project's shape (root `CLAUDE.md` §7: stop and ask), so
 **do not start an unapproved step**, and record each decision in §5. Delete
 this file once every step is built or dropped. The full plan as written,
@@ -158,11 +157,17 @@ cross-check makes that hold by construction from now on.
   checker's namespace-scoped guess too. `icons` is left out: its unknown-
   icon error lists the whole catalogue rather than guessing, and the lint
   code check's "did you mean" has its own wording, so neither changes.
-- Preview: one glyph-source interface (baked sheet / system outline face /
-  `.cft`) with one "place line box, blit glyph by glyph" loop, replacing
-  `_draw_text`, `_blit_bitmap_text`, `_approximate_text`,
-  `_draw_system_line`, `_draw_bitmap_line` and the slot text path. It is
-  not pixel-identical by construction, so gate it with the snapshot tool.
+- **Built:** the preview's upright text goes through one glyph-source
+  interface: `_BakedGlyphs` (a baked sheet) or `_FaceGlyphs` (a device
+  face -- the real file, a stand-in, or a `.cft`), chosen by
+  `_Renderer._glyph_source`. `_draw_text` is the one "place the line box,
+  draw glyph by glyph" path for `text`, pattern text and upright vector
+  text, replacing `_blit_bitmap_text` and `_approximate_text`; the
+  complication slot draws its reading through the same source. The
+  per-source glyph loops (`_blit_baked_line`, `_draw_system_line`,
+  `_draw_bitmap_line`) stay, since the rotated-run path draws through
+  `_draw_system_line` too. The placement arithmetic is the old one per
+  source, so previews are pixel-identical (snapshot).
 
 ### A7. A single draw program (P2's other option; only if the user wants it)
 

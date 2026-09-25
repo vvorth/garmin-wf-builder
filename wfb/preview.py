@@ -418,6 +418,49 @@ def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
     return mask
 
 
+@dataclass(frozen=True)
+class _BakedGlyphs:
+    """A text's glyphs from its baked BMFont sheet (`_Renderer._glyph_source`):
+    the real pixels the device draws. Sizes are in scaled preview pixels."""
+
+    font: BakedFont
+    scale: int
+
+    @property
+    def line_height(self) -> float:
+        return self.font.line_height * self.scale
+
+    def width(self, text: str) -> float:
+        return self.font.measure(text)[0] * self.scale
+
+    def draw(self, renderer: "_Renderer", left: float, top: float, text: str, color) -> None:
+        """Glyph by glyph from the line box's (scaled) top-left."""
+        renderer._blit_baked_line(self.font, text, left, top, color)
+
+
+@dataclass(frozen=True)
+class _FaceGlyphs:
+    """A text's glyphs from a device typeface (`fallback.SystemFace`, already
+    at the preview's scale): a system or vector font's own file or its
+    stand-in, or a `.cft` bitmap font."""
+
+    face: "fallback.SystemFace"
+
+    @property
+    def line_height(self) -> float:
+        return self.face.line_height
+
+    def width(self, text: str) -> float:
+        return self.face.width(text)
+
+    def draw(self, renderer: "_Renderer", left: float, top: float, text: str, color) -> None:
+        """Glyph by glyph on the face's own baseline, `face.baseline` below
+        the line box's (scaled) top -- never Pillow's own vertical anchors,
+        which measure the stand-in's ascender/descender and would disagree
+        with the line height the metric defines."""
+        renderer._draw_system_line(self.face, left, top + self.face.baseline, text, color)
+
+
 class _Renderer:
     def __init__(self, resolved, draw, image, scale, values, options, used_faces=None) -> None:
         self.resolved = resolved
@@ -551,38 +594,42 @@ class _Renderer:
 
     # -- text helpers -----------------------------------------------------
 
+    def _glyph_source(self, font: BakedFont | None, metric: FontMetric | None):
+        """Where a text's glyphs come from: `font`'s baked sheet, else the
+        device typeface `metric` names (its real file, a stand-in, or a
+        `.cft` bitmap font -- `_system_face`). `None` when there is neither
+        a sheet nor a metric with a scalable face."""
+        if font is not None and font.sheet is not None:
+            return _BakedGlyphs(font, self.scale)
+        if metric is None:
+            return None
+        face = self._system_face(metric, scale=self.scale)
+        return _FaceGlyphs(face) if face is not None else None
+
     def _draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
                    align: str, vertical_align: str, metric: FontMetric | None,
                    color: tuple[int, int, int], box=None) -> None:
-        """Draw `text` upright at `anchor` -- through the baked sheet when
-        `font` is a custom one, the device's own typeface (or its stand-in)
-        otherwise. Shared by `_text` and `_pattern_text`. `box` is only the
-        "no scalable system face at all" outline fallback of
-        `_approximate_text`; a pattern part has none to give.
+        """Draw `text` upright at `anchor`: place its line box by the shared
+        alignment rule (`wfb.layout.alignment_shift`: `align`/
+        `vertical_align` say which edge of the box sits on the anchor --
+        the same top edge `PlacedText.box` and the lint box use), then draw
+        glyph by glyph from its `_glyph_source`. Shared by `text`, pattern
+        text and upright vector text. With no glyph source (no pixel metrics
+        for this symbol on this device, or no scalable face at all), `box`
+        -- a `text` element's -- is outlined instead: more honest than text
+        at the wrong size. A `substitute`/`none` face draws the watch's
+        glyph *positions* exactly, since layout measured with it.
         """
-        if font is not None:
-            self._blit_bitmap_text(font, text, anchor, align, vertical_align, metric, color, box)
-        else:
-            self._approximate_text(text, anchor, align, vertical_align, metric, color, box)
-
-    def _blit_bitmap_text(self, font: BakedFont, text: str, anchor: tuple[int, int],
-                          align: str, vertical_align: str, metric: FontMetric | None,
-                          color: tuple[int, int, int], box=None) -> None:
-        """Draw with the *baked sheet*, so the preview shows the real glyphs."""
-        if font.sheet is None:
-            self._approximate_text(text, anchor, align, vertical_align, metric, color, box)
+        source = self._glyph_source(font, metric)
+        if source is None:
+            self._mark_extent(box)
             return
         s = self.scale
-        width, _ = font.measure(text)
-        x, y = anchor[0] * s, anchor[1] * s
-        line_height = font.line_height * s
-        # The one shared placement rule (`wfb.layout.alignment_shift`), not
-        # a private dict literal -- `bottom` puts the ink's bottom edge on
-        # `y`, rather than drawing it hanging down from `y` like `top` does.
-        dx, dy = alignment_shift(width * s, line_height, align, vertical_align)
-        left = x + dx - width * s / 2
-        top = y + dy - line_height / 2
-        self._blit_baked_line(font, text, left, top, color)
+        width, line_height = source.width(text), source.line_height
+        left = anchor[0] * s - {"left": 0, "right": width}.get(align, width / 2)
+        top = anchor[1] * s - {"top": 0, "center": line_height / 2,
+                               "bottom": line_height}[vertical_align]
+        source.draw(self, left, top, text, color)
 
     def _blit_baked_line(self, font: BakedFont, text: str, left: float, top: float,
                          color: tuple[int, int, int]) -> None:
@@ -612,50 +659,6 @@ class _Renderer:
         tint = Image.new("RGB", tile.size, color)
         position = (int(x + glyph.xoffset * s), int(y + glyph.yoffset * s))
         self.image.paste(tint, position, tile)
-
-    def _approximate_text(self, text: str, anchor: tuple[int, int], align: str,
-                          vertical_align: str, metric: FontMetric | None, color, box=None) -> None:
-        """Draw system-font text from its own line box: the box top is
-        `anchor_y - {top: 0, center: line_height/2, bottom: line_height}`
-        (`wfb.layout.alignment_shift`'s vertical rule, the same top edge
-        `PlacedText.box` and the lint box use), and glyphs are drawn at
-        `top + baseline`. Never Pillow's own vertical anchors, which measure
-        the *stand-in* face's ascender/descender and would disagree with the
-        line height the metric defines.
-
-        A `substitute`/`none` match draws through this same path: the glyph
-        *shapes* differ from the watch's, but position and extent are exact,
-        because layout measured with this very face.
-        """
-        if metric is None:
-            # No pixel metrics for this symbol on this device at all
-            # (`_font_for_ref`'s own "no pixel metrics" warning already
-            # covers it) -- nothing to measure or draw with; mark the extent
-            # instead, the same "more honest than drawing at the wrong size"
-            # fallback the "no scalable face at all" case below uses.
-            self._mark_extent(box)
-            return
-        s = self.scale
-        face = self._system_face(metric, scale=s)
-        if face is None:
-            # No scalable face at all (older Pillow with no scalable
-            # default, and no TTF located either): fall back to marking the
-            # extent, which is more honest than drawing text at the wrong
-            # size -- only possible for a `text` element, which has a `box`
-            # to outline; a pattern text part (`box is None`) simply draws
-            # nothing here.
-            self._mark_extent(box)
-            return
-
-        x = anchor[0] * s
-        y = anchor[1] * s
-        top = y - {"top": 0, "center": face.line_height / 2, "bottom": face.line_height}[vertical_align]
-        baseline_y = top + face.baseline
-        # "left"/"right" share Pillow's own first letter; anything else
-        # (only "center" is a valid value here) is the middle anchor.
-        width = face.width(text)
-        left = x - {"left": 0, "right": width}.get(align, width / 2)
-        self._draw_system_line(face, left, baseline_y, text, color)
 
     def _draw_system_line(self, face, left: float, baseline_y: float, text: str, color,
                           *, draw=None, image=None) -> None:
@@ -701,7 +704,7 @@ class _Renderer:
         curve_radius_px: int, curve_direction: str | None, *, box=None,
     ) -> None:
         """A `face:` (vector) font's draw -- upright (`curve_style is None`,
-        exactly like a system font, `_approximate_text`), `angled`
+        exactly like a system font, `_draw_text`), `angled`
         (`Dc.drawAngledText`: the whole string rotated about the anchor) or
         `radial` (`Dc.drawRadialText`: per-glyph placement around a circle).
         Shared by `_text` and `_pattern_text` (which passes its copy's own
@@ -715,12 +718,12 @@ class _Renderer:
         backwards would silently mirror every curved element.
         """
         if curve_style is None:
-            # Delegates to `_approximate_text` wholesale, including its own
-            # "no scalable face at all" fallback (an outline box, `box=box`)
-            # -- that edge case is exactly as reachable, and exactly as
-            # handled, for a vector font as for a system one.
-            self._approximate_text(text, anchor_point, align, vertical_align,
-                                   font_metric, color, box=box)
+            # Delegates to `_draw_text` wholesale, including its "no scalable
+            # face at all" fallback (an outline box, `box=box`) -- that edge
+            # case is exactly as reachable, and exactly as handled, for a
+            # vector font as for a system one.
+            self._draw_text(None, text, anchor_point, align, vertical_align,
+                            font_metric, color, box=box)
             return
         face = self._system_face(font_metric)
         if face is None:
@@ -879,7 +882,7 @@ class _Renderer:
 
     def _mark_extent(self, box) -> None:
         """Outline `box` in dark grey where text cannot be drawn at its real
-        size -- `_approximate_text`'s two fallbacks.
+        size -- `_draw_text`'s fallback when it has no glyph source.
 
         An empty box draws nothing. Unmeasured text gets exactly that: with
         no metric, layout has no extent to give it and records a 0x0 box at

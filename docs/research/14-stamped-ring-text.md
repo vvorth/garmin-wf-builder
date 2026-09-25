@@ -149,7 +149,7 @@ nothing about repeated invocation is special-cased by the platform.
 | Font kind | Draw call | Stampable? |
 |---|---|---|
 | Baked BMFont resource (`font: font.<name>`) | `Dc.drawText` | **Yes.** Measured directly in §5's `monkeyc` probe, which stamps a real baked `.fnt` resource. |
-| System `FONT_*` | `Dc.drawText` | **Yes** — same call, same signature; nothing in `wfb/preview.py`'s `_approximate_text` or the SDK docs treats a system font differently for repeated calls. |
+| System `FONT_*` | `Dc.drawText` | **Yes** — same call, same signature; nothing in `wfb/preview.py`'s `_draw_text` or the SDK docs treats a system font differently for repeated calls. |
 | Vector `face:` font, upright | `Dc.drawText` | **Yes**, same call. |
 | Vector `face:` font, `curve: {style: angled}` | `Dc.drawAngledText` | **Yes** — see §3.2. |
 | Vector `face:` font, `curve: {style: radial}` | `Dc.drawRadialText` | **Yes** — see §3.2, with a caveat on offset-set quality, not on validity. |
@@ -711,11 +711,10 @@ pattern's `shape: text` part (never a second, drifting implementation per
 caller — the module's own repeated framing, e.g. `_draw_text`'s docstring:
 "the one place either kind of element actually puts ink down"):
 
-- `_draw_text` → `_blit_bitmap_text` (baked sheet) or `_approximate_text`
-  (system font), `wfb/preview.py:1067-1186`;
-- `_draw_vector_text` → `_approximate_text` (upright), or
-  `_paste_rotated_run`/`_draw_radial_vector_text` (`curve:`),
-  `wfb/preview.py:1238-1431`.
+- `_draw_text`, over one glyph source: a baked sheet or a device face
+  (system font) -- `wfb/preview.py`;
+- `_draw_vector_text` → `_draw_text` (upright), or
+  `_paste_rotated_run`/`_draw_radial_vector_text` (`curve:`).
 
 A stamped ring's preview needs no new drawing primitive: it is **the same
 call, made N+1 times with the resolved offsets, in the ring colour then

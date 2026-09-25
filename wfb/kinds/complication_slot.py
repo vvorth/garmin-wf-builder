@@ -435,22 +435,12 @@ def draw_preview(renderer, placed: PlacedComplicationSlot) -> None:
                           (origin_x + geometry.icon_x) * s,
                           (origin_y + geometry.icon_y) * s, icon_color)
 
-    pen_x = origin_x + geometry.text_x
-    top = origin_y + geometry.text_y
-    if text_font is not None and text_font.sheet is not None:
-        renderer._blit_baked_line(text_font, text, pen_x * s, top * s, color)
-        return
-    if placed.font.metric is not None:
-        face = renderer._system_face(placed.font.metric, scale=s)
-        if face is not None:
-            # `top` is the text box's own top edge (`geometry.text_y`,
-            # sized from `fallback.line_height` above); draw at its
-            # baseline, the same line-box model `_approximate_text` uses
-            # -- `wfb.fonts.fallback.SystemFace.baseline`, not Pillow's
-            # own ascender-based anchor, which would not agree with the
-            # box `wfb.layout` sized this pair from.
-            renderer._draw_system_line(face, pen_x * s, top * s + face.baseline,
-                                   text, color)
+    # `geometry.text_y` is the text's own line-box top, sized from the same
+    # measurement as `resolve`'s box; the glyph source draws from there.
+    source = renderer._glyph_source(text_font, placed.font.metric)
+    if source is not None:
+        source.draw(renderer, (origin_x + geometry.text_x) * s,
+                    (origin_y + geometry.text_y) * s, text, color)
 
 
 def _complication_slot_text(element, ctype) -> str:
