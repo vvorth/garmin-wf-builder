@@ -2314,18 +2314,6 @@ class Builder:
             for element in walk_elements([root]):
                 element.static_rank = rank
 
-    def _build_group(self, node: dict, common: dict, path: tuple) -> Element:
-        align, vertical_align = self._alignment(node)
-        group = Group(
-            **common,
-            size=self._size(node.get("size")),
-            items=self._build_elements(node["children"], path + ("children",)),
-            align=align,
-            vertical_align=vertical_align,
-        )
-        self._push_visible(group)
-        return group
-
     def _check_foreign_keys(
         self, node: dict, chosen: str, table: dict[str, frozenset[str]],
         all_keys: frozenset[str], *, code: str, disc: str,
