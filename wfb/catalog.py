@@ -81,9 +81,12 @@ _COMPLICATION_VALUE_TYPE: dict[str, Type] = {
 }
 
 #: The Monkey C cast each value type needs -- see `Source.cast`'s docstring.
+#: A Float complication is read as `Numeric?` and converted (`Source.to_float`):
+#: `ALTITUDE` and `CURRENT_TEMPERATURE` were Numbers before API 5.1.0/5.0.0,
+#: and an `as Float?` cast would only assert the type, not convert it.
 _COMPLICATION_CAST: dict[str, str] = {
     "number": "Number?",
-    "float": "Float?",
+    "float": "Numeric?",
     "string": "String?",
 }
 
@@ -353,6 +356,14 @@ class Source:
     #: `cast` as a separate instruction to the emitter, not something already
     #: folded into the string.
     cast: str | None = None
+    #: The value really is converted to a Float on the device (the emitter
+    #: reads it into its own local, then calls `.toFloat()` on it), not merely
+    #: cast to one. Set for every `Float` complication: the SDK's declared
+    #: type has changed across API levels for some (`ALTITUDE` was a Number
+    #: before 5.1.0, `CURRENT_TEMPERATURE` before 5.0.0), and the expression
+    #: compiler trusts `type` -- a Number arriving as a "Float" would skip
+    #: its `.toFloat()` coercion and truncate `altitude / 1000`.
+    to_float: bool = False
     #: The `complications` type *name* (`wfb.complications.TYPES` key) whose
     #: glance this value conventionally belongs to, or ``None``. Set
     #: automatically to a `complication.*` source's own name; set by hand on
@@ -638,6 +649,7 @@ CATALOG: Catalogue[Source] = Catalogue({
                 doc=t.doc,
                 source_ref="Toybox/Complications.html",
                 cast=_COMPLICATION_CAST[t.value_type],
+                to_float=t.value_type == "float",
                 launch_complication=t.name,
             )
             for t in complications.TYPES.values()

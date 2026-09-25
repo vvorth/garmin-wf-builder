@@ -207,15 +207,21 @@ def test_cast_is_set_iff_the_source_reads_a_union():
     Monkey C union type.  The one other union field read is
     `Gregorian.Info.day_of_week` (`Number or String`), which `date.weekday`
     reads under FORMAT_SHORT, where it is always the Number -- so no other
-    source should ever set it."""
+    source should ever set it. A Float complication is cast to `Numeric?`
+    and converted (`to_float`), never cast to `Float?` alone -- a cast only
+    asserts, and some types were Numbers on older API levels."""
     for path, source in CATALOG.items():
         if path.startswith("complication."):
             assert source.cast is not None, path
-            assert source.cast in ("Number?", "Float?", "String?"), (path, source.cast)
+            assert source.cast in ("Number?", "Numeric?", "String?"), (path, source.cast)
+            assert source.to_float == (source.type is Type.FLOAT), path
+            assert source.to_float == (source.cast == "Numeric?"), path
         elif path == "date.weekday":
             assert source.cast == "Number"
+            assert not source.to_float
         else:
             assert source.cast is None, path
+            assert not source.to_float, path
 
 
 def test_read_expr_does_not_bake_in_the_cast():

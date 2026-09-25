@@ -727,7 +727,9 @@ only by the suppressible `partial-update-budget` warning (§3 below,
 **Complications are read by pull, not by subscription callback**:
 `WfbComplications.valueOf` is called from `onUpdate` exactly like any other
 reader, cast to the source's declared type because `Complication.value` is a
-union type. A subscription is still registered once per bound type in
+union type. A `Float` source is read as `Numeric?` and converted with
+`.toFloat()` rather than cast: `ALTITUDE` and `CURRENT_TEMPERATURE` were
+Numbers before API 5.1.0/5.0.0, and a cast only asserts a type. A subscription is still registered once per bound type in
 `onLayout`, but only to call `WatchUi.requestUpdate()` on change -- it is not
 a cache. Whether a pulled value would *stay* fresh with no subscription at all
 is **unverified** (no working simulator, "The simulator crashes when an app is

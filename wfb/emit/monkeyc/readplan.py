@@ -438,6 +438,15 @@ class ReadPlan:
                 read = f"{read} as {source.cast}"
             if guard_parts:
                 read = f"({' && '.join(guard_parts)}) ? {read} : null"
+            if source.to_float:
+                # Read as `Numeric?`, then convert through its own local --
+                # the same "narrow a local, never a field" rule as the
+                # intermediate object above -- so the value is a Float on
+                # every API level, not just asserted to be one.
+                raw_name = f"{local_name(path)}Raw"
+                out.append((raw_name, read))
+                out.append((local_name(path), f"({raw_name} != null) ? {raw_name}.toFloat() : null"))
+                continue
             out.append((local_name(path), read))
         return out
 

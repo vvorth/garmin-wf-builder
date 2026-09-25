@@ -125,7 +125,10 @@ def test_read_carries_the_right_cast_per_value_type(write_design, bag, db, tmp_p
             "? trainingStatusComplication.value as String? : null;") in view
 
 
-def test_weekly_run_distance_casts_to_float(write_design, bag, db, tmp_path):
+def test_weekly_run_distance_is_converted_to_float(write_design, bag, db, tmp_path):
+    """A Float complication is read as `Numeric?` and converted with
+    `.toFloat()` through its own local -- a cast alone would only assert
+    the type."""
     design = """
   - id: run
     type: text
@@ -137,9 +140,34 @@ def test_weekly_run_distance_casts_to_float(write_design, bag, db, tmp_path):
     color: palette.fg
 """
     view = _view(write_design, bag, db, tmp_path, design)
-    assert ("var complicationWeeklyRunDistance = "
+    assert ("var complicationWeeklyRunDistanceRaw = "
             "(weeklyRunDistanceComplication != null) "
-            "? weeklyRunDistanceComplication.value as Float? : null;") in view
+            "? weeklyRunDistanceComplication.value as Numeric? : null;") in view
+    assert ("var complicationWeeklyRunDistance = (complicationWeeklyRunDistanceRaw != null) "
+            "? complicationWeeklyRunDistanceRaw.toFloat() : null;") in view
+    assert "as Float?" not in view
+
+
+ALTITUDE_KM = """
+  - id: alt
+    type: text
+    value: complication.altitude / 1000
+    format: "{:.1f}"
+    when_absent: hide
+    font: FONT_TINY
+    at: {anchor: center}
+    color: palette.fg
+"""
+
+
+def test_altitude_is_a_real_float_even_where_it_arrives_as_a_number(write_design, bag, db, tmp_path):
+    """`ALTITUDE` was a Number before API 5.1.0 (plan 18 item 9): dividing
+    it must not truncate there, so the read converts rather than casts, and
+    the division sees the converted local."""
+    view = _view(write_design, bag, db, tmp_path, ALTITUDE_KM)
+    assert ("var complicationAltitude = (complicationAltitudeRaw != null) "
+            "? complicationAltitudeRaw.toFloat() : null;") in view
+    assert "complicationAltitude / 1000" in view
 
 
 def test_onlayout_registers_one_callback_and_subscribes_per_type(write_design, bag, db, tmp_path):
@@ -300,6 +328,23 @@ def test_a_plain_hold_design_compiles_without_warnings(tmp_path, bag, db, toolch
 
     design = tmp_path / "hold.yaml"
     design.write_text(DESIGN.format(elements=HOLD_DESIGN), encoding="utf-8")
+
+    result = build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
+    assert result is not None, bag.render()
+    assert result.products, "nothing was compiled"
+    complaints = [d for d in bag.items
+                  if d.severity.value in ("error", "warning")]
+    assert not complaints, bag.render()
+
+
+@pytest.mark.slow
+def test_a_converted_float_complication_compiles_without_warnings(tmp_path, bag, db, toolchain):
+    """The `as Numeric?` read and its `.toFloat()` conversion typecheck
+    under `-l 3` (plan 18 item 9) -- only the real compiler can say so."""
+    from wfb.build import build
+
+    design = tmp_path / "altitude.yaml"
+    design.write_text(DESIGN.format(elements=ALTITUDE_KM), encoding="utf-8")
 
     result = build(design, output=tmp_path / "build", bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()

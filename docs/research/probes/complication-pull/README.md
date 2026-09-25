@@ -35,7 +35,11 @@ Two things it settles that a doc page does not:
    `String or Number or Float or Long or Double or Null`
    (`Toybox/Complications.html`), so `-l 3` will not let it reach a `Number?`
    local unguarded. `? x.value as Number? : null` is accepted as written --
-   also checked with `String?` and `Float?`.
+   also checked with `String?` and `Float?`. **VERIFIED 2026-09-25:** the
+   same shape with `Numeric?` (`Lang.Numeric`: Number, Float, Long or
+   Double), followed by `(raw != null) ? raw.toFloat() : null` in a second
+   local, builds warning-free under `-l 3` on fenix8solar47mm, fr955, fr255
+   and fenix6 -- what every `Float` complication source now emits.
 2. **No per-type field and no per-type `switch` are needed.** The callback here
    has one statement, `WatchUi.requestUpdate()`.
 

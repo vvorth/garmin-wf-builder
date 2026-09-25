@@ -43,10 +43,10 @@ decline a type (``subscribeToUpdates`` returning ``false`` or throwing
 
 Two types' documented value type changed across API levels -- ``ALTITUDE``
 was ``Number`` before 5.1.0, ``CURRENT_TEMPERATURE`` was ``Number`` before
-5.0.0. Both this project's targets (fenix8solar47mm/51mm, fr955) sit above
-both levels (see CLAUDE.md's device table), so ``value_type`` below is the
-*current* ``"float"`` for each, not the historical ``"number"`` -- there is
-no device this project targets that would ever see the old shape.
+5.0.0. ``value_type`` below is the *current* ``"float"`` for each, and the
+generated code converts every ``"float"`` reading with ``.toFloat()``
+(`wfb.catalog.Source.to_float`), so a device on the old level still hands
+the expression a real Float.
 """
 
 from __future__ import annotations
@@ -138,9 +138,8 @@ TYPES: Catalogue[ComplicationType] = Catalogue({t.name: t for t in [
        'a non-negative Number representing seconds since midnight local time of the sunrise'),
     _t('sunset', 'COMPLICATION_TYPE_SUNSET', '4.2.0', 'number', True, 'seconds since local midnight',
        'a non-negative Number representing seconds since midnight local time of the sunset'),
-    # Prior to ConnectIQ API version 5.1.0, the value was a Number -- both
-    # this project's targets are above that level (see module docstring),
-    # so value_type is the current Float.
+    # Prior to ConnectIQ API version 5.1.0, the value was a Number; the
+    # generated read converts it (see module docstring).
     _t('altitude', 'COMPLICATION_TYPE_ALTITUDE', '4.2.0', 'float', True, 'meters',
        'a Float of the current altitude in meters'),
     _t('sea_level_pressure', 'COMPLICATION_TYPE_SEA_LEVEL_PRESSURE', '4.2.0', 'float', True, 'pascals',
@@ -189,9 +188,8 @@ TYPES: Catalogue[ComplicationType] = Catalogue({t.name: t for t in [
        'breaths per minute', 'a non-negative Number representing your breaths per minute'),
     _t('solar_input', 'COMPLICATION_TYPE_SOLAR_INPUT', '4.2.0', 'number', True, 'percent',
        'a non-negative Number representing percent between 0 to 100 of solar charge'),
-    # Prior to ConnectIQ API version 5.0.0, the value was a Number -- both
-    # this project's targets are above that level (see module docstring),
-    # so value_type is the current Float.
+    # Prior to ConnectIQ API version 5.0.0, the value was a Number; the
+    # generated read converts it (see module docstring).
     _t('current_temperature', 'COMPLICATION_TYPE_CURRENT_TEMPERATURE', '4.2.0', 'float', True,
        'degrees Celsius', 'a Float representing temperature in degrees Celsius'),
     _t('high_low_temperature', 'COMPLICATION_TYPE_HIGH_LOW_TEMPERATURE', '4.2.0', 'string', False, None,

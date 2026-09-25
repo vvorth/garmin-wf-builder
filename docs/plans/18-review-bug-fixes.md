@@ -1,8 +1,7 @@
 # Plan 18: bug fixes from the 2026-09-24 code review
 
-**Status: items 1–8 and all of item 9 but §2.1 done (2026-09-24), one commit
-per item (`d7fd497`..`2b99dfd`). Two small items remain (§2): one needs a
-user decision, the other is optional.**
+**Status: items 1–9 done (§2.1 on 2026-09-25, the user chose "always
+convert"). §2.2 (optional) is approved and next.**
 Read the full plan as written with `git show 8862941:docs/plans/18-review-bug-fixes.md`.
 Delete this file once both items below are built or explicitly dropped
 (`docs/CLAUDE.md`).
@@ -32,22 +31,11 @@ build never constant-folds that input (`docs/lore/monkeyc.md`).
 
 ## 2. Remaining
 
-### 2.1 Complication value types across API levels (item 9) — needs a decision
+### 2.1 Complication value types across API levels (item 9) — built
 
-`wfb/complications.py` types `ALTITUDE` and `CURRENT_TEMPERATURE` as `Float`.
-The SDK (`$CIQ_SDK/doc/Toybox/Complications.html`) says they were `Number`
-before 5.1.0 and 5.0.0 respectively. `as Float?` is a compile-time assertion,
-not a conversion. On a 4.2.0–5.0.x device a `Number` arrives at runtime while
-the expression compiler trusts `Float`, so `altitude / 1000` would skip its
-`.toFloat()` coercion and truncate there.
-
-Every installed device with `Toybox.Complications` is API 5.2.0 or newer, so
-no installed device can show the old shape, and nothing here can be verified
-on one. The candidate fix is device-independent: read these two as
-`Numeric` and emit `.toFloat()`, so the value really is a `Float`
-everywhere. It changes complication read codegen. The alternative is to
-narrow the claim in `docs/limitations.md` and wait for a real 4.2–5.0 device
-file.
+Every `Float` complication is read as `Numeric?` and converted with
+`.toFloat()` (`wfb.catalog.Source.to_float`, `ReadPlan._declare_paths`),
+so `ALTITUDE` and `CURRENT_TEMPERATURE` are real Floats on API 4.2–5.0 too.
 
 ### 2.2 `contrast` for `track_color` and `icon_color` (optional, from item 7)
 

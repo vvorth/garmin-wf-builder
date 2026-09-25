@@ -251,6 +251,16 @@ way to observe staleness directly, and the cost of keeping the subscription
 against a silent-staleness failure of exactly the kind this whole project
 exists to prevent.
 
+> **Amended (2026-09-25, plan 18 item 9):** "cast to the source's declared
+> type" holds for `Number` and `String` sources. A `Float` source is read
+> as `Numeric?` into its own local and then converted with `.toFloat()`,
+> because a cast only asserts a type: the SDK documents `ALTITUDE` as a
+> Number before API 5.1.0 and `CURRENT_TEMPERATURE` before 5.0.0, and a
+> Number reaching the expression as a "Float" would skip its coercion and
+> truncate `altitude / 1000`. Verified warning-free under `-l 3` on
+> fenix8solar47mm, fr955, fr255 and fenix6
+> (`tests/test_complications_codegen.py`, slow).
+
 **All 42 `COMPLICATION_TYPE_*` values are now catalogue sources**, under a
 `complication.<name>` namespace, generated from one table
 (`wfb/complications.py`'s `TYPES`) rather than the nine hand-picked ones
