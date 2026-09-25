@@ -254,3 +254,16 @@ specifies each item.
     -- all three are friendly build errors, whether the element writes
     the key or inherits it from a group (`Builder._aod_refusal`), never a
     silent no-op.
+
+## Architecture options not taken
+
+- **A single draw program** (plan 19 A7): lower each element once into a
+  small display list of drawing steps that the preview evaluates and the
+  emitter prints as Monkey C, removing the rules preview and codegen still
+  implement twice (plan 19 §2 P2 lists them). Not built, and not
+  recommended unless many more drawing features are coming: it rewrites
+  most of `wfb/preview.py` and `wfb/emit/monkeyc/`, while A1's shared
+  definitions plus parity tests already cover most of that risk. The
+  user has not decided; read the analysis with
+  `git show d325e77:docs/plans/19-architecture-refactor.md`, and write a
+  new plan before starting it.

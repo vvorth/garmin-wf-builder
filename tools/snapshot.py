@@ -2,10 +2,10 @@
 """Record everything the compiler produces, so a later refactor can be
 proven "no output change" or "exactly these outputs changed".
 
-This is `docs/plans/19-architecture-refactor.md` step A0: it drives the
-real `wfb` CLI as subprocesses (``sys.executable wfb.py ...``, cwd = repo
-root) rather than internal APIs, so CLI wiring is covered too. It is a
-separate tool, not part of the pytest suite (a full run takes minutes).
+It drives the real `wfb` CLI as subprocesses (``sys.executable wfb.py ...``,
+cwd = repo root) rather than internal APIs, so CLI wiring is covered too.
+It is a separate tool, not part of the pytest suite (a full run takes
+minutes).
 
     ./tools/snapshot.py save DIR              # run every case, save to DIR
     ./tools/snapshot.py diff OLD NEW          # compare two saved snapshots
