@@ -133,7 +133,7 @@ elements:
     color: palette.accent
     aod:
       filled: false
-      thickness: 1px
+      thickness: 2px
 
   # The one element the face default would leave off but this design turns
   # back on -- the canonical "everything off but the time" shape (plan 14
@@ -147,9 +147,13 @@ elements:
     at: { anchor: center }
     color: palette.white
     aod:
-      color: palette.dim
-      format: "{:%H.%M}"
-      font: FONT_NUMBER_MILD
+      format: "{:%H %M}"
+      color: palette.black
+      outline:
+        width: 2
+        color: palette.dim
+
+      # font: FONT_NUMBER_MILD
 
   - id: battery_ring
     type: progress
