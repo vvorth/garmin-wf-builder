@@ -33,8 +33,9 @@ from wfb import build, lint
 from wfb.layout import (
     PlacedText, annulus_sector_reach, arc_bbox, inside_screen, inside_visible_area,
     inside_visible_area_for, radial_text_angle_span, radial_text_band, resolve,
-    rotated_rect_corners, visible_reach,
+    visible_reach,
 )
+from tests.helpers import fonts_design as _design
 
 # -- design templates ---------------------------------------------------------
 
@@ -71,18 +72,6 @@ _TALL_FONT = """\
     face: RobotoCondensedBold
     size: 26%r
 """
-
-
-def _design(fonts: str, elements: str, *, targets: str = "[fenix8solar47mm]") -> str:
-    return f"""
-format: 1
-face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: {targets}
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-{fonts}
-elements:
-{elements}"""
 
 
 def _text(element_id: str, extra: str = "", *, font: str = "font.bezel") -> str:

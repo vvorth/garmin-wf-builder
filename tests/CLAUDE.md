@@ -32,6 +32,12 @@ Loaded automatically when working under `tests/`.
   per-device contrast test, and the 22 filenames are mapped in
   `wfb/fonts/registry.json`. The three tests above now assert real,
   currently-true invariants again and are part of the green fast suite.
+- **Shared helpers live in `tests/helpers.py`**: loading, resolving and
+  linting a design from text (`load_face`, `resolve_text`, `lint_text`, ...),
+  running `wfb` in-process (`run_cli`; use a real subprocess only to test
+  `wfb.py` itself), and the session-cached examples (`example`,
+  `resolved_example`, read-only). Reach for these before writing a new
+  private copy.
 - **`tests/fixtures/slice/`** is the golden source and the real TTF every font
   test bakes (Open Sans). It is a fixture, not an example: a missing fixture
   fails rather than skips, because a skip once silently turned the goldens off.

@@ -1,24 +1,20 @@
 """Coloured CLI output (R2): `--color`, the shared `--color` plumbing, and
 the styling rules in `wfb/cli.py`.
 
-Subprocess tests exercise the real entry point the way `tests/test_cli.py`
-does -- a non-TTY pipe, so `auto` (the default) is plain regardless of the
-running terminal, and `always`/`never` are what actually flip the ANSI
-codes on or off.
+The tests run `wfb` in-process (`tests.helpers.run_cli`) with captured,
+non-TTY streams, so `auto` (the default) is plain regardless of the running
+terminal, and `always`/`never` are what actually flip the ANSI codes on or
+off.
 """
 
 from __future__ import annotations
 
-import os
 import re
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent
-ENTRY = ROOT / "wfb.py"
+from tests.helpers import run_cli
 
 ESC = "\033["
 _ANSI = re.compile(r"\033\[[0-9;]*m")
@@ -32,14 +28,9 @@ def plain(text: str) -> str:
 
 
 def run(*args: str, env: dict | None = None):
-    """Invoke the entry point the way an outside caller would: by path."""
-    full_env = dict(os.environ)
-    if env:
-        full_env.update(env)
-    return subprocess.run(
-        [sys.executable, str(ENTRY), *args],
-        capture_output=True, text=True, cwd=str(ROOT), env=full_env, check=False,
-    )
+    """`wfb <args>` in-process (`tests.helpers.run_cli`), with `env` laid
+    over the environment."""
+    return run_cli(*args, env=env)
 
 
 def test_doctor_always_has_escapes(db):

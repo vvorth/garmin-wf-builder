@@ -20,6 +20,9 @@ import pytest
 from wfb.build import load
 from wfb import ir
 from wfb.diagnostics import Bag
+from tests.helpers import (
+    lint_text as _lint, load_errors as _errors, load_face as _face, resolve_text as _resolved,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -84,18 +87,6 @@ GROUP_FORM = HEAD + """elements:
     at: {anchor: center}
     color: palette.fg
 """
-
-
-def _face(text, write_design, bag):
-    face = load(write_design(text), bag)
-    assert face is not None, bag.render()
-    return face
-
-
-def _errors(text, write_design):
-    bag = Bag()
-    load(write_design(text), bag)
-    return [d for d in bag.items if d.severity.value == "error"]
 
 
 # -- the two spellings ------------------------------------------------------
@@ -305,24 +296,6 @@ def test_a_nested_static_names_the_outer_one(write_design):
     assert "inside the static subtree of 'static'" in errors[0].message
 
 
-def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
-    from wfb.emit.resources import bake_fonts
-    from wfb.layout import resolve
-
-    face = _face(text, write_design, bag)
-    device = db.get(device_id)
-    return face, resolve(face, device, bake_fonts(face, device))
-
-
-def _lint(text, write_design, db, device_id="fenix8solar47mm"):
-    from wfb import lint
-
-    bag = Bag()
-    _, resolved = _resolved(text, write_design, bag, db, device_id)
-    lint.run(resolved, bag)
-    return bag
-
-
 def test_static_content_is_hoisted_rather_than_rejected(write_design, bag, db):
     """The consequence of an opaque buffer, and the one an author will hit.
 
@@ -510,17 +483,15 @@ def test_ir_draw_order_matches_the_resolved_one(design, bag, db):
     times, so it is asserted against the real resolver on every worked example
     rather than argued for in a comment.
     """
-    from wfb.emit.resources import bake_fonts
-    from wfb.layout import resolve
+    from tests.helpers import example, resolved_example
 
-    face = load(design, bag)
-    assert face is not None, bag.render()
+    face, _ = example(design)
+    assert face is not None
     expected = [e.id for e in face.draw_order()]
     for device_id in face.targets:
         if device_id not in db.ids():
             continue
-        device = db.get(device_id)
-        resolved = resolve(face, device, bake_fonts(face, device))
+        resolved = resolved_example(design, db, device_id)
         assert [p.id for p in resolved.items if p.kind != "group"] == expected
 
 

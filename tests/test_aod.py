@@ -21,6 +21,7 @@ from wfb.diagnostics import Bag
 from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
+from tests.helpers import load_face as _face
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -35,12 +36,6 @@ palette:
   fg: "#FFFFFF"
   dim: "#555555"
 """
-
-
-def _face(text, write_design, bag):
-    face = load(write_design(text), bag)
-    assert face is not None, bag.render()
-    return face
 
 
 def _by_id(face, element_id):

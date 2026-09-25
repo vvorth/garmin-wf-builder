@@ -10,18 +10,7 @@ from __future__ import annotations
 
 from wfb import build, lint
 from wfb.layout import resolve
-
-
-def _design(fonts: str, elements: str, *, targets: str = "[fenix8solar47mm]") -> str:
-    return f"""
-format: 1
-face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
-targets: {targets}
-palette: {{bg: "#000000", fg: "#FFFFFF"}}
-fonts:
-{fonts}
-elements:
-{elements}"""
+from tests.helpers import fonts_design as _design
 
 
 _VECTOR_FONT = """\

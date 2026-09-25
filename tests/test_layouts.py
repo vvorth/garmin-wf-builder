@@ -14,9 +14,11 @@ front-end lint); codegen for `layouts:` is covered in
 
 from __future__ import annotations
 
-from wfb.build import load
-from wfb import desugar, ir, yamlsrc
+from wfb import desugar, yamlsrc
 from wfb.diagnostics import Bag
+from tests.helpers import (
+    lint_text as _lint, load_errors as _errors, load_face as _face, resolve_text as _resolved,
+)
 
 HEAD = """format: 1
 face:
@@ -110,18 +112,6 @@ elements:
     at: {anchor: center, dy: 40%}
     color: palette.fg
 """
-
-
-def _face(text, write_design, bag):
-    face = load(write_design(text), bag)
-    assert face is not None, bag.render()
-    return face
-
-
-def _errors(text, write_design):
-    bag = Bag()
-    load(write_design(text), bag)
-    return [d for d in bag.items if d.severity.value == "error"]
 
 
 def _document(write_design, text: str, bag: Bag):
@@ -934,24 +924,6 @@ elements:
     at: {anchor: center}
     color: palette.fg
 """
-
-
-def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
-    from wfb.emit.resources import bake_fonts
-    from wfb.layout import resolve
-
-    face = _face(text, write_design, bag)
-    device = db.get(device_id)
-    return face, resolve(face, device, bake_fonts(face, device))
-
-
-def _lint(text, write_design, db, device_id="fenix8solar47mm"):
-    from wfb import lint
-
-    bag = Bag()
-    _, resolved = _resolved(text, write_design, bag, db, device_id)
-    lint.run(resolved, bag)
-    return bag
 
 
 def test_config_unsupported_on_a_layout_only_default_names_no_role(write_design, db):

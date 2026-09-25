@@ -9,12 +9,19 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers import run_cli
+
 ROOT = Path(__file__).resolve().parent.parent
 ENTRY = ROOT / "wfb.py"
 
 
-def run(*args: str, cwd: Path | None = None, python: str | None = None):
-    """Invoke the entry point the way an outside caller would: by path."""
+def run(*args: str, cwd: Path | None = None, python: str | None = None,
+        entry: bool = False):
+    """`wfb <args>`, in-process (`tests.helpers.run_cli`). `entry` or
+    `python` invokes the entry point by path in a subprocess instead, the
+    way an outside caller would, for the tests about `wfb.py` itself."""
+    if not (entry or python):
+        return run_cli(*args, cwd=cwd)
     return subprocess.run(
         [python or sys.executable, str(ENTRY), *args],
         capture_output=True, text=True, cwd=str(cwd or ROOT), check=False,
@@ -72,7 +79,7 @@ def test_doctor_tells_a_container_user_to_mount_the_fonts(tmp_path):
 
 def test_the_entry_point_works_from_an_unrelated_directory(tmp_path, db):
     """The commonest way to reach this tool is an absolute path from elsewhere."""
-    result = run("devices", cwd=tmp_path)
+    result = run("devices", cwd=tmp_path, entry=True)
     assert result.returncode == 0, result.stderr
     assert "fenix8solar47mm" in result.stdout
 
@@ -312,8 +319,8 @@ def test_print_all_device_fonts_summary_skips_fonts_for_non_watchface_device(mon
 
 # -- `wfb sources` / `wfb complications` -------------------------------------
 #
-# These invoke the real entry point as a subprocess, same as every other test
-# in this file, so they exercise the whole import chain (wfb.cli -> wfb.build
+# These run the whole CLI (in-process, like most tests in this file), so
+# they exercise the whole import chain (wfb.cli -> wfb.build
 # -> wfb.lint -> wfb.ir -> wfb.catalog) rather than just wfb/catalog.py or
 # wfb/cli.py in isolation. tests/test_catalog.py covers the catalogue's own
 # data shape (all 42 complication.* sources, launch_complication, cast, the
@@ -494,10 +501,7 @@ def test_preview_renders_a_device_that_is_not_a_target(db, tmp_path):
 
 def run_binary(*args: str, cwd: Path | None = None):
     """`run`, but without text decoding: `-o -` puts PNG bytes on stdout."""
-    return subprocess.run(
-        [sys.executable, str(ENTRY), *args],
-        capture_output=True, cwd=str(cwd or ROOT), check=False,
-    )
+    return run_cli(*args, cwd=cwd, binary=True)
 
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -624,7 +628,7 @@ def _require_bionic_substitute():
 
 def test_preview_warns_about_a_stand_in_font_even_with_dash_o(db, tmp_path):
     """R1.2/R1.4: with no Garmin font root (conftest's session-wide
-    `WFB_NO_GARMIN_FONTS=1`, inherited by the subprocess), `FONT_NUMBER_HOT`
+    `WFB_NO_GARMIN_FONTS=1`), `FONT_NUMBER_HOT`
     draws with the free `bionic-substitute` stand-in instead of Bionic
     itself -- the warning must reach stderr even under `-o -`, which R1.4
     says silences stdout *progress* only, never a correctness warning."""

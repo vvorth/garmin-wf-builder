@@ -154,13 +154,15 @@ gets most of the safety for a fraction of the cost.
 
 ### Also noted (small, no decision needed beyond "go")
 
-- Tests: move the `_face`/`_errors`/`_resolved`/`_lint` helpers duplicated
-  in 5–7 files (about −120 lines) into `tests/helpers.py`; share the
-  design-header builders in the `test_pattern_text*`, `test_text_outline*`
-  and `test_vector_text*` families.
-- Tests: run most CLI tests in-process via `cli.main(argv)` + `capsys`
-  (about −20 s), and cache resolved examples per session (`dashboard`
-  resolves are 4 s each, repeated across modules).
+- **Built:** the `_face`/`_errors`/`_resolved`/`_lint` helpers duplicated
+  in seven files and the five identical `fonts:` design builders are
+  `tests/helpers.py`'s `load_face`/`load_errors`/`resolve_text`/`lint_text`
+  and `fonts_design` (the four preview `_HEADER`s differ in substance and
+  stay). The CLI tests run in-process through `tests.helpers.run_cli`
+  (24 s to 7 s), keeping a real subprocess only where `wfb.py` itself is
+  under test; that surfaced `Bag.print` binding `sys.stderr` at import,
+  now read at call time. `example`/`resolved_example` cache the examples
+  per session for `test_templates` and `test_static`.
 - **Built:** `wfb/emit/monkeyc/complication_slot.py`'s left/right and
   top/bottom pair layouts are one axis table (49 lines shorter), proven
   byte-identical over all 234 `icon_position:` x `align:` x

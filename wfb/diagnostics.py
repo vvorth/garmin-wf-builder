@@ -183,7 +183,10 @@ class Bag:
             pieces.append(d.render(self._sources, color=color, width=width, notes_as=notes_as))
         return "\n\n".join(pieces)
 
-    def print(self, stream=sys.stderr) -> None:
+    def print(self, stream=None) -> None:
+        # `sys.stderr` read at call time, not bound as a default at import,
+        # so a caller that redirects it (an in-process test) sees the output.
+        stream = sys.stderr if stream is None else stream
         if self.items:
             print(self.render(color=term.should_color(stream), width=term.width(stream)), file=stream)
 

@@ -19,6 +19,8 @@ from wfb.cli import TEMPLATE_DIR
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 
+from tests.helpers import example, resolved_example
+
 TEMPLATES = sorted(p.stem for p in TEMPLATE_DIR.glob("*.yaml"))
 
 
@@ -100,15 +102,14 @@ def test_example_is_clean_on_every_target(design, bag, db):
     """An example is copied verbatim, so a warning in one teaches the warning."""
     from wfb import lint
 
-    face = load(design, bag)
+    face, loaded = example(design)
+    bag.items.extend(loaded)
     assert face is not None, bag.render()
     lint.check_permissions(face, bag)
     for device_id in face.targets:
         if device_id not in db.ids():
             continue
-        device = db.get(device_id)
-        resolved = resolve(face, device, bake_fonts(face, device))
-        lint.run(resolved, bag)
+        lint.run(resolved_example(design, db, device_id), bag)
     noisy = [d for d in bag.items if d.severity.value in ("error", "warning")]
     assert not noisy, bag.render()
 

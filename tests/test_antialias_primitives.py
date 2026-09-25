@@ -26,8 +26,8 @@ from pathlib import Path
 
 import pytest
 
-from wfb.build import load
 from wfb.diagnostics import Bag, Severity
+from tests.helpers import load_face as _face
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -58,12 +58,6 @@ RING = """  - id: ring
     thickness: 4px
     color: palette.fg
 """
-
-
-def _face(text, write_design, bag):
-    face = load(write_design(text), bag)
-    assert face is not None, bag.render()
-    return face
 
 
 def _view_text(text, write_design, db, tmp_path):

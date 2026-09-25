@@ -16,10 +16,10 @@ from __future__ import annotations
 
 import pytest
 
-from wfb.build import load
 from wfb import lint
 from wfb.diagnostics import Bag
 from wfb.palette import Color
+from tests.helpers import lint_text as _lint, load_errors as _errors, load_face as _face
 
 HEAD = """format: 1
 face:
@@ -90,34 +90,6 @@ ELEMENT = """elements:
     radius: 20%
     color: config.colors.bg
 """
-
-
-def _face(text, write_design, bag):
-    face = load(write_design(text), bag)
-    assert face is not None, bag.render()
-    return face
-
-
-def _errors(text, write_design):
-    bag = Bag()
-    load(write_design(text), bag)
-    return [d for d in bag.items if d.severity.value == "error"]
-
-
-def _resolved(text, write_design, bag, db, device_id="fenix8solar47mm"):
-    from wfb.emit.resources import bake_fonts
-    from wfb.layout import resolve
-
-    face = _face(text, write_design, bag)
-    device = db.get(device_id)
-    return face, resolve(face, device, bake_fonts(face, device))
-
-
-def _lint(text, write_design, db, device_id="fenix8solar47mm"):
-    bag = Bag()
-    _, resolved = _resolved(text, write_design, bag, db, device_id)
-    lint.run(resolved, bag)
-    return bag
 
 
 # -- schema and IR -------------------------------------------------------------
