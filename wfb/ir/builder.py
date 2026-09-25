@@ -29,7 +29,7 @@ from ..yamlsrc import YamlDocument
 from .model import (
     AodOverride, ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot,
     ConfigStyle, Curve, Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group,
-    HOLD_AUTO, Hand, HandPart, HandSet, HandsElement, IconElement, LayoutDecl, MAX_OUTLINE_WIDTH,
+    HOLD_AUTO, Hand, HandPart, HandSet, HandsElement, LayoutDecl, MAX_OUTLINE_WIDTH,
     Outline, PATTERN_LOOP_INDEX, ROLE_COLOR, ROLE_PART_VISIBLE, ROLE_VALUE, ROLE_VISIBLE,
     PatternElement, Position, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
     _drawn_copies, authored_draw_order, walk_elements,
@@ -3157,8 +3157,8 @@ class Builder:
     def _resolve_icon_name(self, name: str, span: Span | None) -> str | None:
         """A catalogue name -> its codepoint, or `None` plus a reported error.
 
-        The shared "unknown icon" diagnostic: used by `_build_icon`'s own
-        inline check and by a `complication_slot` choice's `icon:` override
+        The shared "unknown icon" diagnostic: used by `wfb.kinds.icon.build`'s
+        own inline check and by a `complication_slot` choice's `icon:` override
         (`_resolve_choice_icon_override`), so both report the exact same
         message rather than a second, slightly-different one for what is
         the same mistake either place it is made.
@@ -3180,8 +3180,8 @@ class Builder:
     def _resolve_icon_glyph(self, raw: str, span: Span | None) -> str | None:
         """`"U+F0BC"` -> the character, or `None` plus a reported error.
 
-        The shared `glyph:` diagnostics: used by `_build_glyph_icon`'s own
-        inline checks and by a `complication_slot` choice's `glyph:`
+        The shared `glyph:` diagnostics: used by `wfb.kinds.icon._build_glyph_icon`'s
+        own inline checks and by a `complication_slot` choice's `glyph:`
         override (`_resolve_choice_icon_override`), which needs the
         identical "not that notation" / "not in the font" messages, not a
         second copy of them.
@@ -3270,90 +3270,6 @@ class Builder:
         if character is None:
             return _ICON_OVERRIDE_ERROR
         return icons.SlotIcon(icons.codepoint_key(character), character)
-
-    def _build_icon(self, node: dict, common: dict) -> Element:
-        name = node.get("icon")
-        has_icon_for = "icon_for" in node
-        has_glyph = "glyph" in node
-        chosen = [k for k in ("icon", "icon_for", "glyph") if k in node]
-        if len(chosen) != 1:
-            self.bag.error(
-                "icon",
-                "an icon element needs exactly one of 'icon', 'glyph' or 'icon_for'"
-                + (f" -- got {', '.join(repr(k) for k in chosen)}" if chosen else ""),
-                self.doc.span(node),
-                notes=["'icon' names a glyph from the built-in catalogue (run "
-                       "`wfb sources` for the list)",
-                       "'glyph' is any codepoint in the icon font, written "
-                       "'U+XXXX' -- for the ~10,000 glyphs the catalogue does not name",
-                       "'icon_for' chooses one at runtime from a bound value -- see "
-                       "wfb.catalog.WEATHER_CONDITION_SOURCES for what it accepts"],
-            )
-
-        size = self._baked_size_length(
-            node, "size", code="icon", label="icon size", note=_ICON_SIZE_NOTE,
-        )
-
-        align, vertical_align = self._alignment(node)
-        # Shared by every branch below: `**placement` is the four keys an
-        # `IconElement` needs regardless of which of 'icon'/'icon_for'/
-        # 'glyph' chose it -- one `_color_expression(node, "color")` call
-        # instead of one per branch.
-        placement = dict(
-            size=size, color=self._color_expression(node, "color"),
-            align=align, vertical_align=vertical_align,
-        )
-
-        if has_icon_for:
-            value_for = self._expression(node, "icon_for")
-            if value_for is not None and (
-                not isinstance(value_for.ast, expr.Ref)
-                or len(value_for.sources) != 1
-                or value_for.sources[0] not in catalog.WEATHER_CONDITION_SOURCES
-            ):
-                self.bag.error(
-                    "icon",
-                    f"icon_for must be exactly one of: "
-                    f"{', '.join(sorted(catalog.WEATHER_CONDITION_SOURCES))} "
-                    f"-- not {value_for.text!r}",
-                    self.doc.span(node, "icon_for"),
-                    notes=["arithmetic or a conditional would break the "
-                           "condition-to-glyph lookup, which needs the raw "
-                           "Weather.CONDITION_* value"],
-                )
-                value_for = None
-            return IconElement(
-                **common, icon=None, codepoint=icons.FALLBACK_CODEPOINT,
-                value_for=value_for, **placement,
-            )
-
-        if has_glyph:
-            return self._build_glyph_icon(node, common, placement)
-
-        codepoint = self._resolve_icon_name(name, self.doc.span(node, "icon"))
-        if codepoint is None:
-            codepoint = icons.FALLBACK_CODEPOINT
-
-        return IconElement(**common, icon=name, codepoint=codepoint, **placement)
-
-    def _build_glyph_icon(self, node: dict, common: dict, placement: dict) -> Element:
-        """`glyph: "U+F0BC"` -- a codepoint the catalogue does not name.
-
-        The only way to reach a glyph the catalogue does not name, and spelled
-        so that it survives a code review: `U+F0BC` is greppable and visible,
-        where the character itself renders as a blank box (or nothing) in
-        most editors and diffs.  `icon:` does not accept a raw pasted
-        character; this is the one place a codepoint outside the catalogue
-        belongs.  Everything downstream -- baking, sizing, the per-codepoint
-        font key -- is identical once it is a character, because this is
-        exactly what a catalogue name resolves to.
-        """
-        raw = str(node.get("glyph"))
-        span = self.doc.span(node, "glyph")
-        character = self._resolve_icon_glyph(raw, span)
-        if character is None:
-            character = icons.FALLBACK_CODEPOINT
-        return IconElement(**common, icon=raw.upper(), codepoint=character, **placement)
 
     def _check_slot_color_absence(
         self, node: dict, element: "ComplicationSlot", key: str,
@@ -4171,7 +4087,7 @@ class Builder:
     ) -> Length | None:
         """`key`'s length, rejected unless it is `px`/`%r` -- shared by every
         size baked before layout runs: an icon's own `size:`
-        (`_build_icon`), and a complication_slot's `icon_size:`/`icon_gap:`
+        (`wfb.kinds.icon.build`), and a complication_slot's `icon_size:`/`icon_gap:`
         (`_build_complication_slot`).  `label` is the quantity name the
         message leads with (``'icon size'``/``'icon_size'``
         /``'icon_gap'``); `note` is the one explanatory note, worded enough

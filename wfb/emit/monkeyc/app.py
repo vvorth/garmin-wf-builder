@@ -92,9 +92,9 @@ def emit_icon_glyphs(face: Face, via_char: frozenset[str] = frozenset()) -> Sour
     (`icon_for:`) icon.
 
     A static icon's glyph is known at build time and gets baked directly
-    into its `drawText` call as a literal (see `_emit_icon`) -- no lookup
-    needed. A dynamic icon's name is only known on-device, so this table,
-    generated straight from `wfb.icon_catalog.CATALOG` rather than
+    into its `drawText` call as a literal (see `wfb.kinds.icon.emit_draw`)
+    -- no lookup needed. A dynamic icon's name is only known on-device, so
+    this table, generated straight from `wfb.icon_catalog.CATALOG` rather than
     hand-maintained, resolves it there: `WfbWeather.mc`'s
     `chooseIcon` only ever produces a name, and this is the one place a
     name becomes a character, for every icon in the catalogue, not just

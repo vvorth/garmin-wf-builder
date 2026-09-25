@@ -5,8 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ... import formatting
-from ...ir import local_name
-from ...layout import PlacedIcon, PlacedShape, PlacedText, ResolvedFace
+from ...layout import PlacedShape, PlacedText, ResolvedFace
 from .common import (
     NO_AOD, AodStyle, _aod_font_field, _color, _const_prefix, _field, _glyph_y_expr,
 )
@@ -366,43 +365,3 @@ def _emit_vector_text_draw(
         w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
         _emit_vector_draw_call(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
-
-
-def _emit_icon(w: Writer, placed: PlacedIcon, aod: AodStyle = NO_AOD) -> None:
-    """A `drawText` call against the icon's baked glyph -- see `wfb.icons`:
-    an icon is a one-character string drawn with a bitmap font, the same
-    mechanism any other bound text uses, not a hand-drawn shape.
-
-    A *dynamic* icon (`icon_for:`) draws the same way, except the glyph
-    string is resolved in two steps at runtime instead of being a literal
-    baked in at build time: `WfbWeather.chooseIcon` picks a catalogue *name*
-    from the bound value, and `IconGlyphs.glyph` (generated per project,
-    directly from `wfb.icon_catalog.CATALOG`) turns that name into the actual
-    character -- the same table any static icon's build-time lookup uses, not
-    a second, weather-only one. The font still has every glyph that call
-    could return, baked in ahead of time (`wfb.emit.resources.icon_font_specs`).
-
-    `align`/`vertical_align` place the glyph the same way a `text` element
-    does: `placed.justify` (`Resolver._justify`) picks the `TEXT_JUSTIFY_*`
-    flags, and `_glyph_y_expr` handles `bottom`'s missing platform flag by
-    subtracting the *icon* font's own `dc.getFontHeight` -- the anchor
-    itself (`Layout.<P>_CX/_CY`) never moves; center/center yields the same
-    literal flags whether or not `align`/`vertical_align` are given.
-    """
-    element = placed.element
-    prefix = _const_prefix(placed.id)
-    w.line(f"var font = _{_field(placed.font_key)};")
-    with w.block("if (font == null)"):
-        w.line("return;  // the icon font resource failed to load")
-    w.blank()
-    if element.is_dynamic:
-        condition_local = local_name(element.value_for.sources[0])
-        w.comment(f"{element.value_for.text!r} -> a name (WfbWeather) -> a glyph (IconGlyphs)")
-        glyph_expr = f"IconGlyphs.glyph(WfbWeather.chooseIcon({condition_local}))"
-    else:
-        w.comment(f"{element.icon!r}")
-        glyph_expr = f'"{element.codepoint}"'
-    justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
-    w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
-    _emit_plain_text_call(w, f"Layout.{prefix}_CX", f"Layout.{prefix}_CY", "font", glyph_expr,
-                          justify, element.vertical_align)

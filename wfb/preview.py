@@ -38,7 +38,7 @@ from .fonts import cft as cft_fonts
 from .ir import aod_color_choice, disc_perimeter_offsets
 from .layout import (
     HAND_ANGLES, PatternTextAngle, PlacedComplicationSlot, PlacedGraph, PlacedHands,
-    PlacedIcon, PlacedPattern, PlacedShape, PlacedText, ResolvedFace,
+    PlacedPattern, PlacedShape, PlacedText, ResolvedFace,
     alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
     radial_align_offset, radial_direction_sign,
 )
@@ -827,19 +827,6 @@ class _Renderer:
             if override_metric is not None:
                 return None, override_metric
         return font, metric
-
-    def _icon(self, placed: PlacedIcon) -> None:
-        """One glyph from the baked icon font -- the same mechanism a
-        custom-font text element uses to draw, not a hand-drawn shape.  See
-        ``wfb.icons``: this is what makes preview and device agree on an icon's
-        appearance without a second, hand-maintained drawing implementation."""
-        font = self.resolved.fonts.get(placed.font_key)
-        glyph = _baked_glyph(font, placed.codepoint)
-        if glyph is None:
-            return  # the font failed to bake, or the glyph is missing from it
-        s = self.scale
-        color = self._aod_color(placed.element, "color", placed.element.color)
-        self._paste_glyph(font.sheet, glyph, placed.box.x * s, placed.box.y * s, color)
 
     def _graph(self, placed: PlacedGraph) -> None:
         """A synthetic series -- shape and placement only, never real data.

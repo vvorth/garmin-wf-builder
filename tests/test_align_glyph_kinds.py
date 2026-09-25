@@ -153,8 +153,9 @@ def test_icon_bottom_subtracts_the_icon_fonts_own_height(write_design, bag, db):
 
 
 def test_icon_dynamic_bottom_also_subtracts_font_height(write_design, bag, db):
-    """The dynamic (`icon_for:`) path shares `_emit_icon`'s one draw call --
-    this is not a second, weather-only copy of the alignment arithmetic."""
+    """The dynamic (`icon_for:`) path shares `wfb.kinds.icon.emit_draw`'s one
+    draw call -- this is not a second, weather-only copy of the alignment
+    arithmetic."""
     view = _view_icon(write_design, bag, db, "left", "bottom", dynamic=True)
     assert "IconGlyphs.glyph(WfbWeather.chooseIcon(" in view
     assert "Layout.WICON_CX, Layout.WICON_CY - dc.getFontHeight(font), font," in view

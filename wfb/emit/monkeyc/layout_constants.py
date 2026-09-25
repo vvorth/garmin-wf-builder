@@ -6,7 +6,7 @@ from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
-    PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedIcon, PlacedPattern,
+    PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedPattern,
     PlacedShape, PlacedText, ResolvedFace,
 )
 from .common import (
@@ -359,19 +359,6 @@ def _text_constants(prefix: str, placed: PlacedText) -> Constants:
         if placed.curve_style == "radial":
             out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))
     return out
-
-
-def _icon_constants(prefix: str, placed: PlacedIcon) -> Constants:
-    # A glyph kind's anchor never itself moves for `align`/`vertical_
-    # align` -- only the device-side justify flags and `_emit_icon`'s
-    # `bottom` subtraction do -- so the constant names and values stay
-    # `_CX`/`_CY` even when aligned; the comment says so only then.
-    default = placed.element.align == "center" and placed.element.vertical_align == "center"
-    note = "" if default else "the anchor drawText justifies the glyph from, not its centre"
-    return [
-        (f"{prefix}_CX", placed.center[0], note),
-        (f"{prefix}_CY", placed.center[1], note),
-    ]
 
 
 def _graph_constants(prefix: str, placed: PlacedGraph) -> Constants:

@@ -1359,40 +1359,6 @@ class Resolver:
         return FontMetric(symbol=face_name or "vector", face=face_name, font=filename,
                           size_px=font_px)
 
-    def _resolve_icon(self, element: IconElement, parent: Box, depth: int) -> Placed:
-        cx, cy = self._point(element.at, parent)
-        # Independent of `parent`, deliberately: an icon's font is baked once,
-        # before any box in the tree is resolved, so its size cannot depend on
-        # one (ADR-equivalent reasoning in wfb.units.pixel_size).
-        px = units.pixel_size(element.size, self.device.minor_radius)
-        if element.is_dynamic:
-            # The real glyph is chosen on-device at runtime (WfbWeather.mc);
-            # measure and preview against the same representative glyph
-            # `bake_size` used, which is guaranteed to be in this font.
-            glyph_key = icons.DYNAMIC_WEATHER_TAG
-            measure_codepoint = icons.WEATHER_BAKE_REFERENCE_GLYPH
-        else:
-            glyph_key = measure_codepoint = element.codepoint
-        key = icons.font_key(element.size, glyph_key, element.resolved_antialias)
-        font = self.fonts.get(key)
-        if font is not None:
-            width, height = font.measure(measure_codepoint)
-        else:
-            width = height = px  # the font failed to bake; keep a plausible box
-        justify = self._justify(element)
-        # The lint box only -- like `_resolve_text`, the runtime `drawText`
-        # anchor stays `(cx, cy)` unshifted: an icon's alignment is a
-        # device-side justify, not a build-time box move (see
-        # `wfb.emit.monkeyc.shapes._emit_icon`).
-        dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
-        box = Box(cx + dx - width / 2, cy + dy - height / 2, width, height)
-        return PlacedIcon(
-            element, box.rounded(), (round(cx), round(cy)), depth,
-            size=px, font_key=key, codepoint=measure_codepoint,
-            anchor_point=(round(cx), round(cy)),
-            justify=justify,
-        )
-
     def _resolve_graph(self, element: Graph, parent: Box, depth: int) -> Placed:
         cx, cy = self._point(element.at, parent)
         min_1px = element.resolved_min_1px
