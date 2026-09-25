@@ -178,8 +178,9 @@ and docstring is there, and every method but `build`, `resolve`,
 `draw_preview` and `emit_draw` has a default meaning "nothing to do here",
 so a kind overrides only where it differs. **Adding a tenth kind** is an IR
 class (`wfb/ir/model.py`), a `Placed` class (`wfb/layout.py`), one kind
-module and its schema entry; `tests/test_kinds.py` fails until all four
-agree.
+module, its name in `wfb.kinds._NAMES` and its schema entry;
+`tests/test_kinds.py` fails until they agree. "Adding an element kind",
+below, walks through one.
 
 **Fonts are one question.** A kind that draws text says what it draws, and
 in which font, as a list of `TextRun`s (`ElementKind.text_runs`): the font,
@@ -206,6 +207,202 @@ Where code goes:
   helpers; stage modules import the `wfb.kinds` package only, never a kind
   submodule, and read the registry only at call time. The registry loads
   lazily, so this cannot form an import cycle.
+
+### Adding an element kind
+
+A worked example: `type: dot`, a filled disc with a `radius:` and a `color:`.
+It is the smallest complete kind. It is not part of the format (a new
+element type is a format decision), but every step below was built into the
+tree on 2026-09-25, and with it `wfb validate`, `wfb preview` (awake and
+`--aod`) and a real `monkeyc` build were warning-free on `fenix8solar47mm`,
+`fr955` and `fenix847mm`, and the fast suite was unchanged. Nothing else in
+the compiler had to change: every stage reached it through the registry.
+
+**1. The schema** (`schema/wfb-face-1.schema.json`). Add a `$defs` entry and
+reference it from `$defs.element.oneOf`. `additionalProperties` is `false`
+on every element, so an element restates the keys every kind accepts; copy
+them from `shapeElement`. `aod:` takes a per-kind `aod<Kind>` definition that
+lists which keys an override may restyle; `aodIcon` (colour and `visible:`)
+fits a one-colour kind.
+
+```json
+"dotElement": {
+  "type": "object",
+  "required": ["id", "type", "radius"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"$ref": "#/$defs/identifier"},
+    "type": {"const": "dot"},
+    "radius": {"$ref": "#/$defs/length"},
+    "color": {"$ref": "#/$defs/colorExpression"},
+    "at": {"$ref": "#/$defs/position"},
+    "modes": {"$ref": "#/$defs/modes"},
+    "z": {"$ref": "#/$defs/zOrder"},
+    "on_hold": {"$ref": "#/$defs/onHold"},
+    "visible": {"$ref": "#/$defs/visible"},
+    "static": {"$ref": "#/$defs/staticFlag"},
+    "antialias": {"$ref": "#/$defs/antialias"},
+    "min_1px": {"$ref": "#/$defs/min_1px"},
+    "lint": {"$ref": "#/$defs/lint"},
+    "aod": {"$ref": "#/$defs/aodIcon"},
+    "overrides": {"$ref": "#/$defs/overrides"}
+  }
+}
+```
+
+`wfb.validate.ELEMENT_TYPES` is read from `element.oneOf`, so the schema's
+order is the kind order.
+
+**2. The name** (`wfb/kinds/__init__.py`). Append `"dot"` to `_NAMES`, in the
+same position as its `oneOf` entry.
+
+**3. The IR class** (`wfb/ir/model.py`). A dataclass subclass of `Element`
+holding what `build` parsed. The shared fields (`id`, `at`, `visible`,
+`aod`, ...) are inherited. `_own_roles` lists the element's bound
+expressions, which is what reader hoisting, null guards, permissions and
+the palette lints read; `Element.color_roles` finds a field named `color`
+(or `track_color`, `icon_color`, `outline`) by itself.
+
+```python
+@dataclass
+class Dot(Element):
+    """`type: dot` -- a filled disc."""
+
+    radius: Length | None = None
+    color: Expression | None = None
+
+    def _own_roles(self) -> list[tuple[str, Expression]]:
+        return [(ROLE_COLOR, self.color)] if self.color else []
+```
+
+**4. The `Placed` class** (`wfb/layout.py`). What `resolve` worked out for
+one device, in whole pixels. `element`, `box` (what the lints check),
+`center` and `depth` are inherited.
+
+```python
+@dataclass
+class PlacedDot(Placed):
+    radius: int = 0
+```
+
+**5. The kind module** (`wfb/kinds/dot.py`), the whole of it:
+
+```python
+"""`type: dot` -- a filled disc of a given radius."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ..ir.model import Dot
+from ..layout import PlacedDot
+from ..units import Axis, Box
+from ..emit.monkeyc.common import _const_prefix
+from . import ElementKind
+
+if TYPE_CHECKING:
+    from ..ir.builder import Builder
+    from ..layout import Resolver
+    from ..preview import _Renderer
+
+
+class DotKind(ElementKind):
+    name = "dot"
+    ir_class = Dot
+    placed_class = PlacedDot
+    antialiased = True  # drawn with a primitive, so `antialias:` applies
+
+    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Dot:
+        return Dot(
+            **common,
+            radius=b._length(node, "radius"),
+            color=b._color_expression(node, "color"),
+        )
+
+    def resolve(self, r: Resolver, element: Dot, parent: Box, depth: int) -> PlacedDot:
+        cx, cy = r._point(element.at, parent)
+        radius = round(r._extent(element.radius, parent, Axis.MINOR, 0,
+                                 min_1px=element.resolved_min_1px, what="radius"))
+        box = Box(cx - radius, cy - radius, 2 * radius, 2 * radius)
+        return PlacedDot(element, box.rounded(), (round(cx), round(cy)), depth, radius=radius)
+
+    def circular_extent(self, placed: PlacedDot):
+        return (placed.center[0], placed.center[1], placed.radius)
+
+    def draw_preview(self, renderer: _Renderer, placed: PlacedDot) -> None:
+        element = placed.element
+        s = renderer.scale
+        (cx, cy), r = placed.center, placed.radius
+        renderer.draw.ellipse([(cx - r) * s, (cy - r) * s, (cx + r) * s, (cy + r) * s],
+                              fill=renderer._aod_color(element, "color", element.color))
+
+    def emit_draw(self, w, resolved, placed: PlacedDot, value_guards, plan, aod) -> None:
+        prefix = _const_prefix(placed.id)
+        w.line(f"dc.setColor({aod.color(placed.element, 'color')}, Graphics.COLOR_TRANSPARENT);")
+        w.line(f"dc.fillCircle(Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS);")
+
+    def describe(self, placed: PlacedDot) -> str:
+        return "a dot"
+
+    def layout_constants(self, prefix: str, placed: PlacedDot):
+        return [
+            (f"{prefix}_CX", placed.center[0], ""),
+            (f"{prefix}_CY", placed.center[1], ""),
+            (f"{prefix}_RADIUS", placed.radius, ""),
+        ]
+
+
+KIND = DotKind()
+```
+
+What each part is for:
+
+- `build` turns the schema-valid node into the IR class. `common` already
+  holds every shared field; pass it through with `**common`. Report a
+  semantic error with `b.bag.error(...)` or `b._require(node, key, why)`.
+- `resolve` places the element inside its parent's box for one device.
+  `r._point` resolves `at:`; `r._extent` resolves a length along an axis
+  (`%r` against the minor radius, `%` against the parent). The `box` is
+  what the safe-area, overlap and luminance lints check, so make it cover
+  every pixel the element can touch.
+- `layout_constants` is the only way a per-device number reaches the
+  generated code: the view is shared by every target, so `emit_draw` must
+  read `Layout.<PREFIX>_*`, never a pixel literal (a literal that differs
+  between targets fails the build as a `shared-source` error).
+- `emit_draw` writes the body of the generated `draw<Id>(dc)`. The caller
+  has already emitted the element's reads, its `visible:` and null guards
+  and its `antialias:`. `aod.color(element, key)` gives the colour code with
+  the AOD override and `dim:` applied; for an awake-only build it is the
+  plain colour.
+- `draw_preview` draws the same thing with Pillow, from the same `Placed`
+  fields, at `renderer.scale`. `renderer._aod_color` is `aod.color`'s twin.
+
+The rest of the interface you can ignore until the kind needs it; each
+default means "nothing to do here":
+
+| Method or attribute | Override when the kind... |
+|---|---|
+| `antialiased` | draws primitives (`drawCircle`, `fillPolygon`, ...), so `antialias:` becomes `Dc.setAntiAlias`; a glyph kind anti-aliases in its font instead |
+| `circular_extent` | is round: the safe-area lint then checks the disc, not the box corners |
+| `ink` | has ink tighter than its box that is not a disc (rotated or curved text) |
+| `text_runs` | draws text or an icon glyph in a font it names: see "Fonts are one question" above |
+| `static_forbidden` | can never be `static:` (its picture is a series, the clock or a wearer's pick) |
+| `aod_refusal` | accepts an `aod:` key in the schema it cannot honour in some configuration |
+| `precheck` | wants a friendlier message than the schema's for a common mistake |
+| `extra_symbols` | emits Monkey C symbols beyond its own `draw<Id>` |
+| `contrast_subjects` | draws more than one ink the contrast lint should judge separately (`hands`, `pattern`) |
+| `emits_own_guards` | reads its value itself instead of through an element-level binding (`complication_slot`) |
+
+The contrast lint treats every kind but `shape` as glyph ink
+(`Element.color_roles`), which forbids an exact backdrop match; a kind
+drawn as a solid primitive may want the `shape` rule instead.
+
+The helpers above (`b._length`, `r._extent`, `renderer._aod_color`,
+`_const_prefix`, ...) are the stages' own underscored methods: kind
+modules call them by design, and the existing kinds are the reference for
+which ones exist. After the code, a kind is a format change like any other:
+the guide chapter and the schema together (root `CLAUDE.md` §7), a face in
+`examples/features/`, and tests that drive its diagnostics red.
 
 ## Tests
 
