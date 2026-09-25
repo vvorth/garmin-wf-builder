@@ -164,8 +164,8 @@ gets most of the safety for a fraction of the cost.
 - `complication_slot.py:~430/~510`: left/right vs top/bottom branches
   mirror each other with the axes swapped; one axis-descriptor table saves
   about 60 lines (risky; snapshot first).
-- `Binding.kind` (`wfb/expr.py`) is read by nothing, but ADR 0006 cites it;
-  removing it needs a dated ADR note.
+- **Built:** `Binding.kind` (`wfb/expr.py`) removed, with a dated ADR 0006
+  note.
 - **Built:** dead or test-only code removed: `Source.intermediate_guard`,
   `icons.weather_icon_for_condition`, `icons.METRIC_ICON`/`icon_for_source`/
   `icons.get`. The `*_night` icon entries stay: they are documented,

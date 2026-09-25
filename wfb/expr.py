@@ -397,8 +397,6 @@ class Binding:
     code: str
     #: Set when the value is known at build time, enabling constant folding.
     constant: object | None = None
-    #: Descriptive only: nothing reads it (ADR 0006's `config:` amendment cites it).
-    kind: str = "source"  # source | palette | config | copy
 
 
 @dataclass

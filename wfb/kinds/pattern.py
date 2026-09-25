@@ -213,8 +213,7 @@ def build(b, node: dict, common: dict, path: tuple) -> Element | None:
     parts: list[HandPart] = []
     # `copy` -- the index of the copy being drawn -- exists only here,
     # compiled to the generated loop's own index (`emit_draw`).
-    b.scope.define(expr.COPY, expr.Binding(
-        expr.Value(Type.NUMBER), code=PATTERN_LOOP_INDEX, kind="copy"))
+    b.scope.define(expr.COPY, expr.Binding(expr.Value(Type.NUMBER), code=PATTERN_LOOP_INDEX))
     try:
         # Any source is allowed here, absent-able or not:
         # `_check_pattern_absence` polices absence for the whole element.

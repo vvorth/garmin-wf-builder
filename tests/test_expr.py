@@ -15,10 +15,8 @@ def scope():
     s.define("activity.step_goal", Binding(Value(Type.NUMBER, True), "activityStepGoal"))
     s.define("system.battery", Binding(Value(Type.FLOAT), "systemBattery"))
     s.define("device.phone_connected", Binding(Value(Type.BOOLEAN), "devicePhoneConnected"))
-    s.define("palette.hot", Binding(Value(Type.COLOR), "Palette.HOT", constant=0xFF5500,
-                                    kind="palette"))
-    s.define("palette.text", Binding(Value(Type.COLOR), "Palette.TEXT", constant=0xFFFFFF,
-                                     kind="palette"))
+    s.define("palette.hot", Binding(Value(Type.COLOR), "Palette.HOT", constant=0xFF5500))
+    s.define("palette.text", Binding(Value(Type.COLOR), "Palette.TEXT", constant=0xFFFFFF))
     return s
 
 

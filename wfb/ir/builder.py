@@ -1542,7 +1542,6 @@ class Builder:
                 expr.Value(Type.COLOR),
                 code=f"Palette.{name.upper()}",
                 constant=constant,
-                kind="palette",
             ),
         )
 
@@ -1559,7 +1558,7 @@ class Builder:
         """
         self.scope.define(
             path,
-            expr.Binding(expr.Value(Type.COLOR), code=code, constant=None, kind="config"),
+            expr.Binding(expr.Value(Type.COLOR), code=code, constant=None),
         )
 
     def _build_scope(self) -> None:
@@ -1575,7 +1574,6 @@ class Builder:
                 expr.Binding(
                     expr.Value(source.type, source.guard_needed),
                     code=local_name(path),
-                    kind="source",
                 ),
             )
         for name, color in self.palette.items():

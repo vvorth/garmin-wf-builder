@@ -78,6 +78,11 @@ fr955** — the compiler generates both paths from one declaration.
 > the view field it names is user-editable at runtime, so `fold` must never
 > inline it.
 >
+> **Amended (2026-09-25, plan 19):** `Binding.kind` was never read by
+> anything; `constant=None` alone is what keeps `fold` from inlining a
+> config colour. The field has been removed, and the decision above is
+> unchanged.
+>
 > **`palette:` still may not reference `config.*`.** A palette entry compiles
 > to a Monkey C `const`; turning one into a runtime-read field is a bigger
 > change than this amendment makes, so `bg: config.accent_color` stays a build
