@@ -357,6 +357,9 @@ The full text, with the incident behind each rule, is in
   helpers.
 - **Parallel work in one tree edits files and never runs `git stash`/`reset`.**
   **Subagents do the work themselves and spawn no helpers.**
+- **No plan or slice history in code comments.** A comment says what the
+  code does and why; which plan or slice built it goes in the commit
+  message.
 
 ### Documentation discipline
 

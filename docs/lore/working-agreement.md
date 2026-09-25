@@ -48,6 +48,12 @@ lore here, not to `CLAUDE.md`.
   ignore file ownership; one has already wiped another agent's in-flight
   edits here. Disjoint file ownership is what makes parallelism safe, and a
   stash discards that guarantee for everyone, not just the agent running it.
+- **No plan or slice history in code comments** (plan 19 P6, 2026-09-25).
+  A comment states what the code does and why; "plan N slice M added
+  this" belongs in the commit message, where `git log`/`git blame` find
+  it. Before the 2026-09-24 review there were about 12k comment and
+  docstring lines against 17k lines of code, much of it that history,
+  and the review cut about 2k.
 - **A subagent working in this tree does the work itself and does not spawn
   further helpers.** Two "research-only" subagents once wrote code
   concurrently into the same file and left it holding two conflicting

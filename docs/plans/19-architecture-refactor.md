@@ -1,7 +1,8 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A5 done (A4 and A5 2026-09-25). A6, A7, the P6 comment rule
-and the small items in §3 await a user decision.**
+**Status: A0–A5 done (A4 and A5 2026-09-25). The P6 rule is in `CLAUDE.md`
+§7. A6 and the small items in §3 are approved and in progress. A7 awaits a
+user decision.**
 These change the project's shape (root `CLAUDE.md` §7: stop and ask), so
 **do not start an unapproved step**, and record each decision in §5. Delete
 this file once every step is built or dropped. The full plan as written,
@@ -171,8 +172,6 @@ gets most of the safety for a fraction of the cost.
 - The sub-pixel owner in `layout.Resolver` is mutable state
   (`_owner_id/_span/_element`) that `_resolve_hand_part` narrows and never
   restores. Pass the owner explicitly.
-- P6: add a line to root `CLAUDE.md` §7: no plan/slice history in code
-  comments; cite the plan in the commit message instead.
 
 ## 4. Suggested order
 
@@ -189,5 +188,7 @@ gets most of the safety for a fraction of the cost.
 | Parity approach | A1 (shared definitions + parity test) / A7 (draw program) | A1 | A1 |
 | Approve A4? | yes / no | yes | approved 2026-09-24, built 2026-09-25 |
 | Per-device needs (A5) | device 0 (today) / union across targets | union | union, 2026-09-24, built 2026-09-25 |
-| Approve A6 items? | each separately | yes, opportunistically | — |
-| P6 comment rule in `CLAUDE.md` | add / don't | add | — |
+| Approve A6 items? | each separately | yes, opportunistically | all approved 2026-09-25 |
+| Small items (§3 "Also noted") | go / don't | go | go, 2026-09-25 |
+| P6 comment rule in `CLAUDE.md` | add / don't | add | added 2026-09-25 |
+| A7 | build / don't | don't, unless many more drawing features are expected | asked why, 2026-09-25; open |
