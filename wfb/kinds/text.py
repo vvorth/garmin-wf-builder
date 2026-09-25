@@ -404,21 +404,6 @@ class TextKind(ElementKind):
             return ("format", "'aod: {format: ...}' applies only to 'value:', not a fixed 'text:'", [])
         return None
 
-    def ink(self, placed: PlacedText, fonts_root: str | None = None):
-        """A curved element's rotated box/sector, rebuilt from the fields
-        `resolve` stored -- `None` for upright text, whose box corners are
-        already its real corners."""
-        if placed.curve.style is None:
-            return None
-        outline = placed.element.outline
-        return text_ink(
-            placed.anchor_point[0], placed.anchor_point[1], float(placed.measured_width),
-            placed.line_height, placed.element.align, placed.element.vertical_align,
-            curve_style=placed.curve.style, angle_garmin=placed.curve.angle_garmin,
-            radius_px=placed.curve.radius_px, direction=placed.curve.direction,
-            metric=placed.font.metric, pad=float(outline.width) if outline is not None else 0.0,
-            fonts_root=fonts_root)
-
     def text_runs(self, element: Text, face) -> list[TextRun]:
         aod = element.aod
         aod_font = aod.font if aod is not None and aod.font_is_custom else None

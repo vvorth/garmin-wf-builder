@@ -201,8 +201,13 @@ Where code goes:
 - A site goes through the registry if adding a kind would force an edit
   there (a ladder over kinds, a per-kind table, a list of kind names); it
   becomes a method whose default is the ladder's fall-through. A site about
-  one kind's own feature (collecting every `complication_slot`, a
-  `graph`'s series barrel) stays as it is.
+  one kind's own feature stays at its call site as an `isinstance` check,
+  when no second kind would plausibly need it: collecting every
+  `complication_slot`, a `graph`'s series barrel, a curved `text`
+  element's rotated ink (`layout._shape_ink`), a `complication_slot`
+  emitting its own guards (`view._emit_element_method`). A friendly
+  pre-schema message for one kind's common mistake is a `_check_*`
+  function in `wfb/validate.py`, beside the others.
 - Kind modules import stage modules and may call their underscored
   helpers; stage modules import the `wfb.kinds` package only, never a kind
   submodule, and read the registry only at call time. The registry loads
@@ -384,14 +389,11 @@ default means "nothing to do here":
 |---|---|
 | `antialiased` | draws primitives (`drawCircle`, `fillPolygon`, ...), so `antialias:` becomes `Dc.setAntiAlias`; a glyph kind anti-aliases in its font instead |
 | `circular_extent` | is round: the safe-area lint then checks the disc, not the box corners |
-| `ink` | has ink tighter than its box that is not a disc (rotated or curved text) |
 | `text_runs` | draws text or an icon glyph in a font it names: see "Fonts are one question" above |
 | `static_forbidden` | can never be `static:` (its picture is a series, the clock or a wearer's pick) |
 | `aod_refusal` | accepts an `aod:` key in the schema it cannot honour in some configuration |
-| `precheck` | wants a friendlier message than the schema's for a common mistake |
 | `extra_symbols` | emits Monkey C symbols beyond its own `draw<Id>` |
 | `contrast_subjects` | draws more than one ink the contrast lint should judge separately (`hands`, `pattern`) |
-| `emits_own_guards` | reads its value itself instead of through an element-level binding (`complication_slot`) |
 
 The contrast lint treats every kind but `shape` as glyph ink
 (`Element.color_roles`), which forbids an exact backdrop match; a kind

@@ -218,7 +218,6 @@ class ComplicationSlotKind(ElementKind):
         "repoint it to a different complication at any time -- a buffer "
         "filled once would freeze both",
     )
-    emits_own_guards = True
 
     def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
         """`type: complication_slot` -- the element half of the native Data

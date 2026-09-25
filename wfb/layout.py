@@ -1509,7 +1509,16 @@ def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:
     circle = circular_extent(placed)
     if circle is not None:
         return InkDisc(*circle)
-    return kinds.for_placed(placed).ink(placed, fonts_root)
+    if isinstance(placed, PlacedText) and placed.curve.style is not None:
+        outline = placed.element.outline
+        return text_ink(
+            placed.anchor_point[0], placed.anchor_point[1], float(placed.measured_width),
+            placed.line_height, placed.element.align, placed.element.vertical_align,
+            curve_style=placed.curve.style, angle_garmin=placed.curve.angle_garmin,
+            radius_px=placed.curve.radius_px, direction=placed.curve.direction,
+            metric=placed.font.metric, pad=float(outline.width) if outline is not None else 0.0,
+            fonts_root=fonts_root)
+    return None
 
 
 def visible_reach(placed: "Placed", screen_cx: float, screen_cy: float,

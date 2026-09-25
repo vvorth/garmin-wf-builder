@@ -1129,7 +1129,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
                 w.line(f"var {name} = {read};")
             w.blank()
         _emit_visible_guard(w, placed, plan)
-        if kind.emits_own_guards:
+        if isinstance(placed, PlacedComplicationSlot):
             # Deliberately no element-level guard: `complication_slot`'s
             # reading is not an element-level binding at all (it is a fresh
             # per-frame pull off a wearer-editable `Complications.Id`), so

@@ -21,15 +21,6 @@ if TYPE_CHECKING:
     from ..layout import Resolver
     from ..preview import _Renderer
 
-#: Keys that only make sense for one `progress` style.  Supplying one set
-#: while declaring the other style is a much commoner mistake than omitting
-#: a key, and "missing required key 'size'" does not begin to explain it.
-PROGRESS_STYLE_KEYS = {
-    "arc": ("radius", "thickness", "start_angle", "sweep"),
-    "bar": ("size",),
-}
-
-
 def _check_fallback_fraction(b, node: dict, element: Progress) -> None:
     """A `progress` fallback is a **fill fraction**, so it must be 0.0-1.0.
 
@@ -165,35 +156,6 @@ class ProgressKind(ElementKind):
         box, cx, cy = r._sized_box(element, parent, cx, cy)
         return PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
                               size=(round(box.width), round(box.height)))
-
-    def precheck(self, doc, bag, element: dict) -> bool:
-        """Catch a `progress` whose keys belong to the other style."""
-        if element.get("type") != "progress":
-            return False
-        style = element.get("style")
-        if style not in PROGRESS_STYLE_KEYS:
-            return False
-        other = "bar" if style == "arc" else "arc"
-        wrong = [key for key in PROGRESS_STYLE_KEYS[other] if key in element]
-        if not wrong:
-            return False
-        missing = [key for key in PROGRESS_STYLE_KEYS[style] if key not in element]
-        if not missing:
-            return False
-        plural = "s" if len(wrong) > 1 else ""
-        bag.error(
-            "schema",
-            f"this progress element is 'style: {style}' but carries "
-            f"{other}-only key{plural}: {', '.join(repr(k) for k in wrong)}",
-            doc.span(element, "style"),
-            notes=[
-                f"either set 'style: {other}', or replace those with "
-                f"{', '.join(repr(k) for k in PROGRESS_STYLE_KEYS[style])}",
-                "'arc' is a stroked ring -- radius, thickness, start_angle, sweep; "
-                "'bar' is a rectangle -- size",
-            ],
-        )
-        return True
 
     def circular_extent(self, placed: PlacedProgress):
         if placed.element.style == "arc":

@@ -22,20 +22,19 @@ from __future__ import annotations
 import importlib
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, ClassVar
+from typing import TYPE_CHECKING, Callable, ClassVar
 
 if TYPE_CHECKING:
-    from ..diagnostics import Bag, Span
+    from ..diagnostics import Span
     from ..emit.monkeyc.common import AodStyle
     from ..emit.monkeyc.layout_constants import Constants
     from ..emit.monkeyc.readplan import ReadPlan
     from ..emit.writer import Writer
     from ..ir.builder import Builder
     from ..ir.model import Curve, Element, Face
-    from ..layout import Ink, Placed, ResolvedFace, Resolver
+    from ..layout import Placed, ResolvedFace, Resolver
     from ..preview import _Renderer
     from ..units import Box, Length
-    from ..yamlsrc import YamlDocument
 
 
 #: Kind names, in schema/declaration order -- the order the first lookup
@@ -191,19 +190,8 @@ class ElementKind:
     #: `Dc.setAntiAlias` (`layout.is_antialiased_primitive`); glyph kinds
     #: anti-alias in their baked font instead.
     antialiased: ClassVar[bool] = False
-    #: `complication_slot` alone: its reading is a fresh per-frame pull, not
-    #: an element-level binding, so it emits its own guards and the element
-    #: guard/antialias wrapping around every other kind's `emit_draw` does
-    #: not apply to it.
-    emits_own_guards: ClassVar[bool] = False
 
     # -- semantic pass (wfb.ir.builder) --
-
-    def precheck(self, doc: "YamlDocument", bag: "Bag", node: Any) -> bool:
-        """A friendly check run before the schema itself (`wfb.validate`),
-        on every element node whatever its `type:`; answer only for your
-        own.  True when it reported an error for this node."""
-        return False
 
     def build(self, b: "Builder", node: dict, common: dict, path: tuple) -> "Element | None":
         """Build the IR element from a schema-valid node.  `common` holds the
@@ -232,11 +220,6 @@ class ElementKind:
         (`layout.circular_extent`), else `None`."""
         return None
 
-    def ink(self, placed: "Placed", fonts_root: str | None = None) -> "Ink | None":
-        """The real ink shape where it is tighter than the box
-        (`layout._shape_ink`), beyond the `circular_extent` disc."""
-        return None
-
     # -- fonts (resources, emit, lint) --
 
     def text_runs(self, element: "Element", face: "Face") -> list[TextRun]:
@@ -261,7 +244,8 @@ class ElementKind:
         """Emit the Monkey C drawing body of `draw<Id>`
         (`view._emit_element_method`), after the element's own guards.
         `value_guards` names the locals the value's own absence depends on
-        (`None` for `emits_own_guards`); `aod` restyles the draw for the
+        (`None` for a `complication_slot`, whose reading is a fresh per-frame
+        pull that emits its own guards); `aod` restyles the draw for the
         always-on frame."""
         raise NotImplementedError(f"{self.name}: emit_draw")
 

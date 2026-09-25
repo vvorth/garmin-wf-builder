@@ -30,7 +30,7 @@ from typing import Any, Callable, Iterable
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
-from . import SUPPORTED_FORMATS, kinds
+from . import SUPPORTED_FORMATS
 from .diagnostics import Bag
 from .yamlsrc import YamlDocument
 
@@ -182,12 +182,15 @@ def _visit_elements(doc: YamlDocument, visit: Callable[[dict, list], bool | None
 
 
 def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
-    """Report unknown element types, returning the paths already accounted for."""
+    """Report unknown element types, and the two whole-element mistakes of a
+    known one (:func:`_check_progress_style_keys`,
+    :func:`_check_hands_seconds_always`), returning the paths already
+    accounted for."""
     bad: list[list] = []
 
     def visit(element: dict, here: list) -> bool:
-        # Each precheck answers only for its own `type:`, so at most one fires.
-        if any(kind.precheck(doc, bag, element) for kind in kinds.all()):
+        if (_check_progress_style_keys(doc, bag, element)
+                or _check_hands_seconds_always(doc, bag, element)):
             bad.append(here)
             return True
         kind = element.get("type")
@@ -211,6 +214,67 @@ def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
 
     _visit_elements(doc, visit)
     return bad
+
+
+#: Keys that only make sense for one `progress` style.  Supplying one set
+#: while declaring the other style is a much commoner mistake than omitting
+#: a key, and "missing required key 'size'" does not begin to explain it.
+_PROGRESS_STYLE_KEYS = {
+    "arc": ("radius", "thickness", "start_angle", "sweep"),
+    "bar": ("size",),
+}
+
+
+def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict) -> bool:
+    """Catch a `progress` whose keys belong to the other style.  True when
+    it reported an error for this element."""
+    if element.get("type") != "progress":
+        return False
+    style = element.get("style")
+    if style not in _PROGRESS_STYLE_KEYS:
+        return False
+    other = "bar" if style == "arc" else "arc"
+    wrong = [key for key in _PROGRESS_STYLE_KEYS[other] if key in element]
+    if not wrong:
+        return False
+    missing = [key for key in _PROGRESS_STYLE_KEYS[style] if key not in element]
+    if not missing:
+        return False
+    plural = "s" if len(wrong) > 1 else ""
+    bag.error(
+        "schema",
+        f"this progress element is 'style: {style}' but carries "
+        f"{other}-only key{plural}: {', '.join(repr(k) for k in wrong)}",
+        doc.span(element, "style"),
+        notes=[
+            f"either set 'style: {other}', or replace those with "
+            f"{', '.join(repr(k) for k in _PROGRESS_STYLE_KEYS[style])}",
+            "'arc' is a stroked ring -- radius, thickness, start_angle, sweep; "
+            "'bar' is a rectangle -- size",
+        ],
+    )
+    return True
+
+
+def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> bool:
+    """`seconds: always` is not implemented; say why rather than list the
+    two values the schema's `seconds:` enum does accept.  True when it
+    reported an error for this element."""
+    if element.get("type") != "hands":
+        return False
+    if element.get("seconds") != "always":
+        return False
+    bag.error(
+        "schema",
+        "'seconds: always' is not implemented yet -- a second hand while "
+        "asleep needs a full-frame buffer and a moving onPartialUpdate clip, "
+        "a different buffer architecture from 'static:'s paint-once one",
+        doc.span(element, "seconds"),
+        notes=["see docs/limitations.md, \"Not implemented yet\"",
+               "'seconds: awake' (the default -- drawn while awake, hidden "
+               "asleep) or 'seconds: never' are implemented"],
+    )
+    return True
 
 
 def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:

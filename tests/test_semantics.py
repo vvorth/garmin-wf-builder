@@ -811,6 +811,29 @@ def test_a_progress_fallback_outside_zero_to_one_is_rejected(write_design, bag):
                for d in bag.errors), bag.render()
 
 
+def test_a_progress_with_the_other_styles_keys_gets_one_friendly_error(write_design, bag):
+    """`style: bar` written with an arc's `radius`/`thickness` and no `size`
+    is one error naming the stray keys and the fix, not the schema's own
+    "missing required key 'size'" plus one per unexpected key."""
+    load(write_design(design("""
+  - id: ring
+    type: progress
+    style: bar
+    value: activity.steps
+    max: activity.stepGoal
+    when_absent: hide
+    color: palette.fg
+    radius: 40%r
+    thickness: 6
+    at: {anchor: center}
+""")), bag)
+    assert len(bag.errors) == 1, bag.render()
+    error = bag.errors[0]
+    assert "'style: bar' but carries arc-only keys: 'radius', 'thickness'" in error.message
+    assert any("either set 'style: arc', or replace those with 'size'" in note
+               for note in error.notes)
+
+
 def test_a_computed_progress_fallback_is_clamped_on_device(write_design, bag, db):
     """Only a *constant* fallback can be range-checked at build time, so
     anything computed is clamped where it is drawn instead."""

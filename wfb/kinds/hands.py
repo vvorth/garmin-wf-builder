@@ -207,25 +207,6 @@ class HandsKind(ElementKind):
             aod_thickness=aod_thickness,
         )
 
-    def precheck(self, doc, bag, element: dict) -> bool:
-        """`seconds: always` is not implemented; say why rather than list the
-        two values the schema's `seconds:` enum does accept."""
-        if element.get("type") != "hands":
-            return False
-        if element.get("seconds") != "always":
-            return False
-        bag.error(
-            "schema",
-            "'seconds: always' is not implemented yet -- a second hand while "
-            "asleep needs a full-frame buffer and a moving onPartialUpdate clip, "
-            "a different buffer architecture from 'static:'s paint-once one",
-            doc.span(element, "seconds"),
-            notes=["see docs/limitations.md, \"Not implemented yet\"",
-                   "'seconds: awake' (the default -- drawn while awake, hidden "
-                   "asleep) or 'seconds: never' are implemented"],
-        )
-        return True
-
     def circular_extent(self, placed: PlacedHands):
         return (placed.center[0], placed.center[1], placed.reach)
 
