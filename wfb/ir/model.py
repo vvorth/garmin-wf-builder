@@ -944,7 +944,7 @@ class HandSet:
 class HandsElement(Element):
     """`type: hands` -- places a declared `hands:` set on screen, axis at
     `at:`.  `_own_roles` tags every effective part colour (already resolved
-    at build time, `Builder._build_hands_element`) `ROLE_COLOR`, so
+    at build time, `wfb.kinds.hands.build`) `ROLE_COLOR`, so
     permissions, the barrel, the read plan and the config-user lints pick
     them up exactly the way a shape's own `color:` does.
     """

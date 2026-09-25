@@ -28,7 +28,7 @@ from ..yamlsrc import YamlDocument
 from .model import (
     AodOverride, ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot,
     ConfigStyle, Curve, Element, Expression, Face, FontSpec, Group,
-    HOLD_AUTO, Hand, HandPart, HandSet, HandsElement, LayoutDecl, MAX_OUTLINE_WIDTH,
+    HOLD_AUTO, Hand, HandPart, HandSet, LayoutDecl, MAX_OUTLINE_WIDTH,
     Outline, PATTERN_LOOP_INDEX, ROLE_COLOR, ROLE_PART_VISIBLE, ROLE_VALUE, ROLE_VISIBLE,
     PatternElement, Position, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
     _drawn_copies, authored_draw_order, walk_elements,
@@ -2391,73 +2391,6 @@ class Builder:
             )
             ok = False
         return ok
-
-    def _build_hands_element(self, node: dict, common: dict) -> Element | None:
-        """`type: hands` -- places a declared `hands:` set on screen.
-
-        `common["at"]` is already the axis (resolved exactly like any
-        element's `at:`); there is no `size:` to build, because the
-        element's extent is the disc it sweeps, computed later in
-        `wfb.layout`, not a box.
-        """
-        name = node["hands"]
-        element_id = common["id"]
-        hand_set = self.hand_sets.get(name)
-        if hand_set is None:
-            self.hand_sets_block.unknown(
-                self.bag, name, self.doc.span(node, "hands"), code="hands",
-                message=f"{element_id}: unknown hand set {name!r}",
-                note="declared hand sets",
-            )
-            return None
-
-        seconds = node.get("seconds")
-        if seconds is not None and hand_set.second is None:
-            declared = ", ".join(n for n, _ in hand_set.hands()) or "(none)"
-            self.bag.error(
-                "hands",
-                f"{element_id}: 'seconds: {seconds}' needs a second hand, but "
-                f"hands.{name} declares none",
-                self.doc.span(node, "seconds"),
-                notes=[f"hands.{name} declares: {declared}"],
-            )
-            return None
-        if seconds is None and hand_set.second is not None:
-            seconds = "awake"  # the default
-        if seconds == "never" and hand_set.hour is None and hand_set.minute is None:
-            # The one combination that draws nothing at all -- refused rather
-            # than generated as a method with no drawing in it (no silent
-            # no-ops, CLAUDE.md §7).
-            self.bag.error(
-                "hands",
-                f"{element_id}: 'seconds: never' on hands.{name}, which has only a "
-                "second hand, draws nothing",
-                self.doc.span(node, "seconds"),
-                notes=["remove the element, or place a set with an hour or minute hand"],
-            )
-            return None
-
-        if "low_power" in common["modes"]:
-            self.bag.error(
-                "hands",
-                f"{element_id}: 'modes:' may not include 'low_power' on analog hands",
-                self.doc.span(node, "modes") or common["span"],
-                notes=["the hour and minute hands never need it -- they change once a "
-                       "minute, and the sleeping onUpdate already redraws them",
-                       "a second hand while asleep is 'seconds: always', which is not "
-                       "implemented yet (docs/limitations.md)"],
-            )
-            return None
-
-        colors: list[Expression] = []
-        for hand_name, hand in hand_set.hands():
-            if hand_name == "second" and seconds == "never":
-                continue  # never drawn, so its colours reach no lint and no read
-            _dedup_append(colors, hand.color)
-            for part in hand.parts:
-                _dedup_append(colors, part.color)
-
-        return HandsElement(**common, hands=name, seconds=seconds, colors=tuple(colors))
 
     def _build_pattern_element(self, node: dict, common: dict) -> Element | None:
         """`type: pattern` -- one template, drawn `count:` times, turned

@@ -6,7 +6,7 @@ import math
 
 from ... import expr, formatting
 from ...ir import PatternElement
-from ...layout import HAND_ANGLES, PatternTextAngle, PlacedHands, PlacedPattern
+from ...layout import PatternTextAngle, PlacedPattern
 from .common import (
     NO_AOD, AodStyle, _color, _const_prefix, _field, _glyph_y_expr, _mc_float,
     _pattern_needs_math,
@@ -15,77 +15,11 @@ from .shapes import _RADIAL_DIRECTION, _emit_outline_loop, _radial_radius_expr
 from ..writer import Writer
 
 
-#: hand name -> the `WfbHands` function that turns the time into its angle
-#: (`wfb.layout.HAND_ANGLES`'s own Monkey C half).
-_HAND_ANGLE_FUNCTIONS = tuple(
-    (name, HAND_ANGLES[name].monkeyc_function) for name in ("hour", "minute", "second")
-)
-
-
 def _aod_thickness_override(placed, prefix: str) -> str | None:
     """The element-level `aod: {thickness: ...}` constant a hands/pattern
     element applies uniformly to every part's pen width (plan 14 §5.1), or
     `None` when it has none."""
     return f"Layout.{prefix}_AOD_THICKNESS" if placed.aod_thickness is not None else None
-
-
-def _emit_hands(w: Writer, placed: "PlacedHands", aod: AodStyle = NO_AOD) -> None:
-    """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
-    draw each of its parts, shaped exactly like the analog-hands probe's
-    `drawMainHands` (`docs/research/probes/analog-hands/`): the axis first,
-    then hour, minute, second in that fixed order, with an `awake` second
-    hand's parts wrapped in `if (!_sleeping)`.
-
-    `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1) apply uniformly to
-    every part of every hand: one ternary against one element-level override,
-    reused by every part's own colour/pen-width line.
-    """
-    element = placed.element
-    prefix = _const_prefix(placed.id)
-    w.line(f"var cx = Layout.{prefix}_CX;")
-    w.line(f"var cy = Layout.{prefix}_CY;")
-    thickness_override = _aod_thickness_override(placed, prefix)
-    declared = False
-    for hand_name, angle_fn in _HAND_ANGLE_FUNCTIONS:
-        hand = getattr(placed, hand_name)
-        if hand is None:
-            continue
-        gated = hand_name == "second" and element.seconds == "awake"
-        w.blank()
-        w.comment(f"{hand_name}" + (" -- seconds: awake" if gated else ""))
-        with w.block_if("if (!_sleeping)" if gated else None):
-            _emit_one_hand(w, element, prefix, hand_name, angle_fn, hand, declared,
-                           thickness_override, aod)
-        declared = True
-
-
-def _emit_one_hand(w: Writer, element, prefix: str, hand_name: str, angle_fn: str, hand,
-                   declared: bool, thickness_override: str | None, aod: AodStyle) -> None:
-    """One hand's angle/sin/cos, then each of its parts, rotated and drawn.
-
-    `declared` says whether `angle`/`sin`/`cos` already have a `var` in this
-    method -- the first hand declares them, every later one reuses the same
-    three locals (the probe's own shape: Monkey C has no block scoping that
-    would need a fresh declaration per hand).
-    """
-    keyword = "" if declared else "var "
-    w.line(f"{keyword}angle = WfbHands.{angle_fn}(clock);")
-    w.line(f"{keyword}sin = Math.sin(angle);")
-    w.line(f"{keyword}cos = Math.cos(angle);")
-    # One setColor per colour *change*: consecutive parts of one hand
-    # usually share its default colour.  Reset per hand rather than
-    # carried across hands, because an `awake` second hand sits inside its
-    # own `if` block and cannot rely on a colour set before it.
-    current = None
-    for index, part in enumerate(hand.parts):
-        part_prefix = f"{prefix}_{hand_name.upper()}_{index}"
-        color = aod.part_color(element, part.color)
-        if color != current:
-            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-            current = color
-        _emit_transformed_part(
-            w, part, part_prefix, radial=True,
-            thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
 
 
 def _emit_transformed_part(w: Writer, part, part_prefix: str, *, radial: bool,
@@ -369,7 +303,7 @@ def _emit_pattern_part(w: Writer, element: "PatternElement", prefix: str, index:
 def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: AodStyle = NO_AOD) -> None:
     """`type: pattern` -- loop over the drawn copies, turning (radial) or
     translating (linear) the template resolved once at build time.  The
-    same bargain `_emit_hands` already struck for analog hands: the device
+    same bargain `wfb.kinds.hands.emit_draw` already struck for analog hands: the device
     performs the one piece of layout arithmetic ADR 0004 leaves it (a
     rotation or a translation), everything else is a `Layout` constant.
 
@@ -437,8 +371,9 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: AodStyle = NO_AOD) ->
         w.blank()
 
     # Colour: one distinct part colour is set once, before the loop; several
-    # are set inside it, only on each change (the same rule `_emit_one_hand`
-    # already follows within one hand).  A colour that reads `copy` is the
+    # are set inside it, only on each change (the same rule
+    # `wfb.kinds.hands._emit_one_hand` already follows within one hand).
+    # A colour that reads `copy` is the
     # loop's own `i`, so it can never be hoisted: it is set inside the loop,
     # afresh on every copy.  (A data reading needs no such care -- its local
     # is declared at the top of the method, before the loop.)  A dead part

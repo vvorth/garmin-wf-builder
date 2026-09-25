@@ -36,7 +36,7 @@ from .fonts import BakedFont, fallback
 from .fonts import cft as cft_fonts
 from .ir import aod_color_choice, disc_perimeter_offsets
 from .layout import (
-    HAND_ANGLES, PatternTextAngle, PlacedComplicationSlot, PlacedHands,
+    PatternTextAngle, PlacedComplicationSlot, PlacedHands,
     PlacedPattern, ResolvedFace,
     alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
     radial_align_offset, radial_direction_sign,
@@ -524,38 +524,6 @@ class _Renderer:
         kinds.for_placed(placed).draw_preview(self, placed)
 
     # -- elements ---------------------------------------------------------
-
-    def _hands(self, placed: PlacedHands) -> None:
-        """`type: hands` -- the same three angle rules `runtime-lib/
-        WfbHands.mc` computes on the device (`wfb.layout.HAND_ANGLES`'s own
-        `host` half), applied to the *resolved* geometry so this can never
-        disagree with the generated code about a hand's shape or its axis.
-
-        `--asleep` (or `--aod`, which implies it) hides an `awake`-only
-        second hand, the same choice the generated view makes while
-        `_sleeping`; a `seconds: never` hand was already excluded at resolve
-        time.
-        """
-        element = placed.element
-        s = self.scale
-        cx, cy = placed.center[0] * s, placed.center[1] * s
-        hour = int(self.values.get("time.hour", 0) or 0)
-        minute = int(self.values.get("time.minute", 0) or 0)
-        second = int(self.values.get("time.second", 0) or 0)
-        angles = {
-            name: HAND_ANGLES[name].host(hour, minute, second)
-            for name in ("hour", "minute", "second")
-        }
-        asleep = self.options.asleep or self.options.aod
-        for hand_name in ("hour", "minute", "second"):
-            hand = getattr(placed, hand_name)
-            if hand is None:
-                continue
-            if hand_name == "second" and element.seconds == "awake" and asleep:
-                continue
-            sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
-            for part in hand.parts:
-                self._hand_part(placed, part, cx, cy, sin_t, cos_t)
 
     def _hand_part(self, placed: PlacedHands | PlacedPattern, part, cx: float, cy: float,
                    sin_t: float, cos_t: float, values: dict | None = None) -> None:

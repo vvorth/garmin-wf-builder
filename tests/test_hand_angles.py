@@ -1,7 +1,7 @@
-"""`wfb.layout.HAND_ANGLES` (plan 19 A1): one table holding both halves of
-each analog hand's angle rule -- the Monkey C `runtime-lib/WfbHands.mc`
-already ships, and the host radians computation `wfb.preview`/
-`wfb.emit.monkeyc.rotated` now read instead of each keeping its own copy.
+"""`wfb.kinds.hands.HAND_ANGLES` (plan 19 A1): one table holding both halves
+of each analog hand's angle rule -- the Monkey C `runtime-lib/WfbHands.mc`
+already ships, and the host radians computation `wfb.kinds.hands` now reads
+instead of keeping its own copy.
 
 This is the same anti-drift move `tests/test_aod_mask_preview.py` makes
 against `WfbAodMask.mc`: parse the real `.mc` source and compare it to the
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from wfb.layout import HAND_ANGLES
+from wfb.kinds.hands import HAND_ANGLES
 
 ROOT = Path(__file__).resolve().parent.parent
 

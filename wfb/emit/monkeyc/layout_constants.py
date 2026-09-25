@@ -6,7 +6,7 @@ from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
-    PlacedComplicationSlot, PlacedHands, PlacedPattern,
+    PlacedComplicationSlot, PlacedPattern,
     ResolvedFace,
 )
 from .common import (
@@ -295,22 +295,6 @@ def _complication_slot_constants(prefix: str, placed: PlacedComplicationSlot) ->
 #: One override, applied uniformly to every part of a hands/pattern element
 #: (plan 14 §5.1) -- not one constant per part.
 _EVERY_PART_NOTE = "aod: thickness override, applied to every part"
-
-
-def _hands_constants(prefix: str, placed: PlacedHands) -> Constants:
-    out: Constants = [
-        (f"{prefix}_CX", placed.center[0], "the axis"),
-        (f"{prefix}_CY", placed.center[1], ""),
-    ]
-    out.extend(_aod_thickness_constant(prefix, placed, _EVERY_PART_NOTE))
-    for hand_name in ("hour", "minute", "second"):
-        hand = getattr(placed, hand_name)
-        if hand is None:
-            continue
-        for index, part in enumerate(hand.parts):
-            out.extend(_hand_part_constants(
-                f"{prefix}_{hand_name.upper()}_{index}", f"{hand_name} hand", index, part))
-    return out
 
 
 def _pattern_constants(prefix: str, placed: PlacedPattern) -> Constants:

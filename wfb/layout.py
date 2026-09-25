@@ -12,7 +12,6 @@ directly unit-testable with no Garmin toolchain.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from . import complications, formatting, icons, kinds, units
@@ -22,7 +21,7 @@ from .fonts import BakedFont, fallback
 from .catalog import Type
 from .ir import (
     ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
-    HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape,
+    HandPart, IconElement, PatternElement, Position, Progress, Shape,
     Text, draw_sort_key,
 )
 from .units import Angle, Axis, Box, IntBox, Length
@@ -60,45 +59,6 @@ def round_half_away(value: float) -> int:
     (``0.5`` -> ``0``).  `wfb.preview` imports this for `WfbArc`'s degrees.
     """
     return int(value - 0.5) if value < 0 else int(value + 0.5)
-
-
-@dataclass(frozen=True)
-class HandAngle:
-    """One analog hand's angle rule (plan 04), both halves side by side --
-    the `expr.Function`/`formatting.Code` pattern (plan 19 A1) applied to
-    `runtime-lib/WfbHands.mc`: `monkeyc_function`/`monkeyc_return` are that
-    function's name and its exact `return` expression, checked against the
-    real `.mc` source by `tests/test_hand_angles.py` so the two cannot
-    drift; `host` is `wfb.preview`'s own radians computation, Python's
-    degrees-to-radians conversion rather than a reimplementation of the
-    Monkey C constant, kept at exactly today's expression so a preview
-    pixel never moves.
-    """
-
-    monkeyc_function: str
-    monkeyc_return: str
-    host: Callable[[int, int, int], float]
-
-
-#: Hour: 30 degrees an hour plus half a degree a minute, so it sits between
-#: numerals at half past rather than jumping on the hour.  Minute/second:
-#: whole minutes/seconds, 6 degrees each.  `host` takes `(hour, minute,
-#: second)`, the sample the preview always has on hand, even though a given
-#: hand's rule only reads one or two of the three.
-HAND_ANGLES: dict[str, HandAngle] = {
-    "hour": HandAngle(
-        "hourAngle", "((clock.hour % 12) * 60 + clock.min) * (Math.PI / 360.0)",
-        lambda hour, minute, second: math.radians(((hour % 12) * 60 + minute) * 0.5),
-    ),
-    "minute": HandAngle(
-        "minuteAngle", "clock.min * (Math.PI / 30.0)",
-        lambda hour, minute, second: math.radians(minute * 6.0),
-    ),
-    "second": HandAngle(
-        "secondAngle", "clock.sec * (Math.PI / 30.0)",
-        lambda hour, minute, second: math.radians(second * 6.0),
-    ),
-}
 
 
 def alignment_shift(width: float, height: float, align: str, vertical_align: str) -> tuple[float, float]:
@@ -1317,37 +1277,6 @@ class Resolver:
             widest = _longer(widest, element.placeholder)
         return widest
 
-    def _resolve_hands(self, element: HandsElement, parent: Box, depth: int) -> Placed:
-        """`type: hands` -- the axis, plus every part of every drawn hand
-        resolved to whole pixels in the hand's own frame.  The rotation is
-        the one piece of layout arithmetic the device performs (ADR 0004,
-        amended).
-        """
-        cx, cy = self._point(element.at, parent)
-        hand_set = self.face.hands[element.hands]
-        resolved: dict[str, ResolvedHand] = {}
-        reach = 0.0
-        for name, hand in hand_set.hands():
-            if name == "second" and element.seconds == "never":
-                # Not drawn: left unresolved, exactly as if the set declared
-                # no `second:`, so it neither emits nor inflates the reach.
-                continue
-            # `<id>.<hand>`: a set has up to three `parts:` lists, so the bare
-            # id would not say which hand a `sub-pixel-length` finding means.
-            parts, hand_reach = self._resolve_parts(
-                hand.parts, f"{element.id}.{name}", min_1px=element.resolved_min_1px)
-            resolved[name] = ResolvedHand(parts=parts)
-            reach = max(reach, hand_reach)
-        axis = (round(cx), round(cy))
-        box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
-        aod_thickness = self._aod_extent(element, "thickness", parent, 1)
-        return PlacedHands(
-            element, box.rounded(), axis, depth,
-            hour=resolved.get("hour"), minute=resolved.get("minute"),
-            second=resolved.get("second"), reach=reach,
-            aod_thickness=aod_thickness,
-        )
-
     def _resolve_parts(
         self, parts: list[HandPart], owner: str, *, min_1px: bool,
     ) -> tuple[tuple[ResolvedHandPart, ...], float]:
@@ -1813,5 +1742,4 @@ __all__ = [
     "is_full_bleed", "arc_bbox", "annulus_sector_reach", "rotated_rect_corners",
     "radial_text_band", "radial_text_angle_span",
     "PatternTextAngle", "radial_direction_sign", "radial_align_offset",
-    "HandAngle", "HAND_ANGLES",
 ]
