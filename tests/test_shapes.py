@@ -168,7 +168,7 @@ def test_polygon_points_resolve_per_device(resolved_for):
 
 def test_filled_false_on_a_rectangle_draws_an_outline(generated_for, tmp_path):
     """Regression: `filled:` was parsed, validated, and then ignored outright --
-    `_emit_shape` always called fillRectangle and only `circle` branched."""
+    `wfb.kinds.shape.emit_draw` always called fillRectangle and only `circle` branched."""
     outlined = """
   - id: card
     type: shape

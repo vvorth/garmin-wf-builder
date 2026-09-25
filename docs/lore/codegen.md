@@ -499,7 +499,7 @@ These cost real time to discover; do not rediscover them.
   **Scope actually shipped in slice 2, and what is deliberately deferred:**
   ternaries for every allowlisted key on `shape`/`text`/`progress`/`icon`/
   `graph`, `filled` as an `if (_aod) { <opposite draw> } else { <awake
-  draw> } ` branch (`wfb.emit.monkeyc.shapes._emit_filled_toggle`), `format`
+  draw> } ` branch (`wfb.kinds.shape._emit_filled_toggle`), `format`
   as two fully-formatted value expressions ternaried against each other
   (built before `when_absent:` substitution, so a placeholder/fallback
   still sees the right one), and `hands`/`pattern` `color`/`thickness`
@@ -516,7 +516,7 @@ These cost real time to discover; do not rediscover them.
   1-4's own machinery has no AOD-override-aware second face/size constant
   yet), and `aod: {filled: ...}` on `shape: polygon` (there is no outline
   primitive for it to switch to -- the same reason the awake element's own
-  `filled: false` is already refused, `wfb/ir/builder.py`'s `_build_shape`).
+  `filled: false` is already refused, `wfb.kinds.shape.build`).
   All four are raised on the author's own line: in `Builder._build_aod_authored`
   for an element's own block, and in `Builder._resolve_aod` for a key the
   element inherits from a group (plan 18 item 5; both read one table,

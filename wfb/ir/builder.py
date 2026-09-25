@@ -44,33 +44,6 @@ from .naming import (
 _NO_ICON_OVERRIDE = object()
 _ICON_OVERRIDE_ERROR = object()
 
-#: Which geometry keys each `shape:` reads.  A key outside its own row
-#: would be parsed and silently dropped, so `_check_shape_keys` rejects it
-#: (a `radius:` typed onto a rounded_rectangle instead of `corner_radius:`,
-#: say).  `color:`/`filled:` are common to every shape; `thickness:` is
-#: checked separately, because whether it is read depends on `filled:`.
-#: `polygon` and `line` carry no `align`/`vertical_align`: a polygon has no
-#: single `at:` to align on, and a line's `at:`/`to:` are its two ends.
-SHAPE_GEOMETRY_KEYS = {
-    "rectangle": frozenset({"size", "align", "vertical_align"}),
-    "rounded_rectangle": frozenset({"size", "corner_radius", "align", "vertical_align"}),
-    "circle": frozenset({"radius", "align", "vertical_align"}),
-    "ellipse": frozenset({"size", "align", "vertical_align"}),
-    "line": frozenset({"to"}),
-    "arc": frozenset({"radius", "start_angle", "sweep", "align", "vertical_align"}),
-    "polygon": frozenset({"points"}),
-}
-
-#: The extra note `_check_shape_keys` adds when the rejected key is
-#: `align`/`vertical_align`.
-_SHAPE_NO_ALIGNMENT_REASON = {
-    "polygon": "every vertex is its own position; there is no single 'at:' "
-               "to align on -- a polygon has no 'at:' of its own either",
-    "line": "'at:' and 'to:' are the line's two ends",
-}
-
-_ALL_SHAPE_GEOMETRY_KEYS = frozenset().union(*SHAPE_GEOMETRY_KEYS.values())
-
 #: The same table for a hand part -- the four rotatable primitives, in the
 #: hand's own frame.  `polygon` has no `at`: its vertices are already
 #: positions in that frame.  `align`/`vertical_align` only on the
@@ -1294,8 +1267,9 @@ class Builder:
         *, context: str = "hand",
     ) -> HandPart | None:
         """One primitive of a hand, or of a `type: pattern` template -- the
-        same per-shape precedent as `_build_shape`/`_check_shape_keys`,
-        scoped to the rotatable-or-translatable primitives.  `context`
+        same per-shape precedent as `wfb.kinds.shape.build`/
+        `wfb.kinds.shape._check_shape_keys`, scoped to the
+        rotatable-or-translatable primitives.  `context`
         (`"hand"`/`"pattern"`) selects the vocabulary: a hand part rejects
         `arc` and `text` outright; a pattern part accepts both.
         `default_color` is the owning hand's/pattern's own `color:`, and
@@ -1521,7 +1495,7 @@ class Builder:
         """Reject a geometry key this part's `shape:` does not read, plus the
         separately-handled `thickness`/`filled` rules -- the same "a key a
         part's shape does not read is an error" precedent as
-        `Builder._check_shape_keys`.  Also how an `arc` pattern part's `at:`
+        `wfb.kinds.shape._check_shape_keys`.  Also how an `arc` pattern part's `at:`
         is refused: `at` is not in `PATTERN_PART_GEOMETRY_KEYS["arc"]`, so it
         falls out of the same "key belongs to another shape" sweep as any
         other misplaced key, with one extra note explaining the platform
@@ -2376,75 +2350,6 @@ class Builder:
         self._push_visible(group)
         return group
 
-    def _build_shape(self, node: dict, common: dict) -> Element:
-        shape = node["shape"]
-        raw_points = node.get("points") or []
-        align, vertical_align = self._alignment(node)
-        element = Shape(
-            **common,
-            shape=shape,
-            size=self._size(node.get("size")),
-            radius=self._length(node, "radius"),
-            corner_radius=self._length(node, "corner_radius"),
-            to=self._position(node.get("to"), node, "to") if "to" in node else None,
-            points=[self._position(raw, node, "points")
-                    for raw in raw_points if isinstance(raw, dict)],
-            start_angle=self._angle(node, "start_angle"),
-            sweep=self._angle(node, "sweep"),
-            thickness=self._length(node, "thickness"),
-            color=self._color_expression(node, "color"),
-            filled=bool(node.get("filled", True)),
-            align=align,
-            vertical_align=vertical_align,
-        )
-        if shape == "circle" and element.radius is None:
-            self._require(node, "radius", "a circle needs a radius")
-        if shape == "rectangle" and (element.size.width is None or element.size.height is None):
-            self._require(node, "size", "a rectangle needs size.width and size.height")
-        if shape == "rounded_rectangle" and element.corner_radius is None:
-            self._require(node, "corner_radius", "a rounded rectangle needs a corner_radius")
-        if shape == "line" and element.to is None:
-            self._require(node, "to", "a line needs a 'to' position")
-        self._check_shape_keys(node, shape)
-        if shape == "arc":
-            if element.radius is None:
-                self._require(node, "radius", "an arc needs a radius")
-            if "filled" in node:
-                # CLAUDE.md constraint 3: there is no fillArc, fillSector or
-                # drawSector anywhere in the API.  Silently ignoring `filled:`
-                # here would promise a solid sector the platform cannot draw.
-                self.bag.error(
-                    "element",
-                    "'filled' is not accepted on 'shape: arc' -- Connect IQ has no "
-                    "filled-arc primitive",
-                    self.doc.span(node, "filled") or self.doc.span(node),
-                    notes=["there is no fillArc, fillSector or drawSector in "
-                           "Toybox.Graphics.Dc: an arc is setPenWidth + drawArc and "
-                           "nothing else, so 'thickness' is its only weight control",
-                           "for a solid disc use 'shape: circle'; for a solid wedge, "
-                           "approximate it with 'shape: polygon'"],
-                )
-        if shape == "ellipse" and (element.size.width is None or element.size.height is None):
-            self._require(node, "size", "an ellipse needs size.width and size.height")
-        if shape == "polygon":
-            if len(element.points) < 3:
-                self._require(node, "points", "a polygon needs at least 3 points")
-            if not element.filled:
-                # Dc has fillPolygon and no drawPolygon -- confirmed against
-                # $CIQ_SDK/doc/Toybox/Graphics/Dc.html and each target's own
-                # api.debug.xml.  An outline would have to be emitted as N
-                # drawLine calls, which is a different element, not this one.
-                self.bag.error(
-                    "element",
-                    "'filled: false' is not accepted on 'shape: polygon' -- "
-                    "Toybox.Graphics.Dc has fillPolygon but no drawPolygon",
-                    self.doc.span(node, "filled") or self.doc.span(node),
-                    notes=["for an outline, draw the edges as 'shape: line' "
-                           "elements, which is what a drawPolygon would have "
-                           "compiled to anyway"],
-                )
-        return element
-
     def _check_foreign_keys(
         self, node: dict, chosen: str, table: dict[str, frozenset[str]],
         all_keys: frozenset[str], *, code: str, disc: str,
@@ -2454,7 +2359,7 @@ class Builder:
     ) -> bool:
         """Reject a key from another row of `table` that `chosen`'s own row
         does not read -- the shared "key not used by this X" sweep
-        `_check_shape_keys`, `_check_hand_part_keys` and
+        `wfb.kinds.shape._check_shape_keys`, `_check_hand_part_keys` and
         `wfb.kinds.graph._check_graph_style_keys` each specialise, for `disc`
         (the discriminator word: `shape`/`style`) in `'{disc}: {chosen}'`.
 
@@ -2485,41 +2390,6 @@ class Builder:
             )
             ok = False
         return ok
-
-    def _check_shape_keys(self, node: dict, shape: str) -> None:
-        """Reject a geometry key the chosen `shape:` does not read.
-
-        Without this check, an unread key would be parsed by the schema,
-        resolved into the IR, and then never looked at -- so `shape:
-        rounded_rectangle` with a `radius:` (rather than `corner_radius:`)
-        would draw square corners and say nothing, and `thickness:` on a
-        shape left filled would do nothing at all.  ADR 0009's rule applies:
-        a design must not quietly lose something it asked for.
-
-        `thickness:` is checked separately from the table because whether it
-        is read depends on `filled:`, not on the shape: a `line` and an `arc`
-        always use it, any other shape uses it only when outlined.
-        """
-        self._check_foreign_keys(
-            node, shape, SHAPE_GEOMETRY_KEYS, _ALL_SHAPE_GEOMETRY_KEYS,
-            code="element", disc="shape",
-            extra_notes=lambda key: (
-                [_SHAPE_NO_ALIGNMENT_REASON[shape]]
-                if key in ("align", "vertical_align") and shape in _SHAPE_NO_ALIGNMENT_REASON
-                else []
-            ),
-        )
-        if "thickness" in node and shape not in ("line", "arc") \
-                and bool(node.get("filled", True)):
-            self.bag.error(
-                "element",
-                f"'thickness' is not used by a filled 'shape: {shape}'",
-                self.doc.span(node, "thickness") or self.doc.span(node),
-                notes=["thickness is the pen width of an outline; a filled shape has "
-                       "no outline to draw",
-                       "add 'filled: false' to outline this shape, or drop "
-                       "'thickness'"],
-            )
 
     def _build_hands_element(self, node: dict, common: dict) -> Element | None:
         """`type: hands` -- places a declared `hands:` set on screen.
@@ -3026,8 +2896,9 @@ class Builder:
 
     def _check_curve_keys(self, node: dict, style: str) -> None:
         """Reject a `curve:` key the chosen `style:` does not read -- the same
-        `_check_shape_keys` precedent (`radius:`/`direction:` only mean
-        something with a circle to describe, and `style: angled` has none).
+        `wfb.kinds.shape._check_shape_keys` precedent (`radius:`/`direction:`
+        only mean something with a circle to describe, and `style: angled`
+        has none).
         """
         if style not in CURVE_STYLE_KEYS:
             return  # the schema has already rejected an unknown style

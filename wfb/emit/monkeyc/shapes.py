@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ... import formatting
-from ...layout import PlacedShape, PlacedText, ResolvedFace
+from ...layout import PlacedText, ResolvedFace
 from .common import (
     NO_AOD, AodStyle, _aod_font_field, _color, _const_prefix, _field, _glyph_y_expr,
 )
@@ -35,95 +35,6 @@ def _thickness_expr(prefix: str, placed, aod: AodStyle) -> str:
     """`Layout.<P>_THICKNESS`, ternary against `_AOD_THICKNESS` when this
     element's resolved `aod:` overrides `thickness:` (plan 14 §4.2)."""
     return aod.layout(prefix, "THICKNESS", placed.aod_thickness is not None)
-
-
-def _shape_filled_override(element, aod: AodStyle) -> bool:
-    """Does this shape's resolved `aod:` flip `filled:` (plan 14 §4.2) --
-    `True` only when this build ever emits AOD code, an override exists, and
-    it actually differs from the awake `filled:`; a same-valued override
-    changes nothing and is not worth a runtime branch.
-    """
-    return (
-        aod.on and element.aod is not None and element.aod.filled is not None
-        and element.aod.filled != element.filled
-    )
-
-
-#: The shapes with both a `Dc.fill<Name>` and a `Dc.draw<Name>` primitive:
-#: `shape:` -> (`<Name>`, the call's argument groups, one wrapped line each,
-#: as `Layout.<P>_<suffix>` suffixes).
-_FILLABLE_SHAPES: dict[str, tuple[str, tuple[tuple[str, ...], ...]]] = {
-    "rectangle": ("Rectangle", (("X", "Y"), ("WIDTH", "HEIGHT"))),
-    "rounded_rectangle": ("RoundedRectangle", (("X", "Y"), ("WIDTH", "HEIGHT"), ("CORNER",))),
-    "ellipse": ("Ellipse", (("CX", "CY"), ("RX", "RY"))),
-    "circle": ("Circle", (("CX", "CY", "RADIUS"),)),
-}
-
-
-def _emit_shape(w: Writer, placed: PlacedShape, aod: AodStyle = NO_AOD) -> None:
-    element = placed.element
-    prefix = _const_prefix(placed.id)
-    w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
-
-    if element.shape in _FILLABLE_SHAPES:
-        name, groups = _FILLABLE_SHAPES[element.shape]
-        args = [", ".join(f"Layout.{prefix}_{suffix}" for suffix in group) for group in groups]
-        if element.shape == "circle":
-            # A circle's pen width is a plain per-device literal, not a
-            # `Layout` constant (`_shape_constants`), so its `aod:
-            # {thickness: ...}` override is inlined the same way.
-            override = str(placed.aod_thickness) if placed.aod_thickness is not None else None
-            thickness_expr = aod.value(override, str(placed.thickness))
-        else:
-            thickness_expr = _thickness_expr(prefix, placed, aod)
-
-        def draw_filled() -> None:
-            w.call(f"dc.fill{name}", args)
-
-        def draw_outline() -> None:
-            w.line(f"dc.setPenWidth({thickness_expr});")
-            w.call(f"dc.draw{name}", args)
-            w.line("dc.setPenWidth(1);")
-
-        _emit_filled_toggle(w, element.filled, _shape_filled_override(element, aod),
-                            draw_filled, draw_outline)
-    elif element.shape == "arc":
-        # The same barrel call a `progress` track uses, so the two arcs cannot
-        # disagree about the angle convention or about the full-circle case
-        # (drawArc draws a complete circle when start == end).
-        _emit_arc_span(w, prefix, _thickness_expr(prefix, placed, aod))
-    elif element.shape == "polygon":
-        # There is no drawPolygon in Dc, only fillPolygon -- `filled: false`
-        # and an `aod: {filled: ...}` override on a polygon are both rejected
-        # in wfb/ir/builder.py (`Builder._build_aod_authored`), so there is
-        # never an outline form to switch to here.
-        w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
-    elif element.shape == "line":
-        w.line(f"dc.setPenWidth({_thickness_expr(prefix, placed, aod)});")
-        w.line(
-            f"dc.drawLine(Layout.{prefix}_CX, Layout.{prefix}_CY, "
-            f"Layout.{prefix}_END_X, Layout.{prefix}_END_Y);"
-        )
-        w.line("dc.setPenWidth(1);")
-
-
-def _emit_filled_toggle(w: Writer, filled: bool, override: bool,
-                        draw_filled, draw_outline) -> None:
-    """Emit ``draw_filled``/``draw_outline`` for the awake state, or, when
-    ``override`` (`_shape_filled_override`), wrap both in
-    ``if (_aod) { <opposite> } else { <awake> }`` -- the "changes the draw
-    call itself, not just an argument" shape `filled: true -> false`
-    deserves (plan 14 §1). The `else` branch is byte-identical to what the
-    element would have emitted with no `filled` override at all, so a
-    design that never overrides `filled:` sees no change here.
-    """
-    if not override:
-        (draw_filled if filled else draw_outline)()
-        return
-    with w.block("if (_aod)"):
-        (draw_outline if filled else draw_filled)()
-    with w.block("else"):
-        (draw_filled if filled else draw_outline)()
 
 
 def _emit_text(w: Writer, resolved: ResolvedFace, placed: PlacedText, guards: list[str],

@@ -38,7 +38,7 @@ from .fonts import cft as cft_fonts
 from .ir import aod_color_choice, disc_perimeter_offsets
 from .layout import (
     HAND_ANGLES, PatternTextAngle, PlacedComplicationSlot, PlacedHands,
-    PlacedPattern, PlacedShape, PlacedText, ResolvedFace,
+    PlacedPattern, PlacedText, ResolvedFace,
     alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
     radial_align_offset, radial_direction_sign,
 )
@@ -525,60 +525,6 @@ class _Renderer:
         kinds.for_placed(placed).draw_preview(self, placed)
 
     # -- elements ---------------------------------------------------------
-
-    def _shape(self, placed: PlacedShape) -> None:
-        element = placed.element
-        fill = self._aod_color(element, "color", element.color)
-        filled = self._aod_field(element, "filled", element.filled)
-        thickness = self._aod_geometry(placed, "thickness", placed.thickness)
-        s = self.scale
-        if element.shape == "rectangle":
-            box = self._rect(placed.rect or placed.box)
-            if filled:
-                self.draw.rectangle(box, fill=fill)
-            else:
-                self.draw.rectangle(box, outline=fill, width=max(1, thickness * s))
-        elif element.shape == "rounded_rectangle":
-            box = self._rect(placed.rect or placed.box)
-            radius = placed.corner_radius * s
-            if filled:
-                self.draw.rounded_rectangle(box, radius=radius, fill=fill)
-            else:
-                self.draw.rounded_rectangle(box, radius=radius, outline=fill,
-                                            width=max(1, thickness * s))
-        elif element.shape == "arc":
-            # Same whole-degree rule the generated code gets from
-            # WfbArc.drawSpan -- see `arc_span`.
-            cx, cy = placed.center[0] * s, placed.center[1] * s
-            r = placed.radius * s
-            span = arc_span(placed.start_angle, placed.sweep)
-            if r > 0 and span is not None:
-                self.draw.arc([cx - r, cy - r, cx + r, cy + r], *span,
-                              fill=fill, width=max(1, thickness * s))
-        elif element.shape == "ellipse":
-            cx, cy = placed.center
-            rx, ry = placed.rx, placed.ry
-            box = [(cx - rx) * s, (cy - ry) * s, (cx + rx) * s, (cy + ry) * s]
-            if filled:
-                self.draw.ellipse(box, fill=fill)
-            else:
-                self.draw.ellipse(box, outline=fill, width=max(1, thickness * s))
-        elif element.shape == "polygon":
-            if len(placed.points) >= 3:
-                self.draw.polygon([(x * s, y * s) for x, y in placed.points], fill=fill)
-        elif element.shape == "circle":
-            cx, cy = placed.center
-            r = placed.radius
-            box = [(cx - r) * s, (cy - r) * s, (cx + r) * s, (cy + r) * s]
-            if filled:
-                self.draw.ellipse(box, fill=fill)
-            else:
-                self.draw.ellipse(box, outline=fill, width=max(1, thickness * s))
-        elif element.shape == "line":
-            self.draw.line(
-                [placed.center[0] * s, placed.center[1] * s, placed.end[0] * s, placed.end[1] * s],
-                fill=fill, width=max(1, thickness * s),
-            )
 
     def _hands(self, placed: PlacedHands) -> None:
         """`type: hands` -- the same three angle rules `runtime-lib/

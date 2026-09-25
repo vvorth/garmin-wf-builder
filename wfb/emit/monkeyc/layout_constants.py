@@ -7,7 +7,7 @@ from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
     PlacedComplicationSlot, PlacedHands, PlacedPattern,
-    PlacedShape, PlacedText, ResolvedFace,
+    PlacedText, ResolvedFace,
 )
 from .common import (
     McLiteral, SourceFile, _NO_GUARDS, _const_prefix, _describe, _mc_number, _mc_type,
@@ -261,20 +261,6 @@ def _arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
     ]
 
 
-def _needs_thickness_constant(element) -> bool:
-    """Does this `shape` need a `_THICKNESS` `Layout` constant at all -- the
-    plain unfilled-outline case, or an `aod: {filled: false}` override on an
-    otherwise-filled shape (plan 14 §4.2), which needs a pen width for the
-    AOD-only outline draw even though the awake draw never did.  `line`/`arc`
-    always need one regardless (there is no `filled` concept there), so
-    neither call site of this helper is reached for them.
-    """
-    if not element.filled:
-        return True
-    aod = element.aod
-    return aod is not None and aod.filled is False
-
-
 def _aod_thickness_constant(prefix: str, placed,
                             note: str = "aod: thickness override") -> list[tuple[str, float, str]]:
     """`{prefix}_AOD_THICKNESS`, only when this element's resolved `aod:`
@@ -283,51 +269,6 @@ def _aod_thickness_constant(prefix: str, placed,
     if placed.aod_thickness is None:
         return []
     return [(f"{prefix}_AOD_THICKNESS", placed.aod_thickness, note)]
-
-
-def _shape_constants(prefix: str, placed: PlacedShape) -> Constants:
-    element = placed.element
-    out: Constants = []
-    if element.shape in ("circle", "line", "arc", "ellipse"):
-        out.append((f"{prefix}_CX", placed.center[0], ""))
-        out.append((f"{prefix}_CY", placed.center[1], ""))
-    if element.shape == "circle":
-        out.append((f"{prefix}_RADIUS", placed.radius, ""))
-        # A circle's own pen width is inlined as a plain literal at the
-        # draw call site (`wfb.emit.monkeyc.shapes._emit_shape`), not
-        # routed through `Layout` -- unlike every other shape here, so
-        # its `aod_thickness` override is inlined there too, never as a
-        # constant.
-    elif element.shape == "line":
-        out.append((f"{prefix}_END_X", placed.end[0], ""))
-        out.append((f"{prefix}_END_Y", placed.end[1], ""))
-        out.append((f"{prefix}_THICKNESS", placed.thickness, ""))
-        out.extend(_aod_thickness_constant(prefix, placed))
-    elif element.shape == "arc":
-        out.extend(_arc_constants(prefix, placed))
-        out.extend(_aod_thickness_constant(prefix, placed))
-    elif element.shape == "ellipse":
-        out.append((f"{prefix}_RX", placed.rx, "semi-axis along x"))
-        out.append((f"{prefix}_RY", placed.ry, "semi-axis along y"))
-        if _needs_thickness_constant(element):
-            out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
-            out.extend(_aod_thickness_constant(prefix, placed))
-    elif element.shape == "polygon":
-        points = ", ".join(f"[{x}, {y}]" for x, y in placed.points)
-        out.append((
-            f"{prefix}_POINTS",
-            McLiteral("Array<Graphics.Point2D>", f"[{points}]"),
-            f"{len(placed.points)} vertices; fillPolygon's own limit is 64",
-        ))
-    else:
-        rect = placed.rect or placed.box
-        out.extend(_box_constants(prefix, rect))
-        if element.shape == "rounded_rectangle":
-            out.append((f"{prefix}_CORNER", placed.corner_radius, ""))
-        if _needs_thickness_constant(element):
-            out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
-            out.extend(_aod_thickness_constant(prefix, placed))
-    return out
 
 
 def _text_constants(prefix: str, placed: PlacedText) -> Constants:

@@ -1159,7 +1159,7 @@ class Resolver:
         """The "size, then align" box every `size:`-placed kind shares, and
         its shifted centre.  Width then height go through `_extent` in that
         order -- `sub_pixel`'s order.  Takes the anchor already resolved,
-        since `_resolve_shape` needs it first (`_point` records nothing).
+        since `wfb.kinds.shape.resolve` needs it first (`_point` records nothing).
         """
         min_1px = element.resolved_min_1px
         width = self._extent(element.size.width, parent, Axis.X, parent.width,
@@ -1173,83 +1173,6 @@ class Resolver:
     def _group_box(self, element: Group, parent: Box) -> Box:
         cx, cy = self._point(element.at, parent)
         return self._sized_box(element, parent, cx, cy)[0]
-
-    def _resolve_shape(self, element: Shape, parent: Box, depth: int) -> Placed:
-        cx, cy = self._point(element.at, parent)
-        min_1px = element.resolved_min_1px
-        pen = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 1,
-                                        min_1px=min_1px, what="thickness")))
-        aod_thickness = self._aod_extent(element, "thickness", parent, 1)
-
-        def placed(box: IntBox, x: float, y: float, **fields) -> PlacedShape:
-            return PlacedShape(element, box, (round(x), round(y)), depth,
-                               thickness=pen, aod_thickness=aod_thickness, **fields)
-
-        if element.shape == "circle":
-            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
-                                        min_1px=min_1px, what="radius"))
-            # Aligned by the full circle; an outline's pen pad is added
-            # around the already-moved centre, so it never moves the shift.
-            dx, dy = alignment_shift(2 * radius, 2 * radius, element.align, element.vertical_align)
-            cx, cy = cx + dx, cy + dy
-            reach = radius if element.filled else radius + _stroke_pad(pen)
-            return placed(Box(cx - reach, cy - reach, 2 * reach, 2 * reach).rounded(), cx, cy,
-                          radius=radius)
-
-        if element.shape == "line":
-            # No `align:` on a line (rejected in `wfb.ir`): `at:`/`to:` are
-            # its two ends, so there is no single box to align.
-            ex, ey = self._point(element.to or Position(), parent)
-            box = Box(min(cx, ex) - pen, min(cy, ey) - pen,
-                      abs(ex - cx) + 2 * pen, abs(ey - cy) + 2 * pen)
-            return placed(box.rounded(), cx, cy, end=(round(ex), round(ey)))
-
-        if element.shape == "arc":
-            radius = round(self._extent(element.radius, parent, Axis.MINOR, 0,
-                                        min_1px=min_1px, what="radius"))
-            box, cx, cy, start, sweep, garmin_start, direction = _arc_box(
-                radius, pen, cx, cy, element.align, element.vertical_align,
-                element.start_angle, element.sweep)
-            return placed(box, cx, cy, radius=radius, start_angle=start, sweep=sweep,
-                          garmin_start=garmin_start, garmin_direction=direction)
-
-        if element.shape == "polygon":
-            points = tuple(
-                (round(px), round(py))
-                for px, py in (self._point(point, parent) for point in element.points)
-            )
-            if not points:
-                # `wfb.ir` has already errored; keep resolving so the rest of
-                # the design still gets checked.
-                return PlacedShape(element, Box(cx, cy, 0, 0).rounded(),
-                                   (round(cx), round(cy)), depth)
-            xs = [px for px, _ in points]
-            ys = [py for _, py in points]
-            box = Box(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
-            centre = (round(sum(xs) / len(xs)), round(sum(ys) / len(ys)))
-            return PlacedShape(element, box.rounded(), centre, depth, points=points)
-
-        # rectangle, rounded_rectangle, ellipse: aligned by the declared
-        # `size:`, before any outline pad is added.
-        sized, cx, cy = self._sized_box(element, parent, cx, cy)
-
-        if element.shape == "ellipse":
-            rx = round(sized.width / 2)
-            ry = round(sized.height / 2)
-            pad = 0 if element.filled else _stroke_pad(pen)
-            box = Box(cx - rx - pad, cy - ry - pad, 2 * (rx + pad), 2 * (ry + pad))
-            return placed(box.rounded(), cx, cy, rx=rx, ry=ry)
-
-        corner = round(self._len(element.corner_radius, parent, Axis.MINOR, 0))
-        # `min_1px=min_1px`: `width`/`height` come straight from `_extent`,
-        # the "float extent of at least 1 px" `Box.rounded` protects.
-        rect = sized.rounded(min_1px=min_1px)
-        if element.filled:
-            return placed(rect, cx, cy, corner_radius=corner)
-        pad = _stroke_pad(pen)
-        reach = Box(rect.x - pad, rect.y - pad,
-                    rect.width + 2 * pad, rect.height + 2 * pad).rounded()
-        return placed(reach, cx, cy, corner_radius=corner, rect=rect)
 
     def _resolve_text(self, element: Text, parent: Box, depth: int) -> Placed:
         font = self._text_font(element.font, element.font_is_custom, element.id, element.curve)
@@ -1521,7 +1444,7 @@ class Resolver:
             # The placement box is the declared `size:`, in the part's own
             # frame -- shift the centre
             # before the corners (and `round_half_away`) below, the same order
-            # `Resolver._resolve_shape` already uses in the parent's frame.
+            # `wfb.kinds.shape.resolve` already uses in the parent's frame.
             # `top`/`left` mean `-y`/`-x` here too: a hand's 12 o'clock rest
             # pose is already `-y`, so no sign flip is needed to match the
             # "towards 12 o'clock" convention.
@@ -1607,7 +1530,7 @@ class Resolver:
         # The placement box is the full `2*radius` square,
         # at the resolved (already-rounded) radius the part draws with --
         # shifted before `reach`/`round_half_away` below, same as
-        # `Resolver._resolve_shape`'s circle branch in the parent's frame.
+        # `wfb.kinds.shape.resolve`'s circle branch in the parent's frame.
         dx, dy = alignment_shift(2 * radius, 2 * radius, part.align, part.vertical_align)
         cx, cy = cx + dx, cy + dy
         thickness = max(1, round_half_away(self._hand_extent(
