@@ -175,6 +175,14 @@ See `docs/limitations.md` 3.
 - palette and anti-aliasing dither
 - the power cost of low-power updates
 
+Two checks look across every target in the build at once, not one device at
+a time: `font-unavailable` (above) and the `shared-view` note. One generated
+view serves every target, so in a build with both AMOLED and MIP targets the
+AMOLED always-on frame is compiled into the MIP targets too, where it never
+runs. The note names them. It is informational, since their measured memory
+already includes the cost, and there is nothing to suppress: build the MIP
+targets on their own (`-d`) to leave the code out.
+
 Each warning states how confident the check is. When a warning is intended,
 keep the design and record why:
 

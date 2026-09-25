@@ -145,6 +145,25 @@ These cost real time to discover; do not rediscover them.
   consumers: `compute_guards`'s aggregate for codegen, and per-element
   `source_unavailable`/`reader_unavailable` for a lint pass to point at the
   exact YAML line) and `docs/research/probes/api-gating/` for the evidence.
+- **One view and one delegate for every target, and a check that they
+  really are shared (plan 19 A5, 2026-09-25).** `wfb.build` resolves each
+  target once (`resolve_all`), and `wfb.emit.generate(..., resolved=...)`
+  reuses those faces instead of baking and resolving again. Whatever the
+  shared sources decide per device is decided over the whole build:
+  `Guards` (which now also carries `partial_update_unsupported`, the view's
+  `onPartialUpdate` decision, which used to read device 0 alone), and
+  `needs_icon_glyphs`, a union over every target's placed items. As a
+  check, `generate` emits the view and the delegate from every target's
+  resolved face and compares each with the first's (`_check_shared`). A
+  difference is a `Divergence`, which `wfb.build` reports as a
+  `shared-source` build error naming the file, both devices and the first
+  differing line. A per-device fact that leaks into a shared source
+  therefore fails the build instead of silently following the first
+  target, the way the view's `Device: <first>` header and its
+  partial-update comment (that device's clip percentage) did until A5. A
+  per-device fact belongs in `Layout.mc`. Measured before the change, over
+  every example and fixture on its own targets and on all 22 installed
+  devices: those two comment lines were the only differences.
 - **System-font metrics (plan 09 §4 R2, 2026-09-18): one `FontMetric` per
   `FONT_*` symbol per device, one place turning it into a real face.**
   `wfb.devices.Device.system_fonts` merges the scraped SDK reference table

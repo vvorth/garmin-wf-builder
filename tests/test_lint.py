@@ -1841,14 +1841,17 @@ def test_lint_warning_kinds_are_exactly_what_compute_guards_can_guard(
     field_guarded`/`display_mode_guarded` (plan 14) are a fourth, unrelated
     group: the AOD gate's own build-time/runtime halves (the last one added
     by slice 6, research 11 §6 F), governed by `wfb.emit.monkeyc.view`
-    directly, never by `check_api_gated` -- excluded the same way."""
+    directly, never by `check_api_gated` -- excluded the same way, as is
+    `partial_update_unsupported` (plan 19 A5), the view's build-wide
+    `onPartialUpdate` decision."""
     from dataclasses import fields as dc_fields
 
     from wfb.availability import Guards, compute_guards
 
     guards_field_names = (
         {f.name for f in dc_fields(Guards)}
-        - {"vector_fonts", "amoled_target", "burn_in_field_guarded", "display_mode_guarded"}
+        - {"vector_fonts", "amoled_target", "burn_in_field_guarded", "display_mode_guarded",
+           "partial_update_unsupported"}
     )
     assert guards_field_names == {"complications", "modules", "fields"}
 

@@ -69,7 +69,8 @@ ALL_CODES = frozenset({
     "hold-auto-ambiguous", "hold-auto-unresolved",
     "palette-dither", "partial-update", "partial-update-budget", "pattern",
     "pattern-step", "permission",
-    "on-hold", "overrides", "raw-color", "safe-area", "schema", "source-renamed",
+    "on-hold", "overrides", "raw-color", "safe-area", "schema", "shared-source",
+    "shared-view", "source-renamed",
     "sub-pixel-length", "target",
     "static", "static-overlap", "string-label",
     "text-antialias", "text-curve", "text-outline", "text-outline-interior",
@@ -235,6 +236,34 @@ def _vector_text_carriers(face: Face):
     for element in face.walk():
         for what, carrier, part_index in kinds.for_element(element).vector_text_carriers(element):
             yield what, carrier, part_index, element
+
+
+def check_shared_view_targets(resolved: dict[str, ResolvedFace], bag: Bag) -> None:
+    """One view serves every target (plan 19 A5), so code that only some
+    targets can run is compiled into the rest too. The one such need is the
+    AMOLED always-on frame (`Guards.amoled_target`): in a build with both
+    AMOLED and MIP targets, every MIP target carries `_aod`, its sleep-hook
+    check and the AOD draw branch, and never runs them. A note, not a
+    warning: the build is correct, and each device's measured memory already
+    includes the cost. Like :func:`check_vector_font_availability`, it needs
+    every target resolved, so `wfb.build.resolve_all` calls it once.
+    """
+    devices = [rf.device for rf in resolved.values()]
+    mip = sorted(device.id for device in devices if not device.is_amoled)
+    if not mip or len(mip) == len(devices):
+        return
+    bag.note(
+        "shared-view",
+        "the AMOLED always-on frame ('aod:') is compiled into every target, "
+        f"and never runs on the MIP one{'s' if len(mip) > 1 else ''}: {', '.join(mip)}",
+        notes=[
+            "the generated view is one file shared by every target; only "
+            "Layout.mc is per device",
+            "each MIP target's measured memory includes it; build the MIP "
+            "targets on their own (-d) to leave it out",
+        ],
+        confidence="exact -- device displayType",
+    )
 
 
 def check_vector_font_availability(

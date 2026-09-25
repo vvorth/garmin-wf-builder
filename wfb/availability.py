@@ -369,6 +369,15 @@ class Guards:
     #: when `complications` is true, which the complication-only sites
     #: (`onLayout`, `on_hold:`, `config: data:`) keep reading.
     modules: frozenset[str] = frozenset()
+    #: True iff no target device supports `onPartialUpdate`
+    #: (`Device.supports_partial_update`: every target is AMOLED). With a
+    #: `low_power` mode, the shared view carries `onPartialUpdate` and
+    #: `onPowerBudgetExceeded` unless this is true -- decided over the whole
+    #: build, not by whichever device the view happens to be emitted from
+    #: (plan 19 A5). An AMOLED target with low-power elements is a
+    #: `partial-update` error anyway, so no build that compiles carries the
+    #: method on a device that cannot run it.
+    partial_update_unsupported: bool = False
 
 
 def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
@@ -400,7 +409,9 @@ def compute_guards(face: Face, devices: Iterable[Device]) -> Guards:
     display_mode_guarded = amoled_target and any(
         not device.has_symbol(Device.DISPLAY_MODE_SYMBOL) for device in devices
     )
+    partial_update_unsupported = not any(device.supports_partial_update for device in devices)
     return Guards(complications=complications, fields=missing_fields,
                   vector_fonts=unavailable_vector_fonts, amoled_target=amoled_target,
                   burn_in_field_guarded=burn_in_field_guarded,
-                  display_mode_guarded=display_mode_guarded, modules=missing_modules)
+                  display_mode_guarded=display_mode_guarded, modules=missing_modules,
+                  partial_update_unsupported=partial_update_unsupported)

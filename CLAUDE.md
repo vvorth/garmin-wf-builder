@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/`: **18** (bug fixes from the 2026-09-24 review: built except two small items in its §2, one awaiting user decision) and **19** (architecture proposals: A0–A4 built, A5 approved, A6–A7 awaiting user decision; `tools/snapshot.py` proves a refactor output-identical). Built plans are deleted — see `docs/CLAUDE.md` |
+| proposals written but not built | `docs/plans/`: **18** (bug fixes from the 2026-09-24 review: built except two small items in its §2, one awaiting user decision) and **19** (architecture proposals: A0–A5 built, A6–A7 awaiting user decision; `tools/snapshot.py` proves a refactor output-identical). Built plans are deleted — see `docs/CLAUDE.md` |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`

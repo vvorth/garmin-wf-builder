@@ -152,6 +152,7 @@ def resolve_all(face: Face, devices: list[Device], bag: Bag,
     # device in this build resolved first, so it runs once here rather than
     # once per device.
     lint.check_vector_font_availability(face, resolved, bag)
+    lint.check_shared_view_targets(resolved, bag)
     return resolved, baked
 
 
@@ -173,12 +174,27 @@ def build(path: Path, *, output: Path, bag: Bag, devices_only: list[str] | None 
     if not devices or not bag.ok():
         return None
 
-    _, baked = resolve_all(face, devices, bag)
+    resolved, _ = resolve_all(face, devices, bag)
     if not bag.ok():
         return None
 
     build_dir = (output / slug(face.name)).resolve()
-    project = generate(face, devices, build_dir, baked)
+    project = generate(face, devices, build_dir, resolved=resolved)
+    for divergence in project.divergences:
+        bag.error(
+            "shared-source",
+            f"internal error: the shared {divergence.path} differs between "
+            f"{divergence.first} and {divergence.other}",
+            notes=[
+                f"{divergence.first}: {divergence.first_line.strip()}",
+                f"{divergence.other}: {divergence.other_line.strip()}",
+                "one view and one delegate serve every target, so a per-device "
+                "fact belongs in Layout.mc; this is a compiler bug -- please report it",
+                "building the targets separately with -d works around it",
+            ],
+        )
+    if project.divergences:
+        return None
     for collision in project.string_collisions:
         shown = " and ".join(
             f"{strhash.describe(text)} ({', '.join(paths)})"

@@ -211,6 +211,14 @@ AMOLED-class** and need an `aod:` sleep frame instead
 removed outright (D3) once `aod:` could express the same frame as overrides
 on the one design, not a second element set.
 
+One generated view serves every target in a build (only `Layout.mc` is per
+device), so a build that mixes AMOLED and MIP targets compiles the AOD frame
+into the MIP ones too, where it never runs. Their measured memory includes
+it, and the `shared-view` note names them; building the MIP targets on
+their own (`-d`) leaves it out. The reverse cannot happen: low-power
+elements on an AMOLED target are a `partial-update` error, so no build
+carries `onPartialUpdate` onto a device that cannot run it.
+
 ### A face cannot ship its own TTF, and vector fonts are Garmin's only
 
 An author's typeface is **always** rasterised to a bitmap sheet at build time.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -47,6 +48,9 @@ class GeneratedProject:
     #: after `_avoid_string_label_collisions` -- `wfb.build` reports each as an
     #: error, because monkeyc would otherwise crash on them.
     string_collisions: list[strhash.Collision] = field(default_factory=list)
+    #: Shared sources that came out differently when emitted from another
+    #: target's resolved face -- `wfb.build` reports each as an error.
+    divergences: list["Divergence"] = field(default_factory=list)
 
     def generated_text(self) -> dict[str, str]:
         """The project-level files and every generated Monkey C source, by
@@ -69,9 +73,34 @@ class GeneratedProject:
         return out
 
 
+@dataclass(frozen=True)
+class Divergence:
+    """A shared source that differs between two targets' resolved faces.
+
+    The view and the delegate are one file for every device, so everything
+    they say must hold on every target; only `Layout.mc` is per device.
+    `generate` emits each shared source from every target and compares, so a
+    per-device fact leaking into one is a build error, not a silent
+    "follows the first target" (plan 19 A5).
+    """
+
+    path: str
+    first: str
+    other: str
+    #: The first differing line, as emitted for `first` and for `other`.
+    first_line: str
+    other_line: str
+
+
 def generate(face: Face, devices: list[Device], root: Path,
-             baked: dict[str, dict[str, BakedFont]] | None = None) -> GeneratedProject:
-    """Build the project in memory.  :func:`write` puts it on disk."""
+             baked: dict[str, dict[str, BakedFont]] | None = None, *,
+             resolved: Mapping[str, ResolvedFace] | None = None) -> GeneratedProject:
+    """Build the project in memory.  :func:`write` puts it on disk.
+
+    `resolved` is `wfb.build.resolve_all`'s result, used as is. A device it
+    does not cover is resolved here, from its `baked` fonts or freshly baked
+    ones -- the path a caller without a resolved face (a test) takes.
+    """
     project = GeneratedProject(face=face, devices=devices, root=root)
 
     project.sources.append(monkeyc.emit_app(face))
@@ -84,23 +113,28 @@ def generate(face: Face, devices: list[Device], root: Path,
     project.strings_text = resources.shared_strings(face)
 
     for device in devices:
-        fonts = (baked or {}).get(device.id)
-        if fonts is None:
-            fonts = resources.bake_fonts(face, device)
-        resolved = resolve(face, device, fonts)
-        project.resolved[device.id] = resolved
-        project.sources.append(monkeyc.emit_layout(resolved, guards))
-        project.bundles.append(resources.build_bundle(face, device, fonts))
+        device_resolved = (resolved or {}).get(device.id)
+        if device_resolved is None:
+            fonts = (baked or {}).get(device.id)
+            if fonts is None:
+                fonts = resources.bake_fonts(face, device)
+            device_resolved = resolve(face, device, fonts)
+        project.resolved[device.id] = device_resolved
+        project.sources.append(monkeyc.emit_layout(device_resolved, guards))
+        project.bundles.append(resources.build_bundle(face, device, device_resolved.fonts))
 
-    # The view is shared across devices; generate it from the first resolved
-    # device, since only the Layout constants differ between them.
-    first = project.resolved[devices[0].id]
+    # The view and delegate are shared across devices: only the Layout
+    # constants differ between them. Each is emitted from the first device
+    # and checked against every other (`_check_shared`); a need that varies
+    # per device is decided over all of them (`guards`, and the icon-glyph
+    # union below), never by the first alone.
     needs_icon_glyphs = any(
-        kinds.for_placed(placed).needs_icon_glyphs(placed.element, face) for placed in first.items
+        kinds.for_placed(placed).needs_icon_glyphs(placed.element, face)
+        for device_resolved in project.resolved.values() for placed in device_resolved.items
     )
     if needs_icon_glyphs:
         project.sources.append(monkeyc.emit_icon_glyphs(face))
-    project.sources.append(monkeyc.emit_view(first, guards))
+    project.sources.append(_check_shared(project, lambda r: monkeyc.emit_view(r, guards)))
     if monkeyc.complication_slots(face):
         # The native editor's animated highlight over a complication_slot --
         # the callback that constructs it never fires outside the editor
@@ -112,10 +146,32 @@ def generate(face: Face, devices: list[Device], root: Path,
         # are Layout constants, which are already per-device.  A `config:`-only
         # design (no on_hold) also needs one, purely for
         # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
-        project.sources.append(monkeyc.emit_delegate(first, guards))
+        project.sources.append(_check_shared(project, lambda r: monkeyc.emit_delegate(r, guards)))
     project.barrel = sorted(usage.barrel_modules(source.text for source in project.sources))
     _avoid_string_label_collisions(project)
     return project
+
+
+def _check_shared(project: GeneratedProject,
+                  emit: Callable[[ResolvedFace], monkeyc.SourceFile]) -> monkeyc.SourceFile:
+    """Emit one shared source from every target's resolved face, record a
+    `Divergence` for each target whose copy differs from the first's, and
+    return the first's."""
+    ids = [device.id for device in project.devices]
+    source = emit(project.resolved[ids[0]])
+    for other in ids[1:]:
+        text = emit(project.resolved[other]).text
+        if text == source.text:
+            continue
+        mine, theirs = source.text.splitlines(), text.splitlines()
+        index = next((i for i, (a, b) in enumerate(zip(mine, theirs)) if a != b),
+                     min(len(mine), len(theirs)))
+        project.divergences.append(Divergence(
+            source.path, ids[0], other,
+            mine[index] if index < len(mine) else "(end of file)",
+            theirs[index] if index < len(theirs) else "(end of file)",
+        ))
+    return source
 
 
 def _program_texts(project: GeneratedProject) -> dict[str, str]:

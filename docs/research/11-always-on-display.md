@@ -231,6 +231,13 @@ D1: it decides whether the shared view carries `_aod`/its sleep-hook
 plumbing/its `onUpdate` branch at all, and is the byte-identical guarantee
 for an all-MIP build (§4.1's own test, `tests/test_aod.py`).
 
+**Superseded again 2026-09-25 (plan 19 A5):** two more consumers.
+`compute_guards`' `partial_update_unsupported` (`not any(device.
+supports_partial_update ...)`) decides `onPartialUpdate` for the whole
+build instead of from whichever device the view was emitted from, and
+`wfb.lint.check_shared_view_targets` notes (`shared-view`) the MIP targets
+of a mixed build, which carry the AOD code without running it.
+
 ### 3.4 The burn-in check: built, plan 14 slice 4 (2026-09-23)
 
 **Superseded.** `wfb/lint.py`'s `check_aod_burn_in` (code `aod-burn-in`,

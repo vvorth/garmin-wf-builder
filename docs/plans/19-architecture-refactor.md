@@ -1,7 +1,7 @@
 # Plan 19: architecture changes proposed by the 2026-09-24 code review
 
-**Status: A0–A4 done (A4 2026-09-25). A5 is approved (union) and next. A6,
-A7, the P6 comment rule and the small items in §3 await a user decision.**
+**Status: A0–A5 done (A4 and A5 2026-09-25). A6, A7, the P6 comment rule
+and the small items in §3 await a user decision.**
 These change the project's shape (root `CLAUDE.md` §7: stop and ask), so
 **do not start an unapproved step**, and record each decision in §5. Delete
 this file once every step is built or dropped. The full plan as written,
@@ -21,6 +21,7 @@ installed device, eight preview variants, every CLI command).
 | A2 roles | `9fdd7c1` | `Element.bound_expressions()` (role-tagged, in the old order) with a per-kind `VALUE_ROLES`, and `Element.color_roles()` (`ColorRole`). The five absence checks stay separate (different rules) but read the roles. Output identical. |
 | A3 usage from emitted code | `c0b0601` | `wfb/emit/usage.py` scans the generated sources: `barrel_modules` for the copied runtime-lib files, `toybox_modules` for the view's imports. It replaces `_barrel_for`, `Code.helper` and `_view_imports`. 29 views gained one redundant-but-correct import each. Fonts are out of reach: baking precedes layout, and font loads are inputs to emission. |
 | A4 kind registry | `60a8769` (design), `901f90d` (scaffolding), then one commit per kind: `3631f3f` progress, `2126318` icon, `8f76928` graph, `f3c5807` shape, `e44a5dd` text, `929df0e` hands, `d633b68` pattern, `508f044` complication_slot, `45b9e2f` group | `wfb/kinds/`: one `ElementKind` per kind, whose hooks replace every per-kind ladder and table in the stages (the hook table is `ElementKind`'s own fields). Each kind module holds the builder, resolver, preview, emitter and layout-constant code only that kind uses; shared helpers stay in their stage. `group` owns only `build`: its resolution stays `Resolver._resolve_list`'s structural recursion, and preview and emit filter it out before dispatch. Stage modules import the package, never a kind submodule, and read the registry only at call time. `tests/test_kinds.py` pins the registry to the schema's discriminators. Output identical at every commit. |
+| A5 resolve once, union | the commit that added this row | `wfb.build` hands `resolve_all`'s faces to `generate(..., resolved=...)`, which no longer bakes or resolves again (a caller without them, such as a test, still passes `baked`). Per-device needs are decided over every target: `Guards.partial_update_unsupported` for `onPartialUpdate` (it read device 0), and the icon-glyph need as a union. `generate` emits the view and delegate from every target and compares them; a difference is a `shared-source` build error (`Divergence`), driven red by a test. The view's header no longer names device 0, and its partial-update comment no longer quotes device 0's clip share. A `shared-view` note names the MIP targets of a mixed AMOLED/MIP build, which carry the AOD code without running it. Generated code is identical apart from those two comments; the note is new output. |
 
 ## 2. Open problems, with evidence
 
@@ -75,6 +76,8 @@ together by "matches X exactly" comments:
 
 ### P4. Codegen uses device 0 for everyone
 
+**Addressed by A5 (built, §1).** The evidence as found:
+
 `wfb/emit/project.py` generates the shared view and `needs_icon_glyphs`
 from `devices[0]`'s resolved layout (the barrel set is now scanned from
 that view's text, so it follows the same device). `build.build` resolves
@@ -111,12 +114,14 @@ kinds").
 
 ### A5. Resolve once, and decide per-device (addresses P4)
 
-`generate` takes `resolve_all`'s resolved faces instead of re-resolving.
-**Decision needed:** keep one shared view built from device 0 (today), or
-union the per-device needs (icon glyphs, fonts, the barrel scan over every
-device's view) across all targets, which is correct but may add unused code
-to some targets. The recommendation is the union, with a lint note when the
-targets diverge.
+Built with the union choice; see §1. A probe before the change emitted the
+view and delegate from each target's own resolved face, for every example
+and fixture on its own targets and on all 22 installed devices: they
+differed only in the header's device name and the partial-update comment.
+The one per-device *code* decision, `onPartialUpdate`, cannot diverge in a
+build that compiles, because low-power elements on an AMOLED target are a
+`partial-update` error. The union therefore changes no generated code; the
+cross-check makes that hold by construction from now on.
 
 ### A6. IR shape cleanups (addresses P5; independent, do opportunistically)
 
@@ -172,7 +177,7 @@ gets most of the safety for a fraction of the cost.
 ## 4. Suggested order
 
 1. **A4** (built), one kind per commit.
-2. **A5**, approved (union).
+2. **A5** (built), with the union.
 3. **A6** items and the small items as convenient; plan 18 §2 leftovers.
 4. **A7** only on an explicit decision.
 
@@ -183,6 +188,6 @@ gets most of the safety for a fraction of the cost.
 | Approve A0–A3? | each separately | yes | approved 2026-09-24, built |
 | Parity approach | A1 (shared definitions + parity test) / A7 (draw program) | A1 | A1 |
 | Approve A4? | yes / no | yes | approved 2026-09-24, built 2026-09-25 |
-| Per-device needs (A5) | device 0 (today) / union across targets | union | union, 2026-09-24 |
+| Per-device needs (A5) | device 0 (today) / union across targets | union | union, 2026-09-24, built 2026-09-25 |
 | Approve A6 items? | each separately | yes, opportunistically | — |
 | P6 comment rule in `CLAUDE.md` | add / don't | add | — |

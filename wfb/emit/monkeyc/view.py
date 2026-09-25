@@ -159,15 +159,16 @@ def _emit_antialias_helper(w: Writer) -> None:
     w.blank()
 
 
-def _has_partial_update(resolved: ResolvedFace) -> bool:
+def _has_partial_update(resolved: ResolvedFace, guards: "Guards") -> bool:
     """Does this build actually get an `onPartialUpdate` -- both the design
-    declaring a `low_power` mode and the device itself supporting partial
-    updates (AMOLED forbids it, CLAUDE.md constraint 5)."""
-    return resolved.in_mode("low_power") and resolved.device.supports_partial_update
+    declaring a `low_power` mode and some target supporting partial updates
+    (AMOLED forbids it, CLAUDE.md constraint 5). Read off the build-wide
+    `guards`, not `resolved.device`: the view is shared by every target."""
+    return resolved.in_mode("low_power") and not guards.partial_update_unsupported
 
 
 def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceFile:
-    face, device = resolved.face, resolved.device
+    face = resolved.face
     guards = guards if guards is not None else _NO_GUARDS
     plan = ReadPlan(resolved, guards)
     graphs = [p for p in resolved.items if isinstance(p, PlacedGraph)]
@@ -240,7 +241,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards)
         _emit_on_update(w, resolved, plan, aod.on, static, antialias_default, guards)
-        if _has_partial_update(resolved):
+        if _has_partial_update(resolved, guards):
             _emit_on_partial_update(w, resolved, plan, antialias_default)
         _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod.on, guards, aod_only_fonts)
         if plan.complication_readers():
@@ -265,7 +266,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     body_text = w.render()
     modules = sorted(set(_BASE_IMPORTS) | usage.toybox_modules(body_text))
     preamble = Writer()
-    preamble.doc(header(face, f"Device:    {device.id}")).blank()
+    preamble.doc(header(face)).blank()
     for module in modules:
         preamble.line(f"import {module};")
     preamble.blank()
@@ -978,19 +979,17 @@ def _emit_one_aod_call(w: Writer, plan: "ReadPlan", placed) -> None:
 
 def _emit_on_partial_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
                             antialias_default: bool | None = None) -> None:
-    clip = resolved.clip_for("low_power")
-    fraction = 100.0 * clip.area / (resolved.device.width * resolved.device.height) if clip else 0
     w.doc(
         "Redraw only the low-power elements, once a second, while asleep.\n"
         "\n"
         "The clip is the tightest box around them because setClip is charged by\n"
-        f"region area: {fraction:.0f}% of the screen here.  Overrunning the power\n"
-        "budget calls onPowerBudgetExceeded and disables partial updates for the\n"
-        "rest of the app's lifecycle.  Nothing here is rate-limited by the\n"
-        "compiler: since the refresh-tier concept was deleted, any source a\n"
-        "low_power element binds -- weather.* and complication.* included --\n"
-        "is read on every one of these updates.  The suppressible\n"
-        "partial-update-budget lint is the only thing watching that."
+        "region area (each device's Layout.mc gives its share of the screen).\n"
+        "Overrunning the power budget calls onPowerBudgetExceeded and disables\n"
+        "partial updates for the rest of the app's lifecycle.  Nothing here is\n"
+        "rate-limited by the compiler: since the refresh-tier concept was\n"
+        "deleted, any source a low_power element binds -- weather.* and\n"
+        "complication.* included -- is read on every one of these updates.  The\n"
+        "suppressible partial-update-budget lint is the only thing watching that."
     )
     with w.block("function onPartialUpdate(dc as Dc) as Void"):
         w.line(
@@ -1062,7 +1061,7 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
                         )
         w.line("WatchUi.requestUpdate();")
     w.blank()
-    if _has_partial_update(resolved):
+    if _has_partial_update(resolved, guards):
         w.doc(
             "The power budget was exceeded and partial updates are now off for the\n"
             "rest of this app's lifecycle.  Nothing can re-enable them; the face\n"
