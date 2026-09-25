@@ -1359,22 +1359,6 @@ class Resolver:
         return FontMetric(symbol=face_name or "vector", face=face_name, font=filename,
                           size_px=font_px)
 
-    def _resolve_graph(self, element: Graph, parent: Box, depth: int) -> Placed:
-        cx, cy = self._point(element.at, parent)
-        min_1px = element.resolved_min_1px
-        box, cx, cy = self._sized_box(element, parent, cx, cy)
-        thickness = max(1, round(self._extent(element.thickness, parent, Axis.MINOR, 2,
-                                              min_1px=min_1px, what="thickness")))
-        bar_width = max(1, round(self._extent(element.bar_width, parent, Axis.MINOR, 3,
-                                              min_1px=min_1px, what="bar_width")))
-        aod_thickness = self._aod_extent(element, "thickness", parent, 2)
-        aod_bar_width = self._aod_extent(element, "bar_width", parent, 3)
-        return PlacedGraph(
-            element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
-            thickness=thickness, bar_width=bar_width, size=(round(box.width), round(box.height)),
-            aod_thickness=aod_thickness, aod_bar_width=aod_bar_width,
-        )
-
     def _resolve_complication_slot(self, element: ComplicationSlot, parent: Box,
                                    depth: int) -> Placed:
         """A `complication_slot`: an estimated box, plus the icon and text

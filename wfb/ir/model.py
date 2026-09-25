@@ -1251,7 +1251,7 @@ class Graph(Element):
     max: Expression | None = None
     size: Size = field(default_factory=Size)
     color: Expression | None = None
-    #: The build-time upper bound on samples drawn (`Builder._graph_sample_count`):
+    #: The build-time upper bound on samples drawn (`wfb.kinds.graph._graph_sample_count`):
     #: device-independent, so the `style: area` cap and a documented-maximum
     #: overrun are build errors.
     sample_count: int = 0

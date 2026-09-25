@@ -6,7 +6,7 @@ from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
-    PlacedComplicationSlot, PlacedGraph, PlacedHands, PlacedPattern,
+    PlacedComplicationSlot, PlacedHands, PlacedPattern,
     PlacedShape, PlacedText, ResolvedFace,
 )
 from .common import (
@@ -358,19 +358,6 @@ def _text_constants(prefix: str, placed: PlacedText) -> Constants:
         ))
         if placed.curve_style == "radial":
             out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))
-    return out
-
-
-def _graph_constants(prefix: str, placed: PlacedGraph) -> Constants:
-    out: Constants = list(_box_constants(prefix, placed.box))
-    if placed.element.style == "line":
-        out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
-        out.extend(_aod_thickness_constant(prefix, placed))
-    elif placed.element.style == "bars":
-        out.append((f"{prefix}_BAR_WIDTH", placed.bar_width, "centred in each slot"))
-        if placed.aod_bar_width is not None:
-            out.append((f"{prefix}_AOD_BAR_WIDTH", placed.aod_bar_width,
-                        "aod: bar_width override"))
     return out
 
 

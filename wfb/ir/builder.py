@@ -17,18 +17,17 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from .. import catalog, complications, expr, formatting, icons, kinds, series, units
+from .. import catalog, complications, expr, formatting, icons, kinds, units
 from ..catalog import Type
 from ..desugar import layout_ids
 from ..diagnostics import Bag, Span
 from ..palette import Color, ColorError
-from ..series import Acquisition, SeriesDef
-from ..units import Angle, Duration, Length, UnitError
+from ..units import Angle, Length, UnitError
 from ..yamlsrc import YamlDocument
 
 from .model import (
     AodOverride, ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot,
-    ConfigStyle, Curve, Element, Expression, Face, FontSpec, GRAPH_AREA_MAX_SAMPLES, Graph, Group,
+    ConfigStyle, Curve, Element, Expression, Face, FontSpec, Group,
     HOLD_AUTO, Hand, HandPart, HandSet, HandsElement, LayoutDecl, MAX_OUTLINE_WIDTH,
     Outline, PATTERN_LOOP_INDEX, ROLE_COLOR, ROLE_PART_VISIBLE, ROLE_VALUE, ROLE_VISIBLE,
     PatternElement, Position, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
@@ -139,15 +138,6 @@ PATTERN_PART_REJECTED_SHAPES = {
                "approximate it with 'polygon'",
     "icon": "a bitmap font cannot rotate or translate through this loop",
 }
-
-#: Which key each `graph` `style:` reads (a `bar_width:` on a `style: line`
-#: graph would otherwise be silently dropped).
-GRAPH_STYLE_KEYS = {
-    "line": frozenset({"thickness"}),
-    "area": frozenset(),
-    "bars": frozenset({"bar_width"}),
-}
-_ALL_GRAPH_STYLE_KEYS = frozenset().union(*GRAPH_STYLE_KEYS.values())
 
 #: Which key each `curve:` `style:` reads: only `radial` has a circle for
 #: `radius:`/`direction:` to describe.  The schema still parses both under
@@ -2465,8 +2455,8 @@ class Builder:
         """Reject a key from another row of `table` that `chosen`'s own row
         does not read -- the shared "key not used by this X" sweep
         `_check_shape_keys`, `_check_hand_part_keys` and
-        `_check_graph_style_keys` each specialise, for `disc` (the
-        discriminator word: `shape`/`style`) in `'{disc}: {chosen}'`.
+        `wfb.kinds.graph._check_graph_style_keys` each specialise, for `disc`
+        (the discriminator word: `shape`/`style`) in `'{disc}: {chosen}'`.
 
         `prefix`/`qualifier`/`suffix` build the message around that quoted
         phrase (``f"{prefix}{key!r} is not used by {qualifier}'{disc}:
@@ -3458,208 +3448,6 @@ class Builder:
             self._require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:'")
 
         return element
-
-    def _build_graph(self, node: dict, common: dict) -> Element:
-        """`type: graph` -- a time series over a data source and a range.
-
-        The four validation questions here are independent of each other and
-        of layout (nothing below reads a device or a box): which series,
-        which range, whether `buckets:` means anything for that combination,
-        and whether the resulting sample count fits the chosen `style:`.
-        """
-        name = node.get("series")
-        src = series.get(name) if name else None
-        if src is None:
-            reason = series.unavailable_reason(str(name)) if name else None
-            if reason is not None:
-                # Not a typo -- a real quantity the platform will not serve as
-                # a history.  Saying "unknown" would send the author hunting
-                # for a spelling mistake that does not exist.
-                self.bag.error(
-                    "graph",
-                    f"{name!r} cannot be plotted on a watch face",
-                    self.doc.span(node, "series"),
-                    notes=[reason,
-                           "run `wfb series` for what a watch face can plot",
-                           "docs/research/08-graphs-and-configuration.md §1 has "
-                           "the evidence"],
-                )
-            else:
-                near = series.suggest(str(name)) if name else []
-                self.bag.error(
-                    "graph",
-                    f"unknown series {name!r}",
-                    self.doc.span(node, "series"),
-                    notes=(["did you mean: " + ", ".join(near) + "?"] if near else [])
-                    + ["run `wfb series` for the full list"],
-                )
-
-        range_kind, range_value = self._graph_range(node, src)
-        buckets = int(node.get("buckets", 40))
-        heart_rate_duration = (
-            src is not None and src.acquisition is Acquisition.HEART_RATE
-            and range_kind == "duration"
-        )
-        if "buckets" in node and not heart_rate_duration:
-            reason = (
-                "a count range does not bin by time" if src is not None
-                and src.acquisition is Acquisition.HEART_RATE
-                else f"{name!r} is not time-binned" if src is not None
-                else "the series is unknown"
-            )
-            self.bag.error(
-                "graph",
-                f"'buckets' has no effect here -- {reason}",
-                self.doc.span(node, "buckets"),
-                notes=["'buckets:' only means something for a time-binned series read "
-                       "over a duration -- 'heart_rate' with a 'range:' such as '4h'",
-                       "drop 'buckets:', or change 'range:' to a duration"],
-            )
-        if buckets < 1:
-            self.bag.error(
-                "graph", "'buckets' must be at least 1", self.doc.span(node, "buckets"),
-            )
-            buckets = 40
-
-        style = node.get("style", "line")
-        thickness = self._length(node, "thickness")
-        bar_width = self._length(node, "bar_width")
-        self._check_graph_style_keys(node, style)
-
-        min_expr, min_auto = self._graph_bound(node, "min")
-        max_expr, max_auto = self._graph_bound(node, "max")
-        if (min_expr is not None and min_expr.is_constant
-                and max_expr is not None and max_expr.is_constant):
-            try:
-                lo, hi = float(min_expr.constant), float(max_expr.constant)
-            except (TypeError, ValueError):
-                lo = hi = None
-            if lo is not None and lo >= hi:
-                self.bag.error(
-                    "graph",
-                    f"min ({min_expr.text}) must be less than max ({max_expr.text})",
-                    self.doc.span(node, "max") or self.doc.span(node),
-                )
-
-        sample_count = self._graph_sample_count(node, src, range_kind, range_value, buckets)
-        if style == "area" and sample_count > GRAPH_AREA_MAX_SAMPLES:
-            self.bag.error(
-                "graph",
-                f"a 'style: area' graph can plot at most {GRAPH_AREA_MAX_SAMPLES} "
-                f"samples (Dc.fillPolygon's own 64-point limit, minus the two "
-                f"corners that close the outline), but this graph requests "
-                f"{sample_count}",
-                self.doc.span(node, "range") or self.doc.span(node),
-                notes=["use 'style: line' instead, or shorten 'range:'/'buckets:'"],
-            )
-
-        align, vertical_align = self._alignment(node)
-        element = Graph(
-            **common,
-            series=str(name) if name is not None else "",
-            series_def=src,
-            range_kind=range_kind,
-            range_value=range_value,
-            buckets=buckets,
-            style=style,
-            thickness=thickness,
-            bar_width=bar_width,
-            min_auto=min_auto,
-            max_auto=max_auto,
-            min=min_expr,
-            max=max_expr,
-            size=self._size(node.get("size")),
-            color=self._color_expression(node, "color"),
-            sample_count=sample_count,
-            align=align,
-            vertical_align=vertical_align,
-        )
-        # No `_check_other_absence`: like `shape` and `icon`, a graph has no
-        # `when_absent:`; a nullable `color:`/`min:`/`max:` still gets a
-        # guard from `ReadPlan`, which hides the element when absent.
-        return element
-
-    def _graph_range(self, node: dict, src: SeriesDef | None) -> tuple[str, int]:
-        """Parse `range:` -- a duration string or a bare integer sample count."""
-        raw = node.get("range")
-        if isinstance(raw, bool):
-            self.bag.error("units", "range must be a duration or an integer count",
-                           self.doc.span(node, "range"))
-            return "count", 0
-        if isinstance(raw, int):
-            if raw < 1:
-                self.bag.error("graph", "range must be at least 1 sample",
-                               self.doc.span(node, "range"))
-                return "count", 1
-            return "count", raw
-        if isinstance(raw, str):
-            try:
-                duration = Duration.parse(raw, what="range")
-            except UnitError as exc:
-                self.bag.error("units", str(exc), self.doc.span(node, "range"))
-                return "duration", 0
-            return "duration", duration.seconds
-        self.bag.error(
-            "units",
-            f"range must be a duration ('30m', '4h', '7d') or an integer sample "
-            f"count, got {raw!r}",
-            self.doc.span(node, "range"),
-        )
-        return "count", 0
-
-    def _graph_sample_count(self, node: dict, src: SeriesDef | None, range_kind: str,
-                            range_value: int, buckets: int) -> int:
-        """The build-time-known upper bound on this graph's sample count.
-
-        `range: 14d` on `steps` is an error, not a clamp: silently drawing 7
-        when 14 was asked for is exactly the quiet wrongness this
-        compiler exists to remove.  Only checked against a *documented*
-        maximum (`SeriesDef.max_count`) -- the forecast arrays document none,
-        so a design asking for more than the provider actually has simply
-        gets fewer, bounds-checked at runtime the same way `weather.
-        condition_today`/`_tomorrow` already are.
-        """
-        if src is None:
-            return max(1, range_value if range_kind == "count" else buckets)
-        if src.acquisition is Acquisition.HEART_RATE:
-            return buckets if range_kind == "duration" else max(1, range_value)
-        if range_kind == "count":
-            count = max(1, range_value)
-        else:
-            interval = src.interval_seconds or 1
-            count = max(1, -(-range_value // interval))  # ceiling division
-        if src.max_count is not None and count > src.max_count:
-            self.bag.error(
-                "graph",
-                f"'{src.name}' requests {count} entries, but returns at most "
-                f"{src.max_count}",
-                self.doc.span(node, "range"),
-                notes=[f"{src.source_ref} documents the cap directly",
-                       "shorten 'range:', or lower the sample count"],
-            )
-        return count
-
-    def _check_graph_style_keys(self, node: dict, style: str) -> None:
-        if style not in GRAPH_STYLE_KEYS:
-            return  # the schema has already rejected an unknown style
-        self._check_foreign_keys(
-            node, style, GRAPH_STYLE_KEYS, _ALL_GRAPH_STYLE_KEYS,
-            code="graph", disc="style", empty_label="(nothing)",
-        )
-
-    def _graph_bound(self, node: dict, key: str) -> tuple[Expression | None, bool]:
-        """`min:`/`max:` -- `auto` (the default) or a compiled numeric expression."""
-        raw = node.get(key)
-        if raw is None or (isinstance(raw, str) and raw.strip() == "auto"):
-            return None, True
-        expression = self._expression(node, key)
-        if expression is not None and not expression.value.type.is_numeric():
-            self.bag.error(
-                "type", f"graph {key} must be a number, got {expression.value}",
-                self.doc.span(node, key),
-            )
-            return None, False
-        return expression, False
 
     # -- shared checks ----------------------------------------------------
 
