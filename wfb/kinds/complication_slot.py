@@ -10,26 +10,26 @@ from .. import catalog, complications, formatting, icons, units
 from ..catalog import Type
 from ..diagnostics import Span
 from ..fonts import fallback
-from ..ir.builder import _ICON_SIZE_NOTE
+from ..ir.builder import ICON_SIZE_NOTE
 from ..ir.model import HOLD_AUTO, ComplicationSlot, ConfigDataSlot, Element, Expression
 from ..ir.naming import complication_slot_hold_method, complication_slot_icon_method
 from ..layout import (
-    COMPLICATION_SLOT_ICON_GAP, Placed, PlacedComplicationSlot, _longer,
-    alignment_shift, complication_slot_pair_geometry,
+    COMPLICATION_SLOT_ICON_GAP, Placed, PlacedComplicationSlot,
+    alignment_shift, complication_slot_pair_geometry, longer,
 )
-from ..preview import _baked_glyph
+from ..preview import baked_glyph
 from ..units import Box
 from ..emit.monkeyc import complication_slot as complication_slot_mod
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc.common import NO_AOD, AodStyle
-from ..emit.resources import _COMPLICATION_TEXT_ALPHABET
+from ..emit.resources import COMPLICATION_TEXT_ALPHABET
 from ..emit.writer import Writer
 from . import ElementKind, IconFont, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..layout import Resolver
-    from ..preview import _Renderer
+    from ..preview import Renderer
 
 #: Illustrative sample values for a `complication_slot` preview, keyed by
 #: `wfb.complications.TYPES` name -- not real data (there is no live
@@ -124,15 +124,15 @@ def _complication_slot_widest(r, element: ComplicationSlot) -> str:
             continue
         value_type = Type.STRING if ctype.value_type == "string" else Type.NUMBER
         candidate = formatting.widest("{}", None, value_type)
-        widest = _longer(widest, candidate)
+        widest = longer(widest, candidate)
     if element.when_absent == "placeholder" and element.placeholder:
-        widest = _longer(widest, element.placeholder)
+        widest = longer(widest, element.placeholder)
     return widest
 
 
 def _complication_slot_text(element, ctype) -> str:
     """An illustrative reading for `ctype`, formatted the same way
-    `wfb.emit.monkeyc.complication_slot._emit_complication_slot` renders one: an optional
+    `wfb.emit.monkeyc.complication_slot.emit_complication_slot` renders one: an optional
     label prefix, the value, and an optional unit suffix -- approximate,
     since the real label and unit come from the device at runtime."""
     value = _COMPLICATION_SLOT_SAMPLE.get(
@@ -172,7 +172,7 @@ def _text_glyphs(element: ComplicationSlot, face) -> set[str]:
     if element.label != "none" or element.unit:
         # A label is always a localised device string; a unit can be too
         # (`Complications.Unit or Lang.String`) -- both unbounded.
-        glyphs |= set(_COMPLICATION_TEXT_ALPHABET)
+        glyphs |= set(COMPLICATION_TEXT_ALPHABET)
     if element.unit:
         glyphs |= set("".join(complications.UNIT_SUFFIX.values()))
     return glyphs
@@ -229,19 +229,19 @@ class ComplicationSlotKind(ElementKind):
         this validates the *slot reference* and the authoring keys that do
         not depend on the choice (`icon_size:`, `format:`), and leaves
         everything about the pulled value itself to
-        `wfb.emit.monkeyc.complication_slot._emit_complication_slot`, which reads it fresh
+        `wfb.emit.monkeyc.complication_slot.emit_complication_slot`, which reads it fresh
         every frame the same way any other `complication.*` source does.
         """
         slot_raw = node["slot"]
         slot = _resolve_slot_reference(b, str(slot_raw), b.doc.span(node, "slot"))
 
-        icon_size = b._baked_size_length(
+        icon_size = b.baked_size_length(
             node, "icon_size", code="complication-slot", label="icon_size",
-            note=_ICON_SIZE_NOTE,
+            note=ICON_SIZE_NOTE,
         )
 
         icon_position = node.get("icon_position", "left")
-        icon_gap = b._baked_size_length(
+        icon_gap = b.baked_size_length(
             node, "icon_gap", code="complication-slot", label="icon_gap",
             note="the same restriction 'icon_size:' has -- an icon's font is "
                  "baked once, before layout runs, so the gap that sits "
@@ -256,7 +256,7 @@ class ComplicationSlotKind(ElementKind):
             )
             icon_gap = None
 
-        icon_color = b._color_expression(node, "icon_color")
+        icon_color = b.color_expression(node, "icon_color")
 
         # None of 'icon_position:'/'icon_gap:'/'icon_color:' means anything
         # without an icon to place, space or colour -- checked against
@@ -298,8 +298,8 @@ class ComplicationSlotKind(ElementKind):
                 ],
             )
 
-        color = b._color_expression(node, "color")
-        align, vertical_align = b._alignment(node)
+        color = b.color_expression(node, "color")
+        align, vertical_align = b.alignment(node)
         element = ComplicationSlot(
             **common,
             slot=(slot.name if slot is not None else str(slot_raw)),
@@ -315,9 +315,9 @@ class ComplicationSlotKind(ElementKind):
             align=align,
             vertical_align=vertical_align,
         )
-        font_ok = b._resolve_font(node, element)
-        if font_ok and b._is_vector_font(element.font, element.font_is_custom):
-            # `_emit_complication_slot` has no vector-font draw path.
+        font_ok = b.resolve_font(node, element)
+        if font_ok and b.is_vector_font(element.font, element.font_is_custom):
+            # `emit_complication_slot` has no vector-font draw path.
             b.bag.error(
                 "complication-slot",
                 f"{element.id}: 'font: font.{element.font}' is a 'face:' "
@@ -361,7 +361,7 @@ class ComplicationSlotKind(ElementKind):
             element.on_hold = None
 
         if color is None:
-            b._require(node, "color", "a complication_slot needs a color")
+            b.require(node, "color", "a complication_slot needs a color")
         else:
             _check_slot_color_absence(
                 b, node, element, "color", color,
@@ -378,7 +378,7 @@ class ComplicationSlotKind(ElementKind):
         )
 
         if element.when_absent == "placeholder" and element.placeholder is None:
-            b._require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:'")
+            b.require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:'")
 
         return element
 
@@ -391,8 +391,8 @@ class ComplicationSlotKind(ElementKind):
         pair's extent comes from `complication_slot_pair_geometry`, with the
         *declared* icon size as the icon's height.
         """
-        cx, cy = r._point(element.at, parent)
-        font = r._font_for_ref(element.font, element.font_is_custom, element.id)
+        cx, cy = r.point(element.at, parent)
+        font = r.font_for_ref(element.font, element.font_is_custom, element.id)
         widest = _complication_slot_widest(r, element)
         text_width, line_height = font.width(widest), font.line_height
 
@@ -455,7 +455,7 @@ class ComplicationSlotKind(ElementKind):
             runs.append(icon_run)
         return runs
 
-    def draw_preview(self, renderer: _Renderer, placed: PlacedComplicationSlot) -> None:
+    def draw_preview(self, renderer: Renderer, placed: PlacedComplicationSlot) -> None:
         """A `complication_slot`, previewed at its slot's *default* choice.
 
         There is no on-device editor to ask which type the wearer actually
@@ -470,18 +470,18 @@ class ComplicationSlotKind(ElementKind):
         if slot is None:
             return
         ctype = complications.TYPES[slot.default]
-        color = renderer._aod_color(element, "color", element.color)
+        color = renderer.aod_color(element, "color", element.color)
         if element.icon_color is not None:
-            icon_color = renderer._aod_color(element, "icon_color", element.icon_color)
+            icon_color = renderer.aod_color(element, "icon_color", element.icon_color)
         else:
             # No awake `icon_color:` at all falls back to whatever colour
             # `color` (above) already resolved to -- matches codegen's own
             # "icon draws in the text's colour by default" rule exactly
-            # (`wfb.emit.monkeyc.complication_slot._emit_complication_slot`).
+            # (`wfb.emit.monkeyc.complication_slot.emit_complication_slot`).
             icon_aod = (
                 element.aod.icon_color if (renderer.options.aod and element.aod is not None) else None
             )
-            icon_color = renderer._color(icon_aod) if icon_aod is not None else color
+            icon_color = renderer.color(icon_aod) if icon_aod is not None else color
         s = renderer.scale
 
         icon_font = None
@@ -512,7 +512,7 @@ class ComplicationSlotKind(ElementKind):
         else:
             text_width, text_height = 0, placed.font.px
 
-        glyph_obj = _baked_glyph(icon_font, icon_glyph)
+        glyph_obj = baked_glyph(icon_font, icon_glyph)
         icon_width, icon_height = icon_font.measure(icon_glyph) if glyph_obj else (0, 0)
 
         # One shared geometry function for every position --
@@ -528,7 +528,7 @@ class ComplicationSlotKind(ElementKind):
         # `align`/`vertical_align` move the pair off the anchor -- the same
         # `wfb.layout.alignment_shift` rule every other kind's preview
         # uses, mirroring the arithmetic
-        # `wfb.emit.monkeyc.complication_slot._emit_complication_slot` computes at runtime
+        # `wfb.emit.monkeyc.complication_slot.emit_complication_slot` computes at runtime
         # from its own (real, pulled) measurements. center/center adds
         # exactly `0.0`.
         dx, dy = alignment_shift(geometry.width, geometry.height, element.align,
@@ -537,20 +537,20 @@ class ComplicationSlotKind(ElementKind):
         origin_y = ay + dy - geometry.height / 2
 
         if glyph_obj is not None:
-            renderer._paste_glyph(icon_font.sheet, glyph_obj,
+            renderer.paste_glyph(icon_font.sheet, glyph_obj,
                               (origin_x + geometry.icon_x) * s,
                               (origin_y + geometry.icon_y) * s, icon_color)
 
         # `geometry.text_y` is the text's own line-box top, sized from the same
         # measurement as `resolve`'s box; the glyph source draws from there.
-        source = renderer._glyph_source(text_font, placed.font.metric)
+        source = renderer.glyph_source(text_font, placed.font.metric)
         if source is not None:
             source.draw(renderer, (origin_x + geometry.text_x) * s,
                         (origin_y + geometry.text_y) * s, text, color)
 
     def emit_draw(self, w: Writer, resolved, placed: PlacedComplicationSlot, value_guards, plan,
                   aod: AodStyle = NO_AOD) -> None:
-        complication_slot_mod._emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
+        complication_slot_mod.emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
 
     def describe(self, placed: PlacedComplicationSlot) -> str:
         return f"a native Data-axis slot (config.data.{placed.element.slot})"
@@ -567,7 +567,7 @@ class ComplicationSlotKind(ElementKind):
         # before anything is pulled -- so this reuses the same estimated `box`
         # the safe-area/overlap lints accept. Emitted for every slot regardless
         # of `on_hold:`: the editor can animate any slot.
-        out.extend(layout_constants_mod._box_constants(
+        out.extend(layout_constants_mod.box_constants(
             f"{prefix}_BOX", placed.box, "the editor's animated highlight box (estimated)"))
         if placed.element.icon_gap is not None:
             # Only when the author wrote 'icon_gap:' -- otherwise the view keeps

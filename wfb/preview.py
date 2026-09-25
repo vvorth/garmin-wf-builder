@@ -109,7 +109,7 @@ class PreviewOptions:
     #: Render the AMOLED always-on-display frame instead of the awake one --
     #: `wfb preview --aod`. Draws the resolved `aod:` set (`Element.aod is
     #: not None`), restyled and dimmed exactly as codegen does
-    #: (`_Renderer._aod_field`/`_aod_color`). A design with no `aod:`
+    #: (`Renderer.aod_field`/`aod_color`). A design with no `aod:`
     #: anywhere renders blank under the face default (`hide`).
     aod: bool = False
     #: `--fonts DIR` -- overrides `wfb.fonts.fetch_system.garmin_font_root`'s
@@ -267,7 +267,7 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     # `wfb.emit.monkeyc.view._emit_layout_guarded` compiles into
     # `if (_configLayout == N)`.
     active_layout = entry.layout if entry is not None else None
-    renderer = _Renderer(resolved, draw, image, scale, values, options, used_faces)
+    renderer = Renderer(resolved, draw, image, scale, values, options, used_faces)
     for placed in resolved.items:
         if placed.kind == "group":
             continue
@@ -399,7 +399,7 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
 def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
     """`char`'s `.cft` glyph cell as an `"L"` ink mask (`level * 255 //
     max_level`), upscaled `scale`x with `Image.NEAREST` -- what
-    `_Renderer._draw_bitmap_line` pastes a colour through, since a bitmap
+    `Renderer._draw_bitmap_line` pastes a colour through, since a bitmap
     `SystemFace` has no `FreeTypeFont` for `ImageDraw.text`. Cached per
     `(path, char, scale)`. A zero-size (no-op) mask for an ink-less glyph
     or an unloadable file; never raises.
@@ -420,7 +420,7 @@ def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
 
 @dataclass(frozen=True)
 class _BakedGlyphs:
-    """A text's glyphs from its baked BMFont sheet (`_Renderer._glyph_source`):
+    """A text's glyphs from its baked BMFont sheet (`Renderer.glyph_source`):
     the real pixels the device draws. Sizes are in scaled preview pixels."""
 
     font: BakedFont
@@ -433,7 +433,7 @@ class _BakedGlyphs:
     def width(self, text: str) -> float:
         return self.font.measure(text)[0] * self.scale
 
-    def draw(self, renderer: "_Renderer", left: float, top: float, text: str, color) -> None:
+    def draw(self, renderer: "Renderer", left: float, top: float, text: str, color) -> None:
         """Glyph by glyph from the line box's (scaled) top-left."""
         renderer._blit_baked_line(self.font, text, left, top, color)
 
@@ -453,7 +453,7 @@ class _FaceGlyphs:
     def width(self, text: str) -> float:
         return self.face.width(text)
 
-    def draw(self, renderer: "_Renderer", left: float, top: float, text: str, color) -> None:
+    def draw(self, renderer: "Renderer", left: float, top: float, text: str, color) -> None:
         """Glyph by glyph on the face's own baseline, `face.baseline` below
         the line box's (scaled) top -- never Pillow's own vertical anchors,
         which measure the stand-in's ascender/descender and would disagree
@@ -461,7 +461,29 @@ class _FaceGlyphs:
         renderer._draw_system_line(self.face, left, top + self.face.baseline, text, color)
 
 
-class _Renderer:
+class Renderer:
+    """Draws one resolved face into a Pillow image for `wfb preview`, the
+    way the generated code draws it on the watch.
+
+    **Helpers for kind authors.**  A kind's `draw_preview` gets the
+    renderer: `renderer.draw` is the `ImageDraw`, `renderer.scale` the
+    upscale every device pixel is multiplied by, and `renderer.values` the
+    sample readings.
+
+    - Values: `color` (a colour expression to RGB) and `visible` (a
+      `visible:` expression); `aod_color`, `aod_field` and `aod_geometry`
+      apply the element's `aod:` override and `dim:` while `--aod`
+      renders, the twins of `wfb.emit.monkeyc.common.AodStyle`.
+    - Text: `draw_text` (upright, in a baked or system font),
+      `draw_vector_text` (a `face:` font, upright or curved),
+      `draw_outlined` (an `outline:` ring around either), `glyph_source`,
+      `paste_glyph`.
+    - Shapes: `rect` (a box in preview pixels), `hand_part` (one part of a
+      hand or of a pattern copy).
+
+    Module level: `baked_glyph`, `arc_span`.
+    """
+
     def __init__(self, resolved, draw, image, scale, values, options, used_faces=None) -> None:
         self.resolved = resolved
         self.draw = draw
@@ -489,7 +511,7 @@ class _Renderer:
     # renders, an element's own resolved `aod:` override for a key wins;
     # a colour with no override is dimmed by the face's `aod: {dim: ...}`.
 
-    def _aod_field(self, element, key: str, base):
+    def aod_field(self, element, key: str, base):
         """``base``, replaced by this element's resolved `aod:` override for
         ``key`` while `--aod` renders and one is set."""
         if not self.options.aod or element.aod is None:
@@ -497,7 +519,7 @@ class _Renderer:
         override = getattr(element.aod, key)
         return override if override is not None else base
 
-    def _aod_geometry(self, placed, key: str, base):
+    def aod_geometry(self, placed, key: str, base):
         """``base`` (a resolved pixel length), replaced by ``placed.aod_<key>``
         (`thickness`, `bar_width`) while `--aod` renders and it is set. A
         `hands`/`pattern` override applies uniformly to every part."""
@@ -512,8 +534,8 @@ class _Renderer:
         dimmed = Color(*rgb).dim(num, den)
         return (dimmed.r, dimmed.g, dimmed.b)
 
-    def _aod_color(self, element, key: str, base_expr,
-                   values: dict | None = None) -> tuple[int, int, int]:
+    def aod_color(self, element, key: str, base_expr,
+                  values: dict | None = None) -> tuple[int, int, int]:
         """The drawn RGB for one colour role (`color`/`track_color`/
         `icon_color`): this element's own `aod:` override for ``key`` while
         `--aod` renders, else ``base_expr`` (evaluated against ``values``),
@@ -524,12 +546,12 @@ class _Renderer:
         Which of the three applies is `aod_color_choice` (`wfb.ir`), the same
         decision `wfb.emit.monkeyc.common.AodStyle.color`/`.part_color` read
         for Monkey C -- this method only turns it into an RGB triple."""
-        base = self._color(base_expr, values)
+        base = self.color(base_expr, values)
         if not self.options.aod or element.aod is None:
             return base
         choice, override = aod_color_choice(element.aod, key, self.resolved.face.aod_dim is not None)
         if choice == "override":
-            return self._color(override)
+            return self.color(override)
         if choice == "dim":
             return self._dim_rgb(base)
         return base
@@ -541,20 +563,20 @@ class _Renderer:
         # folded in), which an `aod: {visible: ...}` may narrow further.
         visible = (placed.element.aod.visible if self.options.aod and placed.element.aod
                    else placed.element.visible)
-        if not self._visible(visible):
+        if not self.visible(visible):
             return
         kinds.for_placed(placed).draw_preview(self, placed)
 
     # -- elements ---------------------------------------------------------
 
-    def _hand_part(self, placed: PlacedHands | PlacedPattern, part, cx: float, cy: float,
-                   sin_t: float, cos_t: float, values: dict | None = None) -> None:
+    def hand_part(self, placed: PlacedHands | PlacedPattern, part, cx: float, cy: float,
+                  sin_t: float, cos_t: float, values: dict | None = None) -> None:
         """One polygon/line/circle part of a hand or pattern copy, its
         vertices rotated by `(sin_t, cos_t)` about the scaled `(cx, cy)`.
         The element-level `aod:` colour/thickness override applies to every
-        part (`_aod_color`, `_aod_geometry`)."""
+        part (`aod_color`, `aod_geometry`)."""
         s = self.scale
-        fill = self._aod_color(placed.element, "color", part.color, values)
+        fill = self.aod_color(placed.element, "color", part.color, values)
 
         def rotated(x: float, y: float) -> tuple[float, float]:
             return (cx + (x * cos_t - y * sin_t) * s, cy + (x * sin_t + y * cos_t) * s)
@@ -565,7 +587,7 @@ class _Renderer:
         elif part.shape == "line":
             x1, y1 = rotated(part.x1, part.y1)
             x2, y2 = rotated(part.x2, part.y2)
-            thickness = self._aod_geometry(placed, "thickness", part.thickness)
+            thickness = self.aod_geometry(placed, "thickness", part.thickness)
             self.draw.line([x1, y1, x2, y2], fill=fill, width=max(1, thickness * s))
         else:  # circle
             x, y = rotated(part.x, part.y)
@@ -574,11 +596,11 @@ class _Renderer:
             if part.filled:
                 self.draw.ellipse(box, fill=fill)
             else:
-                thickness = self._aod_geometry(placed, "thickness", part.thickness)
+                thickness = self.aod_geometry(placed, "thickness", part.thickness)
                 self.draw.ellipse(box, outline=fill, width=max(1, thickness * s))
 
-    def _draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color,
-                       ring_color, ring_width: int, box=None) -> None:
+    def draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color,
+                      ring_color, ring_width: int, box=None) -> None:
         """`draw(anchor, color, box)` once for the interior, preceded by one
         ring-coloured stamp per `wfb.ir.disc_perimeter_offsets(ring_width)`
         offset when `ring_color` is set -- the host twin of the codegen stamp
@@ -594,7 +616,7 @@ class _Renderer:
 
     # -- text helpers -----------------------------------------------------
 
-    def _glyph_source(self, font: BakedFont | None, metric: FontMetric | None):
+    def glyph_source(self, font: BakedFont | None, metric: FontMetric | None):
         """Where a text's glyphs come from: `font`'s baked sheet, else the
         device typeface `metric` names (its real file, a stand-in, or a
         `.cft` bitmap font -- `_system_face`). `None` when there is neither
@@ -606,21 +628,21 @@ class _Renderer:
         face = self._system_face(metric, scale=self.scale)
         return _FaceGlyphs(face) if face is not None else None
 
-    def _draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
-                   align: str, vertical_align: str, metric: FontMetric | None,
-                   color: tuple[int, int, int], box=None) -> None:
+    def draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
+                  align: str, vertical_align: str, metric: FontMetric | None,
+                  color: tuple[int, int, int], box=None) -> None:
         """Draw `text` upright at `anchor`: place its line box by the shared
         alignment rule (`wfb.layout.alignment_shift`: `align`/
         `vertical_align` say which edge of the box sits on the anchor --
         the same top edge `PlacedText.box` and the lint box use), then draw
-        glyph by glyph from its `_glyph_source`. Shared by `text`, pattern
+        glyph by glyph from its `glyph_source`. Shared by `text`, pattern
         text and upright vector text. With no glyph source (no pixel metrics
         for this symbol on this device, or no scalable face at all), `box`
         -- a `text` element's -- is outlined instead: more honest than text
         at the wrong size. A `substitute`/`none` face draws the watch's
         glyph *positions* exactly, since layout measured with it.
         """
-        source = self._glyph_source(font, metric)
+        source = self.glyph_source(font, metric)
         if source is None:
             self._mark_extent(box)
             return
@@ -640,11 +662,11 @@ class _Renderer:
             glyph = font.glyphs.get(char)
             if glyph is None:
                 continue
-            self._paste_glyph(font.sheet, glyph, pen, top, color)
+            self.paste_glyph(font.sheet, glyph, pen, top, color)
             pen += glyph.xadvance * self.scale
 
-    def _paste_glyph(self, sheet: Image.Image, glyph, x: float, y: float,
-                     color: tuple[int, int, int]) -> None:
+    def paste_glyph(self, sheet: Image.Image, glyph, x: float, y: float,
+                    color: tuple[int, int, int]) -> None:
         """Crop one glyph tile off a baked sheet, tint it, and paste it at
         ``(x, y)`` -- the point ``xoffset``/``yoffset`` are measured from, i.e.
         the top-left of the text (or icon)'s own box, already scaled.  Shared
@@ -698,13 +720,13 @@ class _Renderer:
 
     # -- vector fonts / curve: (plan 11) -----------------------------------
 
-    def _draw_vector_text(
+    def draw_vector_text(
         self, text: str, anchor_point: tuple[int, int], align: str, vertical_align: str,
         font_metric, color, curve_style: str | None, curve_angle_garmin: float,
         curve_radius_px: int, curve_direction: str | None, *, box=None,
     ) -> None:
         """A `face:` (vector) font's draw -- upright (`curve_style is None`,
-        exactly like a system font, `_draw_text`), `angled`
+        exactly like a system font, `draw_text`), `angled`
         (`Dc.drawAngledText`: the whole string rotated about the anchor) or
         `radial` (`Dc.drawRadialText`: per-glyph placement around a circle).
         Shared by `_text` and `_pattern_text` (which passes its copy's own
@@ -718,12 +740,12 @@ class _Renderer:
         backwards would silently mirror every curved element.
         """
         if curve_style is None:
-            # Delegates to `_draw_text` wholesale, including its "no scalable
+            # Delegates to `draw_text` wholesale, including its "no scalable
             # face at all" fallback (an outline box, `box=box`) -- that edge
             # case is exactly as reachable, and exactly as handled, for a
             # vector font as for a system one.
-            self._draw_text(None, text, anchor_point, align, vertical_align,
-                            font_metric, color, box=box)
+            self.draw_text(None, text, anchor_point, align, vertical_align,
+                           font_metric, color, box=box)
             return
         face = self._system_face(font_metric)
         if face is None:
@@ -882,27 +904,30 @@ class _Renderer:
 
     def _mark_extent(self, box) -> None:
         """Outline `box` in dark grey where text cannot be drawn at its real
-        size -- `_draw_text`'s fallback when it has no glyph source.
+        size -- `draw_text`'s fallback when it has no glyph source.
 
         An empty box draws nothing. Unmeasured text gets exactly that: with
         no metric, layout has no extent to give it and records a 0x0 box at
         the anchor (every system font on a device missing from the scraped
-        SDK reference, e.g. the fenix 9 family), and `_rect` turns a 0-wide
+        SDK reference, e.g. the fenix 9 family), and `rect` turns a 0-wide
         box into an inverted rectangle that Pillow rejects outright.
         """
         if box is None or box.width <= 0 or box.height <= 0:
             return
-        self.draw.rectangle(self._rect(box), outline=(64, 64, 64), width=1)
+        self.draw.rectangle(self.rect(box), outline=(64, 64, 64), width=1)
 
-    def _rect(self, box) -> list[float]:
+    def rect(self, box) -> list[float]:
+        """`box` scaled to preview pixels, as the `[x0, y0, x1, y1]` Pillow's
+        `rectangle`/`ellipse`/`arc` take.
+        """
         s = self.scale
         return [box.x * s, box.y * s, box.right * s - 1, box.bottom * s - 1]
 
-    def _visible(self, expression, values: dict | None = None) -> bool:
+    def visible(self, expression, values: dict | None = None) -> bool:
         """`visible:` -- the same rule the device runs, on the sample
         readings (`self.values`, or a pattern part's own `values` with
         `copy` bound to the copy being drawn -- `values` overrides
-        `self.values` the same way `_color`'s does).
+        `self.values` the same way `color`'s does).
 
         Absent means hidden, so `expr.evaluate` returning ``None`` (which is
         exactly what it does when any input is missing) hides the element,
@@ -921,7 +946,7 @@ class _Renderer:
             return True
         return bool(expr.evaluate(expression.ast, self.values if values is None else values))
 
-    def _color(self, expression, values: dict | None = None) -> tuple[int, int, int]:
+    def color(self, expression, values: dict | None = None) -> tuple[int, int, int]:
         """`values` overrides `self.values` -- a pattern passes its own, with
         `copy` bound to the copy being drawn."""
         if expression is None:
@@ -935,7 +960,7 @@ class _Renderer:
         return (color.r, color.g, color.b)
 
 
-def _baked_glyph(font: BakedFont | None, char: str | None):
+def baked_glyph(font: BakedFont | None, char: str | None):
     """`char`'s `GlyphBox` in `font`, or `None` when there is no font, no
     sheet to crop from, or no such glyph -- the one "can this baked glyph
     be drawn" check `wfb.kinds.icon.IconKind.draw_preview` and

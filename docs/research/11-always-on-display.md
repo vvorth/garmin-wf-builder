@@ -410,7 +410,7 @@ aod: {color: "#555555", font: clock_thin, width: 1}   # or restyle it
 ```
 
 Group inheritance follows the existing `visible:` push-down precedent
-(`Builder._push_visible`): a group emits no draw method, so the subtree must
+(`Builder.push_visible`): a group emits no draw method, so the subtree must
 be walked while it is still a tree (`wfb/ir/model.py`'s `visible`
 docstring). This is the mechanism A needs, and it is the direct expression
 of Garmin's guidance: thin font, grey instead of white, thinner pen.

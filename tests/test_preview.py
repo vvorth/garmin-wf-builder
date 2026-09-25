@@ -152,7 +152,7 @@ def test_a_progress_fallback_renders_the_same_fraction_the_device_draws(
 
 def test_an_antialiased_icon_previews_with_intermediate_grey(write_design, bag, db):
     """No anti-aliasing machinery was added to `wfb/preview.py` for this --
-    `_paste_glyph` already pastes a glyph tile as an alpha mask, so an
+    `paste_glyph` already pastes a glyph tile as an alpha mask, so an
     anti-aliased (multi-grey-level) sheet blends into the background for
     free, and a 1-bit sheet cannot, because its mask has only two values.
     This proves that fall-out actually happens end to end, from `antialias:`

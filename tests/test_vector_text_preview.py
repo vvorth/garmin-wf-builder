@@ -2,7 +2,7 @@
 
 The simulator does not run in this environment (`CLAUDE.md` §3), so preview
 is the only way this feature can be seen at all -- these tests exercise the
-three draw styles `wfb.preview._Renderer._draw_vector_text` dispatches to
+three draw styles `wfb.preview.Renderer.draw_vector_text` dispatches to
 (upright, `angled`, `radial`) plus `if_unavailable: hide` drawing nothing,
 each against a contrast a backwards angle/direction or a mirrored glyph run
 would actually fail (`docs/lore/working-agreement.md`: a test must exercise
@@ -146,7 +146,7 @@ def _mask_mismatch_fraction(expected, actual) -> float:
 def _polar(cx: int, cy: int, r: float, garmin_degrees: float) -> tuple[int, int]:
     """A point on the circle of radius `r` about `(cx, cy)`, at Garmin's own
     angle convention (degrees counter-clockwise from 3 o'clock, screen y
-    down) -- `wfb.preview._Renderer._draw_radial_vector_text`'s own
+    down) -- `wfb.preview.Renderer._draw_radial_vector_text`'s own
     position formula, reproduced here (not imported) so a bug in that
     method cannot also hide from the test that checks it."""
     theta = math.radians(garmin_degrees)
@@ -405,7 +405,7 @@ def test_radial_clockwise_and_counter_clockwise_sweep_opposite_ways(write_design
 def test_radial_counter_clockwise_at_six_oclock_faces_inward_not_outward(write_design, db, bag):
     """The defect this step fixes. `curve: {style: radial}`'s per-glyph
     facing is `pos - 90` (outward) for `clockwise`, `pos + 90` (inward) for
-    `counter_clockwise` (`wfb.preview._Renderer._draw_radial_vector_text`'s
+    `counter_clockwise` (`wfb.preview.Renderer._draw_radial_vector_text`'s
     own docstring has the derivation). At the 6 o'clock point (design
     `angle: 180deg` is Garmin `270deg`), inward happens to land on exactly
     *zero* local rotation (`270 + 90 == 360 == 0`), so a single glyph drawn
@@ -588,7 +588,7 @@ def test_radial_clockwise_vertical_align_orders_ink_radius_top_lt_center_lt_bott
     """The bug this test guards: `Dc.drawRadialText` WITHOUT
     `TEXT_JUSTIFY_VCENTER` puts the text's BASELINE on the circle, each
     glyph growing toward its own "up" -- outward for `clockwise`
-    (`wfb.preview._Renderer._draw_radial_vector_text`'s own facing model:
+    (`wfb.preview.Renderer._draw_radial_vector_text`'s own facing model:
     `clockwise` faces outward). So under `clockwise`: `top` (line box top
     edge on the circle, hanging inward/"down") sits closest to the centre,
     `center` (VCENTER, box straddling the circle) in the middle, and
@@ -1160,9 +1160,9 @@ def test_radial_supersampling_does_not_move_the_centre_of_mass(write_design, db,
 def test_paste_rotated_run_skips_supersampling_for_a_bitmap_face():
     """R2.4: a bitmap (`.cft`) face has no outline to supersample.
     Purely defensive -- gate 2 (`docs/lore/codegen.md`) only ever publishes
-    an outline face as a vector `face:` font, so `_draw_vector_text` can
+    an outline face as a vector `face:` font, so `draw_vector_text` can
     never actually hand `_paste_rotated_run` a bitmap `SystemFace` from a
-    real design, which is why this test builds a bare `_Renderer` and a
+    real design, which is why this test builds a bare `Renderer` and a
     stand-in bitmap face directly instead of going through `_render` --
     there is no `curve:` design that could reach this branch to exercise
     it any other way.
@@ -1178,7 +1178,7 @@ def test_paste_rotated_run_skips_supersampling_for_a_bitmap_face():
     from PIL import Image, ImageDraw
 
     from wfb.fonts.fallback import SystemFace
-    from wfb.preview import PreviewOptions, _Renderer
+    from wfb.preview import PreviewOptions, Renderer
 
     class _StubBitmap:
         def advances(self, text: str) -> list[float]:
@@ -1189,7 +1189,7 @@ def test_paste_rotated_run_skips_supersampling_for_a_bitmap_face():
 
     canvas = Image.new("RGB", (40, 40), (0, 0, 0))
     draw = ImageDraw.Draw(canvas)
-    renderer = _Renderer(None, draw, canvas, 1, {}, PreviewOptions())
+    renderer = Renderer(None, draw, canvas, 1, {}, PreviewOptions())
 
     def _boom(*args, **kwargs):
         raise AssertionError("_system_face must not be called for a bitmap face")
@@ -1197,7 +1197,7 @@ def test_paste_rotated_run_skips_supersampling_for_a_bitmap_face():
     renderer._system_face = _boom
 
     seen: dict = {}
-    real_draw_system_line = _Renderer._draw_system_line
+    real_draw_system_line = Renderer._draw_system_line
 
     def _spy(self, drawn_face, left, baseline_y, text, color, *, draw=None, image=None):
         seen["face"] = drawn_face
@@ -1205,7 +1205,7 @@ def test_paste_rotated_run_skips_supersampling_for_a_bitmap_face():
         return real_draw_system_line(self, drawn_face, left, baseline_y, text, color,
                                      draw=draw, image=image)
 
-    renderer._draw_system_line = _spy.__get__(renderer, _Renderer)
+    renderer._draw_system_line = _spy.__get__(renderer, Renderer)
 
     renderer._paste_rotated_run(face, "R", 30.0, "left", "top", (20, 20),
                                 (255, 255, 255), font_metric=object())

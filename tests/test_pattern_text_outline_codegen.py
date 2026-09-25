@@ -347,7 +347,7 @@ def test_golden_fixture_pattern_methods_have_no_redefinition_regressions(
     pytestconfig, tmp_path_factory,
 ):
     """The regression that motivated `index_var`/`offsets_var`
-    (`_emit_outline_loop`) was only caught by a real `monkeyc` build of
+    (`emit_outline_loop`) was only caught by a real `monkeyc` build of
     `tests/fixtures/outline_text/face.yaml` (`dial_numbers`/`dial_ring`,
     both radial patterns with outlined `shape: text` parts) -- this test
     pins the generated shape so a future change cannot silently reintroduce

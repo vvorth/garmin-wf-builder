@@ -196,8 +196,8 @@ is how a stage finds the font layout resolved for that part
 Where code goes:
 
 - A function lives in `wfb/kinds/<kind>.py` if and only if only that kind
-  uses it. A helper two kinds share (`Builder._build_hand_part`, preview's
-  text blitting, `layout._longer`) stays in its stage module.
+  uses it. A helper two kinds share (`Builder.build_hand_part`, preview's
+  text blitting, `layout.longer`) stays in its stage module.
 - A site goes through the registry if adding a kind would force an edit
   there (a ladder over kinds, a per-kind table, a list of kind names); it
   becomes a method whose default is the ladder's fall-through. A site about
@@ -208,10 +208,11 @@ Where code goes:
   emitting its own guards (`view._emit_element_method`). A friendly
   pre-schema message for one kind's common mistake is a `_check_*`
   function in `wfb/validate.py`, beside the others.
-- Kind modules import stage modules and may call their underscored
-  helpers; stage modules import the `wfb.kinds` package only, never a kind
-  submodule, and read the registry only at call time. The registry loads
-  lazily, so this cannot form an import cycle.
+- Kind modules import stage modules and call only their public names
+  ("Helpers for kind authors", below); an underscored name is private to
+  its own module. Stage modules import the `wfb.kinds` package only, never
+  a kind submodule, and read the registry only at call time. The registry
+  loads lazily, so this cannot form an import cycle.
 
 ### Adding an element kind
 
@@ -302,13 +303,13 @@ from typing import TYPE_CHECKING
 from ..ir.model import Dot
 from ..layout import PlacedDot
 from ..units import Axis, Box
-from ..emit.monkeyc.common import _const_prefix
+from ..emit.monkeyc.common import const_prefix
 from . import ElementKind
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..layout import Resolver
-    from ..preview import _Renderer
+    from ..preview import Renderer
 
 
 class DotKind(ElementKind):
@@ -320,29 +321,29 @@ class DotKind(ElementKind):
     def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Dot:
         return Dot(
             **common,
-            radius=b._length(node, "radius"),
-            color=b._color_expression(node, "color"),
+            radius=b.length(node, "radius"),
+            color=b.color_expression(node, "color"),
         )
 
     def resolve(self, r: Resolver, element: Dot, parent: Box, depth: int) -> PlacedDot:
-        cx, cy = r._point(element.at, parent)
-        radius = round(r._extent(element.radius, parent, Axis.MINOR, 0,
-                                 min_1px=element.resolved_min_1px, what="radius"))
+        cx, cy = r.point(element.at, parent)
+        radius = round(r.extent(element.radius, parent, Axis.MINOR, 0,
+                                min_1px=element.resolved_min_1px, what="radius"))
         box = Box(cx - radius, cy - radius, 2 * radius, 2 * radius)
         return PlacedDot(element, box.rounded(), (round(cx), round(cy)), depth, radius=radius)
 
     def circular_extent(self, placed: PlacedDot):
         return (placed.center[0], placed.center[1], placed.radius)
 
-    def draw_preview(self, renderer: _Renderer, placed: PlacedDot) -> None:
+    def draw_preview(self, renderer: Renderer, placed: PlacedDot) -> None:
         element = placed.element
         s = renderer.scale
         (cx, cy), r = placed.center, placed.radius
         renderer.draw.ellipse([(cx - r) * s, (cy - r) * s, (cx + r) * s, (cy + r) * s],
-                              fill=renderer._aod_color(element, "color", element.color))
+                              fill=renderer.aod_color(element, "color", element.color))
 
     def emit_draw(self, w, resolved, placed: PlacedDot, value_guards, plan, aod) -> None:
-        prefix = _const_prefix(placed.id)
+        prefix = const_prefix(placed.id)
         w.line(f"dc.setColor({aod.color(placed.element, 'color')}, Graphics.COLOR_TRANSPARENT);")
         w.line(f"dc.fillCircle(Layout.{prefix}_CX, Layout.{prefix}_CY, Layout.{prefix}_RADIUS);")
 
@@ -364,9 +365,9 @@ What each part is for:
 
 - `build` turns the schema-valid node into the IR class. `common` already
   holds every shared field; pass it through with `**common`. Report a
-  semantic error with `b.bag.error(...)` or `b._require(node, key, why)`.
+  semantic error with `b.bag.error(...)` or `b.require(node, key, why)`.
 - `resolve` places the element inside its parent's box for one device.
-  `r._point` resolves `at:`; `r._extent` resolves a length along an axis
+  `r.point` resolves `at:`; `r.extent` resolves a length along an axis
   (`%r` against the minor radius, `%` against the parent). The `box` is
   what the safe-area, overlap and luminance lints check, so make it cover
   every pixel the element can touch.
@@ -380,7 +381,7 @@ What each part is for:
   the AOD override and `dim:` applied; for an awake-only build it is the
   plain colour.
 - `draw_preview` draws the same thing with Pillow, from the same `Placed`
-  fields, at `renderer.scale`. `renderer._aod_color` is `aod.color`'s twin.
+  fields, at `renderer.scale`. `renderer.aod_color` is `aod.color`'s twin.
 
 The rest of the interface you can ignore until the kind needs it; each
 default means "nothing to do here":
@@ -399,12 +400,74 @@ The contrast lint treats every kind but `shape` as glyph ink
 (`Element.color_roles`), which forbids an exact backdrop match; a kind
 drawn as a solid primitive may want the `shape` rule instead.
 
-The helpers above (`b._length`, `r._extent`, `renderer._aod_color`,
-`_const_prefix`, ...) are the stages' own underscored methods: kind
-modules call them by design, and the existing kinds are the reference for
-which ones exist. After the code, a kind is a format change like any other:
-the guide chapter and the schema together (root `CLAUDE.md` §7), a face in
+After the code, a kind is a format change like any other: the guide
+chapter and the schema together (root `CLAUDE.md` §7), a face in
 `examples/features/`, and tests that drive its diagnostics red.
+
+### Helpers for kind authors
+
+Each stage hands a kind its own public helpers. Their signatures and
+docstrings are in the code; the class docstrings of `Builder`, `Resolver`
+and `Renderer` index them the same way. A name with a leading
+underscore is private to its module, so a kind never calls one.
+
+**`build`: the `Builder` (`b`, `wfb/ir/builder.py`).** A helper that can
+fail reports its own error and returns `None` or an empty default.
+`b.doc.span(node, key)` locates a key for a diagnostic of the kind's own,
+and `b.bag` takes it.
+
+| Helpers | For |
+|---|---|
+| `expression`, `color_expression`, `length`, `angle`, `position`, `size`, `alignment`, `baked_size_length` | reading one key of the node |
+| `require` | a key the schema cannot require by itself |
+| `check_absence`, `check_other_absence`, `check_reachable_substitute`, `nullable_sources` | `when_absent:` for the value and for every other nullable binding |
+| `check_format`, `check_format_spec`, `check_format_not_on_literal` | `format:` |
+| `resolve_font`, `is_vector_font`, `font_kind_note`, `check_if_unavailable`, `build_curve`, `build_outline` | `font:`, `if_unavailable:`, `curve:`, `outline:` |
+| `resolve_icon_name`, `resolve_icon_glyph` | `icon:` |
+| `build_elements`, `push_visible` | a group's children |
+| `build_hand_part`, `owned_color` | a hand's or a pattern's `parts:` |
+| `check_foreign_keys` | a key that belongs to another `shape:` or `style:` |
+| `aod_refusal` | an `aod:` key the element cannot honour |
+| `dedup_append`, `and_paths`, `ABSENCE_IS_NORMAL`, `ICON_SIZE_NOTE` (module level) | collecting colours, and diagnostic wording |
+
+**`resolve`: the `Resolver` (`r`, `wfb/layout.py`).** `r.face`, `r.device`
+and `r.fonts` (the baked fonts) are there to read.
+
+| Helpers | For |
+|---|---|
+| `point` | an `at:` position |
+| `length` | a length used as a position (`dx:`, `to:`, a polygon point) |
+| `extent` | a size, thickness or radius: clamped by `min_1px:`, recorded for the `sub-pixel-length` lint |
+| `aod_extent` | an `aod:` override of an extent |
+| `sized_box` | the "size, then align" box of a `size:`-placed kind |
+| `text_font`, `font_for_ref`, `justify` | a `font:` reference (with or without the vector-font gates), and `TEXT_JUSTIFY_*` flags |
+| `resolve_parts` | a hand's or a pattern's `parts:` |
+| `alignment_shift`, `arc_box`, `stroke_pad`, `longer`, `text_ink`, `resolved_curve`, `round_half_away` (module level) | shared geometry |
+
+**`draw_preview`: the `Renderer` (`wfb/preview.py`).** `renderer.draw` is
+the Pillow `ImageDraw`, `renderer.scale` the upscale every device pixel is
+multiplied by, and `renderer.values` the sample readings.
+
+| Helpers | For |
+|---|---|
+| `color`, `visible` | evaluating a colour or a `visible:` expression |
+| `aod_color`, `aod_field`, `aod_geometry` | the same with the element's `aod:` override and `dim:` applied under `--aod` |
+| `draw_text`, `draw_vector_text`, `draw_outlined`, `glyph_source`, `paste_glyph` | text in a baked, system or `face:` font, and its `outline:` |
+| `rect`, `hand_part` | a box in preview pixels; one part of a hand or of a pattern copy |
+| `baked_glyph`, `arc_span` (module level) | a baked font's glyph box; an arc in Pillow's angles |
+
+**`emit_draw` and `layout_constants`: `wfb/emit/monkeyc/`.** `aod` is an
+`AodStyle`: `aod.color(element, key)`, `aod.layout(prefix, suffix,
+has_override)`, `aod.value(override, awake_code)` and
+`aod.part_color(element, color)` restyle a draw call for the always-on
+frame and return the awake code unchanged in an awake-only build.
+
+| Module | Helpers |
+|---|---|
+| `common` | `const_prefix` (the `Layout.<PREFIX>_*` prefix of an id), `font_field`, `aod_font_field`, `mc_color`, `mc_float`, `glyph_y_expr`, `article`, `and_list` |
+| `layout_constants` | `box_constants`, `arc_constants`, `hand_part_constants`, `aod_thickness_constant`, `EVERY_PART_NOTE` |
+| `shapes` | `emit_arc_span`, `thickness_expr`, `emit_plain_text_call`, `emit_outline_loop`, `radial_radius_expr`, `RADIAL_DIRECTION` |
+| `rotated` | `emit_transformed_part`, `aod_thickness_override` (a hand or pattern part) |
 
 ## Tests
 

@@ -646,7 +646,7 @@ def test_placeholder_does_not_leave_a_shared_nullable_colour_unguarded(write_des
 
 
 def test_a_nullable_colour_alone_still_needs_when_absent(write_design, bag):
-    """Before this fix, `_check_absence` only ever ran for `value` -- a
+    """Before this fix, `check_absence` only ever ran for `value` -- a
     `color:` expression reading a nullable source, on an element whose
     `value:` is never null, sailed through validation with no policy at all,
     and codegen then emitted an *undeclared* hide guard: a clock that
@@ -884,7 +884,7 @@ def test_a_substitute_still_reachable_through_another_source_is_not_reported(
 
 def test_when_absent_is_not_called_pointless_when_a_colour_needs_it(write_design, bag):
     """`when_absent:` next to a non-nullable value is doing real work as soon
-    as the colour is nullable -- it is what `_check_other_absence` demands.
+    as the colour is nullable -- it is what `check_other_absence` demands.
     Telling the author it "has no effect" would contradict the error they
     just fixed."""
     load(write_design(design("""
@@ -1603,7 +1603,7 @@ def test_a_nullable_color_still_hides_the_element_with_no_when_absent_required(
         write_design, bag):
     """A graph has no `when_absent:` field at all -- unlike `text`/`progress`,
     a nullable `color:` here needs no explicit policy, the same as `shape`
-    and `icon` (`_check_other_absence` is deliberately not called for it)."""
+    and `icon` (`check_other_absence` is deliberately not called for it)."""
     face = load(write_design(design(_graph(
         color='"activity.step_goal > 0 ? palette.fg : palette.fg"'))), bag)
     assert bag.ok(), bag.render()

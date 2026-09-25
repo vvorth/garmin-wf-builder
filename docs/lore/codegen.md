@@ -289,9 +289,8 @@ These cost real time to discover; do not rediscover them.
   **Gate 4 -- `Graphics.getVectorFont` returning `null` even when every
   build-time gate passed -- has no guard of any kind, ever, in either
   `if_unavailable:` mode**, because the platform gives none: every draw
-  call using a vector font (`wfb.emit.monkeyc.shapes._emit_vector_text_
-  draw`) captures the field into a local first (`var font = _fontBezel;`)
-  and wraps the actual `dc.drawText`/`drawAngledText`/`drawRadialText` in
+  call using a vector font (`wfb.kinds.text._emit_vector_text_draw`)
+  captures the field into a local first (`var font = _fontBezel;`) and wraps the actual `dc.drawText`/`drawAngledText`/`drawRadialText` in
   `if (font != null)` -- the field-vs-local capture is not optional
   ceremony, it is `docs/lore/monkeyc.md`'s own "type narrowing must go
   through a local, never a repeated field access" rule, and this is one
@@ -365,8 +364,8 @@ These cost real time to discover; do not rediscover them.
   once before the loop (`wfb.kinds.pattern.PatternKind.emit_draw`'s new `vector_text_fonts` split),
   but never early-return-guarded; instead `wfb.kinds.pattern.
   _emit_pattern_text_draw` wraps only its own draw call in `if (<local> !=
-  null)`, every copy, the same shape `wfb.emit.monkeyc.shapes._emit_
-  vector_text_draw` already uses for a standalone element -- and this
+  null)`, every copy, the same shape `wfb.kinds.text._emit_vector_text_draw`
+  already uses for a standalone element -- and this
   applies even to an *upright* (uncurved) vector-font pattern part, not
   only a curved one: gate 4 does not care whether `curve:` was authored.
 
@@ -376,7 +375,7 @@ These cost real time to discover; do not rediscover them.
   circle's radius (`curve.radius_px`, a `handLength` -- px/%r only, plan
   11 slice 2's `patternCurve` schema def -- resolved once, the same for
   every copy) gets a `Layout` constant (`<part>_RADIUS`, `wfb.emit.monkeyc.
-  layout_constants._hand_part_constants`'s `text` branch), the same as an
+  layout_constants.hand_part_constants`'s `text` branch), the same as an
   `arc` part's own `_RADIUS`; the angle does not, for the same reason an
   `arc` part's `start_angle`/`sweep` never did -- it is device-independent
   and needs a per-copy runtime term, so it is inlined straight into the
@@ -408,7 +407,7 @@ These cost real time to discover; do not rediscover them.
   because it is never worse at the sizes this format actually needs and
   because it is the one shape that lets `width:` be a data value rather
   than a rewrite of call sites. The stamp loop (`wfb.emit.monkeyc.shapes.
-  _emit_outline_loop`) wraps a caller-supplied per-anchor draw callback,
+  emit_outline_loop`) wraps a caller-supplied per-anchor draw callback,
   shared verbatim between the interior pass and every stamp -- so a
   screen-space anchor shift is the *only* thing that differs between a
   stamp and the interior draw, for every draw-call shape a standalone
@@ -418,11 +417,11 @@ These cost real time to discover; do not rediscover them.
 
 - **`outline:` on a pattern's own `shape: text` part (plan 15 §14 slice
   2): the same stamp loop, one level down, plus a real `monkeyc` finding
-  slice 1 never hit.** `TextPart.outline` and `Builder._build_outline`
+  slice 1 never hit.** `TextPart.outline` and `Builder.build_outline`
   are shared verbatim with a standalone `Text.outline` -- the only new
   builder work is threading a pattern's own absence policy through
-  (`_build_outline(..., element=None)` for a part: no immediate
-  `_check_other_absence`, because a pattern polices absence once for the
+  (`build_outline(..., element=None)` for a part: no immediate
+  `check_other_absence`, because a pattern polices absence once for the
   whole element over `PatternElement.colors`, which a part's own
   `outline.color` now feeds into alongside `part.color`). `ResolvedTextPart`
   carries two exploded fields, `outline_width`/`outline_color`, carried
@@ -443,7 +442,7 @@ These cost real time to discover; do not rediscover them.
   what `_emit_pattern_text_call` (split out of the old `_emit_pattern_
   text_draw` so the interior pass and every stamp share one "anchor in,
   draw lines out" callback, the pattern-level twin of `wfb.emit.monkeyc.
-  shapes._emit_plain_text_call`/`wfb.kinds.text._emit_vector_draw_call`)
+  shapes.emit_plain_text_call`/`wfb.kinds.text._emit_vector_draw_call`)
   does -- lands
   the ring in screen space at every copy, at whatever angle that copy's
   own rotation and curve already put it at, with no correction needed.
@@ -455,7 +454,7 @@ These cost real time to discover; do not rediscover them.
   **Real `monkeyc` finding: a pattern's own copy loop already owns the
   name `i`, and Monkey C rejects redefining a variable even across
   separate straight-line statements in the same method.** Slice 1's
-  `_emit_outline_loop` hardcoded `var i = 0;`/`var offsets = ...;` --
+  `emit_outline_loop` hardcoded `var i = 0;`/`var offsets = ...;` --
   fine for a standalone element (one generated method per element), but
   every part of one pattern shares a *single* generated method, whose own
   `for (var i = 0; i < element.count; i++)` already claims `i`. Nesting an
@@ -464,7 +463,7 @@ These cost real time to discover; do not rediscover them.
   text/face.yaml` gained its first pattern-with-outline element -- caught
   by a real build, not by any Python-level test, since nothing before
   `monkeyc` itself understands Monkey C scoping rules. Fixed by giving
-  `_emit_outline_loop` `index_var`/`offsets_var` parameters (default
+  `emit_outline_loop` `index_var`/`offsets_var` parameters (default
   `"i"`/`"offsets"`, so every slice-1 caller is byte-for-byte unaffected),
   with the pattern caller deriving unique names from the part's own
   `part_prefix` (`f"outlineI{part_prefix}"`/`f"outlineOffsets{part_
@@ -539,7 +538,7 @@ These cost real time to discover; do not rediscover them.
   All four are raised on the author's own line: in `Builder._build_aod_authored`
   for an element's own block, and in `Builder._resolve_aod` for a key the
   element inherits from a group (plan 18 item 5; both read one table,
-  `Builder._aod_refusal`, so they cannot disagree). A face using one of
+  `Builder.aod_refusal`, so they cannot disagree). A face using one of
   them never reaches codegen or `wfb preview
   --aod` at all -- there is nothing left for either to draw, and the
   runtime fallback code both still carry for the font cases (e.g.
@@ -567,7 +566,7 @@ These cost real time to discover; do not rediscover them.
   rounding is bit-for-bit the same as the Python half's, `wfb/palette.py`'s
   own `dim_channel` docstring) is what shipped. `Expression.is_constant` --
   already true for a `palette.<name>` reference (`fold_colors=True`'s own
-  resolved-constant half, `Builder._expression`) and already `None` for
+  resolved-constant half, `Builder.expression`) and already `None` for
   `config.colors.<role>` -- is exactly the fact that decides which of the
   two a given colour needs, so `wfb.emit.monkeyc.common._dim_color_code`
   needed no new classification of its own: a constant colour is pre-dimmed

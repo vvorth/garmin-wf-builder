@@ -136,7 +136,7 @@ def test_icon_default_draw_call_is_byte_identical(write_design, bag, db):
 
 def test_icon_left_top_uses_left_justify_with_no_vcenter(write_design, bag, db):
     """`vertical_align: top` is what drops VCENTER (it is added for
-    `center` regardless of `align`, exactly as `Resolver._justify` already
+    `center` regardless of `align`, exactly as `Resolver.justify` already
     does for `text`) -- `align: left` alone still centres vertically."""
     view = _view_icon(write_design, bag, db, "left", "top")
     assert "Graphics.TEXT_JUSTIFY_LEFT);" in view

@@ -13,14 +13,14 @@ from ..series import Acquisition, SeriesDef
 from ..units import Axis, Box, Duration, UnitError
 from ..emit.monkeyc import graph as graph_mod
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc.common import NO_AOD, AodStyle, _article
+from ..emit.monkeyc.common import NO_AOD, AodStyle, article
 from ..emit.writer import Writer
 from . import ElementKind
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..layout import Resolver
-    from ..preview import _Renderer
+    from ..preview import Renderer
 
 #: Which key each `graph` `style:` reads (a `bar_width:` on a `style: line`
 #: graph would otherwise be silently dropped).
@@ -97,7 +97,7 @@ def _graph_sample_count(b, node: dict, src: SeriesDef | None, range_kind: str,
 def _check_graph_style_keys(b, node: dict, style: str) -> None:
     if style not in GRAPH_STYLE_KEYS:
         return  # the schema has already rejected an unknown style
-    b._check_foreign_keys(
+    b.check_foreign_keys(
         node, style, GRAPH_STYLE_KEYS, _ALL_GRAPH_STYLE_KEYS,
         code="graph", disc="style", empty_label="(nothing)",
     )
@@ -108,7 +108,7 @@ def _graph_bound(b, node: dict, key: str) -> tuple[Expression | None, bool]:
     raw = node.get(key)
     if raw is None or (isinstance(raw, str) and raw.strip() == "auto"):
         return None, True
-    expression = b._expression(node, key)
+    expression = b.expression(node, key)
     if expression is not None and not expression.value.type.is_numeric():
         b.bag.error(
             "type", f"graph {key} must be a number, got {expression.value}",
@@ -150,7 +150,7 @@ def _graph_line(renderer, placed: PlacedGraph, values: list[float | None],
             continue
         point = _graph_point(renderer, placed, i, n, value, lo, span)
         if previous is not None:
-            thickness = renderer._aod_geometry(placed, "thickness", placed.thickness)
+            thickness = renderer.aod_geometry(placed, "thickness", placed.thickness)
             renderer.draw.line([previous, point], fill=color, width=max(1, thickness * s))
         previous = point
 
@@ -191,7 +191,7 @@ def _graph_bars(renderer, placed: PlacedGraph, values: list[float | None],
     x, y = placed.box.x, placed.box.y
     w, h = placed.size
     pitch = w / n
-    bar_width = renderer._aod_geometry(placed, "bar_width", placed.bar_width)
+    bar_width = renderer.aod_geometry(placed, "bar_width", placed.bar_width)
     for i, value in enumerate(values):
         if value is None:
             continue
@@ -295,8 +295,8 @@ class GraphKind(ElementKind):
             buckets = 40
 
         style = node.get("style", "line")
-        thickness = b._length(node, "thickness")
-        bar_width = b._length(node, "bar_width")
+        thickness = b.length(node, "thickness")
+        bar_width = b.length(node, "bar_width")
         _check_graph_style_keys(b, node, style)
 
         min_expr, min_auto = _graph_bound(b, node, "min")
@@ -326,7 +326,7 @@ class GraphKind(ElementKind):
                 notes=["use 'style: line' instead, or shorten 'range:'/'buckets:'"],
             )
 
-        align, vertical_align = b._alignment(node)
+        align, vertical_align = b.alignment(node)
         element = Graph(
             **common,
             series=str(name) if name is not None else "",
@@ -341,34 +341,34 @@ class GraphKind(ElementKind):
             max_auto=max_auto,
             min=min_expr,
             max=max_expr,
-            size=b._size(node.get("size")),
-            color=b._color_expression(node, "color"),
+            size=b.size(node.get("size")),
+            color=b.color_expression(node, "color"),
             sample_count=sample_count,
             align=align,
             vertical_align=vertical_align,
         )
-        # No `_check_other_absence`: like `shape` and `icon`, a graph has no
+        # No `check_other_absence`: like `shape` and `icon`, a graph has no
         # `when_absent:`; a nullable `color:`/`min:`/`max:` still gets a
         # guard from `ReadPlan`, which hides the element when absent.
         return element
 
     def resolve(self, r: Resolver, element: Graph, parent: Box, depth: int) -> Placed:
-        cx, cy = r._point(element.at, parent)
+        cx, cy = r.point(element.at, parent)
         min_1px = element.resolved_min_1px
-        box, cx, cy = r._sized_box(element, parent, cx, cy)
-        thickness = max(1, round(r._extent(element.thickness, parent, Axis.MINOR, 2,
-                                           min_1px=min_1px, what="thickness")))
-        bar_width = max(1, round(r._extent(element.bar_width, parent, Axis.MINOR, 3,
-                                           min_1px=min_1px, what="bar_width")))
-        aod_thickness = r._aod_extent(element, "thickness", parent, 2)
-        aod_bar_width = r._aod_extent(element, "bar_width", parent, 3)
+        box, cx, cy = r.sized_box(element, parent, cx, cy)
+        thickness = max(1, round(r.extent(element.thickness, parent, Axis.MINOR, 2,
+                                          min_1px=min_1px, what="thickness")))
+        bar_width = max(1, round(r.extent(element.bar_width, parent, Axis.MINOR, 3,
+                                          min_1px=min_1px, what="bar_width")))
+        aod_thickness = r.aod_extent(element, "thickness", parent, 2)
+        aod_bar_width = r.aod_extent(element, "bar_width", parent, 3)
         return PlacedGraph(
             element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
             thickness=thickness, bar_width=bar_width, size=(round(box.width), round(box.height)),
             aod_thickness=aod_thickness, aod_bar_width=aod_bar_width,
         )
 
-    def draw_preview(self, renderer: _Renderer, placed: PlacedGraph) -> None:
+    def draw_preview(self, renderer: Renderer, placed: PlacedGraph) -> None:
         """A synthetic series -- shape and placement only, never real data.
 
         There is no live `ActivityMonitor`/`Weather` history on the host, so
@@ -396,7 +396,7 @@ class GraphKind(ElementKind):
         span = hi - lo
         if span <= 0:
             span = 1.0
-        color = renderer._aod_color(element, "color", element.color)
+        color = renderer.aod_color(element, "color", element.color)
         if element.style == "line":
             _graph_line(renderer, placed, values, lo, span, color)
         elif element.style == "area":
@@ -406,19 +406,19 @@ class GraphKind(ElementKind):
 
     def emit_draw(self, w: Writer, resolved, placed: PlacedGraph, value_guards, plan,
                   aod: AodStyle = NO_AOD) -> None:
-        graph_mod._emit_graph(w, placed, aod)
+        graph_mod.emit_graph(w, placed, aod)
 
     def describe(self, placed: PlacedGraph) -> str:
         element = placed.element
-        return f"{_article(f'{element.style} graph')} of {element.series}"
+        return f"{article(f'{element.style} graph')} of {element.series}"
 
     def layout_constants(self, prefix: str,
                          placed: PlacedGraph) -> "layout_constants_mod.Constants":
         out: "layout_constants_mod.Constants" = list(
-            layout_constants_mod._box_constants(prefix, placed.box))
+            layout_constants_mod.box_constants(prefix, placed.box))
         if placed.element.style == "line":
             out.append((f"{prefix}_THICKNESS", placed.thickness, "pen width"))
-            out.extend(layout_constants_mod._aod_thickness_constant(prefix, placed))
+            out.extend(layout_constants_mod.aod_thickness_constant(prefix, placed))
         elif placed.element.style == "bars":
             out.append((f"{prefix}_BAR_WIDTH", placed.bar_width, "centred in each slot"))
             if placed.aod_bar_width is not None:

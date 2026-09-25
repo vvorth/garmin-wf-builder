@@ -117,7 +117,7 @@ def at_least_one_px(length: "Length | None", value: float, enabled: bool) -> flo
     ``enabled`` is **required, with no default**, deliberately: every call
     site states its own gate (the owning element's `resolved_min_1px`)
     explicitly, so the rule and its switch can never quietly drift apart --
-    see `wfb.layout.Resolver._extent`/`._hand_extent`, the only callers. When
+    see `wfb.layout.Resolver.extent`/`._hand_extent`, the only callers. When
     `enabled` is false this returns `value` untouched even where
     :func:`is_sub_pixel_length` is true; the caller turns that case into a
     `SubPixelLength` record for the suppressible `sub-pixel-length` lint.
@@ -306,7 +306,7 @@ class Box:
         the clamp never ran.  ``min_1px`` therefore defaults to `False`, and
         a caller passes `True` only at the handful of call sites whose box
         width/height is itself a raw, unrounded extent that went through
-        :meth:`wfb.layout.Resolver._extent` -- a `group`'s own `size:`, or a
+        :meth:`wfb.layout.Resolver.extent` -- a `group`'s own `size:`, or a
         `shape`/`progress`/`graph`'s plain rectangular `size:` box.  Every
         other box here (a circle/arc/ellipse's doubled radius-plus-pad reach,
         a polygon's point-derived bounds, a hand or pattern's swept-disc or

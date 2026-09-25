@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .common import AodStyle, _glyph_y_expr
+from .common import AodStyle, glyph_y_expr
 from ..writer import Writer
 
 
-def _emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) -> None:
+def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) -> None:
     """The two-line `WfbArc.drawSpan(...)` call against one arc's own
     `_CX/_CY/_RADIUS/_THICKNESS/_START/_SWEEP` constants -- identical whether
     it is a plain `shape: arc` or a `progress` arc's unfilled track, which is
@@ -27,7 +27,7 @@ def _emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) ->
     ])
 
 
-def _thickness_expr(prefix: str, placed, aod: AodStyle) -> str:
+def thickness_expr(prefix: str, placed, aod: AodStyle) -> str:
     """`Layout.<P>_THICKNESS`, ternary against `_AOD_THICKNESS` when this
     element's resolved `aod:` overrides `thickness:` (plan 14 §4.2)."""
     return aod.layout(prefix, "THICKNESS", placed.aod_thickness is not None)
@@ -36,14 +36,14 @@ def _thickness_expr(prefix: str, placed, aod: AodStyle) -> str:
 #: `text.curve.direction` -> `Graphics.RadialTextDirection` (verified in
 #: `$CIQ_SDK/bin/api.debug.xml`: `RADIAL_TEXT_DIRECTION_CLOCKWISE`/
 #: `_COUNTER_CLOCKWISE`, both `Dc.drawRadialText`'s own documented values).
-_RADIAL_DIRECTION = {
+RADIAL_DIRECTION = {
     "clockwise": "RADIAL_TEXT_DIRECTION_CLOCKWISE",
     "counter_clockwise": "RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE",
 }
 
 
-def _radial_radius_expr(radius_expr: str, vertical_align: str, direction: str | None,
-                        font_expr: str) -> str:
+def radial_radius_expr(radius_expr: str, vertical_align: str, direction: str | None,
+                       font_expr: str) -> str:
     """`dc.drawRadialText`'s `radius` argument for `vertical_align`.
 
     Without `TEXT_JUSTIFY_VCENTER` the device puts the text's **baseline**
@@ -61,7 +61,7 @@ def _radial_radius_expr(radius_expr: str, vertical_align: str, direction: str | 
     return f"{radius_expr} {sign} Graphics.getFontAscent({font_expr})"
 
 
-def _emit_outline_loop(
+def emit_outline_loop(
     w: Writer, width: int, color_code: str, x_expr: str, y_expr: str,
     draw: Callable[[str, str], None], *, index_var: str = "i", offsets_var: str = "offsets",
 ) -> None:
@@ -92,12 +92,12 @@ def _emit_outline_loop(
     w.blank()
 
 
-def _emit_plain_text_call(
+def emit_plain_text_call(
     w: Writer, x_expr: str, y_expr: str, font_expr: str, value_code: str, justify: str,
     vertical_align: str,
 ) -> None:
     """One upright `dc.drawText` call at the given screen-space anchor --
     a text element's interior pass and every `outline:` stamp, an upright
     vector-font draw, and an icon's glyph."""
-    y = _glyph_y_expr(y_expr, vertical_align, font_expr)
+    y = glyph_y_expr(y_expr, vertical_align, font_expr)
     w.call("dc.drawText", [f"{x_expr}, {y}, {font_expr}", value_code, justify])

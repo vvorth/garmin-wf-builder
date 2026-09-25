@@ -168,7 +168,7 @@ def radial_text_band(
     * `bottom` -- no flag: `ascent` on the "up" side, the descent
       (`line_height - ascent`) on the other.
     * `top` -- no flag, drawn at `radius -/+ ascent`
-      (`wfb.emit.monkeyc.shapes._radial_radius_expr`), so the whole
+      (`wfb.emit.monkeyc.shapes.radial_radius_expr`), so the whole
       `line_height` lies on the "down" side.
 
     "Up" is outward under `clockwise` and inward under `counter_clockwise`.
@@ -454,13 +454,13 @@ def text_ink(
     return InkRect(x + dx - box_width / 2, y + dy - box_height / 2, box_width, box_height)
 
 
-def _stroke_pad(pen: int) -> int:
+def stroke_pad(pen: int) -> int:
     """How far a stroked outline's ink reaches past the declared edge it is
     drawn on: half the pen, plus a pixel for the device's rounding."""
     return pen // 2 + 1
 
 
-def _arc_box(
+def arc_box(
     radius: int, pen: int, cx: float, cy: float, align: str, vertical_align: str,
     start_angle: Angle | None, sweep_angle: Angle | None,
 ) -> tuple[IntBox, float, float, float, float, float, str]:
@@ -475,7 +475,7 @@ def _arc_box(
     """
     dx, dy = alignment_shift(2 * radius, 2 * radius, align, vertical_align)
     cx, cy = cx + dx, cy + dy
-    reach = radius + _stroke_pad(pen)
+    reach = radius + stroke_pad(pen)
     box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
     start = (start_angle or Angle(0.0)).degrees
     sweep = (sweep_angle or Angle(360.0)).degrees
@@ -507,7 +507,7 @@ class PlacedShape(Placed):
     sweep: float = 360.0
     garmin_start: float = 90.0
     garmin_direction: str = "ARC_CLOCKWISE"
-    #: The `aod: {thickness: ...}` override (`Resolver._aod_extent`), or
+    #: The `aod: {thickness: ...}` override (`Resolver.aod_extent`), or
     #: `None` for none -- codegen then keeps the plain `_THICKNESS` constant.
     #: A rendering fact only: never affects `box`/`rect`.
     aod_thickness: int | None = None
@@ -515,7 +515,7 @@ class PlacedShape(Placed):
 
 @dataclass(frozen=True)
 class ResolvedFont:
-    """A text font resolved for one device -- the part of `Resolver._text_font`
+    """A text font resolved for one device -- the part of `Resolver.text_font`
     a placed text, a pattern's text part and a complication slot's reading
     carry into codegen, preview and lint."""
 
@@ -948,7 +948,7 @@ class _Owner:
 class SubPixelLength:
     """A nonzero %/%r extent that resolved below 1 px on this device with
     `min_1px` off -- it rounds away to nothing here while drawing on a
-    larger screen.  Recorded by `Resolver._extent`, read by
+    larger screen.  Recorded by `Resolver.extent`, read by
     `wfb.lint.check_sub_pixel_length`.
     """
 
@@ -1012,8 +1012,8 @@ class ResolvedFace:
 
 @dataclass(frozen=True)
 class _Font:
-    """One text font, resolved for this device: what `_font_for_ref` finds,
-    plus -- for a `face:` font -- gates 1-3's answer (`Resolver._text_font`).
+    """One text font, resolved for this device: what `font_for_ref` finds,
+    plus -- for a `face:` font -- gates 1-3's answer (`Resolver.text_font`).
     `baked` is the baked sheet (never a vector font's); `metric` the
     `FontMetric` a system or vector font is measured through. `fonts_root`
     is the device's own `--fonts DIR` override (`Device.fonts_root`), so a
@@ -1052,6 +1052,25 @@ class _Font:
 
 
 class Resolver:
+    """Per-device layout: every element of one face placed on one device,
+    in whole pixels, for the lints, the preview and codegen.
+
+    **Helpers for kind authors.**  A kind's `resolve` gets the resolver as
+    `r`, with `r.face`, `r.device` and `r.fonts` (the baked fonts) to read:
+
+    - Geometry: `point` (an `at:` position), `length` (a length used as a
+      position), `extent` (a size, thickness or radius: clamped by
+      `min_1px:` and recorded for the `sub-pixel-length` lint),
+      `aod_extent` (an `aod:` override of one), `sized_box` (the "size,
+      then align" box of a `size:`-placed kind).
+    - Text: `text_font` (a `font:` reference, with the vector-font gates),
+      `font_for_ref` (without them), `justify` (`TEXT_JUSTIFY_*` flags).
+    - Parts: `resolve_parts` (a hand's or a pattern's `parts:`).
+
+    Module level: `alignment_shift`, `arc_box`, `stroke_pad`, `longer`,
+    `text_ink`, `resolved_curve`, `round_half_away`.
+    """
+
     def __init__(self, face: Face, device: Device, fonts: dict[str, BakedFont]) -> None:
         self.face = face
         self.device = device
@@ -1060,7 +1079,7 @@ class Resolver:
         self.minor_radius = device.minor_radius
         self.items: list[Placed] = []
         self.warnings: list[str] = []
-        #: `SubPixelLength`s, in resolve order (`_extent`, `_record_sub_pixel`).
+        #: `SubPixelLength`s, in resolve order (`extent`, `_record_sub_pixel`).
         self.sub_pixel: list[SubPixelLength] = []
         #: Who a `SubPixelLength` is recorded against (`_owned_by`): the
         #: element being resolved (`_resolve_list`), narrowed to a part's own
@@ -1112,35 +1131,35 @@ class Resolver:
 
     # -- per-kind ---------------------------------------------------------
 
-    def _sized_box(
+    def sized_box(
         self, element: Group | Shape | Progress | Graph, parent: Box, cx: float, cy: float,
     ) -> tuple[Box, float, float]:
         """The "size, then align" box every `size:`-placed kind shares, and
-        its shifted centre.  Width then height go through `_extent` in that
+        its shifted centre.  Width then height go through `extent` in that
         order -- `sub_pixel`'s order.  Takes the anchor already resolved,
-        since `wfb.kinds.shape.ShapeKind.resolve` needs it first (`_point` records nothing).
+        since `wfb.kinds.shape.ShapeKind.resolve` needs it first (`point` records nothing).
         """
         min_1px = element.resolved_min_1px
-        width = self._extent(element.size.width, parent, Axis.X, parent.width,
-                             min_1px=min_1px, what="size.width")
-        height = self._extent(element.size.height, parent, Axis.Y, parent.height,
-                              min_1px=min_1px, what="size.height")
+        width = self.extent(element.size.width, parent, Axis.X, parent.width,
+                            min_1px=min_1px, what="size.width")
+        height = self.extent(element.size.height, parent, Axis.Y, parent.height,
+                             min_1px=min_1px, what="size.height")
         dx, dy = alignment_shift(width, height, element.align, element.vertical_align)
         cx, cy = cx + dx, cy + dy
         return Box(cx - width / 2, cy - height / 2, width, height), cx, cy
 
     def _group_box(self, element: Group, parent: Box) -> Box:
-        cx, cy = self._point(element.at, parent)
-        return self._sized_box(element, parent, cx, cy)[0]
+        cx, cy = self.point(element.at, parent)
+        return self.sized_box(element, parent, cx, cy)[0]
 
-    def _text_font(self, font: str, font_is_custom: bool, warn_id: str,
-                   curve: Curve | None) -> _Font:
-        """`_font_for_ref`, plus gates 1-3 for a `face:` (vector) font: its
+    def text_font(self, font: str, font_is_custom: bool, warn_id: str,
+                  curve: Curve | None) -> _Font:
+        """`font_for_ref`, plus gates 1-3 for a `face:` (vector) font: its
         baked sheet and system metric are both meaningless (nothing bakes a
         vector font), so they give way to this device's resolved face and a
         metric synthesised for it.  Shared by a `text` element and a
         pattern's `shape: text` part."""
-        resolved = self._font_for_ref(font, font_is_custom, warn_id)
+        resolved = self.font_for_ref(font, font_is_custom, warn_id)
         if not resolved.is_custom:
             return resolved
         spec = self.face.fonts[font]
@@ -1195,7 +1214,7 @@ class Resolver:
         return FontMetric(symbol=face_name or "vector", face=face_name, font=filename,
                           size_px=font_px)
 
-    def _resolve_parts(
+    def resolve_parts(
         self, parts: list[HandPart], owner: str, *, min_1px: bool,
     ) -> tuple[tuple[ResolvedHandPart, ...], float]:
         """Every part of one `parts:` list (a hand's, or a pattern's
@@ -1308,7 +1327,7 @@ class Resolver:
             # `wfb.kinds.pattern.PatternKind.resolve` measures each drawn copy's own ink
             # instead.
             x0, y0 = self._hand_point(part.at)
-            font = self._text_font(part.font, part.font_is_custom, owner_id, part.curve)
+            font = self.text_font(part.font, part.font_is_custom, owner_id, part.curve)
             curve = resolved_curve(part.curve)
             if curve.style == "radial" and part.curve.radius is not None:
                 # Through `_hand_extent`, like any other part radius: a
@@ -1319,7 +1338,7 @@ class Resolver:
             return ResolvedTextPart(
                 part.color, 0.0, x=round_half_away(x0), y=round_half_away(y0),
                 font=font.resolved(),
-                justify=self._justify(part), align=part.align,
+                justify=self.justify(part), align=part.align,
                 vertical_align=part.vertical_align, line_height=font.line_height,
                 texts=part.texts, widths=tuple(font.width(t) for t in part.texts),
                 curve=curve,
@@ -1347,42 +1366,50 @@ class Resolver:
             thickness=thickness, filled=part.filled,
         )
 
-    # A hand/pattern part's own frame is `_point`/`_extent` over
+    # A hand/pattern part's own frame is `point`/`extent` over
     # `_HAND_FRAME_BOX`: every anchor of a zero box is the origin, and the
     # px/%r lengths a part may use (schema-enforced) never read the box.
 
     def _hand_point(self, at: Position) -> tuple[float, float]:
-        return self._point(at, _HAND_FRAME_BOX)
+        return self.point(at, _HAND_FRAME_BOX)
 
     def _hand_extent(self, length: Length | None, default: float = 0, *,
                      min_1px: bool, what: str) -> float:
-        return self._extent(length, _HAND_FRAME_BOX, Axis.MINOR, default,
-                            min_1px=min_1px, what=what)
+        return self.extent(length, _HAND_FRAME_BOX, Axis.MINOR, default,
+                           min_1px=min_1px, what=what)
 
     # -- helpers ----------------------------------------------------------
 
-    def _point(self, at: Position, parent: Box) -> tuple[float, float]:
+    def point(self, at: Position, parent: Box) -> tuple[float, float]:
+        """`at:` resolved to a screen point inside `parent`: its anchor,
+        then `dx`/`dy`, or polar `angle`/`radius` (`%r` of the minor
+        radius).  A position, so never clamped or recorded (:meth:`extent`).
+        """
         ax, ay = parent.anchor_point(at.anchor)
         if at.is_polar:
-            radius = self._len(at.radius, parent, Axis.MINOR, 0)
+            radius = self.length(at.radius, parent, Axis.MINOR, 0)
             theta = math.radians(at.angle.degrees)
             return ax + radius * math.sin(theta), ay - radius * math.cos(theta)
-        dx = self._len(at.dx, parent, Axis.X, 0)
-        dy = self._len(at.dy, parent, Axis.Y, 0)
+        dx = self.length(at.dx, parent, Axis.X, 0)
+        dy = self.length(at.dy, parent, Axis.Y, 0)
         return ax + dx, ay + dy
 
-    def _len(self, length: Length | None, parent: Box, axis: Axis, default: float,
-             font_px: float | None = None) -> float:
+    def length(self, length: Length | None, parent: Box, axis: Axis, default: float,
+               font_px: float | None = None) -> float:
+        """`length` in pixels along `axis` of `parent` (`%` of the parent,
+        `%r` of the minor radius, `pt` of `font_px`), or `default` when it
+        is `None`.  For a position; a size goes through :meth:`extent`.
+        """
         if length is None:
             return float(default)
         return length.resolve(box=parent, axis=axis, minor_radius=self.minor_radius,
                               font_px=font_px)
 
-    def _extent(self, length: Length | None, parent: Box, axis: Axis, default: float,
-                font_px: float | None = None, *, min_1px: bool, what: str) -> float:
-        """:meth:`_len`, then :func:`units.at_least_one_px` -- for a *size,
+    def extent(self, length: Length | None, parent: Box, axis: Axis, default: float,
+               font_px: float | None = None, *, min_1px: bool, what: str) -> float:
+        """:meth:`length`, then :func:`units.at_least_one_px` -- for a *size,
         thickness or radius*, never a position (`at:`/`to:`/points/`step:`
-        stay on `_len`).  `min_1px` and `what` (the authored key, for the
+        stay on `length`).  `min_1px` and `what` (the authored key, for the
         record) are required so no call site can silently default either.
 
         With `min_1px` off, a nonzero `%`/`%r` length under 1 px
@@ -1390,14 +1417,14 @@ class Resolver:
         `SubPixelLength` against the current owner -- the one place the
         `sub-pixel-length` lint's condition is visible.
         """
-        value = self._len(length, parent, axis, default, font_px)
+        value = self.length(length, parent, axis, default, font_px)
         if not min_1px and units.is_sub_pixel_length(length, value):
             self._record_sub_pixel(what, length, value)
         return units.at_least_one_px(length, value, min_1px)
 
-    def _aod_extent(self, element: Element, key: str, parent: Box, default: float) -> int | None:
+    def aod_extent(self, element: Element, key: str, parent: Box, default: float) -> int | None:
         """The `aod:` override of `key` (`thickness`/`bar_width`), resolved
-        like the element's own (`_extent`, `Axis.MINOR`), or `None` when the
+        like the element's own (`extent`, `Axis.MINOR`), or `None` when the
         resolved `aod:` does not override it -- codegen then keeps the plain
         constant (plan 14 §4.2).  Always `min_1px`, and never recorded as a
         `SubPixelLength`: an override is a restyling choice with no authored
@@ -1406,11 +1433,11 @@ class Resolver:
         aod_length = getattr(element.aod, key) if element.aod is not None else None
         if aod_length is None:
             return None
-        return max(1, round(self._extent(aod_length, parent, Axis.MINOR, default,
-                                         min_1px=True, what="aod")))
+        return max(1, round(self.extent(aod_length, parent, Axis.MINOR, default,
+                                        min_1px=True, what="aod")))
 
     def _record_sub_pixel(self, key: str, length: Length | None, value: float) -> None:
-        """Append one `SubPixelLength` for the current owner (`_extent`)."""
+        """Append one `SubPixelLength` for the current owner (`extent`)."""
         assert length is not None
         assert self._owner is not None, "no element is being resolved yet"
         self.sub_pixel.append(SubPixelLength(
@@ -1418,9 +1445,9 @@ class Resolver:
             span=self._owner.span, element=self._owner.element,
         ))
 
-    def _font_for_ref(self, font: str, font_is_custom: bool, warn_id: str) -> _Font:
+    def font_for_ref(self, font: str, font_is_custom: bool, warn_id: str) -> _Font:
         """A `font:` reference resolved for this device, before any vector
-        face gate (`_text_font` adds those): a custom font's baked sheet
+        face gate (`text_font` adds those): a custom font's baked sheet
         (or, unbaked -- a layout-only caller -- its declared size), or a
         system font's `FontMetric`, warning once when the device has none.
         The metric rides onto the `Placed*` so `wfb.preview` measures and
@@ -1439,7 +1466,7 @@ class Resolver:
                      fonts_root=self.device.fonts_root)
 
     @staticmethod
-    def _justify(element: Text | HandPart | IconElement) -> tuple[str, ...]:
+    def justify(element: Text | HandPart | IconElement) -> tuple[str, ...]:
         """`Toybox.Graphics.TEXT_JUSTIFY_*` flags for anything with `.align`/
         `.vertical_align` -- a `Text` element, a `shape: text` pattern part,
         or an `IconElement`, all of which carry the same two fields under
@@ -1456,7 +1483,7 @@ class Resolver:
         return tuple(out)
 
 
-def _longer(current: str, candidate: str) -> str:
+def longer(current: str, candidate: str) -> str:
     """`candidate` if it is strictly longer than `current`, else `current`
     unchanged -- "a placeholder/estimate longer than the widest-so-far
     wins," the one rule `wfb.kinds.text._widest_text` (placeholder, fallback)

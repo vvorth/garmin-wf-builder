@@ -2,7 +2,7 @@
 element tree (`Element` and its kind-specific subclasses), `Face` itself,
 fonts, on-device config, and analog hands/patterns -- plus the tree/draw-order
 helpers (`walk_elements`, `authored_draw_order`, `draw_sort_key`, `draw_order`,
-`never_together`) that read that tree, and `_drawn_copies`, the pure
+`never_together`) that read that tree, and `drawn_copies`, the pure
 computation :meth:`PatternElement.drawn_indices` shares with
 `wfb.kinds.pattern.PatternKind.build`.  The semantic pass that
 builds a `Face` from YAML is :mod:`wfb.ir.builder`; nothing here validates
@@ -80,7 +80,7 @@ GRAPH_AREA_MAX_SAMPLES = 62
 
 #: `outline:`'s cap (plan 15 D6): every offset set research 14 measured
 #: (`docs/research/14-stamped-ring-text.md` §1, §4.1) stops at r=3.
-#: `Builder._build_outline` enforces it with an error citing that evidence.
+#: `Builder.build_outline` enforces it with an error citing that evidence.
 MAX_OUTLINE_WIDTH = 3
 
 #: System fonts an author may name directly, instead of a baked custom font.
@@ -248,7 +248,7 @@ class Curve:
     (`style: radial`, `Dc.drawRadialText`).  Both calls refuse a resource
     font outright ("These APIs only support scalable fonts and do not
     support custom fonts loaded as resources", `$CIQ_SDK/doc/docs/
-    Core_Topics/Graphics.html` §Scalable Fonts), so `Builder._build_curve`
+    Core_Topics/Graphics.html` §Scalable Fonts), so `Builder.build_curve`
     requires `font:` to name a `face:` (vector) `FontSpec`.  Also carried by
     a pattern's `shape: text` part (`TextPart.curve`).
     """
@@ -274,7 +274,7 @@ class Curve:
 class Outline:
     """`outline:` on a `text` element or a pattern's `shape: text` part
     (plan 15): the stamped ring research 14 measured.  `color` follows
-    `color:`'s own grammar (`Builder._color_expression`); `width` is whole
+    `color:`'s own grammar (`Builder.color_expression`); `width` is whole
     pixels, 1 to :data:`MAX_OUTLINE_WIDTH`.
     """
 
@@ -350,7 +350,7 @@ def aod_color_choice(aod: AodOverride | None, key: str, dim_set: bool) -> tuple[
 
     Returns which of the three applies -- ``"override"``, ``"dim"`` or
     ``"awake"`` -- and, for ``"override"``, that override's own
-    `Expression`.  This is the pure decision only: `wfb.preview._aod_color`
+    `Expression`.  This is the pure decision only: `wfb.preview.aod_color`
     (rendering the AOD frame, gated on `PreviewOptions.aod`) turns it into
     an RGB triple, and `wfb.emit.monkeyc.common.AodStyle.color`/
     `.part_color` (gated on whether this *build* emits AOD code at all)
@@ -668,7 +668,7 @@ class Element:
     on_hold: str | None = None
     #: `visible:` -- a BOOLEAN expression gating whether this element draws at
     #: all.  **Absent means hidden** (no `when_absent:` applies).  A group's
-    #: is conjoined into every descendant's own (`Builder._push_visible`),
+    #: is conjoined into every descendant's own (`Builder.push_visible`),
     #: since a group draws nothing itself; the copy left on the group is what
     #: the `dead-element` lint reports against.
     visible: Expression | None = None
@@ -705,7 +705,7 @@ class Element:
     resolved_min_1px: bool = False
     #: The placement box's edge (or centre) that sits at `at:`.  The schema
     #: decides which kinds accept it; `wfb.layout` applies it through
-    #: `alignment_shift` (box-drawn kinds) or `Resolver._justify` (glyph-drawn
+    #: `alignment_shift` (box-drawn kinds) or `Resolver.justify` (glyph-drawn
     #: kinds), and a `complication_slot` mirrors it at runtime.
     align: str = "center"
     vertical_align: str = "center"
@@ -841,7 +841,7 @@ class HandPart:
     o'clock.  Positions have no `anchor` -- the schema's `handPosition` never
     accepts one, so the origin is the only reference point a part's
     coordinates can be measured from.  One subclass per `shape:`
-    (`Builder._build_hand_part`); ``shape`` names it.  `arc` and `text` are
+    (`Builder.build_hand_part`); ``shape`` names it.  `arc` and `text` are
     pattern-only (`HAND_PART_REJECTED_SHAPES`).
     """
 
@@ -1031,7 +1031,7 @@ class PatternElement(Element):
     """`type: pattern` -- one template of 1-16 primitives, drawn repeatedly:
     turned about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
     (`pattern: linear`).  The template is authored like a hand part
-    (`Builder._build_hand_part`); the repeat is layout arithmetic the device
+    (`Builder.build_hand_part`); the repeat is layout arithmetic the device
     performs, as for hands (ADR 0004).  `step_angle`/`start_angle` are
     already-defaulted, device-independent degrees.
     """
@@ -1067,10 +1067,10 @@ class PatternElement(Element):
         """Copy indices actually drawn, ascending: `0..count-1` minus `skip`
         and minus every multiple of `skip_every`.  A pattern with
         nothing left to draw is a build error (`wfb.kinds.pattern.PatternKind.build`,
-        which computes the same thing through :func:`_drawn_copies` before
+        which computes the same thing through :func:`drawn_copies` before
         this element exists, to report an empty result), so this is never
         empty for an element that reached the IR."""
-        return _drawn_copies(self.count, self.skip, self.skip_every)
+        return drawn_copies(self.count, self.skip, self.skip_every)
 
     def _own_roles(self) -> list[tuple[str, Expression]]:
         out: list[tuple[str, Expression]] = [(ROLE_COLOR, e) for e in self.colors]
@@ -1085,11 +1085,11 @@ class PatternElement(Element):
         """The element default (ink, label = the element id), then each
         part's own colour and, for a `shape: text` part, its `outline.color`
         ring (`TextPart.outline`; no other part shape has one). Yields the same *set* `.colors` above
-        collects (`wfb.kinds.pattern.PatternKind.build`'s `_dedup_append` calls: the
+        collects (`wfb.kinds.pattern.PatternKind.build`'s `dedup_append` calls: the
         default, then each part's already-effective colour, then each
         part's own outline colour) -- `part.color` is already the effective
         colour (the part's own, or this element's default when it declared
-        none, `Builder._build_hand_part`), so nothing here re-derives it.
+        none, `Builder.build_hand_part`), so nothing here re-derives it.
 
         Deliberately not what `wfb.lint._contrast_subjects`' pattern branch
         reads: that check judges only what a part actually paints with, so
@@ -1434,7 +1434,7 @@ class Face:
         return used
 
 
-def _drawn_copies(
+def drawn_copies(
     count: int, skip: tuple[int, ...], skip_every: int | None,
 ) -> tuple[int, ...]:
     """Copy indices actually drawn, ascending: `0..count-1` minus `skip` and

@@ -39,7 +39,7 @@ class ExprError(Exception):
         self.offset = offset
         self.notes = notes or []
         #: A diagnostic code more specific than the generic ``"expression"``
-        #: :meth:`wfb.ir.Builder._expression` falls back to.  Only
+        #: :meth:`wfb.ir.Builder.expression` falls back to.  Only
         #: ``source-renamed`` uses this today -- a moved catalogue path wants
         #: its own code, so an author (or a lint suppression)
         #: can tell "you typed something unknown" apart from "the platform

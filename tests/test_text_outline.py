@@ -1,6 +1,6 @@
 """`outline:` on a standalone `text` element (plan 15 slice 1) -- the schema/
 IR/builder layer: both spellings (D7), the width cap (D6), `outline.color`'s
-full parity with `color:` (D8), and the absence rule `_check_other_absence`
+full parity with `color:` (D8), and the absence rule `check_other_absence`
 already gives every other non-value binding.  Layout, codegen, lint and
 preview are covered separately (`tests/test_text_outline_layout.py`,
 `tests/test_text_outline_golden.py`, `tests/test_lint.py`,
@@ -175,14 +175,14 @@ def test_outline_color_reads_a_conditional_expression(write_design, bag, minimal
 
 def test_outline_color_type_error_matches_color(write_design, bag, minimal):
     """A non-colour expression is rejected the same way `color:` rejects
-    one -- `_color_expression` is shared, not a parallel, looser check."""
+    one -- `color_expression` is shared, not a parallel, looser check."""
     design = _design(minimal, _outline_text('"1 + 1"'))
     face = load(write_design(design), bag)
     assert face is None
     assert any(d.code == "type" for d in bag.errors)
 
 
-# -- absence rule (mirrors color:'s own _check_other_absence) ----------------
+# -- absence rule (mirrors color:'s own check_other_absence) ----------------
 
 
 def test_outline_color_nullable_without_when_absent_is_an_error(write_design, bag, minimal):

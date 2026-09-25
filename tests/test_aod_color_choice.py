@@ -1,6 +1,6 @@
 """`wfb.ir.aod_color_choice` (plan 19 A1): the one decision behind an
 AOD-shown colour -- override, dim, or the awake colour unchanged -- that
-`wfb.preview._aod_color` and `wfb.emit.monkeyc.common.AodStyle.color`/
+`wfb.preview.aod_color` and `wfb.emit.monkeyc.common.AodStyle.color`/
 `.part_color` both now read instead of each re-deriving it.
 """
 

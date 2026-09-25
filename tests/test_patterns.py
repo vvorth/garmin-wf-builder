@@ -85,7 +85,7 @@ def test_the_reference_linear_design_builds_clean(write_design, bag):
 
 
 def test_a_hand_still_builds_clean_after_the_part_builder_was_parameterised(write_design, bag):
-    """Regression: `_build_hand_part`/`_check_hand_part_keys` now take a
+    """Regression: `build_hand_part`/`_check_hand_part_keys` now take a
     `context` argument (hand vs pattern) -- every existing call from
     `_build_hand` must still take the hand path unchanged."""
     hands = """
@@ -369,7 +369,7 @@ def test_a_colour_reading_a_never_absent_source_builds(write_design, bag, where)
 def test_when_absent_hide_on_a_pattern_that_reads_nothing_nullable_is_a_note(write_design, bag):
     """The mirror of the error above: `when_absent: hide` declared but
     nothing on the pattern can ever be absent -- a note, not an error, the
-    same "has no effect" wording `_check_absence` gives every other element
+    same "has no effect" wording `check_absence` gives every other element
     kind."""
     text = _with_when_absent(RADIAL_RING)
     face = load(write_design(design(text)), bag)

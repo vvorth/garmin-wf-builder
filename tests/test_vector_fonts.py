@@ -390,7 +390,7 @@ def test_if_unavailable_is_rejected_on_an_element_with_a_system_font(write_desig
 
 # -- a `face:` font used anywhere other than `text:` -----------------------
 #
-# `Builder._resolve_font` is shared by a `text` element, a
+# `Builder.resolve_font` is shared by a `text` element, a
 # `complication_slot` and a pattern's `shape: text` part -- only `text`
 # actually knows how to draw a vector face (`Dc.drawText`/`drawAngledText`/
 # `drawRadialText` all take one; nothing else in the generated code does).

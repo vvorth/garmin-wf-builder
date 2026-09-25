@@ -9,7 +9,7 @@ from ...ir import (
     config_field, element_method_name,
 )
 from ...layout import COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, ResolvedFace
-from .common import NO_AOD, AodStyle, SourceFile, _NO_GUARDS, _color, _const_prefix, _field, header
+from .common import NO_AOD, AodStyle, SourceFile, _NO_GUARDS, const_prefix, font_field, header, mc_color
 from ..writer import Writer
 
 
@@ -18,7 +18,7 @@ def _emit_pulsing_field(w: Writer) -> None:
     animating (a `config_data_ids` unique id), or 0 for none.
 
     Read by every `complication_slot`'s own draw method
-    (`_emit_complication_slot`'s guard) and written only from `setPulsing`,
+    (`emit_complication_slot`'s guard) and written only from `setPulsing`,
     itself called only from the delegate's `getComplicationDrawable` -- which
     fires solely inside the on-device config editor
     (`docs/research/07-carousel-interaction.md`), so this stays 0 for the
@@ -84,7 +84,7 @@ def _emit_complication_slot_editor_methods(w: Writer, face: Face, pairs: list) -
         w.line("var drawable = null;")
         with w.block("switch (unique)"):
             for element, unique_id in pairs:
-                prefix = _const_prefix(element.id)
+                prefix = const_prefix(element.id)
                 w.line(f"case {unique_id}: drawable = new {face.entry}SlotDrawable(self, {unique_id},")
                 w.line(f"    Layout.{prefix}_BOX_X, Layout.{prefix}_BOX_Y,")
                 w.line(f"    Layout.{prefix}_BOX_WIDTH, Layout.{prefix}_BOX_HEIGHT); break;")
@@ -227,8 +227,8 @@ def _emit_complication_slot_icon_method(w: Writer, resolved: ResolvedFace,
     w.blank()
 
 
-def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot,
-                            guards: "Guards" = _NO_GUARDS, aod: AodStyle = NO_AOD) -> None:
+def emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot,
+                           guards: "Guards" = _NO_GUARDS, aod: AodStyle = NO_AOD) -> None:
     """A native Data-axis slot: pull the wearer's chosen complication, choose
     an icon from its *type* alone, then draw the two as one centred pair.
 
@@ -272,7 +272,7 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     for this function's drawing logic to know about.
     """
     element = placed.element
-    prefix = _const_prefix(placed.id)
+    prefix = const_prefix(placed.id)
     face = resolved.face
     field = config_field(f"data_{element.slot}")
     unique = config_data_ids(face)[element.slot]
@@ -287,7 +287,7 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
 
     icon_font_expr = None
     if placed.icon_font_key is not None:
-        w.line(f"var iconFont = _{_field(placed.icon_font_key)};")
+        w.line(f"var iconFont = _{font_field(placed.icon_font_key)};")
         w.comment("the icon is chosen from the wearer's picked *type*, so it still shows")
         w.comment("even on a frame the reading itself could not be pulled -- a name")
         w.comment("(WfbComplications-style split), then IconGlyphs.glyph turns it into")
@@ -302,7 +302,7 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
         icon_font_expr = "iconFont"
 
     if placed.font.is_custom:
-        w.line(f"var textFont = _{_field(placed.font.reference)};")
+        w.line(f"var textFont = _{font_field(placed.font.reference)};")
         with w.block("if (textFont == null)"):
             w.line("return;  // the font resource failed to load")
         font_expr = "textFont"
@@ -357,7 +357,7 @@ def _emit_complication_slot(w: Writer, resolved: ResolvedFace, placed: PlacedCom
     if element.icon_color is None and not has_icon_override:
         icon_color_expr = None
     else:
-        awake_icon_expr = (_color(element.icon_color) if element.icon_color is not None
+        awake_icon_expr = (mc_color(element.icon_color) if element.icon_color is not None
                            else text_color_expr)
         icon_color_expr = aod.color(element, "icon_color", awake_icon_expr)
     fast_path = (

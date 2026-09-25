@@ -162,7 +162,7 @@ def test_pattern_outline_color_reads_a_config_expression(write_design, bag, mini
 
 def test_pattern_outline_color_type_error_matches_color(write_design, bag, minimal):
     """A non-colour expression is rejected the same way `color:` rejects
-    one -- `_color_expression` is shared, not a parallel, looser check."""
+    one -- `color_expression` is shared, not a parallel, looser check."""
     face = load(write_design(_design(minimal, _pattern_outline('"1 + 1"'))), bag)
     assert face is None
     assert any(d.code == "type" for d in bag.errors)
@@ -196,7 +196,7 @@ def test_pattern_outline_color_nullable_with_when_absent_hide_builds_clean(write
 def test_pattern_outline_color_folds_into_element_colors(write_design, bag, minimal):
     """`PatternElement._own_expressions` grows to include a part's own
     `outline.color` by way of `PatternElement.colors` (`_build_pattern_
-    element`'s own `_dedup_append` calls) -- checked directly here rather
+    element`'s own `dedup_append` calls) -- checked directly here rather
     than only indirectly through the absence tests above, since a bug that
     ran the absence check some other way could still pass those."""
     face = load(write_design(_design(

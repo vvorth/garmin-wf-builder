@@ -158,7 +158,7 @@ agreement asks for here ("a clear error whose note points at
 `fonts: <name>: antialias:`... naming the actual font"). So the schema's
 `textElement` branch carries the same `$defs/antialias` `$ref` every other
 branch does, and `wfb.kinds.text._reject_text_antialias` -- run from
-`wfb.kinds.text.TextKind.build`, *after* `_resolve_font` has turned `font:` into a real
+`wfb.kinds.text.TextKind.build`, *after* `resolve_font` has turned `font:` into a real
 `element.font`/`element.font_is_custom` pair -- reports the bespoke error
 instead.  Confirmed by disabling the check directly (`monkeypatch.setattr`)
 and rebuilding the same design: it builds silently, with `resolved_antialias`

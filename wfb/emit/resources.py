@@ -49,7 +49,7 @@ class ResourceBundle:
 #: "the full alphabet has to be present" reasoning `Type.DATE`'s glyph set
 #: already uses for a weekday/month string chosen by the firmware, applied
 #: here because neither string's content is knowable at build time either.
-_COMPLICATION_TEXT_ALPHABET = (
+COMPLICATION_TEXT_ALPHABET = (
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz "
 )
 

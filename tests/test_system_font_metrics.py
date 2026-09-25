@@ -222,7 +222,7 @@ _ALIGN_ELEMENTS = """  - id: top_line
 
 
 def test_vertical_align_top_and_bottom_ink_sits_against_the_anchor(write_design, bag, db):
-    """`wfb.preview._draw_text`'s line-box model (plan 09 §4 R2.4):
+    """`wfb.preview.draw_text`'s line-box model (plan 09 §4 R2.4):
     a `top`-aligned line's box starts exactly at the anchor, a `bottom`-
     aligned line's box ends exactly at it -- so the ink (which sits inside
     the box, offset only by internal leading/descender) must appear at or

@@ -19,9 +19,9 @@ from ...layout import PlacedComplicationSlot, PlacedGraph, PlacedHands, Resolved
 from ...palette import dim_fraction
 from .. import usage
 from .common import (
-    NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS, _aod_font_field,
-    _aod_only_fonts, _and_list, _const_prefix, _describe, _editor_slot_pairs, _field,
-    _loaded_fonts, _mc_bool, _method, _vector_fonts_used, header,
+    NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS,
+    _aod_only_fonts, _describe, _editor_slot_pairs, _loaded_fonts, _mc_bool, _method,
+    _vector_fonts_used, and_list, aod_font_field, const_prefix, font_field, header,
     hold_targets,
 )
 from .complication_slot import (
@@ -421,7 +421,7 @@ def _emit_fields(w: Writer, resolved: ResolvedFace, aod_only_fonts: list[str] | 
         w.doc("Bitmap fonts -- custom text and icon glyphs alike -- loaded once in\n"
               "onLayout rather than per frame.")
         for name in loaded:
-            w.line(f"private var _{_field(name)} as FontResource?;")
+            w.line(f"private var _{font_field(name)} as FontResource?;")
         w.blank()
     if aod_only_fonts:
         w.doc(
@@ -431,7 +431,7 @@ def _emit_fields(w: Writer, resolved: ResolvedFace, aod_only_fonts: list[str] | 
             "onExitSleep so they do not sit in memory the whole time."
         )
         for name in aod_only_fonts:
-            w.line(f"private var _{_aod_font_field(name)} as FontResource?;")
+            w.line(f"private var _{aod_font_field(name)} as FontResource?;")
         w.blank()
     if vector_fonts:
         # Not a `WatchUi.loadResource` resource at all (plan 11) -- a
@@ -446,7 +446,7 @@ def _emit_fields(w: Writer, resolved: ResolvedFace, aod_only_fonts: list[str] | 
               "resource; null wherever this device cannot build it, which every\n"
               "draw call below checks before using it.")
         for name in vector_fonts:
-            w.line(f"private var _{_field(name)} as Graphics.VectorFont?;")
+            w.line(f"private var _{font_field(name)} as Graphics.VectorFont?;")
         w.blank()
 
 
@@ -735,8 +735,8 @@ def _emit_vector_font_construction(w: Writer, name: str, guards: "Guards") -> No
     Neither on its own is enough, and `-O 3z` is not relied on to fold
     either away (CLAUDE.md constraint on this exact point, plan 11 §3).
     """
-    field = f"_{_field(name)}"
-    prefix = f"FONT_{_const_prefix(name)}"
+    field = f"_{font_field(name)}"
+    prefix = f"FONT_{const_prefix(name)}"
     assignment = (
         f"{field} = Graphics.getVectorFont("
         f"{{:face => Layout.{prefix}_FACE, :size => Layout.{prefix}_SIZE}});"
@@ -770,7 +770,7 @@ def _emit_on_layout(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
         for name in loaded:
             resource = font_resource_id(name)
             w.line(
-                f"_{_field(name)} = WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
+                f"_{font_field(name)} = WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
             )
         if vector_fonts:
             if loaded:
@@ -1024,7 +1024,7 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
             # is simpler than tracking whether onEnterSleep's own load ran
             # (plan 14 §4.3: "released in onExitSleep so it doesn't sit in
             # memory all the time").
-            w.line(f"_{_aod_font_field(name)} = null;")
+            w.line(f"_{aod_font_field(name)} = null;")
         w.line("WatchUi.requestUpdate();")
     w.blank()
     if aod:
@@ -1056,7 +1056,7 @@ def _emit_sleep_hooks(w: Writer, resolved: ResolvedFace, needs_sleeping: bool,
                     for name in aod_only_fonts:
                         resource = font_resource_id(name)
                         w.line(
-                            f"_{_aod_font_field(name)} = "
+                            f"_{aod_font_field(name)} = "
                             f"WatchUi.loadResource(Rez.Fonts.{resource}) as FontResource;"
                         )
         w.line("WatchUi.requestUpdate();")
@@ -1182,7 +1182,7 @@ def _method_doc(placed) -> str:
                 if e.sources and e is not element.visible]
     if bindings:
         lines.append("")
-        lines.append("Bound to " + _and_list(f"`{text}`" for text in bindings) + ".")
+        lines.append("Bound to " + and_list(f"`{text}`" for text in bindings) + ".")
     if element.visible is not None:
         lines.append(f"Drawn only when `{element.visible.text}` "
                      "(absent readings count as hidden).")

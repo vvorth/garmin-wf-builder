@@ -13,7 +13,7 @@ now tests that switch, not just the arithmetic it gates:
   `%`/`%r` result up to 1px, sign preserved, only when `enabled`.
 - `wfb.units.Box.rounded(min_1px=...)` -- the round-half-to-even degenerate
   case correction, also gated.
-- `wfb.layout.Resolver._extent`/`._hand_extent` -- the two choke points that
+- `wfb.layout.Resolver.extent`/`._hand_extent` -- the two choke points that
   apply the clamp and, when it is off, record a `wfb.layout.SubPixelLength`
   for the (separately owned) `sub-pixel-length` lint to read.
 - `wfb.ir`'s inheritance: `Face.min_1px` -> `group`/`shape`/`progress`/
@@ -81,7 +81,7 @@ def resolved_for(write_design, bag, db):
 
 def sub_pixel_keys(resolved, owner: str) -> set[str]:
     """The set of `SubPixelLength.key`s recorded against ``owner`` -- the
-    observable that proves a `_extent`/`_hand_extent` call site fired at
+    observable that proves a `extent`/`_hand_extent` call site fired at
     all, independent of whether the *final* pixel value the clamp would
     have produced happens to be visible downstream (it is not, for
     `thickness:`/`bar_width:`, which a separate, unconditional `max(1, ...)`
@@ -270,7 +270,7 @@ hands:
 # ============================================================================
 # §5 test 6: every in-scope key of §2.1 is clamped when on, and recorded as
 # a `SubPixelLength` when off -- named individually, per kind, so a missed
-# `_extent`/`_hand_extent` call site fails loudly rather than silently
+# `extent`/`_hand_extent` call site fails loudly rather than silently
 # reporting the wrong key (or none at all).
 #
 # `thickness:`/`bar_width:` are checked only through `sub_pixel_keys`, not
@@ -601,12 +601,12 @@ def test_at_offset_is_never_clamped(resolved_for):
     off_resolved = resolved_for(make(False))
     on_resolved = resolved_for(make(True))
     # 130 (screen centre) + 0.39 (0.3%r) rounds to 130 either way -- `at:`
-    # never reaches `_extent`, so the switch cannot touch it.
+    # never reaches `extent`, so the switch cannot touch it.
     assert find(off_resolved, "dot").center == find(on_resolved, "dot").center == (130, 130)
     # `radius: 5px` is not relative at all, so nothing here is "sub-pixel" --
     # this also proves `at:`'s own relative offset was never recorded either
     # (an `at`/`dx` key never appears in `sub_pixel_keys` at all, since
-    # `_point` stays on `_len`, never `_extent`).
+    # `point` stays on `length`, never `extent`).
     assert sub_pixel_keys(off_resolved, "dot") == set()
 
 
@@ -629,7 +629,7 @@ def test_to_offset_is_never_clamped(resolved_for):
 def test_polygon_points_are_never_clamped(resolved_for):
     """A polygon's own bounding box comes straight from its resolved
     vertices (`wfb.kinds.shape.ShapeKind.resolve`'s polygon branch never calls
-    `_extent`), so a hairline triangle's width must be identical whether
+    `extent`), so a hairline triangle's width must be identical whether
     `min_1px` is on or off -- unlike every in-scope shape's own `size:` or
     `radius:` above."""
     def make(min_1px: bool) -> str:
@@ -665,7 +665,7 @@ def test_linear_pattern_step_is_never_clamped(resolved_for):
     on = find(resolved_for(make(True)), "pat")
     # A 0.39px step rounds to 0 -- both copies land on the same spot --
     # regardless of `min_1px`, because a linear pattern's `step:` stays on
-    # `_len`, never `_extent`.
+    # `length`, never `extent`.
     assert off.dx == on.dx == 0
 
 
@@ -707,7 +707,7 @@ def test_pt_lengths_are_never_clamped():
     """`pt` is not `%`/`%r`, so `is_sub_pixel_length`/`at_least_one_px` must
     leave it alone regardless of `min_1px` -- checked directly against
     `wfb.units` rather than through a real design: every in-scope kind's own
-    `_extent`/`._hand_extent` call site leaves `font_px` at its default
+    `extent`/`._hand_extent` call site leaves `font_px` at its default
     `None` (no group/shape/progress/graph/hand/pattern geometry key ever has
     a font in scope to resolve a `pt` length against), so a `thickness:
     0.3pt` on one of them would raise `Length.resolve`'s own "pt units need
@@ -852,7 +852,7 @@ def test_box_rounded_other_ties_are_unchanged_either_way():
 
 def test_the_element_owns_again_once_its_parts_are_resolved(write_design, bag, db):
     """A part narrows the `SubPixelLength` owner to `<id>.parts[<i>]` only
-    while it resolves; a length resolved after the parts (as `_aod_extent`
+    while it resolves; a length resolved after the parts (as `aod_extent`
     is in hands and patterns) belongs to the element again, not to
     whichever part came last."""
     from wfb.layout import Resolver, _Owner
@@ -870,7 +870,7 @@ def test_the_element_owns_again_once_its_parts_are_resolved(write_design, bag, d
     element = face.elements[0]
     resolver = Resolver(face, db.get("fenix8solar47mm"), {})
     with resolver._owned_by(_Owner(element.id, element.span, element)):
-        resolver._resolve_parts(element.parts, element.id, min_1px=False)
+        resolver.resolve_parts(element.parts, element.id, min_1px=False)
         resolver._record_sub_pixel("radius", element.parts[0].radius, 0.39)
     assert [sp.owner for sp in resolver.sub_pixel] == ["pat.parts[0]", "pat"]
     assert resolver._owner is None

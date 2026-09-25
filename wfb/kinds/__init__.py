@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..ir.model import Curve, Element, Face
     from ..layout import Placed, ResolvedFace, Resolver
-    from ..preview import _Renderer
+    from ..preview import Renderer
     from ..units import Box, Length
 
 
@@ -203,7 +203,7 @@ class ElementKind:
     def aod_refusal(self, key: str, shape: str | None,
                     literal_text: bool) -> tuple[str, str, list[str]] | None:
         """`(code, what, notes)` when an `aod:` override's `key` cannot apply
-        to this kind (`Builder._aod_refusal`), else `None`.  `shape` is a
+        to this kind (`Builder.aod_refusal`), else `None`.  `shape` is a
         `shape` element's own `shape:`, `literal_text` whether a `text`
         element has a fixed `text:`."""
         return None
@@ -231,7 +231,7 @@ class ElementKind:
 
     # -- preview (wfb.preview) --
 
-    def draw_preview(self, renderer: "_Renderer", placed: "Placed") -> None:
+    def draw_preview(self, renderer: "Renderer", placed: "Placed") -> None:
         """Draw one placed element in `wfb preview`, the way the generated
         code draws it on the watch."""
         raise NotImplementedError(f"{self.name}: draw_preview")

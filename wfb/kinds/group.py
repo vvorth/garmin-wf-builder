@@ -26,15 +26,15 @@ class GroupKind(ElementKind):
     extra_symbols = (static_group_method,)
 
     def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
-        align, vertical_align = b._alignment(node)
+        align, vertical_align = b.alignment(node)
         group = Group(
             **common,
-            size=b._size(node.get("size")),
-            items=b._build_elements(node["children"], path + ("children",)),
+            size=b.size(node.get("size")),
+            items=b.build_elements(node["children"], path + ("children",)),
             align=align,
             vertical_align=vertical_align,
         )
-        b._push_visible(group)
+        b.push_visible(group)
         return group
 
 

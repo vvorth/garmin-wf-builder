@@ -149,11 +149,11 @@ def _editor_slot_pairs(face: Face) -> list:
 CONFIG_LAYOUT_METHOD = "configLayout"
 
 
-def _glyph_y_expr(y_expr: str, vertical_align: str, font_expr: str) -> str:
+def glyph_y_expr(y_expr: str, vertical_align: str, font_expr: str) -> str:
     """The `y` a glyph draw hands `dc.drawText` (directly, or through
     `WfbGeom.rotatedY` for a radial pattern's `shape: text` part), for a
     given `vertical_align:`: `y_expr` unchanged for `top`/`center`
-    (`Resolver._justify` already adds `TEXT_JUSTIFY_VCENTER` for `center`,
+    (`Resolver.justify` already adds `TEXT_JUSTIFY_VCENTER` for `center`,
     and `top` is `Dc.drawText`'s own natural top-left placement) -- there is
     no bottom-justify flag on the platform, so `bottom` instead subtracts
     the font's *own*, on-device measured height, exact even for a system
@@ -175,28 +175,34 @@ def _glyph_y_expr(y_expr: str, vertical_align: str, font_expr: str) -> str:
 #: Symbol derivation lives in `wfb.ir` so id uniqueness
 #: (`Builder._check_symbol_collision`) and the symbols used here cannot drift
 #: into two notions of "the same name"; short local aliases.
-_const_prefix = element_const_prefix
+const_prefix = element_const_prefix
 
 
 _method = element_method_name
 
 
-def _field(name: str) -> str:
+def font_field(name: str) -> str:
+    """The view field a `fonts:` entry is loaded into, less its leading
+    underscore: `hour-digits` -> `fontHourDigits`.
+    """
     parts = [p for p in name.replace("-", "_").split("_") if p]
     return "font" + "".join(p[:1].upper() + p[1:] for p in parts)
 
 
-def _aod_font_field(name: str) -> str:
+def aod_font_field(name: str) -> str:
     """The view field a baked font used *only* by an `aod: {font: ...}`
-    override (never drawn while awake) is loaded into -- `_field(name)`
+    override (never drawn while awake) is loaded into -- `font_field(name)`
     with an `Aod` suffix, so it never collides with an awake field for a
     font of the same name used elsewhere too (plan 14 §4.3: "a resource
     font used only as an AOD override is a second resource").
     """
-    return f"{_field(name)}Aod"
+    return f"{font_field(name)}Aod"
 
 
-def _color(expression: Expression | None) -> str:
+def mc_color(expression: Expression | None) -> str:
+    """A colour expression's Monkey C, or `Graphics.COLOR_WHITE` when
+    there is none.
+    """
     if expression is None:
         return "Graphics.COLOR_WHITE"
     return expression.code
@@ -224,7 +230,7 @@ def _dim_color_code(expression: Expression | None, awake_code: str, dim: "AodDim
     conditional between several colours -- is dimmed on-device instead, with
     the exact same integer math (`WfbColor.dim`, `runtime-lib/WfbColor.mc`).
     `expression is None` is a `color:` an element never wrote at all, which
-    defaults to `Graphics.COLOR_WHITE` (`_color`) and is dimmed like any
+    defaults to `Graphics.COLOR_WHITE` (`mc_color`) and is dimmed like any
     other constant.
     """
     num, den = dim
@@ -277,12 +283,12 @@ class AodStyle:
         machinery as the element's own `color:`, so it follows
         `color_scheme:`/`config.colors` at runtime exactly as the awake one
         does (plan 14 §4.6). Which of the three applies is `aod_color_choice`
-        (`wfb.ir`), the one decision `wfb.preview._aod_color` also reads --
+        (`wfb.ir`), the one decision `wfb.preview.aod_color` also reads --
         this method only turns that decision into Monkey C.
         """
         expression = getattr(element, key, None)
         if awake_code is None:
-            awake_code = _color(expression)
+            awake_code = mc_color(expression)
         if not self.on or element.aod is None:
             return awake_code
         choice, override = aod_color_choice(element.aod, key, self.dim is not None)
@@ -292,7 +298,7 @@ class AodStyle:
         """`color`'s rule for one `hands`/`pattern` part: the element-level
         `aod: {color: ...}` applies uniformly to every part (§5.1), and
         `dim` dims each part's own colour."""
-        awake_code = _color(color_expr)
+        awake_code = mc_color(color_expr)
         if not self.on or element.aod is None:
             return awake_code
         choice, override = aod_color_choice(element.aod, "color", self.dim is not None)
@@ -319,7 +325,7 @@ def _mc_bool(value: bool) -> str:
     return "true" if value else "false"
 
 
-def _mc_float(value: float) -> str:
+def mc_float(value: float) -> str:
     """A bare `Float` literal for inline use in the view, not a `Layout`
     constant (`_mc_number` handles those, with a trailing `f`).  A Python
     float's own `repr` always carries a decimal point, which is what makes
@@ -400,14 +406,16 @@ def _describe(placed) -> str:
     return kinds.for_placed(placed).describe(placed)
 
 
-def _and_list(items) -> str:
+def and_list(items) -> str:
+    """`a`, `a and b`, `a, b and c` -- for a generated comment."""
     items = list(items)
     if len(items) <= 1:
         return "".join(items)
     return ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def _article(noun: str) -> str:
+def article(noun: str) -> str:
+    """`noun` with `a` or `an` before it."""
     return f"{'an' if noun[:1].lower() in 'aeiou' else 'a'} {noun}"
 
 

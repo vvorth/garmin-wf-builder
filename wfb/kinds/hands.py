@@ -9,20 +9,20 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..ir.builder import _dedup_append
+from ..ir.builder import dedup_append
 from ..ir.model import Element, Expression, HandsElement
 from ..layout import Placed, PlacedHands, ResolvedHand
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated
-from ..emit.monkeyc.common import NO_AOD, AodStyle, _and_list, _const_prefix
+from ..emit.monkeyc.common import NO_AOD, AodStyle, and_list, const_prefix
 from ..emit.writer import Writer
 from . import ElementKind
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..layout import Resolver
-    from ..preview import _Renderer
+    from ..preview import Renderer
 
 
 @dataclass(frozen=True)
@@ -94,7 +94,7 @@ def _emit_one_hand(w: Writer, element, prefix: str, hand_name: str, angle_fn: st
         if color != current:
             w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
             current = color
-        rotated._emit_transformed_part(
+        rotated.emit_transformed_part(
             w, part, part_prefix, radial=True,
             thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
 
@@ -170,9 +170,9 @@ class HandsKind(ElementKind):
         for hand_name, hand in hand_set.hands():
             if hand_name == "second" and seconds == "never":
                 continue  # never drawn, so its colours reach no lint and no read
-            _dedup_append(colors, hand.color)
+            dedup_append(colors, hand.color)
             for part in hand.parts:
-                _dedup_append(colors, part.color)
+                dedup_append(colors, part.color)
 
         return HandsElement(**common, hands=name, seconds=seconds, colors=tuple(colors))
 
@@ -182,7 +182,7 @@ class HandsKind(ElementKind):
         the one piece of layout arithmetic the device performs (ADR 0004,
         amended).
         """
-        cx, cy = r._point(element.at, parent)
+        cx, cy = r.point(element.at, parent)
         hand_set = r.face.hands[element.hands]
         resolved: dict[str, ResolvedHand] = {}
         reach = 0.0
@@ -193,13 +193,13 @@ class HandsKind(ElementKind):
                 continue
             # `<id>.<hand>`: a set has up to three `parts:` lists, so the bare
             # id would not say which hand a `sub-pixel-length` finding means.
-            parts, hand_reach = r._resolve_parts(
+            parts, hand_reach = r.resolve_parts(
                 hand.parts, f"{element.id}.{name}", min_1px=element.resolved_min_1px)
             resolved[name] = ResolvedHand(parts=parts)
             reach = max(reach, hand_reach)
         axis = (round(cx), round(cy))
         box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
-        aod_thickness = r._aod_extent(element, "thickness", parent, 1)
+        aod_thickness = r.aod_extent(element, "thickness", parent, 1)
         return PlacedHands(
             element, box.rounded(), axis, depth,
             hour=resolved.get("hour"), minute=resolved.get("minute"),
@@ -210,7 +210,7 @@ class HandsKind(ElementKind):
     def circular_extent(self, placed: PlacedHands):
         return (placed.center[0], placed.center[1], placed.reach)
 
-    def draw_preview(self, renderer: _Renderer, placed: PlacedHands) -> None:
+    def draw_preview(self, renderer: Renderer, placed: PlacedHands) -> None:
         """`type: hands` -- the same three angle rules `runtime-lib/
         WfbHands.mc` computes on the device (`HAND_ANGLES`'s own
         `host` half), applied to the *resolved* geometry so this can never
@@ -240,7 +240,7 @@ class HandsKind(ElementKind):
                 continue
             sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
             for part in hand.parts:
-                renderer._hand_part(placed, part, cx, cy, sin_t, cos_t)
+                renderer.hand_part(placed, part, cx, cy, sin_t, cos_t)
 
     def emit_draw(self, w: Writer, resolved, placed: PlacedHands, value_guards, plan,
                   aod: AodStyle = NO_AOD) -> None:
@@ -255,10 +255,10 @@ class HandsKind(ElementKind):
         reused by every part's own colour/pen-width line.
         """
         element = placed.element
-        prefix = _const_prefix(placed.id)
+        prefix = const_prefix(placed.id)
         w.line(f"var cx = Layout.{prefix}_CX;")
         w.line(f"var cy = Layout.{prefix}_CY;")
-        thickness_override = rotated._aod_thickness_override(placed, prefix)
+        thickness_override = rotated.aod_thickness_override(placed, prefix)
         declared = False
         for hand_name, angle_fn in _HAND_ANGLE_FUNCTIONS:
             hand = getattr(placed, hand_name)
@@ -276,7 +276,7 @@ class HandsKind(ElementKind):
         element = placed.element
         drawn = [n for n in ("hour", "minute", "second") if getattr(placed, n, None) is not None]
         seconds_note = f", seconds: {element.seconds}" if element.seconds else ""
-        return f"analog hands (hands.{element.hands}): {_and_list(drawn)}{seconds_note}"
+        return f"analog hands (hands.{element.hands}): {and_list(drawn)}{seconds_note}"
 
     def layout_constants(self, prefix: str,
                          placed: PlacedHands) -> "layout_constants_mod.Constants":
@@ -284,14 +284,14 @@ class HandsKind(ElementKind):
             (f"{prefix}_CX", placed.center[0], "the axis"),
             (f"{prefix}_CY", placed.center[1], ""),
         ]
-        out.extend(layout_constants_mod._aod_thickness_constant(
-            prefix, placed, layout_constants_mod._EVERY_PART_NOTE))
+        out.extend(layout_constants_mod.aod_thickness_constant(
+            prefix, placed, layout_constants_mod.EVERY_PART_NOTE))
         for hand_name in ("hour", "minute", "second"):
             hand = getattr(placed, hand_name)
             if hand is None:
                 continue
             for index, part in enumerate(hand.parts):
-                out.extend(layout_constants_mod._hand_part_constants(
+                out.extend(layout_constants_mod.hand_part_constants(
                     f"{prefix}_{hand_name.upper()}_{index}", f"{hand_name} hand", index, part))
         return out
 

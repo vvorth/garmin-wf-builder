@@ -12,18 +12,18 @@ from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
 from ..ir.model import Element, Expression, Text
-from ..layout import Placed, PlacedText, _longer, resolved_curve, text_ink
+from ..layout import Placed, PlacedText, longer, resolved_curve, text_ink
 from ..units import Axis, Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
-from ..emit.monkeyc.common import NO_AOD, AodStyle, _aod_font_field, _color, _const_prefix, _field
+from ..emit.monkeyc.common import NO_AOD, AodStyle, aod_font_field, const_prefix, font_field, mc_color
 from ..emit.writer import Writer
 from . import ElementKind, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..layout import Resolver
-    from ..preview import _Renderer
+    from ..preview import Renderer
 
 
 def _reject_text_antialias(b, node: dict, element: Text) -> None:
@@ -36,7 +36,7 @@ def _reject_text_antialias(b, node: dict, element: Text) -> None:
     outline or an icon's own, per-glyph font.  The schema still parses
     `antialias:` here rather than rejecting it as an unknown key, purely
     so this can name the actual font instead of jsonschema's generic
-    "unknown key" message: by the time `_resolve_font` above has run,
+    "unknown key" message: by the time `resolve_font` above has run,
     `element.font` is the real answer, not a guess.
     """
     span = b.doc.span(node, "antialias")
@@ -65,7 +65,7 @@ def _widest_text(element: Text) -> str:
     widest = formatting.widest(spec, source, element.value.value.type,
                                element.value.scale)
     if element.when_absent == "placeholder" and element.placeholder:
-        widest = _longer(widest, element.placeholder)
+        widest = longer(widest, element.placeholder)
     if element.when_absent == "fallback" and element.fallback is not None:
         # 'fallback:' is drawn through the exact same format spec as the
         # real value (see `wfb.kinds.text.TextKind.emit_draw`), so its widest
@@ -73,7 +73,7 @@ def _widest_text(element: Text) -> str:
         # from the *value*'s digit range alone can come up short for a
         # wider fallback (e.g. a longer literal string on a nullable
         # STRING source).
-        widest = _longer(widest, _fallback_widest(element.fallback, spec))
+        widest = longer(widest, _fallback_widest(element.fallback, spec))
     return widest
 
 
@@ -144,7 +144,7 @@ def _text_font(renderer, placed: PlacedText) -> tuple[BakedFont | None, FontMetr
         renderer.resolved.fonts.get(placed.font.reference) if placed.font.is_custom else None
     )
     metric = placed.font.metric
-    aod_font = renderer._aod_field(element, "font", None)
+    aod_font = renderer.aod_field(element, "font", None)
     if aod_font is None or aod_font == placed.font.reference:
         return font, metric
     if element.aod.font_is_custom:
@@ -166,7 +166,7 @@ def _text_value(renderer, placed: PlacedText) -> str | None:
         return element.literal
     if element.value is None:
         return None
-    spec = renderer._aod_field(element, "format", element.format) or "{}"
+    spec = renderer.aod_field(element, "format", element.format) or "{}"
     value_type = element.value.value.type
     if value_type in (Type.TIME, Type.DATE):
         return formatting.render(spec, None, value_type, renderer.values)
@@ -186,7 +186,7 @@ def _text_value(renderer, placed: PlacedText) -> str | None:
 def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
                     aod: AodStyle = NO_AOD) -> None:
     element = placed.element
-    prefix = _const_prefix(placed.id)
+    prefix = const_prefix(placed.id)
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
     color_code = aod.color(element, "color")
     if placed.font.is_vector:
@@ -206,9 +206,9 @@ def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
             # a legitimate no-op (nothing to load a second time).
             if (override_spec is not None and not override_spec.is_vector
                     and element.aod.font != placed.font.reference):
-                override_expr = f"_{_aod_font_field(element.aod.font)}"
+                override_expr = f"_{aod_font_field(element.aod.font)}"
     if placed.font.is_custom:
-        w.line(f"var font = _{_field(placed.font.reference)};")
+        w.line(f"var font = _{font_field(placed.font.reference)};")
         if override_expr is not None:
             w.line(f"var fontFinal = _aod ? {override_expr} : font;")
             with w.block("if (fontFinal == null)"):
@@ -223,14 +223,14 @@ def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
     else:
         font_expr = aod.value(override_expr, f"Graphics.{placed.font.reference}")
     if element.outline is not None:
-        shapes._emit_outline_loop(
-            w, element.outline.width, _color(element.outline.color),
+        shapes.emit_outline_loop(
+            w, element.outline.width, mc_color(element.outline.color),
             f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
-            lambda x, y: shapes._emit_plain_text_call(
+            lambda x, y: shapes.emit_plain_text_call(
                 w, x, y, font_expr, value_code, justify, element.vertical_align),
         )
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    shapes._emit_plain_text_call(
+    shapes.emit_plain_text_call(
         w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", font_expr, value_code, justify,
         element.vertical_align)
 
@@ -253,17 +253,17 @@ def _emit_vector_draw_call(
             f"{x_expr}, {y_expr}, font, {value_code}", f"{justify}, Layout.{prefix}_ANGLE",
         ])
     elif placed.curve.style == "radial":
-        direction = shapes._RADIAL_DIRECTION[placed.curve.direction or "clockwise"]
-        radius = shapes._radial_radius_expr(f"Layout.{prefix}_RADIUS", element.vertical_align,
-                                            placed.curve.direction, "font")
+        direction = shapes.RADIAL_DIRECTION[placed.curve.direction or "clockwise"]
+        radius = shapes.radial_radius_expr(f"Layout.{prefix}_RADIUS", element.vertical_align,
+                                           placed.curve.direction, "font")
         w.call("dc.drawRadialText", [
             f"{x_expr}, {y_expr}, font, {value_code}",
             f"{justify}, Layout.{prefix}_ANGLE, {radius}",
             f"Graphics.{direction}",
         ])
     else:
-        shapes._emit_plain_text_call(w, x_expr, y_expr, "font", value_code, justify,
-                                     element.vertical_align)
+        shapes.emit_plain_text_call(w, x_expr, y_expr, "font", value_code, justify,
+                                    element.vertical_align)
 
 
 def _emit_vector_text_draw(
@@ -292,12 +292,12 @@ def _emit_vector_text_draw(
     it draws nothing today -- one `if (font != null)`, never two.
     """
     element = placed.element
-    field = f"_{_field(placed.font.reference)}"
+    field = f"_{font_field(placed.font.reference)}"
     w.line(f"var font = {field};")
     with w.block("if (font != null)"):
         if element.outline is not None:
-            shapes._emit_outline_loop(
-                w, element.outline.width, _color(element.outline.color),
+            shapes.emit_outline_loop(
+                w, element.outline.width, mc_color(element.outline.color),
                 f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
                 lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
             )
@@ -312,61 +312,61 @@ class TextKind(ElementKind):
     placed_class = PlacedText
 
     def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
-        value = b._expression(node, "value") if "value" in node else None
-        align, vertical_align = b._alignment(node)
+        value = b.expression(node, "value") if "value" in node else None
+        align, vertical_align = b.alignment(node)
         element = Text(
             **common,
             value=value,
             literal=node.get("text"),
             format=node.get("format"),
-            color=b._color_expression(node, "color"),
+            color=b.color_expression(node, "color"),
             align=align,
             vertical_align=vertical_align,
             when_absent=node.get("when_absent"),
             placeholder=node.get("placeholder"),
-            fallback=b._expression(node, "fallback") if "fallback" in node else None,
+            fallback=b.expression(node, "fallback") if "fallback" in node else None,
             if_unavailable=node.get("if_unavailable"),
         )
-        font_ok = b._resolve_font(node, element)
+        font_ok = b.resolve_font(node, element)
         if "antialias" in node:
             _reject_text_antialias(b, node, element)
-        font_is_vector = b._is_vector_font(element.font, element.font_is_custom)
-        font_note = b._font_kind_note(element.font, element.font_is_custom)
+        font_is_vector = b.is_vector_font(element.font, element.font_is_custom)
+        font_note = b.font_kind_note(element.font, element.font_is_custom)
         if "curve" in node:
-            element.curve = b._build_curve(
+            element.curve = b.build_curve(
                 node, element.id, vertical_align=element.vertical_align, font_ok=font_ok,
                 font_is_vector=font_is_vector, font_note=font_note)
         if font_ok and "if_unavailable" in node:
-            b._check_if_unavailable(node, element.id, font_is_vector, font_note)
+            b.check_if_unavailable(node, element.id, font_is_vector, font_note)
         if "outline" in node:
-            element.outline = b._build_outline(node, "outline", element.id, element=element)
+            element.outline = b.build_outline(node, "outline", element.id, element=element)
         own_aod_format = element.aod_own is not None and "format" in element.aod_own
         aod_format_span = (b.doc.span(node.get("aod"), "format") or b.doc.span(node, "aod")
                            if own_aod_format else None)
         if value is not None:
-            b._check_absence(node, element, value, element.when_absent, element.placeholder,
-                             element.fallback)
-            b._check_format(node, value, element.format)
+            b.check_absence(node, element, value, element.when_absent, element.placeholder,
+                            element.fallback)
+            b.check_format(node, value, element.format)
             if own_aod_format:
                 # An `aod: {format: ...}` inherited from a group is checked
                 # in `_resolve_aod` instead, once inheritance is resolved.
-                b._check_format_spec(value, str(element.aod_own["format"]), aod_format_span)
+                b.check_format_spec(value, str(element.aod_own["format"]), aod_format_span)
         else:
             # A fixed `text:` has no bound value for `format:`, or its
             # `aod:` twin, to format.
-            b._check_format_not_on_literal(node, element.id)
-            refusal = b._aod_refusal("format", "text", None, literal_text=True)
+            b.check_format_not_on_literal(node, element.id)
+            refusal = b.aod_refusal("format", "text", None, literal_text=True)
             if own_aod_format and refusal is not None:
                 code, what, notes = refusal
                 b.bag.error(code, f"{element.id}.aod.format: {what}", aod_format_span,
                            notes=notes)
-        b._check_other_absence(node, element, "color", element.color)
-        b._check_reachable_substitute(node, element, "'color'",
-                                      (element.value,), (element.color,))
+        b.check_other_absence(node, element, "color", element.color)
+        b.check_reachable_substitute(node, element, "'color'",
+                                     (element.value,), (element.color,))
         return element
 
     def resolve(self, r: Resolver, element: Text, parent: Box, depth: int) -> Placed:
-        font = r._text_font(element.font, element.font_is_custom, element.id, element.curve)
+        font = r.text_font(element.font, element.font_is_custom, element.id, element.curve)
         widest = _widest_text(element)
         # A baked sheet measures exactly; anything else is an estimate --
         # still a conservative, non-zero one for an *unavailable* vector
@@ -374,10 +374,10 @@ class TextKind(ElementKind):
         width = font.width(widest)
         line_height = font.line_height
 
-        x, y = r._point(element.at, parent)
+        x, y = r.point(element.at, parent)
         curve = resolved_curve(element.curve)
         if curve.style == "radial" and element.curve.radius is not None:
-            curve = replace(curve, radius_px=round(r._extent(
+            curve = replace(curve, radius_px=round(r.extent(
                 element.curve.radius, parent, Axis.MINOR, 0,
                 min_1px=element.resolved_min_1px, what="curve.radius")))
         ring_px = float(element.outline.width) if element.outline is not None else 0.0
@@ -390,7 +390,7 @@ class TextKind(ElementKind):
         return PlacedText(
             element, box.rounded(), (round(x), round(y)), depth,
             anchor_point=(round(x), round(y)),
-            justify=r._justify(element),
+            justify=r.justify(element),
             font=font.resolved(),
             widest=widest,
             measured_width=round(width),
@@ -424,12 +424,12 @@ class TextKind(ElementKind):
                                 span=element.span, aod_only=True))
         return runs
 
-    def draw_preview(self, renderer: _Renderer, placed: PlacedText) -> None:
+    def draw_preview(self, renderer: Renderer, placed: PlacedText) -> None:
         element = placed.element
         text = _text_value(renderer, placed)
         if text is None:
             return
-        color = renderer._aod_color(element, "color", element.color)
+        color = renderer.aod_color(element, "color", element.color)
         if placed.font.is_vector:
             # A `face:` font draws upright, angled or radial, never through a
             # baked sheet; `font.available is False` is `if_unavailable: hide`
@@ -438,7 +438,7 @@ class TextKind(ElementKind):
                 return
 
             def draw(anchor, fill, box=None):
-                renderer._draw_vector_text(
+                renderer.draw_vector_text(
                     text, anchor, element.align, element.vertical_align, placed.font.metric,
                     fill, placed.curve.style, placed.curve.angle_garmin,
                     placed.curve.radius_px, placed.curve.direction, box=box)
@@ -446,12 +446,12 @@ class TextKind(ElementKind):
             font, metric = _text_font(renderer, placed)
 
             def draw(anchor, fill, box=None):
-                renderer._draw_text(font, text, anchor, element.align, element.vertical_align,
-                                    metric, fill, box=box)
+                renderer.draw_text(font, text, anchor, element.align, element.vertical_align,
+                                   metric, fill, box=box)
         outline = element.outline
-        renderer._draw_outlined(draw, placed.anchor_point, color,
-                                renderer._color(outline.color) if outline is not None else None,
-                                outline.width if outline is not None else 0, box=placed.box)
+        renderer.draw_outlined(draw, placed.anchor_point, color,
+                               renderer.color(outline.color) if outline is not None else None,
+                               outline.width if outline is not None else 0, box=placed.box)
 
     def emit_draw(self, w: Writer, resolved, placed: PlacedText, guards: list[str],
                   plan, aod: AodStyle = NO_AOD) -> None:
@@ -518,7 +518,7 @@ class TextKind(ElementKind):
         ]
         if placed.curve.style is not None:
             # Both angle conventions in the comment, the same `arc`
-            # precedent `_arc_constants`'s own `_START` follows -- keeps the
+            # precedent `arc_constants`'s own `_START` follows -- keeps the
             # conversion auditable without having to re-derive it.
             author_note = (
                 f"{placed.curve.angle_degrees:g}deg clockwise from 12 o'clock"

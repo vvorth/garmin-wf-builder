@@ -3,7 +3,7 @@ document and produces a `wfb.ir.model.Face`, resolving data sources against
 the catalogue, type-checking and compiling expressions, and requiring null
 handling wherever the platform makes absence normal.  Also holds
 `NamedRegistry` (the declared/accepted/rejected bookkeeping a named top-level
-block keeps), `_dedup_append`, and the per-shape/part/style key and
+block keeps), `dedup_append`, and the per-shape/part/style key and
 rejection-reason tables this pass alone consults.
 
 Nothing here knows a screen size -- per-device work happens in
@@ -123,18 +123,18 @@ CURVE_STYLE_KEYS = {
 _ALL_CURVE_STYLE_KEYS = frozenset().union(*CURVE_STYLE_KEYS.values())
 
 #: Shared notes of every "can be absent, so 'when_absent:' is required" error.
-_ABSENCE_IS_NORMAL = ("every ActivityMonitor field is nullable and sensors are simply missing "
-                      "on some devices, so absence is the normal case, not an error")
+ABSENCE_IS_NORMAL = ("every ActivityMonitor field is nullable and sensors are simply missing "
+                     "on some devices, so absence is the normal case, not an error")
 _WHEN_ABSENT_CHOICES = ("choose one of: hide | placeholder (with 'placeholder:') | fallback "
                         "(with 'fallback:')")
 
 #: The note on an icon size given in a unit other than `px`/`%r`.
-_ICON_SIZE_NOTE = ("an icon's font is baked once, before layout runs, so its size "
-                   "cannot depend on a parent box (%) or an element's own font (pt)")
+ICON_SIZE_NOTE = ("an icon's font is baked once, before layout runs, so its size "
+                  "cannot depend on a parent box (%) or an element's own font (pt)")
 
 #: Matches `expr.check`'s "unknown data source" message for exactly
 #: `config.colors` or `config.colors.<role>`.  Group 1 is `""` for the bare
-#: axis, or `.<role>` for a bad role -- `Builder._expression` turns either
+#: axis, or `.<role>` for a bad role -- `Builder.expression` turns either
 #: into a domain-specific error.
 _CONFIG_COLORS_RE = re.compile(
     r"^unknown data source 'config\.colors((?:\.[A-Za-z_][A-Za-z0-9_]*)?)'$"
@@ -198,7 +198,7 @@ class NamedRegistry(dict[str, T], Generic[T]):
 
 def _aod_kind(element: Element) -> tuple[str | None, str | None, bool]:
     """``(kind, shape, literal_text)`` of a built element, in the same terms
-    `Builder._aod_refusal` reads off a raw node.  `shape`/`literal_text` are
+    `Builder.aod_refusal` reads off a raw node.  `shape`/`literal_text` are
     each one kind's own extra fact (a `Shape`'s own `.shape`, a `Text`'s own
     "was this a fixed 'text:'"); every other kind passes `None`/`False`,
     which is also what its own `aod_refusal` method ignores."""
@@ -209,6 +209,35 @@ def _aod_kind(element: Element) -> tuple[str | None, str | None, bool]:
 
 
 class Builder:
+    """The semantic pass: a schema-valid document in, a :class:`Face` out,
+    every mistake reported to `bag` on the author's own line.
+
+    **Helpers for kind authors.**  A kind's `build` (`wfb.kinds`) gets the
+    builder as `b` and reads its node through the public methods below;
+    everything underscored belongs to this module.  A helper that can fail
+    reports its own error and returns `None` (or an empty default), so the
+    kind only checks the result.  `b.doc.span(node, key)` locates a key for
+    a diagnostic of the kind's own, and `b.bag` takes it.
+
+    - Reading a key: `expression`, `color_expression`, `length`, `angle`,
+      `position`, `size`, `alignment`, `baked_size_length`; `require`
+      reports a key the schema cannot require by itself.
+    - Absence and `format:`: `check_absence` (the value's own
+      `when_absent:`), `check_other_absence` (any other nullable binding),
+      `check_reachable_substitute`, `nullable_sources`, `check_format`,
+      `check_format_spec`, `check_format_not_on_literal`.
+    - Fonts and icons: `resolve_font`, `is_vector_font`, `font_kind_note`,
+      `check_if_unavailable`, `build_curve`, `build_outline`,
+      `resolve_icon_name`, `resolve_icon_glyph`.
+    - Structure: `build_elements` and `push_visible` (a group's children),
+      `build_hand_part` and `owned_color` (a hand's or a pattern's parts),
+      `check_foreign_keys` (a key that belongs to another `shape:` or
+      `style:`), `aod_refusal`.
+
+    Module level: `dedup_append`, `and_paths`, `ABSENCE_IS_NORMAL`,
+    `ICON_SIZE_NOTE`.
+    """
+
     def __init__(self, doc: YamlDocument, bag: Bag) -> None:
         self.doc = doc
         self.bag = bag
@@ -235,7 +264,7 @@ class Builder:
         #: The `config: style:` axis; `None` if undeclared or rejected.
         self.config_style: ConfigStyle | None = None
         #: The roles `config.colors.<role>` may name, set by `_build_scope`
-        #: for `_expression`'s dedicated error; `None` means no Styles
+        #: for `expression`'s dedicated error; `None` means no Styles
         #: colours at all, not zero roles.
         self._config_colors_roles: tuple[str, ...] | None = None
         self.scope = expr.Scope()
@@ -272,14 +301,14 @@ class Builder:
         self._build_fonts(data.get("fonts") or {})
         self._build_scope()
         # Hands need the scope built first: a hand's `color:` may read
-        # `palette.*`/`config.*` through the same `_color_expression` an
+        # `palette.*`/`config.*` through the same `color_expression` an
         # element's own `color:` uses, and it needs `self.scope` in place.
-        # They need to run before `_build_elements` so a `type: hands`
+        # They need to run before `build_elements` so a `type: hands`
         # element can resolve `hands: <name>` against `self.hand_sets` the
         # same build pass.
         self._build_hands(data.get("hands") or {})
 
-        elements = self._build_elements(data.get("elements") or [], ("elements",))
+        elements = self.build_elements(data.get("elements") or [], ("elements",))
         if not self.bag.ok():
             return None
         # Before `_apply_static`: a `complication_slot` inside a layout's own
@@ -297,7 +326,7 @@ class Builder:
         self._resolve_aod(elements)
         # `_resolve_aod` is the one resolution walk above that can itself add
         # an error (a group's inherited `aod: {format: ...}` checked against
-        # a descendant's value type, `_check_format_spec`) -- the same gate
+        # a descendant's value type, `check_format_spec`) -- the same gate
         # every earlier build stage already gets, so a bad inherited format
         # stops the build here rather than reaching `resolve`/`generate`
         # with a `Face` the bag has already condemned.
@@ -361,7 +390,7 @@ class Builder:
         descendants, by the reserved id `wfb.desugar.layout_ids` defines,
         then apply the slot rule.
 
-        Runs right after `_build_elements`, before `_apply_static` -- see
+        Runs right after `build_elements`, before `_apply_static` -- see
         `build()`'s own comment for why the ordering matters.  Only the
         *top-level* synthetic groups are looked up by id: `layout_ids`
         always mints a top-level id (the desugar rewrite appends both groups
@@ -1162,11 +1191,11 @@ class Builder:
     def _build_hand(self, spec: dict, set_name: str, hand_name: str) -> Hand | None:
         """One `hour:`/`minute:`/`second:` entry of a `hands:` set."""
         where = f"hands.{set_name}.{hand_name}"
-        hand_color, color_failed = self._owned_color(spec, where, hand=True)
+        hand_color, color_failed = self.owned_color(spec, where, hand=True)
         ok = not color_failed
         parts: list[HandPart] = []
         for index, raw_part in enumerate(spec.get("parts") or []):
-            part = self._build_hand_part(raw_part, where, index, hand_color, color_failed)
+            part = self.build_hand_part(raw_part, where, index, hand_color, color_failed)
             if part is None:
                 ok = False
                 continue
@@ -1175,7 +1204,7 @@ class Builder:
             return None
         return Hand(parts=parts, color=hand_color)
 
-    def _owned_color(
+    def owned_color(
         self, node: dict, where: str, *, hand: bool,
     ) -> tuple[Expression | None, bool]:
         """`color:` on a hand, a pattern, or one of their parts, as
@@ -1190,7 +1219,7 @@ class Builder:
         """
         if "color" not in node:
             return None, False
-        color = self._color_expression(node, "color")
+        color = self.color_expression(node, "color")
         if color is None:
             return None, True
         if hand and self._reject_hand_data_color(color, where, self.doc.span(node, "color")):
@@ -1210,7 +1239,7 @@ class Builder:
             return False
         self.bag.error(
             "hands",
-            f"{where}.color: a hand colour cannot read data ({_and_paths(color.sources)})",
+            f"{where}.color: a hand colour cannot read data ({and_paths(color.sources)})",
             span or color.span,
             notes=["allowed: palette entries, literal colours and config.* "
                    "(accent_color, data_color, colors.<role>) -- and conditionals "
@@ -1220,7 +1249,7 @@ class Builder:
         )
         return True
 
-    def _build_hand_part(
+    def build_hand_part(
         self, node: dict, where: str, index: int,
         default_color: Expression | None, default_color_failed: bool,
         *, context: str = "hand",
@@ -1233,7 +1262,7 @@ class Builder:
         `arc` and `text` outright; a pattern part accepts both.
         `default_color` is the owning hand's/pattern's own `color:`, and
         `default_color_failed` says it was written and rejected
-        (`_owned_color`).
+        (`owned_color`).
         """
         is_hand = context == "hand"
         noun = "hand" if is_hand else "pattern"
@@ -1256,7 +1285,7 @@ class Builder:
                            f"{part_where}: not a valid {noun} part", span)
             return None
 
-        part_color, part_color_failed = self._owned_color(node, part_where, hand=is_hand)
+        part_color, part_color_failed = self.owned_color(node, part_where, hand=is_hand)
         ok = not part_color_failed
         effective_color = part_color if part_color is not None else default_color
         if effective_color is None and not default_color_failed and not part_color_failed:
@@ -1284,31 +1313,31 @@ class Builder:
                 part_visible = None
 
         raw_points = node.get("points") or []
-        points = [self._position(raw, node, "points")
+        points = [self.position(raw, node, "points")
                   for raw in raw_points if isinstance(raw, dict)]
-        at = self._position(node.get("at"), node, "at") if "at" in node else Position()
-        size = self._size(node.get("size"))
-        to = self._position(node.get("to"), node, "to") if "to" in node else None
-        thickness = self._length(node, "thickness")
-        radius = self._length(node, "radius")
+        at = self.position(node.get("at"), node, "at") if "at" in node else Position()
+        size = self.size(node.get("size"))
+        to = self.position(node.get("to"), node, "to") if "to" in node else None
+        thickness = self.length(node, "thickness")
+        radius = self.length(node, "radius")
         filled = bool(node.get("filled", True))
-        start_angle = self._angle(node, "start_angle") if shape == "arc" else None
-        sweep = self._angle(node, "sweep") if shape == "arc" else None
+        start_angle = self.angle(node, "start_angle") if shape == "arc" else None
+        sweep = self.angle(node, "sweep") if shape == "arc" else None
 
         if shape == "polygon" and len(points) < 3:
-            self._require(node, "points", f"{part_where}: a polygon part needs points")
+            self.require(node, "points", f"{part_where}: a polygon part needs points")
             ok = False
         if shape == "rectangle" and (size.width is None or size.height is None):
-            self._require(node, "size", f"{part_where}: a rectangle part needs size.width and size.height")
+            self.require(node, "size", f"{part_where}: a rectangle part needs size.width and size.height")
             ok = False
         if shape == "line" and to is None:
-            self._require(node, "to", f"{part_where}: a line part needs a 'to' position")
+            self.require(node, "to", f"{part_where}: a line part needs a 'to' position")
             ok = False
         if shape == "circle" and radius is None:
-            self._require(node, "radius", f"{part_where}: a circle part needs a radius")
+            self.require(node, "radius", f"{part_where}: a circle part needs a radius")
             ok = False
         if shape == "arc" and radius is None:
-            self._require(node, "radius", f"{part_where}: an arc part needs a radius")
+            self.require(node, "radius", f"{part_where}: an arc part needs a radius")
             ok = False
 
         if not self._check_hand_part_keys(node, shape, part_where, context=context):
@@ -1327,7 +1356,7 @@ class Builder:
             )
             ok = False
 
-        align, vertical_align = self._alignment(node)
+        align, vertical_align = self.alignment(node)
         text_fields: dict[str, object] = {}
         if shape == "text":
             built = self._build_text_part(node, part_where, vertical_align)
@@ -1383,9 +1412,9 @@ class Builder:
             )
             ok = False
         elif has_value:
-            value = self._expression(node, "value")
+            value = self.expression(node, "value")
             if value is None:
-                ok = False  # _expression already reported the real mistake
+                ok = False  # expression already reported the real mistake
             else:
                 bad_refs = sorted({
                     ref.path for ref in expr.walk(value.ast)
@@ -1415,8 +1444,8 @@ class Builder:
                     text_value = value
                     if "format" in node:
                         text_format = node.get("format")
-                        self._check_format(node, value, text_format)
-        elif not self._check_format_not_on_literal(node, part_where):
+                        self.check_format(node, value, text_format)
+        elif not self.check_format_not_on_literal(node, part_where):
             ok = False
         else:
             text_literal = str(node.get("text"))
@@ -1428,25 +1457,25 @@ class Builder:
                 ok = font_ok = False  # _font_reference already reported it
             else:
                 font, font_is_custom = resolved
-        font_is_vector = self._is_vector_font(font, font_is_custom)
+        font_is_vector = self.is_vector_font(font, font_is_custom)
 
         curve: Curve | None = None
         if "curve" in node:
-            curve = self._build_curve(
+            curve = self.build_curve(
                 node, part_where, vertical_align=vertical_align, font_ok=font_ok,
                 font_is_vector=font_is_vector)
             if curve is None:
                 ok = False
         if font_ok and "if_unavailable" in node:
-            self._check_if_unavailable(node, part_where, font_is_vector)
+            self.check_if_unavailable(node, part_where, font_is_vector)
 
         # A failed `outline:` aborts the part; `outline: none` (or no key)
         # is not a failure.  Absence is deferred to
         # `wfb.kinds.pattern._check_pattern_absence`
-        # (`_build_outline`'s own docstring).
+        # (`build_outline`'s own docstring).
         outline: Outline | None = None
         if "outline" in node:
-            outline = self._build_outline(node, "outline", part_where)
+            outline = self.build_outline(node, "outline", part_where)
             if outline is None and node.get("outline") not in (None, "none"):
                 ok = False
 
@@ -1484,7 +1513,7 @@ class Builder:
                 notes.append(_HAND_PART_NO_ALIGNMENT_REASON[shape])
             return notes
 
-        ok = self._check_foreign_keys(
+        ok = self.check_foreign_keys(
             node, shape, geometry_keys, all_keys, code="element", disc="shape",
             prefix=f"{part_where}: ", qualifier=f"a {noun} ", suffix=" part",
             extra_notes=extra_notes,
@@ -1588,7 +1617,7 @@ class Builder:
 
         # `config.colors.<role>` -- one binding per role of the default
         # style entry's scheme, and none for the bare `config.colors` (a
-        # scheme is not a colour; `_expression` gives both mistakes a
+        # scheme is not a colour; `expression` gives both mistakes a
         # dedicated error).  A layout-only default entry binds no roles.
         if self.config_style is not None and self.config_style.default_entry.colors is not None:
             default_scheme = self.color_scheme[self.config_style.default_entry.colors]
@@ -1609,7 +1638,10 @@ class Builder:
 
     # -- elements ---------------------------------------------------------
 
-    def _build_elements(self, raw: list, path: tuple) -> list[Element]:
+    def build_elements(self, raw: list, path: tuple) -> list[Element]:
+        """Build every element of an `elements:`/`children:` list, dropping
+        any that reported an error.  `path` is the list's own schema path.
+        """
         out: list[Element] = []
         for index, node in enumerate(raw):
             element = self._build_element(node, path + (index,))
@@ -1654,7 +1686,7 @@ class Builder:
         common = dict(
             id=element_id,
             kind=node["type"],
-            at=self._position(node.get("at"), node, "at"),
+            at=self.position(node.get("at"), node, "at"),
             modes=tuple(node.get("modes") or ("active",)),
             z=node.get("z"),
             span=span,
@@ -1840,7 +1872,7 @@ class Builder:
         )
         return None
 
-    def _alignment(self, node: dict) -> tuple[str, str]:
+    def alignment(self, node: dict) -> tuple[str, str]:
         """`(align, vertical_align)`, defaulting to `"center"`/`"center"` --
         the one place every kind with a placement box reads the two keys.
         The schema is normative on which values reach here, so this is a
@@ -1869,7 +1901,7 @@ class Builder:
         governs that, not this method, because the reading is taken once per
         frame, before the loop, so its absence is not a per-copy fact.
         """
-        expression = self._expression(node, "visible")
+        expression = self.expression(node, "visible")
         if expression is None:
             return None
         if expression.value.type is not Type.BOOLEAN:
@@ -1935,7 +1967,7 @@ class Builder:
             ast=folded,
         )
 
-    def _push_visible(self, group: "Group") -> None:
+    def push_visible(self, group: "Group") -> None:
         """Conjoin a group's `visible:` into every element beneath it.
 
         Every *descendant*, not just the direct children: an inner group has
@@ -1970,8 +2002,8 @@ class Builder:
         self.face_aod_dim = None if dim_raw is None or float(dim_raw) == 1.0 else float(dim_raw)
         self.face_aod_mask = bool(raw.get("mask", True))
 
-    def _aod_refusal(self, key: str, kind: str | None, shape: str | None,
-                     literal_text: bool) -> tuple[str, str, list[str]] | None:
+    def aod_refusal(self, key: str, kind: str | None, shape: str | None,
+                    literal_text: bool) -> tuple[str, str, list[str]] | None:
         """``(code, what, notes)`` when an `aod:` override's `key` cannot
         apply to an element of this kind, else ``None`` -- the one table
         both an element's own block (`_build_aod_authored`,
@@ -1993,7 +2025,7 @@ class Builder:
         One parser for every kind: the schema's per-kind `aod<Kind>` `$defs`
         already restrict which keys may appear.  Every value resolves
         through the same machinery as the element's own property of that
-        name (`_color_expression`, `_length`, `_font_reference` -- kept as
+        name (`color_expression`, `length`, `_font_reference` -- kept as
         its `(name, is_custom)` pair, `_visible`).
         """
         raw = node.get("aod")
@@ -2007,13 +2039,13 @@ class Builder:
         keys: dict[str, object] = {}
         for key in ("color", "track_color", "icon_color"):
             if key in raw:
-                keys[key] = self._color_expression(raw, key)
+                keys[key] = self.color_expression(raw, key)
         for key in ("thickness", "bar_width"):
             if key in raw:
-                keys[key] = self._length(raw, key)
+                keys[key] = self.length(raw, key)
         kind, shape = node.get("type"), node.get("shape")
         if "filled" in raw:
-            refusal = self._aod_refusal("filled", kind, shape, literal_text=False)
+            refusal = self.aod_refusal("filled", kind, shape, literal_text=False)
             if refusal is not None:
                 code, what, notes = refusal
                 self.bag.error(code, f"{element_id}: {what}",
@@ -2022,7 +2054,7 @@ class Builder:
             else:
                 keys["filled"] = bool(raw["filled"])
         if "font" in raw:
-            refusal = self._aod_refusal("font", kind, shape, literal_text=False)
+            refusal = self.aod_refusal("font", kind, shape, literal_text=False)
             if refusal is not None:
                 code, what, notes = refusal
                 self.bag.error(code, f"{element_id}: {what}",
@@ -2030,7 +2062,7 @@ class Builder:
                                notes=notes)
             else:
                 resolved = self._font_reference(str(raw["font"]), self.doc.span(raw, "font"))
-                if resolved is not None and self._is_vector_font(*resolved):
+                if resolved is not None and self.is_vector_font(*resolved):
                     self.bag.error(
                         "aod",
                         f"{element_id}: an 'aod: {{font: ...}}' override "
@@ -2093,7 +2125,7 @@ class Builder:
 
         A key an element inherits (rather than writes) is checked here
         against the same per-kind refusals its own block would get
-        (`_aod_refusal`), because only here has a group's key reached the
+        (`aod_refusal`), because only here has a group's key reached the
         element: one error per element, on the element, naming the group,
         and the key is dropped (plan 18 item 5).
         """
@@ -2127,7 +2159,7 @@ class Builder:
                         # Inherited from a group, whose block may reach
                         # several kinds and value types -- only checkable
                         # here.  An element's own one `wfb.kinds.text.TextKind.build` checked.
-                        self._check_format_spec(element.value, str(fmt), element.span)
+                        self.check_format_spec(element.value, str(fmt), element.span)
                 visit(element.children(), child_forced_hidden, child_nearest,
                       child_nearest_from)
 
@@ -2142,7 +2174,7 @@ class Builder:
         for key in sorted(inherited):
             if own is not None and key in own:
                 continue
-            refusal = self._aod_refusal(key, kind, shape, literal)
+            refusal = self.aod_refusal(key, kind, shape, literal)
             if refusal is None:
                 continue
             code, what, notes = refusal
@@ -2164,7 +2196,7 @@ class Builder:
         `Element.resolved_<key>`, with `default` (the face-wide value) at the
         root.  The nearest declaration wins outright -- unlike `visible:`,
         nothing accumulates -- which is why this is a walk over the finished
-        tree rather than a push per group the way `_push_visible` is.
+        tree rather than a push per group the way `push_visible` is.
         """
         resolved = f"resolved_{key}"
 
@@ -2265,7 +2297,7 @@ class Builder:
                     self.bag.error(
                         "static",
                         f"{element.id!r} binds {where} to "
-                        f"{_and_paths(expression.sources)} inside the static "
+                        f"{and_paths(expression.sources)} inside the static "
                         f"subtree of {root.id!r}",
                         expression.span or element.span,
                         notes=["a static subtree is drawn once, into a buffer "
@@ -2307,7 +2339,7 @@ class Builder:
             for element in walk_elements([root]):
                 element.static_rank = rank
 
-    def _check_foreign_keys(
+    def check_foreign_keys(
         self, node: dict, chosen: str, table: dict[str, frozenset[str]],
         all_keys: frozenset[str], *, code: str, disc: str,
         prefix: str = "", qualifier: str = "", suffix: str = "",
@@ -2349,7 +2381,7 @@ class Builder:
         return ok
 
 
-    def _build_outline(
+    def build_outline(
         self, node: dict, key: str, label: str, *, element: Element | None = None,
     ) -> Outline | None:
         """`outline:` (plan 15) on a `text` element, or -- with
@@ -2359,14 +2391,14 @@ class Builder:
 
         Two spellings collapse to one `Outline` (D7): a bare colour
         expression (`width: 2` implied) or an explicit `{color, width}`
-        mapping.  `outline.color` goes through the same `_color_expression`
+        mapping.  `outline.color` goes through the same `color_expression`
         `color:` uses (D8).  `width` is capped at `MAX_OUTLINE_WIDTH` with a
         build error rather than a schema `maximum`, so the message can cite
         the evidence the cap rests on (D6).  `label` leads the width-cap
         error (the element id, or the part's `part_where`).
 
         **Absence.** A `text` element (`element` given) gets its own
-        `_check_other_absence` here.  A pattern part does not: a pattern
+        `check_other_absence` here.  A pattern part does not: a pattern
         polices absence once for the whole element over
         `PatternElement.colors` (`wfb.kinds.pattern._check_pattern_absence`),
         which the caller folds `outline.color` into -- checking here too
@@ -2377,12 +2409,12 @@ class Builder:
             return None
         span = self.doc.span(node, key)
         if isinstance(raw, dict):
-            color = self._color_expression(raw, "color")
+            color = self.color_expression(raw, "color")
             color_span = self.doc.span(raw, "color") or span
             width = raw.get("width", 2)
             width_span = self.doc.span(raw, "width") or span
         else:
-            color = self._color_expression(node, key)
+            color = self.color_expression(node, key)
             color_span = span
             width = 2
             width_span = span
@@ -2405,7 +2437,7 @@ class Builder:
             )
             return None
         if element is not None:
-            self._check_other_absence(node, element, "outline.color", color, span=color_span)
+            self.check_other_absence(node, element, "outline.color", color, span=color_span)
         return Outline(color=color, width=width)
 
     def _check_curve_keys(self, node: dict, style: str) -> None:
@@ -2416,7 +2448,7 @@ class Builder:
         """
         if style not in CURVE_STYLE_KEYS:
             return  # the schema has already rejected an unknown style
-        self._check_foreign_keys(
+        self.check_foreign_keys(
             node, style, CURVE_STYLE_KEYS, _ALL_CURVE_STYLE_KEYS,
             code="text-curve", disc="style", empty_label="(nothing)",
             extra_notes=lambda key: (
@@ -2426,7 +2458,7 @@ class Builder:
             ),
         )
 
-    def _is_vector_font(self, font: str, is_custom: bool) -> bool:
+    def is_vector_font(self, font: str, is_custom: bool) -> bool:
         """Whether a resolved `(font, is_custom)` reference names a `face:`
         (vector) font.  Safe to call on any resolved reference:
         `_font_reference` only returns a custom name already in `self.fonts`,
@@ -2434,15 +2466,15 @@ class Builder:
         return is_custom and self.fonts[font].is_vector
 
     @staticmethod
-    def _font_kind_note(font: str, is_custom: bool) -> str:
+    def font_kind_note(font: str, is_custom: bool) -> str:
         """What kind of (non-vector) font a `text` element's `font:` resolved
-        to -- the extra note `_build_curve`/`_check_if_unavailable` add for
+        to -- the extra note `build_curve`/`check_if_unavailable` add for
         a `text` element."""
         if is_custom:
             return f"'font: font.{font}' is a baked bitmap font, declared with 'source:'"
         return f"'font: {font}' is one of the platform's fixed system fonts"
 
-    def _build_curve(
+    def build_curve(
         self, node: dict, label: str, *, vertical_align: str, font_ok: bool,
         font_is_vector: bool, font_note: str | None = None,
     ) -> Curve | None:
@@ -2467,10 +2499,10 @@ class Builder:
         span = self.doc.span(node, "curve")
         style = raw["style"]
         self._check_curve_keys(raw, style)
-        angle = self._angle(raw, "angle")
+        angle = self.angle(raw, "angle")
         if angle is None:
             return None
-        radius = self._length(raw, "radius") if style == "radial" else None
+        radius = self.length(raw, "radius") if style == "radial" else None
         direction = str(raw.get("direction", "clockwise")) if style == "radial" else None
         if font_ok and not font_is_vector:
             self.bag.error(
@@ -2504,7 +2536,7 @@ class Builder:
             )
         return Curve(style=style, angle=angle, radius=radius, direction=direction)
 
-    def _check_if_unavailable(
+    def check_if_unavailable(
         self, node: dict, label: str, font_is_vector: bool, font_note: str | None = None,
     ) -> None:
         """`if_unavailable:` on a `text` element or a pattern's `shape: text`
@@ -2529,7 +2561,7 @@ class Builder:
             ],
         )
 
-    def _resolve_icon_name(self, name: str, span: Span | None) -> str | None:
+    def resolve_icon_name(self, name: str, span: Span | None) -> str | None:
         """A catalogue name -> its codepoint, or `None` plus a reported error.
 
         The shared "unknown icon" diagnostic: used by `wfb.kinds.icon.IconKind.build`'s
@@ -2552,7 +2584,7 @@ class Builder:
             )
         return codepoint
 
-    def _resolve_icon_glyph(self, raw: str, span: Span | None) -> str | None:
+    def resolve_icon_glyph(self, raw: str, span: Span | None) -> str | None:
         """`"U+F0BC"` -> the character, or `None` plus a reported error.
 
         The shared `glyph:` diagnostics: used by `wfb.kinds.icon._build_glyph_icon`'s
@@ -2608,8 +2640,8 @@ class Builder:
         one was named and did not resolve (already reported; the caller
         rejects the whole slot the same way any other bad choice does),
         `None` for an explicit `icon: none` (remove any catalogue default),
-        or a real `icons.SlotIcon`.  Reuses `_resolve_icon_name`/
-        `_resolve_icon_glyph` -- the exact validation (and messages) a plain
+        or a real `icons.SlotIcon`.  Reuses `resolve_icon_name`/
+        `resolve_icon_glyph` -- the exact validation (and messages) a plain
         `icon` element's own `icon:`/`glyph:` get -- rather than a second,
         parallel set of diagnostics for what is the same two keys.
         """
@@ -2635,26 +2667,26 @@ class Builder:
                 self.bag.error(
                     "config", f"{what}.icon: expected a string, got {raw_icon!r}", span)
                 return _ICON_OVERRIDE_ERROR
-            codepoint = self._resolve_icon_name(raw_icon, span)
+            codepoint = self.resolve_icon_name(raw_icon, span)
             if codepoint is None:
                 return _ICON_OVERRIDE_ERROR
             return icons.SlotIcon(raw_icon, codepoint)
         raw_glyph = str(item["glyph"])
         span = self.doc.span(item, "glyph") or fallback_span
-        character = self._resolve_icon_glyph(raw_glyph, span)
+        character = self.resolve_icon_glyph(raw_glyph, span)
         if character is None:
             return _ICON_OVERRIDE_ERROR
         return icons.SlotIcon(icons.codepoint_key(character), character)
 
     # -- shared checks ----------------------------------------------------
 
-    def _check_absence(self, node: dict, element: Element, bound: Expression,
-                       when_absent: str | None, placeholder: str | None,
-                       fallback: Expression | None, key: str = "value") -> None:
+    def check_absence(self, node: dict, element: Element, bound: Expression,
+                      when_absent: str | None, placeholder: str | None,
+                      fallback: Expression | None, key: str = "value") -> None:
         """ADR 0005 3: null handling is part of the binding, not an afterthought."""
         if not bound.nullable:
             # Only "no effect" if nothing *else* on the element is nullable
-            # either: since `_check_other_absence`, a nullable colour or max
+            # either: since `check_other_absence`, a nullable colour or max
             # requires a policy too, so a `when_absent:` sitting next to a
             # non-nullable value can be doing real work.  Saying it has no
             # effect there would contradict the error the author just fixed.
@@ -2679,15 +2711,15 @@ class Builder:
                 f"{element.id}: {bound.text!r} can be absent, so 'when_absent:' is required",
                 self.doc.span(node, key),
                 notes=[
-                    _ABSENCE_IS_NORMAL,
+                    ABSENCE_IS_NORMAL,
                     _WHEN_ABSENT_CHOICES,
                 ],
             )
             return
         if when_absent == "placeholder" and placeholder is None:
-            self._require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:' string")
+            self.require(node, "placeholder", "when_absent: placeholder needs a 'placeholder:' string")
         if when_absent == "fallback" and fallback is None:
-            self._require(node, "fallback", "when_absent: fallback needs a 'fallback:' expression")
+            self.require(node, "fallback", "when_absent: fallback needs a 'fallback:' expression")
         if when_absent == "fallback" and fallback is not None and fallback.nullable:
             self.bag.error(
                 "when-absent",
@@ -2696,11 +2728,11 @@ class Builder:
                 notes=["a fallback must always produce a value"],
             )
 
-    def _check_other_absence(self, node: dict, element: Element, key: str,
-                             bound: Expression | None, span: Span | None = None) -> None:
+    def check_other_absence(self, node: dict, element: Element, key: str,
+                            bound: Expression | None, span: Span | None = None) -> None:
         """A nullable binding outside `value` still needs an explicit `when_absent:`.
 
-        `_check_absence` above only ever runs for `value` -- without this
+        `check_absence` above only ever runs for `value` -- without this
         check, a nullable `color`/`track_color` would sail through
         validation with no policy at all.  Codegen (`wfb.emit.monkeyc`'s
         `ReadPlan.other_guards`) always treats an absent non-value binding
@@ -2715,7 +2747,7 @@ class Builder:
         that does not live at `node[key]` directly, such as `outline.color`
         (`key` is `'outline.color'` for the message, but the real YAML node
         is `outline:`'s own sub-mapping, or `node['outline']` itself under
-        the shorthand spelling; `Builder._build_outline` works out which and
+        the shorthand spelling; `Builder.build_outline` works out which and
         passes the right span in).
         """
         if bound is None or not bound.nullable:
@@ -2728,7 +2760,7 @@ class Builder:
             "'when_absent:' is required",
             span if span is not None else self.doc.span(node, key),
             notes=[
-                _ABSENCE_IS_NORMAL,
+                ABSENCE_IS_NORMAL,
                 f"'when_absent:' is required once anything on this element is nullable, not "
                 f"just 'value' -- a nullable {key} always hides the element when absent, "
                 "regardless of which policy is chosen for the bound value",
@@ -2736,13 +2768,13 @@ class Builder:
             ],
         )
 
-    def _check_reachable_substitute(self, node: dict, element: Element, key: str,
-                                    value_bindings: tuple[Expression | None, ...],
-                                    other_bindings: tuple[Expression | None, ...]) -> None:
+    def check_reachable_substitute(self, node: dict, element: Element, key: str,
+                                   value_bindings: tuple[Expression | None, ...],
+                                   other_bindings: tuple[Expression | None, ...]) -> None:
         """Warn when a `placeholder:`/`fallback:` can never actually be drawn.
 
         A nullable non-value binding hides the whole element (see
-        `_check_other_absence`), and that guard runs *before* the value's own
+        `check_other_absence`), and that guard runs *before* the value's own
         substitute.  So if every nullable source behind the value is also read
         by a colour or max, the element is already gone by the time the
         substitute would be chosen, and the author's `placeholder:` is dead
@@ -2764,13 +2796,13 @@ class Builder:
         policy = getattr(element, "when_absent", None)
         if policy not in ("placeholder", "fallback"):
             return
-        value_sources = self._nullable_sources(value_bindings)
+        value_sources = self.nullable_sources(value_bindings)
         if not value_sources:
             return
         if element.visible is not None:
             other_bindings = other_bindings + (element.visible,)
             key = f"{key}/'visible'"
-        other_sources = self._nullable_sources(other_bindings)
+        other_sources = self.nullable_sources(other_bindings)
         if not value_sources <= other_sources:
             return
         shared = ", ".join(sorted(value_sources))
@@ -2790,7 +2822,7 @@ class Builder:
         )
 
     @staticmethod
-    def _nullable_sources(bindings: tuple[Expression | None, ...]) -> set[str]:
+    def nullable_sources(bindings: tuple[Expression | None, ...]) -> set[str]:
         """Catalogue paths among `bindings` that the generated code null-checks."""
         out: set[str] = set()
         for bound in bindings:
@@ -2802,7 +2834,11 @@ class Builder:
                     out.add(path)
         return out
 
-    def _check_format(self, node: dict, bound: Expression, spec: str | None) -> None:
+    def check_format(self, node: dict, bound: Expression, spec: str | None) -> None:
+        """Check `format:` against the bound `value:`: a date or time value
+        must have one, and a given spec must suit the value's type
+        (:meth:`check_format_spec`).
+        """
         span = self.doc.span(node, "format")
         if spec is None:
             if bound.value.type.is_formatted():
@@ -2813,11 +2849,11 @@ class Builder:
                     self.doc.span(node, "value"),
                 )
             return
-        self._check_format_spec(bound, spec, span)
+        self.check_format_spec(bound, spec, span)
 
-    def _check_format_spec(self, bound: Expression, spec: str, span: Span | None) -> None:
+    def check_format_spec(self, bound: Expression, spec: str, span: Span | None) -> None:
         """The coded-vs-type checks a `format:` spec needs against the value
-        it formats -- factored out of `_check_format` so an `aod: {format:
+        it formats -- factored out of `check_format` so an `aod: {format:
         ...}` override (which has no "was 'format:' omitted" case of its
         own: it is only ever consulted once a spec was actually written)
         can run through the exact same checks the awake `format:` gets,
@@ -2849,7 +2885,7 @@ class Builder:
             except formatting.FormatError as exc:
                 self.bag.error("format", str(exc), span)
 
-    def _check_format_not_on_literal(self, node: dict, label: str) -> bool:
+    def check_format_not_on_literal(self, node: dict, label: str) -> bool:
         """`format:` is meaningless without a bound `value:` to format --
         shared by a `text` element and a pattern's own `shape: text` part,
         which both take the same `text:` spelling for a fixed string.
@@ -2864,12 +2900,20 @@ class Builder:
         )
         return False
 
-    def _require(self, node: dict, key: str, message: str) -> None:
+    def require(self, node: dict, key: str, message: str) -> None:
+        """Report `message` as an `element` error on `node[key]`'s line, or
+        on the node's own when the key is absent -- for a key the schema
+        cannot require on its own.
+        """
         self.bag.error("element", message, self.doc.span(node, key) or self.doc.span(node))
 
     # -- coercion helpers -------------------------------------------------
 
-    def _expression(self, node: dict, key: str) -> Expression | None:
+    def expression(self, node: dict, key: str) -> Expression | None:
+        """`node[key]` parsed, type-checked and compiled to Monkey C as an
+        :class:`Expression`, or `None` when the key is absent or the
+        expression was reported as an error.
+        """
         raw = node.get(key)
         if raw is None:
             return None
@@ -2945,7 +2989,11 @@ class Builder:
             ast=folded,
         )
 
-    def _color_expression(self, node: dict, key: str) -> Expression | None:
+    def color_expression(self, node: dict, key: str) -> Expression | None:
+        """`node[key]` as a colour :class:`Expression`: a bare `#RRGGBB`
+        literal (accepted, with a `raw-color` note) or any expression of
+        colour type.  `None` when absent or reported.
+        """
         raw = node.get(key)
         if raw is None:
             return None
@@ -2967,7 +3015,7 @@ class Builder:
             return Expression(text, color.as_monkeyc(), expr.Value(Type.COLOR), (),
                               frozenset(), frozenset(), span, constant=color.value,
                               ast=expr.Literal(color.value, Type.COLOR))
-        bound = self._expression(node, key)
+        bound = self.expression(node, key)
         if bound is not None and bound.value.type is not Type.COLOR:
             self.bag.error(
                 "type", f"{key} must be a colour, got {bound.value}", span,
@@ -3008,7 +3056,7 @@ class Builder:
         )
         return (key, True) if spec is not None else None
 
-    def _resolve_font(self, node: dict, element: Text | ComplicationSlot) -> bool:
+    def resolve_font(self, node: dict, element: Text | ComplicationSlot) -> bool:
         """Set `.font`/`.font_is_custom` from `node["font"]`.
 
         Returns whether the reference is trustworthy: `True` when no
@@ -3028,7 +3076,11 @@ class Builder:
             return True
         return False
 
-    def _position(self, raw: dict | None, node: dict, key: str) -> Position:
+    def position(self, raw: dict | None, node: dict, key: str) -> Position:
+        """An `at:`-style position (`anchor`, `dx`/`dy` or polar
+        `angle`/`radius`) from `raw`, which is `node[key]`; the default
+        centre position when `raw` is `None` or a unit error was reported.
+        """
         if raw is None:
             return Position()
         span = self.doc.span(node, key)
@@ -3044,7 +3096,10 @@ class Builder:
             self.bag.error("units", str(exc), span)
             return Position()
 
-    def _size(self, raw: dict | None) -> Size:
+    def size(self, raw: dict | None) -> Size:
+        """A `size: {width, height}` from `raw`; an empty :class:`Size` when
+        `raw` is `None` or a unit error was reported.
+        """
         if raw is None:
             return Size()
         try:
@@ -3056,7 +3111,10 @@ class Builder:
             self.bag.error("units", str(exc), self.doc.span(raw))
             return Size()
 
-    def _length(self, node: dict, key: str) -> Length | None:
+    def length(self, node: dict, key: str) -> Length | None:
+        """`node[key]` as a :class:`Length`, or `None` when absent or a unit
+        error was reported.
+        """
         if key not in node:
             return None
         try:
@@ -3065,7 +3123,7 @@ class Builder:
             self.bag.error("units", str(exc), self.doc.span(node, key))
             return None
 
-    def _baked_size_length(
+    def baked_size_length(
         self, node: dict, key: str, *, code: str, label: str, note: str,
     ) -> Length | None:
         """`key`'s length, rejected unless it is `px`/`%r` -- shared by every
@@ -3079,14 +3137,17 @@ class Builder:
         against it") that this takes it as a parameter rather than deriving
         one.
         """
-        length = self._length(node, key)
+        length = self.length(node, key)
         if length is not None and length.unit not in units.SIZE_UNITS:
             self.bag.error(code, f"{label} must be px or %r, not {length.unit}",
                            self.doc.span(node, key), notes=[note])
             return None
         return length
 
-    def _angle(self, node: dict, key: str) -> Angle | None:
+    def angle(self, node: dict, key: str) -> Angle | None:
+        """`node[key]` as an :class:`Angle`, or `None` when absent or a unit
+        error was reported.
+        """
         if key not in node:
             return None
         try:
@@ -3096,7 +3157,7 @@ class Builder:
             return None
 
 
-def _dedup_append(colors: list[Expression], color: Expression | None) -> None:
+def dedup_append(colors: list[Expression], color: Expression | None) -> None:
     """Append `color` to `colors` in first-use order, unless it is `None` or
     already present -- the "every effective colour, deduplicated" accumulation
     `HandsElement.colors`/`PatternElement.colors` each build."""
@@ -3111,7 +3172,7 @@ def _lint_suppression(node: dict) -> dict[str, object]:
     return {"lint_allow": frozenset(lint.get("allow", ())), "lint_reason": lint.get("reason")}
 
 
-def _and_paths(paths: tuple[str, ...]) -> str:
+def and_paths(paths: tuple[str, ...]) -> str:
     """``'a'``, ``'a' and 'b'``, ``'a', 'b' and 'c'`` -- for a diagnostic."""
     quoted = [repr(path) for path in paths]
     if len(quoted) == 1:

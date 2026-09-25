@@ -159,7 +159,7 @@ counter_clockwise 82.2–90.7): a real bug, not a rendering-fidelity gap —
 `top` was landing outside the ring the compiler thought it occupied. Fixed
 by changing what codegen emits, not the lint model: `top` now asks the
 device for `Layout.<P>_RADIUS -/+ Graphics.getFontAscent(font)` rather than
-the bare radius (`wfb.emit.monkeyc.shapes._radial_radius_expr`), which
+the bare radius (`wfb.emit.monkeyc.shapes.radial_radius_expr`), which
 walks the baseline one ascent toward the glyphs' "down" side so the *line
 box's* top edge, not its baseline, lands on the circle — matching what the
 preview and lint band already assumed. `bottom` (previously rejected as a

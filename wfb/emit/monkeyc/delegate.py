@@ -7,7 +7,7 @@ from ...availability import Guards
 from ...ir import ComplicationSlot, complication_slot_hold_method
 from ...layout import ResolvedFace
 from .common import (
-    CONFIG_LAYOUT_METHOD, SourceFile, _NO_GUARDS, _const_prefix, _editor_slot_pairs,
+    CONFIG_LAYOUT_METHOD, SourceFile, _NO_GUARDS, _editor_slot_pairs, const_prefix,
     header, hold_targets,
 )
 from ..writer import Writer
@@ -168,7 +168,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                 w.line("var x = where[0];")
                 w.line("var y = where[1];")
             for element in targets:
-                prefix = _const_prefix(element.id)
+                prefix = const_prefix(element.id)
                 w.blank()
                 # A hold target that belongs to a layout only fires while
                 # that layout is the active one -- folded into the same hit
@@ -239,7 +239,7 @@ def _emit_on_tap(w: Writer, pairs: list) -> None:
         w.line("var x = where[0];")
         w.line("var y = where[1];")
         for element, unique in pairs:
-            prefix = _const_prefix(element.id)
+            prefix = const_prefix(element.id)
             w.blank()
             w.comment(f"`{element.id}` (config.data.{element.slot})")
             with w.block(_hit_test(f"{prefix}_BOX")):

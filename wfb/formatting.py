@@ -332,7 +332,7 @@ def render(spec: str, value, value_type: Type, values: dict | None = None) -> st
 
     An unparseable numeric spec raises `FormatError`, the same as `emit`,
     rather than falling back to `str(value)`: every spec reaching here has
-    already passed `Builder._check_format`, and a fallback would let a
+    already passed `Builder.check_format`, and a fallback would let a
     preview show something the device never would.
     """
     values = values or {}

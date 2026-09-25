@@ -496,7 +496,7 @@ Three vertical placements follow, one function computing all three:
   previously emitted the bare radius (giving the baseline-on-the-circle,
   wrong-way ink measured above) and now emits `Layout.<P>_RADIUS -/+
   Graphics.getFontAscent(font)` (`wfb.emit.monkeyc.shapes.
-  _radial_radius_expr`, minus for `clockwise`, plus for
+  radial_radius_expr`, minus for `clockwise`, plus for
   `counter_clockwise`), so the baseline sits one ascent toward the "down"
   side and the box's top edge, not its baseline, lands on the circle.
   **This offset codegen has not yet been confirmed on the simulator** — the

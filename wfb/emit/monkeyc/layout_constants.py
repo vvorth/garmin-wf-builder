@@ -7,8 +7,8 @@ from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import ResolvedFace
 from .common import (
-    McLiteral, SourceFile, _NO_GUARDS, _const_prefix, _describe, _mc_number, _mc_type,
-    _vector_fonts_used, header,
+    McLiteral, SourceFile, _NO_GUARDS, _describe, _mc_number, _mc_type,
+    _vector_fonts_used, const_prefix, header,
 )
 from ..writer import Writer
 
@@ -49,7 +49,7 @@ def _vector_font_constants(resolved: ResolvedFace, name: str, guards: "Guards") 
     """
     face, device = resolved.face, resolved.device
     spec = face.fonts[name]
-    prefix = f"FONT_{_const_prefix(name)}"
+    prefix = f"FONT_{const_prefix(name)}"
     resolved_face = vector_font_face(spec, device)
     size_px = spec.pixel_size(device.minor_radius)
     requested = ", ".join(spec.face)
@@ -216,7 +216,7 @@ def _hold_constants(placed) -> list[tuple[str, float, str]]:
     """
     if placed.element.on_hold is None:
         return []
-    prefix = _const_prefix(placed.id)
+    prefix = const_prefix(placed.id)
     box = placed.box
     return [
         (f"{prefix}_HOLD_X", box.x, "hit region: the element's own drawn box"),
@@ -226,7 +226,7 @@ def _hold_constants(placed) -> list[tuple[str, float, str]]:
     ]
 
 
-def _box_constants(prefix: str, box, note: str = "") -> list[tuple[str, float, str]]:
+def box_constants(prefix: str, box, note: str = "") -> list[tuple[str, float, str]]:
     """The `_X/_Y/_WIDTH/_HEIGHT` quartet for one resolved box -- shared by a
     rectangular shape, a bar-style progress, a graph and a complication_slot's
     editor highlight box (``prefix`` already carries that last one's own
@@ -242,7 +242,7 @@ def _box_constants(prefix: str, box, note: str = "") -> list[tuple[str, float, s
     ]
 
 
-def _arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
+def arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
     """The `_RADIUS/_THICKNESS/_START/_SWEEP` quartet for one resolved arc --
     shared by a `shape: arc` and a `progress` arc, which both resolve
     `placed.radius`/`.thickness`/`.garmin_start`/`.start_angle`/`.sweep`
@@ -258,8 +258,8 @@ def _arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
     ]
 
 
-def _aod_thickness_constant(prefix: str, placed,
-                            note: str = "aod: thickness override") -> list[tuple[str, float, str]]:
+def aod_thickness_constant(prefix: str, placed,
+                           note: str = "aod: thickness override") -> list[tuple[str, float, str]]:
     """`{prefix}_AOD_THICKNESS`, only when this element's resolved `aod:`
     overrides `thickness:` (plan 14 §4.2) -- the codegen ternary at the draw
     call site falls back to the plain `_THICKNESS` constant otherwise."""
@@ -270,14 +270,14 @@ def _aod_thickness_constant(prefix: str, placed,
 
 #: One override, applied uniformly to every part of a hands/pattern element
 #: (plan 14 §5.1) -- not one constant per part.
-_EVERY_PART_NOTE = "aod: thickness override, applied to every part"
+EVERY_PART_NOTE = "aod: thickness override, applied to every part"
 
 
 def _layout_constants(placed) -> Constants:
-    return kinds.for_placed(placed).layout_constants(_const_prefix(placed.id), placed)
+    return kinds.for_placed(placed).layout_constants(const_prefix(placed.id), placed)
 
 
-def _hand_part_constants(
+def hand_part_constants(
     part_prefix: str, owner: str, index: int, part,
 ) -> list[tuple[str, float | McLiteral, str]]:
     """The `Layout` constants for one resolved hand part, or one resolved

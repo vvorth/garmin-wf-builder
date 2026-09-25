@@ -1303,7 +1303,7 @@ def test_lint_allow_runs_once_per_build_regardless_of_target_count(write_design,
 #: `.note(...)`, across all of `self.bag` and a plain `bag`.
 _BAG_CALL_RE = re.compile(r'(?:bag|self\.bag)\.(?:error|warning|note)\(\s*"([a-zA-Z0-9_-]+)"')
 #: Same call shape, but the code is `<expr> or "fallback"` rather than a bare
-#: literal -- `wfb/ir/builder.py`'s `_expression` forwards `expr.ExprError.code` when
+#: literal -- `wfb/ir/builder.py`'s `expression` forwards `expr.ExprError.code` when
 #: the raiser set one and falls back to a literal default otherwise
 #: (`exc.code or "expression"`). Still finds the literal fallback.
 _BAG_CALL_FALLBACK_RE = re.compile(
@@ -1316,7 +1316,7 @@ _BAG_CALL_FALLBACK_RE = re.compile(
 _DIAGNOSTIC_RE = re.compile(r'Diagnostic\(\s*Severity\.[\w. ]+?,\s*"([a-zA-Z0-9_-]+)"')
 #: Matches a code carried on an `expr.ExprError` (e.g. `source-renamed`,
 #: raised in `wfb/expr.py` for a moved catalogue path) -- it never calls
-#: `bag.error` itself, `wfb/ir/builder.py`'s `_expression` does that once it catches
+#: `bag.error` itself, `wfb/ir/builder.py`'s `expression` does that once it catches
 #: the exception, forwarding `exc.code` (see `_BAG_CALL_FALLBACK_RE` above),
 #: so this is the only place the literal actually appears in source.
 _EXPR_ERROR_CODE_RE = re.compile(r'code="([a-zA-Z0-9_-]+)"')

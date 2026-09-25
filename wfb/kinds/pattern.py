@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from .. import catalog, expr, formatting
 from ..catalog import Type
 from ..fonts import BakedFont
-from ..ir.builder import _ABSENCE_IS_NORMAL, _and_paths, _dedup_append
+from ..ir.builder import ABSENCE_IS_NORMAL, and_paths, dedup_append
 from ..ir.model import (
     Element, Expression, HandPart, PATTERN_LOOP_INDEX, PatternElement, Position,
-    ROLE_COLOR, ROLE_PART_VISIBLE, _drawn_copies,
+    ROLE_COLOR, ROLE_PART_VISIBLE, drawn_copies,
 )
 from ..layout import Ink, Placed, PlacedPattern, ResolvedHandPart, round_half_away, text_ink
 from ..preview import arc_span
@@ -23,16 +23,16 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated
 from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, _color, _const_prefix, _field, _glyph_y_expr, _mc_float,
+    NO_AOD, AodStyle, const_prefix, font_field, glyph_y_expr, mc_color, mc_float,
 )
-from ..emit.monkeyc.shapes import _RADIAL_DIRECTION, _emit_outline_loop, _radial_radius_expr
+from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline_loop, radial_radius_expr
 from ..emit.writer import Writer
 from . import ElementKind, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..layout import Resolver
-    from ..preview import _Renderer
+    from ..preview import Renderer
 
 
 @dataclass(frozen=True)
@@ -163,7 +163,7 @@ def _pattern_steps(
                 notes=["an angle 'step:' is for 'pattern: radial'"],
             )
             return None
-        return 0.0, 0.0, b._position(step_raw, node, "step")
+        return 0.0, 0.0, b.position(step_raw, node, "step")
 
     if isinstance(step_raw, dict):
         b.bag.error(
@@ -177,13 +177,13 @@ def _pattern_steps(
     if step_raw is None:
         step_degrees = 360.0 / count
     else:
-        step_angle = b._angle(node, "step")
+        step_angle = b.angle(node, "step")
         if step_angle is None:
-            return None  # _angle already reported the real mistake
+            return None  # angle already reported the real mistake
         step_degrees = step_angle.degrees
-    start_angle = b._angle(node, "start") if "start" in node else None
+    start_angle = b.angle(node, "start") if "start" in node else None
     if "start" in node and start_angle is None:
-        return None  # _angle already reported the real mistake
+        return None  # angle already reported the real mistake
     start_degrees = start_angle.degrees if start_angle is not None else 0.0
 
     if step_degrees == 0.0:
@@ -262,14 +262,14 @@ def _check_pattern_absence(b, node: dict, element: PatternElement) -> None:
     and reports **one** error naming every nullable source found, not
     one per expression, the same "one error, not N" discipline
     `docs/lore/codegen.md` asks for everywhere else.  The wording is the
-    house `_check_other_absence` style, adapted: a pattern has no
+    house `check_other_absence` style, adapted: a pattern has no
     `placeholder:`/`fallback:` to offer, only `hide`, and absence hides
     the *whole* pattern (every copy, every part), not just the one
     binding that went missing -- the reading is taken once per frame,
     before the loop.
 
     The mirror case -- `when_absent: hide` declared but nothing on the
-    pattern is ever absent -- reuses `_check_absence`'s own "has no
+    pattern is ever absent -- reuses `check_absence`'s own "has no
     effect" wording, so both notes read the same across every element
     kind that has one.
 
@@ -288,15 +288,15 @@ def _check_pattern_absence(b, node: dict, element: PatternElement) -> None:
     if nullable:
         if element.when_absent is not None:
             return
-        sources = tuple(sorted(b._nullable_sources(tuple(nullable))))
+        sources = tuple(sorted(b.nullable_sources(tuple(nullable))))
         first = nullable[0]
         b.bag.error(
             "when-absent",
-            f"{element.id}: reads {_and_paths(sources)}, which can be "
+            f"{element.id}: reads {and_paths(sources)}, which can be "
             "absent, so 'when_absent: hide' is required",
             first.span,
             notes=[
-                _ABSENCE_IS_NORMAL,
+                ABSENCE_IS_NORMAL,
                 "a pattern has no placeholder or fallback -- absence hides "
                 "the whole pattern, every copy and every part, because the "
                 "reading is taken once per frame, before the loop",
@@ -342,8 +342,8 @@ def _pattern_arc(renderer, placed: PlacedPattern, part, ox: float, oy: float, in
     + start + index * step` (plain `part.start_angle` for a linear
     pattern, whose `start`/`step` are `0`)."""
     s = renderer.scale
-    fill = renderer._aod_color(placed.element, "color", part.color, values)
-    thickness = renderer._aod_geometry(placed, "thickness", part.thickness)
+    fill = renderer.aod_color(placed.element, "color", part.color, values)
+    thickness = renderer.aod_geometry(placed, "thickness", part.thickness)
     cx, cy = ox * s, oy * s
     r = part.radius * s
     author_start = part.start_angle + placed.start + index * placed.step
@@ -358,7 +358,7 @@ def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
     """A `shape: text` template part, drawn at this copy's own anchor,
     rounded half-up the way `runtime-lib/WfbGeom.mc`'s `rotatedX`/
     `rotatedY` round it (:func:`pattern_text_anchor`), through the same
-    `_draw_text`/`_draw_vector_text` a `text` element uses.
+    `draw_text`/`draw_vector_text` a `text` element uses.
 
     A baked/system font draws upright glyphs. A `face:` font's `curve:`
     turns them, at the part's own local angle composed with this copy's
@@ -369,10 +369,10 @@ def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
     at every copy.
     """
     text = part.texts[index]
-    color = renderer._aod_color(placed.element, "color", part.color, values)
+    color = renderer.aod_color(placed.element, "color", part.color, values)
     anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
     ring_color = (
-        renderer._color(part.outline_color, values) if part.outline_color is not None else None
+        renderer.color(part.outline_color, values) if part.outline_color is not None else None
     )
     if part.font.is_vector:
         if not part.font.available:
@@ -383,7 +383,7 @@ def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
         )
 
         def draw(at, fill, box=None):
-            renderer._draw_vector_text(
+            renderer.draw_vector_text(
                 text, at, part.align, part.vertical_align, part.font.metric, fill,
                 part.curve.style, angle, part.curve.radius_px, part.curve.direction)
     else:
@@ -392,9 +392,9 @@ def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
         )
 
         def draw(at, fill, box=None):
-            renderer._draw_text(font, text, at, part.align, part.vertical_align,
-                                part.font.metric, fill)
-    renderer._draw_outlined(draw, anchor, color, ring_color, part.outline_width)
+            renderer.draw_text(font, text, at, part.align, part.vertical_align,
+                               part.font.metric, fill)
+    renderer.draw_outlined(draw, anchor, color, ring_color, part.outline_width)
 
 
 def _pattern_needs_math(placed: PlacedPattern) -> bool:
@@ -436,11 +436,11 @@ def _pattern_angle_expr(element: PatternElement) -> tuple[str, str]:
     common case) -- the comment always spells out both numbers, so the
     general rule stays visible even then.
     """
-    step_rad = _mc_float(math.radians(element.step_angle))
+    step_rad = mc_float(math.radians(element.step_angle))
     comment = f"({element.start_angle:g} + {element.step_angle:g} i) degrees"
     if element.start_angle == 0.0:
         return f"i * {step_rad}", comment
-    start_rad = _mc_float(math.radians(element.start_angle))
+    start_rad = mc_float(math.radians(element.start_angle))
     return f"{start_rad} + i * {step_rad}", comment
 
 
@@ -463,9 +463,9 @@ def _emit_pattern_text_angle_expr(element: PatternElement, part) -> str:
     """
     step = element.step_angle if element.pattern == "radial" else 0.0
     angle = PatternTextAngle(part.curve.angle_garmin, element.start_angle, step)
-    g0 = _mc_float(angle.local - angle.start)
+    g0 = mc_float(angle.local - angle.start)
     if element.pattern == "radial":
-        return f"{g0} - i * {_mc_float(angle.step)}"
+        return f"{g0} - i * {mc_float(angle.step)}"
     return g0
 
 
@@ -477,7 +477,7 @@ def _emit_pattern_text_call(
     of a `shape: text` pattern part, at the given screen-space anchor: plain
     `dc.drawText` for an upright part, `drawAngledText`/`drawRadialText`
     under its own `curve:`.  The interior pass and every `outline:` stamp
-    share it (the pattern-level twin of `shapes._emit_plain_text_call`/
+    share it (the pattern-level twin of `shapes.emit_plain_text_call`/
     `wfb.kinds.text._emit_vector_draw_call`); ``x_expr``/``y_expr`` arrive already
     rotated/translated, and a stamp's screen-space offset commutes with
     both the copy's rotation and the curve angle (research 14 §3.2).
@@ -492,9 +492,9 @@ def _emit_pattern_text_call(
         groups = [x_expr, f"{y_expr}, {font_expr}, {value_code}", f"{justify}, {angle_expr}"]
     else:  # "radial"
         angle_expr = _emit_pattern_text_angle_expr(element, part)
-        direction = _RADIAL_DIRECTION[part.curve.direction or "clockwise"]
-        radius_expr = _radial_radius_expr(f"Layout.{part_prefix}_RADIUS", part.vertical_align,
-                                          part.curve.direction, font_expr)
+        direction = RADIAL_DIRECTION[part.curve.direction or "clockwise"]
+        radius_expr = radial_radius_expr(f"Layout.{part_prefix}_RADIUS", part.vertical_align,
+                                         part.curve.direction, font_expr)
         groups = [x_expr, f"{y_expr}, {font_expr}, {value_code}",
                   f"{justify}, {angle_expr}, {radius_expr}", f"Graphics.{direction}"]
     callee = {None: "dc.drawText", "angled": "dc.drawAngledText"}.get(curve_style, "dc.drawRadialText")
@@ -545,10 +545,10 @@ def _emit_pattern_text_draw(
         # lands outside the rotation, so it moves the drawn point
         # straight up on screen regardless of `theta`. Skipped entirely
         # under `curve:`: `vertical_align: bottom` is rejected there
-        # (`Builder._build_curve`), and `center`/`top` need no
+        # (`Builder.build_curve`), and `center`/`top` need no
         # y-shift -- `curve:`'s own vertical alignment is a `justify` flag,
         # never a coordinate shift (plan 11 §2.3).
-        cy_expr = "cy" if curve_style is not None else _glyph_y_expr(
+        cy_expr = "cy" if curve_style is not None else glyph_y_expr(
             "cy", part.vertical_align, font_expr)
         x_expr = (
             f"WfbGeom.rotatedX(Layout.{part_prefix}_X, "
@@ -561,7 +561,7 @@ def _emit_pattern_text_draw(
     else:
         x_expr = f"ox + Layout.{part_prefix}_X"
         oy_expr = f"oy + Layout.{part_prefix}_Y"
-        y_expr = oy_expr if curve_style is not None else _glyph_y_expr(
+        y_expr = oy_expr if curve_style is not None else glyph_y_expr(
             oy_expr, part.vertical_align, font_expr)
 
     with w.block_if(f"if ({font_expr} != null)" if part.font.is_vector else None):
@@ -569,15 +569,15 @@ def _emit_pattern_text_draw(
             # `index_var`/`offsets_var` are unique per part (`part_prefix`
             # already is): the copy loop wrapping this whole method already
             # declares its own `var i`, and several outlined text parts can
-            # share this one generated method (`_emit_outline_loop`).
-            _emit_outline_loop(
-                w, part.outline_width, _color(part.outline_color), x_expr, y_expr,
+            # share this one generated method (`emit_outline_loop`).
+            emit_outline_loop(
+                w, part.outline_width, mc_color(part.outline_color), x_expr, y_expr,
                 lambda ox_, oy_: _emit_pattern_text_call(
                     w, element, part, part_prefix, radial, font_expr, value_code, justify,
                     ox_, oy_),
                 index_var=f"outlineI{part_prefix}", offsets_var=f"outlineOffsets{part_prefix}",
             )
-            w.line(f"dc.setColor({_color(part.color)}, Graphics.COLOR_TRANSPARENT);")
+            w.line(f"dc.setColor({mc_color(part.color)}, Graphics.COLOR_TRANSPARENT);")
         _emit_pattern_text_call(
             w, element, part, part_prefix, radial, font_expr, value_code, justify,
             x_expr, y_expr)
@@ -587,7 +587,7 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
                        part, radial: bool, hoist_pen: bool, text_fonts: dict[str, str],
                        thickness_override: str | None, aod: AodStyle) -> None:
     """One template part, drawn for the current copy `i`: polygon/line/
-    circle parts go through `rotated._emit_transformed_part` (rotated for a radial
+    circle parts go through `rotated.emit_transformed_part` (rotated for a radial
     pattern, translated for a linear one, exactly as a hand's parts are).
     An `arc` part always goes through `WfbArc.drawSpan`, its start angle
     turned by plain degree subtraction.  A `text` part moves only its
@@ -619,8 +619,8 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
         return
     thickness_expr = aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
     if part.shape != "arc":
-        rotated._emit_transformed_part(w, part, part_prefix, radial=radial,
-                                       thickness_expr=thickness_expr, set_pen=not hoist_pen)
+        rotated.emit_transformed_part(w, part, part_prefix, radial=radial,
+                                      thickness_expr=thickness_expr, set_pen=not hoist_pen)
         return
     # arc: always centred on the copy's own origin.  A radial pattern
     # turns the author start angle by plain degree subtraction -- the same
@@ -630,10 +630,10 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     # exactly the numbers a `shape: arc` of the same angles would.  A
     # linear pattern never turns at all, so its arc keeps copy 0's angles
     # unchanged at every copy, and only its centre moves.
-    g0 = _mc_float(90.0 - (part.start_angle + element.start_angle))
-    sweep = _mc_float(part.sweep)
+    g0 = mc_float(90.0 - (part.start_angle + element.start_angle))
+    sweep = mc_float(part.sweep)
     if radial:
-        step_deg = _mc_float(element.step_angle)
+        step_deg = mc_float(element.step_angle)
         start_arg = f"{g0} - i * {step_deg}"
         cx_arg, cy_arg = "cx", "cy"
     else:
@@ -700,7 +700,7 @@ class PatternKind(ElementKind):
                 b.doc.span(node, "skip_every"),
             )
             return None
-        if not _drawn_copies(count, skip, skip_every):
+        if not drawn_copies(count, skip, skip_every):
             b.bag.error(
                 "pattern",
                 f"{element_id}: 'skip:'/'skip_every:' leave every copy undrawn",
@@ -717,10 +717,10 @@ class PatternKind(ElementKind):
         try:
             # Any source is allowed here, absent-able or not:
             # `_check_pattern_absence` polices absence for the whole element.
-            element_color, color_failed = b._owned_color(node, element_id, hand=False)
+            element_color, color_failed = b.owned_color(node, element_id, hand=False)
             ok = not color_failed
             for index, raw_part in enumerate(node.get("parts") or []):
-                part = b._build_hand_part(
+                part = b.build_hand_part(
                     raw_part, element_id, index, element_color, color_failed,
                     context="pattern",
                 )
@@ -735,11 +735,11 @@ class PatternKind(ElementKind):
             return None
 
         colors: list[Expression] = []
-        _dedup_append(colors, element_color)
+        dedup_append(colors, element_color)
         for part in parts:
-            _dedup_append(colors, part.color)
+            dedup_append(colors, part.color)
             if part.shape == "text" and part.outline is not None:
-                _dedup_append(colors, part.outline.color)
+                dedup_append(colors, part.outline.color)
 
         element = PatternElement(
             **common,
@@ -760,7 +760,7 @@ class PatternKind(ElementKind):
 
     def resolve(self, r: Resolver, element: PatternElement, parent: Box, depth: int) -> Placed:
         """`type: pattern` -- the template resolved once in its own frame
-        (`_resolve_parts`, as for a hand), plus which copies are drawn and
+        (`resolve_parts`, as for a hand), plus which copies are drawn and
         the repeat rule; the device performs the repeat transform itself
         (ADR 0004, amended).
 
@@ -770,10 +770,10 @@ class PatternKind(ElementKind):
         ink (`_pattern_text_ink`) is measured in the per-copy loop that also
         unions `box` from every drawn copy's ink.
         """
-        cx, cy = r._point(element.at, parent)
+        cx, cy = r.point(element.at, parent)
         center = (round(cx), round(cy))
 
-        parts, reach = r._resolve_parts(
+        parts, reach = r.resolve_parts(
             element.parts, element.id, min_1px=element.resolved_min_1px)
 
         if element.pattern == "radial":
@@ -783,10 +783,10 @@ class PatternKind(ElementKind):
             start = step = 0.0
             reach = 0.0  # only a radial pattern reports a disc
             step_position = element.step or Position()
-            dx = round_half_away(r._len(step_position.dx, parent, Axis.X, 0))
-            dy = round_half_away(r._len(step_position.dy, parent, Axis.Y, 0))
+            dx = round_half_away(r.length(step_position.dx, parent, Axis.X, 0))
+            dy = round_half_away(r.length(step_position.dy, parent, Axis.Y, 0))
 
-        aod_thickness = r._aod_extent(element, "thickness", parent, 1)
+        aod_thickness = r.aod_extent(element, "thickness", parent, 1)
         placed = PlacedPattern(
             element, IntBox(0, 0, 0, 0), center, depth,
             parts=parts, copies=element.drawn_indices(),
@@ -860,12 +860,12 @@ class PatternKind(ElementKind):
                 if_unavailable=part.if_unavailable, curve=part.curve))
         return runs
 
-    def draw_preview(self, renderer: _Renderer, placed: PlacedPattern) -> None:
+    def draw_preview(self, renderer: Renderer, placed: PlacedPattern) -> None:
         """`type: pattern` -- one template, drawn once per copy through
         :meth:`PlacedPattern.transform`: the very same `(ox, oy, sin, cos)`
         the generated draw method computes on the device. Copies draw
         ascending, parts in list order within a copy -- the generated
-        nested-loop order. A polygon/line/circle part reuses `_hand_part`;
+        nested-loop order. A polygon/line/circle part reuses `hand_part`;
         an `arc` part turns its start angle with the copy instead
         (`_pattern_arc`); a `text` part draws at the copy's own rounded
         anchor (`_pattern_text`).
@@ -885,14 +885,14 @@ class PatternKind(ElementKind):
             # evaluated afresh for every copy, exactly as the device does.
             values = {**renderer.values, expr.COPY: index}
             for part_index, part in enumerate(placed.parts):
-                if not renderer._visible(element.parts[part_index].visible, values):
+                if not renderer.visible(element.parts[part_index].visible, values):
                     continue
                 if part.shape == "arc":
                     _pattern_arc(renderer, placed, part, ox, oy, index, values)
                 elif part.shape == "text":
                     _pattern_text(renderer, placed, part, ox, oy, sin_t, cos_t, index, values)
                 else:
-                    renderer._hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
+                    renderer.hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
 
     def emit_draw(self, w: Writer, resolved, placed: PlacedPattern, value_guards, plan,
                   aod: AodStyle = NO_AOD) -> None:
@@ -932,10 +932,10 @@ class PatternKind(ElementKind):
         `wfb.kinds.text._emit_vector_text_draw` already does.
         """
         element = placed.element
-        prefix = _const_prefix(placed.id)
+        prefix = const_prefix(placed.id)
         # `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1): one override,
         # applied uniformly to every part, hoisted or not.
-        thickness_override = rotated._aod_thickness_override(placed, prefix)
+        thickness_override = rotated.aod_thickness_override(placed, prefix)
         # `element.parts[i]` and `placed.parts[i]` are the same template, in the
         # same order (`resolve` builds one `ResolvedHandPart`
         # per `HandPart`, 1:1) -- so the IR part is what carries `visible:`
@@ -961,7 +961,7 @@ class PatternKind(ElementKind):
                 if part.font.is_vector:
                     vector_text_fonts.add(part.font.reference)
         for reference, local in text_fonts.items():
-            w.line(f"var {local} = _{_field(reference)};")
+            w.line(f"var {local} = _{font_field(reference)};")
             if reference not in vector_text_fonts:
                 with w.block(f"if ({local} == null)"):
                     w.line("return;  // the font resource failed to load")
@@ -1057,10 +1057,10 @@ class PatternKind(ElementKind):
         if not radial:
             out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
             out.append((f"{prefix}_DY", placed.dy, ""))
-        out.extend(layout_constants_mod._aod_thickness_constant(
-            prefix, placed, layout_constants_mod._EVERY_PART_NOTE))
+        out.extend(layout_constants_mod.aod_thickness_constant(
+            prefix, placed, layout_constants_mod.EVERY_PART_NOTE))
         for index, part in enumerate(placed.parts):
-            out.extend(layout_constants_mod._hand_part_constants(
+            out.extend(layout_constants_mod.hand_part_constants(
                 f"{prefix}_{index}", "template", index, part))
         return out
 

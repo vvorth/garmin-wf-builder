@@ -252,7 +252,7 @@ specifies each item.
     `aod: {filled: ...}` on `shape: polygon` (plan 14 §4.3, slice 2 built
     every other override key and a `text` element's baked-font override)
     -- all three are friendly build errors, whether the element writes
-    the key or inherits it from a group (`Builder._aod_refusal`), never a
+    the key or inherits it from a group (`Builder.aod_refusal`), never a
     silent no-op.
 
 ## Architecture options not taken

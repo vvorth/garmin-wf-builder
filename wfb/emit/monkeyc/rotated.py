@@ -5,15 +5,15 @@ from __future__ import annotations
 from ..writer import Writer
 
 
-def _aod_thickness_override(placed, prefix: str) -> str | None:
+def aod_thickness_override(placed, prefix: str) -> str | None:
     """The element-level `aod: {thickness: ...}` constant a hands/pattern
     element applies uniformly to every part's pen width (plan 14 §5.1), or
     `None` when it has none."""
     return f"Layout.{prefix}_AOD_THICKNESS" if placed.aod_thickness is not None else None
 
 
-def _emit_transformed_part(w: Writer, part, part_prefix: str, *, radial: bool,
-                           thickness_expr: str, set_pen: bool = True) -> None:
+def emit_transformed_part(w: Writer, part, part_prefix: str, *, radial: bool,
+                          thickness_expr: str, set_pen: bool = True) -> None:
     """One polygon/line/circle part at the current copy's origin: rotated
     about `(cx, cy)` through `WfbGeom.*Rotated` (a hand, or a radial
     pattern), or translated by `(ox, oy)` (a linear pattern, which never

@@ -15,7 +15,7 @@ is *exactly* the part's own colour or exactly the background -- no blended
 edge pixel to complicate an exact-colour pixel probe.
 
 Each test is built to fail against the pre-B3 preview, which fell into
-`_hand_part`'s `circle` branch for a text part (drawing nothing useful:
+`hand_part`'s `circle` branch for a text part (drawing nothing useful:
 `part.radius`/`part.filled` are at their unused defaults) and so left
 every one of these designs blank but for the background rectangle.
 
@@ -155,7 +155,7 @@ def test_glyphs_stay_upright_when_the_copy_turns_90_degrees(write_design, db, ba
     """The same fixed glyph ("1", tall and narrow) at copy 0 (12 o'clock)
     and copy 1 (90deg further, 3 o'clock): the *anchor* turns with the
     copy, but the glyph's own drawn shape must not -- a bug that rotated
-    the glyph the way `_hand_part` rotates a hand's vertices would swap
+    the glyph the way `hand_part` rotates a hand's vertices would swap
     copy 1's width and height."""
     body = """  digits:
     type: pattern

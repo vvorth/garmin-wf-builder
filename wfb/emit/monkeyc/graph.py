@@ -10,14 +10,14 @@ from ...ir import (
 )
 from ...layout import PlacedGraph
 from ...series import Acquisition
-from .common import _NO_GUARDS, NO_AOD, AodStyle, _const_prefix
+from .common import _NO_GUARDS, NO_AOD, AodStyle, const_prefix
 from ..writer import Writer
 
 
 def _emit_graph_fields(w: Writer, graphs: list) -> None:
     """One cached series (plus its auto bounds, where asked for) per `graph`.
 
-    Rebuilt once a minute (`_emit_graph`'s cadence check), not per frame --
+    Rebuilt once a minute (`emit_graph`'s cadence check), not per frame --
     see `runtime-lib/WfbSeries.mc`'s module docstring for why.
     """
     if not graphs:
@@ -43,7 +43,7 @@ def _emit_graph_fields(w: Writer, graphs: list) -> None:
     w.blank()
 
 
-def _emit_graph(w: Writer, placed: PlacedGraph, aod: AodStyle = NO_AOD) -> None:
+def emit_graph(w: Writer, placed: PlacedGraph, aod: AodStyle = NO_AOD) -> None:
     """The rebuild-cadence check, then one drawing call per `style:`.
 
     The check runs here rather than unconditionally in `onUpdate` -- after
@@ -51,7 +51,7 @@ def _emit_graph(w: Writer, placed: PlacedGraph, aod: AodStyle = NO_AOD) -> None:
     so a hidden graph does not pay for a rebuild nobody will see this frame.
     """
     element = placed.element
-    prefix = _const_prefix(placed.id)
+    prefix = const_prefix(placed.id)
     built = graph_built_field(element.id)
     w.comment("the sample interval here is minutes, so rebuilding more often than")
     w.comment("once a minute could not show anything new (WfbSeries.mc's docstring)")

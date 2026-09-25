@@ -1053,7 +1053,7 @@ elements:
 def test_own_aod_format_with_an_unknown_strftime_code_is_a_friendly_error(write_design, bag):
     """An `aod: {format: ...}` override is a strftime-style spec exactly
     like the awake `format:` it restyles -- it must go through the same
-    `Builder._check_format` checks, not reach `formatting.emit`/`render`
+    `Builder.check_format` checks, not reach `formatting.emit`/`render`
     unvalidated and crash with a raw `FormatError` (must fail against an
     implementation that stores `aod.format` verbatim with no check at
     all)."""
@@ -1075,7 +1075,7 @@ elements:
 
 def test_own_aod_format_with_the_wrong_code_table_is_a_friendly_error(write_design, bag):
     """The same date-code-on-a-clock-value (and reverse) mismatch
-    `_check_format` already catches for the awake `format:` -- `%M` is a
+    `check_format` already catches for the awake `format:` -- `%M` is a
     time code (minute), not a date one, and a `date.today` value's `aod:`
     override must be checked against `DATE_CODES`, not silently accepted."""
     text = BASE + """

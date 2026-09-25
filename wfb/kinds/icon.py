@@ -7,21 +7,21 @@ from typing import TYPE_CHECKING
 
 from .. import catalog, expr, icons, units
 from ..ir import local_name
-from ..ir.builder import _ICON_SIZE_NOTE
+from ..ir.builder import ICON_SIZE_NOTE
 from ..ir.model import Element, IconElement
 from ..layout import Placed, PlacedIcon, alignment_shift
-from ..preview import _baked_glyph
+from ..preview import baked_glyph
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc.common import NO_AOD, AodStyle, _const_prefix, _field
-from ..emit.monkeyc.shapes import _emit_plain_text_call
+from ..emit.monkeyc.common import NO_AOD, AodStyle, const_prefix, font_field
+from ..emit.monkeyc.shapes import emit_plain_text_call
 from ..emit.writer import Writer
 from . import ElementKind, IconFont, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
     from ..layout import Resolver
-    from ..preview import _Renderer
+    from ..preview import Renderer
 
 
 def _build_glyph_icon(b, node: dict, common: dict, placement: dict) -> Element:
@@ -38,7 +38,7 @@ def _build_glyph_icon(b, node: dict, common: dict, placement: dict) -> Element:
     """
     raw = str(node.get("glyph"))
     span = b.doc.span(node, "glyph")
-    character = b._resolve_icon_glyph(raw, span)
+    character = b.resolve_icon_glyph(raw, span)
     if character is None:
         character = icons.FALLBACK_CODEPOINT
     return IconElement(**common, icon=raw.upper(), codepoint=character, **placement)
@@ -68,22 +68,22 @@ class IconKind(ElementKind):
                        "wfb.catalog.WEATHER_CONDITION_SOURCES for what it accepts"],
             )
 
-        size = b._baked_size_length(
-            node, "size", code="icon", label="icon size", note=_ICON_SIZE_NOTE,
+        size = b.baked_size_length(
+            node, "size", code="icon", label="icon size", note=ICON_SIZE_NOTE,
         )
 
-        align, vertical_align = b._alignment(node)
+        align, vertical_align = b.alignment(node)
         # Shared by every branch below: `**placement` is the four keys an
         # `IconElement` needs regardless of which of 'icon'/'icon_for'/
-        # 'glyph' chose it -- one `_color_expression(node, "color")` call
+        # 'glyph' chose it -- one `color_expression(node, "color")` call
         # instead of one per branch.
         placement = dict(
-            size=size, color=b._color_expression(node, "color"),
+            size=size, color=b.color_expression(node, "color"),
             align=align, vertical_align=vertical_align,
         )
 
         if has_icon_for:
-            value_for = b._expression(node, "icon_for")
+            value_for = b.expression(node, "icon_for")
             if value_for is not None and (
                 not isinstance(value_for.ast, expr.Ref)
                 or len(value_for.sources) != 1
@@ -108,14 +108,14 @@ class IconKind(ElementKind):
         if has_glyph:
             return _build_glyph_icon(b, node, common, placement)
 
-        codepoint = b._resolve_icon_name(name, b.doc.span(node, "icon"))
+        codepoint = b.resolve_icon_name(name, b.doc.span(node, "icon"))
         if codepoint is None:
             codepoint = icons.FALLBACK_CODEPOINT
 
         return IconElement(**common, icon=name, codepoint=codepoint, **placement)
 
     def resolve(self, r: Resolver, element: IconElement, parent: Box, depth: int) -> Placed:
-        cx, cy = r._point(element.at, parent)
+        cx, cy = r.point(element.at, parent)
         # Independent of `parent`, deliberately: an icon's font is baked once,
         # before any box in the tree is resolved, so its size cannot depend on
         # one (ADR-equivalent reasoning in wfb.units.pixel_size).
@@ -134,7 +134,7 @@ class IconKind(ElementKind):
             width, height = font.measure(measure_codepoint)
         else:
             width = height = px  # the font failed to bake; keep a plausible box
-        justify = r._justify(element)
+        justify = r.justify(element)
         # The lint box only -- like `wfb.kinds.text.TextKind.resolve`, the runtime `drawText`
         # anchor stays `(cx, cy)` unshifted: an icon's alignment is a
         # device-side justify, not a build-time box move (see
@@ -168,18 +168,18 @@ class IconKind(ElementKind):
             icon=IconFont(element.size, glyphs, reference, element.resolved_antialias),
             glyph_table=table)]
 
-    def draw_preview(self, renderer: _Renderer, placed: PlacedIcon) -> None:
+    def draw_preview(self, renderer: Renderer, placed: PlacedIcon) -> None:
         """One glyph from the baked icon font -- the same mechanism a
         custom-font text element uses to draw, not a hand-drawn shape.  See
         ``wfb.icons``: this is what makes preview and device agree on an icon's
         appearance without a second, hand-maintained drawing implementation."""
         font = renderer.resolved.fonts.get(placed.font_key)
-        glyph = _baked_glyph(font, placed.codepoint)
+        glyph = baked_glyph(font, placed.codepoint)
         if glyph is None:
             return  # the font failed to bake, or the glyph is missing from it
         s = renderer.scale
-        color = renderer._aod_color(placed.element, "color", placed.element.color)
-        renderer._paste_glyph(font.sheet, glyph, placed.box.x * s, placed.box.y * s, color)
+        color = renderer.aod_color(placed.element, "color", placed.element.color)
+        renderer.paste_glyph(font.sheet, glyph, placed.box.x * s, placed.box.y * s, color)
 
     def emit_draw(self, w: Writer, resolved, placed: PlacedIcon, value_guards, plan,
                   aod: AodStyle = NO_AOD) -> None:
@@ -197,15 +197,15 @@ class IconKind(ElementKind):
         could return, baked in ahead of time (`wfb.emit.resources.icon_font_specs`).
 
         `align`/`vertical_align` place the glyph the same way a `text` element
-        does: `placed.justify` (`Resolver._justify`) picks the `TEXT_JUSTIFY_*`
-        flags, and `_glyph_y_expr` handles `bottom`'s missing platform flag by
+        does: `placed.justify` (`Resolver.justify`) picks the `TEXT_JUSTIFY_*`
+        flags, and `glyph_y_expr` handles `bottom`'s missing platform flag by
         subtracting the *icon* font's own `dc.getFontHeight` -- the anchor
         itself (`Layout.<P>_CX/_CY`) never moves; center/center yields the same
         literal flags whether or not `align`/`vertical_align` are given.
         """
         element = placed.element
-        prefix = _const_prefix(placed.id)
-        w.line(f"var font = _{_field(placed.font_key)};")
+        prefix = const_prefix(placed.id)
+        w.line(f"var font = _{font_field(placed.font_key)};")
         with w.block("if (font == null)"):
             w.line("return;  // the icon font resource failed to load")
         w.blank()
@@ -218,8 +218,8 @@ class IconKind(ElementKind):
             glyph_expr = f'"{element.codepoint}"'
         justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
         w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
-        _emit_plain_text_call(w, f"Layout.{prefix}_CX", f"Layout.{prefix}_CY", "font", glyph_expr,
-                              justify, element.vertical_align)
+        emit_plain_text_call(w, f"Layout.{prefix}_CX", f"Layout.{prefix}_CY", "font", glyph_expr,
+                             justify, element.vertical_align)
 
     def describe(self, placed: PlacedIcon) -> str:
         element = placed.element

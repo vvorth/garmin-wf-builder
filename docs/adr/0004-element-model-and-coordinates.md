@@ -81,7 +81,7 @@ reason is this ADR's own structure: a `group` renders nothing, so the emitter
 produces no method for one, and §2's per-device resolve flattens the tree to a
 list of placed elements. There is no group left downstream to gate a subtree
 from. So `wfb.ir` conjoins a group's condition into every descendant's own at
-build time (`Builder._push_visible`), producing one real `Expression` per leaf.
+build time (`Builder.push_visible`), producing one real `Expression` per leaf.
 Nested groups compose because the inner group has already pushed before the
 outer one runs, and everything downstream — reader hoisting, null guards, the
 host preview's evaluator, the linter's constant folding — works on it with no
@@ -372,7 +372,7 @@ renderer can be trusted. It is a capability hand authors do not have.
 > inconsistency: `text`'s old `vertical_align: baseline` had *already*
 > computed its lint box correctly (the box's bottom edge at the point), but
 > the device and the preview both drew it exactly like `top` — there being
-> no bottom-justify flag, `Resolver._justify` never added `VCENTER` for
+> no bottom-justify flag, `Resolver.justify` never added `VCENTER` for
 > either value, so the lint box and the actual ink silently disagreed
 > (`docs/plans/07-align-everywhere.md` §1.2). `baseline` is renamed `bottom`
 > (a friendly, no-shim build error catches the old spelling) partly because
