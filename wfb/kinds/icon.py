@@ -124,7 +124,7 @@ def resolve(r, element: IconElement, parent: Box, depth: int) -> Placed:
     else:
         width = height = px  # the font failed to bake; keep a plausible box
     justify = r._justify(element)
-    # The lint box only -- like `_resolve_text`, the runtime `drawText`
+    # The lint box only -- like `wfb.kinds.text.resolve`, the runtime `drawText`
     # anchor stays `(cx, cy)` unshifted: an icon's alignment is a
     # device-side justify, not a build-time box move (see
     # `wfb.kinds.icon.emit_draw`).

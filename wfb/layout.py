@@ -15,7 +15,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
-from . import catalog, complications, formatting, icons, kinds, units
+from . import complications, formatting, icons, kinds, units
 from .devices import Device, FontMetric
 from .diagnostics import Span
 from .fonts import BakedFont, fallback
@@ -480,7 +480,7 @@ def text_ink(
 ) -> Ink:
     """The ink of one measured `width`x`height` run anchored at `(x, y)` --
     the one derivation shared by a standalone `text` element
-    (`Resolver._resolve_text`'s box, `visible_reach`) and a pattern's
+    (`wfb.kinds.text.resolve`'s box, `visible_reach`) and a pattern's
     `shape: text` part (`_pattern_part_ink`, `Resolver._resolve_pattern`'s
     reach), so box and reach always describe the same shape.
 
@@ -1174,52 +1174,6 @@ class Resolver:
         cx, cy = self._point(element.at, parent)
         return self._sized_box(element, parent, cx, cy)[0]
 
-    def _resolve_text(self, element: Text, parent: Box, depth: int) -> Placed:
-        font = self._text_font(element.font, element.font_is_custom, element.id, element.curve)
-        widest = self._widest_text(element)
-        # A baked sheet measures exactly; anything else is an estimate --
-        # still a conservative, non-zero one for an *unavailable* vector
-        # font, whose metric locates no face and falls to Pillow's default.
-        width = font.width(widest)
-        line_height = font.line_height
-
-        x, y = self._point(element.at, parent)
-        curve_style, curve_angle_degrees, curve_angle_garmin, curve_direction = \
-            _curve_angles(element.curve)
-        curve_radius_px = 0
-        if curve_style == "radial" and element.curve.radius is not None:
-            curve_radius_px = round(self._extent(element.curve.radius, parent, Axis.MINOR, 0,
-                                                 min_1px=element.resolved_min_1px,
-                                                 what="curve.radius"))
-        ring_px = float(element.outline.width) if element.outline is not None else 0.0
-        box = text_ink(
-            x, y, width, line_height, element.align, element.vertical_align,
-            curve_style=curve_style, angle_garmin=curve_angle_garmin,
-            radius_px=curve_radius_px, direction=curve_direction, metric=font.metric,
-            pad=ring_px, fonts_root=self.device.fonts_root).box()
-
-        return PlacedText(
-            element, box.rounded(), (round(x), round(y)), depth,
-            anchor_point=(round(x), round(y)),
-            justify=self._justify(element),
-            font_reference=font.reference,
-            font_is_custom=font.is_custom,
-            font_px=font.px,
-            font_metric=font.metric,
-            widest=widest,
-            measured_width=round(width),
-            width_is_estimated=font.baked is None,
-            font_face=font.face,
-            font_is_vector=font.is_vector,
-            font_available=font.available,
-            curve_style=curve_style,
-            curve_angle_degrees=curve_angle_degrees,
-            curve_angle_garmin=curve_angle_garmin,
-            curve_radius_px=curve_radius_px,
-            curve_direction=curve_direction,
-            line_height=line_height,
-        )
-
     def _text_font(self, font: str, font_is_custom: bool, warn_id: str,
                    curve: Curve | None) -> _Font:
         """`_font_for_ref`, plus gates 1-3 for a `face:` (vector) font: its
@@ -1706,27 +1660,6 @@ class Resolver:
         return _Font(metric.size_px if metric else 0, font, False, None, metric,
                      fonts_root=self.device.fonts_root)
 
-    def _widest_text(self, element: Text) -> str:
-        if element.literal is not None:
-            return element.literal
-        if element.value is None:
-            return ""
-        source = catalog.get(element.value.sources[0]) if element.value.sources else None
-        spec = element.format or "{}"
-        widest = formatting.widest(spec, source, element.value.value.type,
-                                   element.value.scale)
-        if element.when_absent == "placeholder" and element.placeholder:
-            widest = _longer(widest, element.placeholder)
-        if element.when_absent == "fallback" and element.fallback is not None:
-            # 'fallback:' is drawn through the exact same format spec as the
-            # real value (see _emit_text in wfb.emit.monkeyc), so its widest
-            # rendering has to be considered too -- otherwise a font baked
-            # from the *value*'s digit range alone can come up short for a
-            # wider fallback (e.g. a longer literal string on a nullable
-            # STRING source).
-            widest = _longer(widest, _fallback_widest(element.fallback, spec))
-        return widest
-
     @staticmethod
     def _justify(element: Text | HandPart | IconElement) -> tuple[str, ...]:
         """`Toybox.Graphics.TEXT_JUSTIFY_*` flags for anything with `.align`/
@@ -1748,29 +1681,11 @@ class Resolver:
 def _longer(current: str, candidate: str) -> str:
     """`candidate` if it is strictly longer than `current`, else `current`
     unchanged -- "a placeholder/estimate longer than the widest-so-far
-    wins," the one rule `_widest_text` (placeholder, fallback) and
-    `Resolver._complication_slot_widest` (per-choice estimate, placeholder)
-    each repeated as their own ``if len(x) > len(y): y = x``.
+    wins," the one rule `wfb.kinds.text._widest_text` (placeholder, fallback)
+    and `Resolver._complication_slot_widest` (per-choice estimate,
+    placeholder) each repeated as their own ``if len(x) > len(y): y = x``.
     """
     return candidate if len(candidate) > len(current) else current
-
-
-def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
-    """The widest string a `fallback:` expression could render, through the
-    same format spec the bound value uses (see `wfb.emit.monkeyc.shapes._emit_text`).
-
-    A literal string fallback (`fallback: "N/A"`) renders exactly as written,
-    the same way `placeholder:` already does above -- `formatting.widest`'s
-    digit-based estimate has no way to guess the content of an arbitrary
-    string, so a literal one is used verbatim.  Anything else (typically a
-    numeric literal, or an expression over a non-nullable source) goes
-    through the same digit-count estimate the bound value itself uses, keyed
-    off the fallback's own source when it has one.
-    """
-    if fallback_expr.value.type is Type.STRING and fallback_expr.constant is not None:
-        return str(fallback_expr.constant)
-    source = catalog.get(fallback_expr.sources[0]) if fallback_expr.sources else None
-    return formatting.widest(spec, source, fallback_expr.value.type, fallback_expr.scale)
 
 
 def resolve(face: Face, device: Device, fonts: dict[str, BakedFont]) -> ResolvedFace:
@@ -1805,11 +1720,11 @@ def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:
     """The real ink shape where it is tighter than `placed.box`: a
     `circular_extent` kind's disc, or a curved `text` element's rotated box
     or sector -- rebuilt by :func:`text_ink` from the fields
-    `Resolver._resolve_text` stored, so it is the shape its box came from.
+    `wfb.kinds.text.resolve` stored, so it is the shape its box came from.
     `None` for everything else, whose box corners are its real corners.
     `fonts_root` (the device's own `--fonts DIR` override): see
     :func:`text_ink` -- this re-derivation must locate the same file
-    `Resolver._resolve_text` already measured with, or a `safe-area`
+    `wfb.kinds.text.resolve` already measured with, or a `safe-area`
     check could disagree with the box it is re-checking (plan 18 item 8).
     """
     circle = circular_extent(placed)

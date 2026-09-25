@@ -30,15 +30,14 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-from . import aod_mask, catalog, complications, expr, formatting, kinds
-from .catalog import Type
+from . import aod_mask, catalog, complications, expr, kinds
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
 from .fonts import cft as cft_fonts
 from .ir import aod_color_choice, disc_perimeter_offsets
 from .layout import (
     HAND_ANGLES, PatternTextAngle, PlacedComplicationSlot, PlacedHands,
-    PlacedPattern, PlacedText, ResolvedFace,
+    PlacedPattern, ResolvedFace,
     alignment_shift, complication_slot_pair_geometry, pattern_text_anchor,
     radial_align_offset, radial_direction_sign,
 )
@@ -717,63 +716,6 @@ class _Renderer:
                 draw((ax + dx, ay + dy), ring_color)
         draw(anchor, color, box)
 
-    def _text(self, placed: PlacedText) -> None:
-        element = placed.element
-        text = self._text_value(placed)
-        if text is None:
-            return
-        color = self._aod_color(element, "color", element.color)
-        if placed.font_is_vector:
-            # A `face:` font draws upright, angled or radial, never through a
-            # baked sheet; `font_available is False` is `if_unavailable: hide`
-            # on this device, which draws nothing, as the watch does.
-            if not placed.font_available:
-                return
-
-            def draw(anchor, fill, box=None):
-                self._draw_vector_text(
-                    text, anchor, element.align, element.vertical_align, placed.font_metric,
-                    fill, placed.curve_style, placed.curve_angle_garmin,
-                    placed.curve_radius_px, placed.curve_direction, box=box)
-        else:
-            font, metric = self._text_font(placed)
-
-            def draw(anchor, fill, box=None):
-                self._draw_text(font, text, anchor, element.align, element.vertical_align,
-                                metric, fill, box=box)
-        outline = element.outline
-        self._draw_outlined(draw, placed.anchor_point, color,
-                            self._color(outline.color) if outline is not None else None,
-                            outline.width if outline is not None else 0, box=placed.box)
-
-    def _text_font(self, placed: PlacedText) -> tuple[BakedFont | None, FontMetric | None]:
-        """The baked font (or `None` for a system one) and metric a non-vector
-        `text` element draws with, after its `aod: {font: ...}` override --
-        the same scope as codegen's `wfb.emit.monkeyc.shapes._emit_text_draw`:
-        an override naming a *different* baked font swaps the sheet, one
-        naming a system `FONT_*` swaps the metric. A vector override is a
-        build error (`Builder._build_aod_authored`), so the `is_vector`
-        check is defensive."""
-        element = placed.element
-        font: BakedFont | None = (
-            self.resolved.fonts.get(placed.font_reference) if placed.font_is_custom else None
-        )
-        metric = placed.font_metric
-        aod_font = self._aod_field(element, "font", None)
-        if aod_font is None or aod_font == placed.font_reference:
-            return font, metric
-        if element.aod.font_is_custom:
-            override_spec = self.resolved.face.fonts.get(aod_font)
-            if override_spec is not None and not override_spec.is_vector:
-                override_font = self.resolved.fonts.get(aod_font)
-                if override_font is not None:
-                    return override_font, None
-        else:
-            override_metric = self.resolved.device.system_fonts.get(aod_font)
-            if override_metric is not None:
-                return None, override_metric
-        return font, metric
-
     def _complication_slot(self, placed: PlacedComplicationSlot) -> None:
         """A `complication_slot`, previewed at its slot's *default* choice.
 
@@ -893,28 +835,6 @@ class _Renderer:
         return text
 
     # -- text helpers -----------------------------------------------------
-
-    def _text_value(self, placed: PlacedText) -> str | None:
-        element = placed.element
-        if element.literal is not None:
-            return element.literal
-        if element.value is None:
-            return None
-        spec = self._aod_field(element, "format", element.format) or "{}"
-        value_type = element.value.value.type
-        if value_type in (Type.TIME, Type.DATE):
-            return formatting.render(spec, None, value_type, self.values)
-        value = expr.evaluate(element.value.ast, self.values) if element.value.ast else None
-        if value is None:
-            if element.when_absent == "placeholder":
-                return element.placeholder
-            if element.when_absent == "fallback" and element.fallback and element.fallback.ast:
-                value = expr.evaluate(element.fallback.ast, self.values)
-                if value is None:
-                    return None
-            else:
-                return None
-        return formatting.render(spec, value, value_type)
 
     def _draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
                    align: str, vertical_align: str, metric: FontMetric | None,

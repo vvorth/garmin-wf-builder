@@ -7,7 +7,7 @@ from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
 from ...layout import (
     PlacedComplicationSlot, PlacedHands, PlacedPattern,
-    PlacedText, ResolvedFace,
+    ResolvedFace,
 )
 from .common import (
     McLiteral, SourceFile, _NO_GUARDS, _const_prefix, _describe, _mc_number, _mc_type,
@@ -271,37 +271,6 @@ def _aod_thickness_constant(prefix: str, placed,
     return [(f"{prefix}_AOD_THICKNESS", placed.aod_thickness, note)]
 
 
-def _text_constants(prefix: str, placed: PlacedText) -> Constants:
-    # For `curve: {style: radial}` this is the *centre of the circle*
-    # (plan 11 §2.2's `at:` reinterpretation, `PlacedText.anchor_point`'s
-    # own docstring), not a `drawText`-style anchor -- still `_X`/`_Y`,
-    # since the codegen call site reads it that way regardless.
-    note = f'widest rendering "{placed.widest}" is {placed.measured_width} px'
-    if placed.width_is_estimated:
-        note += " (estimated)"
-    out: Constants = [
-        (f"{prefix}_X", placed.anchor_point[0], ""),
-        (f"{prefix}_Y", placed.anchor_point[1], ""),
-        (f"{prefix}_WIDTH", placed.measured_width, note),
-    ]
-    if placed.curve_style is not None:
-        # Both angle conventions in the comment, the same `arc`
-        # precedent `_arc_constants`'s own `_START` follows -- keeps the
-        # conversion auditable without having to re-derive it.
-        author_note = (
-            f"{placed.curve_angle_degrees:g}deg clockwise from 12 o'clock"
-            if placed.curve_style == "radial"
-            else f"{placed.curve_angle_degrees:g}deg clockwise rotation from upright"
-        )
-        out.append((
-            f"{prefix}_ANGLE", float(placed.curve_angle_garmin),
-            f"{author_note}, in Garmin's convention",
-        ))
-        if placed.curve_style == "radial":
-            out.append((f"{prefix}_RADIUS", placed.curve_radius_px, ""))
-    return out
-
-
 def _complication_slot_constants(prefix: str, placed: PlacedComplicationSlot) -> Constants:
     out: Constants = [
         (f"{prefix}_CX", placed.anchor_point[0], "the icon+reading pair is centred here at runtime"),
@@ -384,7 +353,7 @@ def _hand_part_constants(
     A text part's own `curve: {style: radial}` (plan 11 slice 2) adds one
     more constant, `_RADIUS`, the device-dependent circle radius -- the
     same reason a standalone `curve: {style: radial}` `text` element's own
-    `PlacedText` gets one (`_text_constants`).
+    `PlacedText` gets one (`wfb.kinds.text.layout_constants`).
     The angle itself is deliberately **not** a `Layout` constant: it is
     device-independent (plain degrees) and needs a *per-copy* runtime term
     for a radial pattern, so it is inlined straight into the shared view

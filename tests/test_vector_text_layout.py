@@ -613,7 +613,7 @@ def test_upright_vector_font_text_measures_like_any_other_estimated_text(write_d
 
 
 def test_annulus_sector_reach_from_the_sectors_own_centre_is_exact_r_outer():
-    """The trivial case (`Resolver._resolve_text`'s own `curve: {style:
+    """The trivial case (`wfb.kinds.text.resolve`'s own `curve: {style:
     radial}` `at:` reinterpretation makes the circle's own centre the
     common case): every point of the swept range shares the same distance
     from its own centre only at `r_outer`, so the farthest point is

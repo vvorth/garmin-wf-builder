@@ -18,7 +18,7 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   `pulled.value` must be captured into a local first, every time. A vector
   font's own null check is the same rule again (plan 11): `var font =
   _fontBezel;` before `if (font != null)`, never `if (_fontBezel != null) {
-  ... _fontBezel ... }` (`wfb.emit.monkeyc.shapes._emit_vector_text_draw`).
+  ... _fontBezel ... }` (`wfb.kinds.text._emit_vector_text_draw`).
 - Monkey C has **no explicitly-typed local**: `var x as String? = null` is
   rejected outright.
 - An unused **parameter** does not warn; an unused **member variable** does.

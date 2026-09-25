@@ -300,7 +300,7 @@ def test_drawn_in_mode_excludes_groups(resolved_for):
 
 def test_widest_text_accounts_for_a_longer_fallback(write_design, bag, db):
     """Bug 1: `fallback:` is drawn through the same format spec as the real
-    value (see `_emit_text` in `wfb.emit.monkeyc`), so a font baked from the
+    value (see `wfb.kinds.text.emit_draw`), so a font baked from the
     value's own widest rendering alone can come up short.
 
     `complication.training_status` has no known digit range

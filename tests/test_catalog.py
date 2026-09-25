@@ -349,10 +349,10 @@ def test_renamed_to_helper():
 #: locals>; ... }``). Read directly out of that file, line by line, not
 #: guessed -- each name's origin:
 #:   - "dc": `_emit_element_method`'s own signature, every element method.
-#:   - "font": `_emit_text_draw` (a custom text font) and
+#:   - "font": `wfb.kinds.text._emit_text_draw` (a custom text font) and
 #:     `wfb.kinds.icon.emit_draw` (the icon's baked font) -- never both in
 #:     one element, but both are this same kind of scope.
-#:   - "text": `_emit_text`'s `when_absent: placeholder`/`fallback`
+#:   - "text": `wfb.kinds.text.emit_draw`'s `when_absent: placeholder`/`fallback`
 #:     branches.
 #:   - "fraction": `wfb.kinds.progress.emit_draw`'s `when_absent: fallback` branch.
 #:   - "filled": `wfb.kinds.progress.emit_draw`'s rectangle-style fill width.

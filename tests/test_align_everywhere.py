@@ -144,7 +144,7 @@ def test_text_box_bottom_matches_the_pre_rename_baseline_box():
     lint box) -- `top = anchor_y - line_height`, checked arithmetically
     rather than by re-authoring the removed spelling."""
     # No live design can spell `baseline` any more (R6): this is the same
-    # arithmetic `Resolver._resolve_text` used for it, kept here as the
+    # arithmetic `wfb.kinds.text.resolve` used for it, kept here as the
     # historical cross-check that the rename did not also change the box.
     width, line_height = 40.0, 20.0
     dx, dy = alignment_shift(width, line_height, "center", "bottom")

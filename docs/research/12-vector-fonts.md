@@ -460,7 +460,7 @@ outer edge (`105 + 36 = 141`) sat one pixel past the framebuffer's own
 (`105 + 36/2 = 123`) is comfortably inside.
 
 `wfb.layout.radial_text_band(radius, line_height, vertical_align, direction,
-ascent)` is the one place both `Resolver._resolve_text` and
+ascent)` is the one place both `wfb.kinds.text.resolve` and
 `_pattern_part_ink` derive the band, matching exactly what `wfb.preview.
 _draw_radial_vector_text`/`._paste_rotated_run` draw. **The device-behaviour
 question above was resolved by measurement, not left open: the SDK's own

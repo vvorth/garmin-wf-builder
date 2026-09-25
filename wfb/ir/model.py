@@ -695,7 +695,7 @@ class Element:
     #: `resolved_<key>` the answer `Builder._resolve_inherited_flag` stamps
     #: on every element.  `antialias:` is accepted on `group`, `shape`,
     #: `progress` and `icon` (a `text` shares its `fonts:` resource, so it
-    #: cannot vary per element -- `Builder._reject_text_antialias`).
+    #: cannot vary per element -- `wfb.kinds.text._reject_text_antialias`).
     antialias: bool | None = None
     resolved_antialias: bool = False
     #: `min_1px:` is accepted on `group`, `shape`, `progress`, `graph`,

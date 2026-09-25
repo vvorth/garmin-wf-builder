@@ -239,14 +239,14 @@ def test_antialias_on_text_with_a_system_font_names_that_font(write_design, bag)
 
 
 def test_without_the_guard_antialias_on_text_would_build_silently(write_design, bag, monkeypatch):
-    """Proves the guard is load-bearing: with `_reject_text_antialias` disarmed,
-    the same design that test_antialias_on_text_with_a_custom_font_names_that_font
+    """Proves the guard is load-bearing: with `wfb.kinds.text._reject_text_antialias`
+    disarmed, the same design that test_antialias_on_text_with_a_custom_font_names_that_font
     rejects instead builds without a word -- the exact silent-gap shape
     CLAUDE.md warns this project has already shipped twice.
     """
-    from wfb import ir
+    from wfb.kinds import text as text_kind
 
-    monkeypatch.setattr(ir.Builder, "_reject_text_antialias", lambda self, node, element: None)
+    monkeypatch.setattr(text_kind, "_reject_text_antialias", lambda b, node, element: None)
     face = load(write_design(design("", TEXT_CUSTOM_FONT)), bag)
     assert face is not None, bag.render()
     assert not any(d.code == "text-antialias" for d in bag.errors)

@@ -199,7 +199,7 @@ def _emit_pattern_text_call(
     `dc.drawText` for an upright part, `drawAngledText`/`drawRadialText`
     under its own `curve:`.  The interior pass and every `outline:` stamp
     share it (the pattern-level twin of `shapes._emit_plain_text_call`/
-    `_emit_vector_draw_call`); ``x_expr``/``y_expr`` arrive already
+    `wfb.kinds.text._emit_vector_draw_call`); ``x_expr``/``y_expr`` arrive already
     rotated/translated, and a stamp's screen-space offset commutes with
     both the copy's rotation and the curve angle (research 14 §3.2).
     """
@@ -232,8 +232,8 @@ def _emit_pattern_text_draw(
     slice 2), then the interior call itself (`_emit_pattern_text_call`).
 
     **Gate 4 is never omitted, on any device, in either `if_unavailable:`
-    mode** (`docs/research/12-vector-fonts.md` §1, `wfb.emit.monkeyc.
-    shapes._emit_vector_text_draw`'s own precedent): a vector font's draw
+    mode** (`docs/research/12-vector-fonts.md` §1, `wfb.kinds.text.
+    _emit_vector_text_draw`'s own precedent): a vector font's draw
     call is wrapped `if (<font local> != null)` regardless of `curve_style`
     -- an upright vector-font pattern text part needs the same null guard a
     curved one does, since `Graphics.getVectorFont` can return null even
@@ -246,8 +246,8 @@ def _emit_pattern_text_draw(
     the ordinary case a vector font's null is), so `part.font_is_vector`
     alone decides which of the two this part gets. `outline:`'s stamp loop
     and the interior call both move inside this one guard together, never
-    two guards -- the same shape `_emit_vector_text_draw` already uses for
-    a standalone element (plan 15 §5/§8).
+    two guards -- the same shape `wfb.kinds.text._emit_vector_text_draw`
+    already uses for a standalone element (plan 15 §5/§8).
 
     **The ring colour, and its own `dc.setColor` restore, are entirely
     local to this one part's own draw sequence** -- they do not interact
@@ -384,9 +384,10 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: AodStyle = NO_AOD) ->
     it never has to ask whether this one actually drew.
 
     A `text` part's custom font is loaded into a local **once, before the
-    loop** -- the same "load once, guard once" rule `_emit_text_draw` follows
-    for a standalone `text` element, just hoisted out of the per-copy body
-    since every copy shares one font.  Two text parts naming different fonts
+    loop** -- the same "load once, guard once" rule
+    `wfb.kinds.text._emit_text_draw` follows for a standalone `text`
+    element, just hoisted out of the per-copy body since every copy shares
+    one font.  Two text parts naming different fonts
     get two distinct locals (``font0``, ``font1``, ...), so nothing collides;
     two parts naming the *same* font share one load and one guard.  **A
     `face:` (vector) font is the one exception to "guard once, before the
@@ -398,7 +399,7 @@ def _emit_pattern(w: Writer, placed: "PlacedPattern", aod: AodStyle = NO_AOD) ->
     fonts and unrelated shapes included.  `_emit_pattern_text_draw` wraps
     its own draw call in the matching `if (<local> != null)` instead, once
     per copy, exactly as a standalone vector-font `text` element's own
-    `_emit_vector_text_draw` already does.
+    `wfb.kinds.text._emit_vector_text_draw` already does.
     """
     element = placed.element
     prefix = _const_prefix(placed.id)

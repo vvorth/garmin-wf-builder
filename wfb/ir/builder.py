@@ -1060,7 +1060,7 @@ class Builder:
     #: rejected on a `face:` (vector) entry by `_build_vector_font`, each
     #: with its own "why" rather than a bare "unknown key" (the schema
     #: still parses all four there for exactly this reason, the same
-    #: "text-antialias" precedent `_reject_text_antialias` follows).
+    #: "text-antialias" precedent `wfb.kinds.text._reject_text_antialias` follows).
     _VECTOR_FONT_BAKING_KEYS = ("glyphs", "monospace", "align", "antialias")
 
     def _build_vector_font(self, name: str, spec: dict, span: Span | None) -> FontSpec | None:
@@ -2006,8 +2006,9 @@ class Builder:
                      literal_text: bool) -> tuple[str, str, list[str]] | None:
         """``(code, what, notes)`` when an `aod:` override's `key` cannot
         apply to an element of this kind, else ``None`` -- the one table
-        both an element's own block (`_build_aod_authored`, `_build_text`)
-        and a key it inherits from a group (`_resolve_aod`) are checked
+        both an element's own block (`_build_aod_authored`,
+        `wfb.kinds.text.build`) and a key it inherits from a group
+        (`_resolve_aod`) are checked
         against, so the two cannot drift (plan 18 item 5).  Each kind's own
         refusal rule lives on its `ElementKind.aod_refusal` hook."""
         if kind is None or kind not in kinds.names():
@@ -2157,7 +2158,7 @@ class Builder:
                             and not (own is not None and "format" in own)):
                         # Inherited from a group, whose block may reach
                         # several kinds and value types -- only checkable
-                        # here.  An element's own one `_build_text` checked.
+                        # here.  An element's own one `wfb.kinds.text.build` checked.
                         self._check_format_spec(element.value, str(fmt), element.span)
                 visit(element.children(), child_forced_hidden, child_nearest,
                       child_nearest_from)
@@ -2753,60 +2754,6 @@ class Builder:
                 self.doc.span(node, "when_absent"),
             )
 
-    def _build_text(self, node: dict, common: dict) -> Element:
-        value = self._expression(node, "value") if "value" in node else None
-        align, vertical_align = self._alignment(node)
-        element = Text(
-            **common,
-            value=value,
-            literal=node.get("text"),
-            format=node.get("format"),
-            color=self._color_expression(node, "color"),
-            align=align,
-            vertical_align=vertical_align,
-            when_absent=node.get("when_absent"),
-            placeholder=node.get("placeholder"),
-            fallback=self._expression(node, "fallback") if "fallback" in node else None,
-            if_unavailable=node.get("if_unavailable"),
-        )
-        font_ok = self._resolve_font(node, element)
-        if "antialias" in node:
-            self._reject_text_antialias(node, element)
-        font_is_vector = self._is_vector_font(element.font, element.font_is_custom)
-        font_note = self._font_kind_note(element.font, element.font_is_custom)
-        if "curve" in node:
-            element.curve = self._build_curve(
-                node, element.id, vertical_align=element.vertical_align, font_ok=font_ok,
-                font_is_vector=font_is_vector, font_note=font_note)
-        if font_ok and "if_unavailable" in node:
-            self._check_if_unavailable(node, element.id, font_is_vector, font_note)
-        if "outline" in node:
-            element.outline = self._build_outline(node, "outline", element.id, element=element)
-        own_aod_format = element.aod_own is not None and "format" in element.aod_own
-        aod_format_span = (self.doc.span(node.get("aod"), "format") or self.doc.span(node, "aod")
-                           if own_aod_format else None)
-        if value is not None:
-            self._check_absence(node, element, value, element.when_absent, element.placeholder,
-                                element.fallback)
-            self._check_format(node, value, element.format)
-            if own_aod_format:
-                # An `aod: {format: ...}` inherited from a group is checked
-                # in `_resolve_aod` instead, once inheritance is resolved.
-                self._check_format_spec(value, str(element.aod_own["format"]), aod_format_span)
-        else:
-            # A fixed `text:` has no bound value for `format:`, or its
-            # `aod:` twin, to format.
-            self._check_format_not_on_literal(node, element.id)
-            refusal = self._aod_refusal("format", "text", None, literal_text=True)
-            if own_aod_format and refusal is not None:
-                code, what, notes = refusal
-                self.bag.error(code, f"{element.id}.aod.format: {what}", aod_format_span,
-                               notes=notes)
-        self._check_other_absence(node, element, "color", element.color)
-        self._check_reachable_substitute(node, element, "'color'",
-                                         (element.value,), (element.color,))
-        return element
-
     def _build_outline(
         self, node: dict, key: str, label: str, *, element: Element | None = None,
     ) -> Outline | None:
@@ -2865,34 +2812,6 @@ class Builder:
         if element is not None:
             self._check_other_absence(node, element, "outline.color", color, span=color_span)
         return Outline(color=color, width=width)
-
-    def _reject_text_antialias(self, node: dict, element: Text) -> None:
-        """`antialias:` on a `text` element -- a per-element key on a shared resource.
-
-        A text element draws through a font declared in `fonts:`, and that
-        font is one bitmap resource shared by every element that references
-        it (`font: font.clock` is a name, not a private copy) -- so
-        anti-aliasing cannot vary per element the way it can on a shape's own
-        outline or an icon's own, per-glyph font.  The schema still parses
-        `antialias:` here rather than rejecting it as an unknown key, purely
-        so this can name the actual font instead of jsonschema's generic
-        "unknown key" message: by the time `_resolve_font` above has run,
-        `element.font` is the real answer, not a guess.
-        """
-        span = self.doc.span(node, "antialias")
-        if element.font_is_custom:
-            notes = [f"put it on 'fonts: {element.font}: antialias:' instead -- "
-                     f"the font this element references"]
-        else:
-            notes = [f"this element uses the system font {element.font!r}, which "
-                     "has no 'antialias:' of its own to set -- only a custom "
-                     "'fonts:' entry does"]
-        self.bag.error(
-            "text-antialias",
-            f"{element.id}: 'antialias:' is not accepted on a 'text' element",
-            span,
-            notes=notes,
-        )
 
     def _check_curve_keys(self, node: dict, style: str) -> None:
         """Reject a `curve:` key the chosen `style:` does not read -- the same

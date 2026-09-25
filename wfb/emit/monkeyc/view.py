@@ -439,7 +439,7 @@ def _emit_fields(w: Writer, resolved: ResolvedFace, aod_only_fonts: list[str] | 
         # gates 1-3 under `if_unavailable: hide`, or `Graphics.
         # getVectorFont`'s own documented "or NULL" even when it can --
         # gate 4, never assumed away). Every draw call using one checks for
-        # `null` before drawing (`shapes._emit_text_draw`).
+        # `null` before drawing (`wfb.kinds.text._emit_text_draw`).
         w.doc("Device-resident scalable ('face:') fonts (plan 11) -- a Graphics.\n"
               "VectorFont handed back by Graphics.getVectorFont, not a loaded\n"
               "resource; null wherever this device cannot build it, which every\n"

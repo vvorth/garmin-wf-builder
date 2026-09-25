@@ -63,7 +63,7 @@ def test_a_bmp_only_icon_keeps_the_filter_attribute(write_design, bag, db):
 
 def test_a_literal_string_fallback_extends_the_glyph_set(write_design, bag, db, repo_root):
     """Bug 1: `fallback:` is drawn through the same custom font as the real
-    value (see `_emit_text` in `wfb.emit.monkeyc`), so a literal string
+    value (see `wfb.kinds.text.emit_draw`), so a literal string
     fallback's own characters must be in the subsetted glyph set too.
 
     `complication.training_status` is a nullable `STRING` source with no known

@@ -289,8 +289,9 @@ These cost real time to discover; do not rediscover them.
   inside it."** Slice 1's own `Curve` dataclass and every build-time gate
   (1-3) are reused unchanged (`wfb.layout.Resolver._resolve_vector_face`/
   `._vector_font_metric`, called from `._resolve_hand_part`'s own `text`
-  branch the same way `._resolve_text` already calls them) -- the only new
-  work is the angle's *composition* and one codegen-side behaviour change.
+  branch the same way `wfb.kinds.text.resolve` already calls them) -- the
+  only new work is the angle's *composition* and one codegen-side behaviour
+  change.
 
   **Composition.** `ResolvedHandPart.curve_angle_garmin` is this part's own
   *local* angle (`HandPart.curve.angle`, run through `wfb.layout.
@@ -425,7 +426,8 @@ These cost real time to discover; do not rediscover them.
   what `_emit_pattern_text_call` (split out of the old `_emit_pattern_
   text_draw` so the interior pass and every stamp share one "anchor in,
   draw lines out" callback, the pattern-level twin of `wfb.emit.monkeyc.
-  shapes._emit_plain_text_call`/`_emit_vector_draw_call`) does -- lands
+  shapes._emit_plain_text_call`/`wfb.kinds.text._emit_vector_draw_call`)
+  does -- lands
   the ring in screen space at every copy, at whatever angle that copy's
   own rotation and curve already put it at, with no correction needed.
   Confirmed both by codegen tests reading the actual generated expression
@@ -524,7 +526,7 @@ These cost real time to discover; do not rediscover them.
   them never reaches codegen or `wfb preview
   --aod` at all -- there is nothing left for either to draw, and the
   runtime fallback code both still carry for the font cases (e.g.
-  `wfb.emit.monkeyc.shapes._emit_text_draw`'s `is_vector` check) is
+  `wfb.kinds.text._emit_text_draw`'s `is_vector` check) is
   defensive, not a live path.
 
 - **`aod: {dim: ...}` (plan 14 slice 3): the split is `Expression.is_constant`,

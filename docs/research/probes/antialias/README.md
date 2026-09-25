@@ -157,8 +157,8 @@ listing every allowed key) -- true, but not what CLAUDE.md's own working
 agreement asks for here ("a clear error whose note points at
 `fonts: <name>: antialias:`... naming the actual font"). So the schema's
 `textElement` branch carries the same `$defs/antialias` `$ref` every other
-branch does, and `wfb/ir.py`'s `Builder._reject_text_antialias` -- run from
-`_build_text`, *after* `_resolve_font` has turned `font:` into a real
+branch does, and `wfb.kinds.text._reject_text_antialias` -- run from
+`wfb.kinds.text.build`, *after* `_resolve_font` has turned `font:` into a real
 `element.font`/`element.font_is_custom` pair -- reports the bespoke error
 instead.  Confirmed by disabling the check directly (`monkeypatch.setattr`)
 and rebuilding the same design: it builds silently, with `resolved_antialias`
