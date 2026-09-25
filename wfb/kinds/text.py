@@ -11,7 +11,7 @@ from .. import catalog, expr, formatting
 from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
-from ..ir.model import Element, Expression, Text
+from ..ir.model import Element, Expression, Text, aod_outline_choice
 from ..layout import Placed, PlacedText, longer, resolved_curve, text_ink
 from ..units import Axis, Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
@@ -183,6 +183,49 @@ def _text_value(renderer, placed: PlacedText) -> str | None:
     return formatting.render(spec, value, value_type)
 
 
+def _aod_ring(element: Text, dim_set: bool):
+    """`aod_outline_choice` for this element's AOD frame; `(None, "awake")`
+    when the element is not drawn in AOD at all."""
+    if element.aod is None:
+        return None, "awake"
+    return aod_outline_choice(element.outline, element.aod, dim_set)
+
+
+def _emit_ring(w: Writer, element: Text, aod: AodStyle, x_expr: str, y_expr: str,
+               draw) -> None:
+    """The `outline:` stamp loop ahead of the interior pass
+    (`shapes.emit_outline_loop`), for the awake ring and the AOD frame's own
+    (`aod_outline_choice`): one loop when both frames have a ring -- the
+    offsets table and the colour each an `_aod ? ... : ...` ternary only
+    where they differ -- or one loop under `if (_aod)`/`if (!_aod)` when
+    only one frame has a ring.  With no AOD code in this build, or this
+    element hidden in AOD, only the awake ring exists.
+    """
+    awake = element.outline
+    if not aod.on or element.aod is None:
+        if awake is not None:
+            shapes.emit_outline_loop(w, f"Layout.OUTLINE_OFFSETS_{awake.width}",
+                                     mc_color(awake.color), x_expr, y_expr, draw)
+        return
+    asleep, choice = _aod_ring(element, aod.dim is not None)
+    if awake is None and asleep is None:
+        return
+    if awake is None or asleep is None:
+        ring = asleep if awake is None else awake
+        with w.block("if (_aod)" if awake is None else "if (!_aod)"):
+            shapes.emit_outline_loop(w, f"Layout.OUTLINE_OFFSETS_{ring.width}",
+                                     mc_color(ring.color), x_expr, y_expr, draw,
+                                     blank_after=False)
+        w.blank()
+        return
+    offsets = aod.value(
+        f"Layout.OUTLINE_OFFSETS_{asleep.width}" if asleep.width != awake.width else None,
+        f"Layout.OUTLINE_OFFSETS_{awake.width}")
+    color = (aod.value(mc_color(asleep.color), mc_color(awake.color)) if choice == "override"
+             else aod.dimmed(element, awake.color))
+    shapes.emit_outline_loop(w, offsets, color, x_expr, y_expr, draw)
+
+
 def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
                     aod: AodStyle = NO_AOD) -> None:
     element = placed.element
@@ -190,7 +233,7 @@ def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
     justify = " | ".join(f"Graphics.{flag}" for flag in placed.justify)
     color_code = aod.color(element, "color")
     if placed.font.is_vector:
-        _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code)
+        _emit_vector_text_draw(w, placed, prefix, justify, value_code, color_code, aod)
         return
     override_expr = None
     if aod.on and element.aod is not None and element.aod.font is not None:
@@ -222,13 +265,11 @@ def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
             font_expr = "font"
     else:
         font_expr = aod.value(override_expr, f"Graphics.{placed.font.reference}")
-    if element.outline is not None:
-        shapes.emit_outline_loop(
-            w, element.outline.width, mc_color(element.outline.color),
-            f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
-            lambda x, y: shapes.emit_plain_text_call(
-                w, x, y, font_expr, value_code, justify, element.vertical_align),
-        )
+    _emit_ring(
+        w, element, aod, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
+        lambda x, y: shapes.emit_plain_text_call(
+            w, x, y, font_expr, value_code, justify, element.vertical_align),
+    )
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
     shapes.emit_plain_text_call(
         w, f"Layout.{prefix}_X", f"Layout.{prefix}_Y", font_expr, value_code, justify,
@@ -268,6 +309,7 @@ def _emit_vector_draw_call(
 
 def _emit_vector_text_draw(
     w: Writer, placed: PlacedText, prefix: str, justify: str, value_code: str, color_code: str,
+    aod: AodStyle,
 ) -> None:
     """A `face:` (vector) font's draw call (plan 11 §3-4): plain
     `dc.drawText` with no `curve:`, or `dc.drawAngledText`/`dc.
@@ -295,12 +337,10 @@ def _emit_vector_text_draw(
     field = f"_{font_field(placed.font.reference)}"
     w.line(f"var font = {field};")
     with w.block("if (font != null)"):
-        if element.outline is not None:
-            shapes.emit_outline_loop(
-                w, element.outline.width, mc_color(element.outline.color),
-                f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
-                lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
-            )
+        _emit_ring(
+            w, element, aod, f"Layout.{prefix}_X", f"Layout.{prefix}_Y",
+            lambda x, y: _emit_vector_draw_call(w, placed, prefix, justify, value_code, x, y),
+        )
         w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
         _emit_vector_draw_call(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
@@ -380,7 +420,10 @@ class TextKind(ElementKind):
             curve = replace(curve, radius_px=round(r.extent(
                 element.curve.radius, parent, Axis.MINOR, 0,
                 min_1px=element.resolved_min_1px, what="curve.radius")))
-        ring_px = float(element.outline.width) if element.outline is not None else 0.0
+        # The box holds whichever ring is wider, awake or AOD.
+        aod_ring = element.aod.outline if element.aod is not None else None
+        ring_px = float(max(ring.width if ring is not None else 0
+                            for ring in (element.outline, aod_ring)))
         box = text_ink(
             x, y, width, line_height, element.align, element.vertical_align,
             curve_style=curve.style, angle_garmin=curve.angle_garmin,
@@ -448,9 +491,15 @@ class TextKind(ElementKind):
             def draw(anchor, fill, box=None):
                 renderer.draw_text(font, text, anchor, element.align, element.vertical_align,
                                    metric, fill, box=box)
-        outline = element.outline
-        renderer.draw_outlined(draw, placed.anchor_point, color,
-                               renderer.color(outline.color) if outline is not None else None,
+        outline, ring_color = element.outline, None
+        if renderer.options.aod:
+            outline, choice = _aod_ring(element, renderer.resolved.face.aod_dim is not None)
+            if outline is not None:
+                ring_color = (renderer.color(outline.color) if choice == "override"
+                              else renderer.aod_dimmed(element, outline.color))
+        elif outline is not None:
+            ring_color = renderer.color(outline.color)
+        renderer.draw_outlined(draw, placed.anchor_point, color, ring_color,
                                outline.width if outline is not None else 0, box=placed.box)
 
     def emit_draw(self, w: Writer, resolved, placed: PlacedText, guards: list[str],

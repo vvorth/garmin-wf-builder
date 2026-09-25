@@ -705,7 +705,7 @@
       }
     },
     "aodText": {
-      "description": "'aod:' on a 'text' element (docs/plans/14-aod.md \u00a72.3): 'hide' | 'show' | an override block reusing 'text's own 'color:'/'font:'/'format:', plus 'visible:'. An empty block ('aod: {}') means 'show'.",
+      "description": "'aod:' on a 'text' element (docs/plans/14-aod.md \u00a72.3): 'hide' | 'show' | an override block reusing 'text's own 'color:'/'font:'/'format:'/'outline:', plus 'visible:'. An empty block ('aod: {}') means 'show'. 'outline:' replaces the awake ring whole, in the element's own 'outline:' grammar: 'none' drops the ring in AOD; a colour or '{color, width}' draws that ring instead, whether or not the element has one while awake.",
       "oneOf": [
         {
           "enum": [
@@ -725,6 +725,9 @@
             },
             "format": {
               "type": "string"
+            },
+            "outline": {
+              "$ref": "#/$defs/outline"
             },
             "visible": {
               "$ref": "#/$defs/visible"
@@ -963,6 +966,9 @@
             },
             "format": {
               "type": "string"
+            },
+            "outline": {
+              "$ref": "#/$defs/outline"
             },
             "visible": {
               "$ref": "#/$defs/visible"

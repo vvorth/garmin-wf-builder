@@ -242,6 +242,12 @@ placement box grows by `width:` on every side to cover the ring, so
 `off-screen`/`safe-area`/`static-overlap`/the partial-update clip are all
 already correct for a ringed element with no separate check of their own.
 
+On an AMOLED target, `aod: {outline: ...}` gives the always-on frame a ring
+of its own — `none` to drop the awake one, or a different colour or width,
+or a ring the awake design does not have at all (hollow AOD digits). The
+box grows by whichever of the two rings is wider. See
+[Always-on display](always-on-display.md#per-element-or-group).
+
 A pattern's own `shape: text` part accepts `outline:` too (plan 15 slice
 2) — see [Text parts](patterns.md#text-parts) for the one thing that
 differs there: a radial pattern's per-copy rotation composes with the

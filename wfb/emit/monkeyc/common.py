@@ -304,6 +304,17 @@ class AodStyle:
         choice, override = aod_color_choice(element.aod, "color", self.dim is not None)
         return self._render(choice, override, color_expr, awake_code)
 
+    def dimmed(self, element, expression: Expression | None) -> str:
+        """``expression`` dimmed by `dim` in the AOD frame, else unchanged:
+        the rule for a colour no `aod:` override key reaches -- an
+        `outline:` ring carried over from the awake design, a pattern
+        part's own ring."""
+        awake_code = mc_color(expression)
+        if not self.on or element.aod is None:
+            return awake_code
+        return self._render("dim" if self.dim is not None else "awake", None, expression,
+                            awake_code)
+
     def _render(self, choice: str, override: Expression | None,
                 expression: Expression | None, awake_code: str) -> str:
         """`aod_color_choice`'s decision, printed as Monkey C: the override's

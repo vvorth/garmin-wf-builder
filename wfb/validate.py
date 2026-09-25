@@ -638,8 +638,14 @@ def _narrow(error: ValidationError) -> Iterable[ValidationError]:
         if not any(_is_discriminator(sub) for sub in errors)
     }
     if not candidates or len(candidates) == len(branches):
-        # Nothing discriminated: report whichever branch got furthest.
-        best = min(error.context, key=lambda e: (-len(list(e.absolute_path)), len(e.message)))
+        # Nothing discriminated: drop the branches that do not even take
+        # this kind of value (`aod: {...}` against `aod`'s 'hide'|'show'
+        # branch), then report whichever remaining branch got furthest.
+        depth = len(list(error.absolute_path))
+        shaped = [errors for errors in branches.values()
+                  if not any(_wrong_kind(sub, depth) for sub in errors)]
+        pool = [sub for errors in shaped for sub in errors] or error.context
+        best = min(pool, key=lambda e: (-len(list(e.absolute_path)), len(e.message)))
         yield from _narrow(best)
         return
 
@@ -648,7 +654,11 @@ def _narrow(error: ValidationError) -> Iterable[ValidationError]:
         nested = [e for e in errors if e.validator in ("oneOf", "anyOf") and e.context]
         if nested and not required:
             for sub in nested:
-                yield _merge_alternatives(sub)
+                merged = _merge_alternatives(sub)
+                if merged.validator == "required-one-of":
+                    yield merged
+                else:
+                    yield from _narrow(sub)
             continue
         for sub in errors:
             if _is_discriminator(sub):
@@ -683,6 +693,20 @@ def _exclusive(error: ValidationError) -> ValidationError:
     return error
 
 
+def _wrong_kind(sub: ValidationError, depth: int) -> bool:
+    """Did this branch reject the value itself for being the wrong kind of
+    value -- a `type` mismatch, or an `enum`/`const` none of whose values
+    is even the same JSON type -- rather than for something inside it?"""
+    if len(list(sub.absolute_path)) != depth:
+        return False
+    if sub.validator == "type":
+        return True
+    if sub.validator in ("enum", "const"):
+        allowed = sub.validator_value if sub.validator == "enum" else [sub.validator_value]
+        return all(_type_name(value) != _type_name(sub.instance) for value in allowed)
+    return False
+
+
 def _is_discriminator(sub: ValidationError) -> bool:
     """Did this sub-error come from a branch's ``type`` const not matching?"""
     path = list(sub.schema_path)
@@ -706,7 +730,10 @@ def _merge_alternatives(error: ValidationError) -> ValidationError:
 
 def _report(doc: YamlDocument, bag: Bag, error: ValidationError) -> None:
     path = list(error.absolute_path)
-    span = doc.span_for_path(path)
+    unexpected = _unexpected_keys(error) if error.validator == "additionalProperties" else []
+    # An unknown key is pointed at itself, not at the mapping's first key.
+    span = (doc.span(error.instance, unexpected[0], of="key") if unexpected else None) \
+        or doc.span_for_path(path)
     message, notes = _humanise(error)
     bag.error("schema", f"{_dotted(path)}: {message}" if path else message, span, notes=notes)
 

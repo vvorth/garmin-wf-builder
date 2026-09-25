@@ -56,8 +56,10 @@ format-feature dump: a face-wide `aod: {default: hide, dim: 0.6}` hides
 everything but `clock`, a small accent dot and the battery ring -- the
 canonical "everything off but the time" AOD shape (plan 14 §3), plus enough
 variety to exercise slice 2's restyling and slice 3's dimming: `clock`
-overrides `color:`/`format:`/`font:` (its own `color:` override is the
-author's final word, left undimmed by `dim: 0.6`), `accent_dot` flips
+overrides `format:` and turns hollow in AOD -- an `aod: {outline: ...}`
+ring the awake design does not have, around a black `color:` interior
+(both override colours are the author's final word, left undimmed by
+`dim: 0.6`) -- `accent_dot` flips
 `filled:` from a solid disc to a thin ring *and* carries no `color:`
 override of its own, so its awake blue is dimmed automatically -- the
 contrast that makes the face-wide `dim:` visible against `clock`'s explicit

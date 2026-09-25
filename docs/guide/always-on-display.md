@@ -35,7 +35,7 @@ no second vocabulary — restricted to a per-kind allowlist:
 | Kind | Overridable |
 |---|---|
 | every kind | `visible` (conjoined with the element's own `visible:`, not replacing it) |
-| `text` | `color`, `font`, `format` |
+| `text` | `color`, `font`, `format`, `outline` |
 | `shape` | `color`, `thickness`, `filled` |
 | `progress` | `color`, `track_color`, `thickness` |
 | `icon` | `color` |
@@ -45,9 +45,33 @@ no second vocabulary — restricted to a per-kind allowlist:
 | `pattern` | `color`, `thickness`, `font` — applied to **every part** |
 | `group` | the union of whatever its descendants allow, pushed down |
 
-An unknown or disallowed key for that kind is a schema error on the
-author's own line — the schema reuses each kind's own property `$ref`s, so
-there is nothing new to typo.
+An unknown or disallowed key for that kind is a schema error on that
+key's own line, naming it and listing the keys the kind does take — the
+schema reuses each kind's own property `$ref`s, so there is nothing new to
+typo.
+
+**`outline:` replaces the awake ring whole.** It takes the element's own
+[`outline:`](text.md#outline--the-stamped-ring) grammar — `none`, a bare colour (a 2px ring),
+or `{color, width}` — and is never merged with the awake ring key by key:
+an `aod: {outline: {color: ...}}` with no `width:` is a 2px ring, not the
+awake ring's width. `none` drops an awake ring in AOD; a ring written only
+here draws in AOD alone. Paired with a `color:` that matches what is
+underneath (black, in the AOD frame), it gives hollow digits — the ring is
+the only ink, a fraction of the lit pixels solid digits take:
+
+```yaml
+- id: clock
+  type: text
+  value: time.clock
+  color: palette.white
+  aod:
+    color: palette.black          # the interior -- invisible on the black AOD frame
+    outline: {color: palette.dim, width: 2}
+```
+
+Only `text` elements take it. A pattern's own `shape: text` parts keep
+their rings as written (dimmed, like every AOD colour), and a group's
+`outline:` reaches only the `text` elements below it.
 
 **Out of scope on purpose:** geometry (`at:`, `size:`, `radius:` — an
 override block restyles an element, it does not move it) and data bindings (`value:`,
@@ -184,15 +208,16 @@ elements:
 ```
 
 `dim` reaches **every** colour the AOD frame draws — `color:`, `track_color:`,
-`icon_color:`, a hand or pattern part's own colour, an icon's glyph colour —
+`icon_color:`, a hand or pattern part's own colour, an icon's glyph colour,
+an `outline:` ring (a text element's or a pattern text part's) —
 whether or not that element has an `aod:` override of its own. A `show`-only
 element, or one that inherits its AOD set purely from a face default or an
 ancestor group, is dimmed exactly like an overridden one.
 
 **The one exception is an explicit override colour.** `color:`/
-`track_color:`/`icon_color:` written inside an element's own (or an
-inherited group's) `aod:` block is the author's final word and is never
-dimmed — the `clock` example above stays full white in AOD; `date`, which
+`track_color:`/`icon_color:`, or an `outline:` ring's colour, written inside
+an element's own (or an inherited group's) `aod:` block is the author's
+final word and is never dimmed — the `clock` example above stays full white in AOD; `date`, which
 opts in with a bare `aod: show`, dims to 60%.
 
 **The formula.** Each 8-bit RGB channel is multiplied by `dim` and rounded

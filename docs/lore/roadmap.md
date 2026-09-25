@@ -112,13 +112,19 @@ simulator. What is verified is a warning-free real `monkeyc` build and
   `filled:` toggles the draw call itself; a resource font named only by an
   override is a second resource, loaded in `onEnterSleep` and released in
   `onExitSleep`; a `static:` element with an override skips its buffer and
-  draws directly. `wfb preview --aod` renders the resolved set fully
+  draws directly. A `text` element's `aod: {outline: ...}` (2026-09-25)
+  replaces the awake `outline:` ring whole -- `none`, or a ring of its own
+  colour/width, including one the awake design lacks (hollow AOD digits):
+  one stamp loop with `_aod` ternaries when both frames have a ring, or the
+  loop under `if (_aod)`/`if (!_aod)` when only one does.
+  `wfb preview --aod` renders the resolved set fully
   restyled, matching codegen's own scope (a `pattern`/`complication_slot`
   `font:` override and any vector-font override are not implemented yet).
   Two new suppressible lints, `aod-unreachable` and `aod-empty`.
   `modes: [always_on]` is removed outright (D3) -- see below.
 - **`aod: {dim: ...}` (plan 14 slice 3):** scales the luminance of every
-  colour the AOD frame draws, override colours excepted -- each channel
+  colour the AOD frame draws, `outline:` rings included, override colours
+  excepted -- each channel
   times `dim`, rounded to the nearest integer (`wfb.palette.dim_channel`).
   A build-time-constant colour (a bare hex, or a `palette.<name>`
   reference) is pre-dimmed into a second literal at build time, no runtime

@@ -556,6 +556,17 @@ class Renderer:
             return self._dim_rgb(base)
         return base
 
+    def aod_dimmed(self, element, expr, values: dict | None = None) -> tuple[int, int, int]:
+        """``expr``'s RGB, dimmed while `--aod` renders an element the AOD
+        frame draws and the face has `aod: {dim: ...}` -- the twin of
+        `wfb.emit.monkeyc.common.AodStyle.dimmed`, for a colour no `aod:`
+        override key reaches (an `outline:` ring carried over from the
+        awake design, a pattern part's own ring)."""
+        base = self.color(expr, values)
+        if not self.options.aod or element.aod is None or self.resolved.face.aod_dim is None:
+            return base
+        return self._dim_rgb(base)
+
     # -- dispatch ---------------------------------------------------------
 
     def render_element(self, placed) -> None:

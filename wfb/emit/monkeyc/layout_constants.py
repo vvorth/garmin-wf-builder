@@ -69,7 +69,7 @@ def _vector_font_constants(resolved: ResolvedFace, name: str, guards: "Guards") 
     return out
 
 
-def _outline_widths_used(resolved: ResolvedFace) -> list[int]:
+def _outline_widths_used(resolved: ResolvedFace, aod_on: bool = False) -> list[int]:
     """Every distinct `outline.width` a `text` element or a pattern's own
     `shape: text` part (plan 15 §14 slice 2) actually draws with in this
     design, in first-appearance draw order -- the same "only what's
@@ -80,12 +80,19 @@ def _outline_widths_used(resolved: ResolvedFace) -> list[int]:
     (`getattr(..., "parts", None)`, true only for a pattern -- neither
     `Text` nor `HandsElement` has one) are walked too, since `outline:`
     lives per-part there, not on the element itself.
+
+    With ``aod_on`` (this build emits AOD code, `Guards.amoled_target`), a
+    `text` element's own `aod: {outline: ...}` ring counts too; without it
+    that ring is never drawn, so its width generates nothing.
     """
     out: list[int] = []
     for placed in resolved.items:
         outline = getattr(placed.element, "outline", None)
         if outline is not None and outline.width not in out:
             out.append(outline.width)
+        aod = placed.element.aod
+        if aod_on and aod is not None and aod.outline is not None and aod.outline.width not in out:
+            out.append(aod.outline.width)
         for part in getattr(placed.element, "parts", None) or ():
             part_outline = getattr(part, "outline", None)
             if part_outline is not None and part_outline.width not in out:
@@ -169,7 +176,7 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
                 w.blank()
                 w.doc(f"`font.{name}`")
                 _emit_constants(w, _vector_font_constants(resolved, name, guards))
-        outline_widths = _outline_widths_used(resolved)
+        outline_widths = _outline_widths_used(resolved, guards.amoled_target)
         if outline_widths:
             w.blank()
             w.doc(

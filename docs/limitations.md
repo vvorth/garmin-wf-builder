@@ -964,7 +964,7 @@ them rather than to an arbitrary one:
   mapping with nowhere to hang a `lint:` block. The allow is honoured on any
   element that draws exactly `palette.<name>` -- as its `color:`,
   `track_color:` or `icon_color:`, a text's `outline: {color: ...}`, or an
-  `aod:` override's colour (a hand's or pattern's folded part colours count
+  `aod:` override's colour, its `outline:` ring's included (a hand's or pattern's folded part colours count
   too) -- the match is on the author's own expression text, so an element that merely
   *mentions* the entry inside a larger conditional does not count. When no
   element references the entry that way, the warning says so instead of printing

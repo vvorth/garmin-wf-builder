@@ -2077,6 +2077,12 @@ class Builder:
                     keys["font"] = resolved
         if "format" in raw:
             keys["format"] = raw["format"]
+        if "outline" in raw:
+            # Same grammar, colour machinery and width cap as the element's
+            # own `outline:`; `none` is kept, since it drops an awake ring.
+            outline = self.build_outline(raw, "outline", f"{element_id}.aod")
+            if outline is not None or raw["outline"] == "none":
+                keys["outline"] = outline if outline is not None else "none"
         if "visible" in raw:
             keys["visible"] = self._visible(raw)
         return False, keys
@@ -2087,7 +2093,10 @@ class Builder:
         font = keys.get("font")
         font_name, font_is_custom = font if font is not None else (None, False)
         own_visible = keys.get("visible")
+        outline = keys.get("outline")
         return AodOverride(
+            outline=outline if isinstance(outline, Outline) else None,
+            outline_none=outline == "none",
             color=keys.get("color"),
             track_color=keys.get("track_color"),
             icon_color=keys.get("icon_color"),

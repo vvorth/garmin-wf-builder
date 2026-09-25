@@ -62,14 +62,16 @@ def radial_radius_expr(radius_expr: str, vertical_align: str, direction: str | N
 
 
 def emit_outline_loop(
-    w: Writer, width: int, color_code: str, x_expr: str, y_expr: str,
+    w: Writer, offsets_code: str, color_code: str, x_expr: str, y_expr: str,
     draw: Callable[[str, str], None], *, index_var: str = "i", offsets_var: str = "offsets",
+    blank_after: bool = True,
 ) -> None:
     """The stamp loop `outline:` runs ahead of a text draw call's own
     (unshifted) interior pass (plan 15 §5, §8): loops over
-    `Layout.OUTLINE_OFFSETS_<width>` (`layout_constants`' disc-perimeter
-    table for this width), calling ``draw(x, y)`` at each shifted
-    screen-space anchor in the ring colour.
+    ``offsets_code`` -- `Layout.OUTLINE_OFFSETS_<width>` (`layout_constants`'
+    disc-perimeter table for one width), or an `_aod ? ... : ...` choice
+    between two -- calling ``draw(x, y)`` at each shifted screen-space
+    anchor in the ring colour.
 
     ``draw`` emits exactly the call the interior pass makes at the given
     anchor: a screen-space anchor shift commutes with everything else the
@@ -81,15 +83,17 @@ def emit_outline_loop(
     names that cannot collide with its copy loop's own `i`, or with another
     outlined part in the same method: Monkey C rejects redefining a
     variable anywhere in one method (`Redefinition of variable 'i'`, from a
-    real `monkeyc` run).
+    real `monkeyc` run).  ``blank_after=False`` leaves out the trailing
+    blank line, for a loop that is the whole body of an enclosing block.
     """
     w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
-    w.line(f"var {offsets_var} = Layout.OUTLINE_OFFSETS_{width};")
+    w.line(f"var {offsets_var} = {offsets_code};")
     w.line(f"var {index_var} = 0;")
     with w.block(f"while ({index_var} < {offsets_var}.size())"):
         draw(f"{x_expr} + {offsets_var}[{index_var}]", f"{y_expr} + {offsets_var}[{index_var} + 1]")
         w.line(f"{index_var} += 2;")
-    w.blank()
+    if blank_after:
+        w.blank()
 
 
 def emit_plain_text_call(

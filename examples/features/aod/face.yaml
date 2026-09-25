@@ -11,17 +11,16 @@
 # `aod:` block below is now actually read by codegen (slice 2) -- ternaries
 # at the draw call site, not the unrestyled sleep frame slice 1 shipped:
 #
-# - `clock` restyles `color:` (an explicit dimmer grey, not `dim:`-derived --
-#   Garmin's own guidance is to avoid white/blue, research 11 §1.3), swaps
+# - `clock` turns hollow in AOD: `outline:` draws a dim grey ring the awake
+#   design does not have, and `color:` paints the interior black, so only
+#   the ring lights -- the "outlined digits" shape research 14 §8.1 was
+#   modelled on, far fewer lit pixels than solid digits. It also swaps
 #   `format:` to a different separator (the same mechanism a design would
 #   use to drop seconds -- free, since AOD redraws once a minute anyway --
 #   kept as a same-width swap here so the widest-rendering estimate, which
 #   is measured against the *awake* format only, still fits fēnix 8's
-#   screen), and swaps to a lighter system font (`font:` -- no baked
-#   resource needed for this one, so the example stays free of a
-#   font-baking dependency; an AOD-only *baked* font's own memory cost is
-#   measured separately, docs/lore/codegen.md). Its explicit `color:`
-#   override is the author's final word (§4.5): `dim: 0.6` never touches it.
+#   screen). Its explicit `color:` and `outline:` colours are the author's
+#   final word (§4.5): `dim: 0.6` never touches them.
 # - `accent_dot` is a small filled accent, awake -- `aod: {filled: false}`
 #   turns it into a thin ring instead of a filled disc in AOD, the "solid
 #   disc becomes a thin ring" guidance (plan 14 §2.3) applied to the
@@ -137,8 +136,8 @@ elements:
 
   # The one element the face default would leave off but this design turns
   # back on -- the canonical "everything off but the time" shape (plan 14
-  # §3). Every one of its overridable keys is exercised: a dimmer colour, a
-  # different (same-width) format string, and a lighter system font.
+  # §3), hollow in AOD: a ring the awake design does not draw, around a
+  # black interior, and a different (same-width) format string.
   - id: clock
     type: text
     value: time.clock

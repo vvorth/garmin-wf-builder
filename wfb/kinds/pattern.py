@@ -23,7 +23,7 @@ from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated
 from ..emit.monkeyc.common import (
-    NO_AOD, AodStyle, const_prefix, font_field, glyph_y_expr, mc_color, mc_float,
+    NO_AOD, AodStyle, const_prefix, font_field, glyph_y_expr, mc_float,
 )
 from ..emit.monkeyc.shapes import RADIAL_DIRECTION, emit_outline_loop, radial_radius_expr
 from ..emit.writer import Writer
@@ -372,7 +372,8 @@ def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
     color = renderer.aod_color(placed.element, "color", part.color, values)
     anchor = pattern_text_anchor(part, ox, oy, sin_t, cos_t)
     ring_color = (
-        renderer.color(part.outline_color, values) if part.outline_color is not None else None
+        renderer.aod_dimmed(placed.element, part.outline_color, values)
+        if part.outline_color is not None else None
     )
     if part.font.is_vector:
         if not part.font.available:
@@ -503,7 +504,7 @@ def _emit_pattern_text_call(
 
 def _emit_pattern_text_draw(
     w: Writer, element: PatternElement, part, part_prefix: str, radial: bool,
-    font_expr: str, value_code: str, justify: str,
+    font_expr: str, value_code: str, justify: str, aod: AodStyle,
 ) -> None:
     """One copy's `shape: text` part: this copy's own anchor, then --
     ahead of the interior pass, inside the same vector-font null guard --
@@ -533,9 +534,13 @@ def _emit_pattern_text_draw(
     with `emit_draw`'s own colour hoisting (`hoist_color`/
     `current_color`, tracking each part's *interior* `color:` across the
     whole per-copy loop): the sequence below always leaves `dc`'s colour
-    state at `part.color`'s own value by the time it returns, exactly the
-    value the outer loop already believed was current both before and
-    after, so the outer loop's own bookkeeping needs no change.
+    state at `part.color`'s own value -- restyled for the AOD frame by
+    the same `aod.part_color` the outer loop uses -- by the time it
+    returns, exactly the value the outer loop already believed was current
+    both before and after, so the outer loop's own bookkeeping needs no
+    change. The ring itself takes no `aod:` override key (a pattern's
+    `aod: {color: ...}` is the parts' ink, not their rings); it is only
+    dimmed, like every other colour the AOD frame draws.
     """
     curve_style = part.curve.style
     if radial:
@@ -571,13 +576,15 @@ def _emit_pattern_text_draw(
             # declares its own `var i`, and several outlined text parts can
             # share this one generated method (`emit_outline_loop`).
             emit_outline_loop(
-                w, part.outline_width, mc_color(part.outline_color), x_expr, y_expr,
+                w, f"Layout.OUTLINE_OFFSETS_{part.outline_width}",
+                aod.dimmed(element, part.outline_color), x_expr, y_expr,
                 lambda ox_, oy_: _emit_pattern_text_call(
                     w, element, part, part_prefix, radial, font_expr, value_code, justify,
                     ox_, oy_),
                 index_var=f"outlineI{part_prefix}", offsets_var=f"outlineOffsets{part_prefix}",
             )
-            w.line(f"dc.setColor({mc_color(part.color)}, Graphics.COLOR_TRANSPARENT);")
+            w.line(f"dc.setColor({aod.part_color(element, part.color)}, "
+                   "Graphics.COLOR_TRANSPARENT);")
         _emit_pattern_text_call(
             w, element, part, part_prefix, radial, font_expr, value_code, justify,
             x_expr, y_expr)
@@ -615,7 +622,8 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
             font_expr = text_fonts[part.font.reference]
         else:
             font_expr = f"Graphics.{part.font.reference}"
-        _emit_pattern_text_draw(w, element, part, part_prefix, radial, font_expr, value_code, justify)
+        _emit_pattern_text_draw(w, element, part, part_prefix, radial, font_expr, value_code,
+                                justify, aod)
         return
     thickness_expr = aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS")
     if part.shape != "arc":

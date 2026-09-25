@@ -472,6 +472,25 @@ These cost real time to discover; do not rediscover them.
   the *same* pattern from colliding with each other, not just with the
   copy loop's own `i`.
 
+- **`aod: {outline: ...}` on a `text` element: the ring is one more AOD
+  override, but not a ternary alone, because a ring can exist in one frame
+  and not the other.** `wfb.kinds.text._emit_ring` reads one decision,
+  `wfb.ir.aod_outline_choice` (which `wfb preview --aod` reads too), and
+  emits one of three shapes: both frames ringed -- one stamp loop, with
+  `var offsets = (_aod ? Layout.OUTLINE_OFFSETS_<a> : ..._<w>)` only when
+  the widths differ and a colour ternary; a ring only in AOD -- the loop
+  under `if (_aod) { ... }`; a ring only while awake (`outline: none`) --
+  under `if (!_aod) { ... }`. Only one loop is ever emitted per element, so
+  the `var i`/`var offsets` names stay unique within the method (the
+  `Redefinition of variable` finding above). An AOD-only width's
+  `OUTLINE_OFFSETS_<W>` table is emitted only when the build emits AOD code
+  at all (`Guards.amoled_target`), so an all-MIP build stays byte-identical.
+  A ring carried over from the awake design is dimmed like every AOD colour
+  (`AodStyle.dimmed`, also a pattern text part's ring); the override's own
+  colour never is. Confirmed by a real build of all three shapes, on a
+  system and a vector font, warning-free on `fenix847mm` and `fr955`
+  (`tests/test_aod_outline.py`, `slow`).
+
 - **`aod:` restyling (plan 14 slice 2): ternary beats a second method,
   measured per ADR 0008, and an AOD-only font is cheap.** Two candidate
   shapes for reading an `AodOverride` at the draw call site: an inline

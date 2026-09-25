@@ -305,6 +305,11 @@ class AodOverride:
     font: str | None = None
     font_is_custom: bool = False
     format: str | None = None
+    #: `text` only: the AOD frame's own `outline:` ring, replacing the awake
+    #: one whole -- `None` when unset (the awake ring carries over, see
+    #: `aod_outline_choice`).  `outline_none` is an explicit `outline: none`.
+    outline: Outline | None = None
+    outline_none: bool = False
     #: The full "does this draw in AOD" gate: the element's own effective
     #: `visible:` AND the winning `aod: {visible: ...}`, or `None` when
     #: neither exists.  Read by the `aod-empty` lint and `wfb preview --aod`.
@@ -365,6 +370,28 @@ def aod_color_choice(aod: AodOverride | None, key: str, dim_set: bool) -> tuple[
     if dim_set:
         return "dim", None
     return "awake", None
+
+
+def aod_outline_choice(awake: Outline | None, aod: AodOverride | None,
+                       dim_set: bool) -> tuple[Outline | None, str]:
+    """The ring a `text` element draws in the AOD frame, and how its colour
+    is chosen -- `aod_color_choice`'s rule, applied to the ring as a whole
+    (an `aod: {outline: ...}` replaces the awake ring outright; it is never
+    merged key by key with it).
+
+    Returns ``(ring, choice)``: ``ring`` is `None` for no ring at all (none
+    awake and none in `aod:`, or an explicit `aod: {outline: none}`);
+    ``choice`` is ``"override"`` for the `aod:` block's own ring (its colour
+    is the author's final word, never dimmed), else ``"dim"``/``"awake"``
+    for the awake ring carried over, dimmed exactly like every other
+    colour the AOD frame draws when the face has `aod: {dim: ...}`.
+    `wfb.kinds.text` reads it for both codegen and `wfb preview --aod`.
+    """
+    if aod is not None and aod.outline_none:
+        return None, "override"
+    if aod is not None and aod.outline is not None:
+        return aod.outline, "override"
+    return awake, ("dim" if dim_set else "awake")
 
 
 def disc_perimeter_offsets(radius: int) -> tuple[tuple[int, int], ...]:
@@ -795,6 +822,8 @@ class Element:
                 override = getattr(self.aod, field_name)
                 if override is not None:
                     out.append(ColorRole(self.id, override, role, is_glyph, aod=True))
+            if self.aod.outline is not None:
+                out.append(ColorRole(self.id, self.aod.outline.color, "ring", is_glyph, aod=True))
         return out
 
 
