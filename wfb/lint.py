@@ -274,7 +274,7 @@ def check_vector_font_availability(
     checks this takes every target's `ResolvedFace` and `wfb.build.
     resolve_all` calls it once, after all of them are resolved.  Layout has
     already decided each device's gates (`PlacedText.font.available`, and
-    a pattern part's `ResolvedHandPart.font.available`); this only reports.
+    a pattern part's `ResolvedTextPart.font.available`); this only reports.
 
     **`error` (the default) is a hard build failure, never suppressible**,
     even though `font-unavailable` is in `SUPPRESSIBLE` for `hide`: an

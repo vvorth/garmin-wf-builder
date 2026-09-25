@@ -208,7 +208,7 @@ def test_if_unavailable_is_accepted_on_a_pattern_part_with_a_face_font(write_des
 
 
 def test_curve_angle_garmin_on_the_resolved_part_is_the_local_angle_only(write_design, bag, db):
-    """`ResolvedHandPart.curve.angle_garmin` must be `wfb.layout.
+    """`ResolvedTextPart.curve.angle_garmin` must be `wfb.layout.
     garmin_curve_angle` of the *authored* angle alone -- composition with a
     radial pattern's own `start`/`step` happens downstream (codegen,
     preview, the lint ink box), never here. Proven by giving the pattern a

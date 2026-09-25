@@ -230,7 +230,7 @@ def test_pattern_bound_expressions_order(write_design, bag):
     for part in dial.parts:
         if part.visible is not None:
             expected.append(part.visible)
-        if part.text_value is not None:
+        if part.shape == "text" and part.text_value is not None:
             expected.append(part.text_value)
     assert dial.expressions() == expected
 

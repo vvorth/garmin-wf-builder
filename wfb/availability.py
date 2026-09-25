@@ -228,7 +228,7 @@ def vector_font_face(spec: FontSpec, device: Device) -> str:
 def vector_fonts_used(face: Face) -> dict[str, FontSpec]:
     """Every declared `face:` (vector) `FontSpec` a `text` element, or a
     pattern's own `shape: text` part (plan 11 slice 2), actually uses --
-    i.e. some `Text.font`/`HandPart.font` names it -- keyed by name, in
+    i.e. some `Text.font`/`TextPart.font` names it -- keyed by name, in
     `face.fonts`' own declaration order.
 
     A font declared but never referenced draws nothing and needs no guard

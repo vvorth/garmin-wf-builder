@@ -27,7 +27,8 @@ from ..yamlsrc import YamlDocument
 from .model import (
     AodOverride, ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot,
     ConfigStyle, Curve, Element, Expression, Face, FontSpec, Group,
-    HOLD_AUTO, Hand, HandPart, HandSet, LayoutDecl, MAX_OUTLINE_WIDTH,
+    HOLD_AUTO, ArcPart, CirclePart, Hand, HandPart, HandSet, LayoutDecl, LinePart,
+    MAX_OUTLINE_WIDTH, PolygonPart, RectanglePart, TextPart,
     Outline, ROLE_VALUE, ROLE_VISIBLE,
     PatternElement, Position, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
     authored_draw_order, walk_elements,
@@ -1352,21 +1353,30 @@ class Builder:
 
         if not ok:
             return None
-        return HandPart(
-            shape=shape, points=points, at=at, size=size, to=to,
-            thickness=thickness, radius=radius, filled=filled,
-            color=effective_color, span=span,
-            start_angle=start_angle, sweep=sweep,
-            visible=part_visible,
-            align=align, vertical_align=vertical_align,
+        common = dict(
+            color=effective_color, span=span, visible=part_visible,
             min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
-            **text_fields,
         )
+        if shape == "polygon":
+            return PolygonPart(**common, points=points, filled=filled)
+        if shape == "rectangle":
+            return RectanglePart(**common, at=at, size=size, filled=filled,
+                                 align=align, vertical_align=vertical_align)
+        if shape == "line":
+            return LinePart(**common, at=at, to=to, thickness=thickness)
+        if shape == "circle":
+            return CirclePart(**common, at=at, radius=radius, thickness=thickness, filled=filled,
+                              align=align, vertical_align=vertical_align)
+        if shape == "arc":
+            return ArcPart(**common, radius=radius, thickness=thickness,
+                           start_angle=start_angle, sweep=sweep)
+        return TextPart(**common, at=at, align=align, vertical_align=vertical_align,
+                        **text_fields)
 
     def _build_text_part(
         self, node: dict, part_where: str, vertical_align: str,
     ) -> dict[str, object] | None:
-        """The `shape: text` half of a pattern part, as `HandPart` keyword
+        """The `shape: text` half of a pattern part, as `TextPart` keyword
         arguments, or `None` once any of its own checks failed (each already
         reported).  Upright glyphs whose anchor turns (radial) or steps
         (linear) with the copy -- only a pattern reaches this, since

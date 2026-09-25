@@ -312,8 +312,8 @@ These cost real time to discover; do not rediscover them.
   only new work is the angle's *composition* and one codegen-side behaviour
   change.
 
-  **Composition.** `ResolvedHandPart.curve.angle_garmin` is this part's own
-  *local* angle (`HandPart.curve.angle`, run through `wfb.layout.
+  **Composition.** `ResolvedTextPart.curve.angle_garmin` is this part's own
+  *local* angle (`TextPart.curve.angle`, run through `wfb.layout.
   garmin_curve_angle`), for copy 0 alone -- never combined with a radial
   pattern's own rotation in `wfb.layout`. That combination is one
   definition, `wfb.kinds.pattern.PatternTextAngle` (plan 19 A1): `local`/`start`/
@@ -418,15 +418,15 @@ These cost real time to discover; do not rediscover them.
 
 - **`outline:` on a pattern's own `shape: text` part (plan 15 §14 slice
   2): the same stamp loop, one level down, plus a real `monkeyc` finding
-  slice 1 never hit.** `HandPart.outline` and `Builder._build_outline`
+  slice 1 never hit.** `TextPart.outline` and `Builder._build_outline`
   are shared verbatim with a standalone `Text.outline` -- the only new
   builder work is threading a pattern's own absence policy through
   (`_build_outline(..., element=None)` for a part: no immediate
   `_check_other_absence`, because a pattern polices absence once for the
   whole element over `PatternElement.colors`, which a part's own
-  `outline.color` now feeds into alongside `part.color`). `ResolvedHandPart`
-  grows two exploded fields, `outline_width`/`outline_color`, carried
-  through from `HandPart.outline` unchanged -- `wfb.kinds.pattern._pattern_text_ink` reads
+  `outline.color` now feeds into alongside `part.color`). `ResolvedTextPart`
+  carries two exploded fields, `outline_width`/`outline_color`, carried
+  through from `TextPart.outline` unchanged -- `wfb.kinds.pattern._pattern_text_ink` reads
   `outline_width` as the same `pad` a standalone element's own
   `outline:` passes to `wfb.layout.text_ink` (D9), and
   `wfb.kinds.pattern._emit_pattern_text_draw` reads both fields

@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
+from typing import ClassVar
 
 from . import kinds, units
 from .devices import Device, FontMetric
@@ -632,39 +633,111 @@ class PlacedGraph(Placed):
 
 
 @dataclass(frozen=True)
-class ResolvedHandPart:
-    """One hand part, or one pattern template part, resolved for one
-    device: whole pixels, in the part's own frame (origin = the axis / the
-    pattern's `at:`, pointing at 12 o'clock) -- the shape the watch rotates
-    (or translates) at runtime.  One class covers every runtime shape; a
-    rectangle part is folded into ``polygon`` (a rotated rectangle is a
-    polygon).  ``arc`` and ``text`` are pattern-only
+class _ResolvedPart:
+    """What every hand part, and every pattern template part, resolved for
+    one device, carries: whole pixels in the part's own frame (origin = the
+    axis / the pattern's `at:`, pointing at 12 o'clock) -- the shape the
+    watch rotates (or translates) at runtime. One subclass per runtime
+    shape; ``shape`` names it. A rectangle part is folded into a polygon (a
+    rotated rectangle is a polygon). ``arc`` and ``text`` are pattern-only
     (`wfb.ir.HAND_PART_REJECTED_SHAPES`).
     """
 
-    shape: str
+    shape: ClassVar[str]
     color: Expression | None = None
-    #: ``polygon`` (rectangle folded in): vertices in author order.
+    #: The farthest ink from the frame's origin, from the geometry before
+    #: rounding (`Resolver._hand_part_geometry`). `0.0` for a text part:
+    #: upright glyphs are not rotation-invariant, so a pattern measures each
+    #: drawn copy's text ink instead (`wfb.kinds.pattern.resolve`).
+    reach: float = 0.0
+
+
+@dataclass(frozen=True)
+class ResolvedPolygonPart(_ResolvedPart):
+    shape: ClassVar[str] = "polygon"
+    #: Vertices in author order (a rectangle's: top-left, clockwise).
     points: tuple[tuple[int, int], ...] = ()
-    #: ``line``: both ends.
+
+    def ink(self, ox: float, oy: float, sin_t: float, cos_t: float
+            ) -> tuple[float, float, float, float]:
+        """``(min_x, min_y, max_x, max_y)`` of this part's ink under one
+        copy's transform (:meth:`PlacedPattern.transform`)."""
+        pts = [_transformed(x, y, ox, oy, sin_t, cos_t) for x, y in self.points]
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        return min(xs), min(ys), max(xs), max(ys)
+
+
+@dataclass(frozen=True)
+class ResolvedLinePart(_ResolvedPart):
+    shape: ClassVar[str] = "line"
     x1: int = 0
     y1: int = 0
     x2: int = 0
     y2: int = 0
-    #: ``circle``/``arc``/``text``: centre or anchor (``arc``'s is always the
-    #: origin); ``circle``/``arc``: radius; ``line``/unfilled ``circle``/
-    #: ``arc``: pen width.
+    #: Pen width.
+    thickness: int = 1
+
+    def ink(self, ox: float, oy: float, sin_t: float, cos_t: float
+            ) -> tuple[float, float, float, float]:
+        """Both ends, padded by half the pen width."""
+        x1, y1 = _transformed(self.x1, self.y1, ox, oy, sin_t, cos_t)
+        x2, y2 = _transformed(self.x2, self.y2, ox, oy, sin_t, cos_t)
+        pad = self.thickness / 2.0
+        return min(x1, x2) - pad, min(y1, y2) - pad, max(x1, x2) + pad, max(y1, y2) + pad
+
+
+@dataclass(frozen=True)
+class ResolvedCirclePart(_ResolvedPart):
+    shape: ClassVar[str] = "circle"
+    #: Centre.
     x: int = 0
     y: int = 0
     radius: int = 0
+    #: Pen width, when not `filled`.
     thickness: int = 1
     filled: bool = True
-    #: ``arc`` only.  Author degrees (12 o'clock = 0, clockwise), always set
-    #: explicitly; a radial pattern adds ``start + i * step`` at runtime.
+
+    def ink(self, ox: float, oy: float, sin_t: float, cos_t: float
+            ) -> tuple[float, float, float, float]:
+        """The centre, padded by the radius (plus half the pen width when
+        outlined)."""
+        px, py = _transformed(self.x, self.y, ox, oy, sin_t, cos_t)
+        pad = self.radius + (0.0 if self.filled else self.thickness / 2.0)
+        return px - pad, py - pad, px + pad, py + pad
+
+
+@dataclass(frozen=True)
+class ResolvedArcPart(_ResolvedPart):
+    shape: ClassVar[str] = "arc"
+    #: Always the origin: an arc part has no `at:`.
+    x: int = 0
+    y: int = 0
+    radius: int = 0
+    #: Pen width.
+    thickness: int = 1
+    #: Author degrees (12 o'clock = 0, clockwise), always set explicitly; a
+    #: radial pattern adds ``start + i * step`` at runtime.
     start_angle: float = 0.0
     sweep: float = 0.0
-    #: ``text`` only, from here down -- the same meaning as the matching
-    #: `PlacedText` fields.
+
+    def ink(self, ox: float, oy: float, sin_t: float, cos_t: float
+            ) -> tuple[float, float, float, float]:
+        """The full circle, centred on the copy's own origin, padded by half
+        the pen width -- conservatively ignoring `start_angle`/`sweep`."""
+        px, py = _transformed(0.0, 0.0, ox, oy, sin_t, cos_t)
+        pad = self.radius + self.thickness / 2.0
+        return px - pad, py - pad, px + pad, py + pad
+
+
+@dataclass(frozen=True)
+class ResolvedTextPart(_ResolvedPart):
+    """A pattern's `shape: text` part. The fields match `PlacedText`'s."""
+
+    shape: ClassVar[str] = "text"
+    #: The anchor.
+    x: int = 0
+    y: int = 0
     font: ResolvedFont = ResolvedFont()
     justify: tuple[str, ...] = ()
     align: str = "center"
@@ -680,9 +753,20 @@ class ResolvedHandPart:
     #: so it is composed where that index is known (`wfb.kinds.pattern.
     #: _pattern_text_ink`, `wfb.kinds.pattern._emit_pattern_text_angle_expr`).
     curve: ResolvedCurve = ResolvedCurve()
-    #: `HandPart.outline`, exploded; `outline_color is None` means none.
+    #: `TextPart.outline`, exploded; `outline_color is None` means none.
     outline_width: int = 0
     outline_color: Expression | None = None
+
+
+#: Any one resolved hand or pattern part.
+ResolvedHandPart = (ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart
+                    | ResolvedArcPart | ResolvedTextPart)
+
+
+def _transformed(x: float, y: float, ox: float, oy: float, sin_t: float, cos_t: float
+                 ) -> tuple[float, float]:
+    """A part-frame point put through one copy's rotation and offset."""
+    return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
 
 
 @dataclass(frozen=True)
@@ -1120,14 +1204,14 @@ class Resolver:
         resolved = []
         reach = 0.0
         for index, part in enumerate(parts):
-            resolved_part, part_reach = self._resolve_hand_part(part, owner, index, min_1px=min_1px)
+            resolved_part = self._resolve_hand_part(part, owner, index, min_1px=min_1px)
             resolved.append(resolved_part)
-            reach = max(reach, part_reach)
+            reach = max(reach, resolved_part.reach)
         return tuple(resolved), reach
 
     def _resolve_hand_part(
         self, part: HandPart, owner: str, index: int, *, min_1px: bool,
-    ) -> tuple[ResolvedHandPart, float]:
+    ) -> ResolvedHandPart:
         """:meth:`_hand_part_geometry`, with the part (`<owner>.parts[<index>]`,
         its own span) as the owner of any `SubPixelLength` it raises, for
         the part's duration only."""
@@ -1138,9 +1222,9 @@ class Resolver:
 
     def _hand_part_geometry(
         self, part: HandPart, owner_id: str, *, min_1px: bool,
-    ) -> tuple[ResolvedHandPart, float]:
+    ) -> ResolvedHandPart:
         """One hand or pattern part -> whole-pixel geometry in its own frame
-        (origin = the axis / the pattern's `at:`, 12 o'clock up), plus its
+        (origin = the axis / the pattern's `at:`, 12 o'clock up), with its
         reach from that origin (the farthest ink it touches).  Rounds with
         :func:`round_half_away`, so a mirrored `dx: -1.5px`/`1.5px` pair
         stays symmetric.
@@ -1159,7 +1243,7 @@ class Resolver:
                 for x, y in (self._hand_point(p) for p in part.points)
             )
             reach = max((math.hypot(x, y) for x, y in points), default=0.0)
-            return ResolvedHandPart("polygon", part.color, points=points), reach
+            return ResolvedPolygonPart(part.color, reach, points=points)
 
         if part.shape == "rectangle":
             cx, cy = self._hand_point(part.at)
@@ -1186,7 +1270,7 @@ class Resolver:
             ]
             points = tuple((round_half_away(x), round_half_away(y)) for x, y in corners)
             reach = max(math.hypot(x, y) for x, y in points)
-            return ResolvedHandPart("polygon", part.color, points=points), reach
+            return ResolvedPolygonPart(part.color, reach, points=points)
 
         if part.shape == "line":
             x1, y1 = self._hand_point(part.at)
@@ -1194,12 +1278,12 @@ class Resolver:
             thickness = max(1, round_half_away(self._hand_extent(
                 part.thickness, default=1, min_1px=effective_min_1px, what="thickness")))
             reach = max(math.hypot(x1, y1), math.hypot(x2, y2)) + thickness / 2.0
-            return ResolvedHandPart(
-                "line", part.color,
+            return ResolvedLinePart(
+                part.color, reach,
                 x1=round_half_away(x1), y1=round_half_away(y1),
                 x2=round_half_away(x2), y2=round_half_away(y2),
                 thickness=thickness,
-            ), reach
+            )
 
         if part.shape == "arc":
             # A hand never produces this shape (rejected in `wfb.ir`); a
@@ -1213,10 +1297,10 @@ class Resolver:
             start_angle = (part.start_angle or Angle(0.0)).degrees
             sweep = (part.sweep or Angle(360.0)).degrees
             reach = radius + thickness / 2.0
-            return ResolvedHandPart(
-                "arc", part.color, x=0, y=0, radius=radius, thickness=thickness,
+            return ResolvedArcPart(
+                part.color, reach, radius=radius, thickness=thickness,
                 start_angle=start_angle, sweep=sweep,
-            ), reach
+            )
 
         if part.shape == "text":
             # A pattern's template only.  Upright glyphs are not
@@ -1232,8 +1316,8 @@ class Resolver:
                 curve = replace(curve, radius_px=round_half_away(self._hand_extent(
                     part.curve.radius, min_1px=effective_min_1px, what="curve.radius")))
             outline = part.outline
-            return ResolvedHandPart(
-                "text", part.color, x=round_half_away(x0), y=round_half_away(y0),
+            return ResolvedTextPart(
+                part.color, 0.0, x=round_half_away(x0), y=round_half_away(y0),
                 font=font.resolved(),
                 justify=self._justify(part), align=part.align,
                 vertical_align=part.vertical_align, line_height=font.line_height,
@@ -1241,7 +1325,7 @@ class Resolver:
                 curve=curve,
                 outline_width=outline.width if outline is not None else 0,
                 outline_color=outline.color if outline is not None else None,
-            ), 0.0
+            )
 
         # circle
         cx, cy = self._hand_point(part.at)
@@ -1257,11 +1341,11 @@ class Resolver:
             part.thickness, default=1, min_1px=effective_min_1px, what="thickness")))
         pen_reach = radius if part.filled else radius + thickness / 2.0
         reach = math.hypot(cx, cy) + pen_reach
-        return ResolvedHandPart(
-            "circle", part.color,
+        return ResolvedCirclePart(
+            part.color, reach,
             x=round_half_away(cx), y=round_half_away(cy), radius=radius,
             thickness=thickness, filled=part.filled,
-        ), reach
+        )
 
     # A hand/pattern part's own frame is `_point`/`_extent` over
     # `_HAND_FRAME_BOX`: every anchor of a zero box is the origin, and the

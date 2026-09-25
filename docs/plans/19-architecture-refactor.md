@@ -133,9 +133,20 @@ cross-check makes that hold by construction from now on.
   and "upright", so every old read maps one to one. `_Font.resolved()`
   builds the font, and `layout.resolved_curve` the curve for both text
   elements and pattern text parts, replacing `_curve_angles`.
-- Split `ResolvedHandPart` into one frozen class per shape, each owning
-  `ink()`/`reach()`. The same for `HandPart` in the IR, with a shared
-  `TextStyle` for text and pattern-text parts.
+- **Built:** one class per part shape, on both sides. The IR's `HandPart`
+  is a base (colour, span, `visible:`, `min_1px:`) with `PolygonPart`,
+  `RectanglePart`, `LinePart`, `CirclePart`, `ArcPart` and `TextPart`;
+  `ResolvedHandPart` is the union of `ResolvedPolygonPart`, `ResolvedLinePart`,
+  `ResolvedCirclePart`, `ResolvedArcPart` and `ResolvedTextPart`, each
+  carrying its `reach` (from the unrounded geometry, so it stays a field,
+  not a method on the rounded pixels) and, for the four geometric shapes,
+  its own `ink()`. A probe that logged every read of a field outside its
+  part's shape, run over the fast suite and the snapshot, found five such
+  reads (the preview's polygon `thickness`, `outline`/`text_value` on
+  non-text parts); each is now shape-guarded. The proposed shared
+  `TextStyle` was not built: it only pays off if the `text` element
+  adopts it too, and that would rename the element's own `font:`/`curve:`
+  fields that `aod:` overrides are keyed by.
 - `NamedRegistry[T]` for the named blocks (accepted/declared/rejected plus
   one `resolve()`); `Catalogue[T]` with one `did_you_mean_notes` for
   `catalog`, `series`, `complications` and `icons` (the notes are

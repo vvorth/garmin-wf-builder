@@ -103,41 +103,17 @@ def _pattern_part_ink(
     start: float = 0.0, step: float = 0.0, fonts_root: str | None = None,
 ) -> tuple[float, float, float, float]:
     """``(min_x, min_y, max_x, max_y)`` of one resolved pattern part's ink
-    for one copy, given that copy's :meth:`PlacedPattern.transform`:
-    polygon vertices; a line's ends padded by half its pen width; a
-    circle's centre padded by its radius (plus half the pen width when
-    outlined); an arc's full circle -- always centred on the copy's own
-    origin -- padded by half its pen width, conservatively ignoring
-    `start_angle`/`sweep`; a text part's :func:`_pattern_text_ink` -- the
+    for one copy, given that copy's :meth:`PlacedPattern.transform`: the
+    part's own `ink`, or for a text part :func:`_pattern_text_ink` -- the
     one shape that needs to know *which* copy it is, since upright text is
     not rotation-invariant and each copy draws its own string.  `start`/
     `step` are the pattern's own repeat angle (`PatternTextAngle`), needed
     only by that text branch; every other shape ignores them.
     """
-    def tf(x: float, y: float) -> tuple[float, float]:
-        return ox + x * cos_t - y * sin_t, oy + x * sin_t + y * cos_t
-
-    if part.shape == "polygon":
-        pts = [tf(x, y) for x, y in part.points]
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        return min(xs), min(ys), max(xs), max(ys)
-    if part.shape == "line":
-        x1, y1 = tf(part.x1, part.y1)
-        x2, y2 = tf(part.x2, part.y2)
-        pad = part.thickness / 2.0
-        return min(x1, x2) - pad, min(y1, y2) - pad, max(x1, x2) + pad, max(y1, y2) + pad
-    if part.shape == "circle":
-        px, py = tf(part.x, part.y)
-        pad = part.radius + (0.0 if part.filled else part.thickness / 2.0)
-        return px - pad, py - pad, px + pad, py + pad
     if part.shape == "text":
         return _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, start, step,
                                  fonts_root).bounds()
-    # arc: always centred on the copy's own origin.
-    px, py = tf(0.0, 0.0)
-    pad = part.radius + part.thickness / 2.0
-    return px - pad, py - pad, px + pad, py + pad
+    return part.ink(ox, oy, sin_t, cos_t)
 
 
 def _aod_refusal(key, shape, literal_text):
@@ -238,7 +214,7 @@ def build(b, node: dict, common: dict, path: tuple) -> Element | None:
     _dedup_append(colors, element_color)
     for part in parts:
         _dedup_append(colors, part.color)
-        if part.outline is not None:
+        if part.shape == "text" and part.outline is not None:
             _dedup_append(colors, part.outline.color)
 
     element = PatternElement(
@@ -352,7 +328,7 @@ def _pattern_steps(
 
 
 def _render_pattern_texts(b, element_id: str, parts: list[HandPart], count: int) -> bool:
-    """Fill each `shape: text` part's per-copy strings (`HandPart.texts`),
+    """Fill each `shape: text` part's per-copy strings (`TextPart.texts`),
     device-independently -- the same evaluation the host preview does
     for an ordinary `text` element, which is what makes a text part's
     font subset, measured extent and glyph lint exact.  Returns `False`
@@ -1081,7 +1057,7 @@ def font_unavailable(placed, part_index: int | None) -> bool:
 
 
 def glyph_needs(element: PatternElement, face, bucket) -> None:
-    # Every drawn copy's string is known at build time (`HandPart.texts`),
+    # Every drawn copy's string is known at build time (`TextPart.texts`),
     # so a text part's font needs exactly those.
     for part in element.parts:
         if part.shape != "text" or not part.font_is_custom:
@@ -1126,7 +1102,8 @@ def contrast_subjects(placed: PlacedPattern):
     the one shape where an exact backdrop match is invisible content by
     mistake."""
     for index, part in enumerate(placed.parts):
-        yield (f"{placed.id}.parts[{index}]", part.color, part.outline_color,
+        outline_color = part.outline_color if part.shape == "text" else None
+        yield (f"{placed.id}.parts[{index}]", part.color, outline_color,
                part.shape != "text")
 
 

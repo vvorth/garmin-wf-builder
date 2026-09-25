@@ -208,7 +208,7 @@ class FontSpec:
     #: **Vector only.** `"error"` (the default) or `"hide"` -- what to do on
     #: a device that publishes none of the listed faces.  An element using
     #: this font may override it (`Text.if_unavailable`,
-    #: `HandPart.if_unavailable`).
+    #: `TextPart.if_unavailable`).
     if_unavailable: str | None = None
 
     @property
@@ -250,7 +250,7 @@ class Curve:
     support custom fonts loaded as resources", `$CIQ_SDK/doc/docs/
     Core_Topics/Graphics.html` §Scalable Fonts), so `Builder._build_curve`
     requires `font:` to name a `face:` (vector) `FontSpec`.  Also carried by
-    a pattern's `shape: text` part (`HandPart.curve`).
+    a pattern's `shape: text` part (`TextPart.curve`).
     """
 
     #: `"angled"` | `"radial"`.
@@ -836,41 +836,96 @@ class Shape(Element):
 
 @dataclass
 class HandPart:
-    """One primitive of a hand, in the hand's own frame: origin = the axis,
-    drawn pointing at 12 o'clock.  `at`/`to`/`points` positions have no
-    `anchor` -- the schema's `handPosition` never accepts one, so the axis
-    is the only reference point a part's coordinates can be measured from.
+    """One primitive of a hand, or of a `type: pattern` template, in its own
+    frame: origin = the axis (or the pattern's `at:`), drawn pointing at 12
+    o'clock.  Positions have no `anchor` -- the schema's `handPosition` never
+    accepts one, so the origin is the only reference point a part's
+    coordinates can be measured from.  One subclass per `shape:`
+    (`Builder._build_hand_part`); ``shape`` names it.  `arc` and `text` are
+    pattern-only (`HAND_PART_REJECTED_SHAPES`).
     """
 
-    shape: str = "polygon"
-    #: `polygon` only: 3-64 vertices, each measured from the axis.
-    points: list[Position] = field(default_factory=list)
-    #: `rectangle`/`line`/`circle`: the part's own centre/start, default the axis.
-    at: Position = field(default_factory=Position)
-    size: Size = field(default_factory=Size)
-    #: `line` only: the end point.
-    to: Position | None = None
-    thickness: Length | None = None
-    radius: Length | None = None
-    filled: bool = True
+    shape: ClassVar[str]
     #: Always set once built -- the part's own `color:`, or its hand's
     #: default: a part left with no colour is a build error, so by the time
     #: a `HandPart` exists this is never `None`.
     color: Expression | None = None
     span: Span | None = None
-    #: `arc` only (`type: pattern`'s template -- a hand part rejects `arc`
-    #: outright, so these stay `None` there).  Author degrees, same
-    #: convention `Shape.start_angle`/`.sweep` use.
-    start_angle: Angle | None = None
-    sweep: Angle | None = None
     #: Pattern parts only -- a boolean evaluated per copy (`copy` in scope):
     #: false hides this part for this copy only.  `None` when not authored
     #: or constant `true`; a constant `false` is kept, so codegen emits
     #: nothing for it and the `dead-element` lint names it.
     visible: Expression | None = None
-    #: The `shape: text` fields below are pattern parts only
-    #: (`Builder._build_text_part`).  `value:` may read only `copy`; exactly
-    #: one of `text_value`/`text_literal` is set.
+    #: `min_1px:` as authored, or `None` to inherit.  Deliberately no
+    #: `resolved_` twin: one `HandSet` can be placed by several `type: hands`
+    #: elements that resolve `min_1px` differently, so
+    #: `Resolver._resolve_hand_part` resolves it per placement.
+    min_1px: bool | None = None
+
+
+@dataclass
+class PolygonPart(HandPart):
+    shape: ClassVar[str] = "polygon"
+    #: 3-64 vertices, each measured from the origin.
+    points: list[Position] = field(default_factory=list)
+    #: Always `True`: `filled: false` is refused (no `drawPolygon`).
+    filled: bool = True
+
+
+@dataclass
+class RectanglePart(HandPart):
+    shape: ClassVar[str] = "rectangle"
+    #: The centre, default the origin; `align:`/`vertical_align:` move the
+    #: `size:` box off it (`Resolver._hand_part_geometry`).
+    at: Position = field(default_factory=Position)
+    size: Size = field(default_factory=Size)
+    #: Always `True`: a rectangle part becomes a polygon at build time.
+    filled: bool = True
+    align: str = "center"
+    vertical_align: str = "center"
+
+
+@dataclass
+class LinePart(HandPart):
+    shape: ClassVar[str] = "line"
+    at: Position = field(default_factory=Position)
+    #: The end point.
+    to: Position | None = None
+    thickness: Length | None = None
+
+
+@dataclass
+class CirclePart(HandPart):
+    shape: ClassVar[str] = "circle"
+    at: Position = field(default_factory=Position)
+    radius: Length | None = None
+    #: Pen width, when not `filled`.
+    thickness: Length | None = None
+    filled: bool = True
+    align: str = "center"
+    vertical_align: str = "center"
+
+
+@dataclass
+class ArcPart(HandPart):
+    """Pattern-only; always centred on the copy's own origin (no `at:`)."""
+
+    shape: ClassVar[str] = "arc"
+    radius: Length | None = None
+    thickness: Length | None = None
+    #: Author degrees, same convention `Shape.start_angle`/`.sweep` use.
+    start_angle: Angle | None = None
+    sweep: Angle | None = None
+
+
+@dataclass
+class TextPart(HandPart):
+    """Pattern-only (`Builder._build_text_part`): upright glyphs whose anchor
+    turns (radial) or steps (linear) with the copy.  `value:` may read only
+    `copy`; exactly one of `text_value`/`text_literal` is set."""
+
+    shape: ClassVar[str] = "text"
+    at: Position = field(default_factory=Position)
     text_value: Expression | None = None
     #: `text:` -- a fixed string, the same for every copy.
     text_literal: str | None = None
@@ -879,9 +934,6 @@ class HandPart:
     format: str | None = None
     font: str = "FONT_MEDIUM"
     font_is_custom: bool = False
-    #: Read on `rectangle`/`circle` parts (resolved in the part's own frame
-    #: by `Resolver._resolve_hand_part`) and `shape: text` parts; rejected
-    #: on every other shape (`_check_hand_part_keys`).
     align: str = "center"
     vertical_align: str = "center"
     #: The host-rendered string for every copy index `0..count-1`, set by
@@ -898,11 +950,6 @@ class HandPart:
     #: from this copy's already transformed anchor.  Its colour joins
     #: `PatternElement.colors`, so absence is policed for the whole pattern.
     outline: "Outline | None" = None
-    #: `min_1px:` as authored, or `None` to inherit.  Deliberately no
-    #: `resolved_` twin: one `HandSet` can be placed by several `type: hands`
-    #: elements that resolve `min_1px` differently, so
-    #: `Resolver._resolve_hand_part` resolves it per placement.
-    min_1px: bool | None = None
 
 
 @dataclass
@@ -1030,15 +1077,14 @@ class PatternElement(Element):
         for part in self.parts:
             if part.visible is not None:
                 out.append((ROLE_PART_VISIBLE, part.visible))
-            if part.text_value is not None:
+            if part.shape == "text" and part.text_value is not None:
                 out.append((ROLE_PART_TEXT, part.text_value))
         return out
 
     def color_roles(self) -> list[ColorRole]:
         """The element default (ink, label = the element id), then each
         part's own colour and, for a `shape: text` part, its `outline.color`
-        ring (`HandPart.outline` is only ever built on a text part --
-        `Builder._build_hand_part`). Yields the same *set* `.colors` above
+        ring (`TextPart.outline`; no other part shape has one). Yields the same *set* `.colors` above
         collects (`wfb.kinds.pattern.build`'s `_dedup_append` calls: the
         default, then each part's already-effective colour, then each
         part's own outline colour) -- `part.color` is already the effective
@@ -1062,7 +1108,7 @@ class PatternElement(Element):
             part_is_glyph = part.shape == "text"
             if part.color is not None:
                 out.append(ColorRole(label, part.color, "ink", part_is_glyph))
-            if part.outline is not None:
+            if part.shape == "text" and part.outline is not None:
                 out.append(ColorRole(label, part.outline.color, "ring", part_is_glyph))
         if self.aod is not None and self.aod.color is not None:
             out.append(ColorRole(self.id, self.aod.color, "ink", is_glyph, aod=True))

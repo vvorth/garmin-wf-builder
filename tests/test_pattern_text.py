@@ -19,7 +19,7 @@ from wfb.build import load
 from wfb import lint
 from wfb.emit.resources import bake_fonts, glyph_set
 from wfb.kinds.pattern import pattern_text_anchor
-from wfb.layout import ResolvedHandPart, resolve
+from wfb.layout import ResolvedTextPart, resolve
 
 BASE = """
 format: 1
@@ -323,7 +323,7 @@ def test_pattern_text_anchor_rounds_half_up_not_to_even_or_away_from_zero():
     exactly. `x = 2.5` rounds up to 3 (`round(2.5)` would give 2, banker's
     rounding to even); `y = -0.5` rounds up to 0 (`_round_away(-0.5)` would
     give -1, rounding away from zero)."""
-    part = ResolvedHandPart("text", None, x=2.5, y=-0.5)
+    part = ResolvedTextPart(x=2.5, y=-0.5)
     ax, ay = pattern_text_anchor(part, 0.0, 0.0, 0.0, 1.0)
     assert ax == 3
     assert ay == 0
@@ -343,7 +343,7 @@ def test_pattern_text_anchor_negative_offset_needs_floor_not_truncation():
     floor`) rounded one pixel away from what this function -- and `wfb
     preview` -- compute. See `test_wfb_geom_rotated_helpers_round_with_
     math_floor` below for the barrel-side half of this fix."""
-    part = ResolvedHandPart("text", None, x=-1.6, y=0.0)
+    part = ResolvedTextPart(x=-1.6, y=0.0)
     ax, _ = pattern_text_anchor(part, 0.0, 0.0, 0.0, 1.0)
     assert ax == -2  # floor(-1.6 + 0.5) == floor(-1.1) == -2
     # Monkey C's own (v + 0.5).toNumber() truncates toward zero instead:

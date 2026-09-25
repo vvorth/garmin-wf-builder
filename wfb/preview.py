@@ -512,7 +512,6 @@ class _Renderer:
         part (`_aod_color`, `_aod_geometry`)."""
         s = self.scale
         fill = self._aod_color(placed.element, "color", part.color, values)
-        thickness = self._aod_geometry(placed, "thickness", part.thickness)
 
         def rotated(x: float, y: float) -> tuple[float, float]:
             return (cx + (x * cos_t - y * sin_t) * s, cy + (x * sin_t + y * cos_t) * s)
@@ -523,6 +522,7 @@ class _Renderer:
         elif part.shape == "line":
             x1, y1 = rotated(part.x1, part.y1)
             x2, y2 = rotated(part.x2, part.y2)
+            thickness = self._aod_geometry(placed, "thickness", part.thickness)
             self.draw.line([x1, y1, x2, y2], fill=fill, width=max(1, thickness * s))
         else:  # circle
             x, y = rotated(part.x, part.y)
@@ -531,6 +531,7 @@ class _Renderer:
             if part.filled:
                 self.draw.ellipse(box, fill=fill)
             else:
+                thickness = self._aod_geometry(placed, "thickness", part.thickness)
                 self.draw.ellipse(box, outline=fill, width=max(1, thickness * s))
 
     def _draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color,
