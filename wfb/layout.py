@@ -14,13 +14,12 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field, replace
 
-from . import complications, formatting, icons, kinds, units
+from . import kinds, units
 from .devices import Device, FontMetric
 from .diagnostics import Span
 from .fonts import BakedFont, fallback
-from .catalog import Type
 from .ir import (
-    ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
+    Curve, Element, Expression, Face, FontSpec, Graph, Group,
     HandPart, IconElement, Position, Progress, Shape,
     Text, draw_sort_key,
 )
@@ -753,7 +752,7 @@ COMPLICATION_SLOT_ICON_GAP = 4
 class SlotPairGeometry:
     """The icon+reading pair's combined extent, and each piece's offset from
     the pair's own top-left corner -- shared by
-    `Resolver._resolve_complication_slot` (the estimated lint box) and
+    `wfb.kinds.complication_slot.resolve` (the estimated lint box) and
     `wfb.preview` (the drawn pixels).  The generated Monkey C mirrors the
     arithmetic rather than receiving these numbers: the real text is only
     known once the value is pulled at runtime (ADR 0004's one exception).
@@ -825,7 +824,8 @@ class PlacedComplicationSlot(Placed):
     #: See `PlacedText.font_metric` -- the same field, for the slot's own
     #: reading text.
     font_metric: FontMetric | None = None
-    #: The widest plausible reading (`Resolver._complication_slot_widest`).
+    #: The widest plausible reading
+    #: (`wfb.kinds.complication_slot._complication_slot_widest`).
     widest: str = ""
     #: The synthetic multi-glyph icon font (`wfb.icons.font_key`), or `None`
     #: when the slot draws no icon (no `icon_size:`, or no choice has one).
@@ -1084,87 +1084,6 @@ class Resolver:
         filename = self.device.scalable_face_files.get(face_name, face_name)
         return FontMetric(symbol=face_name or "vector", face=face_name, font=filename,
                           size_px=font_px)
-
-    def _resolve_complication_slot(self, element: ComplicationSlot, parent: Box,
-                                   depth: int) -> Placed:
-        """A `complication_slot`: an estimated box, plus the icon and text
-        fonts the emitter needs.  What is drawn is the wearer's runtime pick,
-        so this sizes the text by `_complication_slot_widest` and, with
-        `icon_size:`, one multi-glyph icon font keyed by the slot's name
-        (so two slots never share one), measured by a reference glyph.  The
-        pair's extent comes from `complication_slot_pair_geometry`, with the
-        *declared* icon size as the icon's height.
-        """
-        cx, cy = self._point(element.at, parent)
-        font = self._font_for_ref(element.font, element.font_is_custom, element.id)
-        widest = self._complication_slot_widest(element)
-        text_width, line_height = font.width(widest), font.line_height
-
-        icon_font_key: str | None = None
-        icon_px = 0
-        icon_width = 0
-        if element.icon_size is not None:
-            slot = self.face.config_data.get(element.slot)
-            reference_glyph: str | None = None
-            if slot is not None:
-                mapped = slot.icons
-                if mapped:
-                    default_icon = mapped.get(slot.default)
-                    reference_icon = default_icon or sorted(mapped.values(), key=lambda si: si.key)[0]
-                    reference_glyph = reference_icon.codepoint
-            if reference_glyph is not None:
-                icon_px = units.pixel_size(element.icon_size, self.device.minor_radius)
-                icon_font_key = icons.font_key(
-                    element.icon_size, f"slot_{element.slot}", element.resolved_antialias)
-                icon_font = self.fonts.get(icon_font_key)
-                icon_width = (icon_font.measure(reference_glyph)[0] if icon_font is not None
-                              else icon_px)
-
-        gap_px = (units.pixel_size(element.icon_gap, self.device.minor_radius)
-                 if element.icon_gap is not None else COMPLICATION_SLOT_ICON_GAP)
-        # `icon_width`/`icon_px` stay 0 when no icon font resolved.
-        geometry = complication_slot_pair_geometry(
-            element.icon_position, icon_width, icon_px, text_width, line_height, gap_px)
-        height = max(geometry.height, 1)
-        # The lint box only: the device centres the real pair on the
-        # unshifted anchor at runtime.
-        dx, dy = alignment_shift(geometry.width, height, element.align, element.vertical_align)
-        box = Box(cx + dx - geometry.width / 2, cy + dy - height / 2, geometry.width, height)
-        return PlacedComplicationSlot(
-            element, box.rounded(), (round(cx), round(cy)), depth,
-            anchor_point=(round(cx), round(cy)),
-            font_reference=font.reference, font_is_custom=font.is_custom, font_px=font.px,
-            font_metric=font.metric,
-            widest=widest, icon_font_key=icon_font_key, icon_px=icon_px,
-            icon_position=element.icon_position, icon_gap_px=gap_px,
-        )
-
-    def _complication_slot_widest(self, element: ComplicationSlot) -> str:
-        """The widest plausible reading a `complication_slot` can draw: the
-        digit-count estimate `formatting.widest` gives an unranged source,
-        across every declared choice (there is no per-choice `format:`),
-        and the placeholder.
-
-        `label:`/`unit:` are deliberately not folded in: they are localised
-        device strings with no documented bound, so any padding is either
-        routinely wrong or large enough to push ordinary slots into spurious
-        `off-screen` warnings.  `docs/limitations.md` records the gap.
-        """
-        slot = self.face.config_data.get(element.slot)
-        choices: tuple[str, ...] = ()
-        if slot is not None:
-            choices = (slot.default,) if slot.allow_any else slot.choices
-        widest = ""
-        for name in choices:
-            ctype = complications.TYPES.get(name)
-            if ctype is None:
-                continue
-            value_type = Type.STRING if ctype.value_type == "string" else Type.NUMBER
-            candidate = formatting.widest("{}", None, value_type)
-            widest = _longer(widest, candidate)
-        if element.when_absent == "placeholder" and element.placeholder:
-            widest = _longer(widest, element.placeholder)
-        return widest
 
     def _resolve_parts(
         self, parts: list[HandPart], owner: str, *, min_1px: bool,
@@ -1429,8 +1348,9 @@ def _longer(current: str, candidate: str) -> str:
     """`candidate` if it is strictly longer than `current`, else `current`
     unchanged -- "a placeholder/estimate longer than the widest-so-far
     wins," the one rule `wfb.kinds.text._widest_text` (placeholder, fallback)
-    and `Resolver._complication_slot_widest` (per-choice estimate,
-    placeholder) each repeated as their own ``if len(x) > len(y): y = x``.
+    and `wfb.kinds.complication_slot._complication_slot_widest` (per-choice
+    estimate, placeholder) each repeated as their own
+    ``if len(x) > len(y): y = x``.
     """
     return candidate if len(candidate) > len(current) else current
 

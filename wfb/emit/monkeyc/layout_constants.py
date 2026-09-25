@@ -5,10 +5,7 @@ from __future__ import annotations
 from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
-from ...layout import (
-    PlacedComplicationSlot,
-    ResolvedFace,
-)
+from ...layout import ResolvedFace
 from .common import (
     McLiteral, SourceFile, _NO_GUARDS, _const_prefix, _describe, _mc_number, _mc_type,
     _vector_fonts_used, header,
@@ -269,27 +266,6 @@ def _aod_thickness_constant(prefix: str, placed,
     if placed.aod_thickness is None:
         return []
     return [(f"{prefix}_AOD_THICKNESS", placed.aod_thickness, note)]
-
-
-def _complication_slot_constants(prefix: str, placed: PlacedComplicationSlot) -> Constants:
-    out: Constants = [
-        (f"{prefix}_CX", placed.anchor_point[0], "the icon+reading pair is centred here at runtime"),
-        (f"{prefix}_CY", placed.anchor_point[1], ""),
-    ]
-    # The editor's animated highlight needs a fixed box at build time --
-    # `getComplicationDrawable` hands the system a `Drawable` up front,
-    # before anything is pulled -- so this reuses the same estimated `box`
-    # the safe-area/overlap lints accept. Emitted for every slot regardless
-    # of `on_hold:`: the editor can animate any slot.
-    out.extend(_box_constants(f"{prefix}_BOX", placed.box,
-                              "the editor's animated highlight box (estimated)"))
-    if placed.element.icon_gap is not None:
-        # Only when the author wrote 'icon_gap:' -- otherwise the view keeps
-        # the literal COMPLICATION_SLOT_ICON_GAP. Resolved per device ('%r'
-        # is a different pixel count per screen).
-        out.append((f"{prefix}_ICON_GAP", placed.icon_gap_px,
-                    "icon_gap: resolved for this device"))
-    return out
 
 
 #: One override, applied uniformly to every part of a hands/pattern element

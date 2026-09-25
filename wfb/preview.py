@@ -30,38 +30,17 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-from . import aod_mask, complications, expr, kinds
+from . import aod_mask, expr, kinds
 from .devices import FontMetric
 from .fonts import BakedFont, fallback
 from .fonts import cft as cft_fonts
 from .ir import aod_color_choice, disc_perimeter_offsets
 from .layout import (
-    PlacedComplicationSlot, PlacedHands,
-    PlacedPattern, ResolvedFace,
-    alignment_shift, complication_slot_pair_geometry,
+    PlacedHands, PlacedPattern, ResolvedFace,
+    alignment_shift,
     radial_align_offset, radial_direction_sign,
 )
 from .palette import MIP64_LEVELS, Color, dim_fraction
-
-#: Illustrative sample values for a `complication_slot` preview, keyed by
-#: `wfb.complications.TYPES` name -- not real data (there is no live
-#: `Complications` subscription on the host), just something plausible to
-#: show instead of an empty box. Falls back to a plain "12"/"--" for any type
-#: not listed here.
-_COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
-    "steps": 8432,
-    "heart_rate": 72,
-    "calories": 1840,
-    "battery": 68,
-    "body_battery": 62,
-    "floors_climbed": 7,
-    "notification_count": 3,
-    "stress": 34,
-    "current_temperature": 21.0,
-    "date": "28 Mar",
-    "weekday_monthday": "Wed 28",
-    "training_status": "Productive",
-}
 
 #: Plausible readings, so a preview shows a face mid-life rather than at zero.
 SAMPLE: dict[str, object] = {
@@ -569,124 +548,6 @@ class _Renderer:
                 draw((ax + dx, ay + dy), ring_color)
         draw(anchor, color, box)
 
-    def _complication_slot(self, placed: PlacedComplicationSlot) -> None:
-        """A `complication_slot`, previewed at its slot's *default* choice.
-
-        There is no on-device editor to ask which type the wearer actually
-        picked -- the same reason `config:`'s colour axes preview at their
-        own `default:` above -- and the default is what a device without the
-        native editor (fr955) always shows anyway.  The reading itself is an
-        illustrative sample (`_COMPLICATION_SLOT_SAMPLE`), not real data:
-        there is no live `Complications` subscription on the host.
-        """
-        element = placed.element
-        slot = self.resolved.face.config_data.get(element.slot)
-        if slot is None:
-            return
-        ctype = complications.TYPES[slot.default]
-        color = self._aod_color(element, "color", element.color)
-        if element.icon_color is not None:
-            icon_color = self._aod_color(element, "icon_color", element.icon_color)
-        else:
-            # No awake `icon_color:` at all falls back to whatever colour
-            # `color` (above) already resolved to -- matches codegen's own
-            # "icon draws in the text's colour by default" rule exactly
-            # (`wfb.emit.monkeyc.complication_slot._emit_complication_slot`).
-            icon_aod = (
-                element.aod.icon_color if (self.options.aod and element.aod is not None) else None
-            )
-            icon_color = self._color(icon_aod) if icon_aod is not None else color
-        s = self.scale
-
-        icon_font = None
-        icon_glyph = None
-        if placed.icon_font_key is not None:
-            icon = slot.icons.get(slot.default)
-            if icon is not None:
-                icon_font = self.resolved.fonts.get(placed.icon_font_key)
-                icon_glyph = icon.codepoint
-
-        text = self._complication_slot_text(element, ctype)
-        text_font = (self.resolved.fonts.get(placed.font_reference)
-                     if placed.font_is_custom else None)
-        if text_font is not None:
-            text_width, text_height = text_font.measure(text)
-        elif placed.font_metric is not None:
-            # `fallback.measure`'s second return is whether real metrics were
-            # used, not a height -- `wfb.layout.Resolver._resolve_complication_
-            # slot` uses `fallback.line_height` for exactly this case, and
-            # this mirrors it. `fonts_root` matches `_system_face` below (the
-            # same `PreviewOptions.fonts_root` every other measurement this
-            # renderer makes goes through), so a slot's box is sized from the
-            # same file it is then drawn with (plan 18 item 8).
-            text_width, _ = fallback.measure(text, placed.font_metric,
-                                             fonts_root=self.options.fonts_root)
-            text_height = fallback.line_height(placed.font_metric, fonts_root=self.options.fonts_root)
-        else:
-            text_width, text_height = 0, placed.font_px
-
-        glyph_obj = _baked_glyph(icon_font, icon_glyph)
-        icon_width, icon_height = icon_font.measure(icon_glyph) if glyph_obj else (0, 0)
-
-        # One shared geometry function for every position --
-        # `wfb.layout.complication_slot_pair_geometry`, the same one
-        # `Resolver._resolve_complication_slot` uses to size the estimated
-        # box, called here with the *actual* measured extents this preview
-        # already has (unlike layout, which only has an estimate).
-        geometry = complication_slot_pair_geometry(
-            placed.icon_position, icon_width, icon_height, text_width, text_height,
-            placed.icon_gap_px,
-        )
-        ax, ay = placed.anchor_point
-        # `align`/`vertical_align` move the pair off the anchor -- the same
-        # `wfb.layout.alignment_shift` rule every other kind's preview
-        # uses, mirroring the arithmetic
-        # `wfb.emit.monkeyc.complication_slot._emit_complication_slot` computes at runtime
-        # from its own (real, pulled) measurements. center/center adds
-        # exactly `0.0`.
-        dx, dy = alignment_shift(geometry.width, geometry.height, element.align, element.vertical_align)
-        origin_x = ax + dx - geometry.width / 2
-        origin_y = ay + dy - geometry.height / 2
-
-        if glyph_obj is not None:
-            self._paste_glyph(icon_font.sheet, glyph_obj,
-                              (origin_x + geometry.icon_x) * s,
-                              (origin_y + geometry.icon_y) * s, icon_color)
-
-        pen_x = origin_x + geometry.text_x
-        top = origin_y + geometry.text_y
-        if text_font is not None and text_font.sheet is not None:
-            self._blit_baked_line(text_font, text, pen_x * s, top * s, color)
-            return
-        if placed.font_metric is not None:
-            face = self._system_face(placed.font_metric, scale=s)
-            if face is not None:
-                # `top` is the text box's own top edge (`geometry.text_y`,
-                # sized from `fallback.line_height` above); draw at its
-                # baseline, the same line-box model `_approximate_text` uses
-                # -- `wfb.fonts.fallback.SystemFace.baseline`, not Pillow's
-                # own ascender-based anchor, which would not agree with the
-                # box `wfb.layout` sized this pair from.
-                self._draw_system_line(face, pen_x * s, top * s + face.baseline,
-                                       text, color)
-
-    def _complication_slot_text(self, element, ctype) -> str:
-        """An illustrative reading for `ctype`, formatted the same way
-        `wfb.emit.monkeyc.complication_slot._emit_complication_slot` renders one: an optional
-        label prefix, the value, and an optional unit suffix -- approximate,
-        since the real label and unit come from the device at runtime."""
-        value = _COMPLICATION_SLOT_SAMPLE.get(
-            ctype.name, 12 if ctype.value_type != "string" else "--")
-        text = ""
-        if element.label == "short":
-            text += "Now "
-        elif element.label == "long":
-            text += "Current "
-        text += complications.format_value(value)
-        if element.unit and ctype.unit:
-            text += f" {ctype.unit}"
-        return text
-
     # -- text helpers -----------------------------------------------------
 
     def _draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
@@ -1073,7 +934,8 @@ class _Renderer:
 def _baked_glyph(font: BakedFont | None, char: str | None):
     """`char`'s `GlyphBox` in `font`, or `None` when there is no font, no
     sheet to crop from, or no such glyph -- the one "can this baked glyph
-    be drawn" check `_icon` and `_complication_slot` share."""
+    be drawn" check `wfb.kinds.icon.draw_preview` and
+    `wfb.kinds.complication_slot.draw_preview` share."""
     if font is None or font.sheet is None or char is None:
         return None
     return font.glyphs.get(char)

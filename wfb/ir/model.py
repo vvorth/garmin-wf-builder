@@ -1167,12 +1167,12 @@ class ComplicationSlot(Element):
     complication type is showing is the wearer's runtime choice, so there
     is no fixed source to bind at build time.  Everything drawn comes from a
     fresh `WfbComplications.valueOf(<slot field>)` pull every frame.  No
-    `format:` (`Builder._build_complication_slot` says why).
+    `format:` (`wfb.kinds.complication_slot.build` says why).
     """
 
     #: The declared `config: data:` slot name this element shows (the part
     #: after `config.data.`), resolved and validated by
-    #: `Builder._resolve_slot_reference`.
+    #: `wfb.kinds.complication_slot._resolve_slot_reference`.
     slot: str = ""
     font: str = "FONT_SMALL"
     font_is_custom: bool = False

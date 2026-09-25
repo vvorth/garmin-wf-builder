@@ -32,8 +32,8 @@
 #   own id), resolved fresh on every hold rather than a fixed name baked in
 #   at build time. `auto` is the *only* spelling accepted here: a fixed
 #   target would silently disagree with what is on screen the moment the
-#   wearer repoints the slot -- see `wfb/ir/builder.py`'s `Builder.
-#   _build_complication_slot` for the error this produces if you try.
+#   wearer repoints the slot -- see `wfb/kinds/complication_slot.py`'s
+#   `build` for the error this produces if you try.
 # * `bottom_reading` uses `choices: any` -- the editor's own unrestricted
 #   complication picker -- and still declares `icon_size:`. **Superseded
 #   2026-09-13** (plan 03 §6.6): `any` used to forbid `icon_size:` outright,

@@ -1136,7 +1136,7 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             # per-frame pull off a wearer-editable `Complications.Id`), so
             # there is nothing for `plan.guards`/`value_guards` to say
             # about it -- `color:` is the only ordinary expression here,
-            # and `Builder._build_complication_slot` already requires it
+            # and `wfb.kinds.complication_slot.build` already requires it
             # to be non-nullable.
             kind.emit_draw(w, resolved, placed, None, plan, aod)
             return
