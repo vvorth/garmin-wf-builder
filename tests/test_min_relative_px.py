@@ -628,7 +628,7 @@ def test_to_offset_is_never_clamped(resolved_for):
 
 def test_polygon_points_are_never_clamped(resolved_for):
     """A polygon's own bounding box comes straight from its resolved
-    vertices (`wfb.kinds.shape.resolve`'s polygon branch never calls
+    vertices (`wfb.kinds.shape.ShapeKind.resolve`'s polygon branch never calls
     `_extent`), so a hairline triangle's width must be identical whether
     `min_1px` is on or off -- unlike every in-scope shape's own `size:` or
     `radius:` above."""

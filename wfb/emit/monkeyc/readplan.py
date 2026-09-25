@@ -312,7 +312,7 @@ class ReadPlan:
         a `Text`, `{value, max}` for a `Progress` (its fill fraction depends
         on both together -- one nullable reading is as absent as the other,
         from the fraction's own point of view, which is also why
-        `wfb.kinds.progress.build` checks their combined nullability as one
+        `wfb.kinds.progress.ProgressKind.build` checks their combined nullability as one
         thing), empty for every other kind, which has no `when_absent:`
         field at all -- nothing here is "the value" for one of those, so
         every binding is an "other" one, guarded unconditionally.

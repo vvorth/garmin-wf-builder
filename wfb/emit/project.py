@@ -129,8 +129,9 @@ def generate(face: Face, devices: list[Device], root: Path,
     # per device is decided over all of them (`guards`, and the icon-glyph
     # union below), never by the first alone.
     needs_icon_glyphs = any(
-        kinds.for_placed(placed).needs_icon_glyphs(placed.element, face)
-        for device_resolved in project.resolved.values() for placed in device_resolved.items
+        run.glyph_table is not None
+        for device_resolved in project.resolved.values()
+        for _, run in kinds.placed_text_runs(device_resolved.items, face)
     )
     if needs_icon_glyphs:
         project.sources.append(monkeyc.emit_icon_glyphs(face))

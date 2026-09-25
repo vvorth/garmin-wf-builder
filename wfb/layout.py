@@ -412,9 +412,9 @@ def text_ink(
 ) -> Ink:
     """The ink of one measured `width`x`height` run anchored at `(x, y)` --
     the one derivation shared by a standalone `text` element
-    (`wfb.kinds.text.resolve`'s box, `visible_reach`) and a pattern's
+    (`wfb.kinds.text.TextKind.resolve`'s box, `visible_reach`) and a pattern's
     `shape: text` part (`wfb.kinds.pattern._pattern_part_ink`,
-    `wfb.kinds.pattern.resolve`'s reach), so box and reach always describe
+    `wfb.kinds.pattern.PatternKind.resolve`'s reach), so box and reach always describe
     the same shape.
 
     * upright -- the box moved by `alignment_shift`; the runtime anchor
@@ -648,7 +648,7 @@ class _ResolvedPart:
     #: The farthest ink from the frame's origin, from the geometry before
     #: rounding (`Resolver._hand_part_geometry`). `0.0` for a text part:
     #: upright glyphs are not rotation-invariant, so a pattern measures each
-    #: drawn copy's text ink instead (`wfb.kinds.pattern.resolve`).
+    #: drawn copy's text ink instead (`wfb.kinds.pattern.PatternKind.resolve`).
     reach: float = 0.0
 
 
@@ -854,7 +854,7 @@ COMPLICATION_SLOT_ICON_GAP = 4
 class SlotPairGeometry:
     """The icon+reading pair's combined extent, and each piece's offset from
     the pair's own top-left corner -- shared by
-    `wfb.kinds.complication_slot.resolve` (the estimated lint box) and
+    `wfb.kinds.complication_slot.ComplicationSlotKind.resolve` (the estimated lint box) and
     `wfb.preview` (the drawn pixels).  The generated Monkey C mirrors the
     arithmetic rather than receiving these numbers: the real text is only
     known once the value is pulled at runtime (ADR 0004's one exception).
@@ -1118,7 +1118,7 @@ class Resolver:
         """The "size, then align" box every `size:`-placed kind shares, and
         its shifted centre.  Width then height go through `_extent` in that
         order -- `sub_pixel`'s order.  Takes the anchor already resolved,
-        since `wfb.kinds.shape.resolve` needs it first (`_point` records nothing).
+        since `wfb.kinds.shape.ShapeKind.resolve` needs it first (`_point` records nothing).
         """
         min_1px = element.resolved_min_1px
         width = self._extent(element.size.width, parent, Axis.X, parent.width,
@@ -1254,7 +1254,7 @@ class Resolver:
             # The placement box is the declared `size:`, in the part's own
             # frame -- shift the centre
             # before the corners (and `round_half_away`) below, the same order
-            # `wfb.kinds.shape.resolve` already uses in the parent's frame.
+            # `wfb.kinds.shape.ShapeKind.resolve` already uses in the parent's frame.
             # `top`/`left` mean `-y`/`-x` here too: a hand's 12 o'clock rest
             # pose is already `-y`, so no sign flip is needed to match the
             # "towards 12 o'clock" convention.
@@ -1305,7 +1305,7 @@ class Resolver:
         if part.shape == "text":
             # A pattern's template only.  Upright glyphs are not
             # rotation-invariant, so reach is `0.0` here:
-            # `wfb.kinds.pattern.resolve` measures each drawn copy's own ink
+            # `wfb.kinds.pattern.PatternKind.resolve` measures each drawn copy's own ink
             # instead.
             x0, y0 = self._hand_point(part.at)
             font = self._text_font(part.font, part.font_is_custom, owner_id, part.curve)
@@ -1334,7 +1334,7 @@ class Resolver:
         # The placement box is the full `2*radius` square,
         # at the resolved (already-rounded) radius the part draws with --
         # shifted before `reach`/`round_half_away` below, same as
-        # `wfb.kinds.shape.resolve`'s circle branch in the parent's frame.
+        # `wfb.kinds.shape.ShapeKind.resolve`'s circle branch in the parent's frame.
         dx, dy = alignment_shift(2 * radius, 2 * radius, part.align, part.vertical_align)
         cx, cy = cx + dx, cy + dy
         thickness = max(1, round_half_away(self._hand_extent(
@@ -1499,11 +1499,11 @@ def _shape_ink(placed: "Placed", fonts_root: str | None = None) -> Ink | None:
     """The real ink shape where it is tighter than `placed.box`: a
     `circular_extent` kind's disc, or a curved `text` element's rotated box
     or sector -- rebuilt by :func:`text_ink` from the fields
-    `wfb.kinds.text.resolve` stored, so it is the shape its box came from.
+    `wfb.kinds.text.TextKind.resolve` stored, so it is the shape its box came from.
     `None` for everything else, whose box corners are its real corners.
     `fonts_root` (the device's own `--fonts DIR` override): see
     :func:`text_ink` -- this re-derivation must locate the same file
-    `wfb.kinds.text.resolve` already measured with, or a `safe-area`
+    `wfb.kinds.text.TextKind.resolve` already measured with, or a `safe-area`
     check could disagree with the box it is re-checking (plan 18 item 8).
     """
     circle = circular_extent(placed)

@@ -162,7 +162,7 @@ def _emit_complication_slot_hold_method(w: Writer, placed: PlacedComplicationSlo
     Public, unlike every draw method: the delegate is a different class and
     Monkey C's `private` genuinely blocks a cross-class call (verified by
     building both ways).  Only emitted for a slot that actually declares
-    `on_hold: auto` -- `wfb.kinds.complication_slot.build` restricts a slot to
+    `on_hold: auto` -- `wfb.kinds.complication_slot.ComplicationSlotKind.build` restricts a slot to
     exactly that or nothing, so there is no fixed `wfb.complications.TYPES`
     name to resolve here the way a `Text`/`Progress`/`IconElement`'s `auto`
     resolves one; the delegate reads this id and hands it straight to

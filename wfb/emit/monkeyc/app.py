@@ -92,7 +92,7 @@ def emit_icon_glyphs(face: Face, via_char: frozenset[str] = frozenset()) -> Sour
     (`icon_for:`) icon.
 
     A static icon's glyph is known at build time and gets baked directly
-    into its `drawText` call as a literal (see `wfb.kinds.icon.emit_draw`)
+    into its `drawText` call as a literal (see `wfb.kinds.icon.IconKind.emit_draw`)
     -- no lookup needed. A dynamic icon's name is only known on-device, so
     this table, generated straight from `wfb.icon_catalog.CATALOG` rather than
     hand-maintained, resolves it there: `WfbWeather.mc`'s
@@ -145,6 +145,7 @@ def icon_glyph_entries(face: Face) -> dict[str, str]:
     See `emit_icon_glyphs` for which keys, and why only those.
     """
     entries: dict[str, str] = {}  # key -> codepoint
-    for element in face.walk():
-        entries.update(kinds.for_element(element).icon_glyph_entries(element, face))
+    for _, run in kinds.face_text_runs(face):
+        if run.glyph_table is not None:
+            entries.update(run.glyph_table)
     return entries

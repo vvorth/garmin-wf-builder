@@ -318,7 +318,7 @@ def test_pattern_radial_band_flips_inward_outward_with_facing(write_design, bag,
 
 def test_linear_pattern_curve_has_no_copy_angle_to_compose_with(write_design, bag, db):
     """`element.start_angle`/`.step_angle` are always `0.0` on a linear
-    pattern (`wfb.kinds.pattern.resolve`), so the composition
+    pattern (`wfb.kinds.pattern.PatternKind.resolve`), so the composition
     formula reduces to the part's own local angle unchanged -- checked at
     the `PatternElement` level, since that is what codegen/preview actually
     read for the per-copy composition."""

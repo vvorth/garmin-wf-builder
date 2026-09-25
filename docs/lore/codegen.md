@@ -308,7 +308,7 @@ These cost real time to discover; do not rediscover them.
   inside it."** Slice 1's own `Curve` dataclass and every build-time gate
   (1-3) are reused unchanged (`wfb.layout.Resolver._resolve_vector_face`/
   `._vector_font_metric`, called from `._resolve_hand_part`'s own `text`
-  branch the same way `wfb.kinds.text.resolve` already calls them) -- the
+  branch the same way `wfb.kinds.text.TextKind.resolve` already calls them) -- the
   only new work is the angle's *composition* and one codegen-side behaviour
   change.
 
@@ -344,7 +344,7 @@ These cost real time to discover; do not rediscover them.
   the local angle, never re-derived per copy -- so `g0 - i * step_deg`
   composes correctly with no special-casing for which style the part uses.
   A linear pattern's `element.start_angle`/`.step_angle` are always `0.0`
-  (`wfb.kinds.pattern.resolve`), so `g0` reduces to the part's own local
+  (`wfb.kinds.pattern.PatternKind.resolve`), so `g0` reduces to the part's own local
   angle unchanged and no `i *` term is emitted at all -- the "no copy angle
   to compose with" case falls out of the shared formula for free, not a
   separate branch. `wfb.kinds.pattern._pattern_text` calls the same
@@ -354,7 +354,7 @@ These cost real time to discover; do not rediscover them.
 
   **Why gate 4's guard cannot stay "load once, early-return before the
   loop."** That is exactly what a *baked* custom font on a pattern text
-  part still does (`wfb.kinds.pattern.emit_draw`'s own `text_fonts` pre-loop loading,
+  part still does (`wfb.kinds.pattern.PatternKind.emit_draw`'s own `text_fonts` pre-loop loading,
   unchanged) -- reasonable there, because a baked resource failing to load
   is a structural failure, essentially never observed. A vector font's
   null is the *ordinary* case under `if_unavailable: hide`, or even under
@@ -362,7 +362,7 @@ These cost real time to discover; do not rediscover them.
   `return;` before the loop would silently cancel every *other* part of
   the *same* pattern too -- unrelated shapes, unrelated fonts, all sharing
   this one generated draw method. So a vector font's local is still loaded
-  once before the loop (`wfb.kinds.pattern.emit_draw`'s new `vector_text_fonts` split),
+  once before the loop (`wfb.kinds.pattern.PatternKind.emit_draw`'s new `vector_text_fonts` split),
   but never early-return-guarded; instead `wfb.kinds.pattern.
   _emit_pattern_text_draw` wraps only its own draw call in `if (<local> !=
   null)`, every copy, the same shape `wfb.emit.monkeyc.shapes._emit_
@@ -535,7 +535,7 @@ These cost real time to discover; do not rediscover them.
   1-4's own machinery has no AOD-override-aware second face/size constant
   yet), and `aod: {filled: ...}` on `shape: polygon` (there is no outline
   primitive for it to switch to -- the same reason the awake element's own
-  `filled: false` is already refused, `wfb.kinds.shape.build`).
+  `filled: false` is already refused, `wfb.kinds.shape.ShapeKind.build`).
   All four are raised on the author's own line: in `Builder._build_aod_authored`
   for an element's own block, and in `Builder._resolve_aod` for a key the
   element inherits from a group (plan 18 item 5; both read one table,

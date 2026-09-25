@@ -63,7 +63,7 @@ def test_a_bmp_only_icon_keeps_the_filter_attribute(write_design, bag, db):
 
 def test_a_literal_string_fallback_extends_the_glyph_set(write_design, bag, db, repo_root):
     """Bug 1: `fallback:` is drawn through the same custom font as the real
-    value (see `wfb.kinds.text.emit_draw`), so a literal string
+    value (see `wfb.kinds.text.TextKind.emit_draw`), so a literal string
     fallback's own characters must be in the subsetted glyph set too.
 
     `complication.training_status` is a nullable `STRING` source with no known
@@ -104,6 +104,55 @@ elements:
     chars = glyph_set(face)["small"]
     for letter in "Not Available":
         assert letter in chars, f"{letter!r} missing from the subsetted glyph set {chars!r}"
+
+
+
+def _aod_font_design(write_design, bag, repo_root, awake_font: str, aod_format: str = ""):
+    ttf = repo_root / "tests/fixtures/slice/assets/OpenSans-Regular.ttf"
+    aod_extra = f", format: \"{aod_format}\"" if aod_format else ""
+    face = load(write_design(f"""
+format: 1
+face: {{id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57, name: Test}}
+targets: [fenix847mm]
+palette: {{bg: "#000000", fg: "#FFFFFF"}}
+fonts:
+  day:
+    source: {ttf}
+    size: 20px
+  night:
+    source: {ttf}
+    size: 16px
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{{:%H:%M}}"
+    font: {awake_font}
+    at: {{anchor: center}}
+    color: palette.fg
+    aod: {{font: font.night{aod_extra}}}
+"""), bag)
+    assert face is not None, bag.render()
+    return glyph_set(face)
+
+
+def test_an_aod_font_override_gets_the_glyphs_its_own_format_draws(write_design, bag, repo_root):
+    """A baked `aod: {font: ...}` draws the same value through its own
+    `format:` override, so its sheet holds that rendering's glyphs -- the
+    '{:%H}' override needs no ':', the awake '{:%H:%M}' does."""
+    sets = _aod_font_design(write_design, bag, repo_root, "font.day", aod_format="{:%H}")
+    assert ":" in sets["day"]
+    assert ":" not in sets["night"]
+    assert set("0123456789") <= set(sets["night"])
+
+
+def test_an_aod_font_override_on_a_system_font_text_gets_its_glyphs(write_design, bag, repo_root):
+    """The override's glyphs do not depend on the element's own font being a
+    baked one: a system-font clock whose AOD frame draws in a baked font
+    still needs ':' in that font (an empty set would bake '0123456789')."""
+    sets = _aod_font_design(write_design, bag, repo_root, "FONT_SMALL")
+    assert "day" in sets and sets["day"] == ""
+    assert ":" in sets["night"]
 
 
 # -- a font's `size:` as a length ---------------------------------------------

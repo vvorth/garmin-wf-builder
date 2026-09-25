@@ -104,6 +104,15 @@ touch time would answer about a different moment than the pixels on screen).
 > kind module and the schema (`docs/development.md`, "Element kinds"). Code
 > paths this ADR and ADRs 0005 and 0008 cite were updated in place to the
 > functions' new homes; no decision changed.
+>
+> **Amendment (2026-09-25, later the same day): a kind is a class, and its
+> fonts are one method.** `ElementKind` became a base class whose methods
+> carry the signatures and docstrings; each kind module subclasses it
+> (`TextKind`, ...). The ten font hooks (loaded fonts, vector fonts, glyph
+> needs, the glyph and vector-font lints, icon fonts and their glyph table)
+> became one, `text_runs`, from which each stage derives its own answer.
+> No decision changed; cited paths were updated in place
+> (`wfb.kinds.text.emit_draw` is now `wfb.kinds.text.TextKind.emit_draw`).
 
 ### 2. Coordinate system — anchors plus relative units, with polar as a first-class option
 

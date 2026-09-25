@@ -208,7 +208,7 @@ comparison of both radii at both sweep endpoints otherwise.
 {style: angled}`: the four *real* corners of the rotated text box, not
 its AABB's. Both a standalone element (`wfb.layout.visible_reach`, read by
 `wfb.layout.inside_visible_area_for`) and a pattern's own `shape: text`
-part (`wfb.kinds.pattern.resolve`'s per-copy `text_reach`) go through
+part (`wfb.kinds.pattern.PatternKind.resolve`'s per-copy `text_reach`) go through
 this geometry, via one `wfb.layout.text_ink` shape per run whose
 `box()`/`bounds()` and `reach()` answer both questions from the same
 shape. `check_geometry`'s `safe-area` message now also names the

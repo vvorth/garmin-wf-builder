@@ -1731,7 +1731,7 @@ def test_format_on_a_literal_text_element_is_an_error(write_design, bag):
 
 
 def test_aod_format_on_a_literal_text_element_is_an_error(write_design, bag):
-    """The same rule extended to `aod: {format: ...}`: `wfb.kinds.text.emit_draw` never
+    """The same rule extended to `aod: {format: ...}`: `wfb.kinds.text.TextKind.emit_draw` never
     reads `element.aod.format` once `element.literal` is set, so leaving
     it unchecked would accept a key with no effect either way."""
     load(write_design(design(_LITERAL_WITH_AOD_FORMAT)), bag)

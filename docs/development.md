@@ -139,7 +139,7 @@ wfb/                  the compiler
   expr.py               the expression language -> Monkey C
   ir/                   the IR (model.py, naming.py) and the semantic pass (builder.py)
   kinds/                one module per element kind: its own build, resolve, preview,
-                        emit and layout-constant code, behind the ElementKind registry
+                        emit and layout-constant code, an ElementKind subclass each
   layout.py             relative units -> absolute pixels, per device
   lint.py               ADR 0008's checks, each with a stated confidence
   fonts/                TrueType -> BMFont sheet, subsetted to the used glyphs
@@ -170,11 +170,27 @@ docs/                 README.md (hub), guide/ (format reference), limitations, A
 
 Each element kind (`group`, `shape`, `text`, `progress`, `icon`, `graph`,
 `complication_slot`, `hands`, `pattern`) is one module in `wfb/kinds/`,
-holding one `ElementKind` (plan 19 A4). A stage never switches on kind: it
-asks the registry (`kinds.for_element`, `kinds.for_placed`) and calls a
-hook. **Adding a tenth kind** is an IR class (`wfb/ir/model.py`), a `Placed`
-class (`wfb/layout.py`), one kind module and its schema entry;
-`tests/test_kinds.py` fails until all four agree.
+holding one subclass of `wfb.kinds.ElementKind` (`TextKind`, `PatternKind`,
+...) and an instance of it as the module's `KIND`. A stage never switches on
+kind: it asks the registry (`kinds.for_element`, `kinds.for_placed`) and
+calls a method. The base class is the interface: every method's signature
+and docstring is there, and every method but `build`, `resolve`,
+`draw_preview` and `emit_draw` has a default meaning "nothing to do here",
+so a kind overrides only where it differs. **Adding a tenth kind** is an IR
+class (`wfb/ir/model.py`), a `Placed` class (`wfb/layout.py`), one kind
+module and its schema entry; `tests/test_kinds.py` fails until all four
+agree.
+
+**Fonts are one question.** A kind that draws text says what it draws, and
+in which font, as a list of `TextRun`s (`ElementKind.text_runs`): the font,
+the glyphs a baked sheet must hold, the exact strings the missing-glyph lint
+checks, and, for an icon font, how to bake it. Glyph baking, icon-font
+baking, `onLayout`'s font loading, the vector-font guards and lint, the
+missing-glyph lint and `IconGlyphs.mc` are all derived from those runs in
+their own stage, so a new kind that draws text writes one method, not one
+per stage. A `pattern` returns one run per `shape: text` part; `part_index`
+is how a stage finds the font layout resolved for that part
+(`kinds.placed_font`).
 
 Where code goes:
 
@@ -183,7 +199,7 @@ Where code goes:
   text blitting, `layout._longer`) stays in its stage module.
 - A site goes through the registry if adding a kind would force an edit
   there (a ladder over kinds, a per-kind table, a list of kind names); it
-  becomes a hook whose default is the ladder's fall-through. A site about
+  becomes a method whose default is the ladder's fall-through. A site about
   one kind's own feature (collecting every `complication_slot`, a
   `graph`'s series barrel) stays as it is.
 - Kind modules import stage modules and may call their underscored

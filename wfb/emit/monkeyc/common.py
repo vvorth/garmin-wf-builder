@@ -340,10 +340,11 @@ def _loaded_fonts(resolved: ResolvedFace) -> list[str]:
     **A `face:` (vector) font is never in this list** (plan 11): it is not
     a resource at all, and `_vector_fonts_used` covers it instead.
     """
-    out: list[str] = []
-    for placed in resolved.items:
-        out.extend(kinds.for_placed(placed).loaded_fonts(placed))
-    return list(dict.fromkeys(out))
+    face = resolved.face
+    return list(dict.fromkeys(
+        run.font for _, run in kinds.placed_text_runs(resolved.items, face)
+        if not run.aod_only and not run.is_vector(face)
+    ))
 
 
 def _aod_only_fonts(resolved: ResolvedFace) -> list[str]:
@@ -388,10 +389,11 @@ def _vector_fonts_used(resolved: ResolvedFace) -> list[str]:
     vector_fonts_used(face)` answers the same question off the IR, for the
     build-wide guard decision made before any device is resolved.
     """
-    out: list[str] = []
-    for placed in resolved.items:
-        out.extend(kinds.for_placed(placed).vector_fonts(placed))
-    return list(dict.fromkeys(out))
+    face = resolved.face
+    return list(dict.fromkeys(
+        run.font for _, run in kinds.placed_text_runs(resolved.items, face)
+        if not run.aod_only and run.is_vector(face)
+    ))
 
 
 def _describe(placed) -> str:

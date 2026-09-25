@@ -227,17 +227,6 @@ def check_unreachable_layout(face: Face, bag: Bag) -> None:
         )
 
 
-def _vector_text_carriers(face: Face):
-    """Every `(what, carrier, part_index, element)` that can draw text in a
-    `face:` font: a `Text` element (`part_index` is `None`) and each
-    `shape: text` part of a pattern (named `<pattern id>.parts[<i>]`).  The
-    carrier has the `font`/`font_is_custom`/`curve`/`if_unavailable`/`span`
-    the check reads; `element` owns the `lint:` block (a part has none)."""
-    for element in face.walk():
-        for what, carrier, part_index in kinds.for_element(element).vector_text_carriers(element):
-            yield what, carrier, part_index, element
-
-
 def check_shared_view_targets(resolved: dict[str, ResolvedFace], bag: Bag) -> None:
     """One view serves every target (plan 19 A5), so code that only some
     targets can run is compiled into the rest too. The one such need is the
@@ -295,33 +284,31 @@ def check_vector_font_availability(
     placed_by_device = {
         device_id: {p.id: p for p in rf.items} for device_id, rf in resolved.items()
     }
-    for what, carrier, part_index, element in _vector_text_carriers(face):
-        if not carrier.font_is_custom:
+    for element, run in kinds.face_text_runs(face):
+        spec = face.fonts.get(run.font)
+        if run.aod_only or spec is None or not spec.is_vector:
             continue
-        spec = face.fonts.get(carrier.font)
-        if spec is None or not spec.is_vector:
-            continue
-        kind = kinds.for_element(element)
+        what = run.label
         failing = sorted(
-            device_id for device_id, placed in placed_by_device.items()
-            if kind.font_unavailable(placed.get(element.id), part_index)
+            device_id for device_id, by_id in placed_by_device.items()
+            if element.id in by_id and not kinds.placed_font(by_id[element.id], run).available
         )
         if not failing:
             continue
-        effective = carrier.if_unavailable or spec.if_unavailable or "error"
+        effective = run.if_unavailable or spec.if_unavailable or "error"
         requested = ", ".join(spec.face)
         if effective == "error":
             bag.error(
                 "font-unavailable",
-                f"{what}: 'font: font.{carrier.font}' has no usable face on "
+                f"{what}: 'font: font.{run.font}' has no usable face on "
                 + ", ".join(failing),
-                carrier.span,
+                run.span,
                 notes=[
                     f"requested face(s), in author order: {requested}",
                     *(_vector_font_failure_reason(resolved[device_id].device, spec,
-                                                  carrier.curve)
+                                                  run.curve)
                       for device_id in failing),
-                    f"set 'if_unavailable: hide' on 'font.{carrier.font}' or on "
+                    f"set 'if_unavailable: hide' on 'font.{run.font}' or on "
                     f"'{what}' to let it disappear on a target that cannot "
                     "draw it, drop the device from 'targets:', or add a face it "
                     "actually publishes",
@@ -334,8 +321,8 @@ def check_vector_font_availability(
         bag.warning(
             "font-unavailable",
             f"{what}: will not draw on " + ", ".join(failing)
-            + f" -- 'font: font.{carrier.font}' has no usable face there",
-            carrier.span,
+            + f" -- 'font: font.{run.font}' has no usable face there",
+            run.span,
             notes=[
                 f"requested face(s), in author order: {requested}",
                 "set 'lint: {allow: [font-unavailable], reason: ...}' on "
@@ -932,13 +919,21 @@ def _missing_glyph_error(bag: Bag, what: str, font_reference: str, missing: set[
 def check_glyphs(resolved: ResolvedFace, bag: Bag) -> None:
     """A subsetted font must contain every character the design can render.
 
-    A `text` element is checked on its widest rendering; a pattern's
-    `shape: text` part on every drawn copy's exact string, collected into
-    one error per part ("one error, not N", docs/lore/codegen.md) -- each
-    kind's own `ElementKind.check_glyphs` hook.
+    Each text run is checked on its own `samples` -- a `text` element on
+    its widest rendering, a pattern's `shape: text` part on every drawn
+    copy's exact string -- collected into one error per run ("one error,
+    not N", docs/lore/codegen.md).
     """
-    for placed in resolved.items:
-        kinds.for_placed(placed).check_glyphs(placed, resolved, bag)
+    for _, run in kinds.placed_text_runs(resolved.items, resolved.face):
+        font = resolved.fonts.get(run.font) if run.samples else None
+        if font is None:
+            continue
+        missing: set[str] = set()
+        for sample in run.samples:
+            missing |= font.missing(sample)
+        if missing:
+            _missing_glyph_error(bag, run.label, run.font, missing, run.span,
+                                 [run.sample_note] if run.sample_note else [])
 
 
 # -- check 10: contrast -----------------------------------------------------
@@ -976,7 +971,7 @@ def _contrast_subjects(placed):
     once every part overrides its own -- folding it in here would check a
     colour that may never reach the screen.  The plain branch (every other
     kind) has no such mismatch, so it reads `color_roles()` instead of its
-    own `getattr` pair.  Each branch is a kind's own `contrast_subjects` hook.
+    own `getattr` pair.  Each branch is a kind's own `contrast_subjects` method.
     """
     return kinds.for_placed(placed).contrast_subjects(placed)
 
@@ -2224,7 +2219,7 @@ def check_pattern_step(resolved: ResolvedFace, bag: Bag) -> None:
     """A linear pattern's `step:` that rounds to `{0, 0}` px on this
     device -- every copy lands on top of copy 0, the same "draws nothing
     distinguishable" failure a radial `step: 0deg` is a
-    build-time error for (`wfb.kinds.pattern.build`).  This one can
+    build-time error for (`wfb.kinds.pattern.PatternKind.build`).  This one can
     only be caught per device: `step: {dx: 1%}` is a real, nonzero gap on a
     280x280 screen and rounds away to nothing on a screen too small (or an
     axis too short) for 1% of it to reach a whole pixel.

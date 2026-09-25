@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from dataclasses import replace
 
-from .. import catalog, expr, formatting, lint
+from .. import catalog, expr, formatting
 from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
@@ -16,68 +18,12 @@ from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
 from ..emit.monkeyc.common import NO_AOD, AodStyle, _aod_font_field, _color, _const_prefix, _field
 from ..emit.writer import Writer
-from . import ElementKind
+from . import ElementKind, TextRun
 
-
-def _aod_refusal(key, shape, literal_text):
-    if key == "format" and literal_text:
-        return ("format", "'aod: {format: ...}' applies only to 'value:', not a fixed 'text:'", [])
-    return None
-
-
-def build(b, node: dict, common: dict, path: tuple) -> Element:
-    value = b._expression(node, "value") if "value" in node else None
-    align, vertical_align = b._alignment(node)
-    element = Text(
-        **common,
-        value=value,
-        literal=node.get("text"),
-        format=node.get("format"),
-        color=b._color_expression(node, "color"),
-        align=align,
-        vertical_align=vertical_align,
-        when_absent=node.get("when_absent"),
-        placeholder=node.get("placeholder"),
-        fallback=b._expression(node, "fallback") if "fallback" in node else None,
-        if_unavailable=node.get("if_unavailable"),
-    )
-    font_ok = b._resolve_font(node, element)
-    if "antialias" in node:
-        _reject_text_antialias(b, node, element)
-    font_is_vector = b._is_vector_font(element.font, element.font_is_custom)
-    font_note = b._font_kind_note(element.font, element.font_is_custom)
-    if "curve" in node:
-        element.curve = b._build_curve(
-            node, element.id, vertical_align=element.vertical_align, font_ok=font_ok,
-            font_is_vector=font_is_vector, font_note=font_note)
-    if font_ok and "if_unavailable" in node:
-        b._check_if_unavailable(node, element.id, font_is_vector, font_note)
-    if "outline" in node:
-        element.outline = b._build_outline(node, "outline", element.id, element=element)
-    own_aod_format = element.aod_own is not None and "format" in element.aod_own
-    aod_format_span = (b.doc.span(node.get("aod"), "format") or b.doc.span(node, "aod")
-                       if own_aod_format else None)
-    if value is not None:
-        b._check_absence(node, element, value, element.when_absent, element.placeholder,
-                         element.fallback)
-        b._check_format(node, value, element.format)
-        if own_aod_format:
-            # An `aod: {format: ...}` inherited from a group is checked
-            # in `_resolve_aod` instead, once inheritance is resolved.
-            b._check_format_spec(value, str(element.aod_own["format"]), aod_format_span)
-    else:
-        # A fixed `text:` has no bound value for `format:`, or its
-        # `aod:` twin, to format.
-        b._check_format_not_on_literal(node, element.id)
-        refusal = b._aod_refusal("format", "text", None, literal_text=True)
-        if own_aod_format and refusal is not None:
-            code, what, notes = refusal
-            b.bag.error(code, f"{element.id}.aod.format: {what}", aod_format_span,
-                       notes=notes)
-    b._check_other_absence(node, element, "color", element.color)
-    b._check_reachable_substitute(node, element, "'color'",
-                                  (element.value,), (element.color,))
-    return element
+if TYPE_CHECKING:
+    from ..ir.builder import Builder
+    from ..layout import Resolver
+    from ..preview import _Renderer
 
 
 def _reject_text_antialias(b, node: dict, element: Text) -> None:
@@ -109,41 +55,6 @@ def _reject_text_antialias(b, node: dict, element: Text) -> None:
     )
 
 
-def resolve(r, element: Text, parent: Box, depth: int) -> Placed:
-    font = r._text_font(element.font, element.font_is_custom, element.id, element.curve)
-    widest = _widest_text(element)
-    # A baked sheet measures exactly; anything else is an estimate --
-    # still a conservative, non-zero one for an *unavailable* vector
-    # font, whose metric locates no face and falls to Pillow's default.
-    width = font.width(widest)
-    line_height = font.line_height
-
-    x, y = r._point(element.at, parent)
-    curve = resolved_curve(element.curve)
-    if curve.style == "radial" and element.curve.radius is not None:
-        curve = replace(curve, radius_px=round(r._extent(
-            element.curve.radius, parent, Axis.MINOR, 0,
-            min_1px=element.resolved_min_1px, what="curve.radius")))
-    ring_px = float(element.outline.width) if element.outline is not None else 0.0
-    box = text_ink(
-        x, y, width, line_height, element.align, element.vertical_align,
-        curve_style=curve.style, angle_garmin=curve.angle_garmin,
-        radius_px=curve.radius_px, direction=curve.direction, metric=font.metric,
-        pad=ring_px, fonts_root=r.device.fonts_root).box()
-
-    return PlacedText(
-        element, box.rounded(), (round(x), round(y)), depth,
-        anchor_point=(round(x), round(y)),
-        justify=r._justify(element),
-        font=font.resolved(),
-        widest=widest,
-        measured_width=round(width),
-        width_is_estimated=font.baked is None,
-        curve=curve,
-        line_height=line_height,
-    )
-
-
 def _widest_text(element: Text) -> str:
     if element.literal is not None:
         return element.literal
@@ -157,7 +68,7 @@ def _widest_text(element: Text) -> str:
         widest = _longer(widest, element.placeholder)
     if element.when_absent == "fallback" and element.fallback is not None:
         # 'fallback:' is drawn through the exact same format spec as the
-        # real value (see `wfb.kinds.text.emit_draw`), so its widest
+        # real value (see `wfb.kinds.text.TextKind.emit_draw`), so its widest
         # rendering has to be considered too -- otherwise a font baked
         # from the *value*'s digit range alone can come up short for a
         # wider fallback (e.g. a longer literal string on a nullable
@@ -168,7 +79,7 @@ def _widest_text(element: Text) -> str:
 
 def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
     """The widest string a `fallback:` expression could render, through the
-    same format spec the bound value uses (see `wfb.kinds.text.emit_draw`).
+    same format spec the bound value uses (see `wfb.kinds.text.TextKind.emit_draw`).
 
     A literal string fallback (`fallback: "N/A"`) renders exactly as written,
     the same way `placeholder:` already does above -- `formatting.widest`'s
@@ -184,51 +95,41 @@ def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
     return formatting.widest(spec, source, fallback_expr.value.type, fallback_expr.scale)
 
 
-def ink(placed: PlacedText, fonts_root: str | None = None):
-    """A curved element's rotated box/sector, rebuilt from the fields
-    `resolve` stored -- `None` for upright text, whose box corners are
-    already its real corners."""
-    if placed.curve.style is None:
-        return None
-    outline = placed.element.outline
-    return text_ink(
-        placed.anchor_point[0], placed.anchor_point[1], float(placed.measured_width),
-        placed.line_height, placed.element.align, placed.element.vertical_align,
-        curve_style=placed.curve.style, angle_garmin=placed.curve.angle_garmin,
-        radius_px=placed.curve.radius_px, direction=placed.curve.direction,
-        metric=placed.font.metric, pad=float(outline.width) if outline is not None else 0.0,
-        fonts_root=fonts_root)
 
-
-def draw_preview(renderer, placed: PlacedText) -> None:
-    element = placed.element
-    text = _text_value(renderer, placed)
-    if text is None:
-        return
-    color = renderer._aod_color(element, "color", element.color)
-    if placed.font.is_vector:
-        # A `face:` font draws upright, angled or radial, never through a
-        # baked sheet; `font.available is False` is `if_unavailable: hide`
-        # on this device, which draws nothing, as the watch does.
-        if not placed.font.available:
-            return
-
-        def draw(anchor, fill, box=None):
-            renderer._draw_vector_text(
-                text, anchor, element.align, element.vertical_align, placed.font.metric,
-                fill, placed.curve.style, placed.curve.angle_garmin,
-                placed.curve.radius_px, placed.curve.direction, box=box)
-    else:
-        font, metric = _text_font(renderer, placed)
-
-        def draw(anchor, fill, box=None):
-            renderer._draw_text(font, text, anchor, element.align, element.vertical_align,
-                                metric, fill, box=box)
-    outline = element.outline
-    renderer._draw_outlined(draw, placed.anchor_point, color,
-                            renderer._color(outline.color) if outline is not None else None,
-                            outline.width if outline is not None else 0, box=placed.box)
-
+def _glyphs(element: Text) -> tuple[set[str], set[str]]:
+    """The characters `element`'s font must hold, and those its own `aod:
+    {font: ...}` override must: the same string, through its own `format:`
+    override if it has one -- never the "0123456789" an empty set would
+    otherwise bake with."""
+    if element.literal is not None:
+        return set(element.literal), set(element.literal)
+    if element.value is None:
+        return set(), set()
+    source = catalog.get(element.value.sources[0]) if element.value.sources else None
+    spec = element.format or "{}"
+    value_glyphs = formatting.glyphs(spec, source, element.value.value.type, element.value.scale)
+    glyphs = set(value_glyphs)
+    aod = element.aod
+    aod_spec = aod.format if aod is not None and aod.format is not None else spec
+    aod_glyphs = (
+        set(value_glyphs) if aod_spec == spec
+        else formatting.glyphs(aod_spec, source, element.value.value.type, element.value.scale)
+    )
+    if element.placeholder:
+        glyphs |= set(element.placeholder)
+    if element.when_absent == "fallback" and element.fallback is not None:
+        # 'fallback:' is drawn through the same format spec as the real
+        # value -- a literal string fallback renders exactly as written,
+        # the same way 'placeholder:' is handled above; anything else goes
+        # through the same digit-set formatting.glyphs already adds for
+        # the value.
+        fallback = element.fallback
+        if fallback.value.type is catalog.Type.STRING and fallback.constant is not None:
+            glyphs |= set(str(fallback.constant))
+        else:
+            fallback_source = catalog.get(fallback.sources[0]) if fallback.sources else None
+            glyphs |= formatting.glyphs(spec, fallback_source, fallback.value.type, fallback.scale)
+    return glyphs, aod_glyphs
 
 def _text_font(renderer, placed: PlacedText) -> tuple[BakedFont | None, FontMetric | None]:
     """The baked font (or `None` for a system one) and metric a non-vector
@@ -280,139 +181,6 @@ def _text_value(renderer, placed: PlacedText) -> str | None:
         else:
             return None
     return formatting.render(spec, value, value_type)
-
-
-def describe(placed: PlacedText) -> str:
-    return "text" if placed.element.value is not None else "fixed text"
-
-
-def loaded_fonts(placed: PlacedText) -> list[str]:
-    if placed.font.is_custom and not placed.font.is_vector:
-        return [placed.font.reference]
-    return []
-
-
-def vector_fonts(placed: PlacedText) -> list[str]:
-    return [placed.font.reference] if placed.font.is_vector else []
-
-
-def font_unavailable(placed, part_index: int | None) -> bool:
-    return isinstance(placed, PlacedText) and not placed.font.available
-
-
-def glyph_needs(element: Text, face, bucket) -> None:
-    if not element.font_is_custom:
-        return
-    glyphs = bucket(element.font)
-    if glyphs is None:
-        return
-    # An `aod: {font: ...}` override naming a different baked font draws
-    # the same string (through its own `format:` override, if any), so its
-    # bucket needs the same glyphs -- not the "0123456789" fallback an
-    # empty bucket would otherwise bake with.
-    aod = element.aod
-    aod_glyphs = (bucket(aod.font) if aod is not None and aod.font is not None
-                  and aod.font_is_custom else None)
-    if element.literal is not None:
-        glyphs |= set(element.literal)
-        if aod_glyphs is not None:
-            aod_glyphs |= set(element.literal)
-        return
-    if element.value is None:
-        return
-    source = catalog.get(element.value.sources[0]) if element.value.sources else None
-    spec = element.format or "{}"
-    value_glyphs = formatting.glyphs(spec, source, element.value.value.type, element.value.scale)
-    glyphs |= value_glyphs
-    if aod_glyphs is not None:
-        aod_spec = aod.format if aod.format is not None else spec
-        aod_glyphs |= (
-            value_glyphs if aod_spec == spec
-            else formatting.glyphs(aod_spec, source, element.value.value.type, element.value.scale)
-        )
-    if element.placeholder:
-        glyphs |= set(element.placeholder)
-    if element.when_absent == "fallback" and element.fallback is not None:
-        # 'fallback:' is drawn through the same format spec as the real
-        # value -- a literal string fallback renders exactly as written,
-        # the same way 'placeholder:' is handled above; anything else goes
-        # through the same digit-set formatting.glyphs already adds for
-        # the value.
-        fallback = element.fallback
-        if fallback.value.type is catalog.Type.STRING and fallback.constant is not None:
-            glyphs |= set(str(fallback.constant))
-        else:
-            fallback_source = catalog.get(fallback.sources[0]) if fallback.sources else None
-            glyphs |= formatting.glyphs(spec, fallback_source, fallback.value.type, fallback.scale)
-
-
-def vector_font_names(element: Text) -> tuple[str, ...]:
-    return (element.font,) if element.font_is_custom else ()
-
-
-def vector_text_carriers(element: Text) -> list:
-    return [(element.id, element, None)]
-
-
-def check_glyphs(placed: PlacedText, resolved, bag) -> None:
-    if not placed.font.is_custom:
-        return
-    font = resolved.fonts.get(placed.font.reference)
-    if font is None:
-        return
-    missing = font.missing(placed.widest)
-    if missing:
-        lint._missing_glyph_error(
-            bag, placed.id, placed.font.reference, missing, placed.element.span,
-            [f"the widest rendering of this element is {placed.widest!r}"])
-
-
-def emit_draw(w: Writer, resolved, placed: PlacedText, guards: list[str],
-              plan, aod: AodStyle = NO_AOD) -> None:
-    element = placed.element
-    if element.literal is not None:
-        _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod)
-        return
-
-    value_code = formatting.emit(
-        element.format or "{}",
-        element.value.code,
-        element.value.value.type,
-    )
-    if aod.on and element.aod is not None and element.aod.format is not None:
-        # `format:` changes the formatting code, not just an argument -- the
-        # same "AOD redraws once a minute anyway, so dropping seconds is
-        # free" reasoning plan 14 §2.3 states -- so both formatted strings
-        # are built once, up front, and the ternary between them stands in
-        # for `value_code` everywhere below, including inside a
-        # placeholder/fallback substitution.
-        aod_value_code = formatting.emit(
-            element.aod.format, element.value.code, element.value.value.type)
-        value_code = aod.value(aod_value_code, value_code)
-    if element.when_absent in ("placeholder", "fallback") and guards:
-        # Build the string once rather than duplicating the draw call in both
-        # branches: a placeholder is a different *value*, not a different
-        # draw; a fallback is the same, except its substitute is itself a
-        # compiled expression rather than a literal string, run through the
-        # same format spec the real value uses.
-        if element.when_absent == "placeholder":
-            w.comment("when_absent: placeholder")
-            initial = f'"{element.placeholder}"'
-        else:
-            initial = formatting.emit(
-                element.format or "{}",
-                element.fallback.code,
-                element.fallback.value.type,
-            )
-            w.comment("when_absent: fallback")
-        available = " && ".join(f"{name} != null" for name in guards)
-        w.line(f"var text = {initial};")
-        with w.block(f"if ({available})"):
-            w.line(f"text = {value_code};")
-        w.blank()
-        _emit_text_draw(w, resolved, placed, "text", aod)
-        return
-    _emit_text_draw(w, resolved, placed, value_code, aod)
 
 
 def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
@@ -538,54 +306,247 @@ def _emit_vector_text_draw(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
-def layout_constants(prefix: str, placed: PlacedText) -> "layout_constants_mod.Constants":
-    # For `curve: {style: radial}` this is the *centre of the circle*
-    # (plan 11 §2.2's `at:` reinterpretation, `PlacedText.anchor_point`'s
-    # own docstring), not a `drawText`-style anchor -- still `_X`/`_Y`,
-    # since the codegen call site reads it that way regardless.
-    note = f'widest rendering "{placed.widest}" is {placed.measured_width} px'
-    if placed.width_is_estimated:
-        note += " (estimated)"
-    out: "layout_constants_mod.Constants" = [
-        (f"{prefix}_X", placed.anchor_point[0], ""),
-        (f"{prefix}_Y", placed.anchor_point[1], ""),
-        (f"{prefix}_WIDTH", placed.measured_width, note),
-    ]
-    if placed.curve.style is not None:
-        # Both angle conventions in the comment, the same `arc`
-        # precedent `_arc_constants`'s own `_START` follows -- keeps the
-        # conversion auditable without having to re-derive it.
-        author_note = (
-            f"{placed.curve.angle_degrees:g}deg clockwise from 12 o'clock"
-            if placed.curve.style == "radial"
-            else f"{placed.curve.angle_degrees:g}deg clockwise rotation from upright"
+class TextKind(ElementKind):
+    name = "text"
+    ir_class = Text
+    placed_class = PlacedText
+
+    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
+        value = b._expression(node, "value") if "value" in node else None
+        align, vertical_align = b._alignment(node)
+        element = Text(
+            **common,
+            value=value,
+            literal=node.get("text"),
+            format=node.get("format"),
+            color=b._color_expression(node, "color"),
+            align=align,
+            vertical_align=vertical_align,
+            when_absent=node.get("when_absent"),
+            placeholder=node.get("placeholder"),
+            fallback=b._expression(node, "fallback") if "fallback" in node else None,
+            if_unavailable=node.get("if_unavailable"),
         )
-        out.append((
-            f"{prefix}_ANGLE", float(placed.curve.angle_garmin),
-            f"{author_note}, in Garmin's convention",
-        ))
-        if placed.curve.style == "radial":
-            out.append((f"{prefix}_RADIUS", placed.curve.radius_px, ""))
-    return out
+        font_ok = b._resolve_font(node, element)
+        if "antialias" in node:
+            _reject_text_antialias(b, node, element)
+        font_is_vector = b._is_vector_font(element.font, element.font_is_custom)
+        font_note = b._font_kind_note(element.font, element.font_is_custom)
+        if "curve" in node:
+            element.curve = b._build_curve(
+                node, element.id, vertical_align=element.vertical_align, font_ok=font_ok,
+                font_is_vector=font_is_vector, font_note=font_note)
+        if font_ok and "if_unavailable" in node:
+            b._check_if_unavailable(node, element.id, font_is_vector, font_note)
+        if "outline" in node:
+            element.outline = b._build_outline(node, "outline", element.id, element=element)
+        own_aod_format = element.aod_own is not None and "format" in element.aod_own
+        aod_format_span = (b.doc.span(node.get("aod"), "format") or b.doc.span(node, "aod")
+                           if own_aod_format else None)
+        if value is not None:
+            b._check_absence(node, element, value, element.when_absent, element.placeholder,
+                             element.fallback)
+            b._check_format(node, value, element.format)
+            if own_aod_format:
+                # An `aod: {format: ...}` inherited from a group is checked
+                # in `_resolve_aod` instead, once inheritance is resolved.
+                b._check_format_spec(value, str(element.aod_own["format"]), aod_format_span)
+        else:
+            # A fixed `text:` has no bound value for `format:`, or its
+            # `aod:` twin, to format.
+            b._check_format_not_on_literal(node, element.id)
+            refusal = b._aod_refusal("format", "text", None, literal_text=True)
+            if own_aod_format and refusal is not None:
+                code, what, notes = refusal
+                b.bag.error(code, f"{element.id}.aod.format: {what}", aod_format_span,
+                           notes=notes)
+        b._check_other_absence(node, element, "color", element.color)
+        b._check_reachable_substitute(node, element, "'color'",
+                                      (element.value,), (element.color,))
+        return element
+
+    def resolve(self, r: Resolver, element: Text, parent: Box, depth: int) -> Placed:
+        font = r._text_font(element.font, element.font_is_custom, element.id, element.curve)
+        widest = _widest_text(element)
+        # A baked sheet measures exactly; anything else is an estimate --
+        # still a conservative, non-zero one for an *unavailable* vector
+        # font, whose metric locates no face and falls to Pillow's default.
+        width = font.width(widest)
+        line_height = font.line_height
+
+        x, y = r._point(element.at, parent)
+        curve = resolved_curve(element.curve)
+        if curve.style == "radial" and element.curve.radius is not None:
+            curve = replace(curve, radius_px=round(r._extent(
+                element.curve.radius, parent, Axis.MINOR, 0,
+                min_1px=element.resolved_min_1px, what="curve.radius")))
+        ring_px = float(element.outline.width) if element.outline is not None else 0.0
+        box = text_ink(
+            x, y, width, line_height, element.align, element.vertical_align,
+            curve_style=curve.style, angle_garmin=curve.angle_garmin,
+            radius_px=curve.radius_px, direction=curve.direction, metric=font.metric,
+            pad=ring_px, fonts_root=r.device.fonts_root).box()
+
+        return PlacedText(
+            element, box.rounded(), (round(x), round(y)), depth,
+            anchor_point=(round(x), round(y)),
+            justify=r._justify(element),
+            font=font.resolved(),
+            widest=widest,
+            measured_width=round(width),
+            width_is_estimated=font.baked is None,
+            curve=curve,
+            line_height=line_height,
+        )
+
+    def aod_refusal(self, key, shape, literal_text):
+        if key == "format" and literal_text:
+            return ("format", "'aod: {format: ...}' applies only to 'value:', not a fixed 'text:'", [])
+        return None
+
+    def ink(self, placed: PlacedText, fonts_root: str | None = None):
+        """A curved element's rotated box/sector, rebuilt from the fields
+        `resolve` stored -- `None` for upright text, whose box corners are
+        already its real corners."""
+        if placed.curve.style is None:
+            return None
+        outline = placed.element.outline
+        return text_ink(
+            placed.anchor_point[0], placed.anchor_point[1], float(placed.measured_width),
+            placed.line_height, placed.element.align, placed.element.vertical_align,
+            curve_style=placed.curve.style, angle_garmin=placed.curve.angle_garmin,
+            radius_px=placed.curve.radius_px, direction=placed.curve.direction,
+            metric=placed.font.metric, pad=float(outline.width) if outline is not None else 0.0,
+            fonts_root=fonts_root)
+
+    def text_runs(self, element: Text, face) -> list[TextRun]:
+        aod = element.aod
+        aod_font = aod.font if aod is not None and aod.font_is_custom else None
+        if not element.font_is_custom and aod_font is None:
+            return []
+        glyphs, aod_glyphs = _glyphs(element)
+        runs = []
+        if element.font_is_custom:
+            widest = _widest_text(element)
+            runs.append(TextRun(
+                element.id, element.font, glyphs=frozenset(glyphs), samples=(widest,),
+                sample_note=f"the widest rendering of this element is {widest!r}",
+                span=element.span, if_unavailable=element.if_unavailable, curve=element.curve))
+        if aod_font is not None:
+            # Whatever the element's own font is: a system or `face:` font
+            # draws awake, this baked one asleep, and it still needs the glyphs.
+            runs.append(TextRun(element.id, aod_font, glyphs=frozenset(aod_glyphs),
+                                span=element.span, aod_only=True))
+        return runs
+
+    def draw_preview(self, renderer: _Renderer, placed: PlacedText) -> None:
+        element = placed.element
+        text = _text_value(renderer, placed)
+        if text is None:
+            return
+        color = renderer._aod_color(element, "color", element.color)
+        if placed.font.is_vector:
+            # A `face:` font draws upright, angled or radial, never through a
+            # baked sheet; `font.available is False` is `if_unavailable: hide`
+            # on this device, which draws nothing, as the watch does.
+            if not placed.font.available:
+                return
+
+            def draw(anchor, fill, box=None):
+                renderer._draw_vector_text(
+                    text, anchor, element.align, element.vertical_align, placed.font.metric,
+                    fill, placed.curve.style, placed.curve.angle_garmin,
+                    placed.curve.radius_px, placed.curve.direction, box=box)
+        else:
+            font, metric = _text_font(renderer, placed)
+
+            def draw(anchor, fill, box=None):
+                renderer._draw_text(font, text, anchor, element.align, element.vertical_align,
+                                    metric, fill, box=box)
+        outline = element.outline
+        renderer._draw_outlined(draw, placed.anchor_point, color,
+                                renderer._color(outline.color) if outline is not None else None,
+                                outline.width if outline is not None else 0, box=placed.box)
+
+    def emit_draw(self, w: Writer, resolved, placed: PlacedText, guards: list[str],
+                  plan, aod: AodStyle = NO_AOD) -> None:
+        element = placed.element
+        if element.literal is not None:
+            _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod)
+            return
+
+        value_code = formatting.emit(
+            element.format or "{}",
+            element.value.code,
+            element.value.value.type,
+        )
+        if aod.on and element.aod is not None and element.aod.format is not None:
+            # `format:` changes the formatting code, not just an argument -- the
+            # same "AOD redraws once a minute anyway, so dropping seconds is
+            # free" reasoning plan 14 §2.3 states -- so both formatted strings
+            # are built once, up front, and the ternary between them stands in
+            # for `value_code` everywhere below, including inside a
+            # placeholder/fallback substitution.
+            aod_value_code = formatting.emit(
+                element.aod.format, element.value.code, element.value.value.type)
+            value_code = aod.value(aod_value_code, value_code)
+        if element.when_absent in ("placeholder", "fallback") and guards:
+            # Build the string once rather than duplicating the draw call in both
+            # branches: a placeholder is a different *value*, not a different
+            # draw; a fallback is the same, except its substitute is itself a
+            # compiled expression rather than a literal string, run through the
+            # same format spec the real value uses.
+            if element.when_absent == "placeholder":
+                w.comment("when_absent: placeholder")
+                initial = f'"{element.placeholder}"'
+            else:
+                initial = formatting.emit(
+                    element.format or "{}",
+                    element.fallback.code,
+                    element.fallback.value.type,
+                )
+                w.comment("when_absent: fallback")
+            available = " && ".join(f"{name} != null" for name in guards)
+            w.line(f"var text = {initial};")
+            with w.block(f"if ({available})"):
+                w.line(f"text = {value_code};")
+            w.blank()
+            _emit_text_draw(w, resolved, placed, "text", aod)
+            return
+        _emit_text_draw(w, resolved, placed, value_code, aod)
+
+    def describe(self, placed: PlacedText) -> str:
+        return "text" if placed.element.value is not None else "fixed text"
+
+    def layout_constants(self, prefix: str, placed: PlacedText) -> "layout_constants_mod.Constants":
+        # For `curve: {style: radial}` this is the *centre of the circle*
+        # (plan 11 §2.2's `at:` reinterpretation, `PlacedText.anchor_point`'s
+        # own docstring), not a `drawText`-style anchor -- still `_X`/`_Y`,
+        # since the codegen call site reads it that way regardless.
+        note = f'widest rendering "{placed.widest}" is {placed.measured_width} px'
+        if placed.width_is_estimated:
+            note += " (estimated)"
+        out: "layout_constants_mod.Constants" = [
+            (f"{prefix}_X", placed.anchor_point[0], ""),
+            (f"{prefix}_Y", placed.anchor_point[1], ""),
+            (f"{prefix}_WIDTH", placed.measured_width, note),
+        ]
+        if placed.curve.style is not None:
+            # Both angle conventions in the comment, the same `arc`
+            # precedent `_arc_constants`'s own `_START` follows -- keeps the
+            # conversion auditable without having to re-derive it.
+            author_note = (
+                f"{placed.curve.angle_degrees:g}deg clockwise from 12 o'clock"
+                if placed.curve.style == "radial"
+                else f"{placed.curve.angle_degrees:g}deg clockwise rotation from upright"
+            )
+            out.append((
+                f"{prefix}_ANGLE", float(placed.curve.angle_garmin),
+                f"{author_note}, in Garmin's convention",
+            ))
+            if placed.curve.style == "radial":
+                out.append((f"{prefix}_RADIUS", placed.curve.radius_px, ""))
+        return out
 
 
-KIND = ElementKind(
-    name="text",
-    ir_class=Text,
-    placed_class=PlacedText,
-    build=build,
-    resolve=resolve,
-    aod_refusal=_aod_refusal,
-    ink=ink,
-    draw_preview=draw_preview,
-    emit_draw=emit_draw,
-    describe=describe,
-    layout_constants=layout_constants,
-    loaded_fonts=loaded_fonts,
-    vector_fonts=vector_fonts,
-    font_unavailable=font_unavailable,
-    glyph_needs=glyph_needs,
-    vector_font_names=vector_font_names,
-    vector_text_carriers=vector_text_carriers,
-    check_glyphs=check_glyphs,
-)
+KIND = TextKind()

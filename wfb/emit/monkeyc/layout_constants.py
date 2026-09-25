@@ -297,7 +297,7 @@ def _hand_part_constants(
     A text part's own `curve: {style: radial}` (plan 11 slice 2) adds one
     more constant, `_RADIUS`, the device-dependent circle radius -- the
     same reason a standalone `curve: {style: radial}` `text` element's own
-    `PlacedText` gets one (`wfb.kinds.text.layout_constants`).
+    `PlacedText` gets one (`wfb.kinds.text.TextKind.layout_constants`).
     The angle itself is deliberately **not** a `Layout` constant: it is
     device-independent (plain degrees) and needs a *per-copy* runtime term
     for a radial pattern, so it is inlined straight into the shared view

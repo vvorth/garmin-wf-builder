@@ -201,7 +201,7 @@ def _aod_kind(element: Element) -> tuple[str | None, str | None, bool]:
     `Builder._aod_refusal` reads off a raw node.  `shape`/`literal_text` are
     each one kind's own extra fact (a `Shape`'s own `.shape`, a `Text`'s own
     "was this a fixed 'text:'"); every other kind passes `None`/`False`,
-    which is also what its own `aod_refusal` hook ignores."""
+    which is also what its own `aod_refusal` method ignores."""
     kind = kinds.for_element(element)
     shape = element.shape if isinstance(element, Shape) else None
     literal_text = isinstance(element, Text) and element.value is None
@@ -1226,7 +1226,7 @@ class Builder:
         *, context: str = "hand",
     ) -> HandPart | None:
         """One primitive of a hand, or of a `type: pattern` template -- the
-        same per-shape precedent as `wfb.kinds.shape.build`/
+        same per-shape precedent as `wfb.kinds.shape.ShapeKind.build`/
         `wfb.kinds.shape._check_shape_keys`, scoped to the
         rotatable-or-translatable primitives.  `context`
         (`"hand"`/`"pattern"`) selects the vocabulary: a hand part rejects
@@ -1975,10 +1975,10 @@ class Builder:
         """``(code, what, notes)`` when an `aod:` override's `key` cannot
         apply to an element of this kind, else ``None`` -- the one table
         both an element's own block (`_build_aod_authored`,
-        `wfb.kinds.text.build`) and a key it inherits from a group
+        `wfb.kinds.text.TextKind.build`) and a key it inherits from a group
         (`_resolve_aod`) are checked
         against, so the two cannot drift (plan 18 item 5).  Each kind's own
-        refusal rule lives on its `ElementKind.aod_refusal` hook."""
+        refusal rule lives on its `ElementKind.aod_refusal` method."""
         if kind is None or kind not in kinds.names():
             return None
         return kinds.get(kind).aod_refusal(key, shape, literal_text)
@@ -2126,7 +2126,7 @@ class Builder:
                             and not (own is not None and "format" in own)):
                         # Inherited from a group, whose block may reach
                         # several kinds and value types -- only checkable
-                        # here.  An element's own one `wfb.kinds.text.build` checked.
+                        # here.  An element's own one `wfb.kinds.text.TextKind.build` checked.
                         self._check_format_spec(element.value, str(fmt), element.span)
                 visit(element.children(), child_forced_hidden, child_nearest,
                       child_nearest_from)
@@ -2233,7 +2233,7 @@ class Builder:
             self._mark_static(root, child)
 
     def _check_static_subtrees(self, roots: list[Element]) -> None:
-        """A kind whose own `static_forbidden` hook is set (`graph`,
+        """A kind whose own `static_forbidden` attribute is set (`graph`,
         `complication_slot`, `hands`) reads its picture from something that
         is not an `Expression` at all -- a series, a wearer's runtime pick,
         the clock -- so the generic "nothing here may read a data source"
@@ -2532,7 +2532,7 @@ class Builder:
     def _resolve_icon_name(self, name: str, span: Span | None) -> str | None:
         """A catalogue name -> its codepoint, or `None` plus a reported error.
 
-        The shared "unknown icon" diagnostic: used by `wfb.kinds.icon.build`'s
+        The shared "unknown icon" diagnostic: used by `wfb.kinds.icon.IconKind.build`'s
         own inline check and by a `complication_slot` choice's `icon:` override
         (`_resolve_choice_icon_override`), so both report the exact same
         message rather than a second, slightly-different one for what is
@@ -3070,10 +3070,11 @@ class Builder:
     ) -> Length | None:
         """`key`'s length, rejected unless it is `px`/`%r` -- shared by every
         size baked before layout runs: an icon's own `size:`
-        (`wfb.kinds.icon.build`), and a complication_slot's `icon_size:`/`icon_gap:`
-        (`wfb.kinds.complication_slot.build`).  `label` is the quantity name the
-        message leads with (``'icon size'``/``'icon_size'``
-        /``'icon_gap'``); `note` is the one explanatory note, worded enough
+        (`wfb.kinds.icon.IconKind.build`), and a complication_slot's
+        `icon_size:`/`icon_gap:`
+        (`wfb.kinds.complication_slot.ComplicationSlotKind.build`).  `label`
+        is the quantity name the message leads with (``'icon size'``/
+        ``'icon_size'``/``'icon_gap'``); `note` is the one explanatory note, worded enough
         differently between the three ("its size" vs. "the gap that sits
         against it") that this takes it as a parameter rather than deriving
         one.

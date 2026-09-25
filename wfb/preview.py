@@ -938,8 +938,8 @@ class _Renderer:
 def _baked_glyph(font: BakedFont | None, char: str | None):
     """`char`'s `GlyphBox` in `font`, or `None` when there is no font, no
     sheet to crop from, or no such glyph -- the one "can this baked glyph
-    be drawn" check `wfb.kinds.icon.draw_preview` and
-    `wfb.kinds.complication_slot.draw_preview` share."""
+    be drawn" check `wfb.kinds.icon.IconKind.draw_preview` and
+    `wfb.kinds.complication_slot.ComplicationSlotKind.draw_preview` share."""
     if font is None or font.sheet is None or char is None:
         return None
     return font.glyphs.get(char)

@@ -4,7 +4,7 @@ fonts, on-device config, and analog hands/patterns -- plus the tree/draw-order
 helpers (`walk_elements`, `authored_draw_order`, `draw_sort_key`, `draw_order`,
 `never_together`) that read that tree, and `_drawn_copies`, the pure
 computation :meth:`PatternElement.drawn_indices` shares with
-`wfb.kinds.pattern.build`.  The semantic pass that
+`wfb.kinds.pattern.PatternKind.build`.  The semantic pass that
 builds a `Face` from YAML is :mod:`wfb.ir.builder`; nothing here validates
 anything.
 """
@@ -69,7 +69,7 @@ ROLE_VISIBLE = "visible"
 HOLD_AUTO = "auto"
 
 #: The Monkey C a pattern colour's `copy` compiles to: the index of the loop
-#: `wfb.kinds.pattern.emit_draw` draws the copies in (`for (var i = 0; ...)`).
+#: `wfb.kinds.pattern.PatternKind.emit_draw` draws the copies in (`for (var i = 0; ...)`).
 PATTERN_LOOP_INDEX = "i"
 
 #: `Dc.fillPolygon`'s own 64-point limit, already recorded for `shape:
@@ -772,7 +772,7 @@ class Element:
         `PatternElement` override this outright -- neither has a plain
         `color:` a generic reader could find; their effective colours live
         on `.colors`/`.parts` instead (`wfb.ir.builder._build_hand`/
-        `wfb.kinds.pattern.build`).
+        `wfb.kinds.pattern.PatternKind.build`).
         """
         is_glyph = self.kind != "shape"
         out: list[ColorRole] = []
@@ -991,7 +991,7 @@ class HandSet:
 class HandsElement(Element):
     """`type: hands` -- places a declared `hands:` set on screen, axis at
     `at:`.  `_own_roles` tags every effective part colour (already resolved
-    at build time, `wfb.kinds.hands.build`) `ROLE_COLOR`, so
+    at build time, `wfb.kinds.hands.HandsKind.build`) `ROLE_COLOR`, so
     permissions, the barrel, the read plan and the config-user lints pick
     them up exactly the way a shape's own `color:` does.
     """
@@ -1066,7 +1066,7 @@ class PatternElement(Element):
     def drawn_indices(self) -> tuple[int, ...]:
         """Copy indices actually drawn, ascending: `0..count-1` minus `skip`
         and minus every multiple of `skip_every`.  A pattern with
-        nothing left to draw is a build error (`wfb.kinds.pattern.build`,
+        nothing left to draw is a build error (`wfb.kinds.pattern.PatternKind.build`,
         which computes the same thing through :func:`_drawn_copies` before
         this element exists, to report an empty result), so this is never
         empty for an element that reached the IR."""
@@ -1085,7 +1085,7 @@ class PatternElement(Element):
         """The element default (ink, label = the element id), then each
         part's own colour and, for a `shape: text` part, its `outline.color`
         ring (`TextPart.outline`; no other part shape has one). Yields the same *set* `.colors` above
-        collects (`wfb.kinds.pattern.build`'s `_dedup_append` calls: the
+        collects (`wfb.kinds.pattern.PatternKind.build`'s `_dedup_append` calls: the
         default, then each part's already-effective colour, then each
         part's own outline colour) -- `part.color` is already the effective
         colour (the part's own, or this element's default when it declared
@@ -1165,7 +1165,7 @@ class Progress(Element):
 
     #: `when_absent:` governs the fraction `value:`/`maximum:` compute
     #: together -- one nullable reading is as absent as the other from the
-    #: fraction's own point of view (`wfb.kinds.progress.build`).
+    #: fraction's own point of view (`wfb.kinds.progress.ProgressKind.build`).
     VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE, ROLE_MAX})
 
     def _own_roles(self) -> list[tuple[str, Expression]]:
@@ -1213,7 +1213,7 @@ class ComplicationSlot(Element):
     complication type is showing is the wearer's runtime choice, so there
     is no fixed source to bind at build time.  Everything drawn comes from a
     fresh `WfbComplications.valueOf(<slot field>)` pull every frame.  No
-    `format:` (`wfb.kinds.complication_slot.build` says why).
+    `format:` (`wfb.kinds.complication_slot.ComplicationSlotKind.build` says why).
     """
 
     #: The declared `config: data:` slot name this element shows (the part
@@ -1439,7 +1439,7 @@ def _drawn_copies(
 ) -> tuple[int, ...]:
     """Copy indices actually drawn, ascending: `0..count-1` minus `skip` and
     minus every multiple of `skip_every` -- the pure computation
-    :meth:`PatternElement.drawn_indices` and `wfb.kinds.pattern.build`
+    :meth:`PatternElement.drawn_indices` and `wfb.kinds.pattern.PatternKind.build`
     (which needs the answer before the element exists, to report an empty
     result as a build error) share.
     """

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -16,6 +18,11 @@ from ..emit.monkeyc import rotated
 from ..emit.monkeyc.common import NO_AOD, AodStyle, _and_list, _const_prefix
 from ..emit.writer import Writer
 from . import ElementKind
+
+if TYPE_CHECKING:
+    from ..ir.builder import Builder
+    from ..layout import Resolver
+    from ..preview import _Renderer
 
 
 @dataclass(frozen=True)
@@ -63,200 +70,6 @@ _HAND_ANGLE_FUNCTIONS = tuple(
 )
 
 
-def precheck(doc, bag, element: dict) -> bool:
-    """`seconds: always` is not implemented; say why rather than list the
-    two values the schema's `seconds:` enum does accept."""
-    if element.get("type") != "hands":
-        return False
-    if element.get("seconds") != "always":
-        return False
-    bag.error(
-        "schema",
-        "'seconds: always' is not implemented yet -- a second hand while "
-        "asleep needs a full-frame buffer and a moving onPartialUpdate clip, "
-        "a different buffer architecture from 'static:'s paint-once one",
-        doc.span(element, "seconds"),
-        notes=["see docs/limitations.md, \"Not implemented yet\"",
-               "'seconds: awake' (the default -- drawn while awake, hidden "
-               "asleep) or 'seconds: never' are implemented"],
-    )
-    return True
-
-
-def build(b, node: dict, common: dict, path: tuple) -> Element | None:
-    """`type: hands` -- places a declared `hands:` set on screen.
-
-    `common["at"]` is already the axis (resolved exactly like any
-    element's `at:`); there is no `size:` to build, because the
-    element's extent is the disc it sweeps, computed later in
-    `wfb.layout`, not a box.
-    """
-    name = node["hands"]
-    element_id = common["id"]
-    hand_set = b.hand_sets.resolve(
-        b.bag, name, b.doc.span(node, "hands"), code="hands",
-        message=f"{element_id}: unknown hand set {name!r}",
-        note="declared hand sets",
-    )
-    if hand_set is None:
-        return None
-
-    seconds = node.get("seconds")
-    if seconds is not None and hand_set.second is None:
-        declared = ", ".join(n for n, _ in hand_set.hands()) or "(none)"
-        b.bag.error(
-            "hands",
-            f"{element_id}: 'seconds: {seconds}' needs a second hand, but "
-            f"hands.{name} declares none",
-            b.doc.span(node, "seconds"),
-            notes=[f"hands.{name} declares: {declared}"],
-        )
-        return None
-    if seconds is None and hand_set.second is not None:
-        seconds = "awake"  # the default
-    if seconds == "never" and hand_set.hour is None and hand_set.minute is None:
-        # The one combination that draws nothing at all -- refused rather
-        # than generated as a method with no drawing in it (no silent
-        # no-ops, CLAUDE.md §7).
-        b.bag.error(
-            "hands",
-            f"{element_id}: 'seconds: never' on hands.{name}, which has only a "
-            "second hand, draws nothing",
-            b.doc.span(node, "seconds"),
-            notes=["remove the element, or place a set with an hour or minute hand"],
-        )
-        return None
-
-    if "low_power" in common["modes"]:
-        b.bag.error(
-            "hands",
-            f"{element_id}: 'modes:' may not include 'low_power' on analog hands",
-            b.doc.span(node, "modes") or common["span"],
-            notes=["the hour and minute hands never need it -- they change once a "
-                   "minute, and the sleeping onUpdate already redraws them",
-                   "a second hand while asleep is 'seconds: always', which is not "
-                   "implemented yet (docs/limitations.md)"],
-        )
-        return None
-
-    colors: list[Expression] = []
-    for hand_name, hand in hand_set.hands():
-        if hand_name == "second" and seconds == "never":
-            continue  # never drawn, so its colours reach no lint and no read
-        _dedup_append(colors, hand.color)
-        for part in hand.parts:
-            _dedup_append(colors, part.color)
-
-    return HandsElement(**common, hands=name, seconds=seconds, colors=tuple(colors))
-
-
-def resolve(r, element: HandsElement, parent: Box, depth: int) -> Placed:
-    """`type: hands` -- the axis, plus every part of every drawn hand
-    resolved to whole pixels in the hand's own frame.  The rotation is
-    the one piece of layout arithmetic the device performs (ADR 0004,
-    amended).
-    """
-    cx, cy = r._point(element.at, parent)
-    hand_set = r.face.hands[element.hands]
-    resolved: dict[str, ResolvedHand] = {}
-    reach = 0.0
-    for name, hand in hand_set.hands():
-        if name == "second" and element.seconds == "never":
-            # Not drawn: left unresolved, exactly as if the set declared
-            # no `second:`, so it neither emits nor inflates the reach.
-            continue
-        # `<id>.<hand>`: a set has up to three `parts:` lists, so the bare
-        # id would not say which hand a `sub-pixel-length` finding means.
-        parts, hand_reach = r._resolve_parts(
-            hand.parts, f"{element.id}.{name}", min_1px=element.resolved_min_1px)
-        resolved[name] = ResolvedHand(parts=parts)
-        reach = max(reach, hand_reach)
-    axis = (round(cx), round(cy))
-    box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
-    aod_thickness = r._aod_extent(element, "thickness", parent, 1)
-    return PlacedHands(
-        element, box.rounded(), axis, depth,
-        hour=resolved.get("hour"), minute=resolved.get("minute"),
-        second=resolved.get("second"), reach=reach,
-        aod_thickness=aod_thickness,
-    )
-
-
-def circular_extent(placed: PlacedHands):
-    return (placed.center[0], placed.center[1], placed.reach)
-
-
-def draw_preview(renderer, placed: PlacedHands) -> None:
-    """`type: hands` -- the same three angle rules `runtime-lib/
-    WfbHands.mc` computes on the device (`HAND_ANGLES`'s own
-    `host` half), applied to the *resolved* geometry so this can never
-    disagree with the generated code about a hand's shape or its axis.
-
-    `--asleep` (or `--aod`, which implies it) hides an `awake`-only
-    second hand, the same choice the generated view makes while
-    `_sleeping`; a `seconds: never` hand was already excluded at resolve
-    time.
-    """
-    element = placed.element
-    s = renderer.scale
-    cx, cy = placed.center[0] * s, placed.center[1] * s
-    hour = int(renderer.values.get("time.hour", 0) or 0)
-    minute = int(renderer.values.get("time.minute", 0) or 0)
-    second = int(renderer.values.get("time.second", 0) or 0)
-    angles = {
-        name: HAND_ANGLES[name].host(hour, minute, second)
-        for name in ("hour", "minute", "second")
-    }
-    asleep = renderer.options.asleep or renderer.options.aod
-    for hand_name in ("hour", "minute", "second"):
-        hand = getattr(placed, hand_name)
-        if hand is None:
-            continue
-        if hand_name == "second" and element.seconds == "awake" and asleep:
-            continue
-        sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
-        for part in hand.parts:
-            renderer._hand_part(placed, part, cx, cy, sin_t, cos_t)
-
-
-def describe(placed: PlacedHands) -> str:
-    element = placed.element
-    drawn = [n for n in ("hour", "minute", "second") if getattr(placed, n, None) is not None]
-    seconds_note = f", seconds: {element.seconds}" if element.seconds else ""
-    return f"analog hands (hands.{element.hands}): {_and_list(drawn)}{seconds_note}"
-
-
-def emit_draw(w: Writer, resolved, placed: PlacedHands, value_guards, plan,
-              aod: AodStyle = NO_AOD) -> None:
-    """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
-    draw each of its parts, shaped exactly like the analog-hands probe's
-    `drawMainHands` (`docs/research/probes/analog-hands/`): the axis first,
-    then hour, minute, second in that fixed order, with an `awake` second
-    hand's parts wrapped in `if (!_sleeping)`.
-
-    `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1) apply uniformly to
-    every part of every hand: one ternary against one element-level override,
-    reused by every part's own colour/pen-width line.
-    """
-    element = placed.element
-    prefix = _const_prefix(placed.id)
-    w.line(f"var cx = Layout.{prefix}_CX;")
-    w.line(f"var cy = Layout.{prefix}_CY;")
-    thickness_override = rotated._aod_thickness_override(placed, prefix)
-    declared = False
-    for hand_name, angle_fn in _HAND_ANGLE_FUNCTIONS:
-        hand = getattr(placed, hand_name)
-        if hand is None:
-            continue
-        gated = hand_name == "second" and element.seconds == "awake"
-        w.blank()
-        w.comment(f"{hand_name}" + (" -- seconds: awake" if gated else ""))
-        with w.block_if("if (!_sleeping)" if gated else None):
-            _emit_one_hand(w, element, prefix, hand_name, angle_fn, hand, declared,
-                           thickness_override, aod)
-        declared = True
-
-
 def _emit_one_hand(w: Writer, element, prefix: str, hand_name: str, angle_fn: str, hand,
                    declared: bool, thickness_override: str | None, aod: AodStyle) -> None:
     """One hand's angle/sin/cos, then each of its parts, rotated and drawn.
@@ -286,53 +99,232 @@ def _emit_one_hand(w: Writer, element, prefix: str, hand_name: str, angle_fn: st
             thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
 
 
-def contrast_subjects(placed: PlacedHands):
-    """A `hands` element yields each part of each hand (its effective
-    colour, `ResolvedHandPart.color`) -- it has no per-part structure on
-    the IR to give `Element.color_roles()` a label finer than the whole
-    element."""
-    for hand in ("hour", "minute", "second"):
-        resolved_hand = getattr(placed, hand)
-        if resolved_hand is None:
-            continue
-        for index, part in enumerate(resolved_hand.parts):
-            yield f"{placed.id}.{hand}.parts[{index}]", part.color, None, True
-
-
-def layout_constants(prefix: str, placed: PlacedHands) -> "layout_constants_mod.Constants":
-    out: "layout_constants_mod.Constants" = [
-        (f"{prefix}_CX", placed.center[0], "the axis"),
-        (f"{prefix}_CY", placed.center[1], ""),
-    ]
-    out.extend(layout_constants_mod._aod_thickness_constant(
-        prefix, placed, layout_constants_mod._EVERY_PART_NOTE))
-    for hand_name in ("hour", "minute", "second"):
-        hand = getattr(placed, hand_name)
-        if hand is None:
-            continue
-        for index, part in enumerate(hand.parts):
-            out.extend(layout_constants_mod._hand_part_constants(
-                f"{prefix}_{hand_name.upper()}_{index}", f"{hand_name} hand", index, part))
-    return out
-
-
-KIND = ElementKind(
-    name="hands",
-    ir_class=HandsElement,
-    placed_class=PlacedHands,
-    build=build,
-    resolve=resolve,
-    static_forbidden=(
+class HandsKind(ElementKind):
+    name = "hands"
+    ir_class = HandsElement
+    placed_class = PlacedHands
+    static_forbidden = (
         "analog hands",
         "a hand's angle is the time -- a buffer filled once would freeze "
         "it at whatever it showed on the first frame",
-    ),
-    precheck=precheck,
-    antialiased=True,
-    circular_extent=circular_extent,
-    draw_preview=draw_preview,
-    emit_draw=emit_draw,
-    describe=describe,
-    layout_constants=layout_constants,
-    contrast_subjects=contrast_subjects,
-)
+    )
+    antialiased = True
+
+    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element | None:
+        """`type: hands` -- places a declared `hands:` set on screen.
+
+        `common["at"]` is already the axis (resolved exactly like any
+        element's `at:`); there is no `size:` to build, because the
+        element's extent is the disc it sweeps, computed later in
+        `wfb.layout`, not a box.
+        """
+        name = node["hands"]
+        element_id = common["id"]
+        hand_set = b.hand_sets.resolve(
+            b.bag, name, b.doc.span(node, "hands"), code="hands",
+            message=f"{element_id}: unknown hand set {name!r}",
+            note="declared hand sets",
+        )
+        if hand_set is None:
+            return None
+
+        seconds = node.get("seconds")
+        if seconds is not None and hand_set.second is None:
+            declared = ", ".join(n for n, _ in hand_set.hands()) or "(none)"
+            b.bag.error(
+                "hands",
+                f"{element_id}: 'seconds: {seconds}' needs a second hand, but "
+                f"hands.{name} declares none",
+                b.doc.span(node, "seconds"),
+                notes=[f"hands.{name} declares: {declared}"],
+            )
+            return None
+        if seconds is None and hand_set.second is not None:
+            seconds = "awake"  # the default
+        if seconds == "never" and hand_set.hour is None and hand_set.minute is None:
+            # The one combination that draws nothing at all -- refused rather
+            # than generated as a method with no drawing in it (no silent
+            # no-ops, CLAUDE.md §7).
+            b.bag.error(
+                "hands",
+                f"{element_id}: 'seconds: never' on hands.{name}, which has only a "
+                "second hand, draws nothing",
+                b.doc.span(node, "seconds"),
+                notes=["remove the element, or place a set with an hour or minute hand"],
+            )
+            return None
+
+        if "low_power" in common["modes"]:
+            b.bag.error(
+                "hands",
+                f"{element_id}: 'modes:' may not include 'low_power' on analog hands",
+                b.doc.span(node, "modes") or common["span"],
+                notes=["the hour and minute hands never need it -- they change once a "
+                       "minute, and the sleeping onUpdate already redraws them",
+                       "a second hand while asleep is 'seconds: always', which is not "
+                       "implemented yet (docs/limitations.md)"],
+            )
+            return None
+
+        colors: list[Expression] = []
+        for hand_name, hand in hand_set.hands():
+            if hand_name == "second" and seconds == "never":
+                continue  # never drawn, so its colours reach no lint and no read
+            _dedup_append(colors, hand.color)
+            for part in hand.parts:
+                _dedup_append(colors, part.color)
+
+        return HandsElement(**common, hands=name, seconds=seconds, colors=tuple(colors))
+
+    def resolve(self, r: Resolver, element: HandsElement, parent: Box, depth: int) -> Placed:
+        """`type: hands` -- the axis, plus every part of every drawn hand
+        resolved to whole pixels in the hand's own frame.  The rotation is
+        the one piece of layout arithmetic the device performs (ADR 0004,
+        amended).
+        """
+        cx, cy = r._point(element.at, parent)
+        hand_set = r.face.hands[element.hands]
+        resolved: dict[str, ResolvedHand] = {}
+        reach = 0.0
+        for name, hand in hand_set.hands():
+            if name == "second" and element.seconds == "never":
+                # Not drawn: left unresolved, exactly as if the set declared
+                # no `second:`, so it neither emits nor inflates the reach.
+                continue
+            # `<id>.<hand>`: a set has up to three `parts:` lists, so the bare
+            # id would not say which hand a `sub-pixel-length` finding means.
+            parts, hand_reach = r._resolve_parts(
+                hand.parts, f"{element.id}.{name}", min_1px=element.resolved_min_1px)
+            resolved[name] = ResolvedHand(parts=parts)
+            reach = max(reach, hand_reach)
+        axis = (round(cx), round(cy))
+        box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
+        aod_thickness = r._aod_extent(element, "thickness", parent, 1)
+        return PlacedHands(
+            element, box.rounded(), axis, depth,
+            hour=resolved.get("hour"), minute=resolved.get("minute"),
+            second=resolved.get("second"), reach=reach,
+            aod_thickness=aod_thickness,
+        )
+
+    def precheck(self, doc, bag, element: dict) -> bool:
+        """`seconds: always` is not implemented; say why rather than list the
+        two values the schema's `seconds:` enum does accept."""
+        if element.get("type") != "hands":
+            return False
+        if element.get("seconds") != "always":
+            return False
+        bag.error(
+            "schema",
+            "'seconds: always' is not implemented yet -- a second hand while "
+            "asleep needs a full-frame buffer and a moving onPartialUpdate clip, "
+            "a different buffer architecture from 'static:'s paint-once one",
+            doc.span(element, "seconds"),
+            notes=["see docs/limitations.md, \"Not implemented yet\"",
+                   "'seconds: awake' (the default -- drawn while awake, hidden "
+                   "asleep) or 'seconds: never' are implemented"],
+        )
+        return True
+
+    def circular_extent(self, placed: PlacedHands):
+        return (placed.center[0], placed.center[1], placed.reach)
+
+    def draw_preview(self, renderer: _Renderer, placed: PlacedHands) -> None:
+        """`type: hands` -- the same three angle rules `runtime-lib/
+        WfbHands.mc` computes on the device (`HAND_ANGLES`'s own
+        `host` half), applied to the *resolved* geometry so this can never
+        disagree with the generated code about a hand's shape or its axis.
+
+        `--asleep` (or `--aod`, which implies it) hides an `awake`-only
+        second hand, the same choice the generated view makes while
+        `_sleeping`; a `seconds: never` hand was already excluded at resolve
+        time.
+        """
+        element = placed.element
+        s = renderer.scale
+        cx, cy = placed.center[0] * s, placed.center[1] * s
+        hour = int(renderer.values.get("time.hour", 0) or 0)
+        minute = int(renderer.values.get("time.minute", 0) or 0)
+        second = int(renderer.values.get("time.second", 0) or 0)
+        angles = {
+            name: HAND_ANGLES[name].host(hour, minute, second)
+            for name in ("hour", "minute", "second")
+        }
+        asleep = renderer.options.asleep or renderer.options.aod
+        for hand_name in ("hour", "minute", "second"):
+            hand = getattr(placed, hand_name)
+            if hand is None:
+                continue
+            if hand_name == "second" and element.seconds == "awake" and asleep:
+                continue
+            sin_t, cos_t = math.sin(angles[hand_name]), math.cos(angles[hand_name])
+            for part in hand.parts:
+                renderer._hand_part(placed, part, cx, cy, sin_t, cos_t)
+
+    def emit_draw(self, w: Writer, resolved, placed: PlacedHands, value_guards, plan,
+                  aod: AodStyle = NO_AOD) -> None:
+        """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
+        draw each of its parts, shaped exactly like the analog-hands probe's
+        `drawMainHands` (`docs/research/probes/analog-hands/`): the axis first,
+        then hour, minute, second in that fixed order, with an `awake` second
+        hand's parts wrapped in `if (!_sleeping)`.
+
+        `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1) apply uniformly to
+        every part of every hand: one ternary against one element-level override,
+        reused by every part's own colour/pen-width line.
+        """
+        element = placed.element
+        prefix = _const_prefix(placed.id)
+        w.line(f"var cx = Layout.{prefix}_CX;")
+        w.line(f"var cy = Layout.{prefix}_CY;")
+        thickness_override = rotated._aod_thickness_override(placed, prefix)
+        declared = False
+        for hand_name, angle_fn in _HAND_ANGLE_FUNCTIONS:
+            hand = getattr(placed, hand_name)
+            if hand is None:
+                continue
+            gated = hand_name == "second" and element.seconds == "awake"
+            w.blank()
+            w.comment(f"{hand_name}" + (" -- seconds: awake" if gated else ""))
+            with w.block_if("if (!_sleeping)" if gated else None):
+                _emit_one_hand(w, element, prefix, hand_name, angle_fn, hand, declared,
+                               thickness_override, aod)
+            declared = True
+
+    def describe(self, placed: PlacedHands) -> str:
+        element = placed.element
+        drawn = [n for n in ("hour", "minute", "second") if getattr(placed, n, None) is not None]
+        seconds_note = f", seconds: {element.seconds}" if element.seconds else ""
+        return f"analog hands (hands.{element.hands}): {_and_list(drawn)}{seconds_note}"
+
+    def layout_constants(self, prefix: str,
+                         placed: PlacedHands) -> "layout_constants_mod.Constants":
+        out: "layout_constants_mod.Constants" = [
+            (f"{prefix}_CX", placed.center[0], "the axis"),
+            (f"{prefix}_CY", placed.center[1], ""),
+        ]
+        out.extend(layout_constants_mod._aod_thickness_constant(
+            prefix, placed, layout_constants_mod._EVERY_PART_NOTE))
+        for hand_name in ("hour", "minute", "second"):
+            hand = getattr(placed, hand_name)
+            if hand is None:
+                continue
+            for index, part in enumerate(hand.parts):
+                out.extend(layout_constants_mod._hand_part_constants(
+                    f"{prefix}_{hand_name.upper()}_{index}", f"{hand_name} hand", index, part))
+        return out
+
+    def contrast_subjects(self, placed: PlacedHands):
+        """A `hands` element yields each part of each hand (its effective
+        colour, `ResolvedHandPart.color`) -- it has no per-part structure on
+        the IR to give `Element.color_roles()` a label finer than the whole
+        element."""
+        for hand in ("hour", "minute", "second"):
+            resolved_hand = getattr(placed, hand)
+            if resolved_hand is None:
+                continue
+            for index, part in enumerate(resolved_hand.parts):
+                yield f"{placed.id}.{hand}.parts[{index}]", part.color, None, True
+
+
+KIND = HandsKind()

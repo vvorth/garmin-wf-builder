@@ -4,10 +4,12 @@ turned about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import math
 from dataclasses import dataclass
 
-from .. import catalog, expr, formatting, lint
+from .. import catalog, expr, formatting
 from ..catalog import Type
 from ..fonts import BakedFont
 from ..ir.builder import _ABSENCE_IS_NORMAL, _and_paths, _dedup_append
@@ -25,7 +27,12 @@ from ..emit.monkeyc.common import (
 )
 from ..emit.monkeyc.shapes import _RADIAL_DIRECTION, _emit_outline_loop, _radial_radius_expr
 from ..emit.writer import Writer
-from . import ElementKind
+from . import ElementKind, TextRun
+
+if TYPE_CHECKING:
+    from ..ir.builder import Builder
+    from ..layout import Resolver
+    from ..preview import _Renderer
 
 
 @dataclass(frozen=True)
@@ -114,125 +121,6 @@ def _pattern_part_ink(
         return _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, start, step,
                                  fonts_root).bounds()
     return part.ink(ox, oy, sin_t, cos_t)
-
-
-def _aod_refusal(key, shape, literal_text):
-    if key == "font":
-        return (
-            "aod",
-            "a pattern's 'aod: {font: ...}' override is not implemented yet (plan 14)",
-            ["restyle this pattern's colour/thickness in AOD instead, or drop the font "
-             "override for now"],
-        )
-    return None
-
-
-def build(b, node: dict, common: dict, path: tuple) -> Element | None:
-    """`type: pattern` -- one template, drawn `count:` times, turned
-    about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
-    (`pattern: linear`).
-
-    Every check is a build-time error, and each returns `None` on its
-    own violation rather than falling through to the next, so a design
-    with exactly one mistake gets exactly one error ("one error, not
-    N", `docs/lore/codegen.md`).
-    """
-    element_id = common["id"]
-    count = node["count"]
-
-    if "low_power" in common["modes"]:
-        b.bag.error(
-            "pattern",
-            f"{element_id}: 'modes:' may not include 'low_power' on a pattern",
-            b.doc.span(node, "modes") or common["span"],
-            notes=["a fixed pattern gains nothing from onPartialUpdate -- its "
-                   "geometry never changes -- and its clip would be its whole "
-                   "extent"],
-        )
-        return None
-
-    steps = _pattern_steps(b, node, common, count)
-    if steps is None:
-        return None
-    step_degrees, start_degrees, step_position = steps
-
-    skip = tuple(sorted({int(i) for i in (node.get("skip") or [])}))
-    out_of_range = [i for i in skip if i >= count]
-    if out_of_range:
-        b.bag.error(
-            "pattern",
-            f"{element_id}.skip: index" + ("es" if len(out_of_range) > 1 else "")
-            + f" {', '.join(str(i) for i in out_of_range)} out of range for "
-            f"'count: {count}' (0..{count - 1})",
-            b.doc.span(node, "skip"),
-        )
-        return None
-    skip_every = node.get("skip_every")
-    if skip_every is not None and skip_every > count:
-        b.bag.error(
-            "pattern",
-            f"{element_id}.skip_every: {skip_every} is greater than "
-            f"'count: {count}', so it skips nothing",
-            b.doc.span(node, "skip_every"),
-        )
-        return None
-    if not _drawn_copies(count, skip, skip_every):
-        b.bag.error(
-            "pattern",
-            f"{element_id}: 'skip:'/'skip_every:' leave every copy undrawn",
-            b.doc.span(node, "skip_every") or b.doc.span(node, "skip")
-            or common["span"],
-            notes=["remove the element, or skip fewer copies"],
-        )
-        return None
-
-    parts: list[HandPart] = []
-    # `copy` -- the index of the copy being drawn -- exists only here,
-    # compiled to the generated loop's own index (`emit_draw`).
-    b.scope.define(expr.COPY, expr.Binding(expr.Value(Type.NUMBER), code=PATTERN_LOOP_INDEX))
-    try:
-        # Any source is allowed here, absent-able or not:
-        # `_check_pattern_absence` polices absence for the whole element.
-        element_color, color_failed = b._owned_color(node, element_id, hand=False)
-        ok = not color_failed
-        for index, raw_part in enumerate(node.get("parts") or []):
-            part = b._build_hand_part(
-                raw_part, element_id, index, element_color, color_failed,
-                context="pattern",
-            )
-            if part is None:
-                ok = False
-                continue
-            parts.append(part)
-    finally:
-        del b.scope.bindings[expr.COPY]
-
-    if not ok or not _render_pattern_texts(b, element_id, parts, count):
-        return None
-
-    colors: list[Expression] = []
-    _dedup_append(colors, element_color)
-    for part in parts:
-        _dedup_append(colors, part.color)
-        if part.shape == "text" and part.outline is not None:
-            _dedup_append(colors, part.outline.color)
-
-    element = PatternElement(
-        **common,
-        pattern=node["pattern"],
-        count=count,
-        step_angle=step_degrees,
-        start_angle=start_degrees,
-        step=step_position,
-        skip=skip,
-        skip_every=skip_every,
-        parts=parts,
-        color=element_color,
-        colors=tuple(colors),
-        when_absent=node.get("when_absent"),
-    )
-    _check_pattern_absence(b, node, element)
-    return element
 
 
 def _pattern_steps(
@@ -425,120 +313,6 @@ def _check_pattern_absence(b, node: dict, element: PatternElement) -> None:
         )
 
 
-def resolve(r, element: PatternElement, parent: Box, depth: int) -> Placed:
-    """`type: pattern` -- the template resolved once in its own frame
-    (`_resolve_parts`, as for a hand), plus which copies are drawn and
-    the repeat rule; the device performs the repeat transform itself
-    (ADR 0004, amended).
-
-    A radial pattern's `reach` is rotation-invariant for every shape but
-    text, so it comes from the per-part reach.  Upright glyphs are not
-    (a text part's own reach is `0.0`), so each *drawn* copy's real text
-    ink (`_pattern_text_ink`) is measured in the per-copy loop that also
-    unions `box` from every drawn copy's ink.
-    """
-    cx, cy = r._point(element.at, parent)
-    center = (round(cx), round(cy))
-
-    parts, reach = r._resolve_parts(
-        element.parts, element.id, min_1px=element.resolved_min_1px)
-
-    if element.pattern == "radial":
-        start, step = element.start_angle, element.step_angle
-        dx = dy = 0
-    else:
-        start = step = 0.0
-        reach = 0.0  # only a radial pattern reports a disc
-        step_position = element.step or Position()
-        dx = round_half_away(r._len(step_position.dx, parent, Axis.X, 0))
-        dy = round_half_away(r._len(step_position.dy, parent, Axis.Y, 0))
-
-    aod_thickness = r._aod_extent(element, "thickness", parent, 1)
-    placed = PlacedPattern(
-        element, IntBox(0, 0, 0, 0), center, depth,
-        parts=parts, copies=element.drawn_indices(),
-        start=start, step=step, dx=dx, dy=dy, reach=reach,
-        aod_thickness=aod_thickness,
-    )
-
-    min_x = min_y = math.inf
-    max_x = max_y = -math.inf
-    text_reach = 0.0
-    cx_f, cy_f = float(center[0]), float(center[1])
-    for index in placed.copies:
-        ox, oy, sin_t, cos_t = placed.transform(index)
-        for part in parts:
-            if part.shape == "text":
-                # `start`/`step` are this pattern's own repeat angle
-                # (`0.0`/`0.0` for a linear pattern) -- only a curved
-                # text part composes with it (`PatternTextAngle`).
-                ink = _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, start, step,
-                                        r.device.fonts_root)
-                lo_x, lo_y, hi_x, hi_y = ink.bounds()
-                if element.pattern == "radial":
-                    # The real ink's farthest point, not its AABB's
-                    # corners -- those overreach, and used to make a
-                    # full ring of curved numerals trip `safe-area`.
-                    text_reach = max(text_reach, ink.reach(cx_f, cy_f))
-            else:
-                lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(part, ox, oy, sin_t, cos_t, index)
-            min_x, min_y = min(min_x, lo_x), min(min_y, lo_y)
-            max_x, max_y = max(max_x, hi_x), max(max_y, hi_y)
-    if min_x > max_x:
-        # Unreachable once the schema and `wfb.ir` have run (`parts:`
-        # needs at least one entry, and every copy skipped is a build
-        # error) -- kept so a malformed element resolves to something
-        # rather than crash.
-        box = Box(cx, cy, 0, 0)
-    else:
-        box = Box(min_x, min_y, max_x - min_x, max_y - min_y)
-    placed.box = box.rounded()
-    if text_reach > placed.reach:
-        placed.reach = text_reach
-    return placed
-
-
-def circular_extent(placed: PlacedPattern):
-    if placed.element.pattern == "radial":
-        return (placed.center[0], placed.center[1], placed.reach)
-    return None
-
-
-def draw_preview(renderer, placed: PlacedPattern) -> None:
-    """`type: pattern` -- one template, drawn once per copy through
-    :meth:`PlacedPattern.transform`: the very same `(ox, oy, sin, cos)`
-    the generated draw method computes on the device. Copies draw
-    ascending, parts in list order within a copy -- the generated
-    nested-loop order. A polygon/line/circle part reuses `_hand_part`;
-    an `arc` part turns its start angle with the copy instead
-    (`_pattern_arc`); a `text` part draws at the copy's own rounded
-    anchor (`_pattern_text`).
-
-    `when_absent: hide` is checked once for the whole element
-    (`_pattern_absent`), the device's own pre-loop null guard. Per copy,
-    each part's own `visible:` is evaluated with `copy` bound, the same
-    `values` its colour uses.
-    """
-    element = placed.element
-    if _pattern_absent(renderer, element):
-        return
-    s = renderer.scale
-    for index in placed.copies:
-        ox, oy, sin_t, cos_t = placed.transform(index)
-        # `copy` is the generated loop's `i`: a colour reading it is
-        # evaluated afresh for every copy, exactly as the device does.
-        values = {**renderer.values, expr.COPY: index}
-        for part_index, part in enumerate(placed.parts):
-            if not renderer._visible(element.parts[part_index].visible, values):
-                continue
-            if part.shape == "arc":
-                _pattern_arc(renderer, placed, part, ox, oy, index, values)
-            elif part.shape == "text":
-                _pattern_text(renderer, placed, part, ox, oy, sin_t, cos_t, index, values)
-            else:
-                renderer._hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
-
-
 def _pattern_absent(renderer, element) -> bool:
     """Whether any nullable source this pattern's colours
     (`element.colors`: the default plus every part's own) or any part's
@@ -621,38 +395,6 @@ def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
             renderer._draw_text(font, text, at, part.align, part.vertical_align,
                                 part.font.metric, fill)
     renderer._draw_outlined(draw, anchor, color, ring_color, part.outline_width)
-
-
-def describe(placed: PlacedPattern) -> str:
-    element = placed.element
-    total = element.count
-    drawn_count = len(placed.copies)
-    note = "" if drawn_count == total else f" ({drawn_count} drawn)"
-    if element.pattern == "radial":
-        return f"a radial pattern: {total} copies, {element.step_angle:g} degrees apart{note}"
-    step = element.step or Position()
-    offsets = [f"{axis} {length}" for axis, length in
-              (("dx", step.dx), ("dy", step.dy)) if length is not None]
-    step_desc = ", ".join(offsets) if offsets else "0px"
-    return f"a linear pattern: {total} copies, step {step_desc}{note}"
-
-
-def layout_constants(prefix: str, placed: PlacedPattern) -> "layout_constants_mod.Constants":
-    radial = placed.element.pattern == "radial"
-    out: "layout_constants_mod.Constants" = [
-        (f"{prefix}_X", placed.center[0],
-         "the centre every copy turns about" if radial else "copy 0's origin"),
-        (f"{prefix}_Y", placed.center[1], ""),
-    ]
-    if not radial:
-        out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
-        out.append((f"{prefix}_DY", placed.dy, ""))
-    out.extend(layout_constants_mod._aod_thickness_constant(
-        prefix, placed, layout_constants_mod._EVERY_PART_NOTE))
-    for index, part in enumerate(placed.parts):
-        out.extend(layout_constants_mod._hand_part_constants(
-            f"{prefix}_{index}", "template", index, part))
-    return out
 
 
 def _pattern_needs_math(placed: PlacedPattern) -> bool:
@@ -903,229 +645,435 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     ])
 
 
-def emit_draw(w: Writer, resolved, placed: PlacedPattern, value_guards, plan,
-              aod: AodStyle = NO_AOD) -> None:
-    """`type: pattern` -- loop over the drawn copies, turning (radial) or
-    translating (linear) the template resolved once at build time.  The
-    same bargain `wfb.kinds.hands.emit_draw` already struck for analog hands: the device
-    performs the one piece of layout arithmetic ADR 0004 leaves it (a
-    rotation or a translation), everything else is a `Layout` constant.
+class PatternKind(ElementKind):
+    name = "pattern"
+    ir_class = PatternElement
+    placed_class = PlacedPattern
+    antialiased = True
 
-    Per-copy part `visible:`: a part whose `visible:` folded to a
-    compile-time `false` is dropped here entirely -- no colour line, no
-    draw call -- the `dead-element` lint already told the author. A part
-    whose `visible:` is not constant is *gated*: its own drawing (everything
-    `_emit_pattern_part` writes for it, pen included) sits inside
-    `if (<condition>) { ... }`, but its `dc.setColor(...)` stays where it
-    already was, **before** the gate and unconditional -- so the pen colour
-    after this part is the same whichever branch ran, and the part *after*
-    it never has to ask whether this one actually drew.
+    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element | None:
+        """`type: pattern` -- one template, drawn `count:` times, turned
+        about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
+        (`pattern: linear`).
 
-    A `text` part's custom font is loaded into a local **once, before the
-    loop** -- the same "load once, guard once" rule
-    `wfb.kinds.text._emit_text_draw` follows for a standalone `text`
-    element, just hoisted out of the per-copy body since every copy shares
-    one font.  Two text parts naming different fonts
-    get two distinct locals (``font0``, ``font1``, ...), so nothing collides;
-    two parts naming the *same* font share one load and one guard.  **A
-    `face:` (vector) font is the one exception to "guard once, before the
-    loop"** (plan 11 slice 2): it is still loaded into a local once, but
-    never early-return-guarded here -- gate 4 means it can be null on the
-    ordinary "this device just doesn't have it" path, not only on a
-    structural failure, and an early `return;` here would also cancel every
-    *other* part of this same pattern sharing this one draw method, baked
-    fonts and unrelated shapes included.  `_emit_pattern_text_draw` wraps
-    its own draw call in the matching `if (<local> != null)` instead, once
-    per copy, exactly as a standalone vector-font `text` element's own
-    `wfb.kinds.text._emit_vector_text_draw` already does.
-    """
-    element = placed.element
-    prefix = _const_prefix(placed.id)
-    # `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1): one override,
-    # applied uniformly to every part, hoisted or not.
-    thickness_override = rotated._aod_thickness_override(placed, prefix)
-    # `element.parts[i]` and `placed.parts[i]` are the same template, in the
-    # same order (`resolve` builds one `ResolvedHandPart`
-    # per `HandPart`, 1:1) -- so the IR part is what carries `visible:`
-    # (geometry resolution never touches it), read here by plain index.
-    live = [
-        (index, part) for index, part in enumerate(placed.parts)
-        if not (element.parts[index].visible is not None
-                and element.parts[index].visible.is_constant)
-    ]
-    radial = element.pattern == "radial"
-    needs_trig = _pattern_needs_math(placed)
+        Every check is a build-time error, and each returns `None` on its
+        own violation rather than falling through to the next, so a design
+        with exactly one mistake gets exactly one error ("one error, not
+        N", `docs/lore/codegen.md`).
+        """
+        element_id = common["id"]
+        count = node["count"]
 
-    if radial:
-        w.line(f"var cx = Layout.{prefix}_X;")
-        w.line(f"var cy = Layout.{prefix}_Y;")
+        if "low_power" in common["modes"]:
+            b.bag.error(
+                "pattern",
+                f"{element_id}: 'modes:' may not include 'low_power' on a pattern",
+                b.doc.span(node, "modes") or common["span"],
+                notes=["a fixed pattern gains nothing from onPartialUpdate -- its "
+                       "geometry never changes -- and its clip would be its whole "
+                       "extent"],
+            )
+            return None
 
-    text_fonts: dict[str, str] = {}
-    vector_text_fonts: set[str] = set()
-    for _, part in live:
-        if part.shape == "text" and part.font.is_custom and part.font.reference not in text_fonts:
-            text_fonts[part.font.reference] = f"font{len(text_fonts)}"
-            if part.font.is_vector:
-                vector_text_fonts.add(part.font.reference)
-    for reference, local in text_fonts.items():
-        w.line(f"var {local} = _{_field(reference)};")
-        if reference not in vector_text_fonts:
-            with w.block(f"if ({local} == null)"):
-                w.line("return;  // the font resource failed to load")
-        w.blank()
+        steps = _pattern_steps(b, node, common, count)
+        if steps is None:
+            return None
+        step_degrees, start_degrees, step_position = steps
 
-    # Colour: one distinct part colour is set once, before the loop; several
-    # are set inside it, only on each change (the same rule
-    # `wfb.kinds.hands._emit_one_hand` already follows within one hand).
-    # A colour that reads `copy` is the
-    # loop's own `i`, so it can never be hoisted: it is set inside the loop,
-    # afresh on every copy.  (A data reading needs no such care -- its local
-    # is declared at the top of the method, before the loop.)  A dead part
-    # (constant-false `visible:`, excluded from `live`) contributes no
-    # colour at all -- it never draws, so its colour is nobody's concern.
-    colors = [aod.part_color(element, part.color) for _, part in live]
-    distinct_colors = list(dict.fromkeys(colors))
-    per_copy = any(expr.reads_copy(part.color.ast) for _, part in live
-                   if part.color is not None)
-    hoist_color = len(distinct_colors) == 1 and not per_copy
+        skip = tuple(sorted({int(i) for i in (node.get("skip") or [])}))
+        out_of_range = [i for i in skip if i >= count]
+        if out_of_range:
+            b.bag.error(
+                "pattern",
+                f"{element_id}.skip: index" + ("es" if len(out_of_range) > 1 else "")
+                + f" {', '.join(str(i) for i in out_of_range)} out of range for "
+                f"'count: {count}' (0..{count - 1})",
+                b.doc.span(node, "skip"),
+            )
+            return None
+        skip_every = node.get("skip_every")
+        if skip_every is not None and skip_every > count:
+            b.bag.error(
+                "pattern",
+                f"{element_id}.skip_every: {skip_every} is greater than "
+                f"'count: {count}', so it skips nothing",
+                b.doc.span(node, "skip_every"),
+            )
+            return None
+        if not _drawn_copies(count, skip, skip_every):
+            b.bag.error(
+                "pattern",
+                f"{element_id}: 'skip:'/'skip_every:' leave every copy undrawn",
+                b.doc.span(node, "skip_every") or b.doc.span(node, "skip")
+                or common["span"],
+                notes=["remove the element, or skip fewer copies"],
+            )
+            return None
 
-    # Pen width: hoisted when every line/outlined-circle part shares one
-    # width and there is no arc part -- `WfbArc.drawSpan` resets the pen to
-    # 1 itself on every call, which would undo a hoisted width on the very
-    # next copy.
-    pen_parts = [(i, part) for i, part in live
-                if part.shape == "line" or (part.shape == "circle" and not part.filled)]
-    has_arc = any(part.shape == "arc" for _, part in live)
-    hoist_pen = (
-        bool(pen_parts) and not has_arc
-        and len({p.thickness for _, p in pen_parts}) == 1
-    )
+        parts: list[HandPart] = []
+        # `copy` -- the index of the copy being drawn -- exists only here,
+        # compiled to the generated loop's own index (`emit_draw`).
+        b.scope.define(expr.COPY, expr.Binding(expr.Value(Type.NUMBER), code=PATTERN_LOOP_INDEX))
+        try:
+            # Any source is allowed here, absent-able or not:
+            # `_check_pattern_absence` polices absence for the whole element.
+            element_color, color_failed = b._owned_color(node, element_id, hand=False)
+            ok = not color_failed
+            for index, raw_part in enumerate(node.get("parts") or []):
+                part = b._build_hand_part(
+                    raw_part, element_id, index, element_color, color_failed,
+                    context="pattern",
+                )
+                if part is None:
+                    ok = False
+                    continue
+                parts.append(part)
+        finally:
+            del b.scope.bindings[expr.COPY]
 
-    if hoist_color:
-        w.line(f"dc.setColor({distinct_colors[0]}, Graphics.COLOR_TRANSPARENT);"
-              "  // hoisted: one colour")
-    if hoist_pen:
-        hoist_index = pen_parts[0][0]
-        hoisted_thickness_expr = aod.value(
-            thickness_override, f"Layout.{prefix}_{hoist_index}_THICKNESS")
-        w.line(f"dc.setPenWidth({hoisted_thickness_expr});"
-              "  // hoisted: one pen, no arc")
+        if not ok or not _render_pattern_texts(b, element_id, parts, count):
+            return None
 
-    skip_condition = _pattern_skip_condition(element)
-    with w.block(f"for (var i = 0; i < {element.count}; i++)"):
-        if skip_condition:
-            with w.block(f"if ({skip_condition})"):
-                w.line("continue;")
-        if radial:
-            if needs_trig:
-                angle_expr, angle_comment = _pattern_angle_expr(element)
-                w.line(f"var angle = {angle_expr};  // {angle_comment}")
-                w.line("var sin = Math.sin(angle);")
-                w.line("var cos = Math.cos(angle);")
+        colors: list[Expression] = []
+        _dedup_append(colors, element_color)
+        for part in parts:
+            _dedup_append(colors, part.color)
+            if part.shape == "text" and part.outline is not None:
+                _dedup_append(colors, part.outline.color)
+
+        element = PatternElement(
+            **common,
+            pattern=node["pattern"],
+            count=count,
+            step_angle=step_degrees,
+            start_angle=start_degrees,
+            step=step_position,
+            skip=skip,
+            skip_every=skip_every,
+            parts=parts,
+            color=element_color,
+            colors=tuple(colors),
+            when_absent=node.get("when_absent"),
+        )
+        _check_pattern_absence(b, node, element)
+        return element
+
+    def resolve(self, r: Resolver, element: PatternElement, parent: Box, depth: int) -> Placed:
+        """`type: pattern` -- the template resolved once in its own frame
+        (`_resolve_parts`, as for a hand), plus which copies are drawn and
+        the repeat rule; the device performs the repeat transform itself
+        (ADR 0004, amended).
+
+        A radial pattern's `reach` is rotation-invariant for every shape but
+        text, so it comes from the per-part reach.  Upright glyphs are not
+        (a text part's own reach is `0.0`), so each *drawn* copy's real text
+        ink (`_pattern_text_ink`) is measured in the per-copy loop that also
+        unions `box` from every drawn copy's ink.
+        """
+        cx, cy = r._point(element.at, parent)
+        center = (round(cx), round(cy))
+
+        parts, reach = r._resolve_parts(
+            element.parts, element.id, min_1px=element.resolved_min_1px)
+
+        if element.pattern == "radial":
+            start, step = element.start_angle, element.step_angle
+            dx = dy = 0
         else:
-            w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
-            w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
-        current_color = distinct_colors[0] if hoist_color else None
-        for color, (index, part) in zip(colors, live):
-            if not hoist_color and color != current_color:
-                w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
-                current_color = color
-            visible = element.parts[index].visible
-            if visible is not None:
-                # Non-constant, or `live` would have excluded it above.
-                w.comment(f"visible: {visible.text}")
-            with w.block_if(f"if ({visible.code})" if visible is not None else None):
-                _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
-                                   text_fonts, thickness_override, aod)
-    if hoist_pen:
-        w.line("dc.setPenWidth(1);")
+            start = step = 0.0
+            reach = 0.0  # only a radial pattern reports a disc
+            step_position = element.step or Position()
+            dx = round_half_away(r._len(step_position.dx, parent, Axis.X, 0))
+            dy = round_half_away(r._len(step_position.dy, parent, Axis.Y, 0))
+
+        aod_thickness = r._aod_extent(element, "thickness", parent, 1)
+        placed = PlacedPattern(
+            element, IntBox(0, 0, 0, 0), center, depth,
+            parts=parts, copies=element.drawn_indices(),
+            start=start, step=step, dx=dx, dy=dy, reach=reach,
+            aod_thickness=aod_thickness,
+        )
+
+        min_x = min_y = math.inf
+        max_x = max_y = -math.inf
+        text_reach = 0.0
+        cx_f, cy_f = float(center[0]), float(center[1])
+        for index in placed.copies:
+            ox, oy, sin_t, cos_t = placed.transform(index)
+            for part in parts:
+                if part.shape == "text":
+                    # `start`/`step` are this pattern's own repeat angle
+                    # (`0.0`/`0.0` for a linear pattern) -- only a curved
+                    # text part composes with it (`PatternTextAngle`).
+                    ink = _pattern_text_ink(part, ox, oy, sin_t, cos_t, index, start, step,
+                                            r.device.fonts_root)
+                    lo_x, lo_y, hi_x, hi_y = ink.bounds()
+                    if element.pattern == "radial":
+                        # The real ink's farthest point, not its AABB's
+                        # corners -- those overreach, and used to make a
+                        # full ring of curved numerals trip `safe-area`.
+                        text_reach = max(text_reach, ink.reach(cx_f, cy_f))
+                else:
+                    lo_x, lo_y, hi_x, hi_y = _pattern_part_ink(part, ox, oy, sin_t, cos_t, index)
+                min_x, min_y = min(min_x, lo_x), min(min_y, lo_y)
+                max_x, max_y = max(max_x, hi_x), max(max_y, hi_y)
+        if min_x > max_x:
+            # Unreachable once the schema and `wfb.ir` have run (`parts:`
+            # needs at least one entry, and every copy skipped is a build
+            # error) -- kept so a malformed element resolves to something
+            # rather than crash.
+            box = Box(cx, cy, 0, 0)
+        else:
+            box = Box(min_x, min_y, max_x - min_x, max_y - min_y)
+        placed.box = box.rounded()
+        if text_reach > placed.reach:
+            placed.reach = text_reach
+        return placed
+
+    def aod_refusal(self, key, shape, literal_text):
+        if key == "font":
+            return (
+                "aod",
+                "a pattern's 'aod: {font: ...}' override is not implemented yet (plan 14)",
+                ["restyle this pattern's colour/thickness in AOD instead, or drop the font "
+                 "override for now"],
+            )
+        return None
+
+    def circular_extent(self, placed: PlacedPattern):
+        if placed.element.pattern == "radial":
+            return (placed.center[0], placed.center[1], placed.reach)
+        return None
+
+    def text_runs(self, element: PatternElement, face) -> list[TextRun]:
+        # Every drawn copy's string is known at build time (`TextPart.texts`),
+        # so a text part's font needs exactly those, and is checked on each.
+        drawn = element.drawn_indices()
+        runs = []
+        for index, part in enumerate(element.parts):
+            if part.shape != "text" or not part.font_is_custom:
+                continue
+            samples = tuple(part.texts[copy_index] for copy_index in drawn)
+            runs.append(TextRun(
+                f"{element.id}.parts[{index}]", part.font, glyphs=frozenset("".join(samples)),
+                samples=samples, part_index=index, span=part.span,
+                if_unavailable=part.if_unavailable, curve=part.curve))
+        return runs
+
+    def draw_preview(self, renderer: _Renderer, placed: PlacedPattern) -> None:
+        """`type: pattern` -- one template, drawn once per copy through
+        :meth:`PlacedPattern.transform`: the very same `(ox, oy, sin, cos)`
+        the generated draw method computes on the device. Copies draw
+        ascending, parts in list order within a copy -- the generated
+        nested-loop order. A polygon/line/circle part reuses `_hand_part`;
+        an `arc` part turns its start angle with the copy instead
+        (`_pattern_arc`); a `text` part draws at the copy's own rounded
+        anchor (`_pattern_text`).
+
+        `when_absent: hide` is checked once for the whole element
+        (`_pattern_absent`), the device's own pre-loop null guard. Per copy,
+        each part's own `visible:` is evaluated with `copy` bound, the same
+        `values` its colour uses.
+        """
+        element = placed.element
+        if _pattern_absent(renderer, element):
+            return
+        s = renderer.scale
+        for index in placed.copies:
+            ox, oy, sin_t, cos_t = placed.transform(index)
+            # `copy` is the generated loop's `i`: a colour reading it is
+            # evaluated afresh for every copy, exactly as the device does.
+            values = {**renderer.values, expr.COPY: index}
+            for part_index, part in enumerate(placed.parts):
+                if not renderer._visible(element.parts[part_index].visible, values):
+                    continue
+                if part.shape == "arc":
+                    _pattern_arc(renderer, placed, part, ox, oy, index, values)
+                elif part.shape == "text":
+                    _pattern_text(renderer, placed, part, ox, oy, sin_t, cos_t, index, values)
+                else:
+                    renderer._hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
+
+    def emit_draw(self, w: Writer, resolved, placed: PlacedPattern, value_guards, plan,
+                  aod: AodStyle = NO_AOD) -> None:
+        """`type: pattern` -- loop over the drawn copies, turning (radial) or
+        translating (linear) the template resolved once at build time.  The
+        same bargain `wfb.kinds.hands.HandsKind.emit_draw` already struck for
+        analog hands: the device performs the one piece of layout arithmetic
+        ADR 0004 leaves it (a
+        rotation or a translation), everything else is a `Layout` constant.
+
+        Per-copy part `visible:`: a part whose `visible:` folded to a
+        compile-time `false` is dropped here entirely -- no colour line, no
+        draw call -- the `dead-element` lint already told the author. A part
+        whose `visible:` is not constant is *gated*: its own drawing (everything
+        `_emit_pattern_part` writes for it, pen included) sits inside
+        `if (<condition>) { ... }`, but its `dc.setColor(...)` stays where it
+        already was, **before** the gate and unconditional -- so the pen colour
+        after this part is the same whichever branch ran, and the part *after*
+        it never has to ask whether this one actually drew.
+
+        A `text` part's custom font is loaded into a local **once, before the
+        loop** -- the same "load once, guard once" rule
+        `wfb.kinds.text._emit_text_draw` follows for a standalone `text`
+        element, just hoisted out of the per-copy body since every copy shares
+        one font.  Two text parts naming different fonts
+        get two distinct locals (``font0``, ``font1``, ...), so nothing collides;
+        two parts naming the *same* font share one load and one guard.  **A
+        `face:` (vector) font is the one exception to "guard once, before the
+        loop"** (plan 11 slice 2): it is still loaded into a local once, but
+        never early-return-guarded here -- gate 4 means it can be null on the
+        ordinary "this device just doesn't have it" path, not only on a
+        structural failure, and an early `return;` here would also cancel every
+        *other* part of this same pattern sharing this one draw method, baked
+        fonts and unrelated shapes included.  `_emit_pattern_text_draw` wraps
+        its own draw call in the matching `if (<local> != null)` instead, once
+        per copy, exactly as a standalone vector-font `text` element's own
+        `wfb.kinds.text._emit_vector_text_draw` already does.
+        """
+        element = placed.element
+        prefix = _const_prefix(placed.id)
+        # `aod: {color: ...}`/`{thickness: ...}` (plan 14 §5.1): one override,
+        # applied uniformly to every part, hoisted or not.
+        thickness_override = rotated._aod_thickness_override(placed, prefix)
+        # `element.parts[i]` and `placed.parts[i]` are the same template, in the
+        # same order (`resolve` builds one `ResolvedHandPart`
+        # per `HandPart`, 1:1) -- so the IR part is what carries `visible:`
+        # (geometry resolution never touches it), read here by plain index.
+        live = [
+            (index, part) for index, part in enumerate(placed.parts)
+            if not (element.parts[index].visible is not None
+                    and element.parts[index].visible.is_constant)
+        ]
+        radial = element.pattern == "radial"
+        needs_trig = _pattern_needs_math(placed)
+
+        if radial:
+            w.line(f"var cx = Layout.{prefix}_X;")
+            w.line(f"var cy = Layout.{prefix}_Y;")
+
+        text_fonts: dict[str, str] = {}
+        vector_text_fonts: set[str] = set()
+        for _, part in live:
+            if (part.shape == "text" and part.font.is_custom
+                    and part.font.reference not in text_fonts):
+                text_fonts[part.font.reference] = f"font{len(text_fonts)}"
+                if part.font.is_vector:
+                    vector_text_fonts.add(part.font.reference)
+        for reference, local in text_fonts.items():
+            w.line(f"var {local} = _{_field(reference)};")
+            if reference not in vector_text_fonts:
+                with w.block(f"if ({local} == null)"):
+                    w.line("return;  // the font resource failed to load")
+            w.blank()
+
+        # Colour: one distinct part colour is set once, before the loop; several
+        # are set inside it, only on each change (the same rule
+        # `wfb.kinds.hands._emit_one_hand` already follows within one hand).
+        # A colour that reads `copy` is the
+        # loop's own `i`, so it can never be hoisted: it is set inside the loop,
+        # afresh on every copy.  (A data reading needs no such care -- its local
+        # is declared at the top of the method, before the loop.)  A dead part
+        # (constant-false `visible:`, excluded from `live`) contributes no
+        # colour at all -- it never draws, so its colour is nobody's concern.
+        colors = [aod.part_color(element, part.color) for _, part in live]
+        distinct_colors = list(dict.fromkeys(colors))
+        per_copy = any(expr.reads_copy(part.color.ast) for _, part in live
+                       if part.color is not None)
+        hoist_color = len(distinct_colors) == 1 and not per_copy
+
+        # Pen width: hoisted when every line/outlined-circle part shares one
+        # width and there is no arc part -- `WfbArc.drawSpan` resets the pen to
+        # 1 itself on every call, which would undo a hoisted width on the very
+        # next copy.
+        pen_parts = [(i, part) for i, part in live
+                    if part.shape == "line" or (part.shape == "circle" and not part.filled)]
+        has_arc = any(part.shape == "arc" for _, part in live)
+        hoist_pen = (
+            bool(pen_parts) and not has_arc
+            and len({p.thickness for _, p in pen_parts}) == 1
+        )
+
+        if hoist_color:
+            w.line(f"dc.setColor({distinct_colors[0]}, Graphics.COLOR_TRANSPARENT);"
+                  "  // hoisted: one colour")
+        if hoist_pen:
+            hoist_index = pen_parts[0][0]
+            hoisted_thickness_expr = aod.value(
+                thickness_override, f"Layout.{prefix}_{hoist_index}_THICKNESS")
+            w.line(f"dc.setPenWidth({hoisted_thickness_expr});"
+                  "  // hoisted: one pen, no arc")
+
+        skip_condition = _pattern_skip_condition(element)
+        with w.block(f"for (var i = 0; i < {element.count}; i++)"):
+            if skip_condition:
+                with w.block(f"if ({skip_condition})"):
+                    w.line("continue;")
+            if radial:
+                if needs_trig:
+                    angle_expr, angle_comment = _pattern_angle_expr(element)
+                    w.line(f"var angle = {angle_expr};  // {angle_comment}")
+                    w.line("var sin = Math.sin(angle);")
+                    w.line("var cos = Math.cos(angle);")
+            else:
+                w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
+                w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
+            current_color = distinct_colors[0] if hoist_color else None
+            for color, (index, part) in zip(colors, live):
+                if not hoist_color and color != current_color:
+                    w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+                    current_color = color
+                visible = element.parts[index].visible
+                if visible is not None:
+                    # Non-constant, or `live` would have excluded it above.
+                    w.comment(f"visible: {visible.text}")
+                with w.block_if(f"if ({visible.code})" if visible is not None else None):
+                    _emit_pattern_part(w, element, prefix, index, part, radial, hoist_pen,
+                                       text_fonts, thickness_override, aod)
+        if hoist_pen:
+            w.line("dc.setPenWidth(1);")
+
+    def describe(self, placed: PlacedPattern) -> str:
+        element = placed.element
+        total = element.count
+        drawn_count = len(placed.copies)
+        note = "" if drawn_count == total else f" ({drawn_count} drawn)"
+        if element.pattern == "radial":
+            return f"a radial pattern: {total} copies, {element.step_angle:g} degrees apart{note}"
+        step = element.step or Position()
+        offsets = [f"{axis} {length}" for axis, length in
+                  (("dx", step.dx), ("dy", step.dy)) if length is not None]
+        step_desc = ", ".join(offsets) if offsets else "0px"
+        return f"a linear pattern: {total} copies, step {step_desc}{note}"
+
+    def layout_constants(self, prefix: str,
+                         placed: PlacedPattern) -> "layout_constants_mod.Constants":
+        radial = placed.element.pattern == "radial"
+        out: "layout_constants_mod.Constants" = [
+            (f"{prefix}_X", placed.center[0],
+             "the centre every copy turns about" if radial else "copy 0's origin"),
+            (f"{prefix}_Y", placed.center[1], ""),
+        ]
+        if not radial:
+            out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
+            out.append((f"{prefix}_DY", placed.dy, ""))
+        out.extend(layout_constants_mod._aod_thickness_constant(
+            prefix, placed, layout_constants_mod._EVERY_PART_NOTE))
+        for index, part in enumerate(placed.parts):
+            out.extend(layout_constants_mod._hand_part_constants(
+                f"{prefix}_{index}", "template", index, part))
+        return out
+
+    def contrast_subjects(self, placed: PlacedPattern):
+        """A `pattern` yields each template part once (every copy shares its
+        colours); it has no per-part structure on `Element.color_roles()`
+        either.  `allow_backdrop_match` is false only for a `shape: text` part,
+        the one shape where an exact backdrop match is invisible content by
+        mistake."""
+        for index, part in enumerate(placed.parts):
+            outline_color = part.outline_color if part.shape == "text" else None
+            yield (f"{placed.id}.parts[{index}]", part.color, outline_color,
+                   part.shape != "text")
 
 
-def loaded_fonts(placed: PlacedPattern) -> list[str]:
-    return [part.font.reference for part in placed.parts
-            if part.shape == "text" and part.font.is_custom and not part.font.is_vector]
-
-
-def vector_fonts(placed: PlacedPattern) -> list[str]:
-    return [part.font.reference for part in placed.parts
-            if part.shape == "text" and part.font.is_vector]
-
-
-def font_unavailable(placed, part_index: int | None) -> bool:
-    return (isinstance(placed, PlacedPattern) and part_index is not None
-            and part_index < len(placed.parts) and not placed.parts[part_index].font.available)
-
-
-def glyph_needs(element: PatternElement, face, bucket) -> None:
-    # Every drawn copy's string is known at build time (`TextPart.texts`),
-    # so a text part's font needs exactly those.
-    for part in element.parts:
-        if part.shape != "text" or not part.font_is_custom:
-            continue
-        glyphs = bucket(part.font)
-        if glyphs is None:
-            continue
-        for index in element.drawn_indices():
-            glyphs |= set(part.texts[index])
-
-
-def vector_font_names(element: PatternElement) -> tuple[str, ...]:
-    return tuple(part.font for part in element.parts
-                if part.shape == "text" and part.font_is_custom)
-
-
-def vector_text_carriers(element: PatternElement) -> list:
-    return [(f"{element.id}.parts[{index}]", part, index)
-            for index, part in enumerate(element.parts) if part.shape == "text"]
-
-
-def check_glyphs(placed: PlacedPattern, resolved, bag) -> None:
-    for index, part in enumerate(placed.parts):
-        if part.shape != "text" or not part.font.is_custom:
-            continue
-        font = resolved.fonts.get(part.font.reference)
-        if font is None:
-            continue
-        missing: set[str] = set()
-        for copy_index in placed.copies:
-            missing |= font.missing(part.texts[copy_index])
-        if missing:
-            lint._missing_glyph_error(
-                bag, f"{placed.id}.parts[{index}]", part.font.reference, missing,
-                placed.element.parts[index].span, [])
-
-
-def contrast_subjects(placed: PlacedPattern):
-    """A `pattern` yields each template part once (every copy shares its
-    colours); it has no per-part structure on `Element.color_roles()`
-    either.  `allow_backdrop_match` is false only for a `shape: text` part,
-    the one shape where an exact backdrop match is invisible content by
-    mistake."""
-    for index, part in enumerate(placed.parts):
-        outline_color = part.outline_color if part.shape == "text" else None
-        yield (f"{placed.id}.parts[{index}]", part.color, outline_color,
-               part.shape != "text")
-
-
-KIND = ElementKind(
-    name="pattern",
-    ir_class=PatternElement,
-    placed_class=PlacedPattern,
-    build=build,
-    resolve=resolve,
-    aod_refusal=_aod_refusal,
-    antialiased=True,
-    circular_extent=circular_extent,
-    draw_preview=draw_preview,
-    emit_draw=emit_draw,
-    describe=describe,
-    layout_constants=layout_constants,
-    loaded_fonts=loaded_fonts,
-    vector_fonts=vector_fonts,
-    font_unavailable=font_unavailable,
-    glyph_needs=glyph_needs,
-    vector_font_names=vector_font_names,
-    vector_text_carriers=vector_text_carriers,
-    check_glyphs=check_glyphs,
-    contrast_subjects=contrast_subjects,
-)
+KIND = PatternKind()

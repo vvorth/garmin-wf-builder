@@ -58,18 +58,14 @@ def glyph_set(face: Face) -> dict[str, str]:
     """The characters each declared **baked** font must contain, derived
     from the design. A `face:` (vector) font is drawn from the device's own
     resident face at runtime, so it has no sheet to subset and gets no entry
-    (`bucket` refuses it)."""
+    (`TextRun.glyphs` is ignored for it)."""
     needed: dict[str, set[str]] = {
         name: set() for name, spec in face.fonts.items() if spec.is_baked
     }
 
-    def bucket(font_name: str) -> set[str] | None:
-        if face.fonts[font_name].is_vector:
-            return None
-        return needed.setdefault(font_name, set())
-
-    for element in face.walk():
-        kinds.for_element(element).glyph_needs(element, face, bucket)
+    for _, run in kinds.face_text_runs(face):
+        if run.icon is None and not run.is_vector(face):
+            needed.setdefault(run.font, set()).update(run.glyphs)
     out: dict[str, str] = {}
     for name, chars in needed.items():
         declared = face.fonts[name].glyphs
@@ -110,11 +106,10 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     """
     # key -> (size, glyphs, bake_reference, antialias)
     by_key: dict[str, tuple[object, str, str, bool]] = {}
-    for element in face.walk():
-        need = kinds.for_element(element).icon_font_need(element, face)
-        if need is not None:
-            key, entry = need
-            by_key[key] = entry
+    for _, run in kinds.face_text_runs(face):
+        if run.icon is not None:
+            icon = run.icon
+            by_key[run.font] = (icon.size, icon.glyphs, icon.reference, icon.antialias)
     return {
         key: FontSpec(
             name=key,

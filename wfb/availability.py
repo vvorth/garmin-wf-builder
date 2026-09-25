@@ -237,9 +237,8 @@ def vector_fonts_used(face: Face) -> dict[str, FontSpec]:
     simply `{name: spec for name, spec in face.fonts.items() if spec.is_
     vector}`.
     """
-    named: set[str] = set()
-    for element in face.walk():
-        named.update(kinds.for_element(element).vector_font_names(element))
+    named = {run.font for _, run in kinds.face_text_runs(face)
+             if run.icon is None and not run.aod_only}
     return {name: spec for name, spec in face.fonts.items()
             if name in named and spec.is_vector}
 
