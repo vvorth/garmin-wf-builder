@@ -804,10 +804,11 @@ to end, through a real design rather than against the baked sheet alone). For
 the primitive gap, the simulator is authoritative.
 
 **Where an outline's pen lands is an open question, and the preview and the
-linter disagree about it.** `wfb/preview.py` strokes a `filled: false`
-circle, ellipse or rectangle, and an arc, with Pillow's `width=`, which puts
-the whole pen *inside* the declared edge. `wfb/layout.py` (`_arc_box`, the
-outline branches of the shape resolver) assumes the pen *straddles* the
+linter disagree about it.** The preview (`wfb/kinds/shape.py`'s
+`draw_preview`) strokes a `filled: false` circle, ellipse or rectangle, and
+an arc, with Pillow's `width=`, which puts the whole pen *inside* the
+declared edge. Layout (`wfb/kinds/shape.py`'s `resolve`, with
+`wfb.layout.arc_box`/`stroke_pad`) assumes the pen *straddles* the
 edge, half a pen either side, and the `safe-area`/`off-screen` checks use
 that wider box. So a thick ring at `radius: 99%r` looks clipped-free in the
 preview and still warns. What `Dc.drawCircle`/`drawArc` do with a pen wider

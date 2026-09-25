@@ -161,6 +161,7 @@ Angles run **clockwise from 12 o'clock**: `0deg` top, `90deg` 3 o'clock,
 | You see | Use | Chapter in `docs/guide/` |
 |---|---|---|
 | any text, digital time, date, a number | `text` (a `face:` font plus `curve:` for rotated or curved text) | `text.md`, `fonts.md`, `data.md` |
+| outlined or hollow digits, a halo round text | `text` with `outline:` (a pattern's `shape: text` part takes it too) | `text.md` |
 | rectangle, card, pill, disc, ring, wedge, divider | `shape` | `shapes.md` |
 | a goal ring or bar that fills | `progress` (`style: arc` or `bar`) | `progress-and-graphs.md` |
 | a line, area or bar chart | `graph` | `progress-and-graphs.md` |
@@ -194,6 +195,9 @@ listed:
   matches a distinctive typeface exactly. A font needs a file the repository
   has or the person supplies; look in `examples/*/assets/` for what is
   already here. Use `monospace: true` for a clock so it does not jitter.
+
+Lettering with a contrasting edge, or hollow digits, is any of the three
+fonts plus **`outline:`**, a ring stamped round the glyphs (see rule 13).
 
 ### Ask, once, only what the picture cannot tell you
 
@@ -276,13 +280,54 @@ are known-good and warning-free:
     dithered. Leave it off unless the picture's smooth edges matter more
     than the grain, and then accept the warning with a `lint:` reason. On a
     `fonts:` entry it is free and usually looks better.
-13. **Not available**: `image` and `raw` elements, per-device `overrides`,
+13. **`outline:` stamps a ring round text**: `outline: palette.x` (2 px)
+    or `outline: {color: palette.x, width: 1}`, 1–3 px, on a `text` element
+    or a pattern's `shape: text` part. The interior is then painted in the
+    element's own `color:`, **over** whatever is underneath: there is no
+    transparency. For hollow digits, make `color:` the exact palette entry
+    of the background beneath them, or `text-outline-interior` warns.
+14. **Not available**: `image` and `raw` elements, per-device `overrides`,
     transparency, animation, and taps or swipes (a face gets only touch and
-    hold, via `on_hold:`). If the picture needs one, say so and use the
-    closest thing that exists.
+    hold, via `on_hold:`). `modes: [always_on]` is gone: an AMOLED sleep
+    frame is `aod:` (below). If the picture needs something missing, say so
+    and use the closest thing that exists.
 
 `wfb schema` prints the normative definition; `docs/guide/` explains every
 key with examples. `docs/README.md` is the index.
+
+### AMOLED targets: the always-on frame
+
+`wfb devices` lists each watch's `display`. The default targets are MIP.
+If the person names an **AMOLED** watch (`fenix847mm`, `epix2`, `venu`, …),
+two things change:
+
+- `modes: [low_power]` is a **build error** there: AMOLED has no partial
+  updates.
+- While asleep the watch draws an **always-on (AOD) frame**, and a design
+  with nothing in it warns `aod-empty`. Say what shows in AOD with `aod:`,
+  overrides on the same design, not a second layout:
+
+```yaml
+aod: { default: hide, dim: 0.6 }     # top level: hide everything, dim what shows
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: font.clock
+    color: palette.fg
+    aod:                             # this element shows in AOD, restyled
+      color: palette.bg              # hollow digits: the ring is the only ink
+      outline: palette.dim
+```
+
+Garmin's rule is under 10 % of pixels and luminance lit, and
+`aod-burn-in` checks it against the rendered frame. Show the time and
+little else: hollow or thin digits, no filled areas. Check the frame with
+`wfb preview --aod` (it applies the moving 2×2 pixel mask the watch uses,
+so only one pixel in each 2×2 tile lights: dotted, on purpose). If the picture itself *is* an always-on
+screenshot, compare against it with `face-compare.py --aod`. The full
+reference is `docs/guide/always-on-display.md`.
 
 ---
 
@@ -513,4 +558,8 @@ schema describes.
 | `text-overflow` | The widest value does not fit: smaller font, or more room |
 | `curve: requires a face: font` | Rotated or curved text needs a `fonts:` entry with `face:` |
 | `font-unavailable` | That vector face is missing on a target; add a fallback face to the list, or `if_unavailable: hide` |
+| `text-outline-interior` | An outlined text's interior paints over something drawn earlier: make its `color:` the palette entry underneath, or move it |
+| `... is an AMOLED device and does not support onPartialUpdate` | Drop `low_power` from `modes:`; the AMOLED sleep frame is `aod:` |
+| `aod-empty` | Nothing draws in always-on display on an AMOLED target: give the time `aod: show` (or an override block) |
+| `aod-burn-in` | The AOD frame lights too much: show less, dim it (`aod: {dim: ...}`), use hollow or thinner digits |
 | `Invalid device id specified` (build) | Device definitions are missing: run `wfb doctor` |
