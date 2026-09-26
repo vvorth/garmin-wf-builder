@@ -12,13 +12,14 @@ fēnix 8's native face editor:
 |---|---|---|
 | Stored by | the native editor | `Application.Properties` |
 | Reaches | fēnix 8 and newer only | every target, fr955 included |
-| Holds | colours, a Styles entry, complication slots | a Boolean, or one of named choices |
+| Holds | colours, a Styles entry, complication slots | a Boolean, one of named choices, or a colour scheme |
 | Per saved configuration | yes, up to four | no: one value for all of them |
 
 **How the wearer changes a setting: a menu on the watch.** The build
 generates a settings menu, which the watch opens from its Watch Face menu
-(`AppBase.getSettingsView`). A `boolean` is a toggle. A `choice` shows its
-current label, and selecting it moves to the next choice. The change applies
+(`AppBase.getSettingsView`). A `boolean` is a toggle. A `choice` or a
+`color_scheme` shows its current label, and selecting it moves to the next
+one. The change applies
 at once. Garmin Connect cannot do this for a sideloaded face: it edits
 settings only for apps installed from the Connect IQ Store, private beta
 included (`docs/research/17-phone-settings.md` §2).
@@ -35,9 +36,11 @@ simulator here, so this needs a sideload.
 |---|---|---|---|---|
 | `<name>:` | `settings:` | an identifier | — | read as `settings.<name>` |
 | `label:` | a setting | string | required | the name the wearer sees |
-| `type:` | a setting | `boolean` / `choice` | required | what the setting holds |
-| `default:` | a setting | a Boolean; a key of `choices:` | required | the value until the wearer changes it |
+| `type:` | a setting | `boolean` / `choice` / `color_scheme` | required | what the setting holds |
+| `default:` | a setting | a Boolean; a key or scheme of `choices:` | required | the value until the wearer changes it |
 | `choices:` | a `choice` setting | mapping of key → label, at least two | required | the options, in the order shown |
+| `choices:` | a `color_scheme` setting | list of `color_scheme:` names, at least two | required | the schemes, in the order shown; each labelled by its own `label:`, or its name |
+| `lint:` | a `color_scheme` setting | `{allow: [...], reason: ...}` | — | accepts `settings-scheme-overlap` |
 | `edit:` | `settings:` | list of `watch`, `phone` | `[watch]` | where the wearer edits them: the [menu on the watch](#editing-on-the-watch-and-on-the-phone), Garmin Connect, or both |
 
 ## Example
@@ -90,6 +93,42 @@ settings:
   show_seconds: { label: "Show seconds", type: boolean, default: true }
 ```
 
+## Colour schemes
+
+A `color_scheme` setting picks one of several declared
+[`color_scheme:`](colors.md#color-scheme) entries, and any colour reads one
+role of it as `settings.<name>.<role>`:
+
+```yaml
+color_scheme:
+  day:   { label: "Day",   colors: { hours: palette.white, minutes: palette.white } }
+  night: { label: "Night", colors: { hours: palette.red,   minutes: palette.orange } }
+
+settings:
+  theme:
+    label: "Colours"
+    type: color_scheme
+    choices: [day, night]
+    default: day
+
+elements:
+  - id: clock
+    type: text
+    value: time.hour
+    color: settings.theme.hours
+```
+
+It is the same thing `config: style:` does with `config.colors.<role>`, but
+through the settings menu, so it works on every target with the menu,
+`fr955` included. A bare `settings.theme`, or a role the schemes do not
+declare, is an error naming the roles.
+
+When a scheme is offered both by a `color_scheme` setting and by a
+`config: style:` entry, the `settings-scheme-overlap` warning fires: the
+wearer would get two controls for one set of colours, in two places, and
+nothing keeps the two in step. Accept it with the setting's own
+`lint: {allow: [settings-scheme-overlap], reason: ...}`.
+
 ## Reading a setting
 
 - A `boolean` setting is a Boolean anywhere an expression takes one:
@@ -129,7 +168,9 @@ settings:
 Measured on the verification devices, for a face with one `boolean` and one
 `choice` setting read by `visible:` guards on three elements: the settings
 add 279 B (1,761 B to 2,040 B) and the menu another 619 B (to 2,659 B). On
-`fenix5`, which never opens the menu, the two add 372 B and 1,044 B.
+`fenix5`, which never opens the menu, the two add 372 B and 1,044 B. In
+`examples/features/settings/`, a `color_scheme` setting with two roles adds
+373 B (499 B on `fenix5`), and `edit: phone` about 80 B.
 
 ## Things to know
 

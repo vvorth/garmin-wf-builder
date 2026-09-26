@@ -68,11 +68,12 @@ pinned to feet with `units: statute`, each labelled by `format:`'s
 `{unit}`. The preview's sample has no weather or altitude, so those rows
 draw their placeholder; `--units statute` flips the distance row.
 
-`features/settings/` (plan 21 slice 1, 2026-09-27) is `settings:`: a
-`boolean` gating the seconds, a `choice` picking what the ring measures
-(`none` shows no ring), and a `boolean` gating `static:` hour ticks, so a
-change has to repaint the static buffer. Sideload it to check the
-generated settings menu on the watch (plan 21 §6: not yet seen on one).
+`features/settings/` (2026-09-27) is `settings:`: a `boolean` gating the
+seconds, a `choice` picking what the ring measures (`none` shows no ring),
+a `boolean` gating `static:` hour ticks, so a change has to repaint the
+static buffer, and a `color_scheme` colouring the clock. Sideload it to
+check the generated settings menu on the watch (not yet seen on one:
+`docs/limitations.md` §1).
 
 `features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slices 1-4, 2026-09-23)
 is the first, and so far only, example to add a fourth target, `fenix847mm`

@@ -130,11 +130,16 @@ scope.  Every other layer of `Builder` reads and writes these."""
         #: for `expression`'s dedicated error; `None` means no Styles
         #: colours at all, not zero roles.
         self._config_colors_roles: tuple[str, ...] | None = None
+        #: `color_scheme` setting name -> its roles, for the same dedicated
+        #: error on a bare `settings.<name>` or an unknown role.
+        self._setting_scheme_roles: dict[str, tuple[str, ...]] = {}
         self.settings: NamedRegistry[Setting] = NamedRegistry()
-        #: Every declared setting, accepted or rejected -> its `type:` and,
-        #: for a `choice`, its keys: what `_build_scope` binds
-        #: `settings.<name>` from, so a rejected one still resolves.
-        self.setting_bindings: dict[str, tuple[str, tuple[str, ...] | None]] = {}
+        #: Every declared setting, accepted or rejected -> its `type:`, a
+        #: `choice`'s keys and a `color_scheme`'s roles: what `_build_scope`
+        #: binds `settings.<name>` (or `.<role>`) from, so a rejected one
+        #: still resolves.
+        self.setting_bindings: dict[
+            str, tuple[str, tuple[str, ...] | None, tuple[str, ...]]] = {}
         self.settings_edit: tuple[str, ...] = ("watch",)
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}

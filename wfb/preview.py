@@ -300,6 +300,10 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
     # the generated code compares indices (`expr._choice_compare`).
     for name, setting in resolved.face.settings.items():
         chosen = (options.settings or {}).get(name, setting.default)
+        if setting.type == "color_scheme":
+            for role, color in resolved.face.color_scheme[str(chosen)].colors.items():
+                values.setdefault(f"settings.{name}.{role}", color.value)
+            continue
         values.setdefault(f"settings.{name}", chosen)
 
     # `config: style:` renders at the chosen entry's scheme colours (the

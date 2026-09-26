@@ -34,7 +34,9 @@ or AOD-related has been observed on a watch or in the simulator.
   Styles with `color_scheme:` and `layouts:` (form A), the Data axis as
   `complication_slot`. `docs/guide/configuration.md`,
   `styles-and-layouts.md`.
-- **Wearer settings** — `settings:` with `boolean` and `choice`,
+- **Wearer settings** — `settings:` with `boolean`, `choice` and
+  `color_scheme` (read as `settings.<name>.<role>`, lint
+  `settings-scheme-overlap`),
   stored as `Application.Properties` (`properties.xml`), read as
   `settings.<name>` (a choice compares its Number index,
   `wfb.expr._choice_compare`), re-read by `onSettingsChanged`; the
@@ -95,11 +97,10 @@ specifies each item.
 3. Ticks drawn by a `style: scale` progress itself (a radial `pattern`
    does them today).
 4. `units:` on an expression or a `complication_slot`.
-5. **The rest of wearer settings**, plan 21 slice 4: `color_scheme`
-   settings. Phone-side settings do not reach a sideloaded face (research
-   17 §2), so the user chose the on-watch menu (ADR 0006 tenth amendment,
-   built), with `settings.xml` emitted (built) but no Store packaging and
-   no `.SET` writer. The
+5. **`number` settings and `wfb package`.** `Menu2` has no numeric entry,
+   so a `number` setting would be phone-only, and phone editing needs a
+   Store install, which needs `wfb package` (research 17 §2). No `.SET`
+   writer, by decision (ADR 0006 tenth amendment). The
    2026-09-11 WIP is pinned on `wip/phone-settings`. It is design reference
    only: it predates the builder, emitter and kinds refactors. Do not
    resume it without asking the user.

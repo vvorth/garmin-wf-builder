@@ -48,6 +48,12 @@ def setting_field(name: str) -> str:
     return "_setting" + _pascal(name)
 
 
+def setting_role_field(name: str, role: str) -> str:
+    """The view field a `color_scheme` setting's `role` is cached in
+    (``_settingNightBg``) -- read as `settings.<name>.<role>`."""
+    return setting_field(name) + _pascal(role)
+
+
 def setting_title_id(name: str) -> str:
     """The `<string>` resource id a setting's `label:` is emitted under for
     `settings.xml` (``SettingShowSecondsTitle``)."""

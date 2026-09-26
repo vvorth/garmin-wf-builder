@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), awaiting user decisions, and 21 (`settings:`), decided, slices 1-3 built. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
+| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), awaiting user decisions. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -217,7 +217,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
   tap/hold split was superseded by research (6b/6c).
 - **On-device config:** the native editor for the four `config:` axes, so
   fr955 gets none from it (accepted knowingly).
-- **Wearer settings (2026-09-27, plan 21):** a generated on-watch
+- **Wearer settings (2026-09-27, built):** a generated on-watch
   `getSettingsView` menu, since phone settings never reach a sideload;
   `settings.xml` emitted but no `wfb package`/Store beta; no `.SET` writer.
 - **Repo:** a sibling directory; the Dashboard face repo is left untouched.
@@ -265,8 +265,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
     `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
     switch to) -- friendly build errors, all three, never a silent no-op;
-  - the rest of **settings**: `color_scheme` settings — plan 21 slice 4. Phone
-    settings do not reach a sideloaded face (research 17). The old WIP on
+  - `number` settings (`Menu2` has no numeric entry) and `wfb package`, so
+    `settings:`' phone editing reaches no Store install. The old WIP on
     `wip/phone-settings` is design reference only. Do not resume it
     without asking;
   - non-round screens: rectangles untested, semi-shapes "not checked"
@@ -284,7 +284,7 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
   `curve:`, `outline:`; progress `needle`/`segments`/`scale`; `pattern:
   grid`; `units:`; duration formats; `aod:` with `dim:`, the pixel `mask:`
-  and the burn-in lint; `settings:` (`boolean`/`choice`) with the on-watch settings menu and `edit: phone`'s `settings.xml`. One line each, with the guide chapter, in
+  and the burn-in lint; `settings:` (`boolean`/`choice`/`color_scheme`) with the on-watch settings menu and `edit: phone`'s `settings.xml`. One line each, with the guide chapter, in
   `docs/lore/roadmap.md`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,

@@ -10,7 +10,7 @@ out" — see its own paragraph below.
 
 ## At a glance
 
-Twenty-two codes are suppressible. One line each, derived from this chapter,
+Twenty-three codes are suppressible. One line each, derived from this chapter,
 [`docs/limitations.md`](../limitations.md) §3 and `wfb/lint.py`'s own
 messages; see `wfb/lint.py` if unsure.
 
@@ -32,6 +32,7 @@ messages; see `wfb/lint.py` if unsure.
 | `config-unsupported` | the device lacks the on-device editor (or `Toybox.Complications`), so a config-driven colour or slot can't do what's declared |
 | `duplicate-style` | two `config: style:` entries resolve to the same layout/colours and are indistinguishable on the wrist |
 | `unreachable-layout` | a `layouts:` entry that no `config: style:` entry names as its `layout:`, so it can never be drawn |
+| `settings-scheme-overlap` | a `color_scheme` setting offers a scheme a `config: style:` entry also offers, so the wearer gets two unlinked controls for one set of colours; suppress on the setting's own `lint:` |
 | `sub-pixel-length` | a `%`/`%r` length resolves below 1 px on this device, with `min_1px:` off |
 | `font-unavailable` | a `face:` font (or an element using one) with `if_unavailable: hide` fails to resolve a usable face on this device |
 | `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
@@ -68,11 +69,11 @@ the generated code itself, so it follows the ordinary "acknowledge it, with
 a reason" suppression path like every other measured/estimated check
 instead of joining the hard-limit errors below.
 
-Twenty-two codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
+Twenty-three codes are suppressible: `palette-dither`, `safe-area`, `off-screen`,
 `text-overflow`, `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
-`duplicate-style`, `unreachable-layout`, `sub-pixel-length`,
+`duplicate-style`, `unreachable-layout`, `settings-scheme-overlap`, `sub-pixel-length`,
 `text-outline-interior`, `aod-unreachable`, `aod-empty`, `aod-burn-in` and
 `font-unavailable` — a `face:` font, or an element using one, that has
 `if_unavailable: hide` and fails to resolve a usable face on some target

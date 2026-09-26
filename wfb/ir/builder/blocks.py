@@ -13,7 +13,7 @@ from ...diagnostics import Span
 from ...palette import Color, ColorError
 
 from ..model import ColorScheme, ComplicationSlot, Element, LayoutDecl, walk_elements
-from ..naming import config_field, local_name, setting_field
+from ..naming import config_field, local_name, setting_field, setting_role_field
 from .state import _lint_suppression
 from .fonts import FontBlock
 
@@ -350,9 +350,17 @@ against."""
             # (`style` is not a single colour; its roles are bound below.)
             self._define_config_color(f"config.{name}", config_field(name))
 
-        for name, (kind, keys) in self.setting_bindings.items():
+        for name, (kind, keys, scheme_roles) in self.setting_bindings.items():
             # A setting is a view field the wearer can change at runtime, so
             # it is never folded (`constant=None`), the same as a config colour.
+            if kind == "color_scheme":
+                # One colour per role, and nothing for the bare name: a
+                # scheme is not a colour (`expression` says so).
+                self._setting_scheme_roles[name] = scheme_roles
+                for role in scheme_roles:
+                    self._define_config_color(f"settings.{name}.{role}",
+                                              setting_role_field(name, role))
+                continue
             self.scope.define(
                 f"settings.{name}",
                 expr.Binding(

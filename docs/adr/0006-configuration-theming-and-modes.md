@@ -899,6 +899,13 @@ nothing. See research 07 §2.
 > ships. Nothing is built yet. Still UNVERIFIED: whether the menu entry
 > appears on a fēnix 8 beside the native editor, and which memory limit the
 > settings view runs under (research 17 §3.3).
+>
+> **Built (2026-09-27):** `settings:` with `boolean`, `choice` and
+> `color_scheme` settings, the on-watch menu and `edit: phone`'s
+> `settings.xml` (commits `3137c80`, `88eb824`, `0e741d9` and the one that
+> deleted plan 21). A `color_scheme` setting gives `fr955` colour schemes
+> without the native editor. `docs/guide/settings.md` is the reference; the
+> UNVERIFIED points above still stand.
 
 ---
 
@@ -964,10 +971,10 @@ both map to `onPress`, rather than silently preferring one.
   only element that opted out of the null guard, font resolution, layout-box
   and static/antialias rules every other element shares. See the amendment
   for the reasons and CLAUDE.md for the deletion session.
-- (tenth amendment) Wearer settings are to be a generated on-watch menu, with
+- (tenth amendment) Wearer settings are a generated on-watch menu, with
   `settings.xml` emitted alongside it for a possible Store beta. This gives
-  `fr955` a configuration route of its own. `docs/plans/21-phone-settings.md`
-  is the build plan.
+  `fr955` a configuration route of its own, colour schemes included.
+  `docs/guide/settings.md` is the author-facing reference.
 
 ## Open
 

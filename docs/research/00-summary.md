@@ -27,7 +27,7 @@ Detail lives in:
 | `14-stamped-ring-text.md` | the "stamped ring" workaround, measured: offset sets at r=1/2/3 against a true dilation and FreeType's stroker, per-font-kind validity (including the radial-text geometry), lit-pixel and code-size cost, alternatives, a proposed `outline:` format |
 | `15-aod-pixel-masks.md` | a rotating pixel mask for the AOD frame compared with jitter: the 3-minute rule by construction, lit-pixel and luminance cut by the duty, the toroidal "queen-5" pattern that never drops a 1 px line, and device routes -- built as `aod: {mask: ...}` (plan 16): a simpler moving 2×2 single-pixel tile, on by default, drawn as black `fillRectangle` strips rather than queen-5's overlay bitmap |
 | `16-screen-shapes.md` | rectangular, semi-octagon and semi-round screens: 21 face-capable devices, 13 realistic at the 3.1.0 floor, none installed; the simulator skin's alpha as an exact visible-area mask; the Instinct subscreen; 2-colour panels; `overrides:` as ADR 0004 already specifies -- feeds plan 20 |
-| `17-phone-settings.md` | properties and settings: phone settings do **not** reach a sideloaded app; the three routes that do (private Store beta, a hand-copied `.SET`, an on-watch `getSettingsView` menu), measured by probe (+112 B / +459 B); the frozen WIP's state -- feeds plan 21 |
+| `17-phone-settings.md` | properties and settings: phone settings do **not** reach a sideloaded app; the three routes that do (private Store beta, a hand-copied `.SET`, an on-watch `getSettingsView` menu), measured by probe (+112 B / +459 B); the frozen WIP's state -- built as `settings:` (`docs/guide/settings.md`) |
 | `data/devices/*.json`, `data/devices-index.json` | 164-device capability database |
 | `data/capability-matrix.json` | feature × device support, machine-readable |
 
@@ -192,5 +192,5 @@ Raised now rather than discovered later:
 2. **On-device config:** the native editor for the four `config:` axes, so
    fr955 gets none from it. Wearer settings get a generated on-watch
    `getSettingsView` menu instead, since phone settings never reach a
-   sideload (research 17; ADR 0006 tenth amendment; plan 21, not built).
+   sideload (research 17; ADR 0006 tenth amendment; `docs/guide/settings.md`).
 3. **Host language:** Python (ADR 0001).

@@ -116,7 +116,7 @@
       }
     },
     "settings": {
-      "description": "Wearer settings: values the wearer changes after install, stored as Application.Properties and read in any expression as 'settings.<name>' -- a 'boolean' as a Boolean, a 'choice' only in a comparison with one of its keys, e.g. 'settings.ring == \"steps\"'. Unlike 'config:', a setting reaches every target, fr955 included, and is global across the wearer's saved configurations. Every read falls back to 'default:', so a setting is never absent. The reserved key 'edit:' says where the wearer changes them: by default a settings menu on the watch. See docs/guide/settings.md.",
+      "description": "Wearer settings: values the wearer changes after install, stored as Application.Properties and read in any expression as 'settings.<name>' -- a 'boolean' as a Boolean, a 'choice' only in a comparison with one of its keys, e.g. 'settings.ring == \"steps\"', a 'color_scheme' as one colour per role, 'settings.<name>.<role>'. Unlike 'config:', a setting reaches every target, fr955 included, and is global across the wearer's saved configurations. Every read falls back to 'default:', so a setting is never absent. The reserved key 'edit:' says where the wearer changes them: by default a settings menu on the watch. See docs/guide/settings.md.",
       "type": "object",
       "minProperties": 1,
       "propertyNames": {
@@ -481,7 +481,7 @@
       }
     },
     "setting": {
-      "description": "One 'settings:' entry. 'label:' is the name the wearer sees. 'type: boolean' takes a Boolean 'default:'. 'type: choice' takes 'choices:', an ordered mapping of key -> label (at least two), and a 'default:' naming one key; the stored value is the key's position, so reordering or removing keys changes what an installed face reads back.",
+      "description": "One 'settings:' entry. 'label:' is the name the wearer sees. 'type: boolean' takes a Boolean 'default:'. 'type: choice' takes 'choices:', an ordered mapping of key -> label (at least two), and a 'default:' naming one key. 'type: color_scheme' takes 'choices:', a list of declared 'color_scheme:' names, and a 'default:' naming one; read its colours as 'settings.<name>.<role>'. A choice or colour scheme is stored as its position, so reordering or removing choices changes what an installed face reads back.",
       "oneOf": [
         {
           "type": "object",
@@ -534,6 +534,40 @@
             },
             "default": {
               "$ref": "#/$defs/identifier"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "label",
+            "type",
+            "choices",
+            "default"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "const": "color_scheme"
+            },
+            "choices": {
+              "description": "Declared 'color_scheme:' entry names, in the order the wearer steps through them. Each is shown by its own 'label:', or its name.",
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            },
+            "default": {
+              "$ref": "#/$defs/identifier"
+            },
+            "lint": {
+              "$ref": "#/$defs/lint"
             }
           }
         }

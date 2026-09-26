@@ -13,7 +13,7 @@ from ...catalog import READERS
 from ...devices import Device
 from ...ir import (
     HOLD_AUTO, Expression, Face, config_data_ids, config_field, font_resource_id, local_name,
-    setting_label_method, static_group_method,
+    setting_label_method, setting_role_field, static_group_method,
 )
 from ...layout import Placed, PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
 from ...palette import dim_fraction
@@ -560,9 +560,13 @@ def _emit_settings_fields(w: Writer, face: Face) -> None:
     for setting in face.settings.values():
         if setting.type == "boolean":
             w.line(f"private var {setting.field} as Boolean = {_mc_bool(bool(setting.default))};")
-        else:
-            w.line(f"private var {setting.field} as Number = {setting.stored_default};"
-                   f"  // {setting.default}")
+            continue
+        w.line(f"private var {setting.field} as Number = {setting.stored_default};"
+               f"  // {setting.default}")
+        if setting.type == "color_scheme":
+            for role, color in face.color_scheme[str(setting.default)].colors.items():
+                w.line(f"private var {setting_role_field(setting.name, role)} as Number = "
+                       f"{color.as_monkeyc()};")
     w.blank()
 
 
@@ -595,6 +599,13 @@ def _emit_apply_settings(w: Writer, face: Face, static: "StaticPlan | None") -> 
                 w.line(f"{setting.field} = {local};")
             with w.block("else"):
                 w.line(f"{setting.field} = {setting.stored_default};")
+            if setting.type == "color_scheme":
+                w.comment(f"settings.{name}: the chosen color_scheme's colours")
+                for index, choice in enumerate(setting.choices):
+                    with w.block(f"if ({setting.field} == {index})"):
+                        for role, color in face.color_scheme[choice.key].colors.items():
+                            w.line(f"{setting_role_field(name, role)} = {color.as_monkeyc()};"
+                                   f"  // color_scheme.{choice.key}")
         if static is not None:
             w.comment("a setting may be drawn into the static buffer -- repaint it")
             w.line(f"{REPAINT_STATIC_METHOD}();")
@@ -603,12 +614,13 @@ def _emit_apply_settings(w: Writer, face: Face, static: "StaticPlan | None") -> 
 
 def _emit_settings_menu(w: Writer, face: Face) -> None:
     """The on-watch settings menu: `settingsMenu`, `selectSetting`, and one
-    `settingLabel<Name>` per `choice` setting.
+    `settingLabel<Name>` per `choice` or `color_scheme` setting.
 
     `AppBase.getSettingsView` returns the `Menu2` `settingsMenu` builds, so
     the watch opens it from its Watch Face menu. A `boolean` setting is a
-    `ToggleMenuItem`. A `choice` setting is a `MenuItem` whose sub-label is
-    the current choice; selecting it moves to the next choice, wrapping.
+    `ToggleMenuItem`. A `choice` or `color_scheme` setting is a `MenuItem`
+    whose sub-label is the current choice; selecting it moves to the next
+    choice, wrapping.
     Each item's identifier is the setting's position in `settings:`.
 
     `selectSetting` writes `Application.Properties` and then runs
@@ -653,7 +665,7 @@ def _emit_settings_menu(w: Writer, face: Face) -> None:
         w.line(f"{APPLY_SETTINGS_METHOD}();")
         w.line("WatchUi.requestUpdate();")
     for setting in face.settings.values():
-        if setting.type != "choice":
+        if setting.type == "boolean":
             continue
         w.blank()
         w.doc(f"settings.{setting.name}: a choice's index -> its label.")

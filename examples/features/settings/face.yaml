@@ -1,22 +1,25 @@
 # `settings:` -- values the wearer changes after install, stored on the watch
 # as Application.Properties and read in any expression as `settings.<name>`
-# (docs/guide/settings.md, docs/plans/21-phone-settings.md).
+# (docs/guide/settings.md).
 #
-# Three settings, one of each use:
+# Four settings, one of each use:
 #
 # - `show_seconds` (boolean) gates the seconds line with `visible:`;
 # - `ring` (choice) picks what the outer ring measures -- two `progress`
 #   elements, each shown by comparing the choice with one of its keys
 #   (`settings.ring == "steps"`), and `none` for no ring at all;
 # - `ticks` (boolean) gates the hour ticks, which are `static:`, so a change
-#   has to repaint the static buffer (`applySettings` calls `repaintStatic`).
+#   has to repaint the static buffer (`applySettings` calls `repaintStatic`);
+# - `theme` (color_scheme) picks the clock's colours, read one role at a
+#   time as `settings.theme.<role>` -- colour schemes without the fēnix 8's
+#   native editor, so `fr955` gets them too.
 #
 # Unlike `config:`, a setting is stored on every target, `fr955` included.
 # The wearer changes them in the generated settings menu, opened from the
 # watch's Watch Face menu (Garmin Connect edits settings only for Store
 # installs, never a sideload). `fenix5`/`fenix5x` have no settings menu and
 # keep the defaults. `wfb preview --set ring=battery --set
-# show_seconds=false` renders the other values.
+# show_seconds=false --set theme=night` renders the other values.
 #
 # Build it with:  ./wfb.py build examples/features/settings/face.yaml
 #
@@ -40,6 +43,11 @@ palette:
   orange: "#FF5500"
   green: "#55FF00"
   track: "#555555"
+  red: "#FF0000"
+
+color_scheme:
+  day: { label: "Day", colors: { hours: palette.white, minutes: palette.white } }
+  night: { label: "Night", colors: { hours: palette.red, minutes: palette.orange } }
 
 settings:
   show_seconds:
@@ -55,6 +63,11 @@ settings:
     label: "Hour ticks"
     type: boolean
     default: true
+  theme:
+    label: "Colours"
+    type: color_scheme
+    choices: [day, night]
+    default: day
 
 elements:
   hour_ticks:
@@ -103,7 +116,7 @@ elements:
     format: "{:02d}"
     font: FONT_NUMBER_HOT
     at: { anchor: center, dy: -12%r }
-    color: palette.white
+    color: settings.theme.hours
 
   minutes:
     type: text
@@ -111,7 +124,7 @@ elements:
     format: "{:02d}"
     font: FONT_NUMBER_MEDIUM
     at: { anchor: center, dy: 30%r }
-    color: palette.white
+    color: settings.theme.minutes
 
   seconds:
     type: text

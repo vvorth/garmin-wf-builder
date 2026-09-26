@@ -497,3 +497,181 @@ def test_settings_xml_matches_monkeyc_s_own_settings_json(write_design, db, tmp_
     (strings,) = data["languages"].values()
     assert [strings[o["display"]] for o in side["configOptions"]] == ["Left", "Right", "Top"]
     assert strings[side["configTitle"]] == "Dot side"
+
+
+# --------------------------------------------------------------------------
+# color_scheme settings
+
+SCHEMES = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Schemes
+targets: [fenix8solar47mm, fr955]
+palette:
+  white: "#FFFFFF"
+  orange: "#FF5500"
+  red: "#FF0000"
+color_scheme:
+  day: { label: "Day", colors: { fg: palette.white, accent: palette.orange } }
+  night: { colors: { fg: palette.red, accent: palette.red } }
+settings:
+  theme:
+    label: "Colours"
+    type: color_scheme
+    choices: [day, night]
+    default: day
+elements:
+  - id: disc
+    type: shape
+    shape: circle
+    at: {anchor: center}
+    radius: 30%r
+    filled: true
+    color: settings.theme.fg
+  - id: dot
+    type: shape
+    shape: circle
+    at: {anchor: center, dy: 60%r}
+    radius: 8%r
+    filled: true
+    color: settings.theme.accent
+    static: true
+"""
+
+
+def test_a_scheme_setting_picks_among_declared_schemes(write_design, bag):
+    face = load_face(SCHEMES, write_design, bag)
+    theme = face.settings["theme"]
+    assert theme.type == "color_scheme"
+    # A scheme's own label, or its name when it has none.
+    assert [(c.key, c.label) for c in theme.choices] == [("day", "Day"), ("night", "night")]
+    assert theme.stored_default == 0
+
+
+def test_a_scheme_setting_is_read_one_role_at_a_time(write_design, bag):
+    face = load_face(SCHEMES, write_design, bag)
+    disc = next(e for e in face.walk() if e.id == "disc")
+    assert disc.color is not None
+    assert (disc.color.code, disc.color.value.type, disc.color.constant) == (
+        "_settingThemeFg", Type.COLOR, None)
+
+
+@pytest.mark.parametrize("color, message", [
+    ("settings.theme", "settings.theme is a colour scheme, not a colour"),
+    ("settings.theme.bg", "settings.theme has no role 'bg'"),
+])
+def test_a_scheme_setting_misread_is_one_error(write_design, color, message):
+    (error,) = load_errors(SCHEMES.replace("color: settings.theme.fg", f"color: {color}"),
+                           write_design)
+    assert error.code == "settings"
+    assert message in error.message
+    assert "settings.theme.accent, settings.theme.fg" in error.notes[0]
+
+
+def test_an_unknown_scheme_is_one_error_not_n(write_design):
+    """Both elements read the rejected setting's roles: no second error."""
+    (error,) = load_errors(SCHEMES.replace("choices: [day, night]", "choices: [day, dusk]"),
+                           write_design)
+    assert "unknown color scheme 'dusk'" in error.message
+
+
+def test_a_setting_whose_schemes_all_fail_still_binds_their_roles(write_design):
+    """No choice resolves, so the roles come from every declared scheme:
+    one error per unknown scheme, none per reference."""
+    errors = load_errors(SCHEMES.replace("choices: [day, night]", "choices: [dawn, dusk]")
+                         .replace("default: day", "default: dawn"), write_design)
+    assert sorted(e.message for e in errors) == [
+        "unknown color scheme 'dawn'", "unknown color scheme 'dusk'"]
+
+
+def test_a_scheme_default_must_be_a_choice(write_design):
+    (error,) = load_errors(SCHEMES.replace("    default: day\n", "    default: dusk\n"),
+                           write_design)
+    assert "settings.theme: default 'dusk' is not one of 'choices:'" in error.message
+
+
+def test_a_role_field_cannot_collide_with_another_setting(write_design):
+    text = SCHEMES.replace("settings:\n", """settings:
+  theme_fg:
+    label: "Other"
+    type: boolean
+    default: true
+""")
+    (error,) = load_errors(text, write_design)
+    assert "settings.theme: the same generated name as settings.theme_fg" in error.message
+
+
+def test_a_scheme_setting_decodes_its_index_into_role_fields(write_design, db):
+    files = _project(write_design, db, SCHEMES).files()
+    view = files["source/SchemesView.mc"]
+    assert "private var _settingTheme as Number = 0;  // day" in view
+    assert "private var _settingThemeFg as Number = 0xFFFFFF;" in view
+    apply = view[view.index("function applySettings()"):view.index("function settingsMenu()")]
+    assert ("if (_settingTheme == 1) {\n"
+            "            _settingThemeFg = 0xFF0000;  // color_scheme.night") in apply
+    # Static content follows a changed scheme too.
+    assert apply.index("repaintStatic();") > apply.index("_settingTheme == 1")
+    assert 'return "night";' in view and 'return "Day";' in view
+    assert '<property id="theme" type="number">0</property>' in \
+        files["resources/settings/properties.xml"]
+
+
+def _disc(write_design, db, settings=None):
+    bag = Bag()
+    face = load_face(SCHEMES, write_design, bag)
+    device = db.get("fr955")
+    resolved = resolve(face, device, bake_fonts(face, device))
+    image = render(resolved, PreviewOptions(scale=1, settings=settings))
+    return image.getpixel((device.width // 2, device.height // 2))[:3]
+
+
+def test_the_preview_draws_the_chosen_scheme(write_design, db):
+    assert _disc(write_design, db) == (255, 255, 255)
+    assert _disc(write_design, db, {"theme": "night"}) == (255, 0, 0)
+
+
+def test_a_scheme_the_styles_axis_also_offers_warns(write_design):
+    text = SCHEMES.replace("settings:\n", """config:
+  style:
+    default: day
+    choices:
+      day: {colors: day}
+      night: {colors: night}
+settings:
+""")
+    bag = Bag()
+    face = load_face(text, write_design, bag)
+    from wfb import lint
+    lint.run_design(face, bag)
+    (warning,) = [d for d in bag.items if d.code == "settings-scheme-overlap"]
+    assert "settings.theme and 'config: style:' both pick from color_scheme day, night" \
+        in warning.message
+    allowed = text.replace("    default: day\nelements:", "    default: day\n"
+                           "    lint: {allow: [settings-scheme-overlap], reason: \"on purpose\"}\n"
+                           "elements:")
+    bag = Bag()
+    lint.run_design(load_face(allowed, write_design, bag), bag)
+    assert not [d for d in bag.items if d.code in ("settings-scheme-overlap", "lint-allow")]
+
+
+def test_a_scheme_setting_s_off_grid_colour_dithers(write_design, db):
+    text = SCHEMES.replace('red: "#FF0000"', 'red: "#F01010"')
+    bag = lint_text(text, write_design, db, "fr955")
+    dithers = sorted(d.message.split(":")[0] for d in bag.items
+                     if d.code == "palette-dither" and d.message.startswith("settings."))
+    assert dithers == ["settings.theme.accent", "settings.theme.fg"]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("targets", ["[fenix8solar47mm, fr955]", "[fenix5]"])
+def test_scheme_settings_compile_warning_free(write_design, db, tmp_path, toolchain, targets):
+    if "fenix5" in targets and "fenix5" not in db.ids():
+        pytest.skip("fenix5 is not installed")
+    text = SCHEMES.replace("targets: [fenix8solar47mm, fr955]", f"targets: {targets}") \
+        .replace("settings:\n", "settings:\n  edit: [watch, phone]\n")
+    bag = Bag()
+    result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
+    assert result is not None and bag.ok(), bag.render()
+    warnings = [d for d in bag.items if d.severity.value == "warning"]
+    assert not warnings, "\n".join(d.message for d in warnings)

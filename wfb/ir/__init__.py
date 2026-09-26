@@ -27,6 +27,7 @@ from .naming import (
     graph_max_field, graph_built_field, graph_rebuild_method,
     font_resource_id, config_label_id, config_style_label_id, setting_field,
     setting_label_method, setting_title_id, setting_choice_id,
+    setting_role_field,
 )
 from .model import (
     MODES, HOLD_AUTO, PATTERN_LOOP_INDEX, GRAPH_AREA_MAX_SAMPLES, SYSTEM_FONTS,
@@ -55,6 +56,7 @@ __all__ = [
     "graph_max_field", "graph_built_field", "graph_rebuild_method",
     "font_resource_id", "config_label_id", "config_style_label_id", "setting_field",
     "setting_label_method", "setting_title_id", "setting_choice_id",
+    "setting_role_field",
     "MODES", "HOLD_AUTO", "PATTERN_LOOP_INDEX", "GRAPH_AREA_MAX_SAMPLES", "SYSTEM_FONTS",
     "MAX_OUTLINE_WIDTH",
     "ROLE_VALUE", "ROLE_MAX", "ROLE_MIN", "ROLE_FALLBACK", "ROLE_COLOR", "ROLE_TRACK_COLOR",

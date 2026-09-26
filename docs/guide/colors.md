@@ -148,11 +148,14 @@ bad role colour, a role-set mismatch), is an error at that `config: style:`
 
 See [Configuration](configuration.md#configuration) for `config: style:` itself -- the axis that lets
 the wearer pick between author-named entries, each naming a declared scheme.
+A [`color_scheme` setting](settings.md#colour-schemes) picks among schemes
+too, from the settings menu, on every target including fr955.
 
 ## See also
 
 - [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — the status row and battery arcs shown above.
 - [Configuration](configuration.md) — `config: style:`, `config.accent_color`, `config.colors.*`.
+- [Wearer settings](settings.md) — a `color_scheme` setting, read as `settings.<name>.<role>`.
 - [Data binding, expressions and formats](data.md) — the expression language a `color:` key uses.
 - [Progress bars, arcs and graphs](progress-and-graphs.md) — `type: progress`, `style: arc`.
 - [Text](text.md#outline--the-stamped-ring) — see `outline:`'s own colour rules; `outline.color` is exactly this same grammar.

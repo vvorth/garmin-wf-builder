@@ -15,7 +15,7 @@ from ...palette import Color, ColorError
 from ..model import (
     ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, Setting, SettingChoice, StyleEntry,
 )
-from ..naming import setting_field
+from ..naming import setting_field, setting_role_field
 from .state import _lint_suppression
 from .glyphs import _NO_ICON_OVERRIDE, _ICON_OVERRIDE_ERROR
 from .blocks import TopLevelBlocks
@@ -414,25 +414,30 @@ class ConfigAxes(TopLevelBlocks):
             self.settings.declare(name, span)
             kind = spec["type"]
             keys = tuple(spec["choices"]) if kind == "choice" else None
-            self.setting_bindings[name] = (kind, keys)
+            roles = self._setting_scheme_roles_of(spec) if kind == "color_scheme" else ()
+            self.setting_bindings[name] = (kind, keys, roles)
 
-            field_name = setting_field(name)
-            if field_name in fields:
-                other = fields[field_name]
+            generated = [setting_field(name)] + [setting_role_field(name, r) for r in roles]
+            clash = next((f for f in generated if f in fields), None)
+            if clash is not None:
+                other = fields[clash]
                 self.bag.error(
                     "settings",
                     f"settings.{name}: the same generated name as settings.{other}",
                     span,
-                    notes=[f"both become the view field {field_name}; rename one"],
+                    notes=[f"both need the view field {clash}; rename one"],
                 )
                 self.settings.reject(name)
                 continue
-            fields[field_name] = name
+            fields.update((f, name) for f in generated)
 
             label = str(spec["label"])
             if kind == "boolean":
                 self.settings[name] = Setting(
                     name=name, label=label, type=kind, default=bool(spec["default"]), span=span)
+                continue
+            if kind == "color_scheme":
+                self._build_scheme_setting(name, label, spec, span)
                 continue
 
             assert keys is not None
@@ -452,3 +457,52 @@ class ConfigAxes(TopLevelBlocks):
             self.settings[name] = Setting(
                 name=name, label=label, type=kind, default=str(default),
                 choices=choices, span=span)
+
+    def _setting_scheme_roles_of(self, spec: dict[str, Any]) -> tuple[str, ...]:
+        """The roles a `color_scheme` setting exposes: those of its first
+        choice that is an accepted scheme (every accepted scheme has the
+        same roles, `_build_color_scheme`), or -- when none is -- every role
+        any accepted scheme declares, so a reference to one still resolves
+        after the real error ("one error, not N")."""
+        for scheme_name in spec["choices"]:
+            if scheme_name in self.color_scheme:
+                return tuple(sorted(self.color_scheme[scheme_name].colors))
+        roles: set[str] = set()
+        for scheme in self.color_scheme.values():
+            roles |= set(scheme.colors)
+        return tuple(sorted(roles))
+
+    def _build_scheme_setting(self, name: str, label: str, spec: dict[str, Any],
+                              span: Span | None) -> None:
+        """A `type: color_scheme` setting: `choices:` names declared
+        `color_scheme:` entries (resolved like a `config: style:` entry's
+        `colors:`, with the same declared/rejected cascade), and `default:`
+        must be one of them."""
+        choices: list[SettingChoice] = []
+        ok = True
+        raw_choices = spec["choices"]
+        for index, scheme_name in enumerate(raw_choices):
+            resolved = self._scheme_reference(scheme_name, self.doc.span(raw_choices, index))
+            if resolved is None:
+                ok = False
+                continue
+            scheme = self.color_scheme[resolved]
+            choices.append(SettingChoice(key=resolved, label=scheme.label or resolved))
+        if not ok:
+            self.settings.reject(name)
+            return
+        default = spec["default"]
+        keys = [choice.key for choice in choices]
+        if default not in keys:
+            near = difflib.get_close_matches(str(default), keys, n=3, cutoff=0.4)
+            self.bag.error(
+                "settings",
+                f"settings.{name}: default {default!r} is not one of 'choices:'",
+                self.doc.span(spec, "default"),
+                notes=did_you_mean(list(near)) + [f"choices: {', '.join(keys)}"],
+            )
+            self.settings.reject(name)
+            return
+        self.settings[name] = Setting(
+            name=name, label=label, type="color_scheme", default=str(default),
+            choices=tuple(choices), span=span, **_lint_suppression(spec))

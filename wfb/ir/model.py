@@ -679,22 +679,26 @@ class Setting:
     in expressions as `settings.<name>` (ADR 0006's tenth amendment).
 
     Stored as an `Application.Properties` value under the key `name`: a
-    `boolean` as a Boolean, a `choice` as the Number index of its key in
-    `choices` (a phone `list` setting needs a `number` property). Every read
-    type-checks the stored value and falls back to `default`, so a setting
-    is never absent.
+    `boolean` as a Boolean; a `choice` or `color_scheme` as the Number index
+    of its key in `choices` (a phone `list` setting needs a `number`
+    property). Every read type-checks the stored value and falls back to
+    `default`, so a setting is never absent.
     """
 
     name: str
     label: str
-    #: `"boolean"` or `"choice"`.
+    #: `"boolean"`, `"choice"` or `"color_scheme"`.
     type: str
-    #: A Boolean for `boolean`; a key of `choices` for `choice`.
+    #: A Boolean for `boolean`; a key of `choices` otherwise.
     default: bool | str
-    #: A `choice`'s keys and labels in declaration order, which is also the
-    #: stored index order. Empty for `boolean`.
+    #: Keys and labels in declaration order, which is also the stored index
+    #: order: a `choice`'s own, or a `color_scheme`'s scheme names and their
+    #: labels. Empty for `boolean`.
     choices: tuple[SettingChoice, ...] = ()
     span: Span | None = None
+    #: The setting's own `lint: {allow, reason}` (`color_scheme` only).
+    lint_allow: frozenset[str] = frozenset()
+    lint_reason: str | None = None
 
     @property
     def field(self) -> str:
