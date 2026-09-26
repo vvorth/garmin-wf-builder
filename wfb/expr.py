@@ -77,6 +77,7 @@ def tokenize(text: str) -> list[Token]:
             raise ExprError(f"unexpected character {text[pos]!r}", pos)
         pos = m.end()
         kind = m.lastgroup
+        assert kind is not None, "every _TOKEN_RE alternative is a named group"
         if kind == "ws":
             continue
         value = m.group()
@@ -604,7 +605,7 @@ def fold(node: Node, scope: Scope, *, fold_colors: bool = True) -> Node:
         operand = fold(node.operand, scope, fold_colors=fold_colors)
         if isinstance(operand, Literal) and operand.value is not None:
             if node.op == "-":
-                return Literal(-operand.value, operand.type, node.offset)
+                return Literal(_negate(operand.value), operand.type, node.offset)
             return Literal(not operand.value, Type.BOOLEAN, node.offset)
         return Unary(node.op, operand, node.offset)
     if isinstance(node, Binary):
@@ -643,8 +644,22 @@ def fold(node: Node, scope: Scope, *, fold_colors: bool = True) -> Node:
     return node
 
 
-#: Host implementations of the foldable binary operators.
-_HOST_BINARY: dict[str, Callable[[object, object], object]] = {
+def _number(value: object) -> int | float:
+    """``value`` as the number a numeric-typed literal or reading holds;
+    `TypeError` for anything else, as Python's own arithmetic would raise."""
+    if isinstance(value, (int, float)):
+        return value
+    raise TypeError(f"expected a number, got {value!r}")
+
+
+def _negate(value: object) -> int | float:
+    return -_number(value)
+
+
+#: Host implementations of the foldable binary operators.  Operands are
+#: `Any`: a pair the operator does not take raises `TypeError`, which
+#: `_apply` turns into "no value".
+_HOST_BINARY: dict[str, Callable[[Any, Any], object]] = {
     "+": operator.add, "-": operator.sub, "*": operator.mul,
     "/": operator.truediv, "%": _mod,
     "<": operator.lt, "<=": operator.le, ">": operator.gt, ">=": operator.ge,
@@ -756,10 +771,10 @@ def _emit_literal(node: Literal) -> str:
         escaped = str(node.value).replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
     if node.type is Type.COLOR:
-        return f"0x{int(node.value):06X}"
+        return f"0x{int(_number(node.value)):06X}"
     if node.type is Type.FLOAT:
-        return f"{float(node.value)}f"
-    return str(int(node.value))
+        return f"{float(_number(node.value))}f"
+    return str(int(_number(node.value)))
 
 
 def _emit_call(name: str, args: list[str]) -> str:
@@ -819,7 +834,7 @@ def evaluate(node: Node, values: dict[str, object]) -> object | None:
         inner = evaluate(node.operand, values)
         if inner is None:
             return None
-        return -inner if node.op == "-" else (not inner)
+        return _negate(inner) if node.op == "-" else (not inner)
     if isinstance(node, Binary):
         left, right = evaluate(node.left, values), evaluate(node.right, values)
         if node.op == "and":

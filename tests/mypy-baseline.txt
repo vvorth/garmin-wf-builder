@@ -40,16 +40,6 @@ wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation
 wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/view.py: [union-attr] Item "None" of "ConfigStyle | None" has no attribute "default_entry"
-wfb/expr.py: [arg-type] Argument 1 to "Token" has incompatible type "str | None"; expected "str"
-wfb/expr.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
-wfb/expr.py: [call-overload] No overload variant of "int" matches argument type "object"
-wfb/expr.py: [call-overload] No overload variant of "int" matches argument type "object"
-wfb/expr.py: [dict-item] Dict entry 5 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
-wfb/expr.py: [dict-item] Dict entry 6 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
-wfb/expr.py: [dict-item] Dict entry 7 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
-wfb/expr.py: [dict-item] Dict entry 8 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
-wfb/expr.py: [operator] Unsupported operand type for unary - ("object")
-wfb/expr.py: [operator] Unsupported operand type for unary - ("object")
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object | Any"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
@@ -138,11 +128,3 @@ wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one o
 wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/preview.py: [operator] Unsupported operand types for / ("tuple[int, int]" and "int")
-wfb/validate.py: [arg-type] Argument 1 to "get" of "dict" has incompatible type "Any | None"; expected "str"
-wfb/validate.py: [assignment] Incompatible types in assignment (expression has type "ValidationError | None", variable has type "ValidationError")
-wfb/validate.py: [union-attr] Item "Unset" of "Any | Unset | list[Any | Unset]" has no attribute "__iter__" (not iterable)
-wfb/validate.py: [union-attr] Item "Unset" of "Any | Unset" has no attribute "__iter__" (not iterable)
-wfb/validate.py: [union-attr] Item "Unset" of "Mapping[str, Any] | Literal[True] | Unset" has no attribute "get"
-wfb/validate.py: [union-attr] Item "Unset" of "Mapping[str, Any] | Literal[True] | Unset" has no attribute "get"
-wfb/validate.py: [union-attr] Item "bool" of "Mapping[str, Any] | Literal[True] | Unset" has no attribute "get"
-wfb/validate.py: [union-attr] Item "bool" of "Mapping[str, Any] | Literal[True] | Unset" has no attribute "get"

@@ -104,10 +104,10 @@ def validate(doc: YamlDocument, bag: Bag) -> bool:
             # unexpected keys into one error, too coarse a prefix to skip
             # without also hiding an unrelated mistake on the same element),
             # so its one schema error is narrowed here instead.
-            narrowed = _drop_pivot_alignment_keys(narrowed)
-            if narrowed is None:
+            kept = _drop_pivot_alignment_keys(narrowed)
+            if kept is None:
                 continue
-            _report(doc, bag, narrowed)
+            _report(doc, bag, kept)
     return len(bag.errors) == before
 
 
@@ -570,6 +570,8 @@ def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list[str
     """
     def visit(element: dict[str, Any], here: list[str | int]) -> None:
         kind = element.get("type")
+        if not isinstance(kind, str):
+            return
         reason = _PIVOT_ALIGNMENT_REASON.get(kind)
         if reason is None:
             return
@@ -715,7 +717,9 @@ def _wrong_kind(sub: ValidationError, depth: int) -> bool:
     if sub.validator == "type":
         return True
     if sub.validator in ("enum", "const"):
-        allowed = sub.validator_value if sub.validator == "enum" else [sub.validator_value]
+        value = sub.validator_value
+        allowed = (value if isinstance(value, list) else []) if sub.validator == "enum" \
+            else [value]
         return all(_type_name(value) != _type_name(sub.instance) for value in allowed)
     return False
 
@@ -754,7 +758,7 @@ def _report(doc: YamlDocument, bag: Bag, error: ValidationError) -> None:
 def _humanise(error: ValidationError) -> tuple[str, list[str]]:
     """Turn jsonschema's wording into something an author can act on."""
     notes: list[str] = []
-    description = (error.schema or {}).get("description") if isinstance(error.schema, dict) else None
+    description = _schema_of(error).get("description")
 
     if error.validator == "exclusive-keys":
         message = error.message
@@ -786,12 +790,13 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
             "unknown keys are an error, not a warning -- a misspelled key is how a "
             "design silently loses an element (ADR 0009)"
         )
-        allowed = (error.schema or {}).get("properties")
+        allowed = _schema_of(error).get("properties")
         if allowed:
             notes.append("keys allowed here: " + ", ".join(sorted(allowed)))
     elif error.validator == "enum":
         message = f"{error.instance!r} is not valid here"
-        notes.append("allowed: " + ", ".join(repr(v) for v in error.validator_value))
+        values = error.validator_value if isinstance(error.validator_value, list) else []
+        notes.append("allowed: " + ", ".join(repr(v) for v in values))
     elif error.validator == "const":
         message = f"expected {error.validator_value!r}, got {error.instance!r}"
     elif error.validator == "pattern":
@@ -813,9 +818,15 @@ def _humanise(error: ValidationError) -> tuple[str, list[str]]:
     return message, notes
 
 
+def _schema_of(error: ValidationError) -> dict[str, Any]:
+    """The schema object the error was raised against, or `{}` for a
+    boolean schema (or none)."""
+    return error.schema if isinstance(error.schema, dict) else {}
+
+
 def _unexpected_keys(error: ValidationError) -> list[str]:
     """The key names an additionalProperties failure is complaining about."""
-    allowed = set((error.schema or {}).get("properties") or ())
+    allowed = set(_schema_of(error).get("properties") or ())
     instance = error.instance
     if not isinstance(instance, dict):
         return []
