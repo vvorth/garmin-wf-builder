@@ -137,7 +137,8 @@ wfb/                  the compiler
   validate.py           JSON Schema, reported against the author's lines
   catalog.py            the typed data-source catalogue
   expr.py               the expression language -> Monkey C
-  ir/                   the IR (model.py, naming.py) and the semantic pass (builder.py)
+  ir/                   the IR (model.py, naming.py) and the semantic pass (builder/,
+                        one module per layer of the Builder class)
   kinds/                one module per element kind: its own build, resolve, preview,
                         emit and layout-constant code, an ElementKind subclass each
   layout.py             relative units -> absolute pixels, per device
@@ -412,10 +413,13 @@ docstrings are in the code; the class docstrings of `Builder`, `Resolver`
 and `Renderer` index them the same way. A name with a leading
 underscore is private to its module, so a kind never calls one.
 
-**`build`: the `Builder` (`b`, `wfb/ir/builder.py`).** A helper that can
+**`build`: the `Builder` (`b`, `wfb/ir/builder/`).** A helper that can
 fail reports its own error and returns `None` or an empty default.
 `b.doc.span(node, key)` locates a key for a diagnostic of the kind's own,
-and `b.bag` takes it.
+and `b.bag` takes it. `Builder` is one class stacked from layers, one
+module each (`reading`, `absence`, `glyphs`, ... `tree`), and each layer
+calls only the layers beneath it. A new helper goes in the lowest layer
+that has everything it calls; the package docstring lists the order.
 
 | Helpers | For |
 |---|---|

@@ -375,7 +375,7 @@ class Source:
     #: automatically to a `complication.*` source's own name; set by hand on
     #: a handful of direct-read sources that have an established
     #: counterpart (see each entry's own comment below). `on_hold: auto`
-    #: (`wfb/ir/builder.py`) resolves to this field.
+    #: (`wfb/ir/builder/tree.py`) resolves to this field.
     launch_complication: str | None = None
 
     @property
