@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens) and 21 (`settings:`), both awaiting user decisions. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
+| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), awaiting user decisions, and 21 (`settings:`), decided and ready to build. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -215,9 +215,11 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 **User decisions:**
 - **Interaction:** `on_hold:` everywhere, touch-and-hold only. The original
   tap/hold split was superseded by research (6b/6c).
-- **On-device config:** the native editor plus phone settings only, with no
-  generated on-device menu, so fr955 gets no on-device config (accepted
-  knowingly).
+- **On-device config:** the native editor for the four `config:` axes, so
+  fr955 gets none from it (accepted knowingly).
+- **Wearer settings (2026-09-27, plan 21):** a generated on-watch
+  `getSettingsView` menu, since phone settings never reach a sideload;
+  `settings.xml` emitted but no `wfb package`/Store beta; no `.SET` writer.
 - **Repo:** a sibling directory; the Dashboard face repo is left untouched.
   `forums.garmin.com` and `developer.android.com` are allowlisted.
 
@@ -263,7 +265,7 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
     `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
     switch to) -- friendly build errors, all three, never a silent no-op;
-  - **settings** (phone or on-watch): planned, not built — plan 21. Phone
+  - **settings** (phone or on-watch): decided, not built — plan 21. Phone
     settings do not reach a sideloaded face (research 17). The old WIP on
     `wip/phone-settings` is design reference only. Do not resume it
     without asking;

@@ -189,6 +189,8 @@ Raised now rather than discovered later:
 
 1. **Interaction:** `on_hold:` everywhere, touch and hold only (tap does not
    reach a live face on any device).
-2. **On-device config:** the native editor plus phone settings only, with no
-   generated on-device menu, so fr955 gets no on-device config.
+2. **On-device config:** the native editor for the four `config:` axes, so
+   fr955 gets none from it. Wearer settings get a generated on-watch
+   `getSettingsView` menu instead, since phone settings never reach a
+   sideload (research 17; ADR 0006 tenth amendment; plan 21, not built).
 3. **Host language:** Python (ADR 0001).

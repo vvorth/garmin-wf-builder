@@ -86,10 +86,11 @@ specifies each item.
 3. Ticks drawn by a `style: scale` progress itself (a radial `pattern`
    does them today).
 4. `units:` on an expression or a `complication_slot`.
-5. **Wearer settings (`settings:`)**, planned as plan 21, awaiting user
-   decisions. Phone-side settings do not reach a sideloaded face (research
-   17 §2), so for fr955 the route is an on-watch `getSettingsView` menu,
-   which reverses an ADR 0006 decision and needs the user's say-so. The
+5. **Wearer settings (`settings:`)**, plan 21, decided 2026-09-27 and not
+   started. Phone-side settings do not reach a sideloaded face (research
+   17 §2), so the user chose an on-watch `getSettingsView` menu (ADR 0006
+   tenth amendment), with `settings.xml` emitted but no Store packaging and
+   no `.SET` writer. The
    2026-09-11 WIP is pinned on `wip/phone-settings`. It is design reference
    only: it predates the builder, emitter and kinds refactors. Do not
    resume it without asking the user.

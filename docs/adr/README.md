@@ -35,9 +35,13 @@ Three Phase 0 findings drive most of what follows:
 
 - **fr955 interaction:** tap where available, hold on fr955; both generated from
   one declaration (0006).
-- **On-device configuration:** native editor plus phone settings only; no
-  generated on-device settings menu. Consequence: **fr955 has no on-device
-  configuration at all** (0006).
+- **On-device configuration:** the native editor for the four `config:`
+  axes, so **fr955 has no native on-device configuration** (0006).
+  **Wearer settings (2026-09-27):** a generated on-watch settings menu
+  (`getSettingsView`), which will give fr955 a route once built; phone-side
+  `settings.xml` emitted but no Store packaging; no `.SET` writer (0006
+  tenth amendment, plan 21). This reverses the 2026-09-04 "no generated
+  menu" decision, whose premise (phone settings reach a sideload) was false.
 - **Host language:** Python (0001).
 - **Per-device API gating (2026-09-15):** a feature needing a higher API level
   (complications) is guarded at runtime per device (`Toybox has :Complications`),

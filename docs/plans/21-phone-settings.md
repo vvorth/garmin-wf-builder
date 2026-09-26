@@ -1,6 +1,7 @@
 # 21 — `settings:`: wearer settings on the watch, and on the phone
 
-**Status: proposed (2026-09-26), not started. It waits on decisions D1–D3.**
+**Status: decided (2026-09-27), not started.** The user took the
+recommendation on D1–D3 (§1). Slice 1 is next.
 Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 
 Research: `docs/research/17-phone-settings.md`, with its probe at
@@ -13,22 +14,22 @@ Research: `docs/research/17-phone-settings.md`, with its probe at
 - The frozen WIP (`wip/phone-settings`, re-pinned from an orphaned stash
   commit) is design reference only; none of its code is reused.
 
-## 1. Decisions for the user
+## 1. Decisions (the user, 2026-09-27)
 
-- **D1: allow a generated on-watch settings menu.** This reverses ADR
+- **D1: a generated on-watch settings menu — yes.** This reverses ADR
   0006's 2026-09-04 decision ("No generated on-device settings menu"),
   whose premise was that phone settings would reach `fr955`. Research 17 §2
-  shows that premise is false for a sideload. *Recommended: yes.* Without
-  it, `settings:` only changes compiled-in defaults, which a rebuild
-  already does.
-- **D2: stay sideload-only, or also target a private Store beta.** A beta
-  makes phone editing work, but needs `wfb package` (a `.iq` export), a
-  developer account and a manual upload per version. *Recommended: build
-  `settings.xml` anyway* (it costs nothing and is ready for an upload), but
-  do not build `wfb package` in this plan.
-- **D3: no `.SET` file writer.** The format is binary and undocumented.
-  It is only worth reverse-engineering if swappable settings files matter
-  more than rebuilding. *Recommended: no.*
+  shows that premise is false for a sideload. Without the menu, `settings:`
+  would only change compiled-in defaults, which a rebuild already does.
+  Recorded as ADR 0006's tenth amendment.
+- **D2: sideload-only, but `settings.xml` is emitted.** `edit: phone`
+  still generates `settings.xml` and its strings: it costs nothing and is
+  ready if a private Store beta is ever uploaded. This plan does not build
+  `wfb package` (a `.iq` export), and the project's scope stays personal
+  sideload.
+- **D3: no `.SET` file writer.** The format is binary and undocumented,
+  and copying a file to the watch is no better than rebuilding with new
+  defaults.
 
 ## 2. The format
 
@@ -88,7 +89,7 @@ sharing the `--set` flag with sample-data overrides if those land first.
    `docs/guide/settings.md`. A face without `settings:` is byte-identical
    (`tools/snapshot.py`). Warning-free on the three targets, and memory
    measured against the probe's +112 B.
-2. **`edit: watch`**, the `getSettingsView` menu (needs D1). Measured
+2. **`edit: watch`**, the `getSettingsView` menu. Measured
    against the probe's +459 B. Friendly lint `settings-menu-unsupported`
    (a note) for a target without `getSettingsView`, e.g. `fenix5`: that
    device keeps the defaults.
@@ -101,11 +102,12 @@ sharing the `--set` flag with sample-data overrides if those land first.
 
 ## 5. Docs, in the same commits
 
-ADR 0006 gets a dated amendment when D1 is decided, closing its "Open"
-phone-settings bullet. Also update `docs/limitations.md` §2 (the
-phone-settings row), `docs/guide/configuration.md` (a pointer),
-`docs/lore/roadmap.md`, and root `CLAUDE.md` §5 (user decisions) and §6.
-Delete `wip/phone-settings` once slice 1 lands.
+The decisions themselves are already recorded: ADR 0006's tenth amendment
+(which closes its "Open" phone-settings bullet), `docs/adr/README.md`, root
+`CLAUDE.md` §5, `docs/limitations.md` and `docs/lore/roadmap.md`. As the
+slices land, also update `docs/limitations.md` §2 (the settings row),
+`docs/guide/configuration.md` (a pointer), `docs/lore/roadmap.md`, and root
+`CLAUDE.md` §6. Delete `wip/phone-settings` once slice 1 lands.
 
 ## 6. Checks only the user can run
 

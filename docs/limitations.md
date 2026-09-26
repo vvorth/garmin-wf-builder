@@ -489,7 +489,7 @@ and does not mean here.
 
 **The Forerunner 955 is excluded from it entirely.** A design targeting all three
 devices is configurable on the wrist on two of them. This is a consequence of the
-chosen scope (native editor plus phone settings, no generated on-device menu),
+chosen scope (the native editor for the `config:` axes) and of the device,
 not a defect — but it must never be a surprise: a target with no native editor
 keeps every `config:` entry's declared `default:` forever — colour axes and
 color_scheme roles alike — and the suppressible `config-unsupported` warning
@@ -654,7 +654,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
-| Wearer settings (`settings:`: `properties.xml`, phone-side `settings.xml`, an on-watch `getSettingsView` menu) | ADR 0006 §1; `docs/plans/21-phone-settings.md`. Phone-side settings alone would not help: Garmin Connect does not edit a sideloaded app's settings (`docs/research/17-phone-settings.md` §2), so for this project's sideloads only an on-watch menu would give `fr955` any configuration. The old WIP on `wip/phone-settings` is design reference only |
+| Wearer settings (`settings:`: `properties.xml`, phone-side `settings.xml`, an on-watch `getSettingsView` menu) | ADR 0006 §1; `docs/plans/21-phone-settings.md`. Phone-side settings alone would not help: Garmin Connect does not edit a sideloaded app's settings (`docs/research/17-phone-settings.md` §2), so the user chose an on-watch menu (ADR 0006 tenth amendment), which will give `fr955` a configuration route once built. The old WIP on `wip/phone-settings` is design reference only |
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
 | A `complication_slot` inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions low-power elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |

@@ -24,6 +24,10 @@ editing and no arbitrary data rebinding.
 **User decision (2026-09-04):** target the **native editor plus phone-side
 settings only**. No generated on-device settings menu.
 
+> Reversed on 2026-09-27: phone-side settings do not reach a sideloaded face,
+> so the user chose a generated on-watch settings menu. See the tenth
+> amendment.
+
 **User decision (2026-09-04):** interaction is **tap where available, hold on
 fr955** — the compiler generates both paths from one declaration.
 
@@ -870,6 +874,32 @@ nothing. See research 07 §2.
 > is the real build. Like the complication guard, the guard's runtime
 > behaviour on a device without the module is UNVERIFIED on hardware.
 
+> **Tenth amendment (2026-09-27): wearer settings get a generated on-watch
+> menu, reversing the 2026-09-04 "no generated on-device settings menu"
+> decision (plan 21 D1–D3).** That decision rested on phone-side settings
+> reaching `fr955`. They do not reach any sideloaded app: Garmin Connect
+> edits settings only for Store apps, private beta included
+> (`docs/research/17-phone-settings.md` §2). With the premise gone, the user
+> decided:
+>
+> - **D1:** a planned `settings:` block generates an
+>   `AppBase.getSettingsView` menu (`Menu2`, API 3.2.0). It is the one
+>   route that reaches a sideload with no extra tooling, `fr955` included.
+>   The probe measured it at +459 B over a face without settings (research
+>   17 §4). A target without `getSettingsView` (`fenix5`) keeps the
+>   defaults, and a lint says so.
+> - **D2:** the scope stays personal sideload. `settings.xml` is still
+>   emitted for `edit: phone`, ready for a private Store beta, but no
+>   `wfb package` is built for it.
+> - **D3:** no `.SET` file writer.
+>
+> This does not touch the four `config:` axes: the native editor stays as
+> built, and `fr955` still has no native editor. What changes is that
+> `fr955` will get on-watch configuration through `settings:` once plan 21
+> ships. Nothing is built yet. Still UNVERIFIED: whether the menu entry
+> appears on a fēnix 8 beside the native editor, and which memory limit the
+> settings view runs under (research 17 §3.3).
+
 ---
 
 *Original text, superseded above:*
@@ -934,6 +964,10 @@ both map to `onPress`, rather than silently preferring one.
   only element that opted out of the null guard, font resolution, layout-box
   and static/antialias rules every other element shares. See the amendment
   for the reasons and CLAUDE.md for the deletion session.
+- (tenth amendment) Wearer settings are to be a generated on-watch menu, with
+  `settings.xml` emitted alongside it for a possible Store beta. This gives
+  `fr955` a configuration route of its own. `docs/plans/21-phone-settings.md`
+  is the build plan.
 
 ## Open
 
@@ -949,3 +983,6 @@ both map to `onPress`, rather than silently preferring one.
   > an on-watch `getSettingsView` menu, which the 2026-09-04 decision above
   > ruled out. Plan 21 asks the user to revisit that decision; nothing is
   > decided here.
+
+  > **Closed (2026-09-27):** the user chose the on-watch menu, with
+  > `settings.xml` emitted but no Store packaging. See the tenth amendment.

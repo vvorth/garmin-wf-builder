@@ -133,8 +133,8 @@ one route that works for a sideload with no extra tooling.**
 - **It reverses a recorded user decision.** ADR 0006 (2026-09-04): "target
   the native editor plus phone-side settings only. **No generated
   on-device settings menu.**" That decision was taken on the belief that
-  phone settings would reach `fr955`. §2 removes that premise, so it is
-  worth asking again, not assuming.
+  phone settings would reach `fr955`. §2 removes that premise. The user
+  reversed it on 2026-09-27 (ADR 0006 tenth amendment).
 - **Whether a watch face's settings view is subject to the watch-face memory
   limit, or to another one, is UNVERIFIED.** The code counts toward the
   face's own `.prg` either way (below).
@@ -200,8 +200,8 @@ The plan reuses those and none of its code.
    upload.
 2. **Make the edit route explicit per face**, since only the user knows
    which one they use: `edit: [phone]`, `[watch]` or both. `watch` emits the
-   `getSettingsView` menu. That reverses ADR 0006's no-menu decision, so it
-   needs the user's say-so first.
+   `getSettingsView` menu. That reverses ADR 0006's no-menu decision; the
+   user approved it on 2026-09-27, along with items 3 and 4.
 3. **Recommended default for this project: `edit: [watch]`**, the on-device
    menu. It is the only route that works for a sideload today, it reaches
    `fr955` (which has no native editor), and it costs about 0.5 KB. `phone`
