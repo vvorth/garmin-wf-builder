@@ -332,7 +332,7 @@ def test_renamed_to_helper():
 
 # -- symbol-collision guard: fast, catalogue-wide, no toolchain ------------
 #
-# `wfb/ir/builder.py`'s `Builder._check_symbol_collision` only ever compares
+# `wfb/ir/builder/tree.py`'s `Builder._check_symbol_collision` only ever compares
 # two derived forms of one *element id* against each other -- it says nothing about the families
 # below, which are the ones that actually collided in the session that
 # produced `Redefinition of variable 'complicationBodyBattery'` on all three

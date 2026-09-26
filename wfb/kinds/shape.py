@@ -410,7 +410,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         elif element.shape == "polygon":
             # There is no drawPolygon in Dc, only fillPolygon -- `filled: false`
             # and an `aod: {filled: ...}` override on a polygon are both rejected
-            # in wfb/ir/builder.py (`Builder._build_aod_authored`), so there is
+            # in wfb/ir/builder/aod.py (`Builder._build_aod_authored`), so there is
             # never an outline form to switch to here.
             w.line(f"dc.fillPolygon(Layout.{prefix}_POINTS);")
         elif element.shape == "line":

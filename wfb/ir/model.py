@@ -799,7 +799,7 @@ class Element:
         kinds rather than an `isinstance` ladder.  `HandsElement`/
         `PatternElement` override this outright -- neither has a plain
         `color:` a generic reader could find; their effective colours live
-        on `.colors`/`.parts` instead (`wfb.ir.builder._build_hand`/
+        on `.colors`/`.parts` instead (`wfb.ir.builder.hands.HandParts._build_hand`/
         `wfb.kinds.pattern.PatternKind.build`).
         """
         is_glyph = self.kind != "shape"
