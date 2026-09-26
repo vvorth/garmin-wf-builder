@@ -83,8 +83,9 @@ def test_the_baseline_round_trips(tmp_path):
 @pytest.mark.typecheck
 def test_mypy_strict_reports_nothing_the_baseline_does_not_hold():
     errors = typecheck.run()
+    # Empty is the goal; missing would lose the versions `version_note` names.
+    assert typecheck.BASELINE.exists(), "tests/mypy-baseline.txt is missing"
     baseline = typecheck.load_baseline()
-    assert baseline, "tests/mypy-baseline.txt is missing or empty"
     new, fixed = typecheck.compare(errors, baseline)
     message = "\n".join(filter(None, [typecheck.report(new, fixed, baseline),
                                        typecheck.version_note()]))

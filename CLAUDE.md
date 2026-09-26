@@ -285,10 +285,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
     check 2 is otherwise built: `api-gated`);
   - the GUI, which if built must be a thin client over `wfb/preview.py`;
-  - CI, and a clean `mypy --strict`: it runs as its own test set,
-    `pytest -m typecheck`, failing on any error not in
-    `tests/mypy-baseline.txt` (which only shrinks: `tools/typecheck.py
-    --update`);
+  - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
+    hand, fails on any error);
   - `wfb install`/`package`/`migrate`.
 - **Shipped** (details in `docs/lore/roadmap.md` and `docs/guide/`):
   - all nine element types, `hands` and `pattern` included;

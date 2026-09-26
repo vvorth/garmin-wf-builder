@@ -480,10 +480,10 @@ frame and return the awake code unchanged in an awake-only build.
 
 **The type check is its own test set.** `pytest -m typecheck` runs
 `mypy --strict` over `wfb/` as `mypy.ini` configures it and compares the
-result with `tests/mypy-baseline.txt`, the errors known when the check was
-introduced, recorded without line numbers. It fails on an error the
-baseline does not hold, and on a baseline entry no longer reported, so the
-baseline only shrinks: after fixing errors, run
+result with `tests/mypy-baseline.txt`, known errors recorded without line
+numbers. `wfb/` is clean, so the baseline is empty and any error fails the
+check. It also fails on a baseline entry no longer reported, so a baseline
+only shrinks: after fixing errors, run
 `./.venv/bin/python tools/typecheck.py --update` and commit the smaller
 file. `tools/typecheck.py` alone prints the same report. The result depends
 on the versions of mypy and of the libraries' type information; the

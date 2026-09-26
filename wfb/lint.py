@@ -14,23 +14,31 @@ from __future__ import annotations
 
 import difflib
 import re
-from collections.abc import Iterable
-from typing import TypedDict
+from collections.abc import Callable, Iterable, Iterator
+from typing import TYPE_CHECKING, TypedDict, TypeGuard, TypeVar
 
-from . import availability, catalog, complications, kinds, series
+from . import availability, catalog, complications, expr, kinds, series
 from .devices import Device, version_key
 from .diagnostics import Bag, Diagnostic, Severity, Span
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Element, Expression, Face, FontSpec, Graph,
+    CONFIG_SYMBOL, ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph,
     PatternElement, StyleEntry, authored_draw_order, never_together,
 )
 from .layout import (
-    BEZEL_MARGIN, Placed, PlacedPattern, PlacedText, ResolvedFace,
+    BEZEL_MARGIN, Placed, PlacedPattern, PlacedProgress, PlacedText, ResolvedFace,
     inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
     visible_reach,
 )
 from .palette import Color
 from .units import IntBox
+
+if TYPE_CHECKING:
+    from PIL import Image
+
+    from .kinds import ContrastSubject
+    from .preview import PreviewOptions
+
+_T = TypeVar("_T")
 
 #: Checks an author may silence with ``lint: {allow: [...], reason: "..."}``.
 #: The hard-platform-limit errors are deliberately absent: suppressing one
@@ -104,7 +112,7 @@ def _suppressed(code: str, allows: Iterable[frozenset[str]]) -> bool:
     return code in SUPPRESSIBLE and any(code in allow for allow in allows)
 
 
-def _emit(bag: Bag, placed, diag: Diagnostic) -> None:
+def _emit(bag: Bag, placed: Placed, diag: Diagnostic) -> None:
     """Add a diagnostic about one placed element, unless that element
     accepted its code."""
     _emit_for_users(bag, [placed.element], diag)
@@ -298,7 +306,7 @@ def check_vector_font_availability(
         if not failing:
             continue
         effective = run.if_unavailable or spec.if_unavailable or "error"
-        requested = ", ".join(spec.face)
+        requested = ", ".join(spec.face or ())
         if effective == "error":
             bag.error(
                 "font-unavailable",
@@ -334,7 +342,7 @@ def check_vector_font_availability(
         )
 
 
-def _vector_font_failure_reason(device: Device, spec: FontSpec, curve) -> str:
+def _vector_font_failure_reason(device: Device, spec: FontSpec, curve: Curve | None) -> str:
     """One line naming *why* `spec.face` failed to resolve on `device`:
     gate 1 (the symbol itself is absent) or gates 2/3 (the device's own
     catalogue has none of the requested faces)."""
@@ -353,7 +361,7 @@ def _vector_font_failure_reason(device: Device, spec: FontSpec, curve) -> str:
             "requested face(s) is in that list")
 
 
-def _check_one_lint_allow(bag: Bag, what: str, span, code: str) -> None:
+def _check_one_lint_allow(bag: Bag, what: str, span: Span | None, code: str) -> None:
     """:func:`check_lint_allow` for one code on one owner (an element, a
     `config: style:` entry or a layout), so every owner gets the same text."""
     if code in SUPPRESSIBLE:
@@ -572,9 +580,9 @@ def check_config_palette(resolved: ResolvedFace, bag: Bag) -> None:
     if resolved.device.display_colors is None:
         return  # check_palette already emits the one "not checked" note per device
     for name, entry in resolved.face.config.items():
-        declared = [entry.default] if entry.allow_any else (
-            [entry.default] + [c.color for c in entry.choices]
-        )
+        declared = [entry.default]
+        if not isinstance(entry.choices, str):  # `choices: any` declares no list
+            declared += [c.color for c in entry.choices]
         _check_declared_colors(resolved, bag, f"config.{name}", [("", c) for c in declared])
 
 
@@ -604,7 +612,8 @@ def check_color_scheme_palette(resolved: ResolvedFace, bag: Bag) -> None:
         ])
 
 
-def _probe_symbols(bag: Bag, device: Device, code: str, what: str, probe):
+def _probe_symbols(bag: Bag, device: Device, code: str, what: str,
+                   probe: Callable[[], _T]) -> _T | None:
     """``probe()`` against the device's symbol table, or -- when the device
     has no ``api.debug.xml`` -- a "not checked" note and ``None``."""
     try:
@@ -651,8 +660,9 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
             # A layout-only default entry names no role at all.
             default_scheme = face.color_scheme[default_entry.colors]
             colour_tokens += [f"config.colors.{role}" for role in sorted(default_scheme.colors)]
+        default_style = face.config_style.default
         non_default_entries = [
-            e.name for e in face.config_style.entries if e.name != face.config_style.default
+            e.name for e in face.config_style.entries if e.name != default_style
         ]
     slot_tokens = [f"config.data.{name}" for name in sorted(face.config_data)]
     names_list = colour_tokens + slot_tokens
@@ -697,7 +707,7 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
     if non_default_entries:
         notes.append(
             "with no editor to switch styles, every 'config: style:' entry but "
-            f"the default ({face.config_style.default!r}) is unreachable here: "
+            f"the default ({default_style!r}) is unreachable here: "
             + ", ".join(non_default_entries)
         )
     if users:
@@ -748,8 +758,10 @@ def check_progress_segments(resolved: ResolvedFace, bag: Bag) -> None:
     cells on this device draws nothing at all -- an error, never a silent
     empty element (the gap is a length, so it depends on the screen)."""
     for placed in resolved.items:
+        if not isinstance(placed, PlacedProgress):
+            continue
         element = placed.element
-        if getattr(element, "style", None) != "segments" or placed.cell * placed.step > 0:
+        if element.style != "segments" or placed.cell * placed.step > 0:
             continue
         unit = "degrees of arc" if element.geometry == "arc" else "px"
         bag.error(
@@ -924,7 +936,7 @@ def check_text_fit(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 def _missing_glyph_error(bag: Bag, what: str, font_reference: str, missing: set[str],
-                         span, notes: list[str]) -> None:
+                         span: Span | None, notes: list[str]) -> None:
     characters = ", ".join(repr(c) for c in sorted(missing))
     bag.error(
         "missing-glyph",
@@ -959,15 +971,15 @@ def check_glyphs(resolved: ResolvedFace, bag: Bag) -> None:
 # -- check 10: contrast -----------------------------------------------------
 
 
-def _constant_color(expression) -> Color | None:
+def _constant_color(expression: Expression | None) -> Color | None:
     """The colour an expression folds to at build time, or `None` when it
     is absent or not a build-time constant (`config.*`, a data conditional)."""
     if expression is None or expression.constant is None:
         return None
-    return Color.parse(int(expression.constant))
+    return Color.parse(int(expr.as_number(expression.constant)))
 
 
-def _contrast_subjects(placed):
+def _contrast_subjects(placed: Placed) -> Iterator[ContrastSubject]:
     """Every `(label, colour, ring, allow_backdrop_match)` one placed
     element draws, for :func:`check_contrast`.
 
@@ -1023,7 +1035,7 @@ def check_contrast(resolved: ResolvedFace, bag: Bag) -> None:
                                                 allow_backdrop_match=allow_backdrop_match)
 
 
-def _contrast_warning(bag: Bag, placed, message: str, note: str) -> None:
+def _contrast_warning(bag: Bag, placed: Placed, message: str, note: str) -> None:
     _emit(bag, placed, Diagnostic(
         Severity.WARNING, "contrast", message, placed.element.span, notes=[note],
         confidence="exact arithmetic; the 3.0 threshold is a judgement call",
@@ -1031,7 +1043,8 @@ def _contrast_warning(bag: Bag, placed, message: str, note: str) -> None:
 
 
 def _check_plain_color_contrast(
-    bag: Bag, placed, color_expression, backdrop: Color, *, label: str,
+    bag: Bag, placed: Placed, color_expression: Expression | None, backdrop: Color, *,
+    label: str,
     allow_backdrop_match: bool = False,
 ) -> None:
     """Ordinary ink-vs-backdrop contrast for one colour (see
@@ -1049,7 +1062,8 @@ def _check_plain_color_contrast(
 
 
 def _check_outline_contrast(
-    bag: Bag, placed, ring_expression, interior_expression, backdrop: Color, *, label: str,
+    bag: Bag, placed: Placed, ring_expression: Expression, interior_expression: Expression | None,
+    backdrop: Color, *, label: str,
 ) -> None:
     """The two ring-based comparisons :func:`check_contrast` makes for an
     `outline:` in place of the plain one; either, both or neither may fire.
@@ -1085,7 +1099,7 @@ def _check_outline_contrast(
 _BACKDROP_SHAPES = ("rectangle", "rounded_rectangle", "circle", "ellipse")
 
 
-def _is_solid_backdrop_shape(placed) -> bool:
+def _is_solid_backdrop_shape(placed: Placed) -> bool:
     """A filled shape trusted to paint every pixel of its own bounding box
     (:data:`_BACKDROP_SHAPES`)."""
     element = placed.element
@@ -1093,7 +1107,7 @@ def _is_solid_backdrop_shape(placed) -> bool:
             and getattr(element, "filled", True))
 
 
-def _backdrop_color(resolved: ResolvedFace, placed) -> Color | None:
+def _backdrop_color(resolved: ResolvedFace, placed: Placed) -> Color | None:
     """``placed``'s colour when it is a full-screen solid shape with a
     build-time colour -- a backdrop -- else ``None``."""
     if not _is_solid_backdrop_shape(placed) or placed.box.area < resolved.screen.area * 0.9:
@@ -1111,7 +1125,8 @@ def _backdrops(resolved: ResolvedFace, index: int) -> list[Color]:
     element = resolved.items[index].element
     layouts: list[str | None] = [element.layout]
     if element.layout is None:
-        layouts = sorted({e.layout for e in resolved.face.walk() if e.layout is not None}) or [None]
+        declared = sorted({e.layout for e in resolved.face.walk() if e.layout is not None})
+        layouts = list(declared) if declared else [None]
     fallback = resolved.face.palette.get("bg")
     found: list[Color] = []
     for mode in element.modes:
@@ -1275,7 +1290,7 @@ def check_partial_update_budget(resolved: ResolvedFace, bag: Bag) -> None:
         ))
 
 
-def _always_false(expression) -> bool:
+def _always_false(expression: Expression | None) -> TypeGuard[Expression]:
     """Is this a constant-folded `visible:` expression that is always false?
 
     Shared by every "is this dead" test in :func:`check_dead_element`: an
@@ -1482,7 +1497,7 @@ def _aod_burn_in_luts() -> tuple[bytes, ...]:
     return _aod_burn_in_luts_cache
 
 
-def _aod_burn_in_mask(width: int, height: int, shape: str):
+def _aod_burn_in_mask(width: int, height: int, shape: str) -> Image.Image:
     """Which pixels count in the denominator (research 11 §1.1: Garmin's
     rule is about *screen* pixels/luminance) -- on a round screen, the
     pixels the bezel physically crops are not part of the display at all,
@@ -1508,7 +1523,8 @@ def _aod_burn_in_mask(width: int, height: int, shape: str):
     return Image.new("L", (width, height), 255)
 
 
-def _aod_burn_in_measure(image, mask) -> tuple[float, float, int, int]:
+def _aod_burn_in_measure(image: Image.Image,
+                         mask: Image.Image) -> tuple[float, float, int, int]:
     """`(lit_fraction, luminance_fraction, lit_pixels, mask_pixels)` over
     `mask`'s own pixels only.
 
@@ -1543,7 +1559,7 @@ def _aod_burn_in_measure(image, mask) -> tuple[float, float, int, int]:
     return lit / denom, (luminance_total / denom) / 255.0, lit, denom
 
 
-def _aod_burn_in_options(sample_time: tuple[int, int, int]):
+def _aod_burn_in_options(sample_time: tuple[int, int, int]) -> PreviewOptions:
     """Device-resolution, unmasked AOD render options for one sample time:
     :func:`check_aod_burn_in` applies the pixel mask itself, per phase."""
     from . import preview
@@ -1597,6 +1613,7 @@ def check_aod_burn_in(resolved: ResolvedFace, bag: Bag) -> None:
             lit_fraction, luminance_fraction, lit_pixels, _ = _aod_burn_in_measure(scored, mask)
             if best is None or max(lit_fraction, luminance_fraction) > max(best[0], best[1]):
                 best = (lit_fraction, luminance_fraction, lit_pixels, sample_time, phase)
+    assert best is not None, "AOD_BURN_IN_SAMPLE_TIMES is never empty"
     lit_fraction, luminance_fraction, total_lit_pixels, worst_time, worst_phase = best
     total_lit_pixels = max(total_lit_pixels, 1)  # guard the (all-black) division below
 
@@ -1875,7 +1892,7 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
     _check_complication_since(bag, resolved, candidates)
 
 
-def _emit_source_gap(bag: Bag, placed, path: str, span, gap: "availability.Unavailable",
+def _emit_source_gap(bag: Bag, placed: Placed, path: str, span: Span | None, gap: "availability.Unavailable",
                       device: Device) -> None:
     """Case 1 (module/field, WARNING) and case 5 (function, ERROR) of
     :func:`check_api_gated`."""
@@ -1958,11 +1975,12 @@ def _check_complication_since(bag: Bag, resolved: ResolvedFace,
         ))
 
 
-def _since_subject(placed, name: str, kind: str) -> str:
+def _since_subject(placed: Placed, name: str, kind: str) -> str:
     """What :func:`_check_complication_since` names as needing the newer level."""
     if kind == "hold":
         return f"holding to launch {name!r}"
     if kind == "slot":
+        assert isinstance(placed.element, ComplicationSlot)
         return f"slot config.data.{placed.element.slot}'s 'complication.{name}'"
     return f"'complication.{name}'"
 
@@ -2010,7 +2028,7 @@ def _fully_contains(outer: IntBox, inner: IntBox) -> bool:
             and outer.right >= inner.right and outer.bottom >= inner.bottom)
 
 
-def _may_overlap(a, b) -> bool:
+def _may_overlap(a: Placed, b: Placed) -> bool:
     """Two placed elements that can be on screen together -- a shared mode,
     and not in different layouts (`ir.never_together`) -- with intersecting
     boxes.  Boxes, not ink: the drawn pixels may still never touch."""
@@ -2065,7 +2083,7 @@ def check_static_overlap(resolved: ResolvedFace, bag: Bag) -> None:
         ))
 
 
-def _same_provable_color(a, b) -> bool:
+def _same_provable_color(a: Expression | None, b: Expression | None) -> bool:
     """True only when both expressions fold to the same build-time constant.
 
     A palette reference's constant *is* its resolved colour, so this covers

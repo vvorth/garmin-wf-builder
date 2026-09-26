@@ -90,5 +90,9 @@ state. Rather than fix all of them first, `tests/mypy-baseline.txt` records
 each error without its line number, and the `typecheck` test set
 (`pytest -m typecheck`, about 4 s cold) fails on anything the baseline does
 not hold *and* on any entry no longer reported, so the baseline can only
-shrink (`tools/typecheck.py --update`). It is opt-in, not part of the fast
-suite; there is still no CI to run it.
+shrink (`tools/typecheck.py --update`). The baseline reached zero the same
+day: `wfb/` is clean under `--strict`, the kind code reading each `Placed`'s
+own narrowed element type rather than the base `Element`. The baseline file
+stays, empty, as the record of the tool versions the result depends on and
+as the mechanism for a dependency upgrade that brings errors of its own. It
+is opt-in, not part of the fast suite; there is still no CI to run it.

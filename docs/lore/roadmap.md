@@ -279,9 +279,9 @@ specifies each item.
    premature (`docs/research/06-authoring-ergonomics.md` §4). If it is ever
    built, build it as a thin client over `wfb/preview.py`, not a second
    renderer.
-9. CI does not exist. `mypy --strict` runs as its own test set
-   (`pytest -m typecheck`, ADR 0001 amendment) against a baseline of
-   1,029 known errors (`tests/mypy-baseline.txt`) that only shrinks.
+9. CI does not exist. `mypy --strict` is clean over `wfb/` and runs as
+   its own test set (`pytest -m typecheck`, ADR 0001 amendment), by hand;
+   its baseline (`tests/mypy-baseline.txt`) is empty.
 10. `wfb install`, `package`, `migrate`.
 11. A `pattern`'s or `complication_slot`'s own `aod: {font: ...}` override,
     any `font:` override naming a `face:` (vector) font, and
