@@ -11,7 +11,7 @@ from ... import __version__, kinds
 from ...availability import Guards
 from ...ir import ComplicationSlot, Element, Expression, Face, aod_color_choice, config_data_ids, \
     element_const_prefix, element_method_name
-from ...layout import PlacedText, ResolvedFace
+from ...layout import Placed, PlacedText, ResolvedFace
 from ...palette import Color
 
 
@@ -34,7 +34,7 @@ class SourceFile:
     text: str
 
 
-def source_label(path) -> str:
+def source_label(path: str | os.PathLike[str]) -> str:
     """The design's path as it should appear in a generated header.
 
     Relative to the working directory when it is under it, and the bare filename
@@ -216,7 +216,8 @@ def mc_color(expression: Expression | None) -> str:
 AodDim = tuple[int, int] | None
 
 
-def _dim_color_code(expression: Expression | None, awake_code: str, dim: "AodDim") -> str:
+def _dim_color_code(expression: Expression | None, awake_code: str,
+                    dim: tuple[int, int]) -> str:
     """The AOD Monkey C expression for one colour that has **no** explicit
     `aod: {color: ...}`-style override, when the face's own `aod: {dim:
     ...}` still applies to it (plan 14 §4.5: dimming reaches every colour
@@ -273,7 +274,7 @@ class AodStyle:
         override = f"Layout.{prefix}_AOD_{suffix}" if has_override else None
         return self.value(override, f"Layout.{prefix}_{suffix}")
 
-    def color(self, element, key: str, awake_code: str | None = None) -> str:
+    def color(self, element: Element, key: str, awake_code: str | None = None) -> str:
         """One colour argument (`color`/`track_color`/`icon_color`) of an
         element shown in AOD: its own `aod:` override for ``key`` if it has
         one, else its awake colour dimmed by `dim` (which reaches every
@@ -295,7 +296,7 @@ class AodStyle:
         choice, override = aod_color_choice(element.aod, key, self.dim is not None)
         return self._render(choice, override, expression, awake_code)
 
-    def part_color(self, element, color_expr: Expression | None) -> str:
+    def part_color(self, element: Element, color_expr: Expression | None) -> str:
         """`color`'s rule for one `hands`/`pattern` part: the element-level
         `aod: {color: ...}` applies uniformly to every part (§5.1), and
         `dim` dims each part's own colour."""
@@ -305,7 +306,7 @@ class AodStyle:
         choice, override = aod_color_choice(element.aod, "color", self.dim is not None)
         return self._render(choice, override, color_expr, awake_code)
 
-    def dimmed(self, element, expression: Expression | None) -> str:
+    def dimmed(self, element: Element, expression: Expression | None) -> str:
         """``expression`` dimmed by `dim` in the AOD frame, else unchanged:
         the rule for a colour no `aod:` override key reaches -- an
         `outline:` ring carried over from the awake design, a pattern
@@ -323,8 +324,9 @@ class AodStyle:
         (`_dim_color_code`), or `awake_code` unchanged -- each wrapped in
         `self.value`'s `_aod ? ... : ...` ternary."""
         if choice == "override":
+            assert override is not None, "aod_color_choice names an override it did not return"
             return self.value(override.code, awake_code)
-        if choice == "dim":
+        if choice == "dim" and self.dim is not None:
             return self.value(_dim_color_code(expression, awake_code, self.dim), awake_code)
         return awake_code
 
@@ -414,7 +416,7 @@ def _vector_fonts_used(resolved: ResolvedFace) -> list[str]:
     ))
 
 
-def _describe(placed) -> str:
+def _describe(placed: Placed) -> str:
     return kinds.for_placed(placed).describe(placed)
 
 

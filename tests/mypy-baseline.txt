@@ -5,22 +5,6 @@
 # using pillow 12.3.0
 # using ruamel.yaml 0.19.1
 # using jsonschema 4.26.0
-wfb/emit/monkeyc/common.py: [misc] "None" object is not iterable
-wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/common.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
-wfb/emit/monkeyc/layout_constants.py: [arg-type] Argument 1 to "join" of "str" has incompatible type "tuple[str, ...] | None"; expected "Iterable[str]"
-wfb/emit/monkeyc/layout_constants.py: [arg-type] Argument 2 to "_emit_constants" has incompatible type "list[tuple[str, McLiteral, str]]"; expected "list[tuple[str, float | str | bool | McLiteral, str]]"
-wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/layout_constants.py: [operator] Unsupported operand types for + ("list[tuple[str, float | str | bool | McLiteral, str]]" and "list[tuple[str, float, str]]")
 wfb/emit/monkeyc/readplan.py: [assignment] Incompatible types in assignment (expression has type "Expression | Any | None", variable has type "str")
 wfb/emit/monkeyc/readplan.py: [attr-defined] "str" has no attribute "sources"
 wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters

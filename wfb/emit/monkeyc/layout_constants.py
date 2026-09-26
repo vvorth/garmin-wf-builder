@@ -5,7 +5,11 @@ from __future__ import annotations
 from ... import kinds
 from ...availability import Guards, vector_font_face
 from ...ir import disc_perimeter_offsets
-from ...layout import ResolvedFace
+from ...layout import (
+    Placed, PlacedGraph, PlacedHands, PlacedPattern, PlacedProgress, PlacedShape,
+    ResolvedFace, ResolvedHandPart,
+)
+from ...units import IntBox
 from .common import (
     McLiteral, SourceFile, _NO_GUARDS, _describe, _mc_number, _mc_type,
     _vector_fonts_used, const_prefix, header,
@@ -52,7 +56,7 @@ def _vector_font_constants(resolved: ResolvedFace, name: str, guards: "Guards") 
     prefix = f"FONT_{const_prefix(name)}"
     resolved_face = vector_font_face(spec, device)
     size_px = spec.pixel_size(device.minor_radius)
-    requested = ", ".join(spec.face)
+    requested = ", ".join(spec.face or ())
     out: Constants = [
         (f"{prefix}_FACE", resolved_face,
          f"requested, in author order: {requested}" if resolved_face
@@ -100,7 +104,7 @@ def _outline_widths_used(resolved: ResolvedFace, aod_on: bool = False) -> list[i
     return out
 
 
-def _outline_offsets_constants(width: int) -> list[tuple[str, McLiteral, str]]:
+def _outline_offsets_constants(width: int) -> Constants:
     """`OUTLINE_OFFSETS_<W>` -- the flat `Array<Number>` (`[dx0, dy0, dx1,
     dy1, ...]`) the stamp loop iterates over (plan 15 §8), one per distinct
     ring width actually used anywhere in the design, deduplicated the same
@@ -211,7 +215,7 @@ def emit_layout(resolved: ResolvedFace, guards: "Guards" = _NO_GUARDS) -> Source
     return SourceFile(f"source-{device.id}/Layout.mc", w.render())
 
 
-def _hold_constants(placed) -> list[tuple[str, float, str]]:
+def _hold_constants(placed: Placed) -> Constants:
     """The hit rectangle for an `on_hold:` element.
 
     Deliberately the element's own resolved box, not an inflated one: the
@@ -233,7 +237,7 @@ def _hold_constants(placed) -> list[tuple[str, float, str]]:
     ]
 
 
-def box_constants(prefix: str, box, note: str = "") -> list[tuple[str, float, str]]:
+def box_constants(prefix: str, box: IntBox, note: str = "") -> list[tuple[str, float, str]]:
     """The `_X/_Y/_WIDTH/_HEIGHT` quartet for one resolved box -- shared by a
     rectangular shape, a bar-style progress, a graph and a complication_slot's
     editor highlight box (``prefix`` already carries that last one's own
@@ -249,7 +253,8 @@ def box_constants(prefix: str, box, note: str = "") -> list[tuple[str, float, st
     ]
 
 
-def arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
+def arc_constants(prefix: str,
+                  placed: PlacedShape | PlacedProgress) -> list[tuple[str, float, str]]:
     """The `_RADIUS/_THICKNESS/_START/_SWEEP` quartet for one resolved arc --
     shared by a `shape: arc` and a `progress` arc, which both resolve
     `placed.radius`/`.thickness`/`.garmin_start`/`.start_angle`/`.sweep`
@@ -265,7 +270,9 @@ def arc_constants(prefix: str, placed) -> list[tuple[str, float, str]]:
     ]
 
 
-def aod_thickness_constant(prefix: str, placed,
+def aod_thickness_constant(prefix: str,
+                           placed: PlacedShape | PlacedProgress | PlacedGraph | PlacedHands
+                           | PlacedPattern,
                            note: str = "aod: thickness override") -> list[tuple[str, float, str]]:
     """`{prefix}_AOD_THICKNESS`, only when this element's resolved `aod:`
     overrides `thickness:` (plan 14 §4.2) -- the codegen ternary at the draw
@@ -280,13 +287,13 @@ def aod_thickness_constant(prefix: str, placed,
 EVERY_PART_NOTE = "aod: thickness override, applied to every part"
 
 
-def _layout_constants(placed) -> Constants:
+def _layout_constants(placed: Placed) -> Constants:
     return kinds.for_placed(placed).layout_constants(const_prefix(placed.id), placed)
 
 
 def hand_part_constants(
-    part_prefix: str, owner: str, index: int, part,
-) -> list[tuple[str, float | McLiteral, str]]:
+    part_prefix: str, owner: str, index: int, part: ResolvedHandPart,
+) -> Constants:
     """The `Layout` constants for one resolved hand part, or one resolved
     pattern template part, reusing the same shapes:
     `<P>_<i>_POINTS` for a polygon (a rectangle part already folded into
@@ -313,7 +320,7 @@ def hand_part_constants(
     set one row down: those get no `_START`/`_SWEEP` constants here either.
     """
     if part.shape == "text":
-        out = [
+        out: Constants = [
             (f"{part_prefix}_X", part.x, f"{owner}, part {index}: text (the anchor)"),
             (f"{part_prefix}_Y", part.y, ""),
         ]
