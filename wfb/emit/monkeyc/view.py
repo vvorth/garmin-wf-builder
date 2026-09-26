@@ -13,14 +13,14 @@ from ...catalog import READERS
 from ...devices import Device
 from ...ir import (
     HOLD_AUTO, Expression, Face, config_data_ids, config_field, font_resource_id, local_name,
-    static_group_method,
+    setting_label_method, static_group_method,
 )
 from ...layout import Placed, PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
 from ...palette import dim_fraction
 from .. import usage
 from .common import (
     NO_AOD, AodStyle, CONFIG_LAYOUT_METHOD, SourceFile, _BASE_IMPORTS, _NO_GUARDS,
-    _aod_only_fonts, _describe, _editor_slot_pairs, _loaded_fonts, _mc_bool, _method,
+    _aod_only_fonts, _describe, _editor_slot_pairs, _loaded_fonts, _mc_bool, _mc_string, _method,
     _vector_fonts_used, and_list, aod_font_field, const_prefix, font_field, header,
     hold_targets,
 )
@@ -60,6 +60,13 @@ REPAINT_STATIC_METHOD = "repaintStatic"
 #: `onSettingsChanged` calls it, and a private method cannot be called from
 #: another class (`docs/lore/monkeyc.md`). Fixed, like the names above.
 APPLY_SETTINGS_METHOD = "applySettings"
+
+
+#: The on-watch settings menu's two view methods: one builds the `Menu2`
+#: from the current fields, one handles a selection. Public for the same
+#: reason as `applySettings`: the app and the menu delegate call them.
+SETTINGS_MENU_METHOD = "settingsMenu"
+SELECT_SETTING_METHOD = "selectSetting"
 
 
 @dataclass
@@ -247,6 +254,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_apply_config(w, face, static)
         if face.settings:
             _emit_apply_settings(w, face, static)
+        if face.settings_menu:
+            _emit_settings_menu(w, face)
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards)
@@ -589,6 +598,71 @@ def _emit_apply_settings(w: Writer, face: Face, static: "StaticPlan | None") -> 
         if static is not None:
             w.comment("a setting may be drawn into the static buffer -- repaint it")
             w.line(f"{REPAINT_STATIC_METHOD}();")
+    w.blank()
+
+
+def _emit_settings_menu(w: Writer, face: Face) -> None:
+    """The on-watch settings menu: `settingsMenu`, `selectSetting`, and one
+    `settingLabel<Name>` per `choice` setting.
+
+    `AppBase.getSettingsView` returns the `Menu2` `settingsMenu` builds, so
+    the watch opens it from its Watch Face menu. A `boolean` setting is a
+    `ToggleMenuItem`. A `choice` setting is a `MenuItem` whose sub-label is
+    the current choice; selecting it moves to the next choice, wrapping.
+    Each item's identifier is the setting's position in `settings:`.
+
+    `selectSetting` writes `Application.Properties` and then runs
+    `applySettings`, the same path a Garmin Connect push takes. A local
+    write does not call `onSettingsChanged` (research 17 §3.3), so the menu
+    calls the path itself.
+    """
+    w.doc(
+        "The settings menu, built from the current values.  The watch opens it from\n"
+        "its Watch Face menu (AppBase.getSettingsView)."
+    )
+    with w.block(f"function {SETTINGS_MENU_METHOD}() as WatchUi.Menu2"):
+        w.line(f"var menu = new WatchUi.Menu2({{ :title => {_mc_string(face.name)} }});")
+        for index, setting in enumerate(face.settings.values()):
+            label = _mc_string(setting.label)
+            if setting.type == "boolean":
+                w.line(f"menu.addItem(new WatchUi.ToggleMenuItem({label}, null, {index}, "
+                       f"{setting.field}, null));")
+            else:
+                w.line(f"menu.addItem(new WatchUi.MenuItem({label}, "
+                       f"{setting_label_method(setting.name)}({setting.field}), {index}, null));")
+        w.line("return menu;")
+    w.blank()
+    w.doc(
+        "One settings menu item was selected: store the new value, then apply it\n"
+        "the way a Garmin Connect push would.  A choice moves to its next value."
+    )
+    with w.block(f"function {SELECT_SETTING_METHOD}(item as WatchUi.MenuItem) as Void"):
+        w.line("var id = item.getId();")
+        for index, setting in enumerate(face.settings.values()):
+            name = _mc_string(setting.name)
+            if setting.type == "boolean":
+                with w.block(f"if (id == {index} && item instanceof WatchUi.ToggleMenuItem)"):
+                    w.comment(f"settings.{setting.name}")
+                    w.line(f"Application.Properties.setValue({name}, item.isEnabled());")
+                continue
+            with w.block(f"if (id == {index})"):
+                w.comment(f"settings.{setting.name}")
+                w.line(f"var next = ({setting.field} + 1) % {len(setting.choices)};")
+                w.line(f"Application.Properties.setValue({name}, next);")
+                w.line(f"item.setSubLabel({setting_label_method(setting.name)}(next));")
+        w.line(f"{APPLY_SETTINGS_METHOD}();")
+        w.line("WatchUi.requestUpdate();")
+    for setting in face.settings.values():
+        if setting.type != "choice":
+            continue
+        w.blank()
+        w.doc(f"settings.{setting.name}: a choice's index -> its label.")
+        with w.block(f"private function {setting_label_method(setting.name)}"
+                     "(index as Number) as String"):
+            for index, choice in enumerate(setting.choices[1:], start=1):
+                with w.block(f"if (index == {index})"):
+                    w.line(f"return {_mc_string(choice.label)};")
+            w.line(f"return {_mc_string(setting.choices[0].label)};")
     w.blank()
 
 

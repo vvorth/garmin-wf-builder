@@ -26,6 +26,7 @@ from .naming import (
     complication_slot_hold_method, graph_series_field, graph_min_field,
     graph_max_field, graph_built_field, graph_rebuild_method,
     font_resource_id, config_label_id, config_style_label_id, setting_field,
+    setting_label_method,
 )
 from .model import (
     MODES, HOLD_AUTO, PATTERN_LOOP_INDEX, GRAPH_AREA_MAX_SAMPLES, SYSTEM_FONTS,
@@ -53,6 +54,7 @@ __all__ = [
     "complication_slot_hold_method", "graph_series_field", "graph_min_field",
     "graph_max_field", "graph_built_field", "graph_rebuild_method",
     "font_resource_id", "config_label_id", "config_style_label_id", "setting_field",
+    "setting_label_method",
     "MODES", "HOLD_AUTO", "PATTERN_LOOP_INDEX", "GRAPH_AREA_MAX_SAMPLES", "SYSTEM_FONTS",
     "MAX_OUTLINE_WIDTH",
     "ROLE_VALUE", "ROLE_MAX", "ROLE_MIN", "ROLE_FALLBACK", "ROLE_COLOR", "ROLE_TRACK_COLOR",

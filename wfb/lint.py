@@ -82,7 +82,7 @@ ALL_CODES = frozenset({
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "shared-source",
     "shared-view", "source-renamed",
     "sub-pixel-length", "target",
-    "settings", "static", "static-overlap", "string-label",
+    "settings", "settings-menu-unsupported", "static", "static-overlap", "string-label",
     "text-antialias", "text-curve", "text-outline", "text-outline-interior",
     "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
@@ -625,6 +625,38 @@ def _probe_symbols(bag: Bag, device: Device, code: str, what: str,
             confidence="not checked -- the device's api.debug.xml is unavailable",
         )
         return None
+
+
+#: The override the on-watch settings menu hangs off.
+SETTINGS_MENU_SYMBOL = "Toybox.Application.AppBase.getSettingsView"
+
+
+def check_settings_menu_support(resolved: ResolvedFace, bag: Bag) -> None:
+    """Does this device call `AppBase.getSettingsView`?
+
+    Every installed device does except `fenix5`/`fenix5x`. Without it the
+    generated menu compiles but never opens, so every setting keeps its
+    `default:` there. A note, not a warning: the face still works, and
+    there is nothing for the author to change.
+    """
+    face = resolved.face
+    if not face.settings_menu:
+        return
+    device = resolved.device
+    available = _probe_symbols(bag, device, "settings-menu-unsupported", "the settings menu",
+                               lambda: device.has_symbol(SETTINGS_MENU_SYMBOL))
+    if available is not False:
+        return
+    names = ", ".join(f"settings.{name}" for name in face.settings)
+    bag.note(
+        "settings-menu-unsupported",
+        f"{device.id} has no AppBase.getSettingsView, so the settings menu never "
+        f"opens there and {names} keep their defaults",
+        face.settings[next(iter(face.settings))].span,
+        notes=["the face still works; only the wearer's way to change a setting is missing",
+               f"checked against {device.id}'s own api.debug.xml, not an API level"],
+        confidence="exact -- the device's own symbol table",
+    )
 
 
 def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
@@ -2372,7 +2404,8 @@ DESIGN_CHECKS = (
 #: derived from definition order.
 DEVICE_CHECKS = (
     check_palette, check_antialias_palette, check_config_palette,
-    check_color_scheme_palette, check_config_support, check_geometry, check_progress_segments,
+    check_color_scheme_palette, check_config_support, check_settings_menu_support,
+    check_geometry, check_progress_segments,
     check_sub_pixel_length, check_text_fit, check_glyphs, check_contrast,
     check_partial_update_budget, check_hold_targets, check_dead_element,
     check_aod_unreachable, check_aod_empty, check_aod_burn_in, check_api_gated,

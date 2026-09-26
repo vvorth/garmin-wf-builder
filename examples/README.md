@@ -66,7 +66,7 @@ says what it is on the watch.
 | [`features/config/`](features/config/face.yaml) | accent/data colour and colour-scheme settings | [Configuration](../docs/guide/configuration.md) |
 | [`features/slots/`](features/slots/face.yaml) | the Data setting: `complication_slot`s the wearer re-points | [Configuration](../docs/guide/configuration.md) |
 | [`features/styles/`](features/styles/face.yaml) | `layouts:` switched by style | [Styles and layouts](../docs/guide/styles-and-layouts.md) |
-| [`features/settings/`](features/settings/face.yaml) | wearer settings: a boolean and a choice gating elements, one of them `static:` | [Wearer settings](../docs/guide/settings.md) |
+| [`features/settings/`](features/settings/face.yaml) | wearer settings and the on-watch settings menu: booleans and a choice gating elements, one of them `static:` | [Wearer settings](../docs/guide/settings.md) |
 | [`features/aod/`](features/aod/face.yaml) | `aod:` overrides and a face-wide default, on an AMOLED target (`fenix847mm`) -- the only example targeting AMOLED so far | [Always-on display](../docs/guide/always-on-display.md) |
 
 [`system-fonts/`](system-fonts/) holds three calibration faces (`text/`,

@@ -386,9 +386,31 @@ class ConfigAxes(TopLevelBlocks):
         so a reference to a rejected one gets no second error ("one error,
         not N", `docs/lore/codegen.md`).
         """
+        edit = raw.get("edit")
+        if edit is not None:
+            self.settings_edit = tuple(edit)
+            if "phone" in edit:
+                self.bag.error(
+                    "settings",
+                    "settings.edit: 'phone' is not built yet",
+                    self.doc.span(raw, "edit"),
+                    notes=["phone editing needs a generated settings.xml, which is on "
+                           "the not-implemented list (docs/limitations.md §2)",
+                           "Garmin Connect edits settings only for a Connect IQ Store "
+                           "install, never for a sideload "
+                           "(docs/research/17-phone-settings.md §2)"],
+                )
+        if edit is not None and len(raw) == 1:
+            self.bag.error(
+                "settings", "settings: declares 'edit:' but no setting",
+                self.doc.span(raw, "edit"),
+                notes=["declare at least one setting beside 'edit:', or remove the block"],
+            )
         fields: dict[str, str] = {}
         for name, spec in raw.items():
-            span = self.doc.span(raw, name)
+            if name == "edit":
+                continue
+            span = self.doc.span(raw, name, of="key")
             self.settings.declare(name, span)
             kind = spec["type"]
             keys = tuple(spec["choices"]) if kind == "choice" else None

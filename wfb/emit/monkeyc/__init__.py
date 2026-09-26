@@ -17,7 +17,9 @@ for emitting code that fails strict checking.
 
 from __future__ import annotations
 
-from .app import emit_app, emit_icon_glyphs, emit_palette, icon_glyph_entries
+from .app import (
+    emit_app, emit_icon_glyphs, emit_palette, emit_settings_delegate, icon_glyph_entries,
+)
 from .common import (
     SourceFile, _mc_number, _mc_type, complication_slots, hold_targets, needs_delegate,
 )
@@ -33,6 +35,7 @@ from .view import emit_view
 #: from its own submodule.
 __all__ = [
     "ReadPlan", "SourceFile", "_mc_number", "_mc_type", "complication_slots", "emit_app",
-    "emit_delegate", "emit_icon_glyphs", "emit_layout", "emit_palette", "emit_slot_drawable",
+    "emit_delegate", "emit_icon_glyphs", "emit_layout", "emit_palette", "emit_settings_delegate",
+    "emit_slot_drawable",
     "emit_view", "hold_targets", "icon_glyph_entries", "needs_delegate",
 ]

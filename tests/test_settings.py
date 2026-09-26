@@ -1,6 +1,7 @@
-"""`settings:` -- wearer settings stored as `Application.Properties`
-(plan 21 slice 1): the block, `settings.<name>` in expressions, the
-generated properties/view/app code, and the preview's `--set`."""
+"""`settings:` -- wearer settings stored as `Application.Properties`: the
+block, `settings.<name>` in expressions, the generated properties/view/app
+code, the on-watch settings menu (`edit: [watch]`), and the preview's
+`--set`."""
 
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from wfb.emit import generate
 from wfb.emit.resources import bake_fonts
 from wfb.layout import resolve
 from wfb.preview import PreviewOptions, SettingOverrideError, parse_settings, render
-from tests.helpers import load_errors, load_face, run_cli
+from tests.helpers import lint_text, load_errors, load_face, run_cli
 
 HEAD = """
 format: 1
@@ -246,6 +247,118 @@ def test_a_setting_in_static_content_repaints_the_buffer(write_design, db):
 
 
 # --------------------------------------------------------------------------
+# the on-watch settings menu
+
+
+def _menu_part(view: str) -> str:
+    start = view.index("function settingsMenu()")
+    return view[start:view.index("function onLayout(")]
+
+
+def test_the_menu_is_built_by_default(write_design, db, bag):
+    assert load_face(DESIGN, write_design, bag).settings_menu
+    files = _project(write_design, db).files()
+    menu = _menu_part(files["source/SettingsView.mc"])
+    assert 'new WatchUi.Menu2({ :title => "Settings" })' in menu
+    # A boolean is a toggle showing its field; a choice a MenuItem whose
+    # sub-label is the current choice.  Identifiers are declaration positions.
+    assert ('menu.addItem(new WatchUi.ToggleMenuItem("Show dot", null, 0, '
+            "_settingShowDot, null));") in menu
+    assert ('menu.addItem(new WatchUi.MenuItem("Dot side", '
+            "settingLabelSide(_settingSide), 1, null));") in menu
+
+
+def test_selecting_stores_the_value_and_applies_it(write_design, db):
+    menu = _menu_part(_project(write_design, db).files()["source/SettingsView.mc"])
+    select = menu[menu.index("function selectSetting("):menu.index("private function settingLabelSide")]
+    assert "if (id == 0 && item instanceof WatchUi.ToggleMenuItem)" in select
+    assert 'Application.Properties.setValue("show_dot", item.isEnabled());' in select
+    # A choice cycles through all three choices, wrapping.
+    assert "var next = (_settingSide + 1) % 3;" in select
+    assert 'Application.Properties.setValue("side", next);' in select
+    assert "item.setSubLabel(settingLabelSide(next));" in select
+    # Then the same path a Garmin Connect push takes.
+    assert select.index("applySettings();") > select.index("setSubLabel")
+
+
+def test_a_choice_label_method_maps_every_index(write_design, db):
+    menu = _menu_part(_project(write_design, db).files()["source/SettingsView.mc"])
+    labels = menu[menu.index("private function settingLabelSide"):]
+    assert 'if (index == 1) {\n            return "Right";' in labels
+    assert 'if (index == 2) {\n            return "Top";' in labels
+    assert labels.index('return "Left";') > labels.index('return "Top";')
+
+
+def test_the_app_opens_the_menu_through_the_delegate(write_design, db):
+    files = _project(write_design, db).files()
+    app = files["source/SettingsApp.mc"]
+    assert "function getSettingsView() as [Views] or [Views, InputDelegates] or Null" in app
+    assert "view = new SettingsView();" in app
+    assert "return [ view.settingsMenu(), new SettingsSettingsDelegate(view) ];" in app
+    delegate = files["source/SettingsSettingsDelegate.mc"]
+    assert "class SettingsSettingsDelegate extends WatchUi.Menu2InputDelegate" in delegate
+    assert "_view.selectSetting(item);" in delegate
+
+
+def test_edit_phone_is_not_built_yet(write_design):
+    for edit in ("[phone]", "[watch, phone]"):
+        text = DESIGN.replace("settings:\n", f"settings:\n  edit: {edit}\n")
+        (error,) = load_errors(text, write_design)
+        assert "settings.edit: 'phone' is not built yet" in error.message
+
+
+def test_edit_alone_is_an_error(write_design):
+    elements = "elements:\n  - {id: dot, type: shape, shape: circle, radius: 10%r, color: palette.fg}\n"
+    (error,) = load_errors(HEAD + "settings:\n  edit: [watch]\n" + elements, write_design)
+    assert "declares 'edit:' but no setting" in error.message
+
+
+def test_edit_watch_is_the_default_spelled_out(write_design, db):
+    explicit = DESIGN.replace("settings:\n", "settings:\n  edit: [watch]\n")
+    assert _project(write_design, db, explicit).files() == _project(write_design, db).files()
+
+
+def test_no_menu_without_settings(write_design, db, minimal):
+    files = _project(write_design, db, minimal).files()
+    assert not any("SettingsDelegate" in path for path in files)
+    assert "getSettingsView" not in files["source/TestApp.mc"]
+
+
+def test_a_face_with_complication_slots_builds_its_view_with_edit_mode(write_design, db):
+    text = DESIGN + SLOT_ELEMENT
+    text = text.replace("settings:\n", SLOT_CONFIG + "settings:\n")
+    app = _project(write_design, db, text).files()["source/SettingsApp.mc"]
+    assert "view = new SettingsView(_editMode);" in app
+
+
+SLOT_CONFIG = """config:
+  data:
+    top: { default: complication.steps, choices: any }
+"""
+SLOT_ELEMENT = """  - id: top_reading
+    type: complication_slot
+    slot: config.data.top
+    at: {anchor: center, dy: -30%}
+    color: palette.fg
+    when_absent: placeholder
+    placeholder: "--"
+    lint: {allow: [config-unsupported], reason: "fr955 has no native editor"}
+"""
+
+
+def test_a_device_without_get_settings_view_gets_a_note(write_design, db):
+    if "fenix5" not in db.ids():
+        pytest.skip("fenix5 is not installed")
+    bag = lint_text(DESIGN, write_design, db, "fenix5")
+    (note,) = [d for d in bag.items if d.code == "settings-menu-unsupported"]
+    assert note.severity.value == "note"
+    assert "fenix5 has no AppBase.getSettingsView" in note.message
+    assert "settings.show_dot, settings.side keep their defaults" in note.message
+    fr955 = lint_text(DESIGN, write_design, db, "fr955")
+    assert not [d for d in fr955.items if d.code == "settings-menu-unsupported"]
+
+
+# --------------------------------------------------------------------------
 # preview
 
 
@@ -301,14 +414,21 @@ def test_wfb_preview_set_flag(write_design, tmp_path):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("targets", ["[fenix8solar47mm, fr955]", "[fenix5]"])
-def test_settings_compile_warning_free(write_design, db, tmp_path, toolchain, targets):
+@pytest.mark.parametrize("targets, slots", [
+    ("[fenix8solar47mm, fr955]", False),
+    ("[fenix5]", False),
+    ("[fenix8solar47mm, fr955]", True),
+])
+def test_settings_compile_warning_free(write_design, db, tmp_path, toolchain, targets, slots):
     """The type-checked reads (`instanceof` narrowing inside `&&` and a
-    ternary) are only proven by `monkeyc` itself, and `fenix5` is the
-    3.1.0 floor."""
+    ternary) and the menu's `MenuItem` handling are only proven by `monkeyc`
+    itself; `fenix5` is the 3.1.0 floor and has no `getSettingsView`, and a
+    design with complication slots constructs its view with `_editMode`."""
     if "fenix5" in targets and "fenix5" not in db.ids():
         pytest.skip("fenix5 is not installed")
     text = DESIGN.replace("targets: [fenix8solar47mm, fr955]", f"targets: {targets}")
+    if slots:
+        text = text.replace("settings:\n", SLOT_CONFIG + "settings:\n") + SLOT_ELEMENT
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()

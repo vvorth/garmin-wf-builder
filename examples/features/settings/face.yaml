@@ -12,10 +12,11 @@
 #   has to repaint the static buffer (`applySettings` calls `repaintStatic`).
 #
 # Unlike `config:`, a setting is stored on every target, `fr955` included.
-# Nothing can change one on a sideloaded face yet: Garmin Connect edits
-# settings only for Store installs, and the on-watch settings menu is plan 21
-# slice 2. Until then this face shows the defaults; `wfb preview --set
-# ring=battery --set show_seconds=false` renders the other values.
+# The wearer changes them in the generated settings menu, opened from the
+# watch's Watch Face menu (Garmin Connect edits settings only for Store
+# installs, never a sideload). `fenix5`/`fenix5x` have no settings menu and
+# keep the defaults. `wfb preview --set ring=battery --set
+# show_seconds=false` renders the other values.
 #
 # Build it with:  ./wfb.py build examples/features/settings/face.yaml
 #

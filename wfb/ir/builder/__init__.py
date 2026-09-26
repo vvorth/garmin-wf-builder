@@ -161,6 +161,7 @@ class Builder(ElementTree):
             aod_dim=self.face_aod_dim,
             aod_mask=self.face_aod_mask,
             settings=dict(self.settings),
+            settings_edit=self.settings_edit,
         )
 
 

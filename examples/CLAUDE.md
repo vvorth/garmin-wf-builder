@@ -71,8 +71,8 @@ draw their placeholder; `--units statute` flips the distance row.
 `features/settings/` (plan 21 slice 1, 2026-09-27) is `settings:`: a
 `boolean` gating the seconds, a `choice` picking what the ring measures
 (`none` shows no ring), and a `boolean` gating `static:` hour ticks, so a
-change has to repaint the static buffer. It shows the defaults on a
-sideload until the on-watch menu (slice 2) lands.
+change has to repaint the static buffer. Sideload it to check the
+generated settings menu on the watch (plan 21 §6: not yet seen on one).
 
 `features/aod/` (plan 14 slice 0, 2026-09-23; `aod:` slices 1-4, 2026-09-23)
 is the first, and so far only, example to add a fourth target, `fenix847mm`

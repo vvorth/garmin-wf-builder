@@ -93,7 +93,42 @@ def emit_app(face: Face) -> SourceFile:
                 with w.block("if (view != null)"):
                     w.line("view.applySettings();")
                 w.line("WatchUi.requestUpdate();")
+        if face.settings_menu:
+            w.blank()
+            w.doc(
+                "The settings menu, opened from the watch's Watch Face menu.  A device\n"
+                "without getSettingsView (fenix5) never calls this, and keeps every\n"
+                "setting's default."
+            )
+            with w.block("function getSettingsView() as [Views] or [Views, InputDelegates] or Null"):
+                w.line("var view = _view;")
+                with w.block("if (view == null)"):
+                    w.comment("nothing documents that getInitialView runs first, so build the")
+                    w.comment("view here if it has not: its constructor reads the settings")
+                    w.line(f"view = {view_ctor};")
+                    w.line("_view = view;")
+                w.line(f"return [ view.settingsMenu(), new {face.entry}SettingsDelegate(view) ];")
     return SourceFile(f"source/{face.entry}App.mc", w.render())
+
+
+def emit_settings_delegate(face: Face) -> SourceFile:
+    """`source/<Face>SettingsDelegate.mc` -- the settings menu's input
+    delegate. It hands every selection to the view, which owns the fields
+    the menu shows and the one path that applies a change."""
+    w = Writer()
+    w.doc(header(face)).blank()
+    w.lines("import Toybox.Lang;", "import Toybox.WatchUi;").blank()
+    w.doc("Input for the settings menu: every selection goes to the view.")
+    with w.block(f"class {face.entry}SettingsDelegate extends WatchUi.Menu2InputDelegate"):
+        w.line(f"private var _view as {face.entry}View;")
+        w.blank()
+        with w.block(f"function initialize(view as {face.entry}View)"):
+            w.line("Menu2InputDelegate.initialize();")
+            w.line("_view = view;")
+        w.blank()
+        with w.block("function onSelect(item as WatchUi.MenuItem) as Void"):
+            w.line("_view.selectSetting(item);")
+    return SourceFile(f"source/{face.entry}SettingsDelegate.mc", w.render())
 
 
 def emit_palette(face: Face) -> SourceFile:

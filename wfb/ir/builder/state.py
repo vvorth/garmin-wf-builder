@@ -135,6 +135,7 @@ scope.  Every other layer of `Builder` reads and writes these."""
         #: for a `choice`, its keys: what `_build_scope` binds
         #: `settings.<name>` from, so a rejected one still resolves.
         self.setting_bindings: dict[str, tuple[str, tuple[str, ...] | None]] = {}
+        self.settings_edit: tuple[str, ...] = ("watch",)
         self.scope = expr.Scope()
         self.seen_ids: dict[str, Span | None] = {}
         #: Derived Monkey C symbol -> the element id and span that claimed it

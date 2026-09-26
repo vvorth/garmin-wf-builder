@@ -48,6 +48,12 @@ def setting_field(name: str) -> str:
     return "_setting" + _pascal(name)
 
 
+def setting_label_method(name: str) -> str:
+    """The view method that turns a `choice` setting's index into its label
+    (``settingLabelRing``), for the settings menu's sub-label."""
+    return "settingLabel" + _pascal(name)
+
+
 def config_data_ids(face: "Face") -> dict[str, int]:
     """`config: data:` slot name -> the `<complication id="N">` this slot is
     emitted under, 1-based in declaration order (`docs/research/probes/

@@ -116,11 +116,25 @@
       }
     },
     "settings": {
-      "description": "Wearer settings: values the wearer changes after install, stored as Application.Properties and read in any expression as 'settings.<name>' -- a 'boolean' as a Boolean, a 'choice' only in a comparison with one of its keys, e.g. 'settings.ring == \"steps\"'. Unlike 'config:', a setting reaches every target, fr955 included, and is global across the wearer's saved configurations. Every read falls back to 'default:', so a setting is never absent. See docs/guide/settings.md.",
+      "description": "Wearer settings: values the wearer changes after install, stored as Application.Properties and read in any expression as 'settings.<name>' -- a 'boolean' as a Boolean, a 'choice' only in a comparison with one of its keys, e.g. 'settings.ring == \"steps\"'. Unlike 'config:', a setting reaches every target, fr955 included, and is global across the wearer's saved configurations. Every read falls back to 'default:', so a setting is never absent. The reserved key 'edit:' says where the wearer changes them: by default a settings menu on the watch. See docs/guide/settings.md.",
       "type": "object",
       "minProperties": 1,
       "propertyNames": {
         "$ref": "#/$defs/identifier"
+      },
+      "properties": {
+        "edit": {
+          "description": "Where the wearer edits these settings. 'watch' (the default) generates a settings menu the watch opens from its Watch Face menu (AppBase.getSettingsView); every target but fenix5/fenix5x has it. 'phone' is Garmin Connect, which edits settings only for a Connect IQ Store install, never a sideload, and is not built yet. 'edit' is the one name a setting cannot have.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "watch",
+              "phone"
+            ]
+          }
+        }
       },
       "additionalProperties": {
         "$ref": "#/$defs/setting"

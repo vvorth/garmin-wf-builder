@@ -155,6 +155,8 @@ def generate(face: Face, devices: list[Device], root: Path,
         # design (no on_hold) also needs one, purely for
         # onWatchFaceConfigEdited -- see monkeyc.needs_delegate.
         project.sources.append(_check_shared(project, lambda r: monkeyc.emit_delegate(r, guards)))
+    if face.settings_menu:
+        project.sources.append(monkeyc.emit_settings_delegate(face))
     project.barrel = sorted(usage.barrel_modules(source.text for source in project.sources))
     _avoid_string_label_collisions(project)
     return project

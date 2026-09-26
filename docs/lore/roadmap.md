@@ -34,12 +34,13 @@ or AOD-related has been observed on a watch or in the simulator.
   Styles with `color_scheme:` and `layouts:` (form A), the Data axis as
   `complication_slot`. `docs/guide/configuration.md`,
   `styles-and-layouts.md`.
-- **Wearer settings, slice 1** — `settings:` with `boolean` and `choice`,
+- **Wearer settings** — `settings:` with `boolean` and `choice`,
   stored as `Application.Properties` (`properties.xml`), read as
   `settings.<name>` (a choice compares its Number index,
-  `wfb.expr._choice_compare`), re-read by `onSettingsChanged`;
-  `wfb preview --set`. Nothing changes a setting on a sideload until the
-  menu (slice 2) ships. `docs/guide/settings.md`.
+  `wfb.expr._choice_compare`), re-read by `onSettingsChanged`; the
+  on-watch settings menu (`getSettingsView`, `edit: [watch]`, the
+  default), with lint `settings-menu-unsupported` on `fenix5`/`fenix5x`;
+  `wfb preview --set`. Not yet seen on a watch. `docs/guide/settings.md`.
 - **Per-device API gating** — manifest floor 3.1.0, a device below it is a
   friendly error (`wfb.build.select_devices`); complication, weather and
   field touches are `has`-guarded (`wfb/availability.py`); lints
@@ -92,11 +93,11 @@ specifies each item.
 3. Ticks drawn by a `style: scale` progress itself (a radial `pattern`
    does them today).
 4. `units:` on an expression or a `complication_slot`.
-5. **The rest of wearer settings**, plan 21 slices 2-4: the on-watch
-   `getSettingsView` menu, `settings.xml`, `color_scheme` settings.
-   Phone-side settings do not reach a sideloaded face (research 17 §2), so
-   the user chose the on-watch menu (ADR 0006 tenth amendment), with
-   `settings.xml` emitted but no Store packaging and no `.SET` writer. The
+5. **The rest of wearer settings**, plan 21 slices 3-4: `settings.xml`
+   (`edit: phone`) and `color_scheme` settings. Phone-side settings do not
+   reach a sideloaded face (research 17 §2), so the user chose the on-watch
+   menu (ADR 0006 tenth amendment, built), with `settings.xml` to be
+   emitted but no Store packaging and no `.SET` writer. The
    2026-09-11 WIP is pinned on `wip/phone-settings`. It is design reference
    only: it predates the builder, emitter and kinds refactors. Do not
    resume it without asking the user.

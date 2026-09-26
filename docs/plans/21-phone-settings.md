@@ -1,7 +1,8 @@
 # 21 — `settings:`: wearer settings on the watch, and on the phone
 
-**Status: decided (2026-09-27); slice 1 built.** The user took the
-recommendation on D1–D3 (§1). Slice 2 is next.
+**Status: decided (2026-09-27); slices 1-2 built.** The user took the
+recommendation on D1–D3 (§1). Slice 3 is next, and §6's checks on a watch
+are still open.
 Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 
 Research: `docs/research/17-phone-settings.md`, with its probe at
@@ -95,7 +96,10 @@ sharing the `--set` flag with sample-data overrides if those land first.
 2. **`edit: watch`**, the `getSettingsView` menu. Measured
    against the probe's +459 B. Friendly lint `settings-menu-unsupported`
    (a note) for a target without `getSettingsView`, e.g. `fenix5`: that
-   device keeps the defaults.
+   device keeps the defaults. **Built.** The menu adds 619 B for one
+   `boolean` and one `choice` (+1,044 B on `fenix5`, where it never opens);
+   warning-free on the verification devices and `fenix5`. `edit: phone` is
+   a friendly error until slice 3.
 3. **`edit: phone`**, `settings.xml` and strings. Checked against the
    generated `-settings.json`. The guide says plainly that phone editing
    needs a Store (beta) install.

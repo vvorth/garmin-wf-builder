@@ -15,13 +15,19 @@ fēnix 8's native face editor:
 | Holds | colours, a Styles entry, complication slots | a Boolean, or one of named choices |
 | Per saved configuration | yes, up to four | no: one value for all of them |
 
-**How the wearer changes a setting.** Nothing in this build can change one
-on a sideloaded face yet, so a sideloaded face shows each setting's
-`default:`. Garmin Connect edits settings only for apps installed from the
-Connect IQ Store, private beta included, never for a sideload
-(`docs/research/17-phone-settings.md` §2). A settings menu on the watch
-itself is planned (plan 21, slice 2). Until it ships, `settings:` changes
-only what a rebuild would.
+**How the wearer changes a setting: a menu on the watch.** The build
+generates a settings menu, which the watch opens from its Watch Face menu
+(`AppBase.getSettingsView`). A `boolean` is a toggle. A `choice` shows its
+current label, and selecting it moves to the next choice. The change applies
+at once. Garmin Connect cannot do this for a sideloaded face: it edits
+settings only for apps installed from the Connect IQ Store, private beta
+included (`docs/research/17-phone-settings.md` §2).
+
+Every installed device has the menu except `fenix5`/`fenix5x`, which keep
+each `default:` and get a `settings-menu-unsupported` note. **Not yet seen
+on a watch:** that the menu entry appears on `fr955`, and on a fēnix 8
+beside the native editor, and that a change applies at once. There is no
+simulator here, so this needs a sideload.
 
 ## At a glance
 
@@ -32,6 +38,7 @@ only what a rebuild would.
 | `type:` | a setting | `boolean` / `choice` | required | what the setting holds |
 | `default:` | a setting | a Boolean; a key of `choices:` | required | the value until the wearer changes it |
 | `choices:` | a `choice` setting | mapping of key → label, at least two | required | the options, in the order shown |
+| `edit:` | `settings:` | list of `watch` | `[watch]` | where the wearer edits them; `phone` is [not built yet](../limitations.md) |
 
 ## Example
 
@@ -88,11 +95,16 @@ elements:
   wrong type. A value of the wrong type, or a `choice` index out of range,
   falls back to `default:`.
 - `onSettingsChanged` in the app, which re-reads every setting and redraws.
+- The menu: `settingsMenu()` and `selectSetting()` on the view, a
+  `<Face>SettingsDelegate` class, and `getSettingsView()` on the app. A
+  selection writes the property and then runs `applySettings()`, the same
+  path as a Garmin Connect push, because a write on the watch does not call
+  `onSettingsChanged`.
 
-Measured on the verification devices: a face with one `boolean` and one
-`choice` setting, each read by `visible:` guards on three elements, is
-279 B larger than the same face without them (1,761 B to 2,040 B), and
-372 B larger on `fenix5`.
+Measured on the verification devices, for a face with one `boolean` and one
+`choice` setting read by `visible:` guards on three elements: the settings
+add 279 B (1,761 B to 2,040 B) and the menu another 619 B (to 2,659 B). On
+`fenix5`, which never opens the menu, the two add 372 B and 1,044 B.
 
 ## Things to know
 
@@ -100,6 +112,8 @@ Measured on the verification devices: a face with one `boolean` and one
   back.** The watch stores the index. A stored index past the end falls back
   to `default:`; one that is still in range now names a different key.
 - **Renaming a setting resets it.** The name is the property key.
+- **`edit` cannot name a setting**: it is the one reserved key under
+  `settings:`.
 - **One value for all saved configurations.** Nothing tells a face which of
   the wearer's four saved native-editor configurations is active, so a
   setting cannot differ between them.

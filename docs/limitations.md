@@ -612,7 +612,19 @@ the platform.
 ### `onSettingsChanged` does not fire for on-watch edits
 
 It fires only for Garmin Connect pushes. Any cached property must be invalidated
-explicitly or an on-watch change silently does not take effect.
+explicitly or an on-watch change silently does not take effect. The generated
+`settings:` menu does this: a selection writes the property and then runs the
+view's `applySettings`, the same path a push takes.
+
+### Garmin Connect does not edit a sideloaded face's settings
+
+Phone-side settings work only for a Connect IQ Store install, private beta
+included (`docs/research/17-phone-settings.md` §2). For a sideload, the one
+way the wearer changes a `settings:` value is the generated on-watch menu,
+opened from the watch's Watch Face menu (`AppBase.getSettingsView`), which
+`fenix5`/`fenix5x` lack. **Not verified on a watch:** that the menu entry
+appears on `fr955`, and on a fēnix 8 beside the native editor; that a change
+applies at once; and which memory limit the menu runs under.
 
 ---
 
@@ -654,7 +666,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
-| The rest of wearer settings: the on-watch `getSettingsView` menu, phone-side `settings.xml`, `color_scheme` and `number` settings | `docs/plans/21-phone-settings.md` (slices 2-4; `number` is out of the plan: `Menu2` has no numeric entry). `settings:` with `boolean` and `choice` is built, but nothing can change a setting on a sideloaded face yet: Garmin Connect does not edit a sideloaded app's settings (`docs/research/17-phone-settings.md` §2), so the user chose an on-watch menu (ADR 0006 tenth amendment). The old WIP on `wip/phone-settings` is design reference only |
+| The rest of wearer settings: phone-side `settings.xml` (`edit: phone`, a friendly error today), `color_scheme` settings and `number` settings | `docs/plans/21-phone-settings.md` (slices 3-4; `number` is out of the plan: `Menu2` has no numeric entry). `settings:` with `boolean` and `choice` and the on-watch menu are built. Phone editing would only help a Store install (`docs/research/17-phone-settings.md` §2). The old WIP on `wip/phone-settings` is design reference only |
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
 | A `complication_slot` inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions low-power elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
@@ -838,7 +850,10 @@ checking for it would report a capability the author can never reach — see
 `docs/research/07-carousel-interaction.md` §1.) `check_config_support` resolves
 `WatchFaceConfig.getSettings` the same way, for the same reason: `fr955`
 reports ConnectIQ 5.2.0, above the editor's own documented 5.1.0, and still
-has no editor at all.
+has no editor at all. `check_settings_menu_support` resolves
+`AppBase.getSettingsView` the same way for the `settings:` menu; only
+`fenix5`/`fenix5x` lack it among the installed devices, and they get a
+`settings-menu-unsupported` note.
 
 *By version comparison, for complications.* `check_complication_availability`
 compares a type's `since` against the device's `Device.api_level`. This one

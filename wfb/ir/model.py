@@ -1498,6 +1498,8 @@ class Face:
     aod_mask: bool = True
     #: `settings:` entries, keyed by name, in declaration order.
     settings: dict[str, Setting] = field(default_factory=dict)
+    #: `settings: edit:` -- where the wearer edits the settings.
+    settings_edit: tuple[str, ...] = ("watch",)
 
     @property
     def has_config(self) -> bool:
@@ -1515,6 +1517,13 @@ class Face:
         all) still gets a delegate, `applyConfig` and the generated resource.
         """
         return bool(self.config) or self.config_style is not None or bool(self.config_data)
+
+    @property
+    def settings_menu(self) -> bool:
+        """Whether the build generates the on-watch settings menu
+        (`AppBase.getSettingsView`): `settings:` exists and `edit:` includes
+        `watch`."""
+        return bool(self.settings) and "watch" in self.settings_edit
 
     def style_label(self, entry: "StyleEntry") -> str | None:
         """The label the generated `<style>` and preview both show for one
