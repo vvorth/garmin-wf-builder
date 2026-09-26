@@ -162,7 +162,8 @@ examples/features/    one face per format feature, written as each landed
 examples/system-fonts/  the three system-font calibration faces
 tests/                ? tests; only the `slow` ones need the Garmin toolchain
 tests/fixtures/slice/ the Phase 2 slice: the golden files' source design
-tools/                setup, font fetchers, docs-shots.py, snapshot.py (output snapshots)
+tools/                setup, font fetchers, docs-shots.py, snapshot.py (output snapshots),
+                      typecheck.py (mypy --strict against its baseline)
 docs/                 README.md (hub), guide/ (format reference), limitations, ADRs, research
 ```
 
@@ -472,9 +473,21 @@ frame and return the awake code unchanged in an awake-only build.
 ## Tests
 
 ```sh
-./.venv/bin/python -m pytest              # everything
+./.venv/bin/python -m pytest              # everything but the type check
 ./.venv/bin/python -m pytest -m "not slow" # skip the real monkeyc builds
+./.venv/bin/python -m pytest -m typecheck  # mypy --strict, against its baseline
 ```
+
+**The type check is its own test set.** `pytest -m typecheck` runs
+`mypy --strict` over `wfb/` as `mypy.ini` configures it and compares the
+result with `tests/mypy-baseline.txt`, the errors known when the check was
+introduced, recorded without line numbers. It fails on an error the
+baseline does not hold, and on a baseline entry no longer reported, so the
+baseline only shrinks: after fixing errors, run
+`./.venv/bin/python tools/typecheck.py --update` and commit the smaller
+file. `tools/typecheck.py` alone prints the same report. The result depends
+on the versions of mypy and of the libraries' type information; the
+baseline records them, and a failure names any that differ.
 
 Golden-file tests over the generated Monkey C are the primary compiler test, and
 they run with **no Garmin toolchain** — which matters, because the device files

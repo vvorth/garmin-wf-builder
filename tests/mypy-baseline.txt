@@ -1,0 +1,1036 @@
+# Known `mypy --strict` errors, one per occurrence, without line numbers.
+# Written by `tools/typecheck.py --update`; only ever shrink it by hand.
+# using mypy 2.3.1
+# using types-jsonschema 4.26.0.20260518
+# using pillow 12.3.0
+# using ruamel.yaml 0.19.1
+# using jsonschema 4.26.0
+wfb/aod_mask.py: [attr-defined] Module has no attribute "NEAREST"
+wfb/availability.py: [arg-type] Argument 1 to "frozenset" has incompatible type "set[str | None]"; expected "Iterable[str]"
+wfb/availability.py: [union-attr] Item "None" of "tuple[str, ...] | None" has no attribute "__iter__" (not iterable)
+wfb/build.py: [arg-type] Argument 1 to "Path" has incompatible type "str | PathLike[str] | None"; expected "str | PathLike[str]"
+wfb/build.py: [attr-defined] Module "wfb.emit" does not explicitly export attribute "GeneratedProject"
+wfb/build.py: [attr-defined] Module "wfb.emit" does not explicitly export attribute "generate"
+wfb/build.py: [attr-defined] Module "wfb.fonts" does not explicitly export attribute "BakedFont"
+wfb/build.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/cli.py: [arg-type] Argument "sample" to "PreviewOptions" has incompatible type "dict[str, int] | None"; expected "dict[str, object] | None"
+wfb/cli.py: [no-any-return] Returning Any from function declared to return "ArgumentParser"
+wfb/cli.py: [no-any-return] Returning Any from function declared to return "int"
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/cli.py: [type-arg] Missing type arguments for generic type "_SubParsersAction"
+wfb/cli.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/cli.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/cli.py: [union-attr] Item "None" of "_ArgumentGroup | None" has no attribute "_group_actions"
+wfb/conversion.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/desugar.py: [no-any-return] Returning Any from function declared to return "tuple[int, int] | None"
+wfb/devices.py: [no-any-return] Returning Any from function declared to return "dict[Any, Any]"
+wfb/devices.py: [no-any-return] Returning Any from function declared to return "str"
+wfb/devices.py: [no-any-return] Returning Any from function declared to return "str"
+wfb/devices.py: [no-any-return] Returning Any from function declared to return "str"
+wfb/devices.py: [no-any-return] Returning Any from function declared to return "str"
+wfb/devices.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/devices.py: [operator] Unsupported operand types for * ("None" and "int")
+wfb/devices.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/devices.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/diagnostics.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/diagnostics.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/diagnostics.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/diagnostics.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/common.py: [misc] "None" object is not iterable
+wfb/emit/monkeyc/common.py: [no-any-return] Returning Any from function declared to return "str"
+wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/common.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/common.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/common.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/common.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "icon_color"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "icon_color"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "icon_gap"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "icon_gap"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "label"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "label"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "placeholder"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "slot"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "slot"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "slot"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "slot"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "slot"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "unit"
+wfb/emit/monkeyc/complication_slot.py: [attr-defined] "Element" has no attribute "when_absent"
+wfb/emit/monkeyc/complication_slot.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/delegate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/graph.py: [arg-type] Argument 2 to "_emit_array_rebuild" has incompatible type "Element"; expected "Graph"
+wfb/emit/monkeyc/graph.py: [arg-type] Argument 2 to "_emit_hr_rebuild" has incompatible type "Element"; expected "Graph"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "max"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "max_auto"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "min"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "min_auto"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "series"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "series_def"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "style"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "style"
+wfb/emit/monkeyc/graph.py: [attr-defined] "Element" has no attribute "style"
+wfb/emit/monkeyc/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/graph.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/layout_constants.py: [arg-type] Argument 1 to "join" of "str" has incompatible type "tuple[str, ...] | None"; expected "Iterable[str]"
+wfb/emit/monkeyc/layout_constants.py: [arg-type] Argument 2 to "_emit_constants" has incompatible type "list[tuple[str, McLiteral, str]]"; expected "list[tuple[str, float | str | bool | McLiteral, str]]"
+wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/layout_constants.py: [operator] Unsupported operand types for + ("list[tuple[str, float | str | bool | McLiteral, str]]" and "list[tuple[str, float, str]]")
+wfb/emit/monkeyc/readplan.py: [assignment] Incompatible types in assignment (expression has type "Expression | Any | None", variable has type "str")
+wfb/emit/monkeyc/readplan.py: [attr-defined] "str" has no attribute "sources"
+wfb/emit/monkeyc/readplan.py: [index] Value of type "str | None" is not indexable
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/readplan.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/emit/monkeyc/readplan.py: [type-var] Value of type variable "SupportsRichComparisonT" of "sorted" cannot be "str | None"
+wfb/emit/monkeyc/readplan.py: [union-attr] Item "None" of "AodOverride | None" has no attribute "visible_override"
+wfb/emit/monkeyc/rotated.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/rotated.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/shapes.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [arg-type] Argument 1 to "_mc_bool" has incompatible type "bool | None"; expected "bool"
+wfb/emit/monkeyc/view.py: [arg-type] Argument 1 to "get" of "dict" has incompatible type "str | None"; expected "str"
+wfb/emit/monkeyc/view.py: [arg-type] Argument 2 to "_emit_static_blit" has incompatible type "StaticPlan | None"; expected "StaticPlan"
+wfb/emit/monkeyc/view.py: [arg-type] Argument 4 to "_emit_layout_guarded" has incompatible type "Callable[[object], Writer]"; expected "Callable[[object], None]"
+wfb/emit/monkeyc/view.py: [arg-type] Argument 4 to "_emit_layout_guarded" has incompatible type "Callable[[object], Writer]"; expected "Callable[[object], None]"
+wfb/emit/monkeyc/view.py: [arg-type] Argument 4 to "_emit_layout_guarded" has incompatible type "Callable[[object], Writer]"; expected "Callable[[object], None]"
+wfb/emit/monkeyc/view.py: [assignment] Incompatible types in assignment (expression has type "Placed", variable has type "PlacedGraph")
+wfb/emit/monkeyc/view.py: [assignment] Incompatible types in assignment (expression has type "Placed", variable has type "PlacedGraph")
+wfb/emit/monkeyc/view.py: [attr-defined] "Element" has no attribute "seconds"
+wfb/emit/monkeyc/view.py: [no-any-return] Returning Any from function declared to return "str"
+wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/monkeyc/view.py: [return-value] Incompatible return value type (got "list[Placed] | bool", expected "bool")
+wfb/emit/monkeyc/view.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/view.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/view.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/view.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/view.py: [type-arg] Missing type arguments for generic type "list"
+wfb/emit/monkeyc/view.py: [union-attr] Item "None" of "ConfigStyle | None" has no attribute "default_entry"
+wfb/emit/project.py: [attr-defined] Module "wfb.fonts" does not explicitly export attribute "BakedFont"
+wfb/emit/resources.py: [arg-type] Argument "glyphs" to "bake" has incompatible type "str | None"; expected "str"
+wfb/emit/resources.py: [arg-type] Argument "size" to "FontSpec" has incompatible type "float"; expected "Length"
+wfb/emit/resources.py: [arg-type] Argument 1 to "bake" has incompatible type "Path | None"; expected "Path"
+wfb/emit/resources.py: [arg-type] Argument 1 to "bake" has incompatible type "Path | None"; expected "Path"
+wfb/emit/resources.py: [arg-type] Argument 1 to "pixel_size" has incompatible type "object"; expected "Length | None"
+wfb/emit/resources.py: [assignment] Incompatible types in assignment (expression has type "ConfigColor", variable has type "StyleEntry")
+wfb/emit/resources.py: [assignment] Incompatible types in assignment (expression has type "ConfigColor", variable has type "StyleEntry")
+wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "allow_any"
+wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "allow_any"
+wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "axis"
+wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "choices"
+wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "choices"
+wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "default"
+wfb/emit/resources.py: [attr-defined] Module "wfb.fonts" does not explicitly export attribute "BakedFont"
+wfb/emit/resources.py: [attr-defined] Module "wfb.fonts" does not explicitly export attribute "bake"
+wfb/emit/resources.py: [call-overload] No overload variant of "round" matches argument type "Length"
+wfb/emit/resources.py: [union-attr] Item "None" of "Path | None" has no attribute "name"
+wfb/emit/usage.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/emit/writer.py: [no-untyped-def] Function is missing a return type annotation
+wfb/emit/writer.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/expr.py: [arg-type] Argument 1 to "Token" has incompatible type "str | None"; expected "str"
+wfb/expr.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
+wfb/expr.py: [attr-defined] "Node" has no attribute "value"
+wfb/expr.py: [call-overload] No overload variant of "int" matches argument type "object"
+wfb/expr.py: [call-overload] No overload variant of "int" matches argument type "object"
+wfb/expr.py: [dict-item] Dict entry 5 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
+wfb/expr.py: [dict-item] Dict entry 6 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
+wfb/expr.py: [dict-item] Dict entry 7 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
+wfb/expr.py: [dict-item] Dict entry 8 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
+wfb/expr.py: [operator] Unsupported operand type for unary - ("object")
+wfb/expr.py: [operator] Unsupported operand type for unary - ("object")
+wfb/expr.py: [type-arg] Missing type arguments for generic type "list"
+wfb/expr.py: [type-arg] Missing type arguments for generic type "list"
+wfb/expr.py: [type-arg] Missing type arguments for generic type "list"
+wfb/expr.py: [type-arg] Missing type arguments for generic type "list"
+wfb/expr.py: [type-arg] Missing type arguments for generic type "list"
+wfb/expr.py: [type-arg] Missing type arguments for generic type "list"
+wfb/expr.py: [type-arg] Missing type arguments for generic type "list"
+wfb/expr.py: [unused-ignore] Unused "type: ignore" comment
+wfb/fonts/bmfont.py: [arg-type] Argument 2 to "new" has incompatible type "tuple[float, float]"; expected "tuple[int, int] | list[int]"
+wfb/fonts/bmfont.py: [attr-defined] Module has no attribute "BOX"
+wfb/fonts/cft.py: [no-any-return] Returning Any from function declared to return "int"
+wfb/fonts/fallback.py: [return-value] Incompatible return value type (got "FreeTypeFont | ImageFont", expected "FreeTypeFont | None")
+wfb/fonts/fallback.py: [union-attr] Item "ImageFont" of "FreeTypeFont | ImageFont" has no attribute "getmetrics"
+wfb/fonts/fallback.py: [union-attr] Item "None" of "FreeTypeFont | None" has no attribute "getlength"
+wfb/fonts/fallback.py: [union-attr] Item "None" of "FreeTypeFont | None" has no attribute "getlength"
+wfb/fonts/fetch_system.py: [no-any-return] Returning Any from function declared to return "bytes"
+wfb/fonts/fetch_system.py: [no-any-return] Returning Any from function declared to return "str | None"
+wfb/fonts/fetch_system.py: [no-any-return] Returning Any from function declared to return "str | None"
+wfb/fonts/fetch_system.py: [no-any-return] Returning Any from function declared to return "str | None"
+wfb/fonts/fetch_system.py: [no-any-return] Returning Any from function declared to return "str | None"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "PathLike"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/fonts/fetch_system.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/formatting.py: [misc] "None" not callable
+wfb/formatting.py: [misc] "None" not callable
+wfb/formatting.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/formatting.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/formatting.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/formatting.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/formatting.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/formatting.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/formatting.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/formatting.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/formatting.py: [type-arg] Missing type arguments for generic type "list"
+wfb/formatting.py: [type-arg] Missing type arguments for generic type "list"
+wfb/icons.py: [return-value] Incompatible return value type (got "float", expected "int")
+wfb/ir/builder.py: [arg-type] Argument "bar_width" to "AodOverride" has incompatible type "object"; expected "Length | None"
+wfb/ir/builder.py: [arg-type] Argument "color" to "AodOverride" has incompatible type "object"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument "filled" to "AodOverride" has incompatible type "object"; expected "bool | None"
+wfb/ir/builder.py: [arg-type] Argument "format" to "AodOverride" has incompatible type "object"; expected "str | None"
+wfb/ir/builder.py: [arg-type] Argument "icon_color" to "AodOverride" has incompatible type "object"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument "size" to "FontSpec" has incompatible type "Length | None"; expected "Length"
+wfb/ir/builder.py: [arg-type] Argument "thickness" to "AodOverride" has incompatible type "object"; expected "Length | None"
+wfb/ir/builder.py: [arg-type] Argument "track_color" to "AodOverride" has incompatible type "object"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument "visible_override" to "AodOverride" has incompatible type "object"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "ArcPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "ArcPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Span | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "ArcPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "bool | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "CirclePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "CirclePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Span | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "CirclePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "bool | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "LinePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "LinePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Span | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "LinePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "bool | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "PolygonPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "PolygonPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Span | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "PolygonPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "bool | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "RectanglePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "RectanglePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Span | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "RectanglePart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "bool | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Curve | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Outline | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "Span | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "bool | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "bool"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "str | None"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "str"
+wfb/ir/builder.py: [arg-type] Argument 1 to "TextPart" has incompatible type "**dict[str, Expression | Span | bool | None]"; expected "tuple[str, ...]"
+wfb/ir/builder.py: [arg-type] Argument 1 to "walk" has incompatible type "object"; expected "Node"
+wfb/ir/builder.py: [arg-type] Argument 2 to "Binary" has incompatible type "object"; expected "Node"
+wfb/ir/builder.py: [arg-type] Argument 2 to "LayoutDecl" has incompatible type "**dict[str, object]"; expected "frozenset[str]"
+wfb/ir/builder.py: [arg-type] Argument 2 to "LayoutDecl" has incompatible type "**dict[str, object]"; expected "str | None"
+wfb/ir/builder.py: [arg-type] Argument 2 to "_conjoin_visible" of "Builder" has incompatible type "object"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 3 to "Binary" has incompatible type "object"; expected "Node"
+wfb/ir/builder.py: [arg-type] Argument 5 to "StyleEntry" has incompatible type "**dict[str, object]"; expected "frozenset[str]"
+wfb/ir/builder.py: [arg-type] Argument 5 to "StyleEntry" has incompatible type "**dict[str, object]"; expected "str | None"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "Curve | None"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "Expression | None"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "Outline | None"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "Span | None"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "bool | None"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "bool"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "str | None"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "str"
+wfb/ir/builder.py: [arg-type] Argument 5 to "TextPart" has incompatible type "**dict[str, object]"; expected "tuple[str, ...]"
+wfb/ir/builder.py: [assignment] Incompatible types in assignment (expression has type "object", target has type "SlotIcon | None")
+wfb/ir/builder.py: [assignment] Incompatible types in assignment (expression has type "object", variable has type "frozenset[str]")
+wfb/ir/builder.py: [assignment] Incompatible types in assignment (expression has type "object", variable has type "str | None")
+wfb/ir/builder.py: [has-type] Cannot determine type of "font_is_custom"
+wfb/ir/builder.py: [has-type] Cannot determine type of "font_name"
+wfb/ir/builder.py: [misc] "object" object is not iterable
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "list"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/ir/builder.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/ir/model.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
+wfb/ir/model.py: [attr-defined] "HandPart" has no attribute "outline"
+wfb/ir/model.py: [attr-defined] "HandPart" has no attribute "outline"
+wfb/ir/model.py: [attr-defined] "HandPart" has no attribute "text_value"
+wfb/ir/model.py: [attr-defined] "HandPart" has no attribute "text_value"
+wfb/ir/model.py: [attr-defined] Module "wfb.icons" does not explicitly export attribute "CATALOG"
+wfb/ir/model.py: [attr-defined] Module "wfb.icons" does not explicitly export attribute "CATALOG"
+wfb/ir/model.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/__init__.py: [attr-defined] "Placed" has no attribute "font"
+wfb/kinds/__init__.py: [attr-defined] "Placed" has no attribute "parts"
+wfb/kinds/__init__.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/__init__.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/__init__.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/__init__.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/complication_slot.py: [attr-defined] "Element" has no attribute "color"
+wfb/kinds/complication_slot.py: [attr-defined] "Element" has no attribute "icon_color"
+wfb/kinds/complication_slot.py: [attr-defined] "Element" has no attribute "icon_color"
+wfb/kinds/complication_slot.py: [attr-defined] "Element" has no attribute "icon_gap"
+wfb/kinds/complication_slot.py: [attr-defined] "Element" has no attribute "slot"
+wfb/kinds/complication_slot.py: [attr-defined] "Element" has no attribute "slot"
+wfb/kinds/complication_slot.py: [no-any-return] Returning Any from function declared to return "ConfigDataSlot | None"
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/complication_slot.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/complication_slot.py: [override] Argument 1 of "text_runs" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/complication_slot.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/complication_slot.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/complication_slot.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/complication_slot.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
+wfb/kinds/complication_slot.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/complication_slot.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/complication_slot.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/complication_slot.py: [union-attr] Item "None" of "Any | None" has no attribute "measure"
+wfb/kinds/complication_slot.py: [union-attr] Item "None" of "Any | None" has no attribute "sheet"
+wfb/kinds/graph.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
+wfb/kinds/graph.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
+wfb/kinds/graph.py: [arg-type] Argument 5 to "_graph_point" has incompatible type "float | None"; expected "float"
+wfb/kinds/graph.py: [assignment] Incompatible types in assignment (expression has type "None", variable has type "float")
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "color"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "max"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "max_auto"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "max_auto"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "min"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "min_auto"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "min_auto"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "sample_count"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "series"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/graph.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/graph.py: [operator] Unsupported operand types for >= ("float" and "None")
+wfb/kinds/graph.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/graph.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/graph.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/graph.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/graph.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
+wfb/kinds/graph.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/graph.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/graph.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/graph.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/graph.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/graph.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/group.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/group.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/hands.py: [attr-defined] "Element" has no attribute "hands"
+wfb/kinds/hands.py: [attr-defined] "Element" has no attribute "seconds"
+wfb/kinds/hands.py: [attr-defined] "Element" has no attribute "seconds"
+wfb/kinds/hands.py: [attr-defined] "Element" has no attribute "seconds"
+wfb/kinds/hands.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/hands.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/hands.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/hands.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/hands.py: [override] Argument 1 of "circular_extent" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/hands.py: [override] Argument 1 of "contrast_subjects" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/hands.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/hands.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/hands.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/hands.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/hands.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
+wfb/kinds/hands.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/hands.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/icon.py: [arg-type] Argument 1 to "IconFont" has incompatible type "Length | None"; expected "Length"
+wfb/kinds/icon.py: [arg-type] Argument 1 to "resolve_icon_name" of "Builder" has incompatible type "Any | None"; expected "str"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "AodOverride | None"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Expression | None"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Length | None"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Position"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Span | None"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "bool | None"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "bool"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "dict[str, object] | None"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "frozenset[str]"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "int | None"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str | None"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str"
+wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "tuple[str, ...]"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "AodOverride | None"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Expression | None"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Length | None"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Position"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Span | None"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "bool | None"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "bool"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "dict[str, object] | None"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "frozenset[str]"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "int | None"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str | None"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str"
+wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "tuple[str, ...]"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "codepoint"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "color"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "icon"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "icon"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "is_dynamic"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "is_dynamic"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "value_for"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "value_for"
+wfb/kinds/icon.py: [attr-defined] "Element" has no attribute "value_for"
+wfb/kinds/icon.py: [attr-defined] Module "wfb.icons" does not explicitly export attribute "CATALOG"
+wfb/kinds/icon.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/icon.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/icon.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/icon.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/icon.py: [override] Argument 1 of "text_runs" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/icon.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/icon.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/icon.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/icon.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
+wfb/kinds/icon.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/icon.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/icon.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/pattern.py: [arg-type] Argument 1 to "_pattern_angle_expr" has incompatible type "Element"; expected "PatternElement"
+wfb/kinds/pattern.py: [arg-type] Argument 1 to "_pattern_skip_condition" has incompatible type "Element"; expected "PatternElement"
+wfb/kinds/pattern.py: [arg-type] Argument 1 to "reads_copy" has incompatible type "object"; expected "Node | None"
+wfb/kinds/pattern.py: [arg-type] Argument 2 to "_emit_pattern_part" has incompatible type "Element"; expected "PatternElement"
+wfb/kinds/pattern.py: [arg-type] Argument 9 to "_pattern_text_ink" has incompatible type "str | PathLike[Any] | None"; expected "str | None"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "columns"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "columns"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "columns"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "count"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "count"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "parts"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "parts"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "parts"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "parts"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "step"
+wfb/kinds/pattern.py: [attr-defined] "Element" has no attribute "step_angle"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "curve"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "font"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "font_is_custom"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "format"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "format"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "if_unavailable"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "outline"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "outline"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_literal"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_literal"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_literal"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_literal"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_value"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_value"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_value"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_value"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "text_value"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "texts"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "texts"
+wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "texts"
+wfb/kinds/pattern.py: [attr-defined] Module "wfb.fonts" does not explicitly export attribute "BakedFont"
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/pattern.py: [override] Argument 1 of "circular_extent" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/pattern.py: [override] Argument 1 of "contrast_subjects" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/pattern.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/pattern.py: [override] Argument 1 of "text_runs" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/pattern.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/pattern.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/pattern.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/pattern.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
+wfb/kinds/pattern.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/pattern.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/pattern.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/pattern.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/pattern.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/pattern.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "align"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "filled"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "line_height"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_color"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_width"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "vertical_align"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "widths"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "align"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "line_height"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_color"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_width"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "vertical_align"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "widths"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "align"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "filled"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "line_height"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_color"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_width"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "vertical_align"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "widths"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "x"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "x"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "y"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "y"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "align"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "filled"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "line_height"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_color"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_width"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "thickness"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "vertical_align"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "widths"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "x"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "x"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "y"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "y"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedTextPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "filled"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedTextPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "ink"
+wfb/kinds/pattern.py: [union-attr] Item "ResolvedTextPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "thickness"
+wfb/kinds/progress.py: [arg-type] Argument 1 to "_fallback_fraction" has incompatible type "Element"; expected "Progress"
+wfb/kinds/progress.py: [arg-type] Argument 1 to "_fraction" has incompatible type "Element"; expected "Progress"
+wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object | Any"; expected "str | Buffer | SupportsFloat | SupportsIndex"
+wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
+wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
+wfb/kinds/progress.py: [arg-type] Argument 1 to "hand_part" of "Renderer" has incompatible type "PlacedProgress"; expected "PlacedHands | PlacedPattern"
+wfb/kinds/progress.py: [arg-type] Argument 2 to "_emit_needle" has incompatible type "Element"; expected "Progress"
+wfb/kinds/progress.py: [arg-type] Argument 2 to "_emit_ticked" has incompatible type "Element"; expected "Progress"
+wfb/kinds/progress.py: [assignment] Incompatible types in assignment (expression has type "Box", variable has type "IntBox")
+wfb/kinds/progress.py: [assignment] Incompatible types in assignment (expression has type "Box", variable has type "IntBox")
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "bands"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "count"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "count"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "fallback"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "fallback"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "fallback"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "geometry"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "geometry"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "geometry"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "geometry"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "geometry"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "maximum"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "maximum"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "style"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "track_color"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "value"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "when_absent"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "when_absent"
+wfb/kinds/progress.py: [attr-defined] "Element" has no attribute "when_absent"
+wfb/kinds/progress.py: [attr-defined] "IntBox" has no attribute "rounded"
+wfb/kinds/progress.py: [attr-defined] "IntBox" has no attribute "rounded"
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/progress.py: [operator] Unsupported left operand type for / ("object")
+wfb/kinds/progress.py: [operator] Unsupported operand types for - ("None" and "int")
+wfb/kinds/progress.py: [operator] Unsupported operand types for / ("float" and "None")
+wfb/kinds/progress.py: [operator] Unsupported operand types for >= ("int" and "object")
+wfb/kinds/progress.py: [override] Argument 1 of "circular_extent" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/progress.py: [override] Argument 1 of "contrast_subjects" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/progress.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/progress.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/progress.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/progress.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/progress.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
+wfb/kinds/progress.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/progress.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/progress.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/progress.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/progress.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/progress.py: [union-attr] Item "None" of "Angle | None" has no attribute "degrees"
+wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
+wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
+wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "constant"
+wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "is_constant"
+wfb/kinds/shape.py: [arg-type] Argument 1 to "placed" has incompatible type "Box"; expected "IntBox"
+wfb/kinds/shape.py: [arg-type] Argument 1 to "placed" has incompatible type "int"; expected "IntBox"
+wfb/kinds/shape.py: [assignment] Incompatible types in assignment (expression has type "IntBox", variable has type "Box")
+wfb/kinds/shape.py: [assignment] Incompatible types in assignment (expression has type "IntBox", variable has type "int")
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "color"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "filled"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "filled"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "filled"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "filled"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "points"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [attr-defined] "Element" has no attribute "shape"
+wfb/kinds/shape.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation
+wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/shape.py: [override] Argument 1 of "circular_extent" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/shape.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/shape.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/shape.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/shape.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/shape.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
+wfb/kinds/shape.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/shape.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/shape.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/text.py: [arg-type] Argument "fonts_root" to "text_ink" has incompatible type "str | PathLike[Any] | None"; expected "str | None"
+wfb/kinds/text.py: [arg-type] Argument 1 to "_aod_ring" has incompatible type "Element"; expected "Text"
+wfb/kinds/text.py: [arg-type] Argument 2 to "_emit_ring" has incompatible type "Element"; expected "Text"
+wfb/kinds/text.py: [arg-type] Argument 2 to "_emit_ring" has incompatible type "Element"; expected "Text"
+wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "int | None"
+wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "int | None"
+wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "tuple[str, ...]"
+wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "tuple[str, ...]"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "color"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "fallback"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "fallback"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "fallback"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "fallback"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "format"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "format"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "format"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "literal"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "literal"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "literal"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "literal"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "outline"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "placeholder"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "placeholder"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "unit_label"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "unit_label"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "unit_label"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "value"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "value"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "value"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "value"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "value"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "value"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "value"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "when_absent"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "when_absent"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "when_absent"
+wfb/kinds/text.py: [attr-defined] "Element" has no attribute "when_absent"
+wfb/kinds/text.py: [attr-defined] Module "wfb.fonts" does not explicitly export attribute "BakedFont"
+wfb/kinds/text.py: [index] Value of type "dict[str, object] | None" is not indexable
+wfb/kinds/text.py: [no-any-return] Returning Any from function declared to return "str | None"
+wfb/kinds/text.py: [no-any-return] Returning Any from function declared to return "str | None"
+wfb/kinds/text.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/text.py: [no-untyped-def] Function is missing a return type annotation
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/kinds/text.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/text.py: [override] Argument 1 of "text_runs" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/text.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/text.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
+wfb/kinds/text.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
+wfb/kinds/text.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
+wfb/kinds/text.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/text.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/text.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/text.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/kinds/text.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/kinds/text.py: [union-attr] Item "None" of "AodOverride | None" has no attribute "font_is_custom"
+wfb/kinds/text.py: [union-attr] Item "None" of "Curve | None" has no attribute "radius"
+wfb/kinds/text.py: [union-attr] Item "None" of "Curve | None" has no attribute "radius"
+wfb/layout.py: [arg-type] Argument "fonts_root" to "_Font" has incompatible type "str | PathLike[Any] | None"; expected "str | None"
+wfb/layout.py: [arg-type] Argument "fonts_root" to "_Font" has incompatible type "str | PathLike[Any] | None"; expected "str | None"
+wfb/layout.py: [arg-type] Argument 4 to "visible_reach" has incompatible type "str | PathLike[Any] | None"; expected "str | None"
+wfb/layout.py: [attr-defined] "Element" has no attribute "outline"
+wfb/layout.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/layout.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "align"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "align"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "align"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "at"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "at"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "at"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "at"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "curve"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "curve"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "curve"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "curve"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "filled"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "filled"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "font"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "font_is_custom"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "outline"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "points"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "radius"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "radius"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "size"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "size"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "start_angle"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "sweep"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "texts"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "thickness"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "thickness"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "thickness"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "to"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "vertical_align"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "vertical_align"
+wfb/layout.py: [attr-defined] "HandPart" has no attribute "vertical_align"
+wfb/layout.py: [attr-defined] Module "wfb.fonts" does not explicitly export attribute "BakedFont"
+wfb/layout.py: [no-untyped-def] Function is missing a return type annotation
+wfb/layout.py: [union-attr] Item "HandPart" of "Text | HandPart | IconElement" has no attribute "align"
+wfb/layout.py: [union-attr] Item "HandPart" of "Text | HandPart | IconElement" has no attribute "vertical_align"
+wfb/layout.py: [union-attr] Item "None" of "Angle | None" has no attribute "degrees"
+wfb/layout.py: [union-attr] Item "None" of "tuple[str, ...] | None" has no attribute "__iter__" (not iterable)
+wfb/lint.py: [arg-type] Argument 1 to "join" of "str" has incompatible type "tuple[str, ...] | None"; expected "Iterable[str]"
+wfb/lint.py: [arg-type] Argument 4 to "visible_reach" has incompatible type "str | PathLike[Any] | None"; expected "str | None"
+wfb/lint.py: [assignment] Incompatible types in assignment (expression has type "list[str] | list[None]", variable has type "list[str | None]")
+wfb/lint.py: [attr-defined] "Element" has no attribute "columns"
+wfb/lint.py: [attr-defined] "Element" has no attribute "columns"
+wfb/lint.py: [attr-defined] "Element" has no attribute "count"
+wfb/lint.py: [attr-defined] "Element" has no attribute "count"
+wfb/lint.py: [attr-defined] "Element" has no attribute "geometry"
+wfb/lint.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/lint.py: [attr-defined] "Element" has no attribute "pattern"
+wfb/lint.py: [attr-defined] "Element" has no attribute "step"
+wfb/lint.py: [attr-defined] "Placed" has no attribute "cell"
+wfb/lint.py: [attr-defined] "Placed" has no attribute "cell"
+wfb/lint.py: [attr-defined] "Placed" has no attribute "step"
+wfb/lint.py: [misc] "None" object is not iterable
+wfb/lint.py: [no-any-return] Returning Any from function declared to return "bool"
+wfb/lint.py: [no-untyped-call] Call to untyped function "_aod_burn_in_luts" in typed context
+wfb/lint.py: [no-untyped-call] Call to untyped function "_contrast_subjects" in typed context
+wfb/lint.py: [no-untyped-def] Function is missing a return type annotation
+wfb/lint.py: [no-untyped-def] Function is missing a return type annotation
+wfb/lint.py: [no-untyped-def] Function is missing a return type annotation
+wfb/lint.py: [no-untyped-def] Function is missing a return type annotation
+wfb/lint.py: [no-untyped-def] Function is missing a return type annotation
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/lint.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/lint.py: [type-arg] Missing type arguments for generic type "list"
+wfb/lint.py: [type-arg] Missing type arguments for generic type "list"
+wfb/lint.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/lint.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/lint.py: [type-arg] Missing type arguments for generic type "tuple"
+wfb/lint.py: [union-attr] Item "None" of "ConfigStyle | None" has no attribute "default"
+wfb/lint.py: [union-attr] Item "None" of "Expression | None" has no attribute "span"
+wfb/lint.py: [union-attr] Item "None" of "Expression | None" has no attribute "span"
+wfb/lint.py: [union-attr] Item "None" of "Expression | None" has no attribute "text"
+wfb/lint.py: [union-attr] Item "None" of "Expression | None" has no attribute "text"
+wfb/lint.py: [union-attr] Item "str" of "str | ConfigChoice" has no attribute "color"
+wfb/palette.py: [no-untyped-call] Call to untyped function (unknown) in typed context
+wfb/preview.py: [arg-type] Argument 1 to "paste_glyph" of "Renderer" has incompatible type "Image | None"; expected "Image"
+wfb/preview.py: [attr-defined] Module "wfb.fonts" does not explicitly export attribute "BakedFont"
+wfb/preview.py: [attr-defined] Module has no attribute "BICUBIC"
+wfb/preview.py: [attr-defined] Module has no attribute "LANCZOS"
+wfb/preview.py: [attr-defined] Module has no attribute "NEAREST"
+wfb/preview.py: [attr-defined] Module has no attribute "NEAREST"
+wfb/preview.py: [call-overload] No overload variant of "int" matches argument type "object"
+wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
+wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
+wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
+wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
+wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
+wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/preview.py: [operator] Unsupported operand types for / ("tuple[int, int]" and "int")
+wfb/preview.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/preview.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/preview.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/preview.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/preview.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/simulate.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/simulate.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/simulate.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
+wfb/validate.py: [arg-type] Argument 1 to "get" of "dict" has incompatible type "Any | None"; expected "str"
+wfb/validate.py: [assignment] Incompatible types in assignment (expression has type "ValidationError | None", variable has type "ValidationError")
+wfb/validate.py: [no-any-return] Returning Any from function declared to return "dict[Any, Any]"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "dict"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [type-arg] Missing type arguments for generic type "list"
+wfb/validate.py: [union-attr] Item "Unset" of "Any | Unset | list[Any | Unset]" has no attribute "__iter__" (not iterable)
+wfb/validate.py: [union-attr] Item "Unset" of "Any | Unset" has no attribute "__iter__" (not iterable)
+wfb/validate.py: [union-attr] Item "Unset" of "Mapping[str, Any] | Literal[True] | Unset" has no attribute "get"
+wfb/validate.py: [union-attr] Item "Unset" of "Mapping[str, Any] | Literal[True] | Unset" has no attribute "get"
+wfb/validate.py: [union-attr] Item "bool" of "Mapping[str, Any] | Literal[True] | Unset" has no attribute "get"
+wfb/validate.py: [union-attr] Item "bool" of "Mapping[str, Any] | Literal[True] | Unset" has no attribute "get"

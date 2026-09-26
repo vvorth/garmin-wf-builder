@@ -57,8 +57,8 @@ and a JSON Schema validator for the format.
   pinned lockfile; acceptable for a personal tool, and would need revisiting if
   this were ever distributed broadly.
 - No compiler-enforced exhaustiveness over IR node types the way Rust's enums
-  would give. Mitigated by: strict type hints checked in CI (`mypy --strict`),
-  and the JSON Schema as the real validation boundary. IR correctness is
+  would give. Mitigated by: strict type hints checked by `mypy --strict`
+  (see the amendment below), and the JSON Schema as the real validation boundary. IR correctness is
   enforced by golden-file tests either way.
 - Runtime performance is irrelevant at this scale but would matter if a live GUI
   preview needed 60 fps rendering. The editor is Phase 3.8; if it needs that, the
@@ -79,3 +79,16 @@ and a JSON Schema validator for the format.
 - **TypeScript/Node** — excluded by the brief. (Noted that the nearest prior art,
   `tobwil/garmincreator`, is Next.js/TypeScript and stalled at device breadth —
   a problem of device data, not language.)
+
+**Amendment 2026-09-26: `mypy --strict` runs as its own test set, against
+a baseline.** The check this ADR names as its mitigation arrived after most
+of the compiler, which by then reported 1,029 errors under `--strict` (606
+under mypy's defaults), most of them one pattern: kind code reads
+`placed.element.<field>` through the base `Element` type, so the
+exhaustiveness the check exists for is exactly what the code does not yet
+state. Rather than fix all of them first, `tests/mypy-baseline.txt` records
+each error without its line number, and the `typecheck` test set
+(`pytest -m typecheck`, about 4 s cold) fails on anything the baseline does
+not hold *and* on any entry no longer reported, so the baseline can only
+shrink (`tools/typecheck.py --update`). It is opt-in, not part of the fast
+suite; there is still no CI to run it.

@@ -1,2 +1,4 @@
 -r requirements.txt
 pytest>=8
+mypy==2.3.1           # tests/test_typecheck.py; pinned: tests/mypy-baseline.txt is per version
+types-jsonschema==4.26.0.20260518  # jsonschema's type stubs, for the same baseline

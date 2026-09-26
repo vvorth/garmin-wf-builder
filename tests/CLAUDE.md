@@ -4,6 +4,12 @@ Loaded automatically when working under `tests/`.
 
 - **Fast suite:** `./.venv/bin/python -m pytest -m "not slow"`. Only tests
   marked `slow` invoke the real `monkeyc`.
+- **Type check:** `./.venv/bin/python -m pytest -m typecheck` runs
+  `mypy --strict` over `wfb/` (`mypy.ini`) against `tests/mypy-baseline.txt`.
+  It is its own test set: `conftest.py` deselects it unless `-m` names it.
+  A new error fails it, and so does a baseline entry no longer reported --
+  fix the error, or after fixing some run `tools/typecheck.py --update` and
+  commit the smaller baseline. Never add to the baseline to get green.
 - **The fast suite is green.** Every
   example lints clean on every target: intended rim contact and platform
   gaps are accepted per element with `lint: {allow: [...], reason: ...}`.

@@ -9,3 +9,5 @@ docs/research/data/
 vendor/
 build/
 examples/**/assets/
+# The mypy --strict baseline: a thousand lines of known errors
+tests/mypy-baseline.txt

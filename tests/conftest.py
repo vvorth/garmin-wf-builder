@@ -147,3 +147,17 @@ def _run_from_repo_root(monkeypatch):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: needs the Garmin toolchain and runs monkeyc")
+    config.addinivalue_line(
+        "markers", "typecheck: the mypy --strict sweep; runs only when -m names it")
+
+
+def pytest_collection_modifyitems(config, items):
+    """The `typecheck` set is its own test set: it runs only when the marker
+    expression names it (`-m typecheck`), never as part of `pytest` or
+    `pytest -m "not slow"`."""
+    if "typecheck" in (config.getoption("markexpr") or ""):
+        return
+    kept = [item for item in items if item.get_closest_marker("typecheck") is None]
+    if len(kept) != len(items):
+        config.hook.pytest_deselected(items=[i for i in items if i not in kept])
+        items[:] = kept

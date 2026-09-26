@@ -667,7 +667,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
 | ADR 0008's check 2, **unsupported API for a targeted device**: a source-level extra function dependency | modules, fields and complication types are checked per device (`api-gated`, §3 below); `catalog.Source.requires`, the hook for a source whose read needs a function beyond its reader's, is honoured by `wfb.availability.source_unavailable` but set on no source, because none needs it today |
-| `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
+| A clean `mypy --strict`, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 amendment -- the check runs as the opt-in `typecheck` test set against a baseline of 1,029 known errors, failing on any new one; the baseline is still to be worked down, and there is no CI to run it |
 | `seconds: always` (a second hand while asleep) | plan 04 §11 -- needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one; refused with a friendly error, not a schema enum message |
 | `arc` hand parts | plan 04 §11 -- would need the start angle to rotate with the hand too |
 | Data-driven hand colours | plan 04 §11 -- a hand has no `when_absent:` to fall back through if the bound reading were absent |
