@@ -281,7 +281,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - **phone settings**: frozen, incomplete, on `wip/phone-settings`. Do not
     resume without asking;
   - catalogue generation from the SDK;
-  - `Source.requires`, which is read by nothing;
+  - any `Source.requires` entry: the hook is honoured by
+    `wfb.availability.source_unavailable` but no source sets it (ADR 0008
+    check 2 is otherwise built: `api-gated`);
   - the GUI, which if built must be a thin client over `wfb/preview.py`;
   - `mypy --strict` and CI;
   - `wfb install`/`package`/`migrate`.

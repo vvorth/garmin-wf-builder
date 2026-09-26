@@ -271,8 +271,10 @@ specifies each item.
    pointer at `backup/pre-integrate`. Treat none of it as working, and do not
    resume without asking the user.
 6. Catalogue generation from the SDK (ADR 0005 §1).
-7. `catalog.Source.requires` is read by nothing. ADR 0008's check 2 is only
-   partly built.
+7. `catalog.Source.requires` is set on no source. ADR 0008's check 2 is
+   otherwise built (`api-gated`: modules, fields, complication types); the
+   hook is read by `wfb.availability.source_unavailable` for a future
+   source whose read needs an extra function.
 8. **The GUI** (ADR 0002). Unit round-tripping and schema churn make it
    premature (`docs/research/06-authoring-ergonomics.md` §4). If it is ever
    built, build it as a thin client over `wfb/preview.py`, not a second

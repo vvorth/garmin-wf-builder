@@ -666,7 +666,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |
-| ADR 0008's check 2, **unsupported API for a targeted device**, for anything other than `on_hold:` | `on_hold:` resolves `WatchFaceDelegate.onPress` against each device's own symbol table, so the machinery is live — but `catalog.Source.requires` still consults nothing; §3 below has the detail |
+| ADR 0008's check 2, **unsupported API for a targeted device**: a source-level extra function dependency | modules, fields and complication types are checked per device (`api-gated`, §3 below); `catalog.Source.requires`, the hook for a source whose read needs a function beyond its reader's, is honoured by `wfb.availability.source_unavailable` but set on no source, because none needs it today |
 | `mypy --strict` in CI, ADR 0001's stated mitigation for Python's lack of compile-time exhaustiveness checking over IR node types | ADR 0001 -- there is no CI configuration anywhere in the repo, and `mypy` is not even in `requirements-dev.txt` |
 | `seconds: always` (a second hand while asleep) | plan 04 §11 -- needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one; refused with a friendly error, not a schema enum message |
 | `arc` hand parts | plan 04 §11 -- would need the start angle to rotate with the hand too |
@@ -737,8 +737,8 @@ pushed" below). All 42 `COMPLICATION_TYPE_*` values are data sources under
 raise a `source-renamed` build error naming the replacement (`docs/guide/data.md`'s
 "The `complication.*` namespace", `WfbComplications.mc`).
 `complication.sleep_score` needs ConnectIQ 6.0.2, above `fr955`'s 5.2.0
-ceiling, so it never updates there (below, "device gating for a source is not
-enforced").
+ceiling, so it never updates there; the `api-gated` lint warns about it on
+that target (below, "Device gating for a source is only partly enforced").
 
 ### Screen shapes
 
@@ -1080,8 +1080,10 @@ glance, and back returns — so this is documented rather than gated.
 
   * a missing reader *function* symbol (as opposed to a module or a field)
     has no runtime guard, so it is a build error rather than a warning;
-  * `catalog.Source.requires` (`Parent.name` symbols a binding needs) is set
-    on exactly one source (`device.do_not_disturb`) and read by nothing.
+  * `catalog.Source.requires` (`Parent.name` function symbols a binding
+    needs beyond its reader's call) is set on no source. It is read
+    (`wfb.availability.source_unavailable`), so an entry added later is
+    checked, but nothing needs one today.
 
   The complication check does **not** go through `Device.has_symbol`, and
   could not: `COMPLICATION_TYPE_*` are constants, absent from
