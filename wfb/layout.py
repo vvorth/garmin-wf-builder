@@ -22,8 +22,8 @@ from .diagnostics import Span
 from .fonts import BakedFont, fallback
 from .ir import (
     ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
-    HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape,
-    Text, draw_sort_key,
+    AnyHandPart, HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape,
+    Text, TextPart, draw_sort_key,
 )
 from .units import Angle, Axis, Box, IntBox, Length
 
@@ -1266,7 +1266,7 @@ class Resolver:
                           size_px=font_px)
 
     def resolve_parts(
-        self, parts: list[HandPart], owner: str, *, min_1px: bool,
+        self, parts: list[AnyHandPart], owner: str, *, min_1px: bool,
     ) -> tuple[tuple[ResolvedHandPart, ...], float]:
         """Every part of one `parts:` list (a hand's, or a pattern's
         template), plus the farthest reach among them.  `owner` prefixes
@@ -1280,7 +1280,7 @@ class Resolver:
         return tuple(resolved), reach
 
     def _resolve_hand_part(
-        self, part: HandPart, owner: str, index: int, *, min_1px: bool,
+        self, part: AnyHandPart, owner: str, index: int, *, min_1px: bool,
     ) -> ResolvedHandPart:
         """:meth:`_hand_part_geometry`, with the part (`<owner>.parts[<index>]`,
         its own span) as the owner of any `SubPixelLength` it raises, for
@@ -1291,7 +1291,7 @@ class Resolver:
             return self._hand_part_geometry(part, owner_id, min_1px=min_1px)
 
     def _hand_part_geometry(
-        self, part: HandPart, owner_id: str, *, min_1px: bool,
+        self, part: AnyHandPart, owner_id: str, *, min_1px: bool,
     ) -> ResolvedHandPart:
         """One hand or pattern part -> whole-pixel geometry in its own frame
         (origin = the axis / the pattern's `at:`, 12 o'clock up), with its
@@ -1343,6 +1343,7 @@ class Resolver:
             return ResolvedPolygonPart(part.color, reach, points=points)
 
         if part.shape == "line":
+            assert part.to is not None  # a line part requires `to:`
             x1, y1 = self._hand_point(part.at)
             x2, y2 = self._hand_point(part.to)
             thickness = max(1, round_half_away(self._hand_extent(
@@ -1380,7 +1381,7 @@ class Resolver:
             x0, y0 = self._hand_point(part.at)
             font = self.text_font(part.font, part.font_is_custom, owner_id, part.curve)
             curve = resolved_curve(part.curve)
-            if curve.style == "radial" and part.curve.radius is not None:
+            if part.curve is not None and curve.style == "radial" and part.curve.radius is not None:
                 # Through `_hand_extent`, like any other part radius: a
                 # relative one gets the `min_1px`/sub-pixel-length treatment.
                 curve = replace(curve, radius_px=round_half_away(self._hand_extent(
@@ -1517,7 +1518,7 @@ class Resolver:
                      fonts_root=self.device.fonts_root)
 
     @staticmethod
-    def justify(element: Text | HandPart | IconElement) -> tuple[str, ...]:
+    def justify(element: Text | TextPart | IconElement) -> tuple[str, ...]:
         """`Toybox.Graphics.TEXT_JUSTIFY_*` flags for anything with `.align`/
         `.vertical_align` -- a `Text` element, a `shape: text` pattern part,
         or an `IconElement`, all of which carry the same two fields under

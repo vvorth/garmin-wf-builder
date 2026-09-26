@@ -14,7 +14,7 @@ from ..catalog import Type
 from ..fonts import BakedFont
 from ..ir.builder import ABSENCE_IS_NORMAL, and_paths, dedup_append
 from ..ir.model import (
-    Element, Expression, HandPart, PATTERN_LOOP_INDEX, PatternElement, Position,
+    AnyHandPart, Element, Expression, PATTERN_LOOP_INDEX, PatternElement, Position,
     ROLE_COLOR, ROLE_PART_VISIBLE, drawn_copies,
 )
 from ..layout import Ink, Placed, PlacedPattern, ResolvedHandPart, round_half_away, text_ink
@@ -217,7 +217,7 @@ def _pattern_steps(
     return step_degrees, start_degrees, None
 
 
-def _render_pattern_texts(b: Builder, element_id: str, parts: list[HandPart], count: int) -> bool:
+def _render_pattern_texts(b: Builder, element_id: str, parts: list[AnyHandPart], count: int) -> bool:
     """Fill each `shape: text` part's per-copy strings (`TextPart.texts`),
     device-independently -- the same evaluation the host preview does
     for an ordinary `text` element, which is what makes a text part's
@@ -231,6 +231,8 @@ def _render_pattern_texts(b: Builder, element_id: str, parts: list[HandPart], co
             part.texts = (part.text_literal,) * count
             continue
         texts: list[str] = []
+        # A text part has `text:` or `value:`, never neither (PatternKind.build).
+        assert part.text_value is not None and part.text_value.ast is not None
         for i in range(count):
             value = expr.evaluate(part.text_value.ast, {expr.COPY: i})
             if value is None:
@@ -610,10 +612,12 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     part_prefix = f"{prefix}_{index}"
     if part.shape == "text":
         ir_part = element.parts[index]
+        assert ir_part.shape == "text"  # resolved parts are the IR parts, 1:1
         if ir_part.text_literal is not None:
             escaped = ir_part.text_literal.replace("\\", "\\\\").replace('"', '\\"')
             value_code = f'"{escaped}"'
         else:
+            assert ir_part.text_value is not None  # `text:` or `value:`, never neither
             value_code = formatting.emit(
                 ir_part.format or "{}",
                 ir_part.text_value.code,
@@ -731,7 +735,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             )
             return None
 
-        parts: list[HandPart] = []
+        parts: list[AnyHandPart] = []
         # `copy` -- the index of the copy being drawn -- exists only here,
         # compiled to the generated loop's own index (`emit_draw`).
         b.scope.define(expr.COPY, expr.Binding(expr.Value(Type.NUMBER), code=PATTERN_LOOP_INDEX))

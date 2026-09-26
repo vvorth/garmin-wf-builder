@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from .. import catalog, expr, icons, units
 from ..diagnostics import Span
@@ -896,7 +896,7 @@ class HandPart:
 
 @dataclass
 class PolygonPart(HandPart):
-    shape: ClassVar[str] = "polygon"
+    shape: ClassVar[Literal["polygon"]] = "polygon"
     #: 3-64 vertices, each measured from the origin.
     points: list[Position] = field(default_factory=list)
     #: Always `True`: `filled: false` is refused (no `drawPolygon`).
@@ -905,7 +905,7 @@ class PolygonPart(HandPart):
 
 @dataclass
 class RectanglePart(HandPart):
-    shape: ClassVar[str] = "rectangle"
+    shape: ClassVar[Literal["rectangle"]] = "rectangle"
     #: The centre, default the origin; `align:`/`vertical_align:` move the
     #: `size:` box off it (`Resolver._hand_part_geometry`).
     at: Position = field(default_factory=Position)
@@ -918,7 +918,7 @@ class RectanglePart(HandPart):
 
 @dataclass
 class LinePart(HandPart):
-    shape: ClassVar[str] = "line"
+    shape: ClassVar[Literal["line"]] = "line"
     at: Position = field(default_factory=Position)
     #: The end point.
     to: Position | None = None
@@ -927,7 +927,7 @@ class LinePart(HandPart):
 
 @dataclass
 class CirclePart(HandPart):
-    shape: ClassVar[str] = "circle"
+    shape: ClassVar[Literal["circle"]] = "circle"
     at: Position = field(default_factory=Position)
     radius: Length | None = None
     #: Pen width, when not `filled`.
@@ -941,7 +941,7 @@ class CirclePart(HandPart):
 class ArcPart(HandPart):
     """Pattern-only; always centred on the copy's own origin (no `at:`)."""
 
-    shape: ClassVar[str] = "arc"
+    shape: ClassVar[Literal["arc"]] = "arc"
     radius: Length | None = None
     thickness: Length | None = None
     #: Author degrees, same convention `Shape.start_angle`/`.sweep` use.
@@ -955,7 +955,7 @@ class TextPart(HandPart):
     turns (radial) or steps (linear) with the copy.  `value:` may read only
     `copy`; exactly one of `text_value`/`text_literal` is set."""
 
-    shape: ClassVar[str] = "text"
+    shape: ClassVar[Literal["text"]] = "text"
     at: Position = field(default_factory=Position)
     text_value: Expression | None = None
     #: `text:` -- a fixed string, the same for every copy.
@@ -983,12 +983,16 @@ class TextPart(HandPart):
     outline: "Outline | None" = None
 
 
+#: Any one hand, needle or pattern part: `part.shape == "text"` narrows it.
+AnyHandPart = PolygonPart | RectanglePart | LinePart | CirclePart | ArcPart | TextPart
+
+
 @dataclass
 class Hand:
     """`hour:`/`minute:`/`second:` inside a `hands:` set -- a default colour
     for its parts, plus the parts themselves, in draw order."""
 
-    parts: list[HandPart] = field(default_factory=list)
+    parts: list[AnyHandPart] = field(default_factory=list)
     #: The hand's own `color:`, before a part's own overrides it -- kept
     #: mainly for `docs`/introspection; every `HandPart.color` above is
     #: already the *effective* colour, so codegen never has to fall back to
@@ -1083,7 +1087,7 @@ class PatternElement(Element):
     columns: int | None = None
     skip: tuple[int, ...] = ()
     skip_every: int | None = None
-    parts: list[HandPart] = field(default_factory=list)
+    parts: list[AnyHandPart] = field(default_factory=list)
     #: The element's own `color:` -- the default every part without one of
     #: its own inherits, before overrides (mirrors `Hand.color`).
     color: Expression | None = None
@@ -1213,7 +1217,7 @@ class Progress(Element):
     #: `style: needle` only: the needle's parts, authored like an analog
     #: hand's (pointing at 12, the axis at the origin), each with its
     #: effective colour -- its own, or the element's `color:`.
-    needle: tuple["HandPart", ...] = ()
+    needle: tuple["AnyHandPart", ...] = ()
     #: `style: segments` only: how many cells, and the space between two.
     count: int | None = None
     gap: Length | None = None

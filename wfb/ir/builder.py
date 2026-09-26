@@ -28,7 +28,7 @@ from ..yamlsrc import YamlDocument
 from .model import (
     AodOverride, ColorScheme, ComplicationSlot, ConfigChoice, ConfigColor, ConfigDataSlot,
     ConfigStyle, Curve, Element, Expression, Face, FontSpec, Group,
-    HOLD_AUTO, ArcPart, CirclePart, Hand, HandPart, HandSet, LayoutDecl, LinePart,
+    HOLD_AUTO, AnyHandPart, ArcPart, CirclePart, Hand, HandPart, HandSet, LayoutDecl, LinePart,
     MAX_OUTLINE_WIDTH, PolygonPart, RectanglePart, TextPart,
     Outline, ROLE_VALUE, ROLE_VISIBLE,
     PatternElement, Position, SYSTEM_FONTS, Shape, Size, StyleEntry, Text,
@@ -1193,7 +1193,7 @@ class Builder:
         where = f"hands.{set_name}.{hand_name}"
         hand_color, color_failed = self.owned_color(spec, where, hand=True)
         ok = not color_failed
-        parts: list[HandPart] = []
+        parts: list[AnyHandPart] = []
         for index, raw_part in enumerate(spec.get("parts") or []):
             part = self.build_hand_part(raw_part, where, index, hand_color, color_failed)
             if part is None:
@@ -1253,7 +1253,7 @@ class Builder:
         self, node: dict[str, Any], where: str, index: int,
         default_color: Expression | None, default_color_failed: bool,
         *, context: str = "hand",
-    ) -> HandPart | None:
+    ) -> AnyHandPart | None:
         """One primitive of a hand, or of a `type: pattern` template -- the
         same per-shape precedent as `wfb.kinds.shape.ShapeKind.build`/
         `wfb.kinds.shape._check_shape_keys`, scoped to the
