@@ -15,16 +15,17 @@ from __future__ import annotations
 import difflib
 import re
 from collections.abc import Iterable
+from typing import TypedDict
 
 from . import availability, catalog, complications, kinds, series
 from .devices import Device, version_key
-from .diagnostics import Bag, Diagnostic, Severity
+from .diagnostics import Bag, Diagnostic, Severity, Span
 from .ir import (
-    CONFIG_SYMBOL, ComplicationSlot, Element, Face, FontSpec, Graph,
+    CONFIG_SYMBOL, ComplicationSlot, Element, Expression, Face, FontSpec, Graph,
     PatternElement, StyleEntry, authored_draw_order, never_together,
 )
 from .layout import (
-    BEZEL_MARGIN, PlacedPattern, PlacedText, ResolvedFace,
+    BEZEL_MARGIN, Placed, PlacedPattern, PlacedText, ResolvedFace,
     inside_screen, inside_visible_area_for, is_antialiased_primitive, is_full_bleed,
     visible_reach,
 )
@@ -1456,7 +1457,7 @@ AOD_BURN_IN_SAMPLE: dict[str, object] = {"system.battery": 100.0}
 _AOD_BURN_IN_TOP_N = 3
 
 
-def _aod_burn_in_lut(weight: float):
+def _aod_burn_in_lut(weight: float) -> bytes:
     """A 256-entry lookup table mapping an sRGB-encoded 0-255 channel value
     to its share of `weight` of full-white relative luminance, 0-255 --
     built once from `wfb.palette.srgb_channel_to_linear` so a whole
@@ -1471,10 +1472,10 @@ def _aod_burn_in_lut(weight: float):
 #: built lazily (module import time has no Pillow-free reason to pay for
 #: this) by `_aod_burn_in_luts`.
 _AOD_LUMINANCE_WEIGHTS = (0.2126, 0.7152, 0.0722)
-_aod_burn_in_luts_cache: tuple | None = None
+_aod_burn_in_luts_cache: tuple[bytes, ...] | None = None
 
 
-def _aod_burn_in_luts():
+def _aod_burn_in_luts() -> tuple[bytes, ...]:
     global _aod_burn_in_luts_cache
     if _aod_burn_in_luts_cache is None:
         _aod_burn_in_luts_cache = tuple(_aod_burn_in_lut(w) for w in _AOD_LUMINANCE_WEIGHTS)
@@ -1789,7 +1790,7 @@ def check_api_gated(resolved: ResolvedFace, bag: Bag) -> None:
     has_complications, has_onpress = probed
 
     # Case 2's candidates: (placed, complication name, span, kind).
-    candidates: list[tuple] = []
+    candidates: list[tuple[Placed, str, Span | None, str]] = []
     for placed in resolved.items:
         element = placed.element
         for expression in element.expressions():
@@ -1919,7 +1920,8 @@ def _emit_source_gap(bag: Bag, placed, path: str, span, gap: "availability.Unava
     ))
 
 
-def _check_complication_since(bag: Bag, resolved: ResolvedFace, candidates: list[tuple]) -> None:
+def _check_complication_since(bag: Bag, resolved: ResolvedFace,
+                              candidates: list[tuple[Placed, str, Span | None, str]]) -> None:
     """Case 2 of :func:`check_api_gated`: a complication *type* introduced
     after the device's own ConnectIQ ceiling."""
     if not candidates:
@@ -2078,7 +2080,7 @@ def _same_provable_color(a, b) -> bool:
     return a.constant == b.constant
 
 
-def _outlined_interiors(element) -> list:
+def _outlined_interiors(element: Element) -> list[Expression | None]:
     """Every interior colour this element draws under a ring: a `text`
     element's own, or one per outlined `shape: text` part of a pattern
     (plan 15 §14 slice 2).  `[]` for any kind that cannot have one.
@@ -2094,7 +2096,7 @@ def _outlined_interiors(element) -> list:
     so its overlap is still reported, never silently skipped.
     """
     roles = [role for role in element.color_roles() if not role.aod]
-    interiors: list = []
+    interiors: list[Expression | None] = []
     for label in dict.fromkeys(role.label for role in roles if role.role == "ring"):
         inks = [role.expression for role in roles if role.role == "ink" and role.label == label]
         interiors.extend(inks or [None])
@@ -2257,6 +2259,7 @@ def check_pattern_step(resolved: ResolvedFace, bag: Bag) -> None:
         element = placed.element
         if element.pattern == "grid":
             # Per axis: columns collapse when dx rounds away, rows when dy does.
+            assert element.columns is not None  # a grid always has columns:
             rows = -(-element.count // element.columns)
             collapsed = [what for what, n, d in (("column", element.columns, placed.dx),
                                                   ("row", rows, placed.dy)) if n > 1 and d == 0]
@@ -2294,7 +2297,18 @@ _STATS_RE = re.compile(
 _PRG_RE = re.compile(r"Total PRG Size:\s*(?P<prg>\d+) bytes")
 
 
-def check_memory(device: Device, build_output: str, bag: Bag) -> dict | None:
+class MemoryStats(TypedDict):
+    """One device's `monkeyc --build-stats` figures, in bytes."""
+
+    data: int
+    code: int
+    total: int
+    limit: int
+    #: The `.prg` file's size, when the build output states it.
+    prg: int | None
+
+
+def check_memory(device: Device, build_output: str, bag: Bag) -> MemoryStats | None:
     """Compare ``monkeyc --build-stats`` against the device's watch-face limit.
 
     Measured, not estimated: static estimation of Monkey C bytecode size from an
@@ -2307,7 +2321,7 @@ def check_memory(device: Device, build_output: str, bag: Bag) -> dict | None:
     total = data + code
     limit = device.watchface_memory_limit
     prg_match = _PRG_RE.search(build_output)
-    result = {
+    result: MemoryStats = {
         "data": data, "code": code, "total": total, "limit": limit,
         "prg": int(prg_match.group("prg")) if prg_match else None,
     }

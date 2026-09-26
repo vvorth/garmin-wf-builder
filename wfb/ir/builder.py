@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import Generic, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast
 
 from .. import catalog, complications, expr, formatting, icons, kinds, units
 from ..catalog import Type
@@ -365,7 +365,7 @@ class Builder:
 
     # -- layouts, palette, config, fonts, scope -----------------------------
 
-    def _build_layouts(self, raw: dict) -> None:
+    def _build_layouts(self, raw: dict[str, Any]) -> None:
         """`layouts:` -- named widget sets, form A only.
 
         Post-desugar each body is just `{}` or `{lint: ...}`: `wfb.desugar`
@@ -424,7 +424,7 @@ class Builder:
                     ],
                 )
 
-    def _check_layouts_reachable(self, data: dict) -> None:
+    def _check_layouts_reachable(self, data: dict[str, Any]) -> None:
         """`layouts:` declared with no `config: style:` entry ever naming one
         as its `layout:` is an error -- nothing lets the wearer pick it.
 
@@ -448,7 +448,7 @@ class Builder:
                    "or remove 'layouts:'"],
         )
 
-    def _build_palette(self, raw: dict) -> None:
+    def _build_palette(self, raw: dict[str, Any]) -> None:
         """`palette:` -- named colours, in either of two spellings.
 
         The short form, `name: "#RRGGBB"`, is unchanged.  The long form,
@@ -522,7 +522,7 @@ class Builder:
             self.bag.error("config", str(exc), span)
             return None
 
-    def _build_color_scheme(self, raw: dict) -> None:
+    def _build_color_scheme(self, raw: dict[str, Any]) -> None:
         """`color_scheme:` -- named role -> colour sets, picked on-device via
         a `config: style:` entry's own `colors:` (docs/research/09 §3,
         ADR 0006 1's second amendment).
@@ -627,7 +627,7 @@ class Builder:
         )
         return name if decl is not None else None
 
-    def _build_config_style(self, spec: dict, span: Span | None) -> None:
+    def _build_config_style(self, spec: dict[str, Any], span: Span | None) -> None:
         """`config: style:` -- an author-named, ordered set of entries riding
         Styles, the one axis Garmin gives no meaning to at all
         (docs/research/09 §3).  `config: colors:` is not a key; the schema
@@ -809,7 +809,7 @@ class Builder:
         self.bag.error("config", f"{what}: unknown complication type {raw!r}", span, notes=notes)
         return None
 
-    def _build_config_data(self, raw: dict, block_span: Span | None) -> None:
+    def _build_config_data(self, raw: dict[str, Any], block_span: Span | None) -> None:
         """`config: data:` -- named native complication slots
         (docs/research/09-data-library-and-config-axes.md §4).
 
@@ -899,7 +899,7 @@ class Builder:
                 name=name, default=default, choices=tuple(choices),
                 icon_overrides=icon_overrides, span=span)
 
-    def _build_config(self, raw: dict) -> None:
+    def _build_config(self, raw: dict[str, Any]) -> None:
         """`config:` -- the native editor's colour axes, the Styles axis, and
         the Data axis (ADR 0006 1, twice amended; docs/research/09 §4).
 
@@ -973,7 +973,7 @@ class Builder:
             self.config[name] = ConfigColor(name=name, default=default,
                                             choices=tuple(choices), span=span)
 
-    def _build_fonts(self, raw: dict) -> None:
+    def _build_fonts(self, raw: dict[str, Any]) -> None:
         base = self.doc.path.parent
         for name, spec in raw.items():
             span = self.doc.span(raw, name)
@@ -989,7 +989,7 @@ class Builder:
             self.fonts[name] = font
 
     def _build_baked_font(
-        self, name: str, spec: dict, base: Path, span: Span | None,
+        self, name: str, spec: dict[str, Any], base: Path, span: Span | None,
     ) -> FontSpec | None:
         source = base / str(spec["source"])
         if not source.exists():
@@ -1051,7 +1051,7 @@ class Builder:
     #: "text-antialias" precedent `wfb.kinds.text._reject_text_antialias` follows).
     _VECTOR_FONT_BAKING_KEYS = ("glyphs", "monospace", "align", "antialias")
 
-    def _build_vector_font(self, name: str, spec: dict, span: Span | None) -> FontSpec | None:
+    def _build_vector_font(self, name: str, spec: dict[str, Any], span: Span | None) -> FontSpec | None:
         """`fonts.<name>.face:` -- a device-resident scalable face (plan 11
         §2.1), resolved per device later (`wfb.availability.
         vector_font_face`); here only the author-facing shape is checked.
@@ -1089,7 +1089,7 @@ class Builder:
             if_unavailable=str(spec.get("if_unavailable", "error")),
         )
 
-    def _font_size(self, name: str, spec: dict) -> Length | None:
+    def _font_size(self, name: str, spec: dict[str, Any]) -> Length | None:
         """`fonts.<name>.size`, as a `Length`.
 
         A bare number is rejected here, with the exact `%r`/`px` conversion
@@ -1147,7 +1147,7 @@ class Builder:
 
     # -- hands --------------------------------------------------------------
 
-    def _build_hands(self, raw: dict) -> None:
+    def _build_hands(self, raw: dict[str, Any]) -> None:
         """`hands:` -- named analog-hand sets, declared once, placed by name.
 
         The same declared/rejected cascade every other named block keeps
@@ -1188,7 +1188,7 @@ class Builder:
                 second=hands["second"], span=span,
             )
 
-    def _build_hand(self, spec: dict, set_name: str, hand_name: str) -> Hand | None:
+    def _build_hand(self, spec: dict[str, Any], set_name: str, hand_name: str) -> Hand | None:
         """One `hour:`/`minute:`/`second:` entry of a `hands:` set."""
         where = f"hands.{set_name}.{hand_name}"
         hand_color, color_failed = self.owned_color(spec, where, hand=True)
@@ -1205,7 +1205,7 @@ class Builder:
         return Hand(parts=parts, color=hand_color)
 
     def owned_color(
-        self, node: dict, where: str, *, hand: bool,
+        self, node: dict[str, Any], where: str, *, hand: bool,
     ) -> tuple[Expression | None, bool]:
         """`color:` on a hand, a pattern, or one of their parts, as
         `(color, failed)`.
@@ -1250,7 +1250,7 @@ class Builder:
         return True
 
     def build_hand_part(
-        self, node: dict, where: str, index: int,
+        self, node: dict[str, Any], where: str, index: int,
         default_color: Expression | None, default_color_failed: bool,
         *, context: str = "hand",
     ) -> HandPart | None:
@@ -1388,7 +1388,7 @@ class Builder:
                         **text_fields)
 
     def _build_text_part(
-        self, node: dict, part_where: str, vertical_align: str,
+        self, node: dict[str, Any], part_where: str, vertical_align: str,
     ) -> dict[str, object] | None:
         """The `shape: text` half of a pattern part, as `TextPart` keyword
         arguments, or `None` once any of its own checks failed (each already
@@ -1416,6 +1416,7 @@ class Builder:
             if value is None:
                 ok = False  # expression already reported the real mistake
             else:
+                assert value.ast is not None  # every compiled expression keeps its tree
                 bad_refs = sorted({
                     ref.path for ref in expr.walk(value.ast)
                     if isinstance(ref, expr.Ref) and ref.path != expr.COPY
@@ -1488,7 +1489,7 @@ class Builder:
         )
 
     def _check_hand_part_keys(
-        self, node: dict, shape: str, part_where: str, *, context: str = "hand",
+        self, node: dict[str, Any], shape: str, part_where: str, *, context: str = "hand",
     ) -> bool:
         """Reject a geometry key this part's `shape:` does not read, plus the
         separately-handled `thickness`/`filled` rules -- the same "a key a
@@ -1638,7 +1639,7 @@ class Builder:
 
     # -- elements ---------------------------------------------------------
 
-    def build_elements(self, raw: list, path: tuple) -> list[Element]:
+    def build_elements(self, raw: list[Any], path: tuple[str | int, ...]) -> list[Element]:
         """Build every element of an `elements:`/`children:` list, dropping
         any that reported an error.  `path` is the list's own schema path.
         """
@@ -1649,7 +1650,7 @@ class Builder:
                 out.append(element)
         return out
 
-    def _build_element(self, node: dict, path: tuple) -> Element | None:
+    def _build_element(self, node: dict[str, Any], path: tuple[str | int, ...]) -> Element | None:
         span = self.doc.span_for_path(list(path))
         element_id = node["id"]
         if element_id in self.seen_ids:
@@ -1708,7 +1709,7 @@ class Builder:
             self._resolve_hold_auto(element)
         return element
 
-    def _check_symbol_collision(self, element_id: str, node: dict, span: Span | None) -> bool:
+    def _check_symbol_collision(self, element_id: str, node: dict[str, Any], span: Span | None) -> bool:
         """Reject two distinct ids that derive the same Monkey C symbol.
 
         ``_build_element`` above already rejects a literal duplicate id; this
@@ -1750,7 +1751,7 @@ class Builder:
             self.seen_symbols[symbol] = (element_id, span)
         return True
 
-    def _hold_target(self, node: dict) -> str | None:
+    def _hold_target(self, node: dict[str, Any]) -> str | None:
         """Validate `on_hold:` against the launchable complication table.
 
         A watch face cannot open an arbitrary app; `Complications.exitTo` is
@@ -1872,7 +1873,7 @@ class Builder:
         )
         return None
 
-    def alignment(self, node: dict) -> tuple[str, str]:
+    def alignment(self, node: dict[str, Any]) -> tuple[str, str]:
         """`(align, vertical_align)`, defaulting to `"center"`/`"center"` --
         the one place every kind with a placement box reads the two keys.
         The schema is normative on which values reach here, so this is a
@@ -1880,7 +1881,7 @@ class Builder:
         """
         return node.get("align", "center"), node.get("vertical_align", "center")
 
-    def _visible(self, node: dict) -> Expression | None:
+    def _visible(self, node: dict[str, Any]) -> Expression | None:
         """Compile and type-check `visible:`.
 
         The one requirement beyond a normal expression is the static type: a
@@ -1940,6 +1941,7 @@ class Builder:
             return inner
         if inner is None:
             return outer
+        assert outer.ast is not None and inner.ast is not None  # compiled, so both kept
         combined = expr.Binary("and", outer.ast, inner.ast)
         try:
             value = expr.check(combined, self.scope)
@@ -1989,7 +1991,7 @@ class Builder:
 
     # -- always-on display (`aod:`, plan 14) --------------------------------
 
-    def _build_face_aod(self, raw: dict) -> None:
+    def _build_face_aod(self, raw: dict[str, Any]) -> None:
         """Top-level `aod:` (plan 14 §2.2): `default:`, `dim:` (§4.5), `mask:`
         (plan 16 §4)."""
         self.face_aod_default_hide = raw.get("default", "hide") == "hide"
@@ -2015,7 +2017,7 @@ class Builder:
             return None
         return kinds.get(kind).aod_refusal(key, shape, literal_text)
 
-    def _build_aod_authored(self, node: dict) -> tuple[bool, dict[str, object] | None]:
+    def _build_aod_authored(self, node: dict[str, Any]) -> tuple[bool, dict[str, object] | None]:
         """Parse one element/group's own `aod:` (plan 14 §2.1) into
         ``(hide, keys)``: ``hide`` is `True` only for the literal `aod: hide`;
         ``keys`` is `None` when nothing but that was written (or nothing at
@@ -2349,7 +2351,7 @@ class Builder:
                 element.static_rank = rank
 
     def check_foreign_keys(
-        self, node: dict, chosen: str, table: dict[str, frozenset[str]],
+        self, node: dict[str, Any], chosen: str, table: dict[str, frozenset[str]],
         all_keys: frozenset[str], *, code: str, disc: str,
         prefix: str = "", qualifier: str = "", suffix: str = "",
         empty_label: str = "(no geometry keys)",
@@ -2391,7 +2393,7 @@ class Builder:
 
 
     def build_outline(
-        self, node: dict, key: str, label: str, *, element: Element | None = None,
+        self, node: dict[str, Any], key: str, label: str, *, element: Element | None = None,
     ) -> Outline | None:
         """`outline:` (plan 15) on a `text` element, or -- with
         `element=None` -- on a pattern's `shape: text` part: the stamped ring
@@ -2449,7 +2451,7 @@ class Builder:
             self.check_other_absence(node, element, "outline.color", color, span=color_span)
         return Outline(color=color, width=width)
 
-    def _check_curve_keys(self, node: dict, style: str) -> None:
+    def _check_curve_keys(self, node: dict[str, Any], style: str) -> None:
         """Reject a `curve:` key the chosen `style:` does not read -- the same
         `wfb.kinds.shape._check_shape_keys` precedent (`radius:`/`direction:`
         only mean something with a circle to describe, and `style: angled`
@@ -2484,7 +2486,7 @@ class Builder:
         return f"'font: {font}' is one of the platform's fixed system fonts"
 
     def build_curve(
-        self, node: dict, label: str, *, vertical_align: str, font_ok: bool,
+        self, node: dict[str, Any], label: str, *, vertical_align: str, font_ok: bool,
         font_is_vector: bool, font_note: str | None = None,
     ) -> Curve | None:
         """`curve:` (plan 11) on a `text` element or a pattern's `shape: text`
@@ -2546,7 +2548,7 @@ class Builder:
         return Curve(style=style, angle=angle, radius=radius, direction=direction)
 
     def check_if_unavailable(
-        self, node: dict, label: str, font_is_vector: bool, font_note: str | None = None,
+        self, node: dict[str, Any], label: str, font_is_vector: bool, font_note: str | None = None,
     ) -> None:
         """`if_unavailable:` on a `text` element or a pattern's `shape: text`
         part -- only meaningful when the font is a `face:` (vector) font:
@@ -2639,7 +2641,7 @@ class Builder:
         return character
 
     def _resolve_choice_icon_override(
-        self, item: dict, what: str, fallback_span: Span | None,
+        self, item: dict[str, Any], what: str, fallback_span: Span | None,
     ) -> "icons.SlotIcon | None | object":
         """A `config: data:` choice's own `icon:`/`glyph:`, if it declares
         one.
@@ -2689,7 +2691,7 @@ class Builder:
 
     # -- shared checks ----------------------------------------------------
 
-    def check_absence(self, node: dict, element: Element, bound: Expression,
+    def check_absence(self, node: dict[str, Any], element: Element, bound: Expression,
                       when_absent: str | None, placeholder: str | None,
                       fallback: Expression | None, key: str = "value") -> None:
         """ADR 0005 3: null handling is part of the binding, not an afterthought."""
@@ -2737,7 +2739,7 @@ class Builder:
                 notes=["a fallback must always produce a value"],
             )
 
-    def check_other_absence(self, node: dict, element: Element, key: str,
+    def check_other_absence(self, node: dict[str, Any], element: Element, key: str,
                             bound: Expression | None, span: Span | None = None) -> None:
         """A nullable binding outside `value` still needs an explicit `when_absent:`.
 
@@ -2777,7 +2779,7 @@ class Builder:
             ],
         )
 
-    def check_reachable_substitute(self, node: dict, element: Element, key: str,
+    def check_reachable_substitute(self, node: dict[str, Any], element: Element, key: str,
                                    value_bindings: tuple[Expression | None, ...],
                                    other_bindings: tuple[Expression | None, ...]) -> None:
         """Warn when a `placeholder:`/`fallback:` can never actually be drawn.
@@ -2843,7 +2845,7 @@ class Builder:
                     out.add(path)
         return out
 
-    def check_format(self, node: dict, bound: Expression, spec: str | None) -> None:
+    def check_format(self, node: dict[str, Any], bound: Expression, spec: str | None) -> None:
         """Check `format:` against the bound `value:`: a date or time value
         must have one, and a given spec must suit the value's type
         (:meth:`check_format_spec`).
@@ -2894,7 +2896,7 @@ class Builder:
             except formatting.FormatError as exc:
                 self.bag.error("format", str(exc), span)
 
-    def check_format_not_on_literal(self, node: dict, label: str) -> bool:
+    def check_format_not_on_literal(self, node: dict[str, Any], label: str) -> bool:
         """`format:` is meaningless without a bound `value:` to format --
         shared by a `text` element and a pattern's own `shape: text` part,
         which both take the same `text:` spelling for a fixed string.
@@ -2909,7 +2911,7 @@ class Builder:
         )
         return False
 
-    def require(self, node: dict, key: str, message: str) -> None:
+    def require(self, node: dict[str, Any], key: str, message: str) -> None:
         """Report `message` as an `element` error on `node[key]`'s line, or
         on the node's own when the key is absent -- for a key the schema
         cannot require on its own.
@@ -2918,7 +2920,7 @@ class Builder:
 
     # -- coercion helpers -------------------------------------------------
 
-    def expression(self, node: dict, key: str) -> Expression | None:
+    def expression(self, node: dict[str, Any], key: str) -> Expression | None:
         """`node[key]` parsed, type-checked and compiled to Monkey C as an
         :class:`Expression`, or `None` when the key is absent or the
         expression was reported as an error.
@@ -3003,7 +3005,7 @@ class Builder:
             ast=folded,
         )
 
-    def color_expression(self, node: dict, key: str) -> Expression | None:
+    def color_expression(self, node: dict[str, Any], key: str) -> Expression | None:
         """`node[key]` as a colour :class:`Expression`: a bare `#RRGGBB`
         literal (accepted, with a `raw-color` note) or any expression of
         colour type.  `None` when absent or reported.
@@ -3070,7 +3072,7 @@ class Builder:
         )
         return (key, True) if spec is not None else None
 
-    def resolve_font(self, node: dict, element: Text | ComplicationSlot) -> bool:
+    def resolve_font(self, node: dict[str, Any], element: Text | ComplicationSlot) -> bool:
         """Set `.font`/`.font_is_custom` from `node["font"]`.
 
         Returns whether the reference is trustworthy: `True` when no
@@ -3090,7 +3092,7 @@ class Builder:
             return True
         return False
 
-    def position(self, raw: dict | None, node: dict, key: str) -> Position:
+    def position(self, raw: dict[str, Any] | None, node: dict[str, Any], key: str) -> Position:
         """An `at:`-style position (`anchor`, `dx`/`dy` or polar
         `angle`/`radius`) from `raw`, which is `node[key]`; the default
         centre position when `raw` is `None` or a unit error was reported.
@@ -3110,7 +3112,7 @@ class Builder:
             self.bag.error("units", str(exc), span)
             return Position()
 
-    def size(self, raw: dict | None) -> Size:
+    def size(self, raw: dict[str, Any] | None) -> Size:
         """A `size: {width, height}` from `raw`; an empty :class:`Size` when
         `raw` is `None` or a unit error was reported.
         """
@@ -3125,7 +3127,7 @@ class Builder:
             self.bag.error("units", str(exc), self.doc.span(raw))
             return Size()
 
-    def length(self, node: dict, key: str) -> Length | None:
+    def length(self, node: dict[str, Any], key: str) -> Length | None:
         """`node[key]` as a :class:`Length`, or `None` when absent or a unit
         error was reported.
         """
@@ -3138,7 +3140,7 @@ class Builder:
             return None
 
     def baked_size_length(
-        self, node: dict, key: str, *, code: str, label: str, note: str,
+        self, node: dict[str, Any], key: str, *, code: str, label: str, note: str,
     ) -> Length | None:
         """`key`'s length, rejected unless it is `px`/`%r` -- shared by every
         size baked before layout runs: an icon's own `size:`
@@ -3158,7 +3160,7 @@ class Builder:
             return None
         return length
 
-    def angle(self, node: dict, key: str) -> Angle | None:
+    def angle(self, node: dict[str, Any], key: str) -> Angle | None:
         """`node[key]` as an :class:`Angle`, or `None` when absent or a unit
         error was reported.
         """
@@ -3179,7 +3181,7 @@ def dedup_append(colors: list[Expression], color: Expression | None) -> None:
         colors.append(color)
 
 
-def _lint_suppression(node: dict) -> dict[str, object]:
+def _lint_suppression(node: dict[str, Any]) -> dict[str, object]:
     """A node's own `lint: {allow, reason}`, as the `lint_allow`/
     `lint_reason` keyword arguments every carrier of one takes."""
     lint = node.get("lint") or {}

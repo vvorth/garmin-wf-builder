@@ -3,7 +3,7 @@ at runtime from a bound value (`icon_for:`)."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from .. import catalog, expr, icons, units
 from ..ir import local_name
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from ..preview import Renderer
 
 
-def _build_glyph_icon(b, node: dict, common: dict, placement: dict) -> Element:
+def _build_glyph_icon(b, node: dict[str, Any], common: dict[str, Any], placement: dict[str, Any]) -> Element:
     """`glyph: "U+F0BC"` -- a codepoint the catalogue does not name.
 
     The only way to reach a glyph the catalogue does not name, and spelled
@@ -49,7 +49,7 @@ class IconKind(ElementKind):
     ir_class = IconElement
     placed_class = PlacedIcon
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         name = node.get("icon")
         has_icon_for = "icon_for" in node
         has_glyph = "glyph" in node
@@ -209,7 +209,7 @@ class IconKind(ElementKind):
         with w.block("if (font == null)"):
             w.line("return;  // the icon font resource failed to load")
         w.blank()
-        if element.is_dynamic:
+        if element.value_for is not None:
             condition_local = local_name(element.value_for.sources[0])
             w.comment(f"{element.value_for.text!r} -> a name (WfbWeather) -> a glyph (IconGlyphs)")
             glyph_expr = f"IconGlyphs.glyph(WfbWeather.chooseIcon({condition_local}))"
@@ -223,7 +223,7 @@ class IconKind(ElementKind):
 
     def describe(self, placed: PlacedIcon) -> str:
         element = placed.element
-        if element.is_dynamic:
+        if element.value_for is not None:
             return f"an icon chosen at runtime from {element.value_for.text!r}"
         return f"the {element.icon!r} icon"
 

@@ -15,7 +15,7 @@ from ...ir import (
     HOLD_AUTO, Face, config_data_ids, config_field, font_resource_id, local_name,
     static_group_method,
 )
-from ...layout import PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
+from ...layout import Placed, PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
 from ...palette import dim_fraction
 from .. import usage
 from .common import (
@@ -72,9 +72,9 @@ class StaticPlan:
     """
 
     #: ``(placed_root, [placed_member, ...])``, in draw order.
-    groups: list
+    groups: list[tuple[Placed, list[Placed]]]
     #: Every buffered element, in draw order.
-    members: list
+    members: list[Placed]
     #: The modes the blit happens in -- all members agree on this.
     modes: tuple[str, ...]
 
@@ -95,7 +95,7 @@ def static_plan(resolved: ResolvedFace) -> StaticPlan | None:
     if not members:
         return None
     roots = {p.id: p for p in resolved.items if p.element.static}
-    groups: list = []
+    groups: list[tuple[Placed, list[Placed]]] = []
     for placed in members:
         root = roots.get(placed.element.static_root)
         if root is None:  # unreachable: `_apply_static` sets both together
@@ -857,7 +857,7 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
     w.blank()
 
 
-def _emit_layout_guarded(w: Writer, face: Face, items: list,
+def _emit_layout_guarded(w: Writer, face: Face, items: list[Placed],
                          emit_one: Callable[[object], None]) -> None:
     """Emit ``items`` (`Placed`s, in draw order) through ``emit_one``,
     grouping *consecutive* items whose ``element.layout`` agrees into one
@@ -880,7 +880,7 @@ def _emit_layout_guarded(w: Writer, face: Face, items: list,
                 emit_one(placed)
 
 
-def _drawn_in(resolved: ResolvedFace, mode: str, skip: frozenset[str] | set[str] = frozenset()) -> list:
+def _drawn_in(resolved: ResolvedFace, mode: str, skip: frozenset[str] | set[str] = frozenset()) -> list[Placed]:
     """Every element drawn in ``mode``, in draw order, minus ``skip`` (the
     static ids `_emit_mode_body` already blitted from the buffer)."""
     return [placed for placed in resolved.items

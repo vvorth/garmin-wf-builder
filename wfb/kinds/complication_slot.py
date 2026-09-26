@@ -4,7 +4,7 @@ at."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from .. import catalog, complications, formatting, icons, units
 from ..catalog import Type
@@ -77,7 +77,7 @@ def _resolve_slot_reference(b, raw: str, span: Span | None) -> ConfigDataSlot | 
 
 
 def _check_slot_color_absence(
-    b, node: dict, element: "ComplicationSlot", key: str,
+    b, node: dict[str, Any], element: "ComplicationSlot", key: str,
     color: Expression | None, note: str,
 ) -> None:
     """A complication_slot's `color:`/`icon_color:` may not read
@@ -219,7 +219,7 @@ class ComplicationSlotKind(ElementKind):
         "filled once would freeze both",
     )
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         """`type: complication_slot` -- the element half of the native Data
         axis (docs/research/09-data-library-and-config-axes.md §4).
 

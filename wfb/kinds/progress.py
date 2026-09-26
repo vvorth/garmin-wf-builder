@@ -4,7 +4,7 @@ needle, lit segments, or a scale with a pointer."""
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from .. import expr
 from ..catalog import Type
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from ..layout import Resolver
     from ..preview import Renderer
 
-def _check_fallback_fraction(b, node: dict, element: Progress) -> None:
+def _check_fallback_fraction(b, node: dict[str, Any], element: Progress) -> None:
     """A `progress` fallback is a **fill fraction**, so it must be 0.0-1.0.
 
     This is the one place `fallback:` means something other than "the
@@ -95,7 +95,7 @@ _NEEDLE_UNREAD = {
 }
 
 
-def _build_needle(b, node: dict, element: Progress) -> bool:
+def _build_needle(b, node: dict[str, Any], element: Progress) -> bool:
     """`style: needle`'s parts, built exactly like an analog hand's
     (`Builder.build_hand_part`), with the element's own `color:` as every
     part's default.  False when anything was reported."""
@@ -124,7 +124,7 @@ _STYLE_ONLY_KEYS = {"needle": "needle", "count": "segments", "gap": "segments",
 _ARC_KEYS = ("radius", "thickness", "start_angle", "sweep")
 
 
-def _build_ticked(b, node: dict, element: Progress) -> bool:
+def _build_ticked(b, node: dict[str, Any], element: Progress) -> bool:
     """`style: segments`/`scale`: which track they draw on (an arc's four
     keys, or a bar's `size:` -- exactly one), then their own keys.  False
     when anything was reported."""
@@ -297,6 +297,7 @@ def _preview_ticked(renderer, placed: PlacedProgress, fraction: float, color, tr
                                     fill=fill)
 
     if element.style == "segments":
+        assert element.count is not None  # `style: segments` requires count:
         lit = _lit(fraction, element.count)
         for i in range(element.count):
             fill = color if i < lit else track_color
@@ -405,7 +406,7 @@ class ProgressKind(ElementKind):
     placed_class = PlacedProgress
     antialiased = True
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element | None:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element | None:
         value = b.expression(node, "value")
         maximum = b.expression(node, "max")
         align, vertical_align = b.alignment(node)
@@ -513,6 +514,7 @@ class ProgressKind(ElementKind):
 
     def draw_preview(self, renderer: Renderer, placed: PlacedProgress) -> None:
         element = placed.element
+        assert element.value is not None and element.maximum is not None  # both required
         value = expr.evaluate(element.value.ast, renderer.values) if element.value.ast else None
         maximum = (expr.evaluate(element.maximum.ast, renderer.values)
                    if element.maximum.ast else None)

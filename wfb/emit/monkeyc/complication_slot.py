@@ -5,7 +5,7 @@ from __future__ import annotations
 from ... import complications
 from ...availability import Guards
 from ...ir import (
-    Face, complication_slot_hold_method, complication_slot_icon_method, config_data_ids,
+    ComplicationSlot, Face, complication_slot_hold_method, complication_slot_icon_method, config_data_ids,
     config_field, element_method_name,
 )
 from ...layout import COMPLICATION_SLOT_ICON_GAP, PlacedComplicationSlot, ResolvedFace
@@ -35,7 +35,8 @@ def _emit_pulsing_field(w: Writer) -> None:
     w.blank()
 
 
-def _emit_complication_slot_editor_methods(w: Writer, face: Face, pairs: list) -> None:
+def _emit_complication_slot_editor_methods(w: Writer, face: Face,
+                                           pairs: list[tuple[ComplicationSlot, int]]) -> None:
     """`setPulsing`/`drawSlot`/`drawableFor` -- the view's half of the native
     editor's animated highlight (`onTap`/`getComplicationDrawable` live on
     the delegate).  Only ever emitted when ``pairs`` (`_editor_slot_pairs`)

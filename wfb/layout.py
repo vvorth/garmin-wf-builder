@@ -21,8 +21,8 @@ from .devices import Device, FontMetric
 from .diagnostics import Span
 from .fonts import BakedFont, fallback
 from .ir import (
-    Curve, Element, Expression, Face, FontSpec, Graph, Group,
-    HandPart, IconElement, Position, Progress, Shape,
+    ComplicationSlot, Curve, Element, Expression, Face, FontSpec, Graph, Group,
+    HandPart, HandsElement, IconElement, PatternElement, Position, Progress, Shape,
     Text, draw_sort_key,
 )
 from .units import Angle, Axis, Box, IntBox, Length
@@ -485,6 +485,7 @@ def arc_box(
 
 @dataclass
 class PlacedShape(Placed):
+    element: Shape
     radius: int = 0
     corner_radius: int = 0
     thickness: int = 1
@@ -569,6 +570,7 @@ def resolved_curve(curve: Curve | None) -> ResolvedCurve:
 
 @dataclass
 class PlacedText(Placed):
+    element: Text
     #: The point passed to ``drawText``; ``justify`` says how text sits on it.
     #: Under `curve: {style: radial}` it is the circle's centre instead.
     anchor_point: tuple[int, int] = (0, 0)
@@ -586,6 +588,7 @@ class PlacedText(Placed):
 
 @dataclass
 class PlacedProgress(Placed):
+    element: Progress
     radius: int = 0
     thickness: int = 1
     #: Author degrees (12 o'clock = 0, clockwise).  Kept for the preview renderer.
@@ -618,6 +621,7 @@ class PlacedProgress(Placed):
 
 @dataclass
 class PlacedIcon(Placed):
+    element: IconElement
     #: The requested *visual* pixel size -- not the font's own nominal size it
     #: was baked at, which `wfb.icons.bake_size` may inflate to compensate for
     #: how much the icon font's icon sets pad a glyph inside its em-square.
@@ -640,6 +644,8 @@ class PlacedGraph(Placed):
     """A `graph`, resolved: the drawn box, and the two style-specific widths.
     Everything series-dependent is device-independent and stays on the IR
     (`Graph.sample_count`, `series_def`)."""
+
+    element: Graph
 
     thickness: int = 1
     bar_width: int = 1
@@ -798,6 +804,8 @@ class PlacedHands(Placed):
     square around it).
     """
 
+    element: HandsElement
+
     hour: ResolvedHand | None = None
     minute: ResolvedHand | None = None
     second: ResolvedHand | None = None
@@ -817,6 +825,8 @@ class PlacedPattern(Placed):
     (step by `dx`/`dy` from copy 0 at ``center``).  ``box`` bounds the ink
     of every *drawn* copy.
     """
+
+    element: PatternElement
 
     #: The template, copy 0 as authored (rectangle folded into polygon).
     parts: tuple[ResolvedHandPart, ...] = ()
@@ -942,6 +952,8 @@ class PlacedComplicationSlot(Placed):
     device centres the real pair on `anchor_point` itself, so this box is
     for the safe-area/off-screen checks only.
     """
+
+    element: ComplicationSlot
 
     anchor_point: tuple[int, int] = (0, 0)
     #: The slot's own reading text; never a vector font (the builder

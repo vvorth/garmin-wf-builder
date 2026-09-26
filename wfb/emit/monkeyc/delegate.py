@@ -168,6 +168,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
                 w.line("var x = where[0];")
                 w.line("var y = where[1];")
             for element in targets:
+                assert element.on_hold is not None  # hold_targets keeps only these
                 prefix = const_prefix(element.id)
                 w.blank()
                 # A hold target that belongs to a layout only fires while
@@ -220,7 +221,7 @@ def emit_delegate(resolved: ResolvedFace, guards: "Guards | None" = None) -> Sou
     return SourceFile(f"source/{face.entry}Delegate.mc", w.render())
 
 
-def _emit_on_tap(w: Writer, pairs: list) -> None:
+def _emit_on_tap(w: Writer, pairs: list[tuple[ComplicationSlot, int]]) -> None:
     """`onTap` -- fires only inside the on-device config editor (research 07
     §1), and only ever emitted when the design has at least one
     `complication_slot` to tell the editor about.  Hit-tests each slot's own

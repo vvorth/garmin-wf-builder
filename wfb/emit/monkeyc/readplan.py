@@ -5,7 +5,7 @@ from __future__ import annotations
 from ... import catalog, formatting
 from ...availability import Guards
 from ...catalog import READERS, Type
-from ...ir import HandsElement, Text, local_name
+from ...ir import Expression, HandsElement, Text, local_name
 from ...layout import ResolvedFace
 from .common import _NO_GUARDS
 from ..writer import Writer
@@ -306,7 +306,7 @@ class ReadPlan:
         return self._guarded_locals(self._other_bound[placed.id])
 
     @staticmethod
-    def _value_expressions(element) -> tuple:
+    def _value_expressions(element) -> tuple[Expression, ...]:
         """Which of an element's bound expressions its `when_absent:`
         policy governs -- `element.VALUE_ROLES` (plan 19 A2): `{value}` for
         a `Text`, `{value, max}` for a `Progress` (its fill fraction depends

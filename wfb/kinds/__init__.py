@@ -22,19 +22,25 @@ from __future__ import annotations
 import importlib
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, ClassVar
+from typing import Any, Callable, ClassVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import TypeAlias
+
     from ..diagnostics import Span
     from ..emit.monkeyc.common import AodStyle
     from ..emit.monkeyc.layout_constants import Constants
     from ..emit.monkeyc.readplan import ReadPlan
     from ..emit.writer import Writer
     from ..ir.builder import Builder
-    from ..ir.model import Curve, Element, Face
+    from ..ir.model import Curve, Element, Expression, Face
     from ..layout import Placed, ResolvedFace, Resolver
     from ..preview import Renderer
     from ..units import Box, Length
+
+    #: `(label, colour, ring, allow_backdrop_match)`, one per ink an element
+    #: draws -- :meth:`ElementKind.contrast_subjects`.
+    ContrastSubject: TypeAlias = "tuple[str, Expression | None, Expression | None, bool]"
 
 
 #: Kind names, in schema/declaration order -- the order the first lookup
@@ -193,7 +199,7 @@ class ElementKind:
 
     # -- semantic pass (wfb.ir.builder) --
 
-    def build(self, b: "Builder", node: dict, common: dict, path: tuple) -> "Element | None":
+    def build(self, b: "Builder", node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> "Element | None":
         """Build the IR element from a schema-valid node.  `common` holds the
         fields every kind shares (`id`, `at`, `visible`, `aod`, ...) for the
         IR class's constructor; `path` is the node's schema path (only
@@ -259,7 +265,7 @@ class ElementKind:
 
     # -- lint (wfb.lint) --
 
-    def contrast_subjects(self, placed: "Placed") -> Iterator[tuple]:
+    def contrast_subjects(self, placed: "Placed") -> Iterator[ContrastSubject]:
         """Every `(label, colour, ring, allow_backdrop_match)` this element
         draws, for `lint.check_contrast`.
 

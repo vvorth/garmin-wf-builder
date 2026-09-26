@@ -3,7 +3,7 @@ arc, ellipse, polygon)."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from ..ir.model import Element, Position, Shape
 from ..layout import Placed, PlacedShape, alignment_shift, arc_box, stroke_pad
@@ -48,7 +48,7 @@ _SHAPE_NO_ALIGNMENT_REASON = {
 _ALL_SHAPE_GEOMETRY_KEYS = frozenset().union(*SHAPE_GEOMETRY_KEYS.values())
 
 
-def _check_shape_keys(b, node: dict, shape: str) -> None:
+def _check_shape_keys(b, node: dict[str, Any], shape: str) -> None:
     """Reject a geometry key the chosen `shape:` does not read.
 
     Without this check, an unread key would be parsed by the schema,
@@ -146,7 +146,7 @@ class ShapeKind(ElementKind):
     placed_class = PlacedShape
     antialiased = True
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         shape = node["shape"]
         raw_points = node.get("points") or []
         align, vertical_align = b.alignment(node)

@@ -36,7 +36,7 @@ class BuildResult:
     devices: list[Device]
     output_dir: Path
     products: dict[str, Path] = field(default_factory=dict)
-    memory: dict[str, dict] = field(default_factory=dict)
+    memory: dict[str, lint.MemoryStats] = field(default_factory=dict)
     duration: float = 0.0
 
 

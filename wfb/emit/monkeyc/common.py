@@ -9,7 +9,7 @@ from typing import Iterable
 
 from ... import __version__, kinds
 from ...availability import Guards
-from ...ir import ComplicationSlot, Expression, Face, aod_color_choice, config_data_ids, \
+from ...ir import ComplicationSlot, Element, Expression, Face, aod_color_choice, config_data_ids, \
     element_const_prefix, element_method_name
 from ...layout import PlacedText, ResolvedFace
 from ...palette import Color
@@ -83,7 +83,7 @@ class McLiteral:
     code: str
 
 
-def hold_targets(face: Face) -> list:
+def hold_targets(face: Face) -> list[Element]:
     """Elements a hold does something with, in draw order.
 
     An `on_hold:` on any element.  Empty means a passive face, and the whole
@@ -92,7 +92,7 @@ def hold_targets(face: Face) -> list:
     return [e for e in face.walk() if e.on_hold is not None]
 
 
-def complication_slots(face: Face) -> list:
+def complication_slots(face: Face) -> list[ComplicationSlot]:
     """Every `complication_slot` element, in draw order.
 
     Drives the editor-only machinery (`AppBase.onStart`'s edit-mode flag,
@@ -117,7 +117,7 @@ def needs_delegate(face: Face) -> bool:
     return bool(hold_targets(face)) or face.has_config
 
 
-def _editor_slot_pairs(face: Face) -> list:
+def _editor_slot_pairs(face: Face) -> list[tuple[ComplicationSlot, int]]:
     """Every `complication_slot` element this design actually draws, paired
     with its declared slot's `<complication id=...>` unique id
     (`wfb.ir.config_data_ids`) -- one pair per distinct slot *name*, in

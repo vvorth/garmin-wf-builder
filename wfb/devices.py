@@ -127,7 +127,7 @@ def _sfnt_head_hhea(path: str) -> tuple[int, int, int] | None:
         return None
 
 
-def _locate_garmin_outline_font(filename: str, fonts_root: str | os.PathLike | None = None,
+def _locate_garmin_outline_font(filename: str, fonts_root: str | os.PathLike[str] | None = None,
                                 ) -> Path | None:
     """A local ``.ttf``/``.otf`` for ``filename`` under the user's own
     Garmin font root, or ``None`` -- **local files only**
@@ -198,8 +198,8 @@ class FontMetric:
 class Device:
     id: str
     root: Path
-    compiler: dict
-    simulator: dict
+    compiler: dict[str, Any]
+    simulator: dict[str, Any]
     #: The ``--fonts DIR`` override this device was built with -- ``None``
     #: for the ordinary search order (`wfb.fonts.fetch_system.
     #: garmin_font_root`'s own candidates). Set once, by
@@ -208,7 +208,7 @@ class Device:
     #: holds a `Device` (`wfb.layout`, `wfb.preview`) -- the one field that
     #: keeps "what a build measured a font with" and "what it drew that
     #: font with" from ever being two different roots (plan 18 item 8).
-    fonts_root: str | os.PathLike | None = None
+    fonts_root: str | None = None
 
     # -- geometry ---------------------------------------------------------
 
@@ -306,7 +306,7 @@ class Device:
     # -- limits -----------------------------------------------------------
 
     @property
-    def _watchface_app_type(self) -> dict | None:
+    def _watchface_app_type(self) -> dict[str, Any] | None:
         return next((e for e in self.compiler.get("appTypes", [])
                      if e.get("type") == "watchFace"), None)
 
@@ -524,7 +524,7 @@ class Device:
         return "FONT_" + re.sub(r"(?<!^)(?=[A-Z])", "_", name).upper()
 
     @cached_property
-    def _ww_font_entries(self) -> tuple[dict, ...]:
+    def _ww_font_entries(self) -> tuple[dict[str, Any], ...]:
         """Every font entry in this device's ``simulator.json`` ``ww`` font
         set, in file order -- empty for a hand-built test `Device` with none."""
         return tuple(
@@ -535,10 +535,10 @@ class Device:
         )
 
     @cached_property
-    def _simulator_ww_fonts(self) -> dict[str, dict]:
+    def _simulator_ww_fonts(self) -> dict[str, dict[str, Any]]:
         """``FONT_*`` symbol -> this device's own ``simulator.json`` ``ww``
         font entry (the first, when several derive the same symbol)."""
-        out: dict[str, dict] = {}
+        out: dict[str, dict[str, Any]] = {}
         for entry in self._ww_font_entries:
             name = entry.get("name")
             if name:
@@ -685,7 +685,7 @@ class Device:
         return f"<Device {self.id} {self.width}x{self.height} {self.shape} {self.display_type}>"
 
 
-def _ttf_enrichment(sim_entry: dict, ppi) -> tuple[float | None, int | None, int | None]:
+def _ttf_enrichment(sim_entry: dict[str, Any], ppi) -> tuple[float | None, int | None, int | None]:
     """``(em_px, ascent_px, height_px)`` from one ``simulator.json`` ``type:
     "ttf"`` font entry: ``em_px = size * ppi / 72`` when both are known, the
     other two only where the device file states them outright."""
@@ -714,12 +714,12 @@ class DeviceDatabase:
     #: stamped with (:attr:`Device.fonts_root`) -- one root for the whole
     #: build, so a device's measured metrics and its drawn glyphs can never
     #: come from two different places (plan 18 item 8).
-    fonts_root: str | os.PathLike | None = None
+    fonts_root: str | None = None
     _cache: dict[str, Device] = field(default_factory=dict, repr=False)
 
     @classmethod
-    def discover(cls, override: str | os.PathLike | None = None, *,
-                fonts_root: str | os.PathLike | None = None) -> "DeviceDatabase":
+    def discover(cls, override: str | os.PathLike[str] | None = None, *,
+                fonts_root: str | os.PathLike[str] | None = None) -> "DeviceDatabase":
         candidates = []
         if override:
             candidates.append(Path(override))
@@ -729,7 +729,7 @@ class DeviceDatabase:
         candidates.extend(DEFAULT_DEVICE_ROOTS)
         for path in candidates:
             if path.is_dir() and any(path.iterdir()):
-                return cls(path, fonts_root=fonts_root)
+                return cls(path, fonts_root=None if fonts_root is None else os.fspath(fonts_root))
         raise DeviceError(
             "no Connect IQ device definitions found.  They cannot be downloaded "
             "(api.gcs.garmin.com returns HTTP 401); run ./tools/setup-env.sh, "

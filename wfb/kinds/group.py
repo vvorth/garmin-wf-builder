@@ -8,7 +8,7 @@ the other eight.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from ..ir.model import Element, Group
 from ..ir.naming import static_group_method
@@ -25,7 +25,7 @@ class GroupKind(ElementKind):
     placed_class = Placed
     extra_symbols = (static_group_method,)
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         align, vertical_align = b.alignment(node)
         group = Group(
             **common,

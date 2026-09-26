@@ -541,7 +541,7 @@ class Renderer:
         return (dimmed.r, dimmed.g, dimmed.b)
 
     def aod_color(self, element, key: str, base_expr,
-                  values: dict | None = None) -> tuple[int, int, int]:
+                  values: dict[str, object] | None = None) -> tuple[int, int, int]:
         """The drawn RGB for one colour role (`color`/`track_color`/
         `icon_color`): this element's own `aod:` override for ``key`` while
         `--aod` renders, else ``base_expr`` (evaluated against ``values``),
@@ -562,7 +562,7 @@ class Renderer:
             return self._dim_rgb(base)
         return base
 
-    def aod_dimmed(self, element, expr, values: dict | None = None) -> tuple[int, int, int]:
+    def aod_dimmed(self, element, expr, values: dict[str, object] | None = None) -> tuple[int, int, int]:
         """``expr``'s RGB, dimmed while `--aod` renders an element the AOD
         frame draws and the face has `aod: {dim: ...}` -- the twin of
         `wfb.emit.monkeyc.common.AodStyle.dimmed`, for a colour no `aod:`
@@ -587,7 +587,7 @@ class Renderer:
     # -- elements ---------------------------------------------------------
 
     def hand_part(self, placed: PlacedHands | PlacedPattern, part, cx: float, cy: float,
-                  sin_t: float, cos_t: float, values: dict | None = None) -> None:
+                  sin_t: float, cos_t: float, values: dict[str, object] | None = None) -> None:
         """One polygon/line/circle part of a hand or pattern copy, its
         vertices rotated by `(sin_t, cos_t)` about the scaled `(cx, cy)`.
         The element-level `aod:` colour/thickness override applies to every
@@ -940,7 +940,7 @@ class Renderer:
         s = self.scale
         return [box.x * s, box.y * s, box.right * s - 1, box.bottom * s - 1]
 
-    def visible(self, expression, values: dict | None = None) -> bool:
+    def visible(self, expression, values: dict[str, object] | None = None) -> bool:
         """`visible:` -- the same rule the device runs, on the sample
         readings (`self.values`, or a pattern part's own `values` with
         `copy` bound to the copy being drawn -- `values` overrides
@@ -963,7 +963,7 @@ class Renderer:
             return True
         return bool(expr.evaluate(expression.ast, self.values if values is None else values))
 
-    def color(self, expression, values: dict | None = None) -> tuple[int, int, int]:
+    def color(self, expression, values: dict[str, object] | None = None) -> tuple[int, int, int]:
         """`values` overrides `self.values` -- a pattern passes its own, with
         `copy` bound to the copy being drawn."""
         if expression is None:

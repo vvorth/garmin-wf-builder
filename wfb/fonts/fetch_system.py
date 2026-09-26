@@ -80,7 +80,7 @@ _DEFAULT_DEVICE_ROOTS = (
     Path.home() / "Library" / "Application Support" / "Garmin" / "ConnectIQ" / "Devices",
 )
 
-_registry_cache: dict[Path, dict] = {}
+_registry_cache: dict[Path, dict[str, Any]] = {}
 
 #: URLs already attempted (successfully or not) this process, so an archive
 #: shared by several font-keys is downloaded at most once even when several
@@ -103,7 +103,7 @@ def _registry() -> dict[str, Any]:
     return _registry_cache[REGISTRY_PATH]
 
 
-def _keys_by_source(registry: dict) -> dict[str, list[str]]:
+def _keys_by_source(registry: dict[str, Any]) -> dict[str, list[str]]:
     """source-id -> every font-key that uses it. Several keys can share one
     source (every ``*-substitute`` key points at a real family's source), so
     downloading a source once must materialise all of them."""
@@ -280,7 +280,7 @@ def _write_atomic(path: Path, data: bytes) -> None:
     partial.replace(path)
 
 
-def _license_text(source: dict) -> str:
+def _license_text(source: dict[str, Any]) -> str:
     lines = [source.get("license", "unknown license")]
     if source.get("license_url"):
         lines.append(f"license: {source['license_url']}")
@@ -288,7 +288,7 @@ def _license_text(source: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _materialise_group(registry: dict, url: str, data: bytes) -> dict[str, bytes]:
+def _materialise_group(registry: dict[str, Any], url: str, data: bytes) -> dict[str, bytes]:
     """Every source sharing ``url``'s verified bytes, keyed by source id.
 
     All-or-nothing: raises before returning anything if any member in the
@@ -382,7 +382,7 @@ def ensure(key: str) -> Path | None:
         return None
 
 
-def install(keys: Iterable[str], dest: os.PathLike | str) -> dict[str, bool]:
+def install(keys: Iterable[str], dest: os.PathLike[str] | str) -> dict[str, bool]:
     """Prefetch every key in ``keys`` into ``dest``
     (``tools/fetch-system-fonts.py``, ``setup-env.sh``, the Dockerfile).
 
@@ -424,7 +424,7 @@ def install(keys: Iterable[str], dest: os.PathLike | str) -> dict[str, bool]:
 # ---------------------------------------------------------------------------
 
 
-def garmin_font_root(override: os.PathLike | str | None = None) -> Path | None:
+def garmin_font_root(override: os.PathLike[str] | str | None = None) -> Path | None:
     """The Garmin SDK Manager's own ``Fonts`` directory. The first existing,
     non-empty candidate wins, in this order (plan 09 R1b.2, mirroring
     ``wfb.devices.DEFAULT_DEVICE_ROOTS``'s own shape):
@@ -534,7 +534,7 @@ def garmin_any_file(name: str, root: Path) -> Path | None:
 
 
 def locate(name: str, face: str | None = None,
-           *, fonts_root: os.PathLike | str | None = None) -> tuple[Path | None, str]:
+           *, fonts_root: os.PathLike[str] | str | None = None) -> tuple[Path | None, str]:
     """The one top-level lookup for a real font file behind a system-font
     name: the Garmin font root first (:func:`garmin_any_file` -- match
     ``"garmin"``, which outranks even an ``exact`` registry match, be it a
@@ -567,7 +567,7 @@ def locate(name: str, face: str | None = None,
 # ---------------------------------------------------------------------------
 
 
-def _installed_devices_root(override: os.PathLike | str | None = None) -> Path | None:
+def _installed_devices_root(override: os.PathLike[str] | str | None = None) -> Path | None:
     """Mirrors ``wfb.devices.DeviceDatabase.discover``'s search order,
     without importing ``wfb`` (this module must stay stdlib-only)."""
     candidates: list[Path] = []
@@ -581,7 +581,7 @@ def _installed_devices_root(override: os.PathLike | str | None = None) -> Path |
 
 
 def device_needed_names(device_id: str,
-                         *, devices_root: os.PathLike | str | None = None,
+                         *, devices_root: os.PathLike[str] | str | None = None,
                          ) -> list[tuple[str, str | None]]:
     """Every ``(name, face)`` pair ``device_id`` needs a system font for --
     ``name`` first (a ``simulator.json`` ``filename`` or scraped ``font``,

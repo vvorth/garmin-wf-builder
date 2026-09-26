@@ -19,7 +19,7 @@ import math
 import operator
 import re
 from dataclasses import dataclass, field
-from typing import Callable, Iterator
+from typing import Any, Callable, Iterator
 
 from . import catalog
 from .catalog import Type
@@ -181,17 +181,17 @@ class Function:
     #: any argument is (for folding: if the folded value is a float).
     result: Type | None
     #: Host evaluation over argument values; ``None`` means "no value".
-    host: Callable[[list], object]
+    host: Callable[[list[Any]], object]
     #: Toybox module the emitted call needs, or ``None`` for a barrel call
     #: (`WfbMath.<name>`, runtime-lib/WfbMath.mc).
     module: str | None = None
     #: Whether constant folding may bake `host`'s answer for these argument
     #: values into generated code; ``None`` means always. `evaluate` (the
     #: preview) ignores it: a best guess is fine for a picture, not for code.
-    foldable: Callable[[list], bool] | None = None
+    foldable: Callable[[list[Any]], bool] | None = None
 
 
-def _round(args: list) -> int:
+def _round(args: list[Any]) -> int:
     """`Math.round`: "Decimal values >= .5 will be rounded up"
     ($CIQ_SDK/doc/Toybox/Math.html) -- not Python's half-to-even `round`.
     Computed from the fractional part, which is exact for a double, rather
@@ -201,7 +201,7 @@ def _round(args: list) -> int:
     return int(whole) + (1 if x - whole >= 0.5 else 0)
 
 
-def _round_foldable(args: list) -> bool:
+def _round_foldable(args: list[Any]) -> bool:
     """A negative exact half is the one input the SDK's "rounded up" leaves
     open (-2.5 is -2 rounded up, -3 rounded away from zero), and no
     simulator runs here to observe it (docs/lore/monkeyc.md), so the call is
@@ -210,7 +210,7 @@ def _round_foldable(args: list) -> bool:
     return not (x < 0 and x - math.floor(x) == 0.5)
 
 
-def _clamp(args: list) -> object:
+def _clamp(args: list[Any]) -> object:
     """`WfbMath.clamp`, in its order: below `lo` first, then above `hi` --
     which differs from `max(lo, min(v, hi))` only when `lo > hi`."""
     value, lo, hi = args
@@ -221,7 +221,7 @@ def _clamp(args: list) -> object:
     return value
 
 
-def _percent(args: list) -> object:
+def _percent(args: list[Any]) -> object:
     """`WfbMath.percent`: 0.0 for a goal <= 0 (an unset goal is a real
     reading, not an absent one), otherwise clamped to 0..100."""
     value, goal = args
@@ -673,7 +673,7 @@ def _apply(op: str, a: object, b: object) -> tuple[object, Type] | None:
     return (result, Type.FLOAT if op == "/" else _numeric_type(result))
 
 
-def _apply_call(name: str, args: list) -> tuple[object, Type] | None:
+def _apply_call(name: str, args: list[Any]) -> tuple[object, Type] | None:
     function = FUNCTIONS.get(name)
     if function is None:
         return None

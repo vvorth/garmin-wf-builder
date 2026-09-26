@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from dataclasses import replace
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from ..preview import Renderer
 
 
-def _reject_text_antialias(b, node: dict, element: Text) -> None:
+def _reject_text_antialias(b, node: dict[str, Any], element: Text) -> None:
     """`antialias:` on a `text` element -- a per-element key on a shared resource.
 
     A text element draws through a font declared in `fonts:`, and that
@@ -191,7 +191,8 @@ def _text_value(renderer, placed: PlacedText) -> str | None:
         else:
             return None
     unit_text = (str(expr.evaluate(element.unit_label.ast, renderer.values))
-                 if element.unit_label is not None else None)
+                 if element.unit_label is not None and element.unit_label.ast is not None
+                 else None)
     return formatting.render(spec, value, value_type, unit_text=unit_text)
 
 
@@ -358,7 +359,7 @@ def _emit_vector_text_draw(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
-def _apply_units(b: Builder, node: dict, value: Expression | None):
+def _apply_units(b: Builder, node: dict[str, Any], value: Expression | None):
     """`units:` on a `text` element (ADR 0005 §4): the bound value rewritten
     to display in the wearer's units (`wfb.conversion`), as ``(value,
     system, label, labels, digits)``, or `None` when it was reported.
@@ -399,7 +400,7 @@ def _apply_units(b: Builder, node: dict, value: Expression | None):
     return converted, system, label, conversion.labels(found, system), found.digits
 
 
-def _check_unit_field(b: Builder, node: dict, element: Text) -> None:
+def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
     """`{unit}` in `format:` (or its `aod:` twin) is the label of a
     `units:` conversion, so it needs one.  A `units:` that was written but
     failed is reported once, where it failed, not again here."""
@@ -422,7 +423,7 @@ class TextKind(ElementKind):
     ir_class = Text
     placed_class = PlacedText
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         value = b.expression(node, "value") if "value" in node else None
         units = None
         if "units" in node:
@@ -588,11 +589,13 @@ class TextKind(ElementKind):
             _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod)
             return
 
+        value = element.value
+        assert value is not None  # a text without a literal binds `value:`
         unit_code = element.unit_label.code if element.unit_label is not None else None
         value_code = formatting.emit(
             element.format or "{}",
-            element.value.code,
-            element.value.value.type,
+            value.code,
+            value.value.type,
             unit_code=unit_code,
         )
         if aod.on and element.aod is not None and element.aod.format is not None:
@@ -603,7 +606,7 @@ class TextKind(ElementKind):
             # for `value_code` everywhere below, including inside a
             # placeholder/fallback substitution.
             aod_value_code = formatting.emit(
-                element.aod.format, element.value.code, element.value.value.type,
+                element.aod.format, value.code, value.value.type,
                 unit_code=unit_code)
             value_code = aod.value(aod_value_code, value_code)
         if element.when_absent in ("placeholder", "fallback") and guards:
@@ -616,6 +619,7 @@ class TextKind(ElementKind):
                 w.comment("when_absent: placeholder")
                 initial = f'"{element.placeholder}"'
             else:
+                assert element.fallback is not None  # when_absent: fallback sets it
                 initial = formatting.emit(
                     element.format or "{}",
                     element.fallback.code,

@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from typing import Callable, NamedTuple
+from typing import Any, Callable, NamedTuple
 
 from .catalog import Source, Type
 
@@ -80,7 +80,7 @@ class Code:
     #: subsetted font's glyph set.
     widest: str
     emit: Callable[[Readers], str] | None = None
-    render: Callable[[dict], str] | None = None
+    render: Callable[[dict[str, Any]], str] | None = None
     #: A `wfb.catalog.CATALOG` path the code reads beyond the value's own
     #: reader -- see :func:`extra_paths`.
     extra_path: str | None = None
@@ -89,19 +89,19 @@ class Code:
 _PERCENT = Code("a literal percent sign", "%")
 
 
-def _hour(values: dict) -> int:
+def _hour(values: dict[str, Any]) -> int:
     return int(values.get("time.hour", 10))
 
 
-def _hour12(values: dict) -> int:
+def _hour12(values: dict[str, Any]) -> int:
     return (_hour(values) % 12) or 12
 
 
-def _day(values: dict) -> int:
+def _day(values: dict[str, Any]) -> int:
     return int(values.get("date.day", 3))
 
 
-def _year(values: dict) -> int:
+def _year(values: dict[str, Any]) -> int:
     return int(values.get("date.year", 2026))
 
 
@@ -172,9 +172,9 @@ DATE_CODES: dict[str, Code] = {
 }
 
 
-def parse(spec: str) -> list:
+def parse(spec: str) -> list[Literal | Field | UnitField]:
     """Split a format string into literals and fields."""
-    parts: list = []
+    parts: list[Literal | Field | UnitField] = []
     pos = 0
     for match in _FIELD_RE.finditer(spec):
         if match.start() > pos:
@@ -334,7 +334,7 @@ def _quote(text: str) -> str:
 # host-side rendering: what `wfb preview` shows
 
 
-def render(spec: str, value, value_type: Type, values: dict | None = None,
+def render(spec: str, value, value_type: Type, values: dict[str, Any] | None = None,
            unit_text: str | None = None) -> str:
     """The host-side rendering of ``spec`` for ``value`` -- what `wfb preview`
     draws in place of the Monkey C `emit` produces for the same declaration.

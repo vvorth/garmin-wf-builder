@@ -14,7 +14,7 @@ from .common import _NO_GUARDS, NO_AOD, AodStyle, const_prefix
 from ..writer import Writer
 
 
-def _emit_graph_fields(w: Writer, graphs: list) -> None:
+def _emit_graph_fields(w: Writer, graphs: list[PlacedGraph]) -> None:
     """One cached series (plus its auto bounds, where asked for) per `graph`.
 
     Rebuilt once a minute (`emit_graph`'s cadence check), not per frame --
@@ -62,9 +62,10 @@ def emit_graph(w: Writer, placed: PlacedGraph, aod: AodStyle = NO_AOD) -> None:
     w.blank()
 
     values = graph_series_field(element.id)
-    lo = (f"{graph_min_field(element.id)}.toFloat()" if element.min_auto
+    # A bound that is not auto was authored, so its expression is set.
+    lo = (f"{graph_min_field(element.id)}.toFloat()" if element.min_auto or element.min is None
           else f"({element.min.code}).toFloat()")
-    hi = (f"{graph_max_field(element.id)}.toFloat()" if element.max_auto
+    hi = (f"{graph_max_field(element.id)}.toFloat()" if element.max_auto or element.max is None
           else f"({element.max.code}).toFloat()")
     w.line(f"dc.setColor({aod.color(element, 'color')}, Graphics.COLOR_TRANSPARENT);")
     # Every style draws into the same box from the same series; `line` and
@@ -92,6 +93,7 @@ def _emit_graph_rebuild(w: Writer, placed: PlacedGraph, guards: Guards = _NO_GUA
     """
     element = placed.element
     src = element.series_def
+    assert src is not None  # only a series graph gets a rebuild method
     w.blank()
     w.doc(f"Recompute `{element.id}`'s {element.series!r} series.")
     with w.block(f"private function {graph_rebuild_method(element.id)}() as Void"):

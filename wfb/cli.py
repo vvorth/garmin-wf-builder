@@ -30,8 +30,9 @@ from typing import Callable
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
 from .build import Toolchain, build as run_build, load, resolve_all, select_devices, slug
 from .simulate import SimulatorError, push, screenshot
-from .devices import Device, DeviceDatabase, DeviceError
+from .devices import Device, DeviceDatabase, DeviceError, FontMetric
 from .diagnostics import Bag
+from .lint import MemoryStats
 
 DEFAULT_OUTPUT = Path("build")
 
@@ -74,7 +75,8 @@ def _verdict(bag: Bag, stream, word: str, *styles: str, before: str = "",
           f"{bag.summary(color=color)}{after}", file=stream)
 
 
-def _format_built(products: dict, memory: dict, *, color: bool) -> list[str]:
+def _format_built(products: dict[str, Path], memory: dict[str, MemoryStats], *,
+                  color: bool) -> list[str]:
     """Format ``_build``'s ``built`` lines, one per compiled device.
 
     Pulled out of ``_build`` so the column alignment can be unit-tested with
@@ -540,7 +542,7 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     # Collects every distinct face this whole call resolves, across every
     # device and (with --all-styles) every panel, so the stand-in warning
     # below fires once per run rather than once per device (plan 12 R1.1/R1.2).
-    used_faces: dict = {}
+    used_faces: dict[FontMetric, fonts.fallback.SystemFace] = {}
     try:
         for device_id, result in resolved.items():
             # Every mode produces one image, a file-name suffix and a note;

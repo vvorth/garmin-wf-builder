@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import math
 
@@ -32,7 +32,7 @@ GRAPH_STYLE_KEYS = {
 _ALL_GRAPH_STYLE_KEYS = frozenset().union(*GRAPH_STYLE_KEYS.values())
 
 
-def _graph_range(b, node: dict, src: SeriesDef | None) -> tuple[str, int]:
+def _graph_range(b, node: dict[str, Any], src: SeriesDef | None) -> tuple[str, int]:
     """Parse `range:` -- a duration string or a bare integer sample count."""
     raw = node.get("range")
     if isinstance(raw, bool):
@@ -61,7 +61,7 @@ def _graph_range(b, node: dict, src: SeriesDef | None) -> tuple[str, int]:
     return "count", 0
 
 
-def _graph_sample_count(b, node: dict, src: SeriesDef | None, range_kind: str,
+def _graph_sample_count(b, node: dict[str, Any], src: SeriesDef | None, range_kind: str,
                         range_value: int, buckets: int) -> int:
     """The build-time-known upper bound on this graph's sample count.
 
@@ -94,7 +94,7 @@ def _graph_sample_count(b, node: dict, src: SeriesDef | None, range_kind: str,
     return count
 
 
-def _check_graph_style_keys(b, node: dict, style: str) -> None:
+def _check_graph_style_keys(b, node: dict[str, Any], style: str) -> None:
     if style not in GRAPH_STYLE_KEYS:
         return  # the schema has already rejected an unknown style
     b.check_foreign_keys(
@@ -103,7 +103,7 @@ def _check_graph_style_keys(b, node: dict, style: str) -> None:
     )
 
 
-def _graph_bound(b, node: dict, key: str) -> tuple[Expression | None, bool]:
+def _graph_bound(b, node: dict[str, Any], key: str) -> tuple[Expression | None, bool]:
     """`min:`/`max:` -- `auto` (the default) or a compiled numeric expression."""
     raw = node.get(key)
     if raw is None or (isinstance(raw, str) and raw.strip() == "auto"):
@@ -233,7 +233,7 @@ class GraphKind(ElementKind):
     )
     antialiased = True
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element:
         """`type: graph` -- a time series over a data source and a range.
 
         The four validation questions here are independent of each other and

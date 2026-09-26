@@ -164,11 +164,11 @@ ELEMENT_NOT_YET = {
 }
 
 
-def _visit_elements(doc: YamlDocument, visit: Callable[[dict, list], bool | None]) -> None:
+def _visit_elements(doc: YamlDocument, visit: Callable[[dict[str, Any], list[str | int]], bool | None]) -> None:
     """Call ``visit(element, path)`` for every element mapping under
     ``elements:``, recursing into each one's ``children:`` unless ``visit``
     returns ``True``.  ``path`` is the jsonschema-style path to the element."""
-    def walk(elements: object, path: list) -> None:
+    def walk(elements: object, path: list[str | int]) -> None:
         if not isinstance(elements, list):
             return
         for index, element in enumerate(elements):
@@ -181,14 +181,14 @@ def _visit_elements(doc: YamlDocument, visit: Callable[[dict, list], bool | None
     walk(doc.data.get("elements"), ["elements"])
 
 
-def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
+def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
     """Report unknown element types, and the two whole-element mistakes of a
     known one (:func:`_check_progress_style_keys`,
     :func:`_check_hands_seconds_always`), returning the paths already
     accounted for."""
-    bad: list[list] = []
+    bad: list[list[str | int]] = []
 
-    def visit(element: dict, here: list) -> bool:
+    def visit(element: dict[str, Any], here: list[str | int]) -> bool:
         if (_check_progress_style_keys(doc, bag, element)
                 or _check_hands_seconds_always(doc, bag, element)):
             bad.append(here)
@@ -233,7 +233,7 @@ _PROGRESS_STYLE_SHAPES = {
 }
 
 
-def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict) -> bool:
+def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict[str, Any]) -> bool:
     """Catch a `progress` whose keys belong to another style.  True when
     it reported an error for this element."""
     if element.get("type") != "progress":
@@ -269,7 +269,7 @@ def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict) -> bo
     return True
 
 
-def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> bool:
+def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict[str, Any]) -> bool:
     """`seconds: always` is not implemented; say why rather than list the
     two values the schema's `seconds:` enum does accept.  True when it
     reported an error for this element."""
@@ -290,14 +290,14 @@ def _check_hands_seconds_always(doc: YamlDocument, bag: Bag, element: dict) -> b
     return True
 
 
-def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
+def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
     """`vertical_align: baseline` was renamed `bottom`; say so.  Checked on
     a `text` element and a pattern's `shape: text` part, the only two kinds
     that ever accepted `baseline`.  Returns each `vertical_align` leaf path.
     """
-    bad: list[list] = []
+    bad: list[list[str | int]] = []
 
-    def report(container: dict, path: list) -> None:
+    def report(container: dict[str, Any], path: list[str | int]) -> None:
         bag.error(
             "schema",
             "'vertical_align: baseline' was renamed 'bottom'",
@@ -310,7 +310,7 @@ def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
         )
         bad.append(path)
 
-    def visit(element: dict, here: list) -> None:
+    def visit(element: dict[str, Any], here: list[str | int]) -> None:
         if element.get("type") == "text" and element.get("vertical_align") == "baseline":
             report(element, here + ["vertical_align"])
         if element.get("type") == "pattern":
@@ -322,12 +322,12 @@ def _check_baseline_renamed(doc: YamlDocument, bag: Bag) -> list[list]:
     return bad
 
 
-def _check_modes_always_on(doc: YamlDocument, bag: Bag) -> list[list]:
+def _check_modes_always_on(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
     """`modes: [... always_on ...]` was replaced by `aod:` (plan 14 D3);
     point at the replacement.  Returns each `modes:` leaf path."""
-    bad: list[list] = []
+    bad: list[list[str | int]] = []
 
-    def report(container: dict, path: list) -> None:
+    def report(container: dict[str, Any], path: list[str | int]) -> None:
         bag.error(
             "schema",
             "'modes:' no longer accepts 'always_on'",
@@ -341,7 +341,7 @@ def _check_modes_always_on(doc: YamlDocument, bag: Bag) -> list[list]:
         )
         bad.append(path)
 
-    def visit(element: dict, here: list) -> None:
+    def visit(element: dict[str, Any], here: list[str | int]) -> None:
         modes = element.get("modes")
         if isinstance(modes, list) and "always_on" in modes:
             report(element, here + ["modes"])
@@ -373,7 +373,7 @@ def _hand_unit(value: object) -> str | None:
     return None
 
 
-def _dotted(path: list) -> str:
+def _dotted(path: list[str | int]) -> str:
     """``hands.a.minute.parts[0].radius`` -- a jsonschema-style path as an
     author reads it."""
     out: list[str] = []
@@ -387,7 +387,7 @@ def _dotted(path: list) -> str:
     return "".join(out)
 
 
-def _parts(element: dict) -> Iterable[tuple[int, dict]]:
+def _parts(element: dict[str, Any]) -> Iterable[tuple[int, dict[str, Any]]]:
     """``(index, part)`` for every mapping in a hand's or pattern's ``parts:``."""
     parts = element.get("parts")
     if isinstance(parts, list):
@@ -428,17 +428,17 @@ _PATTERN_FRAME = _Frame(
 )
 
 
-def _check_frame_part(doc: YamlDocument, bag: Bag, part: dict, path: list,
-                      frame: _Frame) -> list[list]:
+def _check_frame_part(doc: YamlDocument, bag: Bag, part: dict[str, Any], path: list[str | int],
+                      frame: _Frame) -> list[list[str | int]]:
     """Explain the two things a hand or pattern part's frame refuses that
     every other position accepts -- `%`/`pt` lengths and `anchor:` -- before
     the schema reports them bluntly.  Returns the value paths accounted for,
     so the schema's own error for each is dropped.  The schema stays
     normative (it refuses both); this only supplies the reason.
     """
-    bad: list[list] = []
+    bad: list[list[str | int]] = []
 
-    def length(container: dict, key: str, at: list) -> None:
+    def length(container: dict[str, Any], key: str, at: list[str | int]) -> None:
         unit = _hand_unit(container.get(key))
         if unit is None:
             return
@@ -451,7 +451,7 @@ def _check_frame_part(doc: YamlDocument, bag: Bag, part: dict, path: list,
         )
         bad.append(at)
 
-    def position(raw: object, at: list) -> None:
+    def position(raw: object, at: list[str | int]) -> None:
         if not isinstance(raw, dict):
             return
         if "anchor" in raw:
@@ -482,9 +482,9 @@ def _check_frame_part(doc: YamlDocument, bag: Bag, part: dict, path: list,
     return bad
 
 
-def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list]:
+def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
     """`_check_frame_part` over every part of every top-level `hands:` set."""
-    bad: list[list] = []
+    bad: list[list[str | int]] = []
     sets = doc.data.get("hands")
     if not isinstance(sets, dict):
         return bad
@@ -502,15 +502,15 @@ def _check_hand_frame(doc: YamlDocument, bag: Bag) -> list[list]:
     return bad
 
 
-def _check_pattern_frame(doc: YamlDocument, bag: Bag) -> list[list]:
+def _check_pattern_frame(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
     """`_check_frame_part` over every `type: pattern` element's parts, plus
     one refusal of its own: a linear pattern's `step:` refuses `pt` (no font
     in scope), though `%`/`%r` are fine there since a step resolves against
     the parent box, unlike a part's own position.
     """
-    bad: list[list] = []
+    bad: list[list[str | int]] = []
 
-    def visit(element: dict, here: list) -> None:
+    def visit(element: dict[str, Any], here: list[str | int]) -> None:
         if element.get("type") != "pattern":
             return
         step = element.get("step")
@@ -557,7 +557,7 @@ _PIVOT_ALIGNMENT_REASON = {
 _PIVOT_ALIGNMENT_KEYS = ("align", "vertical_align")
 
 
-def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list]:
+def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list[str | int]]:
     """Refuse `align:`/`vertical_align:` on `type: hands`/`type: pattern`
     with the reason a bare "unknown key" would not give.
 
@@ -568,7 +568,7 @@ def _check_hands_pattern_alignment(doc: YamlDocument, bag: Bag) -> list[list]:
     strips just these two keys from that bundled error
     (`_drop_pivot_alignment_keys`).
     """
-    def visit(element: dict, here: list) -> None:
+    def visit(element: dict[str, Any], here: list[str | int]) -> None:
         kind = element.get("type")
         reason = _PIVOT_ALIGNMENT_REASON.get(kind)
         if reason is None:
@@ -614,7 +614,7 @@ def _drop_pivot_alignment_keys(error: ValidationError) -> ValidationError | None
     return error
 
 
-def _under(path: list, prefix: list) -> bool:
+def _under(path: list[str | int], prefix: list[str | int]) -> bool:
     return path[: len(prefix)] == prefix
 
 

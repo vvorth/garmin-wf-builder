@@ -4,7 +4,7 @@ turned about `at:` (`pattern: radial`), stepped along `{dx, dy}`
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import math
 from dataclasses import dataclass
@@ -124,7 +124,7 @@ def _pattern_part_ink(
 
 
 def _pattern_steps(
-    b, node: dict, common: dict, count: int,
+    b, node: dict[str, Any], common: dict[str, Any], count: int,
 ) -> tuple[float, float, Position | None] | None:
     """A pattern's `step:`/`start:` as `(step_degrees, start_degrees,
     step_position)`, or `None` once an error is reported.  Radial: an
@@ -249,7 +249,7 @@ def _render_pattern_texts(b, element_id: str, parts: list[HandPart], count: int)
     return ok
 
 
-def _check_pattern_absence(b, node: dict, element: PatternElement) -> None:
+def _check_pattern_absence(b, node: dict[str, Any], element: PatternElement) -> None:
     """One element-level `when_absent:` check for a pattern, in place of
     a per-colour refusal: a pattern colour may read a source that can be
     absent, so the compiler needs a policy from the author instead of a
@@ -335,7 +335,7 @@ def _pattern_absent(renderer, element) -> bool:
 
 
 def _pattern_arc(renderer, placed: PlacedPattern, part, ox: float, oy: float, index: int,
-                 values: dict) -> None:
+                 values: dict[str, object]) -> None:
     """An `arc` template part -- always centred on the copy's own origin
     (`at:` is rejected on it), so only its *start angle* turns with the
     copy, as `WfbArc.drawSpan` is called on the device: `part.start_angle
@@ -354,7 +354,7 @@ def _pattern_arc(renderer, placed: PlacedPattern, part, ox: float, oy: float, in
 
 
 def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
-                  sin_t: float, cos_t: float, index: int, values: dict) -> None:
+                  sin_t: float, cos_t: float, index: int, values: dict[str, object]) -> None:
     """A `shape: text` template part, drawn at this copy's own anchor,
     rounded half-up the way `runtime-lib/WfbGeom.mc`'s `rotatedX`/
     `rotatedY` round it (:func:`pattern_text_anchor`), through the same
@@ -659,7 +659,7 @@ class PatternKind(ElementKind):
     placed_class = PlacedPattern
     antialiased = True
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element | None:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element | None:
         """`type: pattern` -- one template, drawn `count:` times, turned
         about `at:` (`pattern: radial`), stepped along `{dx, dy}`
         (`pattern: linear`), or stepped in rows of `columns:`
@@ -962,8 +962,8 @@ class PatternKind(ElementKind):
         # (geometry resolution never touches it), read here by plain index.
         live = [
             (index, part) for index, part in enumerate(placed.parts)
-            if not (element.parts[index].visible is not None
-                    and element.parts[index].visible.is_constant)
+            if not ((visible := element.parts[index].visible) is not None
+                    and visible.is_constant)
         ]
         radial = element.pattern == "radial"
         needs_trig = _pattern_needs_math(placed)

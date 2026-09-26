@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import math
 from collections.abc import Callable
@@ -110,7 +110,7 @@ class HandsKind(ElementKind):
     )
     antialiased = True
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element | None:
+    def build(self, b: Builder, node: dict[str, Any], common: dict[str, Any], path: tuple[str | int, ...]) -> Element | None:
         """`type: hands` -- places a declared `hands:` set on screen.
 
         `common["at"]` is already the axis (resolved exactly like any

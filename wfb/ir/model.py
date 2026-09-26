@@ -134,7 +134,7 @@ class Expression:
     #: The folded syntax tree, kept so the host-side preview renderer can
     #: evaluate the same expression the device compiles.  Nothing on the device
     #: ever sees this -- ADR 0005's "no runtime evaluator" is about the watch.
-    ast: object | None = None
+    ast: expr.Node | None = None
 
     @property
     def nullable(self) -> bool:
@@ -1570,7 +1570,7 @@ def authored_draw_order(elements: list[Element]) -> list[Element]:
     ))
 
 
-def draw_sort_key(element: Element) -> tuple:
+def draw_sort_key(element: Element) -> tuple[int, int, int, int]:
     """The sort key that puts an element in draw order, static content first.
 
     The static buffer is opaque and full-screen (`docs/research/probes/
