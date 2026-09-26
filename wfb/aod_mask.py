@@ -77,7 +77,7 @@ def apply(image: Image.Image, minute: int, scale: int = 1) -> Image.Image:
     (`offset(minute)`); every other pixel of `image` becomes pure black.
 
     Built from a device-resolution mask (`_tiled_mask`, cheap and cached)
-    upscaled `s`x with `Image.NEAREST` -- an exact block replication, never
+    upscaled `s`x with `Image.Resampling.NEAREST` -- an exact block replication, never
     a blur, so every pixel of one `s`x`s` device-pixel block gets the same
     verdict -- then composited against solid black (`Image.composite`, the
     mask's 0/255 values select one image or the other outright, with no
@@ -92,7 +92,7 @@ def apply(image: Image.Image, minute: int, scale: int = 1) -> Image.Image:
     device_h = math.ceil(height / scale)
     mask = _tiled_mask(dx, dy, device_w, device_h)
     if scale != 1:
-        mask = mask.resize((device_w * scale, device_h * scale), Image.NEAREST)
+        mask = mask.resize((device_w * scale, device_h * scale), Image.Resampling.NEAREST)
     if mask.size != image.size:
         mask = mask.crop((0, 0, width, height))
     black = Image.new(image.mode, image.size, 0)

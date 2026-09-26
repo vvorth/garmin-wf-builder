@@ -65,7 +65,9 @@ class Color:
     def nearest_legal(self, display_colors: int | None) -> "Color":
         if display_colors != 64:
             return self
-        snap = lambda c: min(MIP64_LEVELS, key=lambda level: abs(level - c))  # noqa: E731
+        def snap(c: int) -> int:
+            return min(MIP64_LEVELS, key=lambda level: abs(level - c))
+
         return Color(snap(self.r), snap(self.g), snap(self.b))
 
     def relative_luminance(self) -> float:

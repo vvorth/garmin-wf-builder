@@ -424,6 +424,7 @@ class ReadPlan:
                     obj_read = f"({' && '.join(guard_parts)}) ? {obj_read} : null"
                 obj_name = f"{local_name(path)}Obj"
                 out.append((obj_name, obj_read))
+                assert source.field_name is not None, path  # an intermediate is a dotted field's
                 suffix = source.field_name[len(intermediate) + 1:]
                 out.append((local_name(path), f"({obj_name} != null) ? {obj_name}.{suffix} : null"))
                 continue

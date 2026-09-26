@@ -281,7 +281,7 @@ def _glyph_word(path: str, glyph_index: int) -> int:
         return 0
     try:
         offset = font._glyph_info_offset + 4 * glyph_index
-        return struct.unpack_from(">I", font._raw, offset)[0]
+        return int(struct.unpack_from(">I", font._raw, offset)[0])
     except struct.error:
         return 0
 

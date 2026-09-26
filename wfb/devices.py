@@ -26,6 +26,7 @@ import struct
 from dataclasses import dataclass, field
 from functools import cached_property, lru_cache
 from pathlib import Path
+from typing import Any, cast
 
 DEFAULT_DEVICE_ROOTS = (
     Path.home() / ".Garmin" / "ConnectIQ" / "Devices",
@@ -222,7 +223,7 @@ class Device:
     @property
     def shape(self) -> str:
         """``round`` | ``rectangle`` | ``semi-round`` | ``semi-octagon``."""
-        return self.simulator.get("display", {}).get("shape", "unknown")
+        return cast(str, self.simulator.get("display", {}).get("shape", "unknown"))
 
     @property
     def minor_radius(self) -> float:
@@ -232,13 +233,13 @@ class Device:
     @property
     def device_family(self) -> str:
         """The resource-qualifier directory name, read rather than derived."""
-        return self.compiler["deviceFamily"]
+        return cast(str, self.compiler["deviceFamily"])
 
     # -- display ----------------------------------------------------------
 
     @property
     def display_type(self) -> str:
-        return self.compiler.get("displayType", "unknown")
+        return cast(str, self.compiler.get("displayType", "unknown"))
 
     @property
     def is_amoled(self) -> bool:
@@ -250,12 +251,12 @@ class Device:
         return not self.is_amoled
 
     @cached_property
-    def _scraped(self) -> dict:
+    def _scraped(self) -> dict[str, Any]:
         """The SDK device-reference scrape, for facts the device files omit."""
         path = _SCRAPED_FONTS / f"{self.id}.json"
         if not path.exists():
             return {}
-        return json.loads(path.read_text(encoding="utf-8"))
+        return cast("dict[str, Any]", json.loads(path.read_text(encoding="utf-8")))
 
     @property
     def display_colors(self) -> int | None:
@@ -323,7 +324,7 @@ class Device:
     @property
     def api_level(self) -> str:
         """The highest Connect IQ version across the device's part numbers."""
-        versions = [
+        versions: list[str] = [
             pn.get("connectIQVersion")
             for pn in self.compiler.get("partNumbers", [])
             if pn.get("connectIQVersion")

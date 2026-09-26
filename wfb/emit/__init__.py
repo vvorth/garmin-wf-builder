@@ -1,1 +1,1 @@
-from .project import GeneratedProject, generate  # noqa: F401
+from .project import GeneratedProject as GeneratedProject, generate as generate

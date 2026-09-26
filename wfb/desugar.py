@@ -105,7 +105,7 @@ after the top-level ``static:`` block's group (if any); draw order itself is
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, cast
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
@@ -466,6 +466,6 @@ def _key_position(mapping: Any, name: Any) -> tuple[int, int] | None:
     if lc is None:
         return None
     try:
-        return lc.key(name)
+        return cast("tuple[int, int]", lc.key(name))
     except (KeyError, IndexError, AttributeError, TypeError):
         return None

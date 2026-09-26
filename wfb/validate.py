@@ -25,7 +25,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, cast
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
@@ -39,8 +39,8 @@ SCHEMA_PATH = SCHEMA_DIR / "wfb-face-1.schema.json"
 
 
 @lru_cache(maxsize=None)
-def load_schema(path: Path = SCHEMA_PATH) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+def load_schema(path: Path = SCHEMA_PATH) -> dict[str, Any]:
+    return cast("dict[str, Any]", json.loads(path.read_text(encoding="utf-8")))
 
 
 def check_format_version(doc: YamlDocument, bag: Bag) -> bool:

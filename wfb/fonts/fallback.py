@@ -206,7 +206,9 @@ def _pillow_default(pixel_height: int) -> ImageFont.FreeTypeFont | None:
         if natural <= 0:
             return None
         size = max(6, round(_PROBE * pixel_height / natural))
-        return ImageFont.load_default(size=size)
+        font = ImageFont.load_default(size=size)
+        # A bitmap default means Pillow lacks FreeType: no scalable face.
+        return font if isinstance(font, ImageFont.FreeTypeFont) else None
     except Exception:
         # Pillow older than 10.1 has no scalable default; callers fall back
         # to the crude estimate rather than failing a build over a preview

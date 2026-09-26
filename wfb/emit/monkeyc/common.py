@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
 from ... import __version__, kinds
 from ...availability import Guards
@@ -417,7 +418,7 @@ def _describe(placed) -> str:
     return kinds.for_placed(placed).describe(placed)
 
 
-def and_list(items) -> str:
+def and_list(items: Iterable[str]) -> str:
     """`a`, `a and b`, `a, b and c` -- for a generated comment."""
     items = list(items)
     if len(items) <= 1:

@@ -404,7 +404,7 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
 @lru_cache(maxsize=4096)
 def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
     """`char`'s `.cft` glyph cell as an `"L"` ink mask (`level * 255 //
-    max_level`), upscaled `scale`x with `Image.NEAREST` -- what
+    max_level`), upscaled `scale`x with `Image.Resampling.NEAREST` -- what
     `Renderer._draw_bitmap_line` pastes a colour through, since a bitmap
     `SystemFace` has no `FreeTypeFont` for `ImageDraw.text`. Cached per
     `(path, char, scale)`. A zero-size (no-op) mask for an ink-less glyph
@@ -420,7 +420,7 @@ def _bitmap_glyph_mask(path: str, char: str, scale: int) -> Image.Image:
     data = bytes(level * 255 // max_level for level in glyph.levels)
     mask = Image.frombytes("L", (glyph.advance, glyph.height), data)
     if scale != 1:
-        mask = mask.resize((glyph.advance * scale, glyph.height * scale), Image.NEAREST)
+        mask = mask.resize((glyph.advance * scale, glyph.height * scale), Image.Resampling.NEAREST)
     return mask
 
 
@@ -694,7 +694,7 @@ class Renderer:
         s = self.scale
         tile = sheet.crop((glyph.x, glyph.y, glyph.x + glyph.width, glyph.y + glyph.height))
         if s != 1:
-            tile = tile.resize((glyph.width * s, glyph.height * s), Image.NEAREST)
+            tile = tile.resize((glyph.width * s, glyph.height * s), Image.Resampling.NEAREST)
         tint = Image.new("RGB", tile.size, color)
         position = (int(x + glyph.xoffset * s), int(y + glyph.yoffset * s))
         self.image.paste(tint, position, tile)
@@ -902,11 +902,11 @@ class Renderer:
         local_baseline_y = pad * ss + render_face.baseline
         self._draw_system_line(render_face, local_left, local_baseline_y, run, color,
                                draw=layer_draw, image=layer)
-        rotated = layer.rotate(angle_garmin_degrees, resample=Image.BICUBIC, expand=True)
+        rotated = layer.rotate(angle_garmin_degrees, resample=Image.Resampling.BICUBIC, expand=True)
         if ss != 1:
             downsampled_size = (max(1, round(rotated.width / ss)),
                                 max(1, round(rotated.height / ss)))
-            rotated = rotated.resize(downsampled_size, Image.LANCZOS)
+            rotated = rotated.resize(downsampled_size, Image.Resampling.LANCZOS)
         theta = math.radians(angle_garmin_degrees)
         cos_t, sin_t = math.cos(theta), math.sin(theta)
         dx, dy = alignment_shift(width, line_height, align, vertical_align)

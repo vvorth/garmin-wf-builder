@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from .icon_catalog import CATALOG
+from .icon_catalog import CATALOG as CATALOG
 from .units import Length
 
 
@@ -212,7 +212,7 @@ def _ink_height(codepoint: str, nominal_size: int) -> int:
     if bbox is None:
         return 0
     _, top, _, bottom = bbox
-    return max(0, bottom - top)
+    return max(0, int(bottom - top))
 
 
 @lru_cache(maxsize=None)

@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, cast
 
 from .. import catalog, complications, expr, formatting, icons, kinds, units
 from ..catalog import Type
@@ -2090,7 +2090,7 @@ class Builder:
     def _make_aod_override(self, element: Element, keys: dict[str, object]) -> AodOverride:
         """Build the `AodOverride` a *drawn* (non-hidden) element gets, from
         its fully key-by-key-resolved `keys` (`_resolve_aod`)."""
-        font = keys.get("font")
+        font = cast("tuple[str, bool] | None", keys.get("font"))
         font_name, font_is_custom = font if font is not None else (None, False)
         own_visible = keys.get("visible")
         outline = keys.get("outline")

@@ -148,7 +148,7 @@ def _rasterise(source: Path, size: int, char: str,
     # BOX is an area average, so each target pixel gets the fraction of itself
     # the glyph actually covers -- which is the number the threshold below
     # wants, and the number drawing at the target size never produces.
-    tile = crop.resize((width, height), Image.BOX)
+    tile = crop.resize((width, height), Image.Resampling.BOX)
     if not antialias:
         tile = tile.point(lambda v: 255 if v >= 128 else 0)
 

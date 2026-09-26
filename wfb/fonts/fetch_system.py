@@ -51,7 +51,7 @@ import urllib.request
 import zipfile
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable, cast
 from urllib.parse import urlsplit, urlunsplit
 
 _HERE = Path(__file__).resolve().parent
@@ -97,7 +97,7 @@ def _note(message: str) -> None:
     print(f"note: {message}", file=sys.stderr)
 
 
-def _registry() -> dict:
+def _registry() -> dict[str, Any]:
     if REGISTRY_PATH not in _registry_cache:
         _registry_cache[REGISTRY_PATH] = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
     return _registry_cache[REGISTRY_PATH]
@@ -131,14 +131,14 @@ def resolve(name: str, face: str | None = None) -> str | None:
     registry = _registry()
     names = registry.get("names", {})
     if name in names:
-        return names[name]
+        return cast(str, names[name])
     for entry in registry.get("patterns", []):
         if re.search(entry["regex"], name):
-            return entry["key"]
+            return cast(str, entry["key"])
     if face is not None:
         faces = registry.get("faces", {})
         if face in faces:
-            return faces[face]
+            return cast(str, faces[face])
     return None
 
 
@@ -160,7 +160,7 @@ def _expected_sha(key: str) -> str | None:
     archive source, the member's)."""
     try:
         registry = _registry()
-        return registry["sources"][registry["fonts"][key]["source"]]["sha256"]
+        return cast(str, registry["sources"][registry["fonts"][key]["source"]]["sha256"])
     except KeyError:
         return None
 
@@ -234,7 +234,7 @@ def _default_download(url: str, attempts: int = 3) -> bytes:
     for attempt in range(1, attempts + 1):
         try:
             with urllib.request.urlopen(_mirrored(url), timeout=120) as response:
-                return response.read()
+                return cast(bytes, response.read())
         except OSError:
             if attempt == attempts:
                 raise

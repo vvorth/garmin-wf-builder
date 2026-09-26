@@ -25,6 +25,7 @@ import os
 import sys
 import textwrap
 from pathlib import Path
+from typing import Callable
 
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
 from .build import Toolchain, build as run_build, load, resolve_all, select_devices, slug
@@ -109,7 +110,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 2
     try:
-        return args.handler(args)
+        code: int = args.handler(args)
+        return code
     except (DeviceError, icons.IconFontMissing) as exc:
         _error(str(exc))
         return 1
@@ -188,7 +190,8 @@ def _color_parser(dest: str = "color") -> argparse.ArgumentParser:
     return parser
 
 
-def _command(sub: argparse._SubParsersAction, name: str, handler) -> argparse.ArgumentParser:
+def _command(sub: "argparse._SubParsersAction[argparse.ArgumentParser]", name: str,
+             handler: Callable[[argparse.Namespace], int]) -> argparse.ArgumentParser:
     """Register one subcommand, with its help text sourced entirely from
     ``handler``'s docstring: the first line is the short summary ``wfb
     --help`` lists next to the command name, and the whole docstring is what

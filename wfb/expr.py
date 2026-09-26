@@ -631,8 +631,9 @@ def fold(node: Node, scope: Scope, *, fold_colors: bool = True) -> Node:
         return Conditional(cond, then, otherwise, node.offset)
     if isinstance(node, Call):
         args = [fold(a, scope, fold_colors=fold_colors) for a in node.args]
-        if all(isinstance(a, Literal) and a.value is not None for a in args):
-            values = [a.value for a in args]  # type: ignore[union-attr]
+        literals = [a for a in args if isinstance(a, Literal) and a.value is not None]
+        if len(literals) == len(args):
+            values = [a.value for a in literals]
             function = FUNCTIONS.get(node.name)
             if function is None or function.foldable is None or function.foldable(values):
                 folded = _apply_call(node.name, values)
