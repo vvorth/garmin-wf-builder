@@ -48,7 +48,7 @@ class Toolchain:
     @classmethod
     def discover(cls, sdk: str | None = None, key: str | None = None) -> "Toolchain | None":
         sdk_path = Path(sdk or os.environ.get("CIQ_SDK", "")).expanduser()
-        key_path = Path(key or os.environ.get("WFB_KEY", Path.home() / "ciq" / "developer_key.der"))
+        key_path = Path(key or os.environ.get("WFB_KEY") or Path.home() / "ciq" / "developer_key.der")
         if not (sdk_path / "bin" / "monkeyc").exists():
             return None
         return cls(sdk_path, key_path.expanduser())

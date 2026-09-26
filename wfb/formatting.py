@@ -72,21 +72,22 @@ class Code:
     `render` (the host rendering `wfb preview` draws, given values keyed like
     `wfb.preview.SAMPLE`) must agree for every input; keeping them side by
     side is what lets the two be checked against each other one code at a
-    time.  ``%%`` has neither: :func:`parse_time` turns it into literal text.
+    time.  ``%%`` never reaches either (:func:`parse_time` turns it into
+    literal text); its row implements both anyway, so every row does.
     """
 
     description: str
     #: The widest string the code can produce -- for the overflow lint and a
     #: subsetted font's glyph set.
     widest: str
-    emit: Callable[[Readers], str] | None = None
-    render: Callable[[dict[str, Any]], str] | None = None
+    emit: Callable[[Readers], str]
+    render: Callable[[dict[str, Any]], str]
     #: A `wfb.catalog.CATALOG` path the code reads beyond the value's own
     #: reader -- see :func:`extra_paths`.
     extra_path: str | None = None
 
 
-_PERCENT = Code("a literal percent sign", "%")
+_PERCENT = Code("a literal percent sign", "%", lambda r: '"%"', lambda v: "%")
 
 
 def _hour(values: dict[str, Any]) -> int:
@@ -334,7 +335,7 @@ def _quote(text: str) -> str:
 # host-side rendering: what `wfb preview` shows
 
 
-def render(spec: str, value, value_type: Type, values: dict[str, Any] | None = None,
+def render(spec: str, value: object, value_type: Type, values: dict[str, Any] | None = None,
            unit_text: str | None = None) -> str:
     """The host-side rendering of ``spec`` for ``value`` -- what `wfb preview`
     draws in place of the Monkey C `emit` produces for the same declaration.
@@ -374,7 +375,7 @@ def render(spec: str, value, value_type: Type, values: dict[str, Any] | None = N
     return out
 
 
-def _render_numeric_field(spec: str, value) -> str:
+def _render_numeric_field(spec: str, value: object) -> str:
     """Mirror `_emit_numeric` field-for-field: `{:d}` on a Float truncates
     toward zero like Monkey C's `.toNumber()` (`math.trunc`, not `round`),
     and a written-out `.0` precision stays zero decimals (the group is the
@@ -384,6 +385,8 @@ def _render_numeric_field(spec: str, value) -> str:
     kind, flags, precision = _numeric_spec(spec)
     if kind == "s":
         return str(value)
+    # `check_format` only lets a numeric spec reach a Number or Float.
+    assert isinstance(value, (int, float)), value
     if kind == "d":
         return format(math.trunc(value), f"{flags}d")
     return format(float(value), f"{flags}.{precision or 1}f")

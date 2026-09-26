@@ -5,11 +5,6 @@
 # using pillow 12.3.0
 # using ruamel.yaml 0.19.1
 # using jsonschema 4.26.0
-wfb/availability.py: [arg-type] Argument 1 to "frozenset" has incompatible type "set[str | None]"; expected "Iterable[str]"
-wfb/availability.py: [union-attr] Item "None" of "tuple[str, ...] | None" has no attribute "__iter__" (not iterable)
-wfb/build.py: [arg-type] Argument 1 to "Path" has incompatible type "str | PathLike[str] | None"; expected "str | PathLike[str]"
-wfb/devices.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/devices.py: [operator] Unsupported operand types for * ("None" and "int")
 wfb/emit/monkeyc/common.py: [misc] "None" object is not iterable
 wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
@@ -17,7 +12,6 @@ wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotati
 wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/common.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
-wfb/emit/monkeyc/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/layout_constants.py: [arg-type] Argument 1 to "join" of "str" has incompatible type "tuple[str, ...] | None"; expected "Iterable[str]"
 wfb/emit/monkeyc/layout_constants.py: [arg-type] Argument 2 to "_emit_constants" has incompatible type "list[tuple[str, McLiteral, str]]"; expected "list[tuple[str, float | str | bool | McLiteral, str]]"
 wfb/emit/monkeyc/layout_constants.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
@@ -44,7 +38,6 @@ wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annota
 wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/readplan.py: [type-var] Value of type variable "SupportsRichComparisonT" of "sorted" cannot be "str | None"
 wfb/emit/monkeyc/readplan.py: [union-attr] Item "None" of "AodOverride | None" has no attribute "visible_override"
-wfb/emit/monkeyc/shapes.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/view.py: [arg-type] Argument 1 to "_mc_bool" has incompatible type "bool | None"; expected "bool"
 wfb/emit/monkeyc/view.py: [arg-type] Argument 1 to "get" of "dict" has incompatible type "str | None"; expected "str"
 wfb/emit/monkeyc/view.py: [arg-type] Argument 2 to "_emit_static_blit" has incompatible type "StaticPlan | None"; expected "StaticPlan"
@@ -73,15 +66,6 @@ wfb/expr.py: [dict-item] Dict entry 7 has incompatible type "str": "Callable[[_S
 wfb/expr.py: [dict-item] Dict entry 8 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
 wfb/expr.py: [operator] Unsupported operand type for unary - ("object")
 wfb/expr.py: [operator] Unsupported operand type for unary - ("object")
-wfb/fonts/bmfont.py: [arg-type] Argument 2 to "new" has incompatible type "tuple[float, float]"; expected "tuple[int, int] | list[int]"
-wfb/fonts/fallback.py: [union-attr] Item "ImageFont" of "FreeTypeFont | ImageFont" has no attribute "getmetrics"
-wfb/fonts/fallback.py: [union-attr] Item "None" of "FreeTypeFont | None" has no attribute "getlength"
-wfb/fonts/fallback.py: [union-attr] Item "None" of "FreeTypeFont | None" has no attribute "getlength"
-wfb/formatting.py: [misc] "None" not callable
-wfb/formatting.py: [misc] "None" not callable
-wfb/formatting.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/formatting.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/ir/model.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
@@ -97,7 +81,6 @@ wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for o
 wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/graph.py: [operator] Unsupported operand types for >= ("float" and "None")
-wfb/kinds/hands.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object | Any"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
@@ -140,9 +123,6 @@ wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for on
 wfb/kinds/text.py: [union-attr] Item "None" of "AodOverride | None" has no attribute "font_is_custom"
 wfb/kinds/text.py: [union-attr] Item "None" of "Curve | None" has no attribute "radius"
 wfb/kinds/text.py: [union-attr] Item "None" of "Curve | None" has no attribute "radius"
-wfb/layout.py: [no-untyped-def] Function is missing a return type annotation
-wfb/layout.py: [union-attr] Item "None" of "Angle | None" has no attribute "degrees"
-wfb/layout.py: [union-attr] Item "None" of "tuple[str, ...] | None" has no attribute "__iter__" (not iterable)
 wfb/lint.py: [arg-type] Argument 1 to "join" of "str" has incompatible type "tuple[str, ...] | None"; expected "Iterable[str]"
 wfb/lint.py: [assignment] Incompatible types in assignment (expression has type "list[str] | list[None]", variable has type "list[str | None]")
 wfb/lint.py: [attr-defined] "Element" has no attribute "count"

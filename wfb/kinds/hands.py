@@ -74,7 +74,8 @@ _HAND_ANGLE_FUNCTIONS = tuple(
 )
 
 
-def _emit_one_hand(w: Writer, element, prefix: str, hand_name: str, angle_fn: str, hand,
+def _emit_one_hand(w: Writer, element: HandsElement, prefix: str, hand_name: str, angle_fn: str,
+                   hand: ResolvedHand,
                    declared: bool, thickness_override: str | None, aod: AodStyle) -> None:
     """One hand's angle/sin/cos, then each of its parts, rotated and drawn.
 

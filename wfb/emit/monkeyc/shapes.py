@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from .common import AodStyle, glyph_y_expr
 from ..writer import Writer
+
+if TYPE_CHECKING:
+    from ...layout import PlacedProgress, PlacedShape
 
 
 def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) -> None:
@@ -27,7 +31,7 @@ def emit_arc_span(w: Writer, prefix: str, thickness_expr: str | None = None) -> 
     ])
 
 
-def thickness_expr(prefix: str, placed, aod: AodStyle) -> str:
+def thickness_expr(prefix: str, placed: PlacedShape | PlacedProgress, aod: AodStyle) -> str:
     """`Layout.<P>_THICKNESS`, ternary against `_AOD_THICKNESS` when this
     element's resolved `aod:` overrides `thickness:` (plan 14 §4.2)."""
     return aod.layout(prefix, "THICKNESS", placed.aod_thickness is not None)

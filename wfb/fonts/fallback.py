@@ -117,6 +117,7 @@ class SystemFace:
         """
         if self.bitmap is not None:
             return [advance * self.scale for advance in self.bitmap.advances(text)]
+        assert self.font is not None  # every face without a bitmap has an outline font
         if self.path is None or self.layout_em is None:
             return [self.font.getlength(ch) for ch in text]
         table = _hmtx(self.path)
@@ -201,6 +202,8 @@ def _pillow_default(pixel_height: int) -> ImageFont.FreeTypeFont | None:
         return None
     try:
         probe = ImageFont.load_default(size=_PROBE)
+        if not isinstance(probe, ImageFont.FreeTypeFont):
+            return None  # Pillow lacks FreeType: no scalable face
         ascent, descent = probe.getmetrics()
         natural = ascent + descent
         if natural <= 0:

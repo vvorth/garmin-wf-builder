@@ -12,6 +12,7 @@ directly unit-testable with no Garmin toolchain.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from typing import ClassVar, Literal
@@ -1171,7 +1172,7 @@ class Resolver:
                     self.items.append(resolve(self, element, parent, depth))
 
     @contextmanager
-    def _owned_by(self, owner: "_Owner"):
+    def _owned_by(self, owner: "_Owner") -> Iterator[None]:
         """Record every `SubPixelLength` inside this scope against `owner`,
         then restore whoever owned them before."""
         previous, self._owner = self._owner, owner
@@ -1246,7 +1247,7 @@ class Resolver:
         """
         if not self._vector_gate1_ok(curve.style if curve is not None else None):
             return "", False
-        for name in spec.face:
+        for name in spec.face or ():
             if name in self.device.scalable_faces:
                 return name, True
         return "", False
@@ -1438,7 +1439,7 @@ class Resolver:
         radius).  A position, so never clamped or recorded (:meth:`extent`).
         """
         ax, ay = parent.anchor_point(at.anchor)
-        if at.is_polar:
+        if at.angle is not None:  # polar
             radius = self.length(at.radius, parent, Axis.MINOR, 0)
             theta = math.radians(at.angle.degrees)
             return ax + radius * math.sin(theta), ay - radius * math.cos(theta)

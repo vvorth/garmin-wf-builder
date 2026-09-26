@@ -677,6 +677,7 @@ class Device:
                     continue
                 units_per_em, ascent, descent = sfnt
                 em_px, _, _ = _ttf_enrichment(sim_entry, ppi)
+                assert em_px is not None  # `ppi` and `size` are both checked above
                 size_px = round(em_px * (ascent - descent) / units_per_em)
                 metrics[symbol] = FontMetric(symbol, "", filename, size_px, em_px, None, size_px)
         return metrics
@@ -685,7 +686,8 @@ class Device:
         return f"<Device {self.id} {self.width}x{self.height} {self.shape} {self.display_type}>"
 
 
-def _ttf_enrichment(sim_entry: dict[str, Any], ppi) -> tuple[float | None, int | None, int | None]:
+def _ttf_enrichment(sim_entry: dict[str, Any],
+                    ppi: float | None) -> tuple[float | None, int | None, int | None]:
     """``(em_px, ascent_px, height_px)`` from one ``simulator.json`` ``type:
     "ttf"`` font entry: ``em_px = size * ppi / 72`` when both are known, the
     other two only where the device file states them outright."""

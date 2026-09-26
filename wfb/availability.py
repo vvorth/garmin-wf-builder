@@ -219,7 +219,7 @@ def vector_font_face(spec: FontSpec, device: Device) -> str:
     """
     if not device.has_symbol(Device.VECTOR_FONT_SYMBOL):
         return ""
-    for name in spec.face:
+    for name in spec.face or ():
         if name in device.scalable_faces:
             return name
     return ""
@@ -280,8 +280,8 @@ def modules_used(face: Face) -> frozenset[str]:
     nothing: `Toybox.ActivityMonitor` is present on every installed device,
     and its acquisition has no guarded form.
     """
-    modules = {READERS[name].requires_module for name in face.requirements().readers
-               if READERS[name].requires_module is not None}
+    modules = {module for name in face.requirements().readers
+               if (module := READERS[name].requires_module) is not None}
     if uses_complications(face):
         modules.add("Complications")
     for element in face.walk():

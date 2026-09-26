@@ -154,10 +154,9 @@ class Expression:
             return 1.0
         if not isinstance(node.right, expr.Literal):
             return 1.0
-        try:
-            factor = float(node.right.value)
-        except (TypeError, ValueError):
+        if not isinstance(node.right.value, (int, float)):
             return 1.0
+        factor = float(node.right.value)
         if factor == 0:
             return 1.0
         return (1.0 / factor) if node.op == "/" else factor

@@ -129,7 +129,7 @@ def _emit_hr_rebuild(w: Writer, element: Graph) -> None:
         w.line(f"{graph_series_field(element.id)} = WfbSeries.collectHeartRate(iterator);")
 
 
-def _emit_array_rebuild(w: Writer, element: Graph, src, guards: Guards) -> None:
+def _emit_array_rebuild(w: Writer, element: Graph, src: series.SeriesDef, guards: Guards) -> None:
     """`steps`/`calories`/.../`daily_precipitation_chance`: one short array,
     read into a fixed-size `Array<Float?>` -- `null` past the end when the
     acquired array is shorter than the requested sample count, which is the
@@ -161,6 +161,7 @@ def _emit_array_rebuild(w: Writer, element: Graph, src, guards: Guards) -> None:
             else:
                 w.line("var entry = raw[i];")
             if src.intermediate is not None:
+                assert src.field_name is not None  # an intermediate is a dotted field's
                 suffix = src.field_name[len(src.intermediate) + 1:]
                 w.line(f"var mid = entry.{src.intermediate};")
                 w.line(f"out[i] = (mid != null) ? mid.{suffix}.toFloat() : null;")

@@ -136,7 +136,7 @@ def _rasterise(source: Path, size: int, char: str,
     # reported bbox is not clipped, then measure the ink that actually
     # landed rather than trusting the bbox.
     pad = SUPERSAMPLE * 2
-    canvas = Image.new("L", (right - left + 2 * pad, bottom - top + 2 * pad), 0)
+    canvas = Image.new("L", (int(right - left) + 2 * pad, int(bottom - top) + 2 * pad), 0)
     ImageDraw.Draw(canvas).text((-left + pad, -top + pad), char, font=big, fill=255)
     ink = canvas.getbbox()
     if ink is None:
