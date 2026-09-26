@@ -79,7 +79,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         # `IconElement` needs regardless of which of 'icon'/'icon_for'/
         # 'glyph' chose it -- one `color_expression(node, "color")` call
         # instead of one per branch.
-        placement = dict(
+        placement: dict[str, Any] = dict(
             size=size, color=b.color_expression(node, "color"),
             align=align, vertical_align=vertical_align,
         )
@@ -110,6 +110,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         if has_glyph:
             return _build_glyph_icon(b, node, common, placement)
 
+        assert name is not None  # the schema requires one of icon/glyph/icon_for
         codepoint = b.resolve_icon_name(name, b.doc.span(node, "icon"))
         if codepoint is None:
             codepoint = icons.FALLBACK_CODEPOINT

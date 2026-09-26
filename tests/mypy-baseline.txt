@@ -63,21 +63,6 @@ wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation
 wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/view.py: [union-attr] Item "None" of "ConfigStyle | None" has no attribute "default_entry"
-wfb/emit/resources.py: [arg-type] Argument "glyphs" to "bake" has incompatible type "str | None"; expected "str"
-wfb/emit/resources.py: [arg-type] Argument "size" to "FontSpec" has incompatible type "float"; expected "Length"
-wfb/emit/resources.py: [arg-type] Argument 1 to "bake" has incompatible type "Path | None"; expected "Path"
-wfb/emit/resources.py: [arg-type] Argument 1 to "bake" has incompatible type "Path | None"; expected "Path"
-wfb/emit/resources.py: [arg-type] Argument 1 to "pixel_size" has incompatible type "object"; expected "Length | None"
-wfb/emit/resources.py: [assignment] Incompatible types in assignment (expression has type "ConfigColor", variable has type "StyleEntry")
-wfb/emit/resources.py: [assignment] Incompatible types in assignment (expression has type "ConfigColor", variable has type "StyleEntry")
-wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "allow_any"
-wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "allow_any"
-wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "axis"
-wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "choices"
-wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "choices"
-wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "default"
-wfb/emit/resources.py: [call-overload] No overload variant of "round" matches argument type "Length"
-wfb/emit/resources.py: [union-attr] Item "None" of "Path | None" has no attribute "name"
 wfb/expr.py: [arg-type] Argument 1 to "Token" has incompatible type "str | None"; expected "str"
 wfb/expr.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/expr.py: [call-overload] No overload variant of "int" matches argument type "object"
@@ -97,9 +82,6 @@ wfb/formatting.py: [misc] "None" not callable
 wfb/formatting.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/formatting.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/ir/model.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
-wfb/kinds/__init__.py: [attr-defined] "Placed" has no attribute "font"
-wfb/kinds/__init__.py: [attr-defined] "Placed" has no attribute "parts"
-wfb/kinds/__init__.py: [no-untyped-def] Function is missing a return type annotation
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
@@ -116,34 +98,6 @@ wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for o
 wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/graph.py: [operator] Unsupported operand types for >= ("float" and "None")
 wfb/kinds/hands.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/icon.py: [arg-type] Argument 1 to "IconFont" has incompatible type "Length | None"; expected "Length"
-wfb/kinds/icon.py: [arg-type] Argument 1 to "resolve_icon_name" of "Builder" has incompatible type "Any | None"; expected "str"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "AodOverride | None"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Expression | None"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Length | None"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Position"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Span | None"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "bool | None"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "bool"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "dict[str, object] | None"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "frozenset[str]"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "int | None"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str | None"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str"
-wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "tuple[str, ...]"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "AodOverride | None"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Expression | None"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Length | None"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Position"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "Span | None"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "bool | None"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "bool"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "dict[str, object] | None"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "frozenset[str]"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "int | None"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str | None"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str"
-wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "tuple[str, ...]"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object | Any"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"

@@ -105,7 +105,7 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
     an 8-bit grey ramp -- see `wfb.icons.font_key`'s docstring.
     """
     # key -> (size, glyphs, bake_reference, antialias)
-    by_key: dict[str, tuple[object, str, str, bool]] = {}
+    by_key: dict[str, tuple[units.Length | None, str, str, bool]] = {}
     for _, run in kinds.face_text_runs(face):
         if run.icon is not None:
             icon = run.icon
@@ -114,9 +114,11 @@ def icon_font_specs(face: Face, device: Device) -> dict[str, FontSpec]:
         key: FontSpec(
             name=key,
             source=icons.font_path(),
-            size=float(icons.bake_size(
+            # Already this device's nominal size, in pixels: the declared
+            # size through `units.pixel_size`, then `icons.bake_size`.
+            size=units.Length(float(icons.bake_size(
                 reference, units.pixel_size(length, device.minor_radius),
-            )),
+            )), "px"),
             glyphs=glyphs,
             antialias=antialias,
             span=None,
@@ -137,6 +139,7 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
             continue
         # `size:` goes through `wfb.units.pixel_size`, the same resolver the
         # synthetic icon fonts below use, so `12px` means one thing on both.
+        assert spec.source is not None  # a baked font names its file (FontSpec.is_baked)
         baked[name], _ = bake(
             spec.source,
             name=name,
@@ -148,13 +151,10 @@ def bake_fonts(face: Face, device: Device) -> dict[str, BakedFont]:
         )
 
     for name, spec in icon_font_specs(face, device).items():
-        # Not `spec.pixel_size(...)`: an icon font's spec is synthesised, not
-        # authored, and its `size` is already this device's final nominal size
-        # -- `icon_font_specs` has run the declared `Length` through
-        # `units.pixel_size` and then `icons.bake_size` to get there.
+        assert spec.source is not None and spec.glyphs is not None  # set by icon_font_specs
         baked[name], _ = bake(
-            spec.source, name=name, size=round(spec.size), glyphs=spec.glyphs,
-            antialias=spec.antialias,
+            spec.source, name=name, size=spec.pixel_size(device.minor_radius),
+            glyphs=spec.glyphs, antialias=spec.antialias,
         )
     return baked
 
@@ -171,6 +171,7 @@ def build_bundle(face: Face, device: Device, baked: dict[str, BakedFont]) -> Res
         lines = [f"<fonts {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">"]
         for name, font in baked.items():
             spec = specs[name]
+            assert spec.source is not None  # every baked font has a file
             raw_chars = sets.get(name, spec.glyphs or "")
             lines.append(
                 f'    <!-- {name}: {spec.source.name} at {font.size}px, '
@@ -272,19 +273,19 @@ def config_resource(face: Face) -> str:
                 lines.append(f'                <type{attrs}>Complications.{ctype.constant}</type>')
             lines.append("            </complication>")
         lines.append("        </data>")
-    for name, entry in face.config.items():
-        tag = entry.axis.resource_tag
-        if entry.allow_any:
+    for name, axis in face.config.items():
+        tag = axis.axis.resource_tag
+        if isinstance(axis.choices, str):  # `choices: any`
             lines.append(f'        <{tag} allowAny="true"/>')
             continue
         lines.append(f"        <{tag}>")
-        for index, choice in enumerate(entry.choices):
+        for index, option in enumerate(axis.choices):
             attrs = ""
-            if choice.color == entry.default:
+            if option.color == axis.default:
                 attrs += ' default="true"'
-            if choice.label is not None:
+            if option.label is not None:
                 attrs += f' label="@Strings.{config_label_id(name, index)}"'
-            lines.append(f"            <color{attrs}>{choice.color.as_monkeyc()}</color>")
+            lines.append(f"            <color{attrs}>{option.color.as_monkeyc()}</color>")
         lines.append(f"        </{tag}>")
     lines.append("    </watchface-config>")
     lines.append("</resources>")
@@ -308,12 +309,12 @@ def config_label_strings(face: Face) -> list[tuple[str, str]]:
             label = face.style_label(entry)
             if label is not None:
                 out.append((config_style_label_id(index), label))
-    for name, entry in face.config.items():
-        if entry.allow_any:
+    for name, axis in face.config.items():
+        if isinstance(axis.choices, str):  # `choices: any`
             continue
-        for index, choice in enumerate(entry.choices):
-            if choice.label is not None:
-                out.append((config_label_id(name, index), choice.label))
+        for index, option in enumerate(axis.choices):
+            if option.label is not None:
+                out.append((config_label_id(name, index), option.label))
     return out
 
 

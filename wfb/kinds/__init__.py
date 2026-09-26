@@ -22,7 +22,7 @@ from __future__ import annotations
 import importlib
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, ClassVar, Generic, TYPE_CHECKING, TypeVar
+from typing import Any, Callable, ClassVar, Generic, TYPE_CHECKING, TypeVar, cast
 
 if TYPE_CHECKING:
     from typing import TypeAlias
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from ..emit.writer import Writer
     from ..ir.builder import Builder
     from ..ir.model import Curve, Element, Expression, Face
-    from ..layout import Placed, ResolvedFace, Resolver
+    from ..layout import Placed, PlacedPattern, ResolvedFace, ResolvedFont, Resolver
     from ..preview import Renderer
     from ..units import Box, Length
 
@@ -62,7 +62,8 @@ class IconFont:
     glyph its nominal size is measured against (`wfb.icons.bake_size`), and
     whether it is anti-aliased."""
 
-    size: "Length"
+    #: `None`: the element wrote no `size:` (`units.pixel_size`'s default).
+    size: "Length | None"
     glyphs: str
     reference: str
     antialias: bool
@@ -152,11 +153,16 @@ def placed_text_runs(
             yield placed, run
 
 
-def placed_font(placed: "Placed", run: TextRun):
-    """The `ResolvedFont` layout decided for `run` on this device."""
+def placed_font(placed: "Placed", run: TextRun) -> "ResolvedFont":
+    """The `ResolvedFont` layout decided for `run` on this device: a
+    pattern part's, or the element's own."""
     if run.part_index is not None:
-        return placed.parts[run.part_index].font
-    return placed.font
+        part = cast("PlacedPattern", placed).parts[run.part_index]
+        assert part.shape == "text", run.label  # only a text part names a font
+        return part.font
+    font: ResolvedFont | None = getattr(placed, "font", None)
+    assert font is not None, run.label  # a run's element always resolves a font
+    return font
 
 
 # -- the kind interface -------------------------------------------------------
