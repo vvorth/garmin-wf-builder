@@ -674,7 +674,6 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | plan 04 §11 |
 | `wfb new -t analog` template | plan 04 §11 |
 | A pattern `text` part whose `value:` reads data (a data source, `palette.*` or `config.*`) | plan 06 §6 D3 -- every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `when_absent:`. Text parts reading only `copy` are built |
-| `pattern: grid` (rows × columns) | plan 05 §9 D5 -- two nested linear steps; nothing has asked for it yet |
 | Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | plan 05 §9 D5 -- a longer or differently-shaped copy is a second pattern element today |
 | `on_hold:` and `low_power` on a `pattern` | plan 05 §5.1, §5.4 -- hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |
 | `rounded_rectangle`/`ellipse` parts in a linear pattern, and an `arc` part off the pattern's centre | plan 05 §9 D3/D5 -- a linear pattern could draw both untransformed, and was kept to one part vocabulary instead |

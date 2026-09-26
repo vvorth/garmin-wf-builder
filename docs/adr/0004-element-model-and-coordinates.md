@@ -485,3 +485,13 @@ and a dot at the value. §1's "ticks" are not part of `scale`: a radial
 exactly, so a second tick mechanism inside `progress` would only duplicate
 it (`docs/limitations.md` §2).
 
+
+**Amendment 2026-09-26: `pattern: grid` is built.** §7's pattern gains a
+third placement rule beside `radial` and `linear`: `columns:` copies per
+row, `count:` copies in all (so the last row may be partial), copy `i` at
+`at + (i mod columns) × dx` across and `at + ⌊i / columns⌋ × dy` down. It
+keeps §7's split: the two steps are resolved to whole pixels once, per
+device, and the watch splits the copy index into column and row in the one
+draw loop, so the code cost stays flat in the count. `columns` is a total
+count's divisor rather than a second `count` so `copy` numbers every cell
+once, in reading order, the way a month calendar needs.

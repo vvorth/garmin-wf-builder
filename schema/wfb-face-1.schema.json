@@ -2330,11 +2330,18 @@
           "const": "pattern"
         },
         "pattern": {
-          "description": "'radial': copies turn about 'at:', 'step' degrees apart. 'linear': copies step along {dx, dy} from 'at:'.",
+          "description": "'radial': copies turn about 'at:', 'step' degrees apart. 'linear': copies step along {dx, dy} from 'at:'. 'grid': copies fill rows of 'columns:' from 'at:', dx between columns and dy between rows; copy i is column i % columns, row i // columns.",
           "enum": [
             "radial",
-            "linear"
+            "linear",
+            "grid"
           ]
+        },
+        "columns": {
+          "description": "'pattern: grid' only (and required there): how many copies per row. 'count:' is the total, so the last row may be partial -- 31 days in 'columns: 7' is four full weeks and three days.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
         },
         "at": {
           "description": "Radial: the centre every copy turns about. Linear: copy 0's own origin. An ordinary position, resolved against the parent box exactly like any other element's 'at:'.",
@@ -2347,7 +2354,7 @@
           "maximum": 360
         },
         "step": {
-          "description": "Radial: the angle between consecutive copies, default 360deg / count; negative turns counter-clockwise; 0deg is an error. Linear: required, {dx, dy} -- either may be omitted (0). Writing an angle on a linear pattern, a {dx, dy} on a radial one, or omitting it on a linear one, are each build-time errors, not schema errors -- both shapes are accepted here so the compiler can name the real mistake against your own line.",
+          "description": "Radial: the angle between consecutive copies, default 360deg / count; negative turns counter-clockwise; 0deg is an error. Linear and grid: required, {dx, dy} -- either may be omitted (0); on a grid, dx is between columns and dy between rows. Writing an angle on a linear pattern, a {dx, dy} on a radial one, or omitting it on a linear one, are each build-time errors, not schema errors -- both shapes are accepted here so the compiler can name the real mistake against your own line.",
           "oneOf": [
             {
               "$ref": "#/$defs/angle"

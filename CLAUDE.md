@@ -308,6 +308,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     to `start_angle + fraction x sweep`, and `style: segments`/`scale`
     (lit cells; bands and a pointer dot) on an arc or a bar
     (`docs/guide/progress-and-graphs.md`);
+  - `pattern: grid`: rows of `columns:`, `count:` copies in all, one loop
+    splitting the copy index into column and row
+    (`docs/guide/patterns.md` "Grids");
   - `units: auto|metric|statute` on a `text` element (ADR 0005 §4):
     distance, elevation, temperature and speed in the wearer's own units,
     compiled as an expression over the source and `device.<x>_units`, with

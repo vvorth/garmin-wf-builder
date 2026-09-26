@@ -825,9 +825,12 @@ class PlacedPattern(Placed):
     #: Radial only, degrees: copy 0's angle, and the angle between copies.
     start: float = 0.0
     step: float = 0.0
-    #: Linear only, whole pixels: the offset between consecutive copies.
+    #: Linear, whole pixels: the offset between consecutive copies.  Grid:
+    #: the offset between columns (`dx`) and between rows (`dy`).
     dx: int = 0
     dy: int = 0
+    #: Grid only: copies per row.
+    columns: int = 0
     #: Radial only: the farthest ink of any part of any drawn copy from
     #: `center` (`circular_extent` reads it, like `PlacedHands.reach`); `0`
     #: for a linear pattern, which reports no disc.
@@ -847,6 +850,10 @@ class PlacedPattern(Placed):
         if self.element.pattern == "radial":
             theta = math.radians(self.start + index * self.step)
             return float(self.center[0]), float(self.center[1]), math.sin(theta), math.cos(theta)
+        if self.element.pattern == "grid":
+            column, row = index % self.columns, index // self.columns
+            return (float(self.center[0] + column * self.dx),
+                    float(self.center[1] + row * self.dy), 0.0, 1.0)
         return float(self.center[0] + index * self.dx), float(self.center[1] + index * self.dy), 0.0, 1.0
 
 

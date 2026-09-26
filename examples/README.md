@@ -55,6 +55,7 @@ says what it is on the watch.
 | [`features/graph/`](features/graph/face.yaml) | `graph` styles (line, area, bars) and series | [Progress and graphs](../docs/guide/progress-and-graphs.md) |
 | [`features/analog/`](features/analog/face.yaml) | `hands:` sets, `type: hands`, a subdial, switched by style | [Analog hands](../docs/guide/analog-hands.md) |
 | [`features/patterns/`](features/patterns/face.yaml) | radial and linear `pattern` repeats | [Patterns](../docs/guide/patterns.md) |
+| [`features/grid/`](features/grid/face.yaml) | `pattern: grid` -- a month of dots in rows of 7 with today lit, and a row of weekday initials | [Patterns](../docs/guide/patterns.md#grids) |
 | [`features/vector-text/`](features/vector-text/face.yaml) | vector (`face:`) fonts and `curve:` | [Fonts](../docs/guide/fonts.md), [Text](../docs/guide/text.md) |
 | [`features/progress/`](features/progress/face.yaml) | `progress` `style: segments` and `style: scale`, each on an arc and a bar -- lit battery cells, heart-rate zones with a pointer | [Progress and graphs](../docs/guide/progress-and-graphs.md#segments-and-scales) |
 | [`features/gauge/`](features/gauge/face.yaml) | gauge needles: `progress` with `style: needle` -- a battery gauge over a tick dial, a heart-rate sub-gauge with a fallback | [Progress and graphs](../docs/guide/progress-and-graphs.md#gauge-needles) |

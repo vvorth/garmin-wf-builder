@@ -2,18 +2,19 @@
 
 A pattern draws **one template many times** — hour and minute ticks, a
 segmented ring, a row of week dots — as a single element instead of dozens.
-This chapter covers the `pattern` element: the `radial`/`linear` placement
-rule, the six part shapes a template can use, and how colour, `visible:` and
+This chapter covers the `pattern` element: the `radial`/`linear`/`grid`
+placement rule, the six part shapes a template can use, and how colour, `visible:` and
 text can vary per copy.
 
 ## At a glance
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `pattern` | `radial`\|`linear` | required | how copy `i` is placed — see the table below |
-| `at` | anchor / `dx`,`dy` / `angle`,`radius` | — | radial: the centre every copy turns about; linear: copy 0's own origin |
-| `count` | integer, 1–360 | required | how many copies |
-| `step` | radial: an angle; linear: required `{dx, dy}` | radial: `360deg / count` | the gap between copies |
+| `pattern` | `radial`\|`linear`\|`grid` | required | how copy `i` is placed — see the table below |
+| `at` | anchor / `dx`,`dy` / `angle`,`radius` | — | radial: the centre every copy turns about; linear/grid: copy 0's own origin |
+| `count` | integer, 1–360 | required | how many copies (a grid's total, not per row) |
+| `columns` | integer, 1–60 (grid only) | required on a grid | copies per row — see [Grids](#grids) |
+| `step` | radial: an angle; linear/grid: required `{dx, dy}` | radial: `360deg / count` | the gap between copies |
 | `start` | angle (radial only) | `0deg` | the angle of copy 0 |
 | `skip` / `skip_every` | copy indices / an integer | — | leave copies undrawn |
 | `parts` | 1–16 of `polygon`\|`rectangle`\|`line`\|`circle`\|`arc`\|`text` | required | the template, drawn in list order — keys per shape below |
@@ -110,11 +111,40 @@ same as a hand part.
 |---|---|---|---|
 | `radial` | the template turned **clockwise** by `start + i × step` about `at:` | an angle; default `360deg / count`; negative turns counter-clockwise | the angle of copy 0; default `0deg` |
 | `linear` | the template moved to `at + i × step` | **required**: `{dx, dy}`, lengths as in `at:` (`px`, `%`, `%r`; not `pt`), either may be omitted | an error: there is nothing to turn |
+| `grid` | the template moved to `at + (i mod columns) × dx` across and `at + ⌊i / columns⌋ × dy` down | **required**: `{dx, dy}` as for `linear`; `dx` steps columns, `dy` steps rows | an error, as for `linear` |
 
 A linear `step:` is resolved to **whole pixels once**, so every gap is the
 same size. The price is that the whole row may be up to half a pixel per copy
 longer or shorter than `count × step`, which is less visible than uneven
-gaps.
+gaps. A grid's two steps are rounded the same way, once each.
+
+### Grids
+
+`pattern: grid` fills rows of `columns:` copies, left to right and then top
+to bottom. `count:` is the **total**, so the last row may be partial: 31
+copies in rows of 7 are four full weeks and three days. Copy `i` sits in
+column `i mod columns` and row `⌊i / columns⌋`, so `copy`, `skip:` and
+`skip_every:` count across rows exactly as they count along a linear row.
+
+```yaml
+month:
+  type: pattern
+  pattern: grid
+  at: { anchor: center, dx: -42%r, dy: -12%r }   # copy 0: top-left cell
+  count: 31
+  columns: 7
+  step: { dx: 14%r, dy: 14%r }                   # dx per column, dy per row
+  color: "copy == date.day - 1 ? palette.today : (copy < date.day - 1 ? palette.past : palette.fg)"
+  parts:
+    - { shape: circle, radius: 4%r }
+```
+
+A grid is a linear pattern in two directions, and takes the same parts
+(and has the same gaps) as one. It draws as one loop, splitting the copy
+index into column and row on the watch, so its code cost does not grow with
+the count. A negative `dy` stacks rows upwards; either step may be omitted
+(a grid with no `dy` draws every row on top of the first, which the
+`pattern-step` lint reports).
 
 **Leaving copies out.** `skip: [0, 6]` skips those copy indices (0-based).
 `skip_every: 5` skips every copy whose index is a multiple of 5. The two
@@ -420,8 +450,9 @@ first.
 **Checks.** These are build errors, each reported on your own line:
 
 * a radial `step:` that is not an angle, or is `0deg`;
-* a linear `step:` that is not `{dx, dy}`, or is missing;
-* `start:` on a linear pattern;
+* a linear or grid `step:` that is not `{dx, dy}`, or is missing;
+* `start:` on a linear or grid pattern;
+* a grid with no `columns:`, and `columns:` on a radial or linear pattern;
 * radial copies that land on each other, `|step| × (count − 1) ≥ 360°`;
 * a `skip:` index that is out of range or repeated, a `skip_every:`
   larger than `count`, and skipping every copy;
@@ -438,7 +469,9 @@ suppressible `dead-element` lint, naming `<id>.parts[N]`: the part is never
 drawn, and emits no draw code at all.
 
 Per device, the `pattern-step` lint is an error when a linear step rounds
-to `{0, 0}` pixels, which would stack every copy on the first.
+to `{0, 0}` pixels, which would stack every copy on the first -- and, on a
+grid, when either step rounds to zero with more than one column or row
+along it, which would stack every column (or row) on the first.
 
 The element's extent is the bounding box of every drawn copy's ink -- what
 `off-screen` (the rectangular framebuffer check) tests against. On a round
@@ -469,9 +502,9 @@ and the loop's CPU cost when a pattern is not in `static:`. See
 ## Not built yet
 
 Still open for [patterns](#pattern): a text part whose `value:` reads data,
-`pattern: grid`, `on_hold:` and `low_power` on a pattern, per-copy variation
+`on_hold:` and `low_power` on a pattern, per-copy variation
 other than skipping, colour and visibility, `rounded_rectangle`/`ellipse`
-parts in a linear pattern, and an arc part off the pattern's centre.
+parts in a linear or grid pattern, and an arc part off the pattern's centre.
 
 See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 

@@ -14,7 +14,8 @@ listed as shipped.
   - `progress` (`arc`, `bar`);
   - `graph` (`line`, `area`, `bars`);
   - `hands` (analog hands, plan 04);
-  - `pattern` (plan 05; its text parts come from plan 06).
+  - `pattern` (plan 05; its text parts come from plan 06): `radial`,
+    `linear`, and `grid` (rows of `columns:`, `count:` in all).
 
   `hands` and `pattern` are the two exceptions to "the device does no layout
   arithmetic": the watch rotates or transforms the resolved geometry each

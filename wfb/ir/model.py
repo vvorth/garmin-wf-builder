@@ -1074,9 +1074,13 @@ class PatternElement(Element):
     step_angle: float = 0.0
     #: Radial only: `start:`, default `0deg`.
     start_angle: float = 0.0
-    #: Linear only: `step: {dx, dy}` -- an ordinary `Position` used for its
-    #: `dx`/`dy` alone (no anchor, no polar form reaches here).
+    #: Linear and grid: `step: {dx, dy}` -- an ordinary `Position` used for
+    #: its `dx`/`dy` alone (no anchor, no polar form reaches here); on a
+    #: grid, `dx` is between columns and `dy` between rows.
     step: Position | None = None
+    #: Grid only: copies per row; copy `i` is column `i % columns`, row
+    #: `i // columns`.
+    columns: int | None = None
     skip: tuple[int, ...] = ()
     skip_every: int | None = None
     parts: list[HandPart] = field(default_factory=list)

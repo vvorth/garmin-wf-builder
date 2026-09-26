@@ -1,6 +1,6 @@
 """`type: pattern` -- one template of 1-16 primitives, drawn repeatedly:
-turned about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
-(`pattern: linear`)."""
+turned about `at:` (`pattern: radial`), stepped along `{dx, dy}`
+(`pattern: linear`), or stepped in rows of `columns:` (`pattern: grid`)."""
 
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ def _pattern_steps(
         if "start" in node:
             b.bag.error(
                 "pattern",
-                f"{element_id}.start: not accepted on 'pattern: linear' -- "
+                f"{element_id}.start: not accepted on 'pattern: {node['pattern']}' -- "
                 "only a radial pattern has a start copy angle",
                 b.doc.span(node, "start"),
                 notes=["'step: {dx, dy}' already places copy 0 relative to 'at:'"],
@@ -147,17 +147,17 @@ def _pattern_steps(
         if step_raw is None:
             b.bag.error(
                 "pattern",
-                f"{element_id}.step: a linear pattern needs a "
+                f"{element_id}.step: a {node['pattern']} pattern needs a "
                 "'step: {dx, dy}' between copies",
                 b.doc.span(node) or common["span"],
-                notes=["radial's angle default (360deg / count) has no linear "
+                notes=["radial's angle default (360deg / count) has no "
                        "equivalent -- there is no natural spacing to assume"],
             )
             return None
         if not isinstance(step_raw, dict):
             b.bag.error(
                 "pattern",
-                f"{element_id}.step: 'pattern: linear' takes {{dx, dy}} for "
+                f"{element_id}.step: 'pattern: {node['pattern']}' takes {{dx, dy}} for "
                 "'step:', not an angle",
                 b.doc.span(node, "step"),
                 notes=["an angle 'step:' is for 'pattern: radial'"],
@@ -171,7 +171,7 @@ def _pattern_steps(
             f"{element_id}.step: 'pattern: radial' takes an angle for "
             "'step:' (default 360deg / count), not {dx, dy}",
             b.doc.span(node, "step"),
-            notes=["'{dx, dy}' is for 'pattern: linear'"],
+            notes=["'{dx, dy}' is for 'pattern: linear' and 'pattern: grid'"],
         )
         return None
     if step_raw is None:
@@ -661,8 +661,9 @@ class PatternKind(ElementKind):
 
     def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element | None:
         """`type: pattern` -- one template, drawn `count:` times, turned
-        about `at:` (`pattern: radial`) or stepped along `{dx, dy}`
-        (`pattern: linear`).
+        about `at:` (`pattern: radial`), stepped along `{dx, dy}`
+        (`pattern: linear`), or stepped in rows of `columns:`
+        (`pattern: grid`).
 
         Every check is a build-time error, and each returns `None` on its
         own violation rather than falling through to the next, so a design
@@ -685,6 +686,16 @@ class PatternKind(ElementKind):
 
         steps = _pattern_steps(b, node, common, count)
         if steps is None:
+            return None
+        columns = node.get("columns")
+        if node["pattern"] == "grid" and columns is None:
+            b.bag.error("pattern", f"{element_id}: 'pattern: grid' needs 'columns:' -- "
+                        "how many copies per row", b.doc.span(node, "pattern"),
+                        notes=["'count:' is the total, so the last row may be partial"])
+            return None
+        if node["pattern"] != "grid" and columns is not None:
+            b.bag.error("pattern", f"{element_id}.columns: read only by 'pattern: grid'",
+                        b.doc.span(node, "columns"))
             return None
         step_degrees, start_degrees, step_position = steps
 
@@ -756,6 +767,7 @@ class PatternKind(ElementKind):
             step_angle=step_degrees,
             start_angle=start_degrees,
             step=step_position,
+            columns=columns,
             skip=skip,
             skip_every=skip_every,
             parts=parts,
@@ -798,7 +810,7 @@ class PatternKind(ElementKind):
         placed = PlacedPattern(
             element, IntBox(0, 0, 0, 0), center, depth,
             parts=parts, copies=element.drawn_indices(),
-            start=start, step=step, dx=dx, dy=dy, reach=reach,
+            start=start, step=step, dx=dx, dy=dy, columns=element.columns or 0, reach=reach,
             aod_thickness=aod_thickness,
         )
 
@@ -1023,6 +1035,10 @@ class PatternKind(ElementKind):
                     w.line(f"var angle = {angle_expr};  // {angle_comment}")
                     w.line("var sin = Math.sin(angle);")
                     w.line("var cos = Math.cos(angle);")
+            elif element.pattern == "grid":
+                # Number / Number is integer division in Monkey C: the row.
+                w.line(f"var ox = Layout.{prefix}_X + (i % {element.columns}) * Layout.{prefix}_DX;")
+                w.line(f"var oy = Layout.{prefix}_Y + (i / {element.columns}) * Layout.{prefix}_DY;")
             else:
                 w.line(f"var ox = Layout.{prefix}_X + i * Layout.{prefix}_DX;")
                 w.line(f"var oy = Layout.{prefix}_Y + i * Layout.{prefix}_DY;")
@@ -1052,6 +1068,9 @@ class PatternKind(ElementKind):
         offsets = [f"{axis} {length}" for axis, length in
                   (("dx", step.dx), ("dy", step.dy)) if length is not None]
         step_desc = ", ".join(offsets) if offsets else "0px"
+        if element.pattern == "grid":
+            return (f"a grid pattern: {total} copies in rows of {element.columns}, "
+                    f"step {step_desc}{note}")
         return f"a linear pattern: {total} copies, step {step_desc}{note}"
 
     def layout_constants(self, prefix: str,
@@ -1063,7 +1082,9 @@ class PatternKind(ElementKind):
             (f"{prefix}_Y", placed.center[1], ""),
         ]
         if not radial:
-            out.append((f"{prefix}_DX", placed.dx, "step between copies, whole pixels"))
+            out.append((f"{prefix}_DX", placed.dx,
+                        "step between columns, whole pixels" if placed.element.pattern == "grid"
+                        else "step between copies, whole pixels"))
             out.append((f"{prefix}_DY", placed.dy, ""))
         out.extend(layout_constants_mod.aod_thickness_constant(
             prefix, placed, layout_constants_mod.EVERY_PART_NOTE))

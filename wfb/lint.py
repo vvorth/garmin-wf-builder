@@ -2243,22 +2243,38 @@ def check_pattern_step(resolved: ResolvedFace, bag: Bag) -> None:
     280x280 screen and rounds away to nothing on a screen too small (or an
     axis too short) for 1% of it to reach a whole pixel.
 
+    A grid is checked per axis: its columns collapse when `dx` rounds to
+    zero and its rows when `dy` does, each only when there is more than one
+    column (or row) to collapse.
+
     An ERROR, not a suppressible lint: like the build-time radial checks
     this mirrors, a design that hits it does not work, so there is nothing
     for `lint: {allow: ...}` to accept.
     """
     for placed in resolved.items:
-        if not isinstance(placed, PlacedPattern) or placed.element.pattern != "linear":
+        if not isinstance(placed, PlacedPattern) or placed.element.pattern == "radial":
             continue
-        if placed.dx != 0 or placed.dy != 0:
+        element = placed.element
+        if element.pattern == "grid":
+            # Per axis: columns collapse when dx rounds away, rows when dy does.
+            rows = -(-element.count // element.columns)
+            collapsed = [what for what, n, d in (("column", element.columns, placed.dx),
+                                                  ("row", rows, placed.dy)) if n > 1 and d == 0]
+            if not collapsed:
+                continue
+            landing = " and ".join(f"every {what}" for what in collapsed) + " lands on the first"
+        elif placed.dx != 0 or placed.dy != 0:
             continue
-        step = placed.element.step
+        else:
+            landing = "every copy lands on copy 0"
+        step = element.step
         authored = f"{{dx: {step.dx}, dy: {step.dy}}}" if step is not None else "{}"
+        rounded = f"{{{placed.dx}, {placed.dy}}}px"
         _emit(bag, placed, Diagnostic(
             Severity.ERROR,
             "pattern-step",
-            f"{placed.id}: 'step: {authored}' rounds to {{0, 0}}px on "
-            f"{resolved.device.id} -- every copy lands on copy 0",
+            f"{placed.id}: 'step: {authored}' rounds to {rounded} on "
+            f"{resolved.device.id} -- {landing}",
             placed.element.span,
             notes=["a step this small only reaches a whole pixel on a larger "
                    "screen, or a larger fraction of the parent box -- use a "
