@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
 from dataclasses import replace
@@ -11,9 +12,9 @@ from .. import catalog, conversion, expr, formatting
 from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
-from ..ir.model import Element, Expression, Text, aod_outline_choice
+from ..ir.model import Element, Expression, Outline, Text, aod_outline_choice
 from ..layout import Placed, PlacedText, longer, resolved_curve, text_ink
-from ..units import Axis, Box
+from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import shapes
 from ..emit.monkeyc.common import NO_AOD, AodStyle, aod_font_field, const_prefix, font_field, mc_color
@@ -111,16 +112,15 @@ def _glyphs(element: Text) -> tuple[set[str], set[str]]:
         return set(), set()
     source = catalog.get(element.value.sources[0]) if element.value.sources else None
     spec = element.format or "{}"
-    units = {"digits": element.unit_digits, "unit_labels": element.unit_labels}
     value_glyphs = formatting.glyphs(spec, source, element.value.value.type, element.value.scale,
-                                     **units)
+                                     digits=element.unit_digits, unit_labels=element.unit_labels)
     glyphs = set(value_glyphs)
     aod = element.aod
     aod_spec = aod.format if aod is not None and aod.format is not None else spec
     aod_glyphs = (
         set(value_glyphs) if aod_spec == spec
         else formatting.glyphs(aod_spec, source, element.value.value.type, element.value.scale,
-                               **units)
+                               digits=element.unit_digits, unit_labels=element.unit_labels)
     )
     if element.placeholder:
         glyphs |= set(element.placeholder)
@@ -159,6 +159,7 @@ def _text_font(renderer: Renderer, placed: PlacedText) -> tuple[BakedFont | None
     aod_font = renderer.aod_field(element, "font", None)
     if aod_font is None or aod_font == placed.font.reference:
         return font, metric
+    assert element.aod is not None  # `aod_field` found the override there
     if element.aod.font_is_custom:
         override_spec = renderer.resolved.face.fonts.get(aod_font)
         if override_spec is not None and not override_spec.is_vector:
@@ -198,7 +199,7 @@ def _text_value(renderer: Renderer, placed: PlacedText) -> str | None:
     return formatting.render(spec, value, value_type, unit_text=unit_text)
 
 
-def _aod_ring(element: Text, dim_set: bool):
+def _aod_ring(element: Text, dim_set: bool) -> tuple[Outline | None, str]:
     """`aod_outline_choice` for this element's AOD frame; `(None, "awake")`
     when the element is not drawn in AOD at all."""
     if element.aod is None:
@@ -207,7 +208,7 @@ def _aod_ring(element: Text, dim_set: bool):
 
 
 def _emit_ring(w: Writer, element: Text, aod: AodStyle, x_expr: str, y_expr: str,
-               draw) -> None:
+               draw: Callable[[str, str], None]) -> None:
     """The `outline:` stamp loop ahead of the interior pass
     (`shapes.emit_outline_loop`), for the awake ring and the AOD frame's own
     (`aod_outline_choice`): one loop when both frames have a ring -- the
@@ -227,6 +228,7 @@ def _emit_ring(w: Writer, element: Text, aod: AodStyle, x_expr: str, y_expr: str
         return
     if awake is None or asleep is None:
         ring = asleep if awake is None else awake
+        assert ring is not None  # both absent returned above
         with w.block("if (_aod)" if awake is None else "if (!_aod)"):
             shapes.emit_outline_loop(w, f"Layout.OUTLINE_OFFSETS_{ring.width}",
                                      mc_color(ring.color), x_expr, y_expr, draw,
@@ -241,7 +243,7 @@ def _emit_ring(w: Writer, element: Text, aod: AodStyle, x_expr: str, y_expr: str
     shapes.emit_outline_loop(w, offsets, color, x_expr, y_expr, draw)
 
 
-def _emit_text_draw(w: Writer, resolved, placed: PlacedText, value_code: str,
+def _emit_text_draw(w: Writer, resolved: ResolvedFace, placed: PlacedText, value_code: str,
                     aod: AodStyle = NO_AOD) -> None:
     element = placed.element
     prefix = const_prefix(placed.id)
@@ -361,7 +363,9 @@ def _emit_vector_text_draw(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
-def _apply_units(b: Builder, node: dict[str, Any], value: Expression | None):
+def _apply_units(
+    b: Builder, node: dict[str, Any], value: Expression | None,
+) -> tuple[Expression, str, Expression, tuple[str, ...], int] | None:
     """`units:` on a `text` element (ADR 0005 §4): the bound value rewritten
     to display in the wearer's units (`wfb.conversion`), as ``(value,
     system, label, labels, digits)``, or `None` when it was reported.
@@ -469,7 +473,7 @@ class TextKind(ElementKind[Text, PlacedText]):
             b.check_absence(node, element, value, element.when_absent, element.placeholder,
                             element.fallback)
             b.check_format(node, value, element.format)
-            if own_aod_format:
+            if own_aod_format and element.aod_own is not None:
                 # An `aod: {format: ...}` inherited from a group is checked
                 # in `_resolve_aod` instead, once inheritance is resolved.
                 b.check_format_spec(value, str(element.aod_own["format"]), aod_format_span)
@@ -498,7 +502,7 @@ class TextKind(ElementKind[Text, PlacedText]):
 
         x, y = r.point(element.at, parent)
         curve = resolved_curve(element.curve)
-        if curve.style == "radial" and element.curve.radius is not None:
+        if element.curve is not None and curve.style == "radial" and element.curve.radius is not None:
             curve = replace(curve, radius_px=round(r.extent(
                 element.curve.radius, parent, Axis.MINOR, 0,
                 min_1px=element.resolved_min_1px, what="curve.radius")))
@@ -563,7 +567,8 @@ class TextKind(ElementKind[Text, PlacedText]):
             if not placed.font.available:
                 return
 
-            def draw(anchor, fill, box=None):
+            def draw(anchor: tuple[int, int], fill: tuple[int, int, int],
+                     box: IntBox | None = None) -> None:
                 renderer.draw_vector_text(
                     text, anchor, element.align, element.vertical_align, placed.font.metric,
                     fill, placed.curve.style, placed.curve.angle_garmin,
@@ -571,7 +576,8 @@ class TextKind(ElementKind[Text, PlacedText]):
         else:
             font, metric = _text_font(renderer, placed)
 
-            def draw(anchor, fill, box=None):
+            def draw(anchor: tuple[int, int], fill: tuple[int, int, int],
+                     box: IntBox | None = None) -> None:
                 renderer.draw_text(font, text, anchor, element.align, element.vertical_align,
                                    metric, fill, box=box)
         outline, ring_color = element.outline, None

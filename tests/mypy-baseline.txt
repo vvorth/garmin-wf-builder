@@ -66,21 +66,6 @@ wfb/expr.py: [dict-item] Dict entry 7 has incompatible type "str": "Callable[[_S
 wfb/expr.py: [dict-item] Dict entry 8 has incompatible type "str": "Callable[[_SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT, _SupportsDunderLE | _SupportsDunderGE | _SupportsDunderGT | _SupportsDunderLT], Any]"; expected "str": "Callable[[object, object], object]"
 wfb/expr.py: [operator] Unsupported operand type for unary - ("object")
 wfb/expr.py: [operator] Unsupported operand type for unary - ("object")
-wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [union-attr] Item "None" of "Any | None" has no attribute "measure"
-wfb/kinds/complication_slot.py: [union-attr] Item "None" of "Any | None" has no attribute "sheet"
-wfb/kinds/graph.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
-wfb/kinds/graph.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
-wfb/kinds/graph.py: [arg-type] Argument 5 to "_graph_point" has incompatible type "float | None"; expected "float"
-wfb/kinds/graph.py: [assignment] Incompatible types in assignment (expression has type "None", variable has type "float")
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [operator] Unsupported operand types for >= ("float" and "None")
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object | Any"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
@@ -101,28 +86,6 @@ wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no at
 wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
 wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "constant"
 wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "is_constant"
-wfb/kinds/shape.py: [arg-type] Argument 1 to "placed" has incompatible type "Box"; expected "IntBox"
-wfb/kinds/shape.py: [arg-type] Argument 1 to "placed" has incompatible type "int"; expected "IntBox"
-wfb/kinds/shape.py: [assignment] Incompatible types in assignment (expression has type "IntBox", variable has type "Box")
-wfb/kinds/shape.py: [assignment] Incompatible types in assignment (expression has type "IntBox", variable has type "int")
-wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "int | None"
-wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "int | None"
-wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "tuple[str, ...]"
-wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "tuple[str, ...]"
-wfb/kinds/text.py: [index] Value of type "dict[str, object] | None" is not indexable
-wfb/kinds/text.py: [no-untyped-def] Function is missing a return type annotation
-wfb/kinds/text.py: [no-untyped-def] Function is missing a return type annotation
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [union-attr] Item "None" of "AodOverride | None" has no attribute "font_is_custom"
-wfb/kinds/text.py: [union-attr] Item "None" of "Curve | None" has no attribute "radius"
-wfb/kinds/text.py: [union-attr] Item "None" of "Curve | None" has no attribute "radius"
 wfb/lint.py: [arg-type] Argument 1 to "join" of "str" has incompatible type "tuple[str, ...] | None"; expected "Iterable[str]"
 wfb/lint.py: [assignment] Incompatible types in assignment (expression has type "list[str] | list[None]", variable has type "list[str | None]")
 wfb/lint.py: [attr-defined] "Element" has no attribute "count"

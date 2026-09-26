@@ -9,7 +9,7 @@ from typing import Any, TYPE_CHECKING
 from .. import catalog, complications, formatting, icons, units
 from ..catalog import Type
 from ..diagnostics import Span
-from ..fonts import fallback
+from ..fonts import BakedFont, fallback
 from ..ir.builder import ICON_SIZE_NOTE
 from ..ir.model import HOLD_AUTO, ComplicationSlot, ConfigDataSlot, Element, Expression
 from ..ir.naming import complication_slot_hold_method, complication_slot_icon_method
@@ -79,7 +79,7 @@ def _resolve_slot_reference(b: Builder, raw: str, span: Span | None) -> ConfigDa
 
 
 def _check_slot_color_absence(
-    b, node: dict[str, Any], element: "ComplicationSlot", key: str,
+    b: Builder, node: dict[str, Any], element: "ComplicationSlot", key: str,
     color: Expression | None, note: str,
 ) -> None:
     """A complication_slot's `color:`/`icon_color:` may not read
@@ -133,7 +133,8 @@ def _complication_slot_widest(r: Resolver, element: ComplicationSlot) -> str:
     return widest
 
 
-def _complication_slot_text(element, ctype) -> str:
+def _complication_slot_text(element: ComplicationSlot,
+                            ctype: complications.ComplicationType) -> str:
     """An illustrative reading for `ctype`, formatted the same way
     `wfb.emit.monkeyc.complication_slot.emit_complication_slot` renders one: an optional
     label prefix, the value, and an optional unit suffix -- approximate,
@@ -151,7 +152,7 @@ def _complication_slot_text(element, ctype) -> str:
     return text
 
 
-def _text_glyphs(element: ComplicationSlot, face) -> set[str]:
+def _text_glyphs(element: ComplicationSlot, face: Face) -> set[str]:
     """Every character the slot's reading could render.  The wearer can
     point this slot at any of its declared choices, each with its own value
     type and no per-choice `format:`, so the font must carry everything
@@ -160,7 +161,8 @@ def _text_glyphs(element: ComplicationSlot, face) -> set[str]:
     slot = face.config_data.get(element.slot)
     choices: tuple[str, ...] = ()
     if slot is not None:
-        choices = (slot.default,) if slot.allow_any else slot.choices
+        # `choices: any` is the one string form; its only known reading is the default.
+        choices = slot.choices if isinstance(slot.choices, tuple) else (slot.default,)
     for name in choices:
         ctype = complications.TYPES.get(name)
         if ctype is None:
@@ -181,7 +183,7 @@ def _text_glyphs(element: ComplicationSlot, face) -> set[str]:
     return glyphs
 
 
-def _icon_run(element: ComplicationSlot, face) -> TextRun | None:
+def _icon_run(element: ComplicationSlot, face: Face) -> TextRun | None:
     """The slot's multi-glyph icon font (with `icon_size:`), keyed by the
     slot's name, or `None` when none of its choices has a catalogue icon --
     it simply draws none, which is a documented, legitimate outcome
@@ -488,7 +490,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             icon_color = renderer.color(icon_aod) if icon_aod is not None else color
         s = renderer.scale
 
-        icon_font = None
+        icon_font: BakedFont | None = None
         icon_glyph = None
         if placed.icon_font_key is not None:
             icon = slot.icons.get(slot.default)
@@ -517,7 +519,9 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             text_width, text_height = 0, placed.font.px
 
         glyph_obj = baked_glyph(icon_font, icon_glyph)
-        icon_width, icon_height = icon_font.measure(icon_glyph) if glyph_obj else (0, 0)
+        icon_width, icon_height = (icon_font.measure(icon_glyph)
+                                   if glyph_obj is not None and icon_font is not None
+                                   and icon_glyph is not None else (0, 0))
 
         # One shared geometry function for every position --
         # `wfb.layout.complication_slot_pair_geometry`, the same one
@@ -540,7 +544,7 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
         origin_x = ax + dx - geometry.width / 2
         origin_y = ay + dy - geometry.height / 2
 
-        if glyph_obj is not None:
+        if glyph_obj is not None and icon_font is not None and icon_font.sheet is not None:
             renderer.paste_glyph(icon_font.sheet, glyph_obj,
                               (origin_x + geometry.icon_x) * s,
                               (origin_y + geometry.icon_y) * s, icon_color)

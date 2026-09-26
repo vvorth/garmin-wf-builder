@@ -119,13 +119,14 @@ def _graph_bound(b: Builder, node: dict[str, Any], key: str) -> tuple[Expression
     return expression, False
 
 
-def _preview_graph_bound(renderer: Renderer, expression, default: float) -> float:
+def _preview_graph_bound(renderer: Renderer, expression: Expression | None,
+                         default: float) -> float:
     """A fixed `min:`/`max:` expression, evaluated against the same
     sample readings every other bound value previews against."""
     if expression is None or expression.ast is None:
         return default
     value = expr.evaluate(expression.ast, renderer.values)
-    return default if value is None else float(value)
+    return float(value) if isinstance(value, (int, float)) else default
 
 
 def _graph_point(renderer: Renderer, placed: PlacedGraph, i: int, n: int, value: float,
@@ -139,7 +140,7 @@ def _graph_point(renderer: Renderer, placed: PlacedGraph, i: int, n: int, value:
 
 
 def _graph_line(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
-                lo: float, span: float, color) -> None:
+                lo: float, span: float, color: tuple[int, int, int]) -> None:
     n = len(values)
     if n < 2:
         return
@@ -157,7 +158,7 @@ def _graph_line(renderer: Renderer, placed: PlacedGraph, values: list[float | No
 
 
 def _graph_area(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
-                lo: float, span: float, color) -> None:
+                lo: float, span: float, color: tuple[int, int, int]) -> None:
     """One filled run per contiguous stretch of present samples -- the
     same "a gap must not draw" rule `WfbSeries.drawArea` follows, so a
     gap in the synthetic series (were one ever added) would look the
@@ -175,7 +176,9 @@ def _graph_area(renderer: Renderer, placed: PlacedGraph, values: list[float | No
             continue
         run: list[tuple[float, float]] = []
         while i < n and values[i] is not None:
-            run.append(_graph_point(renderer, placed, i, n, values[i], lo, span))
+            value = values[i]
+            assert value is not None  # the loop condition
+            run.append(_graph_point(renderer, placed, i, n, value, lo, span))
             i += 1
         if len(run) >= 2:
             bottom = (y + h) * s
@@ -184,7 +187,7 @@ def _graph_area(renderer: Renderer, placed: PlacedGraph, values: list[float | No
 
 
 def _graph_bars(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
-                lo: float, span: float, color) -> None:
+                lo: float, span: float, color: tuple[int, int, int]) -> None:
     n = len(values)
     if n < 1:
         return
@@ -304,11 +307,8 @@ class GraphKind(ElementKind[Graph, PlacedGraph]):
         max_expr, max_auto = _graph_bound(b, node, "max")
         if (min_expr is not None and min_expr.is_constant
                 and max_expr is not None and max_expr.is_constant):
-            try:
-                lo, hi = float(min_expr.constant), float(max_expr.constant)
-            except (TypeError, ValueError):
-                lo = hi = None
-            if lo is not None and lo >= hi:
+            lo, hi = min_expr.constant, max_expr.constant
+            if isinstance(lo, (int, float)) and isinstance(hi, (int, float)) and lo >= hi:
                 b.bag.error(
                     "graph",
                     f"min ({min_expr.text}) must be less than max ({max_expr.text})",

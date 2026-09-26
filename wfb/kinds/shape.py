@@ -3,6 +3,7 @@ arc, ellipse, polygon)."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
 from ..ir.model import Element, Position, Shape
@@ -85,7 +86,7 @@ def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
         )
 
 
-def _shape_filled_override(element, aod: AodStyle) -> bool:
+def _shape_filled_override(element: Shape, aod: AodStyle) -> bool:
     """Does this shape's resolved `aod:` flip `filled:` (plan 14 §4.2) --
     `True` only when this build ever emits AOD code, an override exists, and
     it actually differs from the awake `filled:`; a same-valued override
@@ -109,7 +110,7 @@ _FILLABLE_SHAPES: dict[str, tuple[str, tuple[tuple[str, ...], ...]]] = {
 
 
 def _emit_filled_toggle(w: Writer, filled: bool, override: bool,
-                        draw_filled, draw_outline) -> None:
+                        draw_filled: Callable[[], None], draw_outline: Callable[[], None]) -> None:
     """Emit ``draw_filled``/``draw_outline`` for the awake state, or, when
     ``override`` (`_shape_filled_override`), wrap both in
     ``if (_aod) { <opposite> } else { <awake> }`` -- the "changes the draw
@@ -127,7 +128,7 @@ def _emit_filled_toggle(w: Writer, filled: bool, override: bool,
         (draw_filled if filled else draw_outline)()
 
 
-def _needs_thickness_constant(element) -> bool:
+def _needs_thickness_constant(element: Shape) -> bool:
     """Does this `shape` need a `_THICKNESS` `Layout` constant at all -- the
     plain unfilled-outline case, or an `aod: {filled: false}` override on an
     otherwise-filled shape (plan 14 §4.2), which needs a pen width for the
@@ -223,7 +224,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                                     min_1px=min_1px, what="thickness")))
         aod_thickness = r.aod_extent(element, "thickness", parent, 1)
 
-        def placed(box: IntBox, x: float, y: float, **fields) -> PlacedShape:
+        def placed(box: IntBox, x: float, y: float, **fields: Any) -> PlacedShape:
             return PlacedShape(element, box, (round(x), round(y)), depth,
                                thickness=pen, aod_thickness=aod_thickness, **fields)
 
@@ -249,10 +250,10 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         if element.shape == "arc":
             radius = round(r.extent(element.radius, parent, Axis.MINOR, 0,
                                     min_1px=min_1px, what="radius"))
-            box, cx, cy, start, sweep, garmin_start, direction = arc_box(
+            arc_ink, cx, cy, start, sweep, garmin_start, direction = arc_box(
                 radius, pen, cx, cy, element.align, element.vertical_align,
                 element.start_angle, element.sweep)
-            return placed(box, cx, cy, radius=radius, start_angle=start, sweep=sweep,
+            return placed(arc_ink, cx, cy, radius=radius, start_angle=start, sweep=sweep,
                           garmin_start=garmin_start, garmin_direction=direction)
 
         if element.shape == "polygon":
@@ -289,9 +290,9 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
         if element.filled:
             return placed(rect, cx, cy, corner_radius=corner)
         pad = stroke_pad(pen)
-        reach = Box(rect.x - pad, rect.y - pad,
+        outer = Box(rect.x - pad, rect.y - pad,
                     rect.width + 2 * pad, rect.height + 2 * pad).rounded()
-        return placed(reach, cx, cy, corner_radius=corner, rect=rect)
+        return placed(outer, cx, cy, corner_radius=corner, rect=rect)
 
     def aod_refusal(self, key: str, shape: str | None,
                     literal_text: bool) -> tuple[str, str, list[str]] | None:
