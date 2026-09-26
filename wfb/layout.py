@@ -595,8 +595,13 @@ class PlacedProgress(Placed):
     garmin_start: float = 90.0
     garmin_direction: str = "ARC_CLOCKWISE"
     size: tuple[int, int] = (0, 0)
-    #: See `PlacedShape.aod_thickness` -- `style: arc` only.
+    #: See `PlacedShape.aod_thickness` -- `style: arc`, and a needle's
+    #: stroked parts.
     aod_thickness: int | None = None
+    #: `style: needle`: the resolved parts, in the needle's own frame, and
+    #: the farthest ink from the axis (`center`).
+    needle: tuple["ResolvedHandPart", ...] = ()
+    reach: float = 0.0
 
 
 @dataclass

@@ -216,41 +216,51 @@ def _check_element_types(doc: YamlDocument, bag: Bag) -> list[list]:
     return bad
 
 
-#: Keys that only make sense for one `progress` style.  Supplying one set
-#: while declaring the other style is a much commoner mistake than omitting
-#: a key, and "missing required key 'size'" does not begin to explain it.
+#: The keys each `progress` style draws with.  Supplying another style's
+#: keys while declaring this one is a much commoner mistake than omitting a
+#: key, and "missing required key 'size'" does not begin to explain it.
 _PROGRESS_STYLE_KEYS = {
     "arc": ("radius", "thickness", "start_angle", "sweep"),
     "bar": ("size",),
+    "needle": ("start_angle", "sweep", "needle"),
+}
+
+#: What each style is, for the note naming the right keys.
+_PROGRESS_STYLE_SHAPES = {
+    "arc": "a stroked ring -- radius, thickness, start_angle, sweep",
+    "bar": "a rectangle -- size",
+    "needle": "a gauge needle turned about at: -- start_angle, sweep, needle",
 }
 
 
 def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict) -> bool:
-    """Catch a `progress` whose keys belong to the other style.  True when
+    """Catch a `progress` whose keys belong to another style.  True when
     it reported an error for this element."""
     if element.get("type") != "progress":
         return False
     style = element.get("style")
     if style not in _PROGRESS_STYLE_KEYS:
         return False
-    other = "bar" if style == "arc" else "arc"
-    wrong = [key for key in _PROGRESS_STYLE_KEYS[other] if key in element]
+    own = set(_PROGRESS_STYLE_KEYS[style])
+    others = {key: other for other, keys in _PROGRESS_STYLE_KEYS.items() if other != style
+              for key in keys if key not in own}
+    wrong = [key for key in others if key in element]
     if not wrong:
         return False
     missing = [key for key in _PROGRESS_STYLE_KEYS[style] if key not in element]
     if not missing:
         return False
     plural = "s" if len(wrong) > 1 else ""
+    candidates = list(dict.fromkeys(others[key] for key in wrong))
     bag.error(
         "schema",
         f"this progress element is 'style: {style}' but carries "
-        f"{other}-only key{plural}: {', '.join(repr(k) for k in wrong)}",
+        f"{'/'.join(candidates)}-only key{plural}: {', '.join(repr(k) for k in wrong)}",
         doc.span(element, "style"),
         notes=[
-            f"either set 'style: {other}', or replace those with "
+            f"either set 'style: {' or '.join(candidates)}', or replace those with "
             f"{', '.join(repr(k) for k in _PROGRESS_STYLE_KEYS[style])}",
-            "'arc' is a stroked ring -- radius, thickness, start_angle, sweep; "
-            "'bar' is a rectangle -- size",
+            "; ".join(f"'{name}' is {shape}" for name, shape in _PROGRESS_STYLE_SHAPES.items()),
         ],
     )
     return True

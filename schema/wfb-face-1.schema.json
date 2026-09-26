@@ -1496,11 +1496,21 @@
           "const": "progress"
         },
         "style": {
-          "description": "arc is setPenWidth + drawArc. Garmin has no filled-sector primitive anywhere in the API, so thickness is a pen width and inner/outer radii are deliberately not offered.",
+          "description": "arc is setPenWidth + drawArc. Garmin has no filled-sector primitive anywhere in the API, so thickness is a pen width and inner/outer radii are deliberately not offered. needle is a gauge: 'needle:' parts turned about 'at:' to start_angle + fraction x sweep, with the analog hands' rotation machinery.",
           "enum": [
             "arc",
-            "bar"
+            "bar",
+            "needle"
           ]
+        },
+        "needle": {
+          "description": "style: needle only -- the needle's parts, authored exactly like an analog hand's (docs/guide/analog-hands.md): pointing at 12 o'clock, in a frame whose origin is the axis ('at:'), drawn in this order. A part with no 'color:' takes the element's own 'color:'.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/handPart"
+          }
         },
         "value": {
           "$ref": "#/$defs/expression"
@@ -1616,6 +1626,25 @@
           "then": {
             "required": [
               "size"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "needle"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "start_angle",
+              "sweep",
+              "needle"
             ]
           }
         }

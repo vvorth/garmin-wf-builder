@@ -1,0 +1,105 @@
+# A gauge needle (docs/guide/progress-and-graphs.md "Gauge needles"):
+# `progress` with `style: needle` -- the analog hands' rotation machinery
+# driven by a reading instead of the clock.
+#
+# A needle is authored exactly like an analog hand: its parts point at
+# 12 o'clock, in a frame whose origin is the axis (`at:`). On the watch it
+# turns to `start_angle + fraction x sweep`, clockwise from 12, where the
+# fraction is `value / max` clamped to 0..1 -- the same mapping a
+# `style: arc` progress fills with. What this design exercises:
+#
+# * **A battery gauge** (`battery_needle`): a tapered polygon over a
+#   240-degree dial whose ticks are a radial `pattern` sharing the
+#   needle's start angle and sweep (11 ticks, 24 degrees apart). The
+#   needle's colour turns red below 20% -- the element's `color:` may read
+#   data, like any progress colour, and every part without a colour of
+#   its own takes it.
+# * **A heart-rate sub-gauge** (`hr_needle`): a line needle on an
+#   off-centre axis, 0-200 bpm over a half circle, with `when_absent:
+#   fallback` parking it at zero while there is no reading.
+# * **A hub above the needle**: a part of the needle itself (a circle at the
+#   axis, drawn after the pointer), so it turns with it and costs nothing
+#   extra.
+#
+# Build it with:     ./wfb.py build examples/features/gauge/face.yaml
+# Preview it with:   ./wfb.py preview examples/features/gauge/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+
+format: 1
+face:
+  id: a96f4815-fedd-4356-8596-4aa9dc5e6fd8
+  name: Feature gauge
+  version: 1.0.0
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  scale: "#AAAAAA"
+  accent: "#FFAA00"
+  low: "#FF0000"
+
+static:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  - id: battery_ticks
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 11
+    start: 240deg
+    step: 24deg
+    color: palette.scale
+    parts:
+      - { shape: line, at: { dy: -84%r }, to: { dy: -76%r }, thickness: 2px }
+
+  - id: battery_label
+    type: text
+    text: "BATTERY"
+    font: FONT_XTINY
+    at: { anchor: center, dy: -30%r }
+    color: palette.scale
+
+  - id: hr_label
+    type: text
+    text: "BPM"
+    font: FONT_XTINY
+    at: { anchor: center, dy: 62%r }
+    color: palette.scale
+
+elements:
+  - id: battery_needle
+    type: progress
+    style: needle
+    value: system.battery
+    max: 100
+    at: { anchor: center }
+    start_angle: 240deg
+    sweep: 240deg
+    color: "system.battery < 20 ? palette.low : palette.accent"
+    needle:
+      - shape: polygon
+        points: [{ dx: -3%r, dy: 12%r }, { dx: -1%r, dy: -70%r }, { dy: -74%r },
+                 { dx: 1%r, dy: -70%r }, { dx: 3%r, dy: 12%r }]
+      - { shape: circle, radius: 5%r, color: palette.fg }
+
+  - id: hr_needle
+    type: progress
+    style: needle
+    value: heart_rate.current
+    max: 200
+    at: { anchor: center, dy: 40%r }
+    start_angle: 270deg
+    sweep: 180deg
+    color: palette.fg
+    when_absent: fallback
+    fallback: 0.0
+    needle:
+      - { shape: line, at: { dy: 3%r }, to: { dy: -18%r }, thickness: 2px }
+      - { shape: circle, radius: 2%r }

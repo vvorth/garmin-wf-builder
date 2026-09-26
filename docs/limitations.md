@@ -671,7 +671,6 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `seconds: always` (a second hand while asleep) | plan 04 §11 -- needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one; refused with a friendly error, not a schema enum message |
 | `arc` hand parts | plan 04 §11 -- would need the start angle to rotate with the hand too |
 | Data-driven hand colours | plan 04 §11 -- a hand has no `when_absent:` to fall back through if the bound reading were absent |
-| A gauge needle (an author-expression angle, not the clock) | plan 04 §11 -- the rotation machinery is the same as an analog hand's; the format question (one authored angle vs. three fixed clock formulas) is not |
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | plan 04 §11 |
 | `wfb new -t analog` template | plan 04 §11 |
 | A pattern `text` part whose `value:` reads data (a data source, `palette.*` or `config.*`) | plan 06 §6 D3 -- every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `when_absent:`. Text parts reading only `copy` are built |

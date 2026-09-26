@@ -14,13 +14,14 @@ the same placement rule as every other element with a box.
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `style` | `arc`\|`bar` | required | ring or bar rendering |
+| `style` | `arc`\|`bar`\|`needle` | required | ring, bar, or [gauge needle](#gauge-needles) |
 | `value` | expression | required | the fill amount |
 | `max` | expression | required | the full-scale amount |
 | `radius` | length | required (`arc`) | ring radius |
 | `thickness` | length | required (`arc`) | pen width |
-| `start_angle` | angle | required (`arc`) | where the ring starts |
-| `sweep` | angle | required (`arc`) | how far the ring sweeps |
+| `start_angle` | angle | required (`arc`, `needle`) | where the ring starts, or where the needle points at 0 |
+| `sweep` | angle | required (`arc`, `needle`) | how far the ring sweeps, or the needle turns at full scale |
+| `needle` | 1–16 [hand parts](analog-hands.md#analog-hands) | required (`needle`) | the needle, pointing at 12, axis at `at:` |
 | `size` | size | required (`bar`) | the bar's box |
 | `color` | color expression | — | fill colour |
 | `track_color` | color expression | — | the unfilled track |
@@ -96,8 +97,50 @@ semantics are identical across styles and only the rendering differs.
 
 `align:`/`vertical_align:` follow the one placement rule every accepting kind
 shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — accepted on
-both styles, `bar`'s box is `size:` and `arc`'s is the full `2·radius` circle,
-same as `shape: arc`.
+`bar` and `arc`: `bar`'s box is `size:` and `arc`'s is the full `2·radius`
+circle, same as `shape: arc`. A needle refuses both (below).
+
+#### Gauge needles
+
+`style: needle` turns a needle about `at:` to show the fraction — the
+analog hands' rotation machinery, driven by a reading instead of the
+clock:
+
+```yaml
+- id: battery_needle
+  type: progress
+  style: needle
+  value: system.battery
+  max: 100
+  at: { anchor: center }               # the axis
+  start_angle: 240deg                  # where the needle points at 0%
+  sweep: 240deg                        # how far it turns at 100%, clockwise
+  color: "system.battery < 20 ? palette.low : palette.accent"
+  needle:                              # authored like an analog hand's parts
+    - shape: polygon
+      points: [{ dx: -3%r, dy: 12%r }, { dy: -74%r }, { dx: 3%r, dy: 12%r }]
+    - { shape: circle, radius: 5%r, color: palette.fg }   # a hub that turns with it
+```
+
+The needle points at `start_angle + fraction × sweep`, clockwise from 12,
+where the fraction is `value / max` clamped to 0–1 — the same mapping an
+`arc` fills with, so a needle and an arc with the same `start_angle` and
+`sweep` agree. `needle:` takes exactly what a [hand's
+`parts:`](analog-hands.md#analog-hands) takes: `polygon`, `rectangle`, `line`
+and `circle`, authored **as they look at 12 o'clock** with the axis at the
+origin, so the tip sits at a negative `dy`. A part with no `color:` takes
+the element's own, which may read data like any progress colour; a part's
+own colour may not, as on a hand.
+
+The needle's extent is the disc it sweeps (the axis plus its farthest
+part), which the visible-area checks read like a hand's. `when_absent:`
+works as on the other styles: `hide` draws nothing, `fallback:` supplies
+the fraction to park at. `aod: {color, thickness}` restyles every part.
+`radius`, `thickness`, `size`, `track_color` and `align`/`vertical_align`
+are not read by a needle, and each is an error saying so: its length is
+its parts, and `at:` is the axis, not a box. Draw the dial itself with a
+separate `style: arc` progress or a radial `pattern` of ticks, sharing the
+needle's `start_angle` and `sweep` (`examples/features/gauge/face.yaml`).
 
 ### `graph`
 

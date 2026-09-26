@@ -305,6 +305,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     platform lacks (plan 15, all three slices), reaching every draw shape
     those elements can take and checked by a new suppressible lint,
     `text-outline-interior`;
+  - gauge needles: `progress` with `style: needle`, a hand's parts turned
+    to `start_angle + fraction x sweep` (`docs/guide/progress-and-graphs.md`);
   - `units: auto|metric|statute` on a `text` element (ADR 0005 §4):
     distance, elevation, temperature and speed in the wearer's own units,
     compiled as an expression over the source and `device.<x>_units`, with

@@ -48,6 +48,11 @@ aligned to grow away from the centre, covering all four
 `align`×`vertical_align` combinations, plus every accepting shape, both
 `progress` styles, a static `icon`, and aligned hand/pattern parts.
 
+`features/gauge/` (2026-09-26) is `progress` with `style: needle`: a
+battery needle over a radial tick `pattern` sharing its start angle and
+sweep, with a data-driven colour and a hub part, and an off-centre
+heart-rate sub-gauge parked at zero by `when_absent: fallback`.
+
 `features/units/` (2026-09-26) is `units:` (ADR 0005 §4): distance,
 temperature and wind in the wearer's own units with `units: auto`, altitude
 pinned to feet with `units: statute`, each labelled by `format:`'s

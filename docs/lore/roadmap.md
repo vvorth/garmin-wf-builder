@@ -93,6 +93,15 @@ listed as shipped.
   (the interior pass paints over what's beneath it, it does not reveal
   it). Out of scope: `hands`/`icon` parts (plan 15 §13 D5) -- text and
   pattern `shape: text` parts only.
+- **Gauge needles: `progress` with `style: needle`** (ADR 0004 amendment
+  2026-09-26): the analog hands' rotation, driven by a bound fraction. The
+  angle is `start_angle + fraction x sweep`, the mapping `style: arc`
+  already fills with, which settles plan 04 §11's open format question (one
+  authored angle vs. the clock's three formulas) without a new element
+  type. `needle:` is a hand's `parts:` (`Builder.build_hand_part`,
+  `Resolver.resolve_parts`, `rotated.emit_transformed_part`,
+  `Renderer.hand_part`), with the element's `color:` as every part's
+  default.
 - **`units:` on a `text` element** (ADR 0005 §4, amendment 2026-09-26):
   `auto` follows `DeviceSettings` per frame, `metric`/`statute` fix one
   system with no settings read. Distance (km/mi), elevation (m/ft),

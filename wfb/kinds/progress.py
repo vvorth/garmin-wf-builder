@@ -1,7 +1,9 @@
-"""`type: progress` -- a bound fraction, drawn as an arc or a bar."""
+"""`type: progress` -- a bound fraction, drawn as an arc, a bar, or a
+gauge needle."""
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from .. import expr
@@ -11,8 +13,8 @@ from ..layout import Placed, PlacedProgress, arc_box
 from ..preview import arc_span
 from ..units import Axis, Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
-from ..emit.monkeyc import shapes
-from ..emit.monkeyc.common import NO_AOD, AodStyle, article, const_prefix
+from ..emit.monkeyc import rotated, shapes
+from ..emit.monkeyc.common import NO_AOD, AodStyle, article, const_prefix, mc_float
 from ..emit.writer import Writer
 from . import ElementKind
 
@@ -80,13 +82,81 @@ def _fraction(element: Progress) -> str:
     return f"WfbMath.percent({element.value.code}, {element.maximum.code}) / 100.0"
 
 
+#: Keys a `style: needle` progress does not read: the needle's shape is its
+#: parts, and `at:` is the axis it turns about, not a box.
+_NEEDLE_UNREAD = {
+    "radius": "the needle's length is its parts' own geometry",
+    "thickness": "a line part's own 'thickness:' is the needle's pen width",
+    "size": "a needle has no box; its extent is the disc it sweeps",
+    "track_color": "a needle draws no track -- draw the dial with its own "
+                   "'style: arc' progress or a pattern",
+    "align": "'at:' is the axis the needle turns about, not a box",
+    "vertical_align": "'at:' is the axis the needle turns about, not a box",
+}
+
+
+def _build_needle(b, node: dict, element: Progress) -> bool:
+    """`style: needle`'s parts, built exactly like an analog hand's
+    (`Builder.build_hand_part`), with the element's own `color:` as every
+    part's default.  False when anything was reported."""
+    ok = True
+    for key, why in _NEEDLE_UNREAD.items():
+        if key in node:
+            b.bag.error("element", f"{element.id}: '{key}:' is not read by 'style: needle' -- {why}",
+                        b.doc.span(node, key))
+            ok = False
+    color_failed = "color" in node and element.color is None
+    parts = []
+    for index, raw in enumerate(node.get("needle") or []):
+        part = b.build_hand_part(raw, f"{element.id}.needle", index, element.color, color_failed)
+        if part is None:
+            ok = False
+            continue
+        parts.append(part)
+    element.needle = tuple(parts)
+    return ok
+
+
+def _needle_angle_rad(placed: PlacedProgress, fraction: float) -> float:
+    """The needle's angle, radians clockwise from 12 -- the host twin of the
+    `start + fraction * sweep` line `emit_draw` writes."""
+    return math.radians(placed.start_angle) + fraction * math.radians(placed.sweep)
+
+
+def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,
+                 fraction_expr: str, aod: AodStyle) -> None:
+    """`style: needle`: one `sin`/`cos` pair for the needle's angle, then each
+    part rotated and drawn -- an analog hand's own draw (`wfb.kinds.hands.
+    _emit_one_hand`) with `start + fraction * sweep` in place of the clock.
+    The angle's two constants are device-independent, so they are inlined
+    rather than written to every device's `Layout`."""
+    start = math.radians(placed.start_angle)
+    sweep = math.radians(placed.sweep)
+    w.line(f"var cx = Layout.{prefix}_CX;")
+    w.line(f"var cy = Layout.{prefix}_CY;")
+    w.line(f"var angle = {mc_float(start)} + ({fraction_expr}) * {mc_float(sweep)};")
+    w.line("var sin = Math.sin(angle);")
+    w.line("var cos = Math.cos(angle);")
+    thickness_override = rotated.aod_thickness_override(placed, prefix)
+    current = None
+    for index, part in enumerate(placed.needle):
+        part_prefix = f"{prefix}_NEEDLE_{index}"
+        color = aod.part_color(element, part.color)
+        if color != current:
+            w.line(f"dc.setColor({color}, Graphics.COLOR_TRANSPARENT);")
+            current = color
+        rotated.emit_transformed_part(
+            w, part, part_prefix, radial=True,
+            thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
+
+
 class ProgressKind(ElementKind):
     name = "progress"
     ir_class = Progress
     placed_class = PlacedProgress
     antialiased = True
 
-    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
+    def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element | None:
         value = b.expression(node, "value")
         maximum = b.expression(node, "max")
         align, vertical_align = b.alignment(node)
@@ -123,6 +193,13 @@ class ProgressKind(ElementKind):
             b.check_absence(node, element, probe, element.when_absent, None, element.fallback,
                             key="value")
             _check_fallback_fraction(b, node, element)
+        if element.style == "needle":
+            if not _build_needle(b, node, element):
+                return None
+        elif "needle" in node:
+            b.bag.error("element", f"{element.id}: 'needle:' is read only by 'style: needle'",
+                        b.doc.span(node, "needle"))
+            return None
         b.check_other_absence(node, element, "color", element.color)
         b.check_other_absence(node, element, "track_color", element.track_color)
         b.check_reachable_substitute(node, element, "'color'/'track_color'",
@@ -153,6 +230,16 @@ class ProgressKind(ElementKind):
                 garmin_direction=direction,
                 aod_thickness=aod_thickness,
             )
+        if element.style == "needle":
+            parts, reach = r.resolve_parts(list(element.needle), f"{element.id}.needle",
+                                           min_1px=min_1px)
+            box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
+            return PlacedProgress(
+                element, box.rounded(), (round(cx), round(cy)), depth,
+                start_angle=element.start_angle.degrees, sweep=element.sweep.degrees,
+                needle=parts, reach=reach,
+                aod_thickness=r.aod_extent(element, "thickness", parent, 1),
+            )
         box, cx, cy = r.sized_box(element, parent, cx, cy)
         return PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
                               size=(round(box.width), round(box.height)))
@@ -160,6 +247,8 @@ class ProgressKind(ElementKind):
     def circular_extent(self, placed: PlacedProgress):
         if placed.element.style == "arc":
             return (placed.center[0], placed.center[1], placed.radius + placed.thickness / 2.0)
+        if placed.element.style == "needle":
+            return (placed.center[0], placed.center[1], placed.reach)
         return None
 
     def draw_preview(self, renderer: Renderer, placed: PlacedProgress) -> None:
@@ -184,6 +273,13 @@ class ProgressKind(ElementKind):
                 else min(1.0, max(0.0, value / maximum))
             )
         s = renderer.scale
+        if element.style == "needle":
+            angle = _needle_angle_rad(placed, fraction)
+            sin_t, cos_t = math.sin(angle), math.cos(angle)
+            for part in placed.needle:
+                renderer.hand_part(placed, part, placed.center[0] * s, placed.center[1] * s,
+                                   sin_t, cos_t)
+            return
         color = renderer.aod_color(element, "color", element.color)
 
         if element.style == "arc":
@@ -234,6 +330,9 @@ class ProgressKind(ElementKind):
                 w.line(f"fraction = {fraction_expr};")
             w.blank()
             fraction_expr = "fraction"
+        if element.style == "needle":
+            _emit_needle(w, element, placed, prefix, fraction_expr, aod)
+            return
         if element.style == "arc":
             thickness_expr = shapes.thickness_expr(prefix, placed, aod)
             if element.track_color is not None:
@@ -275,9 +374,25 @@ class ProgressKind(ElementKind):
         if placed.element.style == "arc":
             out.extend(layout_constants_mod.arc_constants(prefix, placed))
             out.extend(layout_constants_mod.aod_thickness_constant(prefix, placed))
+        elif placed.element.style == "needle":
+            out.extend(layout_constants_mod.aod_thickness_constant(
+                prefix, placed, layout_constants_mod.EVERY_PART_NOTE))
+            for index, part in enumerate(placed.needle):
+                out.extend(layout_constants_mod.hand_part_constants(
+                    f"{prefix}_NEEDLE_{index}", "needle", index, part))
         else:
             out.extend(layout_constants_mod.box_constants(prefix, placed.box))
         return out
+
+    def contrast_subjects(self, placed: PlacedProgress):
+        """A needle yields each part's own effective colour, like a hand's
+        (`wfb.kinds.hands.HandsKind.contrast_subjects`); the other styles
+        judge the element's `color:`."""
+        if placed.element.style != "needle":
+            yield from super().contrast_subjects(placed)
+            return
+        for index, part in enumerate(placed.needle):
+            yield f"{placed.id}.needle[{index}]", part.color, None, True
 
 
 KIND = ProgressKind()

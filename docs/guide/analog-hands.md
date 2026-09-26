@@ -323,9 +323,11 @@ CPU cost of the rotation. See [`docs/limitations.md`](../limitations.md).
 ## Not built yet
 
 Still open for [analog hands](#analog-hands): `seconds: always` (a second
-hand while asleep), `arc` hand parts, data-driven hand colours, a gauge needle
-(an authored-expression angle rather than the clock), 24-hour hands, and a
-`wfb new -t analog` template.
+hand while asleep), `arc` hand parts, data-driven hand colours, 24-hour
+hands, and a `wfb new -t analog` template. A needle driven by a reading
+rather than the clock is a [gauge
+needle](progress-and-graphs.md#gauge-needles), `progress` with `style:
+needle`, which authors its parts the same way.
 
 See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 

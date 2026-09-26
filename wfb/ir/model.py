@@ -1206,6 +1206,10 @@ class Progress(Element):
     track_color: Expression | None = None
     when_absent: str | None = None
     fallback: Expression | None = None
+    #: `style: needle` only: the needle's parts, authored like an analog
+    #: hand's (pointing at 12, the axis at the origin), each with its
+    #: effective colour -- its own, or the element's `color:`.
+    needle: tuple["HandPart", ...] = ()
 
     #: `when_absent:` governs the fraction `value:`/`maximum:` compute
     #: together -- one nullable reading is as absent as the other from the
@@ -1213,11 +1217,24 @@ class Progress(Element):
     VALUE_ROLES: ClassVar[frozenset[str]] = frozenset({ROLE_VALUE, ROLE_MAX})
 
     def _own_roles(self) -> list[tuple[str, Expression]]:
-        return [(role, e) for role, e in (
+        out = [(role, e) for role, e in (
             (ROLE_VALUE, self.value), (ROLE_MAX, self.maximum),
             (ROLE_COLOR, self.color), (ROLE_TRACK_COLOR, self.track_color),
             (ROLE_FALLBACK, self.fallback),
         ) if e]
+        # A needle part's own colour (never data: `Builder.owned_color`)
+        # still has to reach permission derivation and the barrel scan.
+        out.extend((ROLE_COLOR, part.color) for part in self.needle
+                   if part.color is not None and part.color is not self.color)
+        return out
+
+    def color_roles(self) -> list["ColorRole"]:
+        """Every colour, a needle part's own included (`<id>.needle[<i>]`)."""
+        out = super().color_roles()
+        for index, part in enumerate(self.needle):
+            if part.color is not None and part.color is not self.color:
+                out.append(ColorRole(f"{self.id}.needle[{index}]", part.color, "ink", False))
+        return out
 
 
 @dataclass

@@ -458,3 +458,18 @@ renderer can be trusted. It is a capability hand authors do not have.
 file (byte-identical, SHA-256 pinned) during setup and in the Docker build.
 "Vendored" above now means "pinned and installed by setup", not "in the
 repository"; the element model is unchanged.
+
+**Amendment 2026-09-26: `style: needle`, a gauge.** §1's `progress` gains a
+third built style beside `arc` and `bar`: `needle`, a set of hand parts
+turned about `at:` to `start_angle + fraction × sweep`. It is a `progress`
+style rather than a new element type for the same reason §1 gives for the
+discriminator: the binding and range semantics (`value`/`max`, the clamped
+fraction, `when_absent:`) are identical, and only the rendering differs.
+It is also what settles plan 04 §11's open question for a gauge: the angle
+is the one mapping `arc` already draws with, not an authored angle
+expression and not the clock's formulas. The parts are an analog hand's
+(§1's rotatable primitives), rotated on the device by the same
+`WfbGeom` helpers, so §3's "the device does no layout arithmetic" keeps
+the one exception it already made for hands and nothing more.
+`segments` and `scale` remain unbuilt.
+
