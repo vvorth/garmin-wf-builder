@@ -449,6 +449,12 @@ renderer can be trusted. It is a capability hand authors do not have.
 
 - Exact safe-area geometry for `semi-round` and `semi-octagon`. Resolvable from
   the device files' screen shape data once available.
+
+  > **Note (2026-09-26):** `simulator.json` carries no shape geometry, but
+  > its skin PNG is transparent exactly where the panel shows, matching the
+  > inscribed circle to within 0.5% on three round devices. That is a
+  > per-device visible-area mask for every shape (research 16 §3), proposed
+  > in plan 20 alongside the §4 `overrides:` this ADR already accepted.
 - Whether to support a constraint solver (element A right-of element B) rather
   than only parent-relative anchors. Deferred: anchors cover the reference design
   and a solver is a large addition. Revisit if real faces demand it.

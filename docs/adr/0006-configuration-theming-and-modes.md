@@ -942,3 +942,10 @@ both map to `onPress`, rather than silently preferring one.
   interactivity alike), which is all four of Garmin's native-editor axes;
   phone settings would be a separate mechanism (`settings.xml`/
   `properties.xml`) and is the only route that reaches `fr955`.
+
+  > **Note (2026-09-26):** the premise is false for a sideload: Garmin
+  > Connect edits settings only for Store apps, private beta included
+  > (research 17 §2). For this project, the route that reaches `fr955` is
+  > an on-watch `getSettingsView` menu, which the 2026-09-04 decision above
+  > ruled out. Plan 21 asks the user to revisit that decision; nothing is
+  > decided here.

@@ -654,7 +654,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `image` elements | ADR 0004 |
 | The `raw` escape hatch to hand-written Monkey C | ADR 0007 |
 | Per-device `overrides` (writing one is an error, not a silent no-op) | ADR 0004 §4 |
-| Phone-side settings (`settings.xml`/`properties.xml`) | ADR 0006 §1 -- the one piece of it still unbuilt, and the only route that would give `fr955` any configuration at all. Frozen, incomplete, on `wip/phone-settings` |
+| Wearer settings (`settings:`: `properties.xml`, phone-side `settings.xml`, an on-watch `getSettingsView` menu) | ADR 0006 §1; `docs/plans/21-phone-settings.md`. Phone-side settings alone would not help: Garmin Connect does not edit a sideloaded app's settings (`docs/research/17-phone-settings.md` §2), so for this project's sideloads only an on-watch menu would give `fr955` any configuration. The old WIP on `wip/phone-settings` is design reference only |
 | `layouts:` **form B** (an element-level membership key/list, as opposed to the container form A ships) | plan 02 (deleted once built; `git show a645d64:plan 02`) §4.3 -- explicitly declined by the user (§12 decision 1); there is no plan to build it |
 | A `complication_slot` inside a `layouts:` body | plan 02 §12.5 -- a build error by design, not a gap: the Data axis is face-wide, so a slot stays in the shared top-level `elements:` only |
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions low-power elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
@@ -742,7 +742,13 @@ that target (below, "Device gating for a source is only partly enforced").
 
 Only `round` and `rectangle` have safe-area geometry. `semi-round` and
 `semi-octagon` are **unsupported targets rather than silently wrong ones**: the
-geometry check reports "not checked" instead of guessing.
+geometry check reports "not checked" instead of guessing, and the preview
+does not crop to their shape. The `rectangle` path exists but has never run
+against a real device: no rectangular device is installed, and no test uses
+one. A 2-colour panel (the Instinct family) gets no palette check at all.
+`docs/research/16-screen-shapes.md` has the fleet (13 non-round devices are
+realistic targets) and a route to exact geometry from the simulator skin;
+`docs/plans/20-screen-shapes.md` is the plan.
 
 ### The simulator crashes when an app is pushed
 

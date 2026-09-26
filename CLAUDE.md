@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/` (empty: plans 18 and 19 are built). Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
+| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens) and 21 (`settings:`), both awaiting user decisions. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -186,27 +186,12 @@ re-litigate these without new evidence.**
     - **14b.** **Four plottable series only**: HR history,
       `ActivityMonitor.getHistory`, hourly and daily forecast.
       `SensorHistory` is closed to faces, and solar has no history.
-15. **A watch face cannot ship its own TTF/OTF.** A `<font>` resource takes a
-    BMFont `.fnt` and nothing else, and no API anywhere loads font bytes. An
-    author's typeface is therefore *always* baked to a bitmap at build time
-    (`wfb/fonts/bmfont.py`). `Graphics.getVectorFont` (API 4.2.1) is
-    scalable text from **Garmin's own device-resident faces only** — about 14
-    Latin ones, on **44 of the 136** watch-face-capable devices, and nothing
-    can be added to the list. It is **not** a memory win: a baked sheet
-    already lives in the graphics pool (11), not the watch-face budget. It
-    is the only way to get rotated or curved text, and a `fonts:` `face:`
-    entry plus `curve:` on a `text` element, or on a pattern's own
-    `shape: text` part, now reaches it (plan 11, `drawAngledText`/
-    `drawRadialText` — refuse a resource font, hence the second font kind).
-    A pattern part's `curve.angle` is authored once, in the template's own
-    local frame; a radial pattern composes it with each copy's own
-    rotation, the same way its `arc` part's `start_angle:` already composes
-    with `start:`/`step:` — rotated hour numerals around a dial, each
-    tangent to its own radius, is one authored angle, not twelve.
-    `if_unavailable: error` is a build-time guarantee only — the platform
-    has no way to fail at runtime, so the generated code always null-checks
-    and a null font simply draws nothing either way. Full analysis and
-    measurements: `docs/research/12-vector-fonts.md`.
+15. **A watch face cannot ship its own TTF/OTF.** A `<font>` resource takes
+    a BMFont `.fnt` only, so an author's typeface is always baked at build
+    time (`wfb/fonts/bmfont.py`). `Graphics.getVectorFont` (API 4.2.1) is
+    Garmin's own device-resident faces only (about 14, on 44 of 136
+    devices). It is not a memory win (see 11), but it is the only way to get
+    rotated or curved text (`face:` fonts plus `curve:`).
 
 ---
 
@@ -278,8 +263,12 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
     `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
     switch to) -- friendly build errors, all three, never a silent no-op;
-  - **phone settings**: frozen, incomplete, on `wip/phone-settings`. Do not
-    resume without asking;
+  - **settings** (phone or on-watch): planned, not built — plan 21. Phone
+    settings do not reach a sideloaded face (research 17). The old WIP on
+    `wip/phone-settings` is design reference only. Do not resume it
+    without asking;
+  - non-round screens: rectangles untested, semi-shapes "not checked"
+    — plan 20;
   - catalogue generation from the SDK;
   - any `Source.requires` entry: the hook is honoured by
     `wfb.availability.source_unavailable` but no source sets it (ADR 0008
@@ -288,59 +277,13 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - CI. (`mypy --strict` is clean over `wfb/`: `pytest -m typecheck`, by
     hand, fails on any error);
   - `wfb install`/`package`/`migrate`.
-- **Shipped** (details in `docs/lore/roadmap.md` and `docs/guide/`):
-  - all nine element types, `hands` and `pattern` included;
-  - `align:`/`vertical_align:` everywhere, plus `static:`, `antialias:` and
-    `min_1px:` (opt-in);
-  - all four `config:` axes, with Styles `layouts:`, and `on_hold:`;
-  - per-device API gating (`wfb/availability.py`);
-  - system fonts measured and previewed with the device's own files,
-    including `.cft` bitmap fonts;
-  - vector fonts (`fonts:` `face:`) and `curve:` on `text` elements and on
-    a pattern's own `shape: text` part — rotated/radial text, 44 of 136
-    devices, `if_unavailable: error|hide` (plan 11, both slices); a
-    pattern part's own `curve.angle` composes with a radial pattern's
-    per-copy rotation, so hour numerals tangent to their own radius are
-    one authored angle, not one per copy;
-  - `outline:` on a `text` element and on a pattern's own `shape: text`
-    part — the stamped-ring substitute for a filled-outline mode this
-    platform lacks (plan 15, all three slices), reaching every draw shape
-    those elements can take and checked by a new suppressible lint,
-    `text-outline-interior`;
-  - gauge needles: `progress` with `style: needle`, a hand's parts turned
-    to `start_angle + fraction x sweep`, and `style: segments`/`scale`
-    (lit cells; bands and a pointer dot) on an arc or a bar
-    (`docs/guide/progress-and-graphs.md`);
-  - `pattern: grid`: rows of `columns:`, `count:` copies in all, one loop
-    splitting the copy index into column and row
-    (`docs/guide/patterns.md` "Grids");
-  - `units: auto|metric|statute` on a `text` element (ADR 0005 §4):
-    distance, elevation, temperature, speed and pace in the wearer's own
-    units, compiled as an expression over the source and
-    `device.<x>_units`, with `format:`'s `{unit}` for the label
-    (`docs/guide/data.md` "Units");
-  - duration formats: strftime codes on a Number/Float read it as seconds
-    (sunrise `{:%h:%M}`, pace `{:%-M:%S}`, marathon `{:%-H:%M:%S}`); the
-    largest unit carries the total (`docs/guide/data.md` "Durations and
-    times of day");
-  - `aod:` (plan 14, all six slices, now deleted — `docs/CLAUDE.md`): the
-    AMOLED always-on-display sleep frame as per-element/group overrides on
-    the *one* design (`hide`/`show`/an override block reusing each kind's
-    own property names), resolved element > nearest ancestor group > face
-    default, restyled by inline ternaries at the draw call site; `dim:`
-    (luminance scaling) and a measured burn-in lint (`aod-burn-in`,
-    lit-pixel/luminance fractions from the real render, ADR 0008 check 8) round it
-    out. `_aod` — and, since slice 6, a `getDisplayMode`/`DISPLAY_MODE_OFF`
-    early exit, per-device `has`-guarded — is emitted only when a target is
-    AMOLED, so an all-MIP build is byte-identical. Three suppressible
-    lints (`aod-unreachable`, `aod-empty`, `aod-burn-in`). `wfb preview
-    --aod` matches codegen exactly; `--minute N` and `--heatmap` (per-pixel
-    persistence over a day) evaluate the frame over time. `jitter:`
-    (slice 5) was built and then removed on 2026-09-23 to cut complexity;
-    `aod: {mask: ...}` (plan 16, the same day) replaced it: a moving 2x2
-    pixel mask over the whole AOD frame, on by default (`mask: false` opts
-    out), 25% duty, no pixel lit two minutes running.
-    `docs/guide/always-on-display.md` is the full reference.
+- **Shipped:** all nine element types; `align:` everywhere, `static:`,
+  `antialias:`, `min_1px:`; all four `config:` axes with Styles `layouts:`;
+  `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
+  `curve:`, `outline:`; progress `needle`/`segments`/`scale`; `pattern:
+  grid`; `units:`; duration formats; `aod:` with `dim:`, the pixel `mask:`
+  and the burn-in lint. One line each, with the guide chapter, in
+  `docs/lore/roadmap.md`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,
 even when its test is red, unless asked. See `examples/CLAUDE.md`.
