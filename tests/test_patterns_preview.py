@@ -322,7 +322,6 @@ def test_a_rectangle_part_turned_90deg_becomes_horizontal(write_design, db, bag)
 
 
 DESIGN = Path(__file__).resolve().parent.parent / "examples" / "features" / "patterns" / "face.yaml"
-SAVE_TO = Path("/home/agent/.claude/jobs/32690555/tmp/patterns-preview.png")
 
 
 def test_examples_patterns_face_renders_without_crashing(db, bag):
@@ -341,9 +340,6 @@ def test_examples_patterns_face_renders_without_crashing(db, bag):
     assert image.size == (device.width * 2, device.height * 2)
     colors = {pixel for pixel in image.get_flattened_data()}
     assert len(colors) > 2, "the preview is blank"
-
-    SAVE_TO.parent.mkdir(parents=True, exist_ok=True)
-    image.save(SAVE_TO, format="PNG")
 
 
 # -- per-copy colour: `copy` and `date.weekday` ---------------------------------
