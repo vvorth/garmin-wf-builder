@@ -46,6 +46,7 @@ can't: why each key exists, and what the watch does with it.
 | [Data, expressions and formats](guide/data.md) | Sources (`time.*`, `activity.*`, `weather.*`, `complication.*`, …), expressions, missing values, format strings |
 | [On-device configuration](guide/configuration.md) | The four `config:` settings the wearer edits (style, accent colour, data colour, data slots), `complication_slot`, what each watch supports |
 | [Styles and layouts](guide/styles-and-layouts.md) | `layouts:` and named styles that combine a layout with a colour scheme |
+| [Wearer settings](guide/settings.md) | `settings:`: Booleans and named choices stored on the watch and read as `settings.<name>`, for every target including fr955 |
 | [Power modes and touch and hold](guide/modes-and-interaction.md) | `modes:` (`active`/`low_power`, MIP partial updates) and `on_hold:` |
 | [Always-on display](guide/always-on-display.md) | `aod:` overrides for an AMOLED target's sleep frame: per-element/group `hide`/`show`/restyle, a face-wide default, resolution order |
 

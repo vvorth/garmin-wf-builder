@@ -1,23 +1,28 @@
 """`config:`: the four on-device configuration axes -- Styles
 (`style:`), Data (`data:`, complication slots) and the two colours
-(`accent_color`, `data_color`)."""
+(`accent_color`, `data_color`) -- and `settings:`, the wearer settings
+that ride `Application.Properties` instead."""
 
 from __future__ import annotations
 
+import difflib
 from typing import Any
 
 from ... import complications, icons
-from ...diagnostics import Span
+from ...diagnostics import Span, did_you_mean
 from ...palette import Color, ColorError
 
-from ..model import ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, StyleEntry
+from ..model import (
+    ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, Setting, SettingChoice, StyleEntry,
+)
+from ..naming import setting_field
 from .state import _lint_suppression
 from .glyphs import _NO_ICON_OVERRIDE, _ICON_OVERRIDE_ERROR
 from .blocks import TopLevelBlocks
 
 
 class ConfigAxes(TopLevelBlocks):
-    """Builds the `config:` axes."""
+    """Builds the `config:` axes and `settings:`."""
 
     def _build_config_style(self, spec: dict[str, Any], span: Span | None) -> None:
         """`config: style:` -- an author-named, ordered set of entries riding
@@ -364,3 +369,64 @@ class ConfigAxes(TopLevelBlocks):
 
             self.config[name] = ConfigColor(name=name, default=default,
                                             choices=tuple(choices), span=span)
+
+    def _build_settings(self, raw: dict[str, Any]) -> None:
+        """`settings:` -- values the wearer changes after install
+        (`docs/guide/settings.md`).
+
+        The schema has already checked each entry's shape: a `label:`, a
+        `type:` of `boolean` or `choice`, a `default:` of the right JSON type,
+        and a `choice`'s `choices:` mapping of at least two keys.  What is
+        left is what a schema cannot say: a `choice`'s `default:` must be one
+        of its keys, and two names must not collapse onto one generated view
+        field (`show_seconds` and `showSeconds` both become
+        `_settingShowSeconds`).
+
+        Every declared setting goes into `setting_bindings`, rejected or not,
+        so a reference to a rejected one gets no second error ("one error,
+        not N", `docs/lore/codegen.md`).
+        """
+        fields: dict[str, str] = {}
+        for name, spec in raw.items():
+            span = self.doc.span(raw, name)
+            self.settings.declare(name, span)
+            kind = spec["type"]
+            keys = tuple(spec["choices"]) if kind == "choice" else None
+            self.setting_bindings[name] = (kind, keys)
+
+            field_name = setting_field(name)
+            if field_name in fields:
+                other = fields[field_name]
+                self.bag.error(
+                    "settings",
+                    f"settings.{name}: the same generated name as settings.{other}",
+                    span,
+                    notes=[f"both become the view field {field_name}; rename one"],
+                )
+                self.settings.reject(name)
+                continue
+            fields[field_name] = name
+
+            label = str(spec["label"])
+            if kind == "boolean":
+                self.settings[name] = Setting(
+                    name=name, label=label, type=kind, default=bool(spec["default"]), span=span)
+                continue
+
+            assert keys is not None
+            raw_choices = spec["choices"]
+            choices = tuple(SettingChoice(key=key, label=str(raw_choices[key])) for key in keys)
+            default = spec["default"]
+            if default not in keys:
+                near = difflib.get_close_matches(str(default), keys, n=3, cutoff=0.4)
+                self.bag.error(
+                    "settings",
+                    f"settings.{name}: default {default!r} is not one of 'choices:'",
+                    self.doc.span(spec, "default"),
+                    notes=did_you_mean(list(near)) + [f"choices: {', '.join(keys)}"],
+                )
+                self.settings.reject(name)
+                continue
+            self.settings[name] = Setting(
+                name=name, label=label, type=kind, default=str(default),
+                choices=choices, span=span)

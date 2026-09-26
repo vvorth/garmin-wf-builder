@@ -39,6 +39,15 @@ def config_field(name: str) -> str:
     return "_config" + _pascal(name)
 
 
+def setting_field(name: str) -> str:
+    """The view field a `settings:` entry is cached in (``_settingShowSeconds``).
+
+    Module-level for the same reason as `config_field`: `Builder._build_scope`
+    binds a rejected setting's name too, and there is no `Setting` for it.
+    """
+    return "_setting" + _pascal(name)
+
+
 def config_data_ids(face: "Face") -> dict[str, int]:
     """`config: data:` slot name -> the `<complication id="N">` this slot is
     emitted under, 1-based in declaration order (`docs/research/probes/

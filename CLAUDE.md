@@ -13,7 +13,7 @@ future session needs it on turn one.
 | codegen, IR, jungle/manifest, YAML-loader lore | `docs/lore/codegen.md` (auto-loaded in `wfb/`) |
 | what shipped, was removed, or is missing | `docs/limitations.md` §2 (**authoritative**), `docs/lore/roadmap.md` |
 | the working agreement with the incident behind each rule | `docs/lore/working-agreement.md` |
-| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), awaiting user decisions, and 21 (`settings:`), decided and ready to build. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
+| proposals written but not built | `docs/plans/`: 20 (rectangular and semi-octagon screens), awaiting user decisions, and 21 (`settings:`), decided, slice 1 built. Built plans are deleted — see `docs/CLAUDE.md`; plan 19's one open option, A7, is in `docs/lore/roadmap.md`. `tools/snapshot.py` proves a refactor output-identical |
 
 `CLAUDE.md` files in `wfb/`, `wfb/emit/`, `runtime-lib/`, `tests/`,
 `examples/` and `docs/` load automatically when you work there. `.ignore`
@@ -265,7 +265,8 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
     `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
     switch to) -- friendly build errors, all three, never a silent no-op;
-  - **settings** (phone or on-watch): decided, not built — plan 21. Phone
+  - the rest of **settings**: the on-watch menu, `settings.xml` and
+    `color_scheme` settings — plan 21 slices 2-4. Phone
     settings do not reach a sideloaded face (research 17). The old WIP on
     `wip/phone-settings` is design reference only. Do not resume it
     without asking;
@@ -284,7 +285,7 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   `on_hold:`; per-device API gating; system, `.cft` and vector fonts,
   `curve:`, `outline:`; progress `needle`/`segments`/`scale`; `pattern:
   grid`; `units:`; duration formats; `aod:` with `dim:`, the pixel `mask:`
-  and the burn-in lint. One line each, with the guide chapter, in
+  and the burn-in lint; `settings:` (`boolean`/`choice`, properties only). One line each, with the guide chapter, in
   `docs/lore/roadmap.md`.
 
 **`examples/dashboard/face.yaml` is the user's playground. Leave it alone**,

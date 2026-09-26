@@ -20,7 +20,7 @@ from ..diagnostics import Span
 from ..palette import Color
 from ..series import SeriesDef
 from ..units import Angle, Length
-from .naming import _pascal, config_field, font_resource_id
+from .naming import _pascal, config_field, font_resource_id, setting_field
 
 #: `always_on` was removed outright (plan 14 D3): the AMOLED sleep frame is
 #: `aod:` now, not a mode to opt an element into. `modes:` means only the two
@@ -663,6 +663,54 @@ class ConfigDataSlot:
             if catalogue_name is not None:
                 result[name] = icons.SlotIcon(catalogue_name, icons.CATALOG[catalogue_name].codepoint)
         return result
+
+
+@dataclass(frozen=True)
+class SettingChoice:
+    """One `choices:` entry of a `type: choice` setting."""
+
+    key: str
+    label: str
+
+
+@dataclass(frozen=True)
+class Setting:
+    """One `settings:` entry: a value the wearer changes after install, read
+    in expressions as `settings.<name>` (ADR 0006's tenth amendment).
+
+    Stored as an `Application.Properties` value under the key `name`: a
+    `boolean` as a Boolean, a `choice` as the Number index of its key in
+    `choices` (a phone `list` setting needs a `number` property). Every read
+    type-checks the stored value and falls back to `default`, so a setting
+    is never absent.
+    """
+
+    name: str
+    label: str
+    #: `"boolean"` or `"choice"`.
+    type: str
+    #: A Boolean for `boolean`; a key of `choices` for `choice`.
+    default: bool | str
+    #: A `choice`'s keys and labels in declaration order, which is also the
+    #: stored index order. Empty for `boolean`.
+    choices: tuple[SettingChoice, ...] = ()
+    span: Span | None = None
+
+    @property
+    def field(self) -> str:
+        """The generated view field this setting is cached in."""
+        return setting_field(self.name)
+
+    @property
+    def keys(self) -> tuple[str, ...]:
+        return tuple(choice.key for choice in self.choices)
+
+    @property
+    def stored_default(self) -> bool | int:
+        """The default as the property stores it: the Boolean, or the index."""
+        if isinstance(self.default, bool):
+            return self.default
+        return self.keys.index(self.default)
 
 
 # --------------------------------------------------------------------------
@@ -1448,6 +1496,8 @@ class Face:
     #: `aod: mask:` (plan 16) -- the moving 2x2 pixel mask over the AOD
     #: frame; on unless `mask: false`.
     aod_mask: bool = True
+    #: `settings:` entries, keyed by name, in declaration order.
+    settings: dict[str, Setting] = field(default_factory=dict)
 
     @property
     def has_config(self) -> bool:

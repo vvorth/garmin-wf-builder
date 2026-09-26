@@ -703,3 +703,15 @@ These cost real time to discover; do not rediscover them.
   drift apart on this again. Every strftime code's Monkey C (`emit`) and
   host rendering (`render`, what `wfb preview` draws) share that same row
   (`wfb.formatting.Code`).
+
+- **A `choice` setting's compare keeps its key in the expression tree, and
+  only `emit` turns it into an index** (`wfb.expr._choice_compare`).
+  Rewriting `settings.ring == "steps"` into `== 0` during `fold` looks
+  simpler, but `wfb.ir.builder.visibility` re-runs `expr.check` on already
+  folded trees when it conjoins a group's `visible:` into its children, and
+  `check` must reject a bare Number compared with a choice. Keeping the key
+  also lets `wfb preview` evaluate the same tree against the key, with no
+  second mapping to drift. The generated `properties.xml` notes each
+  choice's index order in an XML comment, which may not contain `--`: the
+  keys are schema identifiers, so they are safe there, and a label (free
+  text) is left out on purpose.

@@ -18,8 +18,13 @@ def emit_app(face: Face) -> SourceFile:
     `state[:launchedFromWatchFaceSettingsEditor]` -- **not** a level compare
     or a `has` guard, because `onStart`'s own `state` dictionary is the only
     place this flag is ever delivered.
+
+    A design with `settings:` keeps the view in `_view`, so
+    `onSettingsChanged` (a Garmin Connect push, constraint 12) can re-read
+    the settings into it.
     """
     needs_it = needs_delegate(face)
+    has_settings = bool(face.settings)
     has_slots = bool(_editor_slot_pairs(face))
     w = Writer()
     w.doc(header(face)).blank()
@@ -38,6 +43,10 @@ def emit_app(face: Face) -> SourceFile:
             )
             w.line("private var _editMode as Boolean = false;")
             w.blank()
+        if has_settings:
+            w.doc("The view, kept so onSettingsChanged can re-read the settings into it.")
+            w.line(f"private var _view as {face.entry}View?;")
+            w.blank()
         with w.block("function initialize()"):
             w.line("AppBase.initialize();")
         w.blank()
@@ -54,10 +63,16 @@ def emit_app(face: Face) -> SourceFile:
             w.blank()
         with w.block("function getInitialView() as [Views] or [Views, InputDelegates]"):
             view_ctor = f"new {face.entry}View(_editMode)" if has_slots else f"new {face.entry}View()"
-            if not needs_it:
+            if not needs_it and not has_settings:
                 w.line(f"return [ {view_ctor} ];")
+            elif not needs_it:
+                w.line(f"var view = {view_ctor};")
+                w.line("_view = view;")
+                w.line("return [ view ];")
             else:
                 w.line(f"var view = {view_ctor};")
+                if has_settings:
+                    w.line("_view = view;")
                 w.comment("the `has` guard is the SDK's own idiom (samples/Analog): a watch")
                 w.comment("without WatchFaceDelegate still gets the face, just not the holds")
                 w.comment("(or, for a `config:` design, the re-read on a settings edit)")
@@ -65,6 +80,19 @@ def emit_app(face: Face) -> SourceFile:
                     w.comment("the delegate holds the view so a config edit can update it")
                     w.line(f"return [ view, new {face.entry}Delegate(view) ];")
                 w.line("return [ view ];")
+        if has_settings:
+            w.blank()
+            w.doc(
+                "A setting changed: re-read every setting into the view and redraw.\n"
+                "\n"
+                "The system calls this only for a Garmin Connect push (CLAUDE.md\n"
+                "constraint 12)."
+            )
+            with w.block("function onSettingsChanged() as Void"):
+                w.line("var view = _view;")
+                with w.block("if (view != null)"):
+                    w.line("view.applySettings();")
+                w.line("WatchUi.requestUpdate();")
     return SourceFile(f"source/{face.entry}App.mc", w.render())
 
 

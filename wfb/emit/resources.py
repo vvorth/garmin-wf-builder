@@ -318,6 +318,30 @@ def config_label_strings(face: Face) -> list[tuple[str, str]]:
     return out
 
 
+def properties_resource(face: Face) -> str:
+    """`resources/settings/properties.xml` -- every `settings:` entry's
+    stored default, shared by every device (`docs/guide/settings.md`).
+
+    A `boolean` is a `boolean` property. A `choice` is a `number` property
+    holding its default key's index: a phone `list` setting accepts only a
+    `number` property (`$CIQ_SDK/doc/docs/Core_Topics/
+    Properties_and_App_Settings.html`), so the index is the one storage that
+    both the watch and a phone can edit.
+    """
+    lines = [f"<properties {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">"]
+    for name, setting in face.settings.items():
+        if setting.type == "boolean":
+            value = "true" if setting.default else "false"
+            lines.append(f'    <property id="{name}" type="boolean">{value}</property>')
+            continue
+        # Keys are identifiers (the schema), so they cannot end the comment.
+        keys = ", ".join(f"{index} = {key}" for index, key in enumerate(setting.keys))
+        lines.append(f"    <!-- settings.{name}: {keys} -->")
+        lines.append(f'    <property id="{name}" type="number">{setting.stored_default}</property>')
+    lines.append("</properties>")
+    return "\n".join(lines) + "\n"
+
+
 def shared_strings(face: Face) -> str:
     lines = [
         f"<strings {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">",

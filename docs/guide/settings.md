@@ -1,0 +1,108 @@
+# Wearer settings
+
+`settings:` declares values the wearer can change after the face is
+installed. Examples are whether to show seconds, or what a ring measures.
+Each setting is stored on the watch as an `Application.Properties` value,
+and any expression reads it as `settings.<name>`.
+
+A setting is a different mechanism from [`config:`](configuration.md), the
+fēnix 8's native face editor:
+
+| | `config:` | `settings:` |
+|---|---|---|
+| Stored by | the native editor | `Application.Properties` |
+| Reaches | fēnix 8 and newer only | every target, fr955 included |
+| Holds | colours, a Styles entry, complication slots | a Boolean, or one of named choices |
+| Per saved configuration | yes, up to four | no: one value for all of them |
+
+**How the wearer changes a setting.** Nothing in this build can change one
+on a sideloaded face yet, so a sideloaded face shows each setting's
+`default:`. Garmin Connect edits settings only for apps installed from the
+Connect IQ Store, private beta included, never for a sideload
+(`docs/research/17-phone-settings.md` §2). A settings menu on the watch
+itself is planned (plan 21, slice 2). Until it ships, `settings:` changes
+only what a rebuild would.
+
+## At a glance
+
+| Key | Where | Values | Default | Meaning |
+|---|---|---|---|---|
+| `<name>:` | `settings:` | an identifier | — | read as `settings.<name>` |
+| `label:` | a setting | string | required | the name the wearer sees |
+| `type:` | a setting | `boolean` / `choice` | required | what the setting holds |
+| `default:` | a setting | a Boolean; a key of `choices:` | required | the value until the wearer changes it |
+| `choices:` | a `choice` setting | mapping of key → label, at least two | required | the options, in the order shown |
+
+## Example
+
+```yaml
+settings:
+  show_seconds:
+    label: "Show seconds"
+    type: boolean
+    default: true
+  ring:
+    label: "Ring shows"
+    type: choice
+    choices: { steps: "Steps", battery: "Battery" }
+    default: steps
+
+elements:
+  - id: seconds
+    type: text
+    value: time.second
+    visible: settings.show_seconds
+  - id: steps_ring
+    type: progress
+    # ...
+    visible: settings.ring == "steps"
+  - id: battery_ring
+    type: progress
+    # ...
+    visible: settings.ring == "battery"
+```
+
+## Reading a setting
+
+- A `boolean` setting is a Boolean anywhere an expression takes one:
+  `visible: settings.show_seconds`, or
+  `color: settings.bold ? palette.fg : palette.dim`.
+- A `choice` setting can only be compared with one of its keys, as a quoted
+  string, with `==` or `!=`: `settings.ring == "steps"`. Anything else is an
+  error, including a key it does not have, which gets a "did you mean".
+  The generated code compares a Number index, not a string.
+- A setting is never absent. It needs no `when_absent:`, and it is not a
+  data source, so it is allowed inside [`static:`](elements.md#static--draw-it-once-then-blit-it) content.
+  When a setting changes, the static buffer is repainted.
+
+## What it generates
+
+- `resources/settings/properties.xml`, one property per setting: a
+  `boolean` property for `boolean`, and a `number` property holding the
+  default key's index for `choice`. A phone `list` setting accepts only a
+  `number` property, so the index is the one storage both the watch and a
+  phone could edit.
+- One view field per setting, and `applySettings()`, which the view's
+  constructor calls. Every read is type-checked, not only null-checked,
+  because Garmin's developer FAQ reports the phone sending values of the
+  wrong type. A value of the wrong type, or a `choice` index out of range,
+  falls back to `default:`.
+- `onSettingsChanged` in the app, which re-reads every setting and redraws.
+
+Measured on the verification devices: a face with one `boolean` and one
+`choice` setting, each read by `visible:` guards on three elements, is
+279 B larger than the same face without them (1,761 B to 2,040 B), and
+372 B larger on `fenix5`.
+
+## Things to know
+
+- **Reordering or removing `choices:` changes what an installed face reads
+  back.** The watch stores the index. A stored index past the end falls back
+  to `default:`; one that is still in range now names a different key.
+- **Renaming a setting resets it.** The name is the property key.
+- **One value for all saved configurations.** Nothing tells a face which of
+  the wearer's four saved native-editor configurations is active, so a
+  setting cannot differ between them.
+- **Previewing a non-default value:** `wfb preview face.yaml --set
+  show_seconds=false --set ring=battery`. A boolean takes `true`/`false`; a
+  choice takes one of its keys.

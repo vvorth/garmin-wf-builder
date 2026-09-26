@@ -115,6 +115,17 @@
         }
       }
     },
+    "settings": {
+      "description": "Wearer settings: values the wearer changes after install, stored as Application.Properties and read in any expression as 'settings.<name>' -- a 'boolean' as a Boolean, a 'choice' only in a comparison with one of its keys, e.g. 'settings.ring == \"steps\"'. Unlike 'config:', a setting reaches every target, fr955 included, and is global across the wearer's saved configurations. Every read falls back to 'default:', so a setting is never absent. See docs/guide/settings.md.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/setting"
+      }
+    },
     "elements": {
       "description": "The layer tree. Z-order is document order unless z is given.",
       "type": "array",
@@ -454,6 +465,65 @@
           ]
         }
       }
+    },
+    "setting": {
+      "description": "One 'settings:' entry. 'label:' is the name the wearer sees. 'type: boolean' takes a Boolean 'default:'. 'type: choice' takes 'choices:', an ordered mapping of key -> label (at least two), and a 'default:' naming one key; the stored value is the key's position, so reordering or removing keys changes what an installed face reads back.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "label",
+            "type",
+            "default"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "const": "boolean"
+            },
+            "default": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "label",
+            "type",
+            "choices",
+            "default"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "const": "choice"
+            },
+            "choices": {
+              "type": "object",
+              "minProperties": 2,
+              "propertyNames": {
+                "$ref": "#/$defs/identifier"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "default": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
+        }
+      ]
     },
     "configDataChoice": {
       "description": "One 'choices:' entry in an explicit 'config: data:' list: either a bare 'complication.<name>' reference (today's only form), or a mapping naming the same reference plus a per-choice icon override -- 'icon:' (a catalogue name, or the literal 'none' to explicitly draw no icon for this choice) or 'glyph:' (any codepoint in the vendored icon font, 'U+XXXX'), mutually exclusive with each other. Absent from a plain bare reference, this per-choice icon overrides wfb.icons.COMPLICATION_ICON's catalogue default for that one type; every other choice keeps using the catalogue default (or draws none, if the table does not map it). A type listed more than once across the whole 'choices:' list -- in either shape -- is an IR error: this schema's own per-item validation cannot see a duplicate that uses a different shape the second time.",

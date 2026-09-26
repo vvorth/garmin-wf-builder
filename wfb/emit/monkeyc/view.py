@@ -47,13 +47,19 @@ STATIC_FIELD = "_staticBuffer"
 STATIC_RENDER = "renderStatic"
 
 
-#: Re-paints the static buffer from the *current* field values -- the one
-#: caller is `applyConfig`, for a config colour drawn into static content
-#: (ADR 0006 1).  A fixed literal name, like the two above, not derived from
-#: any element id -- so unlike `static_group_method`'s "drawStatic<Id>",
+#: Re-paints the static buffer from the *current* field values -- the
+#: callers are `applyConfig` and `applySettings`, for a config colour or a
+#: setting drawn into static content (ADR 0006 1 and its tenth amendment).
+#: A fixed literal name, like the two above, not derived from any element id -- so unlike `static_group_method`'s "drawStatic<Id>",
 #: nothing an author writes can make this collide, and it does not need an
 #: entry in `Builder._check_symbol_collision`.
 REPAINT_STATIC_METHOD = "repaintStatic"
+
+
+#: Reads every `settings:` entry into its view field. Public: the app's
+#: `onSettingsChanged` calls it, and a private method cannot be called from
+#: another class (`docs/lore/monkeyc.md`). Fixed, like the names above.
+APPLY_SETTINGS_METHOD = "applySettings"
 
 
 @dataclass
@@ -210,6 +216,7 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
     with w.block(f"class {face.entry}View extends WatchUi.WatchFace"):
         _emit_fields(w, resolved, aod_only_fonts)
         _emit_config_fields(w, face, guards)
+        _emit_settings_fields(w, face)
         _emit_static_field(w, static)
         _emit_graph_fields(w, graphs)
         if slot_pairs:
@@ -238,6 +245,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
             _emit_antialias_helper(w)
         if face.has_config:
             _emit_apply_config(w, face, static)
+        if face.settings:
+            _emit_apply_settings(w, face, static)
         if face.has_config and any(t.layout is not None for t in hold_targets(face)):
             _emit_config_layout_accessor(w)
         _emit_on_layout(w, resolved, plan, static, guards)
@@ -257,7 +266,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         if slot_pairs:
             _emit_complication_slot_editor_methods(w, face, slot_pairs)
         if static is not None:
-            _emit_static_methods(w, face, static, antialias_default, needs_repaint=face.has_config)
+            _emit_static_methods(w, face, static, antialias_default,
+                                 needs_repaint=face.has_config or bool(face.settings))
         for placed in resolved.items:
             if placed.kind == "group":
                 continue
@@ -387,17 +397,32 @@ def _emit_static_methods(w: Writer, face: Face, static: "StaticPlan",
                              lambda root: w.line(f"{static.method(root)}(dc);"))
     if needs_repaint:
         w.blank()
-        w.doc("Re-paint the static buffer from the current field values, in place.\n"
-              "\n"
-              "Called only from `applyConfig`: a config colour drawn into static "
-              "content\n"
-              "was already baked into the buffer once in onLayout, so a wearer's "
-              "edit\n"
-              "needs this to show before the buffer is blitted again.  Narrows "
-              "through a\n"
-              "local rather than calling `.getDc()` straight off the field -- "
-              "`monkeyc`\n"
-              "cannot narrow a `Null` check across a field read (CLAUDE.md).")
+        if face.settings:
+            w.doc("Re-paint the static buffer from the current field values, in place.\n"
+                  "\n"
+                  "Called from `applySettings` (and `applyConfig`, if any): a "
+                  "setting or config\n"
+                  "colour drawn into static content was already baked into the "
+                  "buffer once in\n"
+                  "onLayout, so a wearer's edit needs this to show before the "
+                  "buffer is blitted\n"
+                  "again.  Narrows through a local rather than calling `.getDc()` "
+                  "straight off\n"
+                  "the field -- `monkeyc` cannot narrow a `Null` check across a "
+                  "field read\n"
+                  "(CLAUDE.md).")
+        else:
+            w.doc("Re-paint the static buffer from the current field values, in place.\n"
+                  "\n"
+                  "Called only from `applyConfig`: a config colour drawn into static "
+                  "content\n"
+                  "was already baked into the buffer once in onLayout, so a wearer's "
+                  "edit\n"
+                  "needs this to show before the buffer is blitted again.  Narrows "
+                  "through a\n"
+                  "local rather than calling `.getDc()` straight off the field -- "
+                  "`monkeyc`\n"
+                  "cannot narrow a `Null` check across a field read (CLAUDE.md).")
         with w.block(f"private function {REPAINT_STATIC_METHOD}() as Void"):
             w.line(f"var buffer = {STATIC_FIELD};")
             with w.block("if (buffer != null)"):
@@ -510,6 +535,60 @@ def _emit_config_fields(w: Writer, face: Face, guards: "Guards" = _NO_GUARDS) ->
         else:
             w.line(f"private var {slot.field} as Complications.Id = "
                    f"new Complications.Id(Complications.{ctype.constant});")
+    w.blank()
+
+
+def _emit_settings_fields(w: Writer, face: Face) -> None:
+    """One field per `settings:` entry, initialised to its declared default:
+    a Boolean for `boolean`, the default key's index for `choice`.
+    `applySettings` overwrites each from `Application.Properties` in the
+    constructor, so the initialiser only has to type the field."""
+    if not face.settings:
+        return
+    w.doc("Wearer settings (`settings:`), read from Application.Properties by "
+          "applySettings.\n"
+          "A choice holds its key's index, in the order 'choices:' lists them.")
+    for setting in face.settings.values():
+        if setting.type == "boolean":
+            w.line(f"private var {setting.field} as Boolean = {_mc_bool(bool(setting.default))};")
+        else:
+            w.line(f"private var {setting.field} as Number = {setting.stored_default};"
+                   f"  // {setting.default}")
+    w.blank()
+
+
+def _emit_apply_settings(w: Writer, face: Face, static: "StaticPlan | None") -> None:
+    """`applySettings` -- read every `settings:` entry into its field.
+
+    Called from the constructor, and from the app's `onSettingsChanged` when
+    Garmin Connect pushes a change. Every read is type-checked, not just
+    null-checked: Garmin's developer FAQ reports the phone sending a value
+    of the wrong type (`docs/research/17-phone-settings.md` §1). A value of
+    the wrong type, or a `choice` index out of range (say, a stored index
+    from a build with more choices), falls back to the declared default.
+    """
+    w.doc(
+        "Read every wearer setting into its field.\n"
+        "\n"
+        "A value of the wrong type, or a choice index out of range, falls back to\n"
+        "the declared default, so a setting is never absent."
+    )
+    with w.block(f"function {APPLY_SETTINGS_METHOD}() as Void"):
+        for name, setting in face.settings.items():
+            local = local_name(f"settings.{name}")
+            w.line(f'var {local} = Application.Properties.getValue("{name}");')
+            if setting.type == "boolean":
+                w.line(f"{setting.field} = ({local} instanceof Boolean) ? {local} : "
+                       f"{_mc_bool(bool(setting.default))};")
+                continue
+            with w.block(f"if ({local} instanceof Number && {local} >= 0 && "
+                         f"{local} < {len(setting.choices)})"):
+                w.line(f"{setting.field} = {local};")
+            with w.block("else"):
+                w.line(f"{setting.field} = {setting.stored_default};")
+        if static is not None:
+            w.comment("a setting may be drawn into the static buffer -- repaint it")
+            w.line(f"{REPAINT_STATIC_METHOD}();")
     w.blank()
 
 
@@ -705,6 +784,8 @@ def _emit_initialize(w: Writer, face: Face, has_slots: bool = False,
     signature = "function initialize(editMode as Boolean)" if has_slots else "function initialize()"
     with w.block(signature):
         w.line("WatchFace.initialize();")
+        if face.settings:
+            w.line(f"{APPLY_SETTINGS_METHOD}();")
         if guards.complications and face.config_data:
             w.blank()
             w.comment("Toybox.Complications is absent on at least one target -- leave")

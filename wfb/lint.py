@@ -82,7 +82,7 @@ ALL_CODES = frozenset({
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "shared-source",
     "shared-view", "source-renamed",
     "sub-pixel-length", "target",
-    "static", "static-overlap", "string-label",
+    "settings", "static", "static-overlap", "string-label",
     "text-antialias", "text-curve", "text-outline", "text-outline-interior",
     "unreachable-layout",
     "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",

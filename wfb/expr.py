@@ -399,6 +399,11 @@ class Binding:
     code: str
     #: Set when the value is known at build time, enabling constant folding.
     constant: object | None = None
+    #: A `choice` setting's keys, in declaration order: the binding may only
+    #: be compared with one of them (`settings.ring == "steps"`), and `emit`
+    #: turns that key into its index, which is what `code` holds at runtime.
+    #: The tree keeps the string, so `evaluate` compares keys on the host.
+    choices: tuple[str, ...] | None = None
 
 
 @dataclass
@@ -449,6 +454,13 @@ def check(node: Node, scope: Scope) -> Value:
         binding = scope.lookup(node.path)
         if binding is None:
             raise _unknown_ref(node, scope)
+        if binding.choices is not None:
+            raise ExprError(
+                f"{node.path} is a choice, so it can only be compared with one of its keys",
+                node.offset,
+                [f'for example: {node.path} == "{binding.choices[0]}"',
+                 f"{node.path}'s keys: " + ", ".join(binding.choices)],
+            )
         return binding.value
 
     if isinstance(node, Unary):
@@ -460,6 +472,8 @@ def check(node: Node, scope: Scope) -> Value:
         return Value(Type.BOOLEAN, inner.nullable)
 
     if isinstance(node, Binary):
+        if _choice_compare(node, scope) is not None:
+            return Value(Type.BOOLEAN)
         left, right = check(node.left, scope), check(node.right, scope)
         nullable = left.nullable or right.nullable
         if node.op in _NUMERIC_OPS:
@@ -520,6 +534,45 @@ def check(node: Node, scope: Scope) -> Value:
     raise ExprError(f"cannot type {type(node).__name__}")
 
 
+def _choice_compare(node: Binary, scope: Scope) -> tuple[Ref, Literal, int] | None:
+    """`(ref, key, index)` when ``node`` compares a `choice` binding with one
+    of its keys (`settings.ring == "steps"`, either way round); `None` when
+    neither side is a choice binding.  Anything else involving a choice
+    binding raises: the key must be a string literal naming one of its keys.
+    """
+    for ref, other in ((node.left, node.right), (node.right, node.left)):
+        if not isinstance(ref, Ref):
+            continue
+        binding = scope.bindings.get(ref.path)
+        if binding is None or binding.choices is None:
+            continue
+        keys = ", ".join(binding.choices)
+        if node.op not in _EQUALITY_OPS:
+            raise ExprError(
+                f"{ref.path} is a choice, so it can only be compared with == or !=",
+                node.offset, [f"{ref.path}'s keys: {keys}"],
+            )
+        if not (isinstance(other, Literal) and other.type is Type.STRING):
+            raise ExprError(
+                f"{ref.path} is a choice, so compare it with one of its keys "
+                "as a quoted string",
+                other.offset,
+                [f'for example: {ref.path} == "{binding.choices[0]}"',
+                 f"{ref.path}'s keys: {keys}"],
+            )
+        key = str(other.value)
+        if key not in binding.choices:
+            near = difflib.get_close_matches(key, binding.choices, n=3, cutoff=0.4)
+            raise ExprError(
+                f"{ref.path} has no choice {key!r}", other.offset,
+                (did_you_mean([f'"{n}"' for n in near]) if near else [])
+                + [f"{ref.path}'s keys: {keys}"],
+            )
+        scope.lookup(ref.path)  # record the use, as `check`'s Ref branch would
+        return ref, other, binding.choices.index(key)
+    return None
+
+
 def _unknown_ref(node: Ref, scope: Scope) -> ExprError:
     """The error for a reference nothing in ``scope`` binds."""
     if node.path == COPY:
@@ -548,6 +601,12 @@ def _unknown_ref(node: Ref, scope: Scope) -> ExprError:
     # wants the palette listed, not the data-source catalogue.
     namespace = node.path.split(".", 1)[0] if "." in node.path else ""
     siblings = sorted(name for name in scope.bindings if name.startswith(f"{namespace}."))
+    if namespace == "settings" and not siblings:
+        return ExprError(
+            f"unknown setting {node.path!r}", node.offset,
+            ["this design declares no 'settings:' -- a setting is declared "
+             "under the top-level 'settings:' block"],
+        )
     near = difflib.get_close_matches(node.path, siblings, n=3, cutoff=0.4) or (
         [] if siblings else catalog.CATALOG.suggest(node.path))
     if near:
@@ -713,6 +772,10 @@ def emit(node: Node, scope: Scope) -> str:
         return f"(-{inner})" if node.op == "-" else f"(!{inner})"
     if isinstance(node, Binary):
         op = _MONKEYC_BINARY.get(node.op, node.op)
+        choice = _choice_compare(node, scope)
+        if choice is not None:
+            ref, _, index = choice
+            return f"({scope.bindings[ref.path].code} {op} {index})"
         left_code = emit(node.left, scope)
         right_code = emit(node.right, scope)
         if node.op == "/" and not _has_float_operand(node.left, node.right, scope):

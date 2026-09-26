@@ -42,6 +42,9 @@ class GeneratedProject:
     manifest_text: str = ""
     jungle_text: str = ""
     strings_text: str = ""
+    #: `resources/settings/properties.xml`; empty, and not written, for a
+    #: design without `settings:`.
+    properties_text: str = ""
     barrel: list[str] = field(default_factory=list)
     resolved: dict[str, ResolvedFace] = field(default_factory=dict)
     #: String literals that would still share a monkeyc `str___<hash>` label
@@ -60,6 +63,8 @@ class GeneratedProject:
             "monkey.jungle": self.jungle_text,
             "resources/strings/strings.xml": self.strings_text,
         }
+        if self.properties_text:
+            out["resources/settings/properties.xml"] = self.properties_text
         for source in self.sources:
             out[source.path] = source.text
         return out
@@ -111,6 +116,8 @@ def generate(face: Face, devices: list[Device], root: Path,
     project.manifest_text = manifest.render(face, devices)
     project.jungle_text = jungle.render(face, devices)
     project.strings_text = resources.shared_strings(face)
+    if face.settings:
+        project.properties_text = resources.properties_resource(face)
 
     for device in devices:
         device_resolved = (resolved or {}).get(device.id)

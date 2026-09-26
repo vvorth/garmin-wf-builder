@@ -5,7 +5,9 @@ user-editable axes: an accent colour, a data colour, Styles (author-named
 entries), and Data (named complication slots the wearer repoints at any
 Garmin metric). The wearer can save up to four configurations. `fr955` has
 no on-device editor at all, so it always shows the compiled-in defaults.
-`config:` declares which of these axes a design uses.
+`config:` declares which of these axes a design uses. A Boolean or a
+named choice that every target stores, fr955 included, is a
+[wearer setting](settings.md) instead.
 
 ## At a glance
 

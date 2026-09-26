@@ -304,9 +304,12 @@ color: "heart_rate.current > 150 ? palette.hot : palette.text"
 value: "percent(activity.steps, activity.step_goal)"
 ```
 
-Literals; references to sources and palette entries; `+ - * / %`; comparisons;
-`and` / `or` / `not`; `cond ? a : b`; and exactly seven functions — `min`, `max`,
-`clamp`, `round`, `floor`, `abs`, `percent`.
+Literals; references to sources, palette entries, `config.*` colours and
+[`settings.*`](settings.md); `+ - * / %`; comparisons; `and` / `or` / `not`;
+`cond ? a : b`; and exactly seven functions — `min`, `max`, `clamp`, `round`,
+`floor`, `abs`, `percent`. A `choice` setting is the one reference with a rule
+of its own: it can only be compared with one of its keys
+(`settings.ring == "steps"`).
 
 They compute what the watch computes, because the build folds constants
 and the preview draws values with the same rules:

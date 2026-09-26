@@ -14,7 +14,7 @@ which is what lets `mypy --strict` check each module on its own:
     visibility  `visible:` and the enclosing groups' conditions
     fonts       the `fonts:` block
     blocks      `layouts:`, `palette:`, `color_scheme:` and the scope
-    config      the `config:` axes
+    config      the `config:` axes and `settings:`
     hands       `hands:`, and the parts a hand and a pattern share
     aod         `aod:`, read and resolved down the tree
     static      `static:` subtrees
@@ -95,6 +95,7 @@ class Builder(ElementTree):
         self._build_palette(data.get("palette") or {})
         self._build_color_scheme(data.get("color_scheme") or {})
         self._build_config(data.get("config") or {})
+        self._build_settings(data.get("settings") or {})
         self._check_layouts_reachable(data)
         self._build_fonts(data.get("fonts") or {})
         self._build_scope()
@@ -159,6 +160,7 @@ class Builder(ElementTree):
             aod_lint_reason=self.face_aod_lint_reason,
             aod_dim=self.face_aod_dim,
             aod_mask=self.face_aod_mask,
+            settings=dict(self.settings),
         )
 
 

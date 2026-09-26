@@ -1,0 +1,122 @@
+# `settings:` -- values the wearer changes after install, stored on the watch
+# as Application.Properties and read in any expression as `settings.<name>`
+# (docs/guide/settings.md, docs/plans/21-phone-settings.md).
+#
+# Three settings, one of each use:
+#
+# - `show_seconds` (boolean) gates the seconds line with `visible:`;
+# - `ring` (choice) picks what the outer ring measures -- two `progress`
+#   elements, each shown by comparing the choice with one of its keys
+#   (`settings.ring == "steps"`), and `none` for no ring at all;
+# - `ticks` (boolean) gates the hour ticks, which are `static:`, so a change
+#   has to repaint the static buffer (`applySettings` calls `repaintStatic`).
+#
+# Unlike `config:`, a setting is stored on every target, `fr955` included.
+# Nothing can change one on a sideloaded face yet: Garmin Connect edits
+# settings only for Store installs, and the on-watch settings menu is plan 21
+# slice 2. Until then this face shows the defaults; `wfb preview --set
+# ring=battery --set show_seconds=false` renders the other values.
+#
+# Build it with:  ./wfb.py build examples/features/settings/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: 7ed9e962-7b9d-4a2f-af79-639f4fb96641
+  name: Feature Settings
+  version: 1.0.0
+
+targets:
+  - fenix8solar47mm
+  - fenix8solar51mm
+  - fr955
+
+palette:
+  white: "#FFFFFF"
+  gray: "#AAAAAA"
+  orange: "#FF5500"
+  green: "#55FF00"
+  track: "#555555"
+
+settings:
+  show_seconds:
+    label: "Show seconds"
+    type: boolean
+    default: true
+  ring:
+    label: "Ring shows"
+    type: choice
+    choices: { steps: "Steps", battery: "Battery", none: "Nothing" }
+    default: steps
+  ticks:
+    label: "Hour ticks"
+    type: boolean
+    default: true
+
+elements:
+  hour_ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    color: palette.gray
+    static: true
+    visible: settings.ticks
+    parts:
+      - { shape: rectangle, at: { dy: -80%r }, size: { width: 3%r, height: 8%r } }
+
+  steps_ring:
+    type: progress
+    style: arc
+    value: activity.steps
+    max: activity.step_goal
+    when_absent: hide
+    at: { anchor: center }
+    radius: 94%r
+    thickness: 5%r
+    start_angle: 0deg
+    sweep: 360deg
+    color: palette.orange
+    track_color: palette.track
+    visible: settings.ring == "steps"
+
+  battery_ring:
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    at: { anchor: center }
+    radius: 94%r
+    thickness: 5%r
+    start_angle: 0deg
+    sweep: 360deg
+    color: palette.green
+    track_color: palette.track
+    visible: settings.ring == "battery"
+
+  clock:
+    type: text
+    value: time.hour
+    format: "{:02d}"
+    font: FONT_NUMBER_HOT
+    at: { anchor: center, dy: -12%r }
+    color: palette.white
+
+  minutes:
+    type: text
+    value: time.minute
+    format: "{:02d}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: 30%r }
+    color: palette.white
+
+  seconds:
+    type: text
+    value: time.second
+    format: "{:02d}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: 60%r }
+    color: palette.gray
+    visible: settings.show_seconds

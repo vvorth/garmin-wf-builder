@@ -1,7 +1,7 @@
 # 21 — `settings:`: wearer settings on the watch, and on the phone
 
-**Status: decided (2026-09-27), not started.** The user took the
-recommendation on D1–D3 (§1). Slice 1 is next.
+**Status: decided (2026-09-27); slice 1 built.** The user took the
+recommendation on D1–D3 (§1). Slice 2 is next.
 Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 
 Research: `docs/research/17-phone-settings.md`, with its probe at
@@ -88,7 +88,10 @@ sharing the `--set` flag with sample-data overrides if those land first.
    emitted reads, `onSettingsChanged`, preview `--set`, guide chapter
    `docs/guide/settings.md`. A face without `settings:` is byte-identical
    (`tools/snapshot.py`). Warning-free on the three targets, and memory
-   measured against the probe's +112 B.
+   measured against the probe's +112 B. **Built.** One `boolean` and one
+   `choice`, read by three `visible:` guards, cost +279 B on the
+   verification devices (+372 B on `fenix5`); warning-free on those and
+   `fenix5`.
 2. **`edit: watch`**, the `getSettingsView` menu. Measured
    against the probe's +459 B. Friendly lint `settings-menu-unsupported`
    (a note) for a target without `getSettingsView`, e.g. `fenix5`: that
