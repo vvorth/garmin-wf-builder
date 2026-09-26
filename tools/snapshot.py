@@ -145,7 +145,7 @@ PREVIEW_VARIANTS: dict[str, list[str]] = {
 }
 
 FONTS_DEVICES = ("fenix8solar47mm", "fr955", "fenix847mm")
-NEW_TEMPLATES = ("minimal", "dashboard")
+NEW_TEMPLATES = ("minimal", "dashboard", "analog", "sport", "gauge", "calendar", "themed", "amoled")
 VALIDATE_COLOR_DESIGNS = ("examples/showcase/face", "examples/features/aod/face",
                           "examples/features/graph/face")
 

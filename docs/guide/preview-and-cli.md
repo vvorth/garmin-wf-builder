@@ -46,7 +46,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 | `help` | show help for wfb, or for one command |
 
 ```sh
-wfb new       "My Face" [-t minimal|dashboard]   # start from a known-good template
+wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good template
 wfb build     design.yaml [-d DEVICE] [-o DIR] [--no-compile]
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
 wfb preview   design.yaml [-d DEVICE] [--watch] [-q] [-o -]  # render to PNG; no simulator

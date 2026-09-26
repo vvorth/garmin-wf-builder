@@ -1,0 +1,134 @@
+# A face the wearer restyles on the watch itself: a light or dark scheme, an
+# accent colour, a data colour, and two complication slots whose content they
+# pick -- all from the fēnix 8's own watch face editor, with no phone app.
+#
+# The editor has exactly four axes (docs/guide/configuration.md):
+#
+# * `style:` -- each entry names a `color_scheme:`, a set of roles
+#   (`config.colors.bg`, `.fg`, ...) that switch together;
+# * `accent_color:` and `data_color:` -- one colour each;
+# * `data:` -- named complication slots (`config.data.<name>`).
+#
+# A watch without the editor (the Forerunner 955 is one) keeps every
+# `default:` forever. The linter warns about that once, and the `lint: allow:`
+# on `background` accepts it, with its reason.
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: __UUID__
+  name: __NAME__
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+# Every channel is 0x00, 0x55, 0xAA or 0xFF, the colours a MIP panel shows
+# without dithering -- including every choice offered below.
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  light_gray: "#AAAAAA"
+  dark_gray: "#555555"
+  orange: "#FF5500"
+  amber: "#FFAA00"
+  cyan: "#00FFFF"
+  sky_blue: "#00AAFF"
+  lime: "#AAFF00"
+
+color_scheme:
+  dark:
+    label: "Dark"
+    colors: { bg: palette.black, fg: palette.white, dim: palette.light_gray }
+  light:
+    label: "Light"
+    colors: { bg: palette.white, fg: palette.black, dim: palette.dark_gray }
+
+config:
+  style:
+    default: dark
+    choices:
+      dark: { colors: dark }
+      light: { colors: light }
+  accent_color:
+    default: palette.orange
+    choices: [palette.orange, palette.amber, palette.cyan, palette.lime]
+  data_color:
+    default: palette.sky_blue
+    choices: [palette.sky_blue, palette.white, palette.amber]
+  data:
+    top:
+      default: complication.body_battery
+      choices: any # the editor's own full complication picker
+    bottom:
+      default: complication.steps
+      choices: [complication.steps, complication.heart_rate, complication.calories]
+
+static:
+  # A config colour in `static:` is repainted when the wearer changes it.
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: config.colors.bg
+    # One allow anywhere accepts the single, face-wide warning.
+    lint:
+      allow: [config-unsupported]
+      reason: "fr955 has no on-device editor; it keeps every default here"
+
+  - id: accent_ring
+    type: shape
+    shape: arc
+    at: { anchor: center }
+    radius: 94%r
+    thickness: 4px
+    start_angle: 0deg
+    sweep: 360deg
+    color: config.accent_color
+
+elements:
+  - id: date
+    type: text
+    value: date.today
+    format: "{:%a %d}"
+    font: FONT_TINY
+    at: { anchor: center, dy: -40%r }
+    color: config.colors.dim
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: FONT_NUMBER_HOT
+    at: { anchor: center, dy: 6%r }
+    color: config.colors.fg
+
+  # A slot draws the chosen complication's icon and reading. It takes no
+  # `format:` -- the reading's type depends on what the wearer picks.
+  - id: top_slot
+    type: complication_slot
+    slot: config.data.top
+    at: { anchor: center, dy: -66%r }
+    font: FONT_SMALL
+    icon_size: 14%r
+    icon_gap: 2%r
+    icon_color: config.accent_color
+    color: config.data_color
+    when_absent: placeholder
+    placeholder: "--"
+    on_hold: auto # opens the glance for whatever the slot shows
+
+  - id: bottom_slot
+    type: complication_slot
+    slot: config.data.bottom
+    at: { anchor: center, dy: 52%r }
+    font: FONT_SMALL
+    icon_size: 14%r
+    icon_gap: 2%r
+    icon_color: config.accent_color
+    color: config.data_color
+    when_absent: placeholder
+    placeholder: "--"
+    on_hold: auto

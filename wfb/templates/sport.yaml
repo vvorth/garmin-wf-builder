@@ -1,0 +1,185 @@
+# A data-heavy digital face: the time, a heart-rate graph, and four
+# icon-and-value readouts, with a battery bar at the bottom.
+#
+# Each readout is a `group`: a box of its own that its children are placed
+# inside, so moving the group moves both. Holding a group opens the matching
+# Garmin glance (`on_hold:`) -- the one gesture a live face gets.
+#
+# `activity.distance` arrives in centimetres; `units: auto` shows it in km or
+# miles, whichever the wearer chose on the watch, and `{unit}` prints the
+# label. Try `wfb preview <file> --units statute`.
+#
+# Every reading here can be absent (no heart-rate lock yet, a fresh day), so
+# each says what to draw instead: `when_absent: placeholder`.
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: __UUID__
+  name: __NAME__
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#AAAAAA"
+  track: "#555555"
+  hot: "#FF5500"
+  accent: "#00AAFF"
+  good: "#00FF00"
+  low: "#FF0000"
+
+static:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+elements:
+  - id: date
+    type: text
+    value: date.today
+    format: "{:%a %d %b}"
+    font: FONT_XTINY
+    at: { anchor: center, dy: -66%r }
+    color: palette.dim
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: -38%r }
+    color: palette.fg
+
+  # The last four hours of heart rate, time-binned on the watch. `wfb series`
+  # lists the other series a face may plot.
+  - id: hr_graph
+    type: graph
+    series: heart_rate
+    range: 4h
+    style: area
+    at: { anchor: center, dy: -2%r }
+    size: { width: 70%r, height: 22%r }
+    min: auto
+    max: auto
+    color: palette.hot
+    on_hold: heart_rate
+
+  - id: hr
+    type: group
+    size: { width: 42%r, height: 12%r }
+    at: { anchor: center, dx: -50%r, dy: 22%r }
+    align: left
+    on_hold: heart_rate
+    children:
+      - id: hr_icon
+        type: icon
+        icon: heart
+        size: 9%r
+        at: { anchor: left }
+        align: left
+        color: palette.hot
+      - id: hr_value
+        type: text
+        value: heart_rate.current
+        format: "{:d}"
+        font: FONT_XTINY
+        at: { anchor: left, dx: 12%r }
+        align: left
+        color: palette.fg
+        when_absent: placeholder
+        placeholder: "--"
+
+  - id: steps
+    type: group
+    size: { width: 42%r, height: 12%r }
+    at: { anchor: center, dx: 8%r, dy: 22%r }
+    align: left
+    on_hold: steps
+    children:
+      - id: steps_icon
+        type: icon
+        icon: steps
+        size: 9%r
+        at: { anchor: left }
+        align: left
+        color: palette.accent
+      - id: steps_value
+        type: text
+        value: activity.steps / 1000.0
+        format: "{:.1f}k"
+        font: FONT_XTINY
+        at: { anchor: left, dx: 12%r }
+        align: left
+        color: palette.fg
+        when_absent: placeholder
+        placeholder: "--"
+
+  - id: distance
+    type: group
+    size: { width: 42%r, height: 12%r }
+    at: { anchor: center, dx: -50%r, dy: 42%r }
+    align: left
+    children:
+      - id: distance_icon
+        type: icon
+        icon: distance
+        size: 9%r
+        at: { anchor: left }
+        align: left
+        color: palette.good
+      - id: distance_value
+        type: text
+        value: activity.distance
+        units: auto
+        format: "{:.1f}{unit}"
+        font: FONT_XTINY
+        at: { anchor: left, dx: 12%r }
+        align: left
+        color: palette.fg
+        when_absent: placeholder
+        placeholder: "--"
+
+  - id: calories
+    type: group
+    size: { width: 42%r, height: 12%r }
+    at: { anchor: center, dx: 8%r, dy: 42%r }
+    align: left
+    on_hold: calories
+    children:
+      - id: calories_icon
+        type: icon
+        icon: flame
+        size: 9%r
+        at: { anchor: left }
+        align: left
+        color: palette.hot
+      - id: calories_value
+        type: text
+        value: activity.calories
+        format: "{:d}"
+        font: FONT_XTINY
+        at: { anchor: left, dx: 12%r }
+        align: left
+        color: palette.fg
+        when_absent: placeholder
+        placeholder: "--"
+
+  # A colour may read data: the bar turns red below 20%.
+  - id: battery
+    type: progress
+    style: bar
+    value: system.battery
+    max: 100
+    at: { anchor: center, dy: 64%r }
+    size: { width: 36%r, height: 5%r }
+    color: "system.battery < 20 ? palette.low : palette.good"
+    track_color: palette.track
+    on_hold: battery

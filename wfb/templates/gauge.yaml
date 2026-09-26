@@ -1,0 +1,95 @@
+# An instrument-style face: a battery gauge across the top half, its needle
+# turning from E at 9 o'clock to F at 3, and the time below the axis, where
+# the needle never goes.
+#
+# A needle (`progress` with `style: needle`) is authored like an analog
+# hand -- its parts point at 12 o'clock, in a frame whose origin is the axis
+# -- and turns to `start_angle + value / max x sweep`, clockwise from 12
+# (docs/guide/progress-and-graphs.md "Gauge needles"). The tick ring is a
+# radial `pattern` sharing the needle's start angle and sweep: 11 ticks
+# 18 degrees apart span the same 180 degrees.
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: __UUID__
+  name: __NAME__
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  scale: "#AAAAAA"
+  accent: "#FFAA00"
+  low: "#FF0000"
+
+static:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  - id: battery_ticks
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 11
+    start: 270deg
+    step: 18deg
+    color: palette.scale
+    parts:
+      - { shape: line, at: { dy: -94%r }, to: { dy: -84%r }, thickness: 2px }
+
+  - id: empty_mark
+    type: text
+    text: "E"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -76%r, dy: 12%r }
+    color: palette.low
+
+  - id: full_mark
+    type: text
+    text: "F"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 76%r, dy: 12%r }
+    color: palette.scale
+
+elements:
+  # A colour may read data: the needle turns red below 20%. Parts without a
+  # colour of their own take the element's.
+  - id: battery_needle
+    type: progress
+    style: needle
+    value: system.battery
+    max: 100
+    at: { anchor: center }
+    start_angle: 270deg
+    sweep: 180deg
+    color: "system.battery < 20 ? palette.low : palette.accent"
+    needle:
+      - shape: polygon
+        points: [{ dx: -3%r, dy: 10%r }, { dx: -1%r, dy: -74%r }, { dy: -80%r },
+                 { dx: 1%r, dy: -74%r }, { dx: 3%r, dy: 10%r }]
+      - { shape: circle, radius: 6%r, color: palette.fg } # the hub, drawn last
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: 38%r }
+    color: palette.fg
+
+  - id: date
+    type: text
+    value: date.today
+    format: "{:%a %d}"
+    font: FONT_XTINY
+    at: { anchor: center, dy: 64%r }
+    color: palette.scale

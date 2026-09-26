@@ -671,7 +671,6 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | `arc` hand parts | plan 04 §11 -- would need the start angle to rotate with the hand too |
 | Data-driven hand colours | plan 04 §11 -- a hand has no `when_absent:` to fall back through if the bound reading were absent |
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | plan 04 §11 |
-| `wfb new -t analog` template | plan 04 §11 |
 | A pattern `text` part whose `value:` reads data (a data source, `palette.*` or `config.*`) | plan 06 §6 D3 -- every copy's string must be known at build time for the font's glyph subset and the pattern's extent, and a reading would need `when_absent:`. Text parts reading only `copy` are built |
 | Per-copy variation other than `skip:`/`skip_every:`, colour and visibility | plan 05 §9 D5 -- a longer or differently-shaped copy is a second pattern element today |
 | `on_hold:` and `low_power` on a `pattern` | plan 05 §5.1, §5.4 -- hold a `group` around it; a fixed pattern gains nothing from `onPartialUpdate` |

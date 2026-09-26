@@ -755,6 +755,12 @@ TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 TEMPLATE_BLURB = {
     "minimal": "a background and the time -- the smallest face worth building",
     "dashboard": "time, a goal ring, two data clusters and a battery bar",
+    "analog": "a three-hand dial with ticks, numerals and a date window",
+    "sport": "time, a heart-rate graph and four readouts, distance in the wearer's units",
+    "gauge": "a battery needle gauge over the top half, the time below it",
+    "calendar": "the time over a Monday-first month of dots, today lit",
+    "themed": "light/dark schemes, accent colours and two complication slots set on the watch",
+    "amoled": "adds an AMOLED target, with a sparse always-on sleep frame",
 }
 
 

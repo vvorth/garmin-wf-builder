@@ -1,0 +1,109 @@
+# A face that also targets an AMOLED watch, with an always-on sleep frame.
+#
+# An AMOLED screen that stayed on all day would burn in, so while the watch
+# sleeps it draws a separate, sparse frame instead (docs/guide/always-on-display.md).
+# You don't write a second design: `aod:` on an element says what it looks
+# like in that frame -- `aod: hide`, `aod: show`, or a block of overrides
+# (which also shows it) -- and `aod: {default: ...}` below says what happens
+# to every element that says nothing.
+#
+# Here everything is hidden asleep except the clock, drawn as a thin outline
+# around black digits, and a dimmer, thinner battery ring. `dim:` scales every
+# colour the sleep frame draws that has no override of its own. A moving
+# pixel mask is on by default, so no pixel stays lit two minutes running.
+#
+# The MIP watches in `targets:` are always on already and ignore `aod:`.
+#
+# Preview the sleep frame with:  wfb preview <file> -d fenix847mm --aod
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: __UUID__
+  name: __NAME__
+  version: 1.0.0
+
+targets: [fenix847mm, fenix8solar47mm, fenix8solar51mm, fr955]
+
+aod:
+  default: hide
+  dim: 0.6
+
+palette:
+  black: "#000000"
+  white: "#FFFFFF"
+  gray: "#AAAAAA"
+  dark: "#555555"
+  accent: "#00AAFF"
+  hot: "#FF5500"
+
+elements:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.black
+
+  - id: date
+    type: text
+    value: date.today
+    format: "{:%a %d %b}"
+    font: FONT_TINY
+    at: { anchor: center, dy: -36%r }
+    color: palette.gray
+
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%h:%M}"
+    font: FONT_NUMBER_HOT
+    at: { anchor: center }
+    color: palette.white
+    aod:
+      color: palette.black # hollow digits: only the outline lights
+      outline:
+        width: 2
+        color: palette.gray
+
+  - id: heart
+    type: group
+    size: { width: 30%r, height: 12%r }
+    at: { anchor: center, dy: 38%r }
+    on_hold: heart_rate
+    children:
+      - id: hr_icon
+        type: icon
+        icon: heart
+        size: 10%r
+        at: { anchor: left }
+        align: left
+        color: palette.hot
+      - id: hr_value
+        type: text
+        value: heart_rate.current
+        format: "{:d}"
+        font: FONT_TINY
+        at: { anchor: left, dx: 13%r }
+        align: left
+        color: palette.white
+        when_absent: placeholder
+        placeholder: "--"
+
+  - id: battery_ring
+    type: progress
+    style: arc
+    value: system.battery
+    max: 100
+    at: { anchor: center }
+    radius: 90%r
+    thickness: 3%r
+    start_angle: 210deg
+    sweep: 300deg
+    color: palette.accent
+    track_color: palette.dark
+    aod:
+      thickness: 1%r
+      color: palette.dark

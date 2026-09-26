@@ -226,6 +226,19 @@ wfb new --list                    # what else there is
 - **`wfb new -t <template>`.** Starts from a known-good design (`--list` shows
   the templates).
 
+| Template | What it starts you with |
+|---|---|
+| `dashboard` (the default) | the time, a step-goal ring, heart-rate and step readouts, a battery bar |
+| `minimal` | a background and the time |
+| `analog` | a three-hand dial: minute and hour ticks, twelve numerals, a date window |
+| `sport` | the time, a heart-rate graph, four icon-and-value readouts (distance in the wearer's own units) |
+| `gauge` | a battery needle gauge across the top half, the time below it |
+| `calendar` | the time over a Monday-first month of dots, today lit |
+| `themed` | colour schemes, accent and data colours, and two complication slots the wearer sets on the watch ([configuration](configuration.md)) |
+| `amoled` | adds an AMOLED target (`fenix847mm`) with a sparse always-on frame ([always-on display](always-on-display.md)) |
+
+Every template builds warning-free on each of its targets.
+
 **Turn on editor autocomplete.** The schema is a shipped artefact, so a YAML
 language server will complete keys, document them on hover, and flag mistakes as
 you type. Either add a modeline to the file:

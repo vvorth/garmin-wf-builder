@@ -1,0 +1,125 @@
+# A classic three-hand dial: minute and hour ticks, twelve numerals, a date
+# window at 3 o'clock, and hour, minute and second hands.
+#
+# The dial -- ticks, numerals, the window's frame -- never changes, so it sits
+# in `static:` and is painted once into a buffer rather than every second.
+#
+# A hand is drawn pointing at 12 o'clock in a frame whose origin is its axis
+# (docs/guide/analog-hands.md); the watch turns it. `dy` is negative towards
+# the tip. The second hand vanishes while the watch sleeps (`seconds: awake`,
+# the default) -- a MIP face redraws only once a minute then.
+#
+# Preview a flattering time with:  wfb preview <file> --time 10:09:42
+#
+# yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-1.schema.json
+
+format: 1
+
+face:
+  id: __UUID__
+  name: __NAME__
+  version: 1.0.0
+
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  dim: "#AAAAAA"
+  accent: "#FF5500"
+
+hands:
+  classic:
+    hour:
+      color: palette.fg
+      parts:
+        - shape: polygon
+          points:
+            - { dx: -3%r, dy: 8%r } # a short tail behind the axis
+            - { dx: -2%r, dy: -40%r }
+            - { dy: -46%r } # the tip
+            - { dx: 2%r, dy: -40%r }
+            - { dx: 3%r, dy: 8%r }
+    minute:
+      color: palette.fg
+      parts:
+        - { shape: rectangle, at: { dy: -32%r }, size: { width: 3%r, height: 76%r } }
+    second:
+      color: palette.accent
+      parts:
+        - { shape: line, at: { dy: 15%r }, to: { dy: -84%r }, thickness: 2px }
+        - { shape: circle, at: { dy: 15%r }, radius: 3%r } # counterweight
+
+static:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+  - id: minute_ticks
+    type: pattern
+    pattern: radial
+    at: { anchor: center } # the point every copy turns about
+    count: 60 # step defaults to 360deg / 60 = 6deg
+    skip_every: 5 # leave the hour positions to hour_ticks
+    color: palette.dim
+    parts: # copy 0, as it looks at 12 o'clock
+      - { shape: line, at: { dy: -96%r }, to: { dy: -90%r }, thickness: 1px }
+
+  - id: hour_ticks
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    color: palette.fg
+    parts:
+      - { shape: rectangle, at: { dy: -90%r }, size: { width: 3%r, height: 10%r } }
+
+  # One radial pattern instead of twelve text elements. `copy` is the copy's
+  # index, 0 at 12 o'clock, so this draws 12, 1, 2, ... 11. The 3 is skipped:
+  # the date window sits there.
+  - id: numerals
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 12
+    skip: [3]
+    color: palette.dim
+    parts:
+      - shape: text
+        value: "(copy + 11) % 12 + 1"
+        font: FONT_SMALL
+        at: { dy: -70%r }
+
+  - id: date_frame
+    type: shape
+    shape: rectangle
+    filled: false
+    thickness: 1px
+    at: { anchor: center, dx: 62%r }
+    size: { width: 26%r, height: 18%r }
+    color: palette.dim
+
+elements:
+  - id: date
+    type: text
+    value: date.day
+    format: "{:d}"
+    font: FONT_TINY
+    at: { anchor: center, dx: 62%r }
+    color: palette.fg
+
+  - id: hands
+    type: hands
+    hands: classic
+    at: { anchor: center }
+
+  # Drawn after the hands, so it caps all three.
+  - id: pin
+    type: shape
+    shape: circle
+    at: { anchor: center }
+    radius: 3%r
+    color: palette.accent
