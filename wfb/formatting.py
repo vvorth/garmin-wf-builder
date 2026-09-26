@@ -23,7 +23,7 @@ from typing import Callable, NamedTuple
 
 from .catalog import Source, Type
 
-_FIELD_RE = re.compile(r"\{(?::(?P<spec>[^}]*))?\}")
+_FIELD_RE = re.compile(r"\{(?:(?P<unit>unit)|:(?P<spec>[^}]*))?\}")
 _NUMERIC_SPEC_RE = re.compile(r"^(?P<zero>0)?(?P<width>\d+)?(?:\.(?P<precision>\d+))?(?P<kind>[dfs])$")
 
 
@@ -39,6 +39,12 @@ class Literal:
 @dataclass(frozen=True)
 class Field:
     spec: str
+
+
+@dataclass(frozen=True)
+class UnitField:
+    """`{unit}`: the label of the unit a `units:` conversion displays in
+    ("km" or "mi"), rendered from a compiled expression the caller passes."""
 
 
 @dataclass(frozen=True)
@@ -173,7 +179,7 @@ def parse(spec: str) -> list:
     for match in _FIELD_RE.finditer(spec):
         if match.start() > pos:
             parts.append(Literal(spec[pos:match.start()]))
-        parts.append(Field(match.group("spec") or ""))
+        parts.append(UnitField() if match.group("unit") else Field(match.group("spec") or ""))
         pos = match.end()
     if pos < len(spec):
         parts.append(Literal(spec[pos:]))
@@ -259,10 +265,19 @@ def _numeric_spec(spec: str) -> tuple[str, str, str | None]:
 # Monkey C emission
 
 
+def has_unit_field(spec: str) -> bool:
+    """Does this format use `{unit}`?"""
+    try:
+        return any(isinstance(part, UnitField) for part in parse(spec))
+    except FormatError:
+        return False
+
+
 def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
          settings: str = "settings", date: str = "date",
-         date_short: str = "dateShort") -> str:
-    """Compile a format spec to a Monkey C String expression."""
+         date_short: str = "dateShort", unit_code: str | None = None) -> str:
+    """Compile a format spec to a Monkey C String expression.  ``unit_code``
+    is the String expression a `{unit}` field compiles to."""
     if value_type is Type.DATE or is_time_spec(spec):
         readers = Readers(clock, settings, date, date_short)
         parts, codes = _strftime_parts(spec, value_type)
@@ -274,6 +289,10 @@ def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
     for part in parse(spec):
         if isinstance(part, Literal):
             pieces.append(_quote(part.text))
+        elif isinstance(part, UnitField):
+            if unit_code is None:
+                raise FormatError("{unit} needs 'units:' on the element")
+            pieces.append(f"({unit_code})")
         else:
             pieces.append(_emit_numeric(part.spec, value_code, value_type))
     return " + ".join(pieces)
@@ -315,7 +334,8 @@ def _quote(text: str) -> str:
 # host-side rendering: what `wfb preview` shows
 
 
-def render(spec: str, value, value_type: Type, values: dict | None = None) -> str:
+def render(spec: str, value, value_type: Type, values: dict | None = None,
+           unit_text: str | None = None) -> str:
     """The host-side rendering of ``spec`` for ``value`` -- what `wfb preview`
     draws in place of the Monkey C `emit` produces for the same declaration.
 
@@ -328,7 +348,8 @@ def render(spec: str, value, value_type: Type, values: dict | None = None) -> st
     `wfb.preview.SAMPLE` uses: ``time.hour``, ``time.minute``, ``time.second``,
     ``device.is_24_hour``, ``date.day_of_week``, ``date.day``, ``date.month``,
     ``date.month_number``, ``date.year`` -- read only when ``value_type`` is
-    TIME or DATE, so a numeric caller may omit it.
+    TIME or DATE, so a numeric caller may omit it.  ``unit_text`` is what a
+    `{unit}` field renders.
 
     An unparseable numeric spec raises `FormatError`, the same as `emit`,
     rather than falling back to `str(value)`: every spec reaching here has
@@ -340,9 +361,17 @@ def render(spec: str, value, value_type: Type, values: dict | None = None) -> st
         parts, codes = _strftime_parts(spec, value_type)
         return "".join(part.text if part.code is None else codes[part.code].render(values)
                        for part in parts)
-    return "".join(part.text if isinstance(part, Literal)
-                   else _render_numeric_field(part.spec, value)
-                   for part in parse(spec))
+    out = ""
+    for part in parse(spec):
+        if isinstance(part, Literal):
+            out += part.text
+        elif isinstance(part, UnitField):
+            if unit_text is None:
+                raise FormatError("{unit} needs 'units:' on the element")
+            out += unit_text
+        else:
+            out += _render_numeric_field(part.spec, value)
+    return out
 
 
 def _render_numeric_field(spec: str, value) -> str:
@@ -365,8 +394,12 @@ def _render_numeric_field(spec: str, value) -> str:
 
 
 def widest(spec: str, source: Source | None, value_type: Type,
-           scale: float = 1.0) -> str:
+           scale: float = 1.0, *, digits: int | None = None, unit_widest: str = "") -> str:
     """The widest string this binding can plausibly render.
+
+    ``digits`` overrides the source-derived digit count (a `units:`
+    conversion knows its own display range); ``unit_widest`` is the widest
+    label a `{unit}` field can show.
 
     Used by the text-overflow lint and to derive a font's glyph set.  Digit
     counts come from the source's real range where one is known, and fall back
@@ -383,8 +416,12 @@ def widest(spec: str, source: Source | None, value_type: Type,
         if isinstance(part, Literal):
             out += part.text
             continue
+        if isinstance(part, UnitField):
+            out += unit_widest
+            continue
         m = _NUMERIC_SPEC_RE.match(part.spec) if part.spec else None
-        digits = _max_digits(source, scale)
+        if digits is None:
+            digits = _max_digits(source, scale)
         if m and m.group("kind") == "f":
             precision = int(m.group("precision") or 1)
             # A zero precision prints no decimal point at all, so counting one
@@ -438,9 +475,13 @@ def digits_are_known(source: Source | None) -> bool:
 
 
 def glyphs(spec: str, source: Source | None, value_type: Type,
-           scale: float = 1.0) -> set[str]:
-    """Every character this binding can render -- the font's required subset."""
-    out = set(widest(spec, source, value_type, scale))
+           scale: float = 1.0, *, digits: int | None = None,
+           unit_labels: tuple[str, ...] = ()) -> set[str]:
+    """Every character this binding can render -- the font's required subset,
+    every label a `{unit}` field can show included."""
+    out = set(widest(spec, source, value_type, scale, digits=digits))
+    for label in unit_labels:
+        out |= set(label)
     if value_type is Type.DATE:
         # The weekday and month are localised strings chosen by the firmware, so
         # the full alphabet has to be present -- a custom font subset that

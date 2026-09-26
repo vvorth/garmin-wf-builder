@@ -2926,8 +2926,13 @@ class Builder:
         raw = node.get(key)
         if raw is None:
             return None
-        span = self.doc.span(node, key)
-        text = str(raw)
+        return self.compile_expression(str(raw), self.doc.span(node, key), key)
+
+    def compile_expression(self, text: str, span: Span | None, key: str) -> Expression | None:
+        """`text` parsed, type-checked and compiled as :meth:`expression`
+        does for an authored key -- for an expression the builder writes
+        itself (a `units:` conversion, `wfb.conversion`), reported against
+        ``span`` under ``key``."""
         before = set(self.scope.used)
         self.scope.used.clear()
         syntax_error = False

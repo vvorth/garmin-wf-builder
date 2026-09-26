@@ -15,6 +15,7 @@ wordmark on this platform.
 | `value:` | expression over data sources | — | [`value:` vs `text:`](#text) |
 | `text:` | literal string | — | [`value:` vs `text:`](#text) |
 | `format:` | Python-style format spec | — | rendering for `value:` — see [Formats](data.md#formats) |
+| `units:` | `auto`/`metric`/`statute` | — | show `value:` in the wearer's units — see [Units](data.md#units) |
 | `font:` | `font.<name>` or a system name | — | [Fonts](fonts.md#fonts) |
 | `color:` | colour expression | — | [Colours](colors.md) |
 | `align:` | `left`/`center`/`right` | `center` | [Placement: `at:` and `align:`](placement.md#placement-at-and-align) |

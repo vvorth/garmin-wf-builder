@@ -661,7 +661,8 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | Moving a per-frame data-source read inside its own layout's guard (only the draw calls are guarded; every read still runs every frame) | plan 02 §6.4 -- a later optimisation, only worth doing if measured |
 | The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | plan 02 §6.8 -- needs a probe, only worth doing if fr955 runs short of memory |
 | `segments` and `scale` progress styles | ADR 0004 §1 |
-| Automatic unit conversion (`units: auto`/`metric`/`statute`, metres->km/mi, m/s->pace) | ADR 0005 §4 states this as framework-owned; no `units:` schema property or conversion code exists at all. `examples/dashboard/face.yaml`'s `activity.distance / 100000.0` is an author doing by hand exactly what this was meant to spare them |
+| Pace from `units:` (m/s to min/km or min/mi) | ADR 0005 §4 -- `units:` converts distance, elevation, temperature and speed (`docs/guide/data.md` "Units"); pace is a duration, and `format:` has no duration spec (`4:30`) to show one |
+| `units:` on an expression, or on a `complication_slot` | a conversion needs the unit its value is in, which only a bare source states; a slot's value is whatever the wearer picked, so there is no one unit to convert from |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |
 | Catalogue generation from the SDK (the table is hand-written for now) | ADR 0005 §1 |
 | SDK-version recording and device-database mismatch warning | ADR 0009 §4 |

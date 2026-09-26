@@ -328,6 +328,12 @@ class Source:
     #: for a genuine extra *function* dependency only.
     requires: tuple[str, ...] = ()
     unit: str | None = None
+    #: What `unit` measures, when a text's `units:` can convert it:
+    #: ``"distance"``, ``"elevation"``, ``"temperature"`` or ``"speed"``
+    #: (`wfb.conversion.CONVERSIONS`).  Separate from `unit` because the
+    #: same unit can mean two quantities: an altitude and a weekly run
+    #: distance are both metres, and only one of them becomes miles.
+    quantity: str | None = None
     doc: str = ""
     #: The SDK page this entry was taken from.
     source_ref: str = ""
@@ -400,6 +406,17 @@ class Source:
 
 _s = Source
 
+#: The `complication.*` types whose value `units:` can convert
+#: (`Source.quantity`).  The race pace predictors (metres/second) are left
+#: out: their display is a pace, a duration per distance, which `format:`
+#: cannot render yet.
+_COMPLICATION_QUANTITY: dict[str, str] = {
+    "altitude": "elevation",
+    "weekly_run_distance": "distance",
+    "weekly_bike_distance": "distance",
+    "current_temperature": "temperature",
+}
+
 
 CATALOG: Catalogue[Source] = Catalogue({
     s.path: s
@@ -464,6 +481,16 @@ CATALOG: Catalogue[Source] = Catalogue({
            doc="alarms set", source_ref="Toybox/System/DeviceSettings.html"),
         _s("device.phone_connected", Type.BOOLEAN, "settings", "phoneConnected", False,
            doc="phone is connected", source_ref="Toybox/System/DeviceSettings.html"),
+        # The wearer's unit choices (`System.UnitsSystem`: UNIT_METRIC 0,
+        # UNIT_STATUTE 1), all API 1.0.0.  What a text's `units: auto`
+        # switches on (`wfb.conversion`); bindable on their own too, for a
+        # design that labels something itself.
+        *[
+            _s(f"device.{name}_units", Type.NUMBER, "settings", f"{name}Units", False,
+               doc=f"the {name} unit setting: 0 = metric, 1 = statute",
+               source_ref="Toybox/System/DeviceSettings.html")
+            for name in ("distance", "elevation", "temperature", "pace")
+        ],
         # -- system -------------------------------------------------------
         # Toybox/System/Stats.html -- battery and charging are non-null.
         _s("system.battery", Type.FLOAT, "stats", "battery", False, unit="percent",
@@ -484,7 +511,7 @@ CATALOG: Catalogue[Source] = Catalogue({
         _s("activity.calories", Type.NUMBER, "activity", "calories", True,
            unit="kcal", doc="calories today", source_ref="Toybox/ActivityMonitor/Info.html",
            launch_complication="calories"),
-        _s("activity.distance", Type.NUMBER, "activity", "distance", True,
+        _s("activity.distance", Type.NUMBER, "activity", "distance", True, quantity="distance",
            unit="cm", doc="distance today, in centimetres",
            source_ref="Toybox/ActivityMonitor/Info.html"),
         _s("activity.floors_climbed", Type.NUMBER, "activity", "floorsClimbed", True,
@@ -547,7 +574,8 @@ CATALOG: Catalogue[Source] = Catalogue({
         # is device-gated in the SDK doc but confirmed present on all three
         # targets by reading their own Supported Devices lists.
         _s("ambient.altitude", Type.FLOAT, "activity_info", "altitude", True,
-           unit="m", doc="altitude above mean sea level, from barometer or GPS",
+           unit="m", quantity="elevation",
+           doc="altitude above mean sea level, from barometer or GPS",
            source_ref="Toybox/Activity/Info.html",
            launch_complication="altitude"),
         _s("ambient.pressure", Type.FLOAT, "activity_info", "ambientPressure", True,
@@ -582,19 +610,21 @@ CATALOG: Catalogue[Source] = Catalogue({
         # simpler than an array read, and it is the object weather.condition
         # already fetches, so these add no extra reader or API call.
         _s("weather.temperature", Type.FLOAT, "weather_current", "temperature", True,
-           unit="celsius", doc="current temperature",
+           unit="celsius", quantity="temperature", doc="current temperature",
            source_ref="Toybox/Weather/CurrentConditions.html",
            launch_complication="current_temperature"),
         _s("weather.feels_like_temperature", Type.FLOAT, "weather_current",
-           "feelsLikeTemperature", True, unit="celsius",
+           "feelsLikeTemperature", True, unit="celsius", quantity="temperature",
            doc="wind chill or heat index -- how the temperature actually feels",
            source_ref="Toybox/Weather/CurrentConditions.html"),
         _s("weather.high_temperature_today", Type.FLOAT, "weather_current", "highTemperature",
-           True, unit="celsius", doc="today's forecast high temperature",
+           True, unit="celsius", quantity="temperature",
+           doc="today's forecast high temperature",
            source_ref="Toybox/Weather/CurrentConditions.html",
            launch_complication="high_low_temperature"),
         _s("weather.low_temperature_today", Type.FLOAT, "weather_current", "lowTemperature",
-           True, unit="celsius", doc="today's forecast low temperature",
+           True, unit="celsius", quantity="temperature",
+           doc="today's forecast low temperature",
            source_ref="Toybox/Weather/CurrentConditions.html",
            launch_complication="high_low_temperature"),
         _s("weather.precipitation_chance_today", Type.NUMBER, "weather_current",
@@ -605,7 +635,7 @@ CATALOG: Catalogue[Source] = Catalogue({
            unit="percent", doc="relative humidity, 0-100",
            source_ref="Toybox/Weather/CurrentConditions.html"),
         _s("weather.wind_speed", Type.FLOAT, "weather_current", "windSpeed", True,
-           unit="m/s", doc="current wind speed",
+           unit="m/s", quantity="speed", doc="current wind speed",
            source_ref="Toybox/Weather/CurrentConditions.html"),
 
         # -- user profile -----------------------------------------------------
@@ -646,6 +676,7 @@ CATALOG: Catalogue[Source] = Catalogue({
                 True,
                 permissions=("ComplicationSubscriber",),
                 unit=t.unit,
+                quantity=_COMPLICATION_QUANTITY.get(t.name),
                 doc=t.doc,
                 source_ref="Toybox/Complications.html",
                 cast=_COMPLICATION_CAST[t.value_type],

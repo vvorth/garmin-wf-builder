@@ -56,6 +56,12 @@ SAMPLE: dict[str, object] = {
     "time.minute": 9,
     "time.second": 42,
     "device.is_24_hour": True,
+    # `System.UNIT_METRIC` (0) for every unit setting; `wfb preview --units
+    # statute` renders the other system.
+    "device.distance_units": 0,
+    "device.elevation_units": 0,
+    "device.temperature_units": 0,
+    "device.pace_units": 0,
     "device.do_not_disturb": False,
     "device.notification_count": 3,
     "device.alarm_count": 1,

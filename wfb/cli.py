@@ -281,6 +281,9 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--time", metavar="HH:MM[:SS]",
                          help="render analog hands (and any time.*-bound element) at "
                               "this time instead of the sample 10:09:42")
+    preview.add_argument("--units", choices=("metric", "statute"),
+                         help="the watch's unit setting to render a 'units: auto' "
+                              "element under (default: metric)")
     preview.add_argument("--asleep", action="store_true",
                          help="hide every awake-only second hand, simulating a sleeping "
                               "glance (no mode/aod-set switch: 'always_on' membership "
@@ -520,8 +523,14 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     if not bag.ok():
         return 1, watched
 
+    sample = None
+    if args.units is not None:
+        setting = 1 if args.units == "statute" else 0
+        sample = {f"device.{name}_units": setting
+                  for name in ("distance", "elevation", "temperature", "pace")}
     options = PreviewOptions(scale=args.scale, quantise=not args.no_quantise, style=style,
                              time=time, asleep=args.asleep, aod=heatmap or args.aod,
+                             sample=sample,
                              fonts_root=args.fonts_dir)
     color_out = term.should_color(sys.stdout)
     label = _status("preview", color=color_out)
@@ -611,7 +620,8 @@ def _preview(args) -> int:
     which a pixel lit every minute is white, printing the largest share of
     minutes any one pixel was lit -- a stand-in for the simulator's Screen
     Heat Map. It takes `--style`, but not `--all-styles`, `--time` or
-    `--minute`.
+    `--minute`. `--units metric|statute` sets the watch's unit settings a
+    `units: auto` element follows (metric by default).
 
     Every mode writes `<device>[--<style>][--all-styles|--heatmap].png`
     under `-o`, or its one image to stdout with `-o -`.

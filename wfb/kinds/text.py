@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from dataclasses import replace
 
-from .. import catalog, expr, formatting
+from .. import catalog, conversion, expr, formatting
 from ..catalog import Type
 from ..devices import FontMetric
 from ..fonts import BakedFont
@@ -63,7 +63,8 @@ def _widest_text(element: Text) -> str:
     source = catalog.get(element.value.sources[0]) if element.value.sources else None
     spec = element.format or "{}"
     widest = formatting.widest(spec, source, element.value.value.type,
-                               element.value.scale)
+                               element.value.scale, digits=element.unit_digits,
+                               unit_widest=_widest_label(element))
     if element.when_absent == "placeholder" and element.placeholder:
         widest = longer(widest, element.placeholder)
     if element.when_absent == "fallback" and element.fallback is not None:
@@ -73,11 +74,11 @@ def _widest_text(element: Text) -> str:
         # from the *value*'s digit range alone can come up short for a
         # wider fallback (e.g. a longer literal string on a nullable
         # STRING source).
-        widest = longer(widest, _fallback_widest(element.fallback, spec))
+        widest = longer(widest, _fallback_widest(element.fallback, spec, _widest_label(element)))
     return widest
 
 
-def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
+def _fallback_widest(fallback_expr: Expression, spec: str, unit_widest: str = "") -> str:
     """The widest string a `fallback:` expression could render, through the
     same format spec the bound value uses (see `wfb.kinds.text.TextKind.emit_draw`).
 
@@ -92,7 +93,8 @@ def _fallback_widest(fallback_expr: Expression, spec: str) -> str:
     if fallback_expr.value.type is Type.STRING and fallback_expr.constant is not None:
         return str(fallback_expr.constant)
     source = catalog.get(fallback_expr.sources[0]) if fallback_expr.sources else None
-    return formatting.widest(spec, source, fallback_expr.value.type, fallback_expr.scale)
+    return formatting.widest(spec, source, fallback_expr.value.type, fallback_expr.scale,
+                             unit_widest=unit_widest)
 
 
 
@@ -107,13 +109,16 @@ def _glyphs(element: Text) -> tuple[set[str], set[str]]:
         return set(), set()
     source = catalog.get(element.value.sources[0]) if element.value.sources else None
     spec = element.format or "{}"
-    value_glyphs = formatting.glyphs(spec, source, element.value.value.type, element.value.scale)
+    units = {"digits": element.unit_digits, "unit_labels": element.unit_labels}
+    value_glyphs = formatting.glyphs(spec, source, element.value.value.type, element.value.scale,
+                                     **units)
     glyphs = set(value_glyphs)
     aod = element.aod
     aod_spec = aod.format if aod is not None and aod.format is not None else spec
     aod_glyphs = (
         set(value_glyphs) if aod_spec == spec
-        else formatting.glyphs(aod_spec, source, element.value.value.type, element.value.scale)
+        else formatting.glyphs(aod_spec, source, element.value.value.type, element.value.scale,
+                               **units)
     )
     if element.placeholder:
         glyphs |= set(element.placeholder)
@@ -130,6 +135,11 @@ def _glyphs(element: Text) -> tuple[set[str], set[str]]:
             fallback_source = catalog.get(fallback.sources[0]) if fallback.sources else None
             glyphs |= formatting.glyphs(spec, fallback_source, fallback.value.type, fallback.scale)
     return glyphs, aod_glyphs
+
+def _widest_label(element: Text) -> str:
+    """The widest label `{unit}` can show, or ``""`` without `units:`."""
+    return max(element.unit_labels, key=len, default="")
+
 
 def _text_font(renderer, placed: PlacedText) -> tuple[BakedFont | None, FontMetric | None]:
     """The baked font (or `None` for a system one) and metric a non-vector
@@ -180,7 +190,9 @@ def _text_value(renderer, placed: PlacedText) -> str | None:
                 return None
         else:
             return None
-    return formatting.render(spec, value, value_type)
+    unit_text = (str(expr.evaluate(element.unit_label.ast, renderer.values))
+                 if element.unit_label is not None else None)
+    return formatting.render(spec, value, value_type, unit_text=unit_text)
 
 
 def _aod_ring(element: Text, dim_set: bool):
@@ -346,6 +358,65 @@ def _emit_vector_text_draw(
             w, placed, prefix, justify, value_code, f"Layout.{prefix}_X", f"Layout.{prefix}_Y")
 
 
+def _apply_units(b: Builder, node: dict, value: Expression | None):
+    """`units:` on a `text` element (ADR 0005 §4): the bound value rewritten
+    to display in the wearer's units (`wfb.conversion`), as ``(value,
+    system, label, labels, digits)``, or `None` when it was reported.
+
+    Only a `value:` that is exactly one source with a quantity converts: a
+    conversion needs the unit the value is *in*, which an arbitrary
+    expression over the source no longer states."""
+    system = str(node["units"])
+    element_id = node.get("id", "?")
+    span = b.doc.span(node, "units")
+    if value is None:
+        if "value" not in node:
+            b.bag.error("units", f"{element_id}: 'units:' converts a bound 'value:', "
+                        "not a fixed 'text:'", span)
+        return None
+    raw = str(node["value"]).strip()
+    source = catalog.CATALOG.get(raw)
+    found = conversion.conversion_for(source)
+    if found is None:
+        convertible = sorted(path for path, s in catalog.CATALOG.items()
+                             if conversion.conversion_for(s) is not None)
+        what = (f"{raw!r} is in {source.unit}, which 'units:' does not convert"
+                if source is not None and source.unit else
+                f"{raw!r} is not a single source with a unit 'units:' converts")
+        b.bag.error(
+            "units", f"{element_id}: {what}", b.doc.span(node, "value"),
+            notes=["'units:' converts a 'value:' that is exactly one of: "
+                   + ", ".join(convertible),
+                   "write the bare source; the conversion replaces any "
+                   "hand-written scaling such as 'activity.distance / 100000.0'"])
+        return None
+    value_span = b.doc.span(node, "value")
+    converted = b.compile_expression(conversion.converted_text(raw, found, system),
+                                     value_span, "value")
+    label = b.compile_expression(conversion.label_text(found, system), span, "units")
+    if converted is None or label is None:
+        return None
+    return converted, system, label, conversion.labels(found, system), found.digits
+
+
+def _check_unit_field(b: Builder, node: dict, element: Text) -> None:
+    """`{unit}` in `format:` (or its `aod:` twin) is the label of a
+    `units:` conversion, so it needs one.  A `units:` that was written but
+    failed is reported once, where it failed, not again here."""
+    if "units" in node:
+        return
+    aod = node.get("aod")
+    for where, spec, span in (
+        ("format", element.format, b.doc.span(node, "format")),
+        ("aod.format", aod.get("format") if isinstance(aod, dict) else None,
+         b.doc.span(aod, "format") if isinstance(aod, dict) else None),
+    ):
+        if spec and formatting.has_unit_field(str(spec)):
+            b.bag.error("format", f"{element.id}.{where}: '{{unit}}' is the label of a "
+                        "'units:' conversion, and this element has no 'units:'",
+                        span, notes=["add 'units: auto' to show the wearer's own units"])
+
+
 class TextKind(ElementKind):
     name = "text"
     ir_class = Text
@@ -353,6 +424,11 @@ class TextKind(ElementKind):
 
     def build(self, b: Builder, node: dict, common: dict, path: tuple) -> Element:
         value = b.expression(node, "value") if "value" in node else None
+        units = None
+        if "units" in node:
+            units = _apply_units(b, node, value)
+            if units is not None:
+                value = units[0]
         align, vertical_align = b.alignment(node)
         element = Text(
             **common,
@@ -367,6 +443,9 @@ class TextKind(ElementKind):
             fallback=b.expression(node, "fallback") if "fallback" in node else None,
             if_unavailable=node.get("if_unavailable"),
         )
+        if units is not None:
+            _, element.units, element.unit_label, element.unit_labels, element.unit_digits = units
+        _check_unit_field(b, node, element)
         font_ok = b.resolve_font(node, element)
         if "antialias" in node:
             _reject_text_antialias(b, node, element)
@@ -509,10 +588,12 @@ class TextKind(ElementKind):
             _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod)
             return
 
+        unit_code = element.unit_label.code if element.unit_label is not None else None
         value_code = formatting.emit(
             element.format or "{}",
             element.value.code,
             element.value.value.type,
+            unit_code=unit_code,
         )
         if aod.on and element.aod is not None and element.aod.format is not None:
             # `format:` changes the formatting code, not just an argument -- the
@@ -522,7 +603,8 @@ class TextKind(ElementKind):
             # for `value_code` everywhere below, including inside a
             # placeholder/fallback substitution.
             aod_value_code = formatting.emit(
-                element.aod.format, element.value.code, element.value.value.type)
+                element.aod.format, element.value.code, element.value.value.type,
+                unit_code=unit_code)
             value_code = aod.value(aod_value_code, value_code)
         if element.when_absent in ("placeholder", "fallback") and guards:
             # Build the string once rather than duplicating the draw call in both
@@ -538,6 +620,7 @@ class TextKind(ElementKind):
                     element.format or "{}",
                     element.fallback.code,
                     element.fallback.value.type,
+                    unit_code=unit_code,
                 )
                 w.comment("when_absent: fallback")
             available = " && ".join(f"{name} != null" for name in guards)

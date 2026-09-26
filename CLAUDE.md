@@ -274,7 +274,7 @@ is `docs/lore/roadmap.md`. Turn-one summary:
   - `image` and `raw` elements (friendly error);
   - per-device `overrides` (writing one is a build error);
   - `segments`/`scale` progress styles;
-  - unit conversion;
+  - pace from `units:` (distance, elevation, temperature and speed convert);
   - a `pattern`'s/`complication_slot`'s own `aod: {font: ...}` override;
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
     `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
@@ -305,6 +305,10 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     platform lacks (plan 15, all three slices), reaching every draw shape
     those elements can take and checked by a new suppressible lint,
     `text-outline-interior`;
+  - `units: auto|metric|statute` on a `text` element (ADR 0005 §4):
+    distance, elevation, temperature and speed in the wearer's own units,
+    compiled as an expression over the source and `device.<x>_units`, with
+    `format:`'s `{unit}` for the label (`docs/guide/data.md` "Units");
   - `aod:` (plan 14, all six slices, now deleted — `docs/CLAUDE.md`): the
     AMOLED always-on-display sleep frame as per-element/group overrides on
     the *one* design (`hide`/`show`/an override block reusing each kind's

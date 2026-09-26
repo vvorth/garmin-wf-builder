@@ -93,6 +93,14 @@ listed as shipped.
   (the interior pass paints over what's beneath it, it does not reveal
   it). Out of scope: `hands`/`icon` parts (plan 15 §13 D5) -- text and
   pattern `shape: text` parts only.
+- **`units:` on a `text` element** (ADR 0005 §4, amendment 2026-09-26):
+  `auto` follows `DeviceSettings` per frame, `metric`/`statute` fix one
+  system with no settings read. Distance (km/mi), elevation (m/ft),
+  temperature (°C/°F) and speed (km/h/mph); `{unit}` in `format:` prints
+  the label. The quantity is tagged per source (`Source.quantity`,
+  `wfb/conversion.py`), since one unit can mean two quantities. The
+  builder rewrites the value into an ordinary expression, so codegen,
+  preview (`--units statute`) and the read plan need no second path.
 
 Nothing config-, hands- or pattern-related is verified on a watch or in the
 simulator. What is verified is a warning-free real `monkeyc` build and
@@ -239,7 +247,8 @@ specifies each item.
    friendly error.
 2. Per-device `overrides`: writing one is a build error.
 3. `segments`/`scale` progress styles.
-4. Automatic unit conversion (ADR 0005 §4). Authors convert by hand.
+4. Pace from `units:` (a duration format first), and `units:` on an
+   expression or a `complication_slot`.
 5. **Phone-side settings**, the only route to any on-device config on fr955.
    The work is frozen and incomplete on `wip/phone-settings`, with a safety
    pointer at `backup/pre-integrate`. Treat none of it as working, and do not

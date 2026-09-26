@@ -45,6 +45,7 @@ MODES = ("active", "low_power")
 #:   `color:`/`track_color:`/`icon_color:`, and each colour folded into
 #:   `HandsElement.colors`/`PatternElement.colors` (tagged `ROLE_COLOR`).
 #: * `ROLE_OUTLINE_COLOR` -- `Text.outline.color`.
+#: * `ROLE_UNIT_LABEL` -- `Text.unit_label`, what `format:`'s `{unit}` shows.
 #: * `ROLE_PART_VISIBLE`/`ROLE_PART_TEXT` -- a pattern part's own
 #:   `visible:`/`text_value`.
 #: * `ROLE_VISIBLE` -- `Element.visible`, appended by `bound_expressions()`
@@ -58,6 +59,7 @@ ROLE_COLOR = "color"
 ROLE_TRACK_COLOR = "track_color"
 ROLE_ICON_COLOR = "icon_color"
 ROLE_OUTLINE_COLOR = "outline_color"
+ROLE_UNIT_LABEL = "unit_label"
 ROLE_PART_VISIBLE = "part_visible"
 ROLE_PART_TEXT = "part_text"
 ROLE_VISIBLE = "visible"
@@ -1163,6 +1165,17 @@ class Text(Element):
     #: `outline:` (plan 15), or `None` for a plain fill; wraps whichever
     #: draw call `curve:` selects.
     outline: "Outline | None" = None
+    #: `units:` (`auto`/`metric`/`statute`), or `None`.  When set, `value`
+    #: is already the converted expression (`wfb.conversion`), and the
+    #: fields below describe its display.
+    units: str | None = None
+    #: The String expression `format:`'s `{unit}` renders ("km" or "mi").
+    unit_label: Expression | None = None
+    #: Every label `unit_label` can take, and the digits before the decimal
+    #: point the converted value can reach -- for the overflow lint and a
+    #: baked font's glyph subset.
+    unit_labels: tuple[str, ...] = ()
+    unit_digits: int | None = None
 
     #: `when_absent:` governs `value:` alone -- the same substitutable
     #: binding `ROLE_VALUE` tags below.
@@ -1174,6 +1187,8 @@ class Text(Element):
         ) if e]
         if self.outline is not None:
             out.append((ROLE_OUTLINE_COLOR, self.outline.color))
+        if self.unit_label is not None:
+            out.append((ROLE_UNIT_LABEL, self.unit_label))
         return out
 
 

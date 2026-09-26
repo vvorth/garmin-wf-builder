@@ -453,3 +453,34 @@ cannot be known at build time. Its glyph subset and extent would then have
 to be guessed, as a `text` element guesses from `formatting.widest`, and it
 would need a `when_absent:` policy. This is deferred, not rejected
 (`docs/limitations.md` §2).
+
+## Amendment (2026-09-26): `units:` is built, as an expression rewrite
+
+**What changed.** §4's `units: auto` (with `metric`/`statute`) exists, on a
+`text` element. `auto` follows the watch's own `DeviceSettings`
+(`distanceUnits`, `elevationUnits`, `temperatureUnits`, all API 1.0.0) at
+runtime; `metric`/`statute` fix one system at build time and read no
+setting. A `{unit}` field in `format:` prints the displayed unit's label.
+Distance (km/mi), elevation (m/ft), temperature (°C/°F) and speed
+(km/h/mph, following the distance setting) convert.
+
+**How.** There is no conversion code path of its own. The builder rewrites
+`value: <source>` into an ordinary expression over the source and one new
+catalogue source, `device.<quantity>_units` (0 metric, 1 statute), and
+compiles that like any authored `value:` (`wfb/conversion.py`). So §2's
+"expressions compile to Monkey C" holds unchanged, and the null guards,
+the read plan, derived permissions and the preview come for free. The
+label is a second compiled expression (`Text.unit_label`).
+
+**A quantity is decided per source, not per unit string.** The catalogue
+gains `Source.quantity`, because the same unit can mean two quantities: a
+complication's altitude and its weekly run distance are both metres, and
+only the second becomes miles.
+
+**Scope, deliberately.** `value:` must be exactly one convertible source:
+a conversion needs the unit the value is in, which an arbitrary expression
+over it no longer states. Pace (§4's "m/s → pace") is not built: it is a
+duration, and `format:` has no duration spec (`4:30`). A `complication_slot`
+does not convert, since its value is whatever the wearer picked. All three
+are listed in `docs/limitations.md` §2. Context point 4 ("the subscriber is
+responsible for converting") is now met for the quantities above.

@@ -1381,8 +1381,16 @@
           "type": "string"
         },
         "format": {
-          "description": "A Python-style format spec: {:d}, {:.1f}, or strftime-style codes such as {:%H:%M} for a time source.",
+          "description": "A Python-style format spec: {:d}, {:.1f}, or strftime-style codes such as {:%H:%M} for a time source. With 'units:', a {unit} field shows the displayed unit's label (km or mi, \u00b0C or \u00b0F, m or ft, km/h or mph).",
           "type": "string"
+        },
+        "units": {
+          "description": "Convert 'value:' to the wearer's units (ADR 0005 \u00a74): 'auto' follows the watch's own distance/elevation/temperature setting (System.DeviceSettings) at runtime, 'metric'/'statute' fix one system. 'value:' must be exactly one source with a physical quantity (activity.distance, ambient.altitude, weather.temperature, weather.wind_speed, ...); the converted value is a Float in km/mi, m/ft, \u00b0C/\u00b0F or km/h/mph. Omit to show the source's own unit, unconverted.",
+          "enum": [
+            "auto",
+            "metric",
+            "statute"
+          ]
         },
         "font": {
           "description": "A custom font (font.<name>) or a system font (FONT_MEDIUM, FONT_NUMBER_HOT, ...).",

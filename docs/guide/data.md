@@ -18,6 +18,7 @@ can bind.
 |---|---|---|---|---|
 | `value:` | any data-bearing element | a source path or [expression](#expressions) | — | what to pull or compute |
 | `format:` | `text` | Python-style spec or strftime codes | — | [Formats](#formats) |
+| `units:` | `text` | `auto` \| `metric` \| `statute` | — (no conversion) | [Units](#units) |
 | `placeholder:` | element with `when_absent: placeholder` | any string | — | shown while the value is absent |
 | `when_absent:` | any nullable binding | `hide` \| `placeholder` \| `fallback` | — (required for a nullable binding) | [Absence is the normal case](#absence-is-the-normal-case) |
 | `time.*` | source namespace | — | — | clock and time-of-day readings |
@@ -379,9 +380,61 @@ The compiler also derives the **widest plausible rendering** of every binding
 from its format and the source's documented range — that is what makes "does this
 label overflow its slot?" a static check, and what decides a font's glyph set.
 
+## Units
+
+Every source arrives in one fixed unit, whatever the wearer set on the
+watch: `activity.distance` in centimetres, `weather.temperature` in °C,
+`weather.wind_speed` in m/s, `ambient.altitude` in metres. `units:` on a
+`text` element converts it to the wearer's own choice, and `{unit}` in
+`format:` prints the matching label:
+
+```yaml
+- id: distance
+  type: text
+  value: activity.distance
+  units: auto                  # the watch's own distance setting, read each frame
+  format: "{:.1f} {unit}"      # "6.3 km" or "3.9 mi"
+  when_absent: placeholder
+  placeholder: "--"
+```
+
+| `units:` | Means |
+|---|---|
+| `auto` | follow the watch's `DeviceSettings` at runtime |
+| `metric` | always metric; no setting is read |
+| `statute` | always statute; no setting is read |
+
+| Quantity | Sources | Metric | Statute | Follows |
+|---|---|---|---|---|
+| distance | `activity.distance`, `complication.weekly_run_distance`, `complication.weekly_bike_distance` | km | mi | `distanceUnits` |
+| elevation | `ambient.altitude`, `complication.altitude` | m | ft | `elevationUnits` |
+| temperature | `weather.temperature`, `weather.feels_like_temperature`, `weather.high_temperature_today`, `weather.low_temperature_today`, `complication.current_temperature` | °C | °F | `temperatureUnits` |
+| speed | `weather.wind_speed` | km/h | mph | `distanceUnits` |
+
+The converted value is a Float, so `{:.1f}` or `{:d}` (which truncates,
+as everywhere) chooses the precision. `value:` must be **exactly one** of
+the sources above: the conversion needs the unit the value is in, which an
+expression over it no longer states. Anything else is a build error naming
+the sources that convert, and so is `{unit}` on an element without
+`units:`. Without `units:` a value is shown in its source's own unit, as
+before.
+
+`units:` is compiled, not interpreted: the value becomes an ordinary
+expression over the source and one setting, so `activity.distance` with
+`units: auto` generates `(settings.distanceUnits == 1 ? d * 6.21e-06 : d *
+1e-05)`, null guards and all. The settings are also sources of their own —
+`device.distance_units`, `device.elevation_units`,
+`device.temperature_units`, `device.pace_units`, each `0` for metric and
+`1` for statute — for a design that labels something itself.
+
+`wfb preview` renders the metric settings; `--units statute` renders the
+other. **Pace** (min/km, min/mi) is not converted yet: it is a duration,
+which `format:` has no spec for.
+
 ## See also
 
 - [`examples/features/slots/face.yaml`](../../examples/features/slots/face.yaml) — two complication slots, per-choice icon overrides, `on_hold: auto`.
 - [`examples/features/graph/face.yaml`](../../examples/features/graph/face.yaml) — graph styles and series.
+- [`examples/features/units/face.yaml`](../../examples/features/units/face.yaml) — `units:` on distance, temperature, wind and altitude.
 - [Configuration → The Data axis](configuration.md#the-data-axis) — declaring the `config: data:` slots a `complication_slot` draws.
 - [Progress and graphs](progress-and-graphs.md) — the `graph`/`progress` element reference.
