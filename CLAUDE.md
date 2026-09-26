@@ -255,9 +255,8 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 Each element kind's own code, from every stage above, lives in
 `wfb/kinds/<kind>.py` behind a registry (`docs/development.md`, "Element kinds").
 
-**Tests:** `pytest -m "not slow"`. The known, pre-existing failures are
-listed in `tests/CLAUDE.md`. If that set changes, notice it before blaming
-your change.
+**Tests:** `pytest -m "not slow"`. The fast suite is green
+(`tests/CLAUDE.md`), so a red test is a regression until shown otherwise.
 
 **Roadmap:** `docs/limitations.md` §2 is authoritative, and the full checklist
 is `docs/lore/roadmap.md`. Turn-one summary:

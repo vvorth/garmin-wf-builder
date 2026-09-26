@@ -893,6 +893,11 @@ layouts:
             # curve: { style: angled, angle: 0deg }
             curve: { style: radial, angle: 0deg, radius: 80%r }
             vertical_align: bottom
+        lint:
+          allow: [off-screen]
+          reason: "big roman numerals run to the rim on purpose, like a dress
+            watch's chapter ring; the glyphs' outer edge meets the round screen
+            edge by design, and the device clips the few pixels past it"
 
       # A "mechanical opening" without alpha (plan 13 R3.2):
       # `alphaBlendingSupport` is false on every target (root CLAUDE.md
