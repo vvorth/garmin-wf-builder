@@ -19,6 +19,9 @@ from ..emit.writer import Writer
 from . import ElementKind
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from . import ContrastSubject
     from ..ir.builder import Builder
     from ..emit.monkeyc.readplan import ReadPlan
     from ..layout import ResolvedFace, Resolver
@@ -505,7 +508,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
             _resolve_ticked(r, element, placed, parent)
         return placed
 
-    def circular_extent(self, placed: PlacedProgress):
+    def circular_extent(self, placed: PlacedProgress) -> tuple[float, float, float] | None:
         if placed.element.geometry == "arc":
             reach = placed.radius + max(placed.thickness / 2.0, float(placed.pointer))
             return (placed.center[0], placed.center[1], reach)
@@ -673,7 +676,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                     out.append((f"{prefix}_BAND_{index}_X1", int(b), ""))
         return out
 
-    def contrast_subjects(self, placed: PlacedProgress):
+    def contrast_subjects(self, placed: PlacedProgress) -> Iterator[ContrastSubject]:
         """A needle yields each part's own effective colour, like a hand's
         (`wfb.kinds.hands.HandsKind.contrast_subjects`); the other styles
         judge the element's `color:`."""

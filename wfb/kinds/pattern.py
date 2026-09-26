@@ -17,7 +17,10 @@ from ..ir.model import (
     AnyHandPart, Element, Expression, PATTERN_LOOP_INDEX, PatternElement, Position,
     ROLE_COLOR, ROLE_PART_VISIBLE, drawn_copies,
 )
-from ..layout import Ink, Placed, PlacedPattern, ResolvedHandPart, round_half_away, text_ink
+from ..layout import (
+    Ink, Placed, PlacedPattern, ResolvedArcPart, ResolvedHandPart, ResolvedTextPart,
+    round_half_away, text_ink,
+)
 from ..preview import arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
@@ -30,6 +33,9 @@ from ..emit.writer import Writer
 from . import ElementKind, TextRun
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from . import ContrastSubject
     from ..ir.builder import Builder
     from ..ir.model import Face
     from ..emit.monkeyc.readplan import ReadPlan
@@ -67,7 +73,7 @@ class PatternTextAngle:
 
 
 def pattern_text_anchor(
-    part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float,
+    part: ResolvedTextPart, ox: float, oy: float, sin_t: float, cos_t: float,
 ) -> tuple[int, int]:
     """The whole-pixel anchor point of one copy of a `shape: text` pattern
     part: the template-frame point ``(part.x, part.y)``
@@ -85,7 +91,7 @@ def pattern_text_anchor(
 
 
 def _pattern_text_ink(
-    part: ResolvedHandPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
+    part: ResolvedTextPart, ox: float, oy: float, sin_t: float, cos_t: float, index: int,
     start: float, step: float, fonts_root: str | None = None,
 ) -> Ink:
     """:func:`text_ink` for copy `index` of a `shape: text` pattern part:
@@ -126,7 +132,7 @@ def _pattern_part_ink(
 
 
 def _pattern_steps(
-    b, node: dict[str, Any], common: dict[str, Any], count: int,
+    b: Builder, node: dict[str, Any], common: dict[str, Any], count: int,
 ) -> tuple[float, float, Position | None] | None:
     """A pattern's `step:`/`start:` as `(step_degrees, start_degrees,
     step_position)`, or `None` once an error is reported.  Radial: an
@@ -317,7 +323,7 @@ def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternEle
         )
 
 
-def _pattern_absent(renderer: Renderer, element) -> bool:
+def _pattern_absent(renderer: Renderer, element: PatternElement) -> bool:
     """Whether any nullable source this pattern's colours
     (`element.colors`: the default plus every part's own) or any part's
     own `visible:` reads is absent in the sample -- the host mirror of
@@ -338,7 +344,7 @@ def _pattern_absent(renderer: Renderer, element) -> bool:
     )
 
 
-def _pattern_arc(renderer: Renderer, placed: PlacedPattern, part, ox: float, oy: float, index: int,
+def _pattern_arc(renderer: Renderer, placed: PlacedPattern, part: ResolvedArcPart, ox: float, oy: float, index: int,
                  values: dict[str, object]) -> None:
     """An `arc` template part -- always centred on the copy's own origin
     (`at:` is rejected on it), so only its *start angle* turns with the
@@ -357,7 +363,7 @@ def _pattern_arc(renderer: Renderer, placed: PlacedPattern, part, ox: float, oy:
                           fill=fill, width=max(1, thickness * s))
 
 
-def _pattern_text(renderer: Renderer, placed: PlacedPattern, part, ox: float, oy: float,
+def _pattern_text(renderer: Renderer, placed: PlacedPattern, part: ResolvedTextPart, ox: float, oy: float,
                   sin_t: float, cos_t: float, index: int, values: dict[str, object]) -> None:
     """A `shape: text` template part, drawn at this copy's own anchor,
     rounded half-up the way `runtime-lib/WfbGeom.mc`'s `rotatedX`/
@@ -387,7 +393,7 @@ def _pattern_text(renderer: Renderer, placed: PlacedPattern, part, ox: float, oy
             .copy_curve_angle(index) if part.curve.style is not None else 0.0
         )
 
-        def draw(at, fill, box=None):
+        def draw(at: tuple[int, int], fill: tuple[int, int, int], box: IntBox | None = None) -> None:
             renderer.draw_vector_text(
                 text, at, part.align, part.vertical_align, part.font.metric, fill,
                 part.curve.style, angle, part.curve.radius_px, part.curve.direction)
@@ -396,7 +402,7 @@ def _pattern_text(renderer: Renderer, placed: PlacedPattern, part, ox: float, oy
             renderer.resolved.fonts.get(part.font.reference) if part.font.is_custom else None
         )
 
-        def draw(at, fill, box=None):
+        def draw(at: tuple[int, int], fill: tuple[int, int, int], box: IntBox | None = None) -> None:
             renderer.draw_text(font, text, at, part.align, part.vertical_align,
                                part.font.metric, fill)
     renderer.draw_outlined(draw, anchor, color, ring_color, part.outline_width)
@@ -449,7 +455,7 @@ def _pattern_angle_expr(element: PatternElement) -> tuple[str, str]:
     return f"{start_rad} + i * {step_rad}", comment
 
 
-def _emit_pattern_text_angle_expr(element: PatternElement, part) -> str:
+def _emit_pattern_text_angle_expr(element: PatternElement, part: ResolvedTextPart) -> str:
     """The per-copy Garmin-degrees angle a `shape: text` part's own
     `curve:` draws at (plan 11 slice 2): the part's own local, copy-0 angle
     (`part.curve.angle_garmin`) composed with the copy's rotation, `g0 - i *
@@ -475,7 +481,7 @@ def _emit_pattern_text_angle_expr(element: PatternElement, part) -> str:
 
 
 def _emit_pattern_text_call(
-    w: Writer, element: PatternElement, part, part_prefix: str, radial: bool,
+    w: Writer, element: PatternElement, part: ResolvedTextPart, part_prefix: str, radial: bool,
     font_expr: str, value_code: str, justify: str, x_expr: str, y_expr: str,
 ) -> None:
     """One `dc.drawText`/`drawAngledText`/`drawRadialText` call for one copy
@@ -507,7 +513,7 @@ def _emit_pattern_text_call(
 
 
 def _emit_pattern_text_draw(
-    w: Writer, element: PatternElement, part, part_prefix: str, radial: bool,
+    w: Writer, element: PatternElement, part: ResolvedTextPart, part_prefix: str, radial: bool,
     font_expr: str, value_code: str, justify: str, aod: AodStyle,
 ) -> None:
     """One copy's `shape: text` part: this copy's own anchor, then --
@@ -595,7 +601,7 @@ def _emit_pattern_text_draw(
 
 
 def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: int,
-                       part, radial: bool, hoist_pen: bool, text_fonts: dict[str, str],
+                       part: ResolvedHandPart, radial: bool, hoist_pen: bool, text_fonts: dict[str, str],
                        thickness_override: str | None, aod: AodStyle) -> None:
     """One template part, drawn for the current copy `i`: polygon/line/
     circle parts go through `rotated.emit_transformed_part` (rotated for a radial
@@ -856,7 +862,8 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             placed.reach = text_reach
         return placed
 
-    def aod_refusal(self, key, shape, literal_text):
+    def aod_refusal(self, key: str, shape: str | None,
+                    literal_text: bool) -> tuple[str, str, list[str]] | None:
         if key == "font":
             return (
                 "aod",
@@ -866,7 +873,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
             )
         return None
 
-    def circular_extent(self, placed: PlacedPattern):
+    def circular_extent(self, placed: PlacedPattern) -> tuple[float, float, float] | None:
         if placed.element.pattern == "radial":
             return (placed.center[0], placed.center[1], placed.reach)
         return None
@@ -1100,7 +1107,7 @@ class PatternKind(ElementKind[PatternElement, PlacedPattern]):
                 f"{prefix}_{index}", "template", index, part))
         return out
 
-    def contrast_subjects(self, placed: PlacedPattern):
+    def contrast_subjects(self, placed: PlacedPattern) -> Iterator[ContrastSubject]:
         """A `pattern` yields each template part once (every copy shares its
         colours); it has no per-part structure on `Element.color_roles()`
         either.  `allow_backdrop_match` is false only for a `shape: text` part,

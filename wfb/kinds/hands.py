@@ -20,6 +20,9 @@ from ..emit.writer import Writer
 from . import ElementKind
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from . import ContrastSubject
     from ..ir.builder import Builder
     from ..emit.monkeyc.readplan import ReadPlan
     from ..layout import ResolvedFace, Resolver
@@ -208,7 +211,7 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
             aod_thickness=aod_thickness,
         )
 
-    def circular_extent(self, placed: PlacedHands):
+    def circular_extent(self, placed: PlacedHands) -> tuple[float, float, float] | None:
         return (placed.center[0], placed.center[1], placed.reach)
 
     def draw_preview(self, renderer: Renderer, placed: PlacedHands) -> None:
@@ -297,7 +300,7 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
                     f"{prefix}_{hand_name.upper()}_{index}", f"{hand_name} hand", index, part))
         return out
 
-    def contrast_subjects(self, placed: PlacedHands):
+    def contrast_subjects(self, placed: PlacedHands) -> Iterator[ContrastSubject]:
         """A `hands` element yields each part of each hand (its effective
         colour, `ResolvedHandPart.color`) -- it has no per-part structure on
         the IR to give `Element.color_roles()` a label finer than the whole

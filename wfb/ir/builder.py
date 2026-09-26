@@ -15,7 +15,8 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Generic, TypeVar, cast
+from enum import Enum
+from typing import Any, Final, Generic, Literal, TypedDict, TypeVar, cast
 
 from .. import catalog, complications, expr, formatting, icons, kinds, units
 from ..catalog import Type
@@ -42,8 +43,13 @@ from .naming import (
 #: `icon:`/`glyph:` override declared" and "declared, invalid, already
 #: reported".  Not `None`, which is itself a legitimate answer
 #: (`icon: none`, an explicit "no icon").
-_NO_ICON_OVERRIDE = object()
-_ICON_OVERRIDE_ERROR = object()
+class _IconOverride(Enum):
+    NONE = "no override"
+    ERROR = "error"
+
+
+_NO_ICON_OVERRIDE: Final = _IconOverride.NONE
+_ICON_OVERRIDE_ERROR: Final = _IconOverride.ERROR
 
 #: The same table for a hand part -- the four rotatable primitives, in the
 #: hand's own frame.  `polygon` has no `at`: its vertices are already
@@ -1075,9 +1081,7 @@ class Builder:
             )
             ok = False
         size = self._font_size(name, spec)
-        if size is None:
-            ok = False
-        if not ok:
+        if not ok or size is None:
             return None
         raw_face = spec["face"]
         face = (raw_face,) if isinstance(raw_face, str) else tuple(raw_face)
@@ -1357,7 +1361,7 @@ class Builder:
             ok = False
 
         align, vertical_align = self.alignment(node)
-        text_fields: dict[str, object] = {}
+        text_fields: dict[str, Any] = {}
         if shape == "text":
             built = self._build_text_part(node, part_where, vertical_align)
             if built is None:
@@ -1367,7 +1371,7 @@ class Builder:
 
         if not ok:
             return None
-        common = dict(
+        common: dict[str, Any] = dict(
             color=effective_color, span=span, visible=part_visible,
             min_1px=(bool(node["min_1px"]) if "min_1px" in node else None),
         )
@@ -2038,7 +2042,7 @@ class Builder:
         if raw == "show":
             return False, {}
         element_id = node.get("id", "?")
-        keys: dict[str, object] = {}
+        keys: dict[str, Any] = {}
         for key in ("color", "track_color", "icon_color"):
             if key in raw:
                 keys[key] = self.color_expression(raw, key)
@@ -2089,7 +2093,7 @@ class Builder:
             keys["visible"] = self._visible(raw)
         return False, keys
 
-    def _make_aod_override(self, element: Element, keys: dict[str, object]) -> AodOverride:
+    def _make_aod_override(self, element: Element, keys: dict[str, Any]) -> AodOverride:
         """Build the `AodOverride` a *drawn* (non-hidden) element gets, from
         its fully key-by-key-resolved `keys` (`_resolve_aod`)."""
         font = cast("tuple[str, bool] | None", keys.get("font"))
@@ -2642,7 +2646,7 @@ class Builder:
 
     def _resolve_choice_icon_override(
         self, item: dict[str, Any], what: str, fallback_span: Span | None,
-    ) -> "icons.SlotIcon | None | object":
+    ) -> "icons.SlotIcon | None | Literal[_IconOverride.NONE, _IconOverride.ERROR]":
         """A `config: data:` choice's own `icon:`/`glyph:`, if it declares
         one.
 
@@ -3181,7 +3185,12 @@ def dedup_append(colors: list[Expression], color: Expression | None) -> None:
         colors.append(color)
 
 
-def _lint_suppression(node: dict[str, Any]) -> dict[str, object]:
+class LintSuppression(TypedDict):
+    lint_allow: frozenset[str]
+    lint_reason: str | None
+
+
+def _lint_suppression(node: dict[str, Any]) -> LintSuppression:
     """A node's own `lint: {allow, reason}`, as the `lint_allow`/
     `lint_reason` keyword arguments every carrier of one takes."""
     lint = node.get("lint") or {}

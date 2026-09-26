@@ -293,7 +293,8 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
                     rect.width + 2 * pad, rect.height + 2 * pad).rounded()
         return placed(reach, cx, cy, corner_radius=corner, rect=rect)
 
-    def aod_refusal(self, key, shape, literal_text):
+    def aod_refusal(self, key: str, shape: str | None,
+                    literal_text: bool) -> tuple[str, str, list[str]] | None:
         """`Dc` has `fillPolygon` and no `drawPolygon`, so an `aod: {filled:
         ...}` override on a polygon has no outline primitive to switch to --
         the same reason the awake element's own `filled: false` is already
@@ -308,7 +309,7 @@ class ShapeKind(ElementKind[Shape, PlacedShape]):
             )
         return None
 
-    def circular_extent(self, placed: PlacedShape):
+    def circular_extent(self, placed: PlacedShape) -> tuple[float, float, float] | None:
         element = placed.element
         if element.shape == "arc":
             return (placed.center[0], placed.center[1], placed.radius + placed.thickness / 2.0)

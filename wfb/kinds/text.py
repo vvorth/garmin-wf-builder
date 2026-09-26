@@ -524,7 +524,8 @@ class TextKind(ElementKind[Text, PlacedText]):
             line_height=line_height,
         )
 
-    def aod_refusal(self, key, shape, literal_text):
+    def aod_refusal(self, key: str, shape: str | None,
+                    literal_text: bool) -> tuple[str, str, list[str]] | None:
         if key == "format" and literal_text:
             return ("format", "'aod: {format: ...}' applies only to 'value:', not a fixed 'text:'", [])
         return None

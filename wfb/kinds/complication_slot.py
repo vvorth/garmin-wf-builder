@@ -438,7 +438,8 @@ class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]
             icon_position=element.icon_position, icon_gap_px=gap_px,
         )
 
-    def aod_refusal(self, key, shape, literal_text):
+    def aod_refusal(self, key: str, shape: str | None,
+                    literal_text: bool) -> tuple[str, str, list[str]] | None:
         if key == "font":
             return (
                 "aod",
