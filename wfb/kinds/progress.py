@@ -10,7 +10,7 @@ from .. import expr
 from ..catalog import Type
 from ..ir.model import Element, Expression, Progress
 from ..layout import Placed, PlacedProgress, arc_box, rotatable_parts, stroke_pad
-from ..preview import arc_span
+from ..preview import RGB, arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
@@ -43,8 +43,8 @@ def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress
     if element.when_absent != "fallback" or fallback is None or not fallback.is_constant:
         return
     try:
-        value = float(fallback.constant)
-    except (TypeError, ValueError):
+        value = float(expr.as_number(fallback.constant))
+    except TypeError:
         return
     if 0.0 <= value <= 1.0:
         return
@@ -77,12 +77,14 @@ def _fallback_fraction(element: Progress) -> str:
     clamped on device.
     """
     fallback = element.fallback
+    assert fallback is not None, "only called for when_absent: fallback, which requires one"
     if fallback.is_constant:
-        return f"{float(fallback.constant)}f"
+        return f"{float(expr.as_number(fallback.constant))}f"
     return f"WfbMath.clamp({fallback.code}, 0.0, 1.0).toFloat()"
 
 
 def _fraction(element: Progress) -> str:
+    assert element.value is not None and element.maximum is not None  # both required
     return f"WfbMath.percent({element.value.code}, {element.maximum.code}) / 100.0"
 
 
@@ -186,6 +188,7 @@ def _resolve_ticked(r: Resolver, element: Progress, placed: PlacedProgress,
             gap = math.degrees(gap / placed.radius) if placed.radius > 0 else 0.0
             gap = math.copysign(gap, placed.sweep)
         count = element.count
+        assert count is not None  # `style: segments` requires count:
         placed.cell = (length - (count - 1) * gap) / count
         placed.step = placed.cell + gap
         return
@@ -276,7 +279,8 @@ def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
             thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
 
 
-def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float, color, track_color) -> None:
+def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float, color: RGB,
+                    track_color: RGB | None) -> None:
     """`segments`/`scale` in the preview, mirroring `_emit_ticked` rounding
     for rounding: `WfbArc.drawSpan`'s whole degrees from a Garmin start, and
     `toNumber()`'s truncation on a bar."""
@@ -288,14 +292,14 @@ def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float,
         width = max(1, renderer.aod_geometry(placed, "thickness", placed.thickness) * s)
         box = [cx - radius, cy - radius, cx + radius, cy + radius]
 
-        def arc_cell(garmin_start: float, sweep: float, fill) -> None:
+        def arc_cell(garmin_start: float, sweep: float, fill: RGB) -> None:
             span = _device_arc_span(garmin_start, sweep)
             if span is not None:
                 renderer.draw.arc(box, *span, fill=fill, width=width)
     rect = placed.rect or placed.box
     x, y, w, h = rect.x, rect.y, rect.width, rect.height
 
-    def bar_cell(x0: int, x1: int, fill) -> None:
+    def bar_cell(x0: int, x1: int, fill: RGB) -> None:
         if x1 > x0:
             renderer.draw.rectangle([(x + x0) * s, y * s, (x + x1) * s - 1, (y + h) * s - 1],
                                     fill=fill)
@@ -494,16 +498,18 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         if element.style == "needle":
             parts, reach = r.resolve_parts(list(element.needle), f"{element.id}.needle",
                                            min_1px=min_1px)
-            box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
+            # `style: needle` requires both angles.
+            assert element.start_angle is not None and element.sweep is not None
+            disc = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)
             return PlacedProgress(
-                element, box.rounded(), (round(cx), round(cy)), depth,
+                element, disc.rounded(), (round(cx), round(cy)), depth,
                 start_angle=element.start_angle.degrees, sweep=element.sweep.degrees,
                 needle=rotatable_parts(parts, f"{element.id}.needle"), reach=reach,
                 aod_thickness=r.aod_extent(element, "thickness", parent, 1),
             )
-        box, cx, cy = r.sized_box(element, parent, cx, cy)
-        placed = PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)),
-                                depth, size=(round(box.width), round(box.height)))
+        sized, cx, cy = r.sized_box(element, parent, cx, cy)
+        placed = PlacedProgress(element, sized.rounded(min_1px=min_1px), (round(cx), round(cy)),
+                                depth, size=(round(sized.width), round(sized.height)))
         if element.style in ("segments", "scale"):
             _resolve_ticked(r, element, placed, parent)
         return placed
@@ -532,11 +538,12 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
                     and element.fallback.ast is not None:
                 substitute = expr.evaluate(element.fallback.ast, renderer.values)
                 if substitute is not None:
-                    fraction = min(1.0, max(0.0, float(substitute)))
+                    fraction = min(1.0, max(0.0, float(expr.as_number(substitute))))
         else:
+            top = expr.as_number(maximum)
             fraction = (
-                0.0 if not maximum or maximum <= 0
-                else min(1.0, max(0.0, value / maximum))
+                0.0 if not top or top <= 0
+                else min(1.0, max(0.0, expr.as_number(value) / top))
             )
         s = renderer.scale
         if element.style == "needle":
@@ -556,7 +563,7 @@ class ProgressKind(ElementKind[Progress, PlacedProgress]):
         if element.style == "arc":
             cx, cy, r = placed.center[0] * s, placed.center[1] * s, placed.radius * s
             width = max(1, renderer.aod_geometry(placed, "thickness", placed.thickness) * s)
-            box = [cx - r, cy - r, cx + r, cy + r]
+            box: list[float] = [cx - r, cy - r, cx + r, cy + r]
             # The whole-degree rule WfbArc.drawSpan applies on the device --
             # see `arc_span`.
             track = arc_span(placed.start_angle, placed.sweep)

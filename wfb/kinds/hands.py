@@ -9,6 +9,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from .. import expr
 from ..ir.builder import dedup_append
 from ..ir.model import Element, Expression, HandsElement
 from ..layout import Placed, PlacedHands, ResolvedHand, rotatable_parts
@@ -229,9 +230,8 @@ class HandsKind(ElementKind[HandsElement, PlacedHands]):
         element = placed.element
         s = renderer.scale
         cx, cy = placed.center[0] * s, placed.center[1] * s
-        hour = int(renderer.values.get("time.hour", 0) or 0)
-        minute = int(renderer.values.get("time.minute", 0) or 0)
-        second = int(renderer.values.get("time.second", 0) or 0)
+        hour, minute, second = (int(expr.as_number(renderer.values.get(f"time.{unit}") or 0))
+                                for unit in ("hour", "minute", "second"))
         angles = {
             name: HAND_ANGLES[name].host(hour, minute, second)
             for name in ("hour", "minute", "second")

@@ -27,20 +27,25 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace as dataclass_replace
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageChops, ImageDraw
 
 from . import aod_mask, expr, kinds
 from .devices import FontMetric
-from .fonts import BakedFont, fallback
+from .fonts import BakedFont, GlyphBox, fallback
 from .fonts import cft as cft_fonts
-from .ir import aod_color_choice, disc_perimeter_offsets
+from .ir import Element, Expression, Face, StyleEntry, aod_color_choice, disc_perimeter_offsets
 from .layout import (
-    PlacedHands, PlacedPattern, ResolvedFace,
+    Placed, PlacedHands, PlacedPattern, PlacedProgress, ResolvedFace, RotatablePart,
     alignment_shift,
     radial_align_offset, radial_direction_sign,
 )
 from .palette import MIP64_LEVELS, Color, dim_fraction
+from .units import IntBox
+
+#: One drawn colour, as Pillow takes it.
+RGB = tuple[int, int, int]
 
 #: Plausible readings, so a preview shows a face mid-life rather than at zero.
 SAMPLE: dict[str, object] = {
@@ -192,7 +197,7 @@ def stand_in_warning(used_faces: dict[FontMetric, "fallback.SystemFace"]) -> str
     return "\n".join(lines)
 
 
-def _resolve_style_entry(face, name: str | None):
+def _resolve_style_entry(face: Face, name: str | None) -> StyleEntry | None:
     """The `config: style:` entry `PreviewOptions.style` asks for, or the
     default entry when `name` is `None` -- `None` overall when the design
     has no `config: style:` axis at all (an ordinary, style-less preview).
@@ -293,7 +298,7 @@ def render(resolved: ResolvedFace, options: PreviewOptions | None = None, *,
         # minute. Before quantising/cropping: black is already an exact MIP
         # colour, but masking after would let an anti-aliased bezel fringe
         # leak back in as non-black.
-        image = aod_mask.apply(image, int(values["time.minute"]), scale)
+        image = aod_mask.apply(image, int(expr.as_number(values["time.minute"])), scale)
 
     if options.quantise and device.display_colors == 64:
         image = _quantise_mip64(image)
@@ -398,7 +403,9 @@ def render_aod_heatmap(resolved: ResolvedFace, options: PreviewOptions | None = 
     heat = accum.point(lambda v: v * (255.0 / count)).convert("L").convert("RGB")
     if options.mask_shape and device.shape == "round":
         heat = _mask_round(heat, scale)
-    return heat, accum.getextrema()[1] / count
+    peak = accum.getextrema()[1]
+    assert isinstance(peak, (int, float)), "a single-band image has scalar extrema"
+    return heat, peak / count
 
 
 @lru_cache(maxsize=4096)
@@ -439,7 +446,7 @@ class _BakedGlyphs:
     def width(self, text: str) -> float:
         return self.font.measure(text)[0] * self.scale
 
-    def draw(self, renderer: "Renderer", left: float, top: float, text: str, color) -> None:
+    def draw(self, renderer: "Renderer", left: float, top: float, text: str, color: RGB) -> None:
         """Glyph by glyph from the line box's (scaled) top-left."""
         renderer._blit_baked_line(self.font, text, left, top, color)
 
@@ -459,7 +466,7 @@ class _FaceGlyphs:
     def width(self, text: str) -> float:
         return self.face.width(text)
 
-    def draw(self, renderer: "Renderer", left: float, top: float, text: str, color) -> None:
+    def draw(self, renderer: "Renderer", left: float, top: float, text: str, color: RGB) -> None:
         """Glyph by glyph on the face's own baseline, `face.baseline` below
         the line box's (scaled) top -- never Pillow's own vertical anchors,
         which measure the stand-in's ascender/descender and would disagree
@@ -490,7 +497,9 @@ class Renderer:
     Module level: `baked_glyph`, `arc_span`.
     """
 
-    def __init__(self, resolved, draw, image, scale, values, options, used_faces=None) -> None:
+    def __init__(self, resolved: ResolvedFace, draw: ImageDraw.ImageDraw, image: Image.Image,
+                 scale: int, values: dict[str, object], options: PreviewOptions,
+                 used_faces: dict[FontMetric, "fallback.SystemFace"] | None = None) -> None:
         self.resolved = resolved
         self.draw = draw
         self.image = image
@@ -500,7 +509,8 @@ class Renderer:
         #: `render`'s own `used_faces`, or `None` -- see `_system_face`.
         self.used_faces = used_faces
 
-    def _system_face(self, metric: FontMetric, *, scale: float | None = None):
+    def _system_face(self, metric: FontMetric, *,
+                     scale: float | None = None) -> "fallback.SystemFace | None":
         """`fallback.system_face` at `scale` (default `self.scale`), with
         `PreviewOptions.fonts_root` threaded through and the resolved face
         recorded into `self.used_faces` for `stand_in_warning`. Every system
@@ -517,7 +527,7 @@ class Renderer:
     # renders, an element's own resolved `aod:` override for a key wins;
     # a colour with no override is dimmed by the face's `aod: {dim: ...}`.
 
-    def aod_field(self, element, key: str, base):
+    def aod_field(self, element: Element, key: str, base: Any) -> Any:
         """``base``, replaced by this element's resolved `aod:` override for
         ``key`` while `--aod` renders and one is set."""
         if not self.options.aod or element.aod is None:
@@ -525,22 +535,24 @@ class Renderer:
         override = getattr(element.aod, key)
         return override if override is not None else base
 
-    def aod_geometry(self, placed, key: str, base):
+    def aod_geometry(self, placed: Placed, key: str, base: int) -> int:
         """``base`` (a resolved pixel length), replaced by ``placed.aod_<key>``
         (`thickness`, `bar_width`) while `--aod` renders and it is set. A
         `hands`/`pattern` override applies uniformly to every part."""
-        override = getattr(placed, f"aod_{key}") if self.options.aod else None
+        override: int | None = getattr(placed, f"aod_{key}") if self.options.aod else None
         return base if override is None else override
 
     def _dim_rgb(self, rgb: tuple[int, int, int]) -> tuple[int, int, int]:
         """`aod: {dim: ...}` applied to a resolved RGB triple, through the
         same integer arithmetic (`wfb.palette.Color.dim`) both codegen paths
         use, so a colour dims to the identical value here and on the device."""
-        num, den = dim_fraction(self.resolved.face.aod_dim)
+        dim = self.resolved.face.aod_dim
+        assert dim is not None, "only called once aod: {dim: ...} is known to be set"
+        num, den = dim_fraction(dim)
         dimmed = Color(*rgb).dim(num, den)
         return (dimmed.r, dimmed.g, dimmed.b)
 
-    def aod_color(self, element, key: str, base_expr,
+    def aod_color(self, element: Element, key: str, base_expr: Expression | None,
                   values: dict[str, object] | None = None) -> tuple[int, int, int]:
         """The drawn RGB for one colour role (`color`/`track_color`/
         `icon_color`): this element's own `aod:` override for ``key`` while
@@ -562,7 +574,7 @@ class Renderer:
             return self._dim_rgb(base)
         return base
 
-    def aod_dimmed(self, element, expr, values: dict[str, object] | None = None) -> tuple[int, int, int]:
+    def aod_dimmed(self, element: Element, expr: Expression | None, values: dict[str, object] | None = None) -> tuple[int, int, int]:
         """``expr``'s RGB, dimmed while `--aod` renders an element the AOD
         frame draws and the face has `aod: {dim: ...}` -- the twin of
         `wfb.emit.monkeyc.common.AodStyle.dimmed`, for a colour no `aod:`
@@ -575,7 +587,7 @@ class Renderer:
 
     # -- dispatch ---------------------------------------------------------
 
-    def render_element(self, placed) -> None:
+    def render_element(self, placed: Placed) -> None:
         # `--aod`: the fully resolved AOD gate (`element.visible` already
         # folded in), which an `aod: {visible: ...}` may narrow further.
         visible = (placed.element.aod.visible if self.options.aod and placed.element.aod
@@ -586,7 +598,8 @@ class Renderer:
 
     # -- elements ---------------------------------------------------------
 
-    def hand_part(self, placed: PlacedHands | PlacedPattern, part, cx: float, cy: float,
+    def hand_part(self, placed: PlacedHands | PlacedPattern | PlacedProgress, part: RotatablePart,
+                  cx: float, cy: float,
                   sin_t: float, cos_t: float, values: dict[str, object] | None = None) -> None:
         """One polygon/line/circle part of a hand or pattern copy, its
         vertices rotated by `(sin_t, cos_t)` about the scaled `(cx, cy)`.
@@ -616,8 +629,8 @@ class Renderer:
                 thickness = self.aod_geometry(placed, "thickness", part.thickness)
                 self.draw.ellipse(box, outline=fill, width=max(1, thickness * s))
 
-    def draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color,
-                      ring_color, ring_width: int, box=None) -> None:
+    def draw_outlined(self, draw: Callable[..., None], anchor: tuple[int, int], color: RGB,
+                      ring_color: RGB | None, ring_width: int, box: IntBox | None = None) -> None:
         """`draw(anchor, color, box)` once for the interior, preceded by one
         ring-coloured stamp per `wfb.ir.disc_perimeter_offsets(ring_width)`
         offset when `ring_color` is set -- the host twin of the codegen stamp
@@ -633,7 +646,8 @@ class Renderer:
 
     # -- text helpers -----------------------------------------------------
 
-    def glyph_source(self, font: BakedFont | None, metric: FontMetric | None):
+    def glyph_source(self, font: BakedFont | None,
+                     metric: FontMetric | None) -> _BakedGlyphs | _FaceGlyphs | None:
         """Where a text's glyphs come from: `font`'s baked sheet, else the
         device typeface `metric` names (its real file, a stand-in, or a
         `.cft` bitmap font -- `_system_face`). `None` when there is neither
@@ -647,7 +661,7 @@ class Renderer:
 
     def draw_text(self, font: BakedFont | None, text: str, anchor: tuple[int, int],
                   align: str, vertical_align: str, metric: FontMetric | None,
-                  color: tuple[int, int, int], box=None) -> None:
+                  color: RGB, box: IntBox | None = None) -> None:
         """Draw `text` upright at `anchor`: place its line box by the shared
         alignment rule (`wfb.layout.alignment_shift`: `align`/
         `vertical_align` say which edge of the box sits on the anchor --
@@ -674,6 +688,7 @@ class Renderer:
                          color: tuple[int, int, int]) -> None:
         """Paste `text`'s baked glyphs pen-wise from the (already scaled)
         top-left of their line box, skipping any glyph the sheet lacks."""
+        assert font.sheet is not None, "glyph_source only hands out a font with a sheet"
         pen = left
         for char in text:
             glyph = font.glyphs.get(char)
@@ -682,7 +697,7 @@ class Renderer:
             self.paste_glyph(font.sheet, glyph, pen, top, color)
             pen += glyph.xadvance * self.scale
 
-    def paste_glyph(self, sheet: Image.Image, glyph, x: float, y: float,
+    def paste_glyph(self, sheet: Image.Image, glyph: GlyphBox, x: float, y: float,
                     color: tuple[int, int, int]) -> None:
         """Crop one glyph tile off a baked sheet, tint it, and paste it at
         ``(x, y)`` -- the point ``xoffset``/``yoffset`` are measured from, i.e.
@@ -699,8 +714,9 @@ class Renderer:
         position = (int(x + glyph.xoffset * s), int(y + glyph.yoffset * s))
         self.image.paste(tint, position, tile)
 
-    def _draw_system_line(self, face, left: float, baseline_y: float, text: str, color,
-                          *, draw=None, image=None) -> None:
+    def _draw_system_line(self, face: "fallback.SystemFace", left: float, baseline_y: float,
+                          text: str, color: RGB, *, draw: ImageDraw.ImageDraw | None = None,
+                          image: Image.Image | None = None) -> None:
         """Draw a system-font line glyph by glyph, each on the pen position
         `SystemFace.advances` gives -- the advances `wfb.layout` measured
         with, not Pillow's own layout, which disagrees with the device by up
@@ -719,8 +735,8 @@ class Renderer:
             draw.text((pen, baseline_y), char, fill=color, font=face.font, anchor="ls")
             pen += advance
 
-    def _draw_bitmap_line(self, face, left: float, baseline_y: float, text: str, color,
-                          *, image=None) -> None:
+    def _draw_bitmap_line(self, face: "fallback.SystemFace", left: float, baseline_y: float,
+                          text: str, color: RGB, *, image: Image.Image | None = None) -> None:
         """The bitmap half of `_draw_system_line`: paste each glyph's own
         `.cft` cell (`_bitmap_glyph_mask`) with its top `face.baseline` above
         the shared baseline, tinted `color` through its ink levels."""
@@ -739,8 +755,9 @@ class Renderer:
 
     def draw_vector_text(
         self, text: str, anchor_point: tuple[int, int], align: str, vertical_align: str,
-        font_metric, color, curve_style: str | None, curve_angle_garmin: float,
-        curve_radius_px: int, curve_direction: str | None, *, box=None,
+        font_metric: FontMetric | None, color: RGB, curve_style: str | None,
+        curve_angle_garmin: float, curve_radius_px: int, curve_direction: str | None, *,
+        box: IntBox | None = None,
     ) -> None:
         """A `face:` (vector) font's draw -- upright (`curve_style is None`,
         exactly like a system font, `draw_text`), `angled`
@@ -764,7 +781,7 @@ class Renderer:
             self.draw_text(None, text, anchor_point, align, vertical_align,
                            font_metric, color, box=box)
             return
-        face = self._system_face(font_metric)
+        face = self._system_face(font_metric) if font_metric is not None else None
         if face is None:
             return  # same rare fallback; angled/radial have no box to outline
         s = self.scale
@@ -781,8 +798,8 @@ class Renderer:
     def _draw_radial_vector_text(
         self, anchor_point: tuple[int, int], curve_radius_px: int,
         curve_angle_garmin: float, curve_direction: str | None,
-        face, text: str, align: str, vertical_align: str, color,
-        font_metric=None,
+        face: "fallback.SystemFace", text: str, align: str, vertical_align: str, color: RGB,
+        font_metric: FontMetric | None = None,
     ) -> None:
         """`curve: {style: radial}` -- each glyph is its own tiny "angled"
         run (`_paste_rotated_run`), placed around the circle of
@@ -850,9 +867,9 @@ class Renderer:
                                     font_metric=font_metric)
             pen += advance
 
-    def _paste_rotated_run(self, face, run: str, angle_garmin_degrees: float,
-                           align: str, vertical_align: str,
-                           anchor_xy: tuple[float, float], color,
+    def _paste_rotated_run(self, face: "fallback.SystemFace", run: str,
+                           angle_garmin_degrees: float, align: str, vertical_align: str,
+                           anchor_xy: tuple[float, float], color: RGB,
                            font_metric: FontMetric | None = None) -> None:
         """Render `run` upright, rotate it by `angle_garmin_degrees` about the
         point `align`/`vertical_align` would place it at, and composite it so
@@ -919,7 +936,7 @@ class Renderer:
 
     # -- shared -----------------------------------------------------------
 
-    def _mark_extent(self, box) -> None:
+    def _mark_extent(self, box: IntBox | None) -> None:
         """Outline `box` in dark grey where text cannot be drawn at its real
         size -- `draw_text`'s fallback when it has no glyph source.
 
@@ -933,14 +950,14 @@ class Renderer:
             return
         self.draw.rectangle(self.rect(box), outline=(64, 64, 64), width=1)
 
-    def rect(self, box) -> list[float]:
+    def rect(self, box: IntBox) -> list[float]:
         """`box` scaled to preview pixels, as the `[x0, y0, x1, y1]` Pillow's
         `rectangle`/`ellipse`/`arc` take.
         """
         s = self.scale
         return [box.x * s, box.y * s, box.right * s - 1, box.bottom * s - 1]
 
-    def visible(self, expression, values: dict[str, object] | None = None) -> bool:
+    def visible(self, expression: Expression | None, values: dict[str, object] | None = None) -> bool:
         """`visible:` -- the same rule the device runs, on the sample
         readings (`self.values`, or a pattern part's own `values` with
         `copy` bound to the copy being drawn -- `values` overrides
@@ -963,7 +980,8 @@ class Renderer:
             return True
         return bool(expr.evaluate(expression.ast, self.values if values is None else values))
 
-    def color(self, expression, values: dict[str, object] | None = None) -> tuple[int, int, int]:
+    def color(self, expression: Expression | None,
+              values: dict[str, object] | None = None) -> RGB:
         """`values` overrides `self.values` -- a pattern passes its own, with
         `copy` bound to the copy being drawn."""
         if expression is None:
@@ -973,11 +991,11 @@ class Renderer:
             value = expr.evaluate(expression.ast, self.values if values is None else values)
         if value is None:
             return (255, 255, 255)
-        color = Color.parse(int(value))
+        color = Color.parse(int(expr.as_number(value)))
         return (color.r, color.g, color.b)
 
 
-def baked_glyph(font: BakedFont | None, char: str | None):
+def baked_glyph(font: BakedFont | None, char: str | None) -> GlyphBox | None:
     """`char`'s `GlyphBox` in `font`, or `None` when there is no font, no
     sheet to crop from, or no such glyph -- the one "can this baked glyph
     be drawn" check `wfb.kinds.icon.IconKind.draw_preview` and

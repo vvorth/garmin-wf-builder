@@ -644,7 +644,7 @@ def fold(node: Node, scope: Scope, *, fold_colors: bool = True) -> Node:
     return node
 
 
-def _number(value: object) -> int | float:
+def as_number(value: object) -> int | float:
     """``value`` as the number a numeric-typed literal or reading holds;
     `TypeError` for anything else, as Python's own arithmetic would raise."""
     if isinstance(value, (int, float)):
@@ -653,7 +653,7 @@ def _number(value: object) -> int | float:
 
 
 def _negate(value: object) -> int | float:
-    return -_number(value)
+    return -as_number(value)
 
 
 #: Host implementations of the foldable binary operators.  Operands are
@@ -771,10 +771,10 @@ def _emit_literal(node: Literal) -> str:
         escaped = str(node.value).replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
     if node.type is Type.COLOR:
-        return f"0x{int(_number(node.value)):06X}"
+        return f"0x{int(as_number(node.value)):06X}"
     if node.type is Type.FLOAT:
-        return f"{float(_number(node.value))}f"
-    return str(int(_number(node.value)))
+        return f"{float(as_number(node.value))}f"
+    return str(int(as_number(node.value)))
 
 
 def _emit_call(name: str, args: list[str]) -> str:

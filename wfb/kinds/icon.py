@@ -178,7 +178,7 @@ class IconKind(ElementKind[IconElement, PlacedIcon]):
         appearance without a second, hand-maintained drawing implementation."""
         font = renderer.resolved.fonts.get(placed.font_key)
         glyph = baked_glyph(font, placed.codepoint)
-        if glyph is None:
+        if glyph is None or font is None or font.sheet is None:
             return  # the font failed to bake, or the glyph is missing from it
         s = renderer.scale
         color = renderer.aod_color(placed.element, "color", placed.element.color)

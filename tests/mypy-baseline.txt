@@ -5,26 +5,6 @@
 # using pillow 12.3.0
 # using ruamel.yaml 0.19.1
 # using jsonschema 4.26.0
-wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object | Any"; expected "str | Buffer | SupportsFloat | SupportsIndex"
-wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
-wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
-wfb/kinds/progress.py: [arg-type] Argument 1 to "hand_part" of "Renderer" has incompatible type "PlacedProgress"; expected "PlacedHands | PlacedPattern"
-wfb/kinds/progress.py: [assignment] Incompatible types in assignment (expression has type "Box", variable has type "IntBox")
-wfb/kinds/progress.py: [assignment] Incompatible types in assignment (expression has type "Box", variable has type "IntBox")
-wfb/kinds/progress.py: [attr-defined] "IntBox" has no attribute "rounded"
-wfb/kinds/progress.py: [attr-defined] "IntBox" has no attribute "rounded"
-wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/progress.py: [operator] Unsupported left operand type for / ("object")
-wfb/kinds/progress.py: [operator] Unsupported operand types for - ("None" and "int")
-wfb/kinds/progress.py: [operator] Unsupported operand types for / ("float" and "None")
-wfb/kinds/progress.py: [operator] Unsupported operand types for >= ("int" and "object")
-wfb/kinds/progress.py: [union-attr] Item "None" of "Angle | None" has no attribute "degrees"
-wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
-wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
-wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "constant"
-wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "is_constant"
 wfb/lint.py: [arg-type] Argument 1 to "join" of "str" has incompatible type "tuple[str, ...] | None"; expected "Iterable[str]"
 wfb/lint.py: [assignment] Incompatible types in assignment (expression has type "list[str] | list[None]", variable has type "list[str | None]")
 wfb/lint.py: [attr-defined] "Element" has no attribute "count"
@@ -62,34 +42,3 @@ wfb/lint.py: [union-attr] Item "None" of "Expression | None" has no attribute "s
 wfb/lint.py: [union-attr] Item "None" of "Expression | None" has no attribute "text"
 wfb/lint.py: [union-attr] Item "None" of "Expression | None" has no attribute "text"
 wfb/lint.py: [union-attr] Item "str" of "str | ConfigChoice" has no attribute "color"
-wfb/preview.py: [arg-type] Argument 1 to "paste_glyph" of "Renderer" has incompatible type "Image | None"; expected "Image"
-wfb/preview.py: [call-overload] No overload variant of "int" matches argument type "object"
-wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
-wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
-wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
-wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
-wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
-wfb/preview.py: [no-untyped-def] Function is missing a return type annotation
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/preview.py: [operator] Unsupported operand types for / ("tuple[int, int]" and "int")
