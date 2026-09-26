@@ -484,3 +484,30 @@ duration, and `format:` has no duration spec (`4:30`). A `complication_slot`
 does not convert, since its value is whatever the wearer picked. All three
 are listed in `docs/limitations.md` §2. Context point 4 ("the subscriber is
 responsible for converting") is now met for the quantities above.
+
+## Amendment (2026-09-26): duration formats, and pace from `units:`
+
+**What changed.** §4's `format:` gains durations without a second spec
+language: strftime codes on a **Number or Float** read the value as
+seconds (`wfb.formatting.DURATION_CODES`). One code table serves a time of
+day (`complication.sunrise`, seconds since local midnight, `{:%h:%M}`), a
+duration (`complication.race_predictor_marathon`, `{:%-H:%M:%S}`) and a
+pace (`{:%-M:%S}{unit}`). Before this, a `%` spec on a number was a build
+error, so no existing design changes meaning.
+
+**The rules.** The largest unit a spec uses carries the whole total and
+every smaller unit wraps (`%M:%S` on 3900 s is `65:00`); the glibc `-`
+flag drops zero-padding; `%h`/`%I`/`%l`/`%p` are a time of day, wrapping at
+24 hours with no sign, and a spec without them is a duration whose negative
+value gets a leading `-`. Each code compiles to
+`WfbTime.durationPart(value, unit, wrap)` on the absolute value, since
+Monkey C does not document `%` on a negative operand (the UNVERIFIED
+caveat of the "`copy` in a pattern text part's `value:`" amendment above).
+
+**Units.** A bare source the catalogue states in minutes, hours or days is
+rewritten to seconds by the builder, the same expression rewrite `units:`
+makes; an expression is read as seconds as written, because it no longer
+states a unit. Pace, which the `units:` amendment above left out, is now
+built: the race pace predictors are tagged `quantity: pace`, and `units:`
+converts m/s to seconds per km or mile following `paceUnits`, with a speed
+of 0 reading as 0 rather than dividing by it.

@@ -85,7 +85,7 @@ class ComplicationType:
     #: SDK-documented unit, or None when the description names none.
     #: Distances metres, pressure pascals, temperature Celsius, sunrise/
     #: sunset "seconds since local midnight", race predictors seconds, race
-    #: pace metres/second, percentages percent.
+    #: pace metres/second, recovery time minutes, percentages percent.
     unit: str | None
     #: The Type table's own description, verbatim (leading "Value is a(n) "
     #: trimmed -- value_type/nullable already say that part).
@@ -152,7 +152,7 @@ TYPES: Catalogue[ComplicationType] = Catalogue({t.name: t for t in [
        'a Float of your weekly run distance in meters'),
     _t('weekly_bike_distance', 'COMPLICATION_TYPE_WEEKLY_BIKE_DISTANCE', '4.2.0', 'float', False, 'meters',
        'a Float of your weekly bike distance in meters'),
-    _t('recovery_time', 'COMPLICATION_TYPE_RECOVERY_TIME', '4.2.0', 'number', False, None,
+    _t('recovery_time', 'COMPLICATION_TYPE_RECOVERY_TIME', '4.2.0', 'number', False, 'minutes',
        'a Number of minutes remaining in your recovery time'),
     _t('stress', 'COMPLICATION_TYPE_STRESS', '4.2.0', 'number', True, None,
        'a Number representing your current stress level'),

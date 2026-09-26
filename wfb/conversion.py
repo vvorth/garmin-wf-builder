@@ -16,8 +16,9 @@ string: `complication.altitude` and `complication.weekly_run_distance` are
 both in metres, but one is an elevation (m/ft) and the other a distance
 (km/mi).
 
-Pace (min/km, min/mi) is not here: its display is a duration (`4:30`),
-which `format:` has no spec for yet.
+Pace (min/km, min/mi) converts m/s to *seconds* per km or mile -- the
+reciprocal of a speed, guarded so a speed of 0 reads 0 rather than dividing
+by it -- for a duration `format:` (``{:%-M:%S}``) to show as ``4:30``.
 """
 
 from __future__ import annotations
@@ -35,11 +36,13 @@ SYSTEMS = ("auto", "metric", "statute")
 
 @dataclass(frozen=True)
 class Display:
-    """One displayed unit: ``value * factor + offset``, labelled ``label``."""
+    """One displayed unit: ``value * factor + offset``, labelled ``label``
+    -- or ``factor / value`` when `reciprocal` (a pace from a speed)."""
 
     label: str
     factor: float
     offset: float = 0.0
+    reciprocal: bool = False
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,8 @@ _CELSIUS = Display("°C", 1.0)
 _FAHRENHEIT = Display("°F", 1.8, 32.0)
 _KMH = Display("km/h", 3.6)
 _MPH = Display("mph", 3600 / 1609.344)
+_PER_KM = Display("/km", 1000.0, reciprocal=True)
+_PER_MI = Display("/mi", 1609.344, reciprocal=True)
 
 #: ``(quantity, the source's own unit)`` -> how to display it.
 CONVERSIONS: dict[tuple[str, str], Conversion] = {
@@ -75,6 +80,18 @@ CONVERSIONS: dict[tuple[str, str], Conversion] = {
     ("temperature", "degrees Celsius"): Conversion(
         "device.temperature_units", _CELSIUS, _FAHRENHEIT, 3),
     ("speed", "m/s"): Conversion("device.distance_units", _KMH, _MPH, 3),
+    # Seconds per km or mile: its digits are a duration format's to count.
+    ("pace", "meters/second"): Conversion("device.pace_units", _PER_KM, _PER_MI, 5),
+}
+
+#: Seconds in one of a catalogue unit, for a duration `format:` over a bare
+#: source stated in something else (`wfb.kinds.text._in_seconds`).
+SECONDS_PER_UNIT: dict[str, int] = {
+    "seconds": 1,
+    "seconds since local midnight": 1,
+    "minutes": 60,
+    "hours": 3600,
+    "days": 86400,
 }
 
 
@@ -95,6 +112,8 @@ def _literal(number: float) -> str:
 
 
 def _scaled(path: str, display: Display) -> str:
+    if display.reciprocal:
+        return f"({path} > 0 ? {_literal(display.factor)} / {path} : 0.0)"
     text = path if display.factor == 1.0 else f"{path} * {_literal(display.factor)}"
     if display.offset:
         text = f"{text} + {_literal(display.offset)}"

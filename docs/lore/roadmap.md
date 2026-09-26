@@ -117,6 +117,14 @@ listed as shipped.
   `wfb/conversion.py`), since one unit can mean two quantities. The
   builder rewrites the value into an ordinary expression, so codegen,
   preview (`--units statute`) and the read plan need no second path.
+  Pace (the race pace predictors) converts to seconds per km or mile,
+  following `paceUnits`, for a duration format.
+- **Duration formats** (ADR 0005 amendment 2026-09-26): strftime codes on
+  a Number or Float read it as seconds -- sunrise/sunset as a time of day
+  (`%h:%M`), a race predictor or recovery time as a duration
+  (`%-H:%M:%S`), a pace (`%-M:%S{unit}`). The largest unit carries the
+  total; `-` drops padding; a bare minutes/hours/days source is scaled to
+  seconds (`wfb.formatting.DURATION_CODES`, `WfbTime.durationPart`).
 
 Nothing config-, hands- or pattern-related is verified on a watch or in the
 simulator. What is verified is a warning-free real `monkeyc` build and
@@ -264,8 +272,7 @@ specifies each item.
 2. Per-device `overrides`: writing one is a build error.
 3. Ticks drawn by a `style: scale` progress itself (a radial `pattern`
    does them today).
-4. Pace from `units:` (a duration format first), and `units:` on an
-   expression or a `complication_slot`.
+4. `units:` on an expression or a `complication_slot`.
 5. **Phone-side settings**, the only route to any on-device config on fr955.
    The work is frozen and incomplete on `wip/phone-settings`, with a safety
    pointer at `backup/pre-integrate`. Treat none of it as working, and do not

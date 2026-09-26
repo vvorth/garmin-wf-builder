@@ -27,4 +27,23 @@ module WfbTime {
     function meridiem(hour as Number) as String {
         return (hour < 12) ? "AM" : "PM";
     }
+
+    //! One field of a duration format: the absolute value, truncated to whole
+    //! seconds, in `unit`-second units, wrapped at `wrap` of them (0: not
+    //! wrapped, the largest unit carrying the whole total).  Taking the
+    //! absolute value first keeps `/` and `%` off negative operands, whose
+    //! rounding Monkey C does not document.
+    function durationPart(value as Numeric, unit as Number, wrap as Number) as Number {
+        var n = value.toNumber();
+        if (n < 0) {
+            n = -n;
+        }
+        n = n / unit;
+        return (wrap > 0) ? n % wrap : n;
+    }
+
+    //! "-" before a negative duration, "" otherwise.
+    function durationSign(value as Numeric) as String {
+        return (value.toNumber() < 0) ? "-" : "";
+    }
 }

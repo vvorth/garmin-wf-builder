@@ -12,6 +12,15 @@ Time specs use strftime codes, plus one addition: ``%h`` is *the hour the user
 has asked to see* -- 24-hour zero-padded or 12-hour unpadded, following
 ``DeviceSettings.is24Hour``.  Hand-written faces get this wrong constantly; a
 builder should get it right once.
+
+The same codes on a **Number or Float** read the value as a number of
+*seconds*: a duration (a race predictor, recovery time, a pace in seconds per
+km) or a time of day (sunrise's "seconds since local midnight").  The largest
+unit a spec uses carries the whole total, so ``%M:%S`` on 3900 s is ``65:00``,
+and every smaller unit wraps at the next one up.  A ``-`` flag drops the
+zero-padding (``%-M:%S`` is ``4:30``).  ``%h``/``%I``/``%l``/``%p`` read a
+time of day, wrapping at 24 hours; a spec without them is a duration, and a
+negative one gets a leading ``-`` (`DURATION_CODES`).
 """
 
 from __future__ import annotations
@@ -173,6 +182,104 @@ DATE_CODES: dict[str, Code] = {
 }
 
 
+@dataclass(frozen=True)
+class DurationCode:
+    """One strftime code read off a number of seconds (`DURATION_CODES`).
+
+    `emit` and `render` get the value's code (or its truncated absolute
+    value, for `render`) and whether this code *leads* -- is the spec's
+    largest unit, carrying the whole total rather than wrapping.  They mirror
+    `WfbTime.durationPart` (runtime-lib/WfbTime.mc) and must agree for every
+    input, the same contract `Code` keeps.
+    """
+
+    description: str
+    #: Seconds per unit, which ranks the codes: the largest `unit` in a spec
+    #: leads (`leading_units`).
+    unit: int
+    #: The widest rendering when the code leads (no wrap to bound it) and
+    #: when it wraps.
+    widest_leading: str
+    widest_wrapped: str
+    emit: Callable[[str, Readers, bool], str]
+    render: Callable[[int, dict[str, Any], bool], str]
+    #: A time-of-day code: always wraps at 24 hours, and a spec using one
+    #: carries no sign.
+    clock: bool = False
+    extra_path: str | None = None
+
+
+def _part_code(value_code: str, unit: int, wrap: int) -> str:
+    """`WfbTime.durationPart`: ``|value|`` in whole ``unit``s, wrapped at
+    ``wrap`` of them (0: not wrapped)."""
+    return f"WfbTime.durationPart({value_code}, {unit}, {wrap})"
+
+
+def _part(seconds: int, unit: int, wrap: int) -> int:
+    """`_part_code`'s host twin, over an already truncated, non-negative
+    ``seconds``."""
+    whole = seconds // unit
+    return whole % wrap if wrap else whole
+
+
+def _field(unit: int, wrap: int, pad: bool, what: str, widest_leading: str) -> DurationCode:
+    """A plain count of ``unit``s: the total when it leads, wrapped at
+    ``wrap`` otherwise."""
+    fmt = "%02d" if pad else "%d"
+    return DurationCode(
+        f"{what}{'' if pad else ', unpadded'} -- the whole total when it is the largest unit",
+        unit, widest_leading, "59" if wrap == 60 else "23",
+        lambda v, r, lead: f'{_part_code(v, unit, 0 if lead else wrap)}.format("{fmt}")',
+        lambda n, values, lead: format(_part(n, unit, 0 if lead else wrap), fmt[1:]),
+    )
+
+
+def _clock_hour_code(value_code: str) -> str:
+    return _part_code(value_code, 3600, 24)
+
+
+def _clock_hour(seconds: int) -> int:
+    return _part(seconds, 3600, 24)
+
+
+#: strftime codes for a **Number or Float of seconds**: a duration, or a time
+#: of day.  ``-H``/``-M``/``-S`` are the unpadded forms (the glibc ``-``
+#: flag).  A leading H or M is assumed to stay within two digits and a
+#: leading S within `DEFAULT_DIGITS` -- nothing bounds a total, so these are
+#: stated assumptions, the same kind `_max_digits` makes.
+DURATION_CODES: dict[str, DurationCode] = {
+    "H": _field(3600, 24, True, "hours", "88"),
+    "-H": _field(3600, 24, False, "hours", "88"),
+    "M": _field(60, 60, True, "minutes", "88"),
+    "-M": _field(60, 60, False, "minutes", "88"),
+    "S": _field(1, 60, True, "seconds", "88888"),
+    "-S": _field(1, 60, False, "seconds", "88888"),
+    "h": DurationCode(
+        "hour of the day, following the device's 12/24-hour setting", 3600, "23", "23",
+        lambda v, r, lead: f"WfbTime.displayHour({_clock_hour_code(v)}, {r.settings}.is24Hour)",
+        lambda n, values, lead: (f"{_clock_hour(n):02d}" if bool(values.get("device.is_24_hour", True))
+                                 else f"{(_clock_hour(n) % 12) or 12:d}"),
+        clock=True, extra_path="device.is_24_hour"),
+    "I": DurationCode(
+        "hour of the day, 12-hour, zero-padded", 3600, "12", "12",
+        lambda v, r, lead: f'WfbTime.hour12({_clock_hour_code(v)}).format("%02d")',
+        lambda n, values, lead: f"{(_clock_hour(n) % 12) or 12:02d}",
+        clock=True),
+    "l": DurationCode(
+        "hour of the day, 12-hour, unpadded", 3600, "12", "12",
+        lambda v, r, lead: f'WfbTime.hour12({_clock_hour_code(v)}).format("%d")',
+        lambda n, values, lead: f"{(_clock_hour(n) % 12) or 12:d}",
+        clock=True),
+    "p": DurationCode(
+        "AM or PM of the time of day", 3600, "AM", "AM",
+        lambda v, r, lead: f"WfbTime.meridiem({_clock_hour_code(v)})",
+        lambda n, values, lead: "AM" if _clock_hour(n) < 12 else "PM",
+        clock=True),
+    "%": DurationCode("a literal percent sign", 0, "%", "%",
+                      lambda v, r, lead: '"%"', lambda n, values, lead: "%"),
+}
+
+
 def parse(spec: str) -> list[Literal | Field | UnitField]:
     """Split a format string into literals and fields."""
     parts: list[Literal | Field | UnitField] = []
@@ -189,10 +296,13 @@ def parse(spec: str) -> list[Literal | Field | UnitField]:
     return parts
 
 
-def parse_time(spec: str, codes: dict[str, Code] | None = None) -> list[TimePart]:
-    """Split a strftime-style field spec into codes and literal text."""
+def parse_time(spec: str, codes: dict[str, Code] | dict[str, DurationCode] | None = None,
+               ) -> list[TimePart]:
+    """Split a strftime-style field spec into codes and literal text.  A
+    ``-`` flag (``%-M``) is part of the code it modifies, so it is only
+    valid where the table has that flagged key."""
     codes = TIME_CODES if codes is None else codes
-    what = "date" if codes is DATE_CODES else "time"
+    what = {id(DATE_CODES): "date", id(DURATION_CODES): "duration"}.get(id(codes), "time")
     parts: list[TimePart] = []
     buffer = ""
     index = 0
@@ -200,6 +310,8 @@ def parse_time(spec: str, codes: dict[str, Code] | None = None) -> list[TimePart
         char = spec[index]
         if char == "%" and index + 1 < len(spec):
             code = spec[index + 1]
+            if code == "-" and index + 2 < len(spec):
+                code = spec[index + 1:index + 3]
             if code not in codes:
                 known = ", ".join(f"%{c}" for c in codes)
                 raise FormatError(f"unknown {what} code %{code} -- supported: {known}")
@@ -210,7 +322,7 @@ def parse_time(spec: str, codes: dict[str, Code] | None = None) -> list[TimePart
                 buffer = "%"
             else:
                 parts.append(TimePart(code))
-            index += 2
+            index += 1 + len(code)
             continue
         buffer += char
         index += 1
@@ -231,6 +343,26 @@ def is_time_spec(spec: str) -> bool:
     except FormatError:
         return False
     return any(isinstance(part, Field) and "%" in part.spec for part in parts)
+
+
+def is_duration(spec: str, value_type: Type) -> bool:
+    """Is this a duration format: strftime codes on a Number or Float of
+    seconds (`DURATION_CODES`)?"""
+    return value_type.is_numeric() and is_time_spec(spec)
+
+
+def _duration_field(spec: str) -> tuple[list[TimePart], int, bool]:
+    """A duration field spec's parts, the unit that leads (the largest one
+    it uses), and whether it carries a sign (no time-of-day code)."""
+    parts = parse_time(spec, DURATION_CODES)
+    rows = [DURATION_CODES[part.code] for part in parts if part.code is not None]
+    leading = max((row.unit for row in rows), default=0)
+    signed = not any(row.clock for row in rows)
+    return parts, leading, signed
+
+
+def _leads(row: DurationCode, leading: int) -> bool:
+    return not row.clock and row.unit == leading
 
 
 def _strftime_parts(spec: str, value_type: Type) -> tuple[list[TimePart], dict[str, Code]]:
@@ -279,6 +411,9 @@ def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
          date_short: str = "dateShort", unit_code: str | None = None) -> str:
     """Compile a format spec to a Monkey C String expression.  ``unit_code``
     is the String expression a `{unit}` field compiles to."""
+    if is_duration(spec, value_type):
+        return _emit_duration(spec, value_code, Readers(clock, settings, date, date_short),
+                              unit_code)
     if value_type is Type.DATE or is_time_spec(spec):
         readers = Readers(clock, settings, date, date_short)
         parts, codes = _strftime_parts(spec, value_type)
@@ -297,6 +432,31 @@ def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
         else:
             pieces.append(_emit_numeric(part.spec, value_code, value_type))
     return " + ".join(pieces)
+
+
+def _emit_duration(spec: str, value_code: str, readers: Readers, unit_code: str | None) -> str:
+    """A duration spec (`is_duration`): the literal text and `{unit}` around
+    the field kept, the field one `DurationCode` per code, led by
+    `WfbTime.durationSign` when it carries a sign."""
+    pieces = []
+    for part in parse(spec):
+        if isinstance(part, Literal):
+            pieces.append(_quote(part.text))
+        elif isinstance(part, UnitField):
+            if unit_code is None:
+                raise FormatError("{unit} needs 'units:' on the element")
+            pieces.append(f"({unit_code})")
+        else:
+            parts, leading, signed = _duration_field(part.spec)
+            if signed:
+                pieces.append(f"WfbTime.durationSign({value_code})")
+            for time_part in parts:
+                if time_part.code is None:
+                    pieces.append(_quote(time_part.text))
+                else:
+                    row = DURATION_CODES[time_part.code]
+                    pieces.append(row.emit(value_code, readers, _leads(row, leading)))
+    return " + ".join(pieces) if pieces else '""'
 
 
 def _emit_numeric(spec: str, value_code: str, value_type: Type) -> str:
@@ -321,8 +481,14 @@ def extra_paths(spec: str, value_type: Type) -> tuple[str, ...]:
     compiles, so an element's generated method and the parameter list
     `wfb.emit.monkeyc.readplan.ReadPlan` supplies it cannot drift apart.
     """
-    parts, codes = _strftime_parts(spec, value_type)
-    paths = (codes[part.code].extra_path for part in parts if part.code is not None)
+    table: dict[str, Code] | dict[str, DurationCode]
+    if is_duration(spec, value_type):
+        table = DURATION_CODES
+        parts = [p for field in parse(spec) if isinstance(field, Field)
+                 for p in parse_time(field.spec, DURATION_CODES)]
+    else:
+        parts, table = _strftime_parts(spec, value_type)
+    paths = (table[part.code].extra_path for part in parts if part.code is not None)
     return tuple(dict.fromkeys(path for path in paths if path is not None))
 
 
@@ -349,7 +515,8 @@ def render(spec: str, value: object, value_type: Type, values: dict[str, Any] | 
     `wfb.preview.SAMPLE` uses: ``time.hour``, ``time.minute``, ``time.second``,
     ``device.is_24_hour``, ``date.day_of_week``, ``date.day``, ``date.month``,
     ``date.month_number``, ``date.year`` -- read only when ``value_type`` is
-    TIME or DATE, so a numeric caller may omit it.  ``unit_text`` is what a
+    TIME or DATE, or a duration spec uses ``%h``, so a plain numeric caller
+    may omit it.  ``unit_text`` is what a
     `{unit}` field renders.
 
     An unparseable numeric spec raises `FormatError`, the same as `emit`,
@@ -358,6 +525,8 @@ def render(spec: str, value: object, value_type: Type, values: dict[str, Any] | 
     preview show something the device never would.
     """
     values = values or {}
+    if is_duration(spec, value_type):
+        return _render_duration(spec, value, values, unit_text)
     if value_type in (Type.DATE, Type.TIME):
         parts, codes = _strftime_parts(spec, value_type)
         return "".join(part.text if part.code is None else codes[part.code].render(values)
@@ -372,6 +541,34 @@ def render(spec: str, value: object, value_type: Type, values: dict[str, Any] | 
             out += unit_text
         else:
             out += _render_numeric_field(part.spec, value)
+    return out
+
+
+def _render_duration(spec: str, value: object, values: dict[str, Any],
+                     unit_text: str | None) -> str:
+    """`_emit_duration`'s host twin: the value truncated toward zero first,
+    as `Number.toNumber()`/`Float.toNumber()` do, then split by its
+    absolute value, so no `//` or `%` ever sees a negative operand."""
+    assert isinstance(value, (int, float)), value
+    whole = math.trunc(value)
+    out = ""
+    for part in parse(spec):
+        if isinstance(part, Literal):
+            out += part.text
+        elif isinstance(part, UnitField):
+            if unit_text is None:
+                raise FormatError("{unit} needs 'units:' on the element")
+            out += unit_text
+        else:
+            parts, leading, signed = _duration_field(part.spec)
+            if signed and whole < 0:
+                out += "-"
+            for time_part in parts:
+                if time_part.code is None:
+                    out += time_part.text
+                else:
+                    row = DURATION_CODES[time_part.code]
+                    out += row.render(abs(whole), values, _leads(row, leading))
     return out
 
 
@@ -409,6 +606,8 @@ def widest(spec: str, source: Source | None, value_type: Type,
     to a stated assumption otherwise -- an over-estimate here costs a spurious
     warning, an under-estimate costs a clipped face on the wrist.
     """
+    if is_duration(spec, value_type):
+        return _widest_duration(spec, unit_widest)
     if value_type is Type.DATE or is_time_spec(spec):
         parts, codes = _strftime_parts(spec, value_type)
         return "".join(part.text if part.code is None else codes[part.code].widest
@@ -433,6 +632,24 @@ def widest(spec: str, source: Source | None, value_type: Type,
         else:
             width = int(m.group("width")) if m and m.group("width") else 0
             out += "8" * max(digits, width)
+    return out
+
+
+def _widest_duration(spec: str, unit_widest: str) -> str:
+    out = ""
+    for part in parse(spec):
+        if isinstance(part, Literal):
+            out += part.text
+        elif isinstance(part, UnitField):
+            out += unit_widest
+        else:
+            parts, leading, _ = _duration_field(part.spec)
+            for time_part in parts:
+                if time_part.code is None:
+                    out += time_part.text
+                else:
+                    row = DURATION_CODES[time_part.code]
+                    out += row.widest_leading if _leads(row, leading) else row.widest_wrapped
     return out
 
 
@@ -495,7 +712,15 @@ def glyphs(spec: str, source: Source | None, value_type: Type,
         return out
 
     out |= set("0123456789")
-    if is_time_spec(spec):
+    if is_duration(spec, value_type):
+        for part in parse(spec):
+            if isinstance(part, Field):
+                parts, _, signed = _duration_field(part.spec)
+                if signed:
+                    out.add("-")
+                if any(p.code == "p" for p in parts):
+                    out |= set("AMP")
+    elif is_time_spec(spec):
         if "%p" in spec:
             out |= set("AMP")
     else:

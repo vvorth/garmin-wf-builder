@@ -376,6 +376,53 @@ Time values use strftime codes, plus one addition:
 `%h` exists because hand-written faces get the 12/24-hour setting wrong
 constantly. A builder should get it right once.
 
+### Durations and times of day
+
+The same codes on a **Number or Float** read the value as a number of
+**seconds**: a duration (a race predictor, recovery time, a pace) or a time
+of day (`complication.sunrise`/`sunset`, seconds since local midnight).
+
+```yaml
+- id: sunrise
+  type: text
+  value: complication.sunrise
+  format: "{:%h:%M}"           # "06:42", or "6:42" on a 12-hour watch
+  when_absent: hide
+- id: marathon
+  type: text
+  value: complication.race_predictor_marathon
+  format: "{:%-H:%M:%S}"       # "3:45:12"
+  when_absent: hide
+```
+
+| Code | Meaning |
+|---|---|
+| `%H`, `%M`, `%S` | hours, minutes, seconds, zero-padded |
+| `%-H`, `%-M`, `%-S` | the same, unpadded |
+| `%h`, `%I`, `%l`, `%p` | the **time of day**, as for a clock value (`%h` follows `is24Hour`) |
+| `%%` | a literal `%` |
+
+- **The largest unit in the spec carries the whole total**, and every
+  smaller one wraps at the next unit up. `{:%M:%S}` on 3900 s is `65:00`,
+  `{:%H:%M:%S}` on the same value is `01:05:00`, and `{:%-H:%M}` on a
+  37-hour recovery is `37:15`.
+- **`%h`/`%I`/`%l`/`%p` wrap at 24 hours** and never carry a sign. A spec
+  without them is a duration: a negative value shows its magnitude after a
+  `-` (`-1:15`).
+- **A Float truncates toward zero** first, as `{:d}` does everywhere, so
+  272.7 s is `4:32`.
+- **A bare source stated in minutes, hours or days is read as seconds for
+  you.** `complication.recovery_time` (minutes), `activity.time_to_recovery`
+  (hours) and `system.battery_in_days` take a duration spec as written. An
+  expression is read as seconds as written, since it no longer states a
+  unit: `complication.recovery_time * 60` is the same value as the bare
+  source.
+- Text around the field and `{unit}` work as for a number:
+  `"{:%-M:%S}{unit}"` is `4:30/km` (a pace, [below](#units)).
+- A pattern's own `shape: text` part takes a duration spec, but not `%h`:
+  its strings are fixed at build time, so there is no 12/24-hour setting to
+  follow. Use `%H`, or `%l %p`.
+
 The compiler also derives the **widest plausible rendering** of every binding
 from its format and the source's documented range — that is what makes "does this
 label overflow its slot?" a static check, and what decides a font's glyph set.
@@ -410,9 +457,13 @@ watch: `activity.distance` in centimetres, `weather.temperature` in °C,
 | elevation | `ambient.altitude`, `complication.altitude` | m | ft | `elevationUnits` |
 | temperature | `weather.temperature`, `weather.feels_like_temperature`, `weather.high_temperature_today`, `weather.low_temperature_today`, `complication.current_temperature` | °C | °F | `temperatureUnits` |
 | speed | `weather.wind_speed` | km/h | mph | `distanceUnits` |
+| pace | `complication.race_pace_predictor_5k`, `_10k`, `_half_marathon`, `_marathon` | s/km (`/km`) | s/mi (`/mi`) | `paceUnits` |
 
 The converted value is a Float, so `{:.1f}` or `{:d}` (which truncates,
-as everywhere) chooses the precision. `value:` must be **exactly one** of
+as everywhere) chooses the precision. A pace is **seconds** per km or mile,
+for a [duration format](#durations-and-times-of-day):
+`format: "{:%-M:%S}{unit}"` shows `4:30/km`. A speed of 0 would divide by
+zero, so it reads as 0 seconds (`0:00/km`) instead. `value:` must be **exactly one** of
 the sources above: the conversion needs the unit the value is in, which an
 expression over it no longer states. Anything else is a build error naming
 the sources that convert, and so is `{unit}` on an element without
@@ -428,8 +479,7 @@ expression over the source and one setting, so `activity.distance` with
 `1` for statute — for a design that labels something itself.
 
 `wfb preview` renders the metric settings; `--units statute` renders the
-other. **Pace** (min/km, min/mi) is not converted yet: it is a duration,
-which `format:` has no spec for.
+other.
 
 ## See also
 

@@ -206,10 +206,19 @@ class AbsenceChecks(Readers):
         `formatting.emit`/`formatting.render` as a raw, unhandled
         `FormatError` instead of a diagnostic on the author's line."""
         coded = formatting.is_time_spec(spec)
-        if coded and not bound.value.type.is_formatted():
+        if formatting.is_duration(spec, bound.value.type):
+            # strftime codes on a Number or Float read it as seconds.
+            try:
+                for part in formatting.parse(spec):
+                    if isinstance(part, formatting.Field):
+                        formatting.parse_time(part.spec, formatting.DURATION_CODES)
+            except formatting.FormatError as exc:
+                self.bag.error("format", str(exc), span)
+        elif coded and not bound.value.type.is_formatted():
             self.bag.error(
                 "format",
-                f"strftime-style format {spec!r} needs a time or date value, got {bound.value}",
+                f"strftime-style format {spec!r} needs a time, date or number value, "
+                f"got {bound.value}",
                 span,
             )
         elif not coded and bound.value.type.is_formatted():

@@ -274,7 +274,6 @@ is `docs/lore/roadmap.md`. Turn-one summary:
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
   - per-device `overrides` (writing one is a build error);
-  - pace from `units:` (distance, elevation, temperature and speed convert);
   - a `pattern`'s/`complication_slot`'s own `aod: {font: ...}` override;
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
     `aod: {filled: ...}` on `shape: polygon` (no outline primitive to
@@ -316,9 +315,14 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     splitting the copy index into column and row
     (`docs/guide/patterns.md` "Grids");
   - `units: auto|metric|statute` on a `text` element (ADR 0005 §4):
-    distance, elevation, temperature and speed in the wearer's own units,
-    compiled as an expression over the source and `device.<x>_units`, with
-    `format:`'s `{unit}` for the label (`docs/guide/data.md` "Units");
+    distance, elevation, temperature, speed and pace in the wearer's own
+    units, compiled as an expression over the source and
+    `device.<x>_units`, with `format:`'s `{unit}` for the label
+    (`docs/guide/data.md` "Units");
+  - duration formats: strftime codes on a Number/Float read it as seconds
+    (sunrise `{:%h:%M}`, pace `{:%-M:%S}`, marathon `{:%-H:%M:%S}`); the
+    largest unit carries the total (`docs/guide/data.md` "Durations and
+    times of day");
   - `aod:` (plan 14, all six slices, now deleted — `docs/CLAUDE.md`): the
     AMOLED always-on-display sleep frame as per-element/group overrides on
     the *one* design (`hide`/`show`/an override block reusing each kind's

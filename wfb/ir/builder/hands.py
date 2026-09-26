@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ... import expr
+from ... import expr, formatting
 from ...catalog import Type
 from ...diagnostics import Span
 
@@ -331,6 +331,25 @@ class HandParts(ConfigAxes):
         return TextPart(**common, at=at, align=align, vertical_align=vertical_align,
                         **text_fields)
 
+    def _check_part_format_settings(self, node: dict[str, Any], value: Expression,
+                                    part_where: str) -> None:
+        """A pattern text part's strings are rendered at build time, one per
+        copy, so a format code that follows a device setting (a duration's
+        `%h`) has no setting to follow there."""
+        spec = str(node["format"])
+        try:
+            extra = formatting.extra_paths(spec, value.value.type)
+        except formatting.FormatError:
+            return  # `check_format` already reported it
+        if extra:
+            self.bag.error(
+                "format",
+                f"{part_where}.format: {spec!r} follows the watch's 12/24-hour "
+                "setting, which a pattern text part cannot read",
+                self.doc.span(node, "format"),
+                notes=["a pattern text part's strings are fixed at build time; "
+                       "use '%H' for 24-hour or '%l %p' for 12-hour"])
+
     def _build_text_part(
         self, node: dict[str, Any], part_where: str, vertical_align: str,
     ) -> dict[str, object] | None:
@@ -390,6 +409,7 @@ class HandParts(ConfigAxes):
                     if "format" in node:
                         text_format = node.get("format")
                         self.check_format(node, value, text_format)
+                        self._check_part_format_settings(node, value, part_where)
         elif not self.check_format_not_on_literal(node, part_where):
             ok = False
         else:

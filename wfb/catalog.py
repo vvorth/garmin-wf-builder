@@ -407,14 +407,18 @@ class Source:
 _s = Source
 
 #: The `complication.*` types whose value `units:` can convert
-#: (`Source.quantity`).  The race pace predictors (metres/second) are left
-#: out: their display is a pace, a duration per distance, which `format:`
-#: cannot render yet.
+#: (`Source.quantity`).  The race pace predictors are metres/second like a
+#: speed, but display as a pace: seconds per km or mile, for a duration
+#: `format:`.
 _COMPLICATION_QUANTITY: dict[str, str] = {
     "altitude": "elevation",
     "weekly_run_distance": "distance",
     "weekly_bike_distance": "distance",
     "current_temperature": "temperature",
+    "race_pace_predictor_5k": "pace",
+    "race_pace_predictor_10k": "pace",
+    "race_pace_predictor_half_marathon": "pace",
+    "race_pace_predictor_marathon": "pace",
 }
 
 

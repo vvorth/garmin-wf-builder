@@ -196,7 +196,7 @@ def _text_value(renderer: Renderer, placed: PlacedText) -> str | None:
     unit_text = (str(expr.evaluate(element.unit_label.ast, renderer.values))
                  if element.unit_label is not None and element.unit_label.ast is not None
                  else None)
-    return formatting.render(spec, value, value_type, unit_text=unit_text)
+    return formatting.render(spec, value, value_type, renderer.values, unit_text=unit_text)
 
 
 def _aod_ring(element: Text, dim_set: bool) -> tuple[Outline | None, str]:
@@ -406,6 +406,25 @@ def _apply_units(
     return converted, system, label, conversion.labels(found, system), found.digits
 
 
+def _in_seconds(b: Builder, node: dict[str, Any], value: Expression) -> Expression:
+    """A duration `format:` reads its value as seconds, so a bare source
+    the catalogue states in minutes, hours or days is rewritten to seconds
+    (`wfb.conversion.SECONDS_PER_UNIT`) -- the same expression rewrite
+    `units:` makes, and for the same reason only a bare source: an
+    arbitrary expression no longer states its unit, and is read as seconds
+    as written."""
+    spec = node.get("format")
+    if spec is None or not formatting.is_duration(str(spec), value.value.type):
+        return value
+    raw = str(node["value"]).strip()
+    source = catalog.CATALOG.get(raw)
+    factor = conversion.SECONDS_PER_UNIT.get(source.unit or "") if source is not None else None
+    if factor is None or factor == 1:
+        return value
+    scaled = b.compile_expression(f"{raw} * {factor}", b.doc.span(node, "value"), "value")
+    return value if scaled is None else scaled
+
+
 def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
     """`{unit}` in `format:` (or its `aod:` twin) is the label of a
     `units:` conversion, so it needs one.  A `units:` that was written but
@@ -436,6 +455,8 @@ class TextKind(ElementKind[Text, PlacedText]):
             units = _apply_units(b, node, value)
             if units is not None:
                 value = units[0]
+        elif value is not None:
+            value = _in_seconds(b, node, value)
         align, vertical_align = b.alignment(node)
         element = Text(
             **common,

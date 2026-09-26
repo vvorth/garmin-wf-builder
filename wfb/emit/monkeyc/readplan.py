@@ -100,19 +100,22 @@ class ReadPlan:
             # reader too (`formatting.extra_paths`, read off the same `Code`
             # rows `emit` compiles: %h the 12/24-hour setting, %m the
             # FORMAT_SHORT date).
+            # A duration format (strftime codes on a Number or Float of
+            # seconds) reads no clock, only its codes' own extra readers.
             format_paths: list[str] = []
             if (isinstance(element, Text) and element.format
                     and formatting.is_time_spec(element.format)):
-                is_date = (element.value is not None
-                           and element.value.value.type is Type.DATE)
-                format_paths.append("date.today" if is_date else "time.clock")
+                value_type = element.value.value.type if element.value is not None else Type.TIME
+                if not value_type.is_numeric():
+                    value_type = Type.DATE if value_type is Type.DATE else Type.TIME
+                    format_paths.append("date.today" if value_type is Type.DATE else "time.clock")
                 # Both the awake `format:` and an `aod: {format: ...}`
                 # override can use such a code independently of one another.
                 specs = [element.format]
                 if element.aod is not None and element.aod.format is not None:
                     specs.append(element.aod.format)
                 for spec in specs:
-                    for extra in formatting.extra_paths(spec, Type.DATE if is_date else Type.TIME):
+                    for extra in formatting.extra_paths(spec, value_type):
                         if extra not in format_paths:
                             format_paths.append(extra)
             # A hands element reads the clock too, with no author expression
