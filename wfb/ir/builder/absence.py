@@ -232,9 +232,8 @@ class AbsenceChecks(Readers):
         elif coded:
             # Catch a date spec on a clock value and the reverse: both parse, and
             # the wrong one silently renders nonsense (%M is minute, not month).
-            codes = formatting.DATE_CODES if bound.value.type is Type.DATE else formatting.TIME_CODES
             try:
-                formatting.parse_time(formatting.strip_braces(spec), codes)
+                formatting.strftime_parts(spec, bound.value.type)
             except formatting.FormatError as exc:
                 self.bag.error("format", str(exc), span)
 

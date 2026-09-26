@@ -376,6 +376,10 @@ Time values use strftime codes, plus one addition:
 `%h` exists because hand-written faces get the 12/24-hour setting wrong
 constantly. A builder should get it right once.
 
+Text around the field is kept for a clock or date value too, and a spec may
+hold more than one field: `"at {:%H:%M} UTC"` renders `at 10:09 UTC`, and
+`"{:%a}, {:%e %b}"` renders `Wed, 3 Sep`.
+
 ### Durations and times of day
 
 The same codes on a **Number or Float** read the value as a number of

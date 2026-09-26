@@ -195,3 +195,48 @@ def test_barrel_modules_reads_only_the_codes_a_spec_uses():
     assert usage.barrel_modules([formatting.emit("{:%H:%M}", "clock", Type.TIME)]) == set()
     assert (usage.barrel_modules([formatting.emit("{:%I:%M %p}", "clock", Type.TIME)])
             == {"WfbTime.mc"})
+
+
+@pytest.mark.parametrize("spec, value_type, emitted, rendered, widest", [
+    ("at {:%H:%M} UTC", Type.TIME,
+     '"at " + clock.hour.format("%02d") + ":" + clock.min.format("%02d") + " UTC"',
+     "at 10:09 UTC", "at 23:59 UTC"),
+    ("{:%a}, {:%e %b}", Type.DATE,
+     'date.day_of_week + ", " + date.day.format("%d") + " " + date.month',
+     "Wed, 3 Sep", "Wed, 30 Sep"),
+])
+def test_clock_and_date_formats_keep_the_text_around_the_field(
+        spec, value_type, emitted, rendered, widest):
+    """Text outside the braces is part of the label, on the wrist, in the
+    preview and in the overflow estimate alike -- and every field is read,
+    not only the first."""
+    assert formatting.emit(spec, "", value_type) == emitted
+    assert formatting.render(spec, None, value_type, {}) == rendered
+    assert formatting.widest(spec, None, value_type) == widest
+    assert set("at UTC") - {" "} <= formatting.glyphs("at {:%H:%M} UTC", None, Type.TIME)
+
+
+def test_every_field_of_a_clock_format_is_checked(write_design, bag):
+    """A bad code in a second field is an error too, not silently dropped."""
+    from wfb.build import load
+
+    text = """
+format: 1
+face:
+  id: 7f3c1e92-4a5b-4d81-9e6f-2b0c8d4a1f57
+  name: Test
+targets: [fenix8solar47mm]
+palette:
+  fg: "#FFFFFF"
+elements:
+  - id: clock
+    type: text
+    value: time.clock
+    format: "{:%H} and {:%b}"
+    font: FONT_SMALL
+    at: {anchor: center}
+    color: palette.fg
+"""
+    assert load(write_design(text), bag) is None
+    [error] = bag.errors
+    assert error.code == "format" and "unknown time code %b" in error.message

@@ -365,18 +365,20 @@ def _leads(row: DurationCode, leading: int) -> bool:
     return not row.clock and row.unit == leading
 
 
-def _strftime_parts(spec: str, value_type: Type) -> tuple[list[TimePart], dict[str, Code]]:
-    """A TIME/DATE spec's field, parsed against the code table for its type."""
+def strftime_parts(spec: str, value_type: Type) -> tuple[list[TimePart], dict[str, Code]]:
+    """A whole TIME/DATE spec as one run of codes and literal text: the text
+    around each field kept (``at {:%H:%M} UTC``), every field parsed against
+    the code table for its type."""
     codes = DATE_CODES if value_type is Type.DATE else TIME_CODES
-    return parse_time(strip_braces(spec), codes), codes
-
-
-def strip_braces(spec: str) -> str:
-    parts = parse(spec)
-    for part in parts:
-        if isinstance(part, Field):
-            return part.spec
-    return spec
+    parts: list[TimePart] = []
+    for part in parse(spec):
+        if isinstance(part, Literal):
+            parts.append(TimePart(None, part.text))
+        elif isinstance(part, UnitField):
+            raise FormatError("{unit} needs 'units:' on the element")
+        else:
+            parts.extend(parse_time(part.spec, codes))
+    return parts, codes
 
 
 def _numeric_spec(spec: str) -> tuple[str, str, str | None]:
@@ -416,7 +418,7 @@ def emit(spec: str, value_code: str, value_type: Type, *, clock: str = "clock",
                               unit_code)
     if value_type is Type.DATE or is_time_spec(spec):
         readers = Readers(clock, settings, date, date_short)
-        parts, codes = _strftime_parts(spec, value_type)
+        parts, codes = strftime_parts(spec, value_type)
         pieces = [_quote(part.text) if part.code is None else codes[part.code].emit(readers)
                   for part in parts]
         return " + ".join(pieces) if pieces else '""'
@@ -487,7 +489,7 @@ def extra_paths(spec: str, value_type: Type) -> tuple[str, ...]:
         parts = [p for field in parse(spec) if isinstance(field, Field)
                  for p in parse_time(field.spec, DURATION_CODES)]
     else:
-        parts, table = _strftime_parts(spec, value_type)
+        parts, table = strftime_parts(spec, value_type)
     paths = (table[part.code].extra_path for part in parts if part.code is not None)
     return tuple(dict.fromkeys(path for path in paths if path is not None))
 
@@ -528,7 +530,7 @@ def render(spec: str, value: object, value_type: Type, values: dict[str, Any] | 
     if is_duration(spec, value_type):
         return _render_duration(spec, value, values, unit_text)
     if value_type in (Type.DATE, Type.TIME):
-        parts, codes = _strftime_parts(spec, value_type)
+        parts, codes = strftime_parts(spec, value_type)
         return "".join(part.text if part.code is None else codes[part.code].render(values)
                        for part in parts)
     out = ""
@@ -609,7 +611,7 @@ def widest(spec: str, source: Source | None, value_type: Type,
     if is_duration(spec, value_type):
         return _widest_duration(spec, unit_widest)
     if value_type is Type.DATE or is_time_spec(spec):
-        parts, codes = _strftime_parts(spec, value_type)
+        parts, codes = strftime_parts(spec, value_type)
         return "".join(part.text if part.code is None else codes[part.code].widest
                        for part in parts)
 
