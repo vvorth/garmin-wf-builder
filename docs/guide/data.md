@@ -351,6 +351,10 @@ Python-style specs, familiar and unambiguous.
 | `{:.1f}` | a float |
 | `{:d} steps` | literal text around the field |
 
+Every spec needs at least one `{}` field: a bare `%02d` or `%H:%M` is an
+error, and so is a numeric spec outside the table (`{:zz}`). Strftime codes
+go inside a field, as in `{:%H:%M}`.
+
 Date values (`date.today`) use their own codes — separate from the time codes
 below, because `%M` means minute and `%m` means month, and silently rendering one
 where the other belongs is exactly the confusion the split prevents:

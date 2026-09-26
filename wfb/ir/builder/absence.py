@@ -204,7 +204,21 @@ class AbsenceChecks(Readers):
         rather than a second, narrower implementation. An earlier pass left
         an override's spec unchecked entirely, so a malformed one reached
         `formatting.emit`/`formatting.render` as a raw, unhandled
-        `FormatError` instead of a diagnostic on the author's line."""
+        `FormatError` instead of a diagnostic on the author's line.
+
+        A spec with no `{}` field fails first, whatever the type: every
+        later stage parses it the same way. A plain number's spec is then
+        checked by compiling it the way codegen will (`formatting.emit`), so
+        anything codegen would refuse is reported here instead."""
+        try:
+            formatting.parse(spec)
+        except formatting.FormatError as exc:
+            notes = []
+            if "%" in spec and "{" not in spec:
+                notes.append("a format is text with '{}' fields: write the %-code "
+                             "inside one, e.g. '{:02d}' or '{:%H:%M}'")
+            self.bag.error("format", str(exc), span, notes=notes)
+            return
         coded = formatting.is_time_spec(spec)
         if formatting.is_duration(spec, bound.value.type):
             # strftime codes on a Number or Float read it as seconds.
@@ -234,6 +248,15 @@ class AbsenceChecks(Readers):
             # the wrong one silently renders nonsense (%M is minute, not month).
             try:
                 formatting.strftime_parts(spec, bound.value.type)
+            except formatting.FormatError as exc:
+                self.bag.error("format", str(exc), span)
+        else:
+            # A plain number (or string): `{}`, `{:d}`, `{:02d}`, `{:.1f}`.
+            # `{unit}` is checked against `units:` elsewhere, so it gets a
+            # stand-in here rather than a second error.
+            unit_stand_in = "unit"
+            try:
+                formatting.emit(spec, "value", bound.value.type, unit_code=unit_stand_in)
             except formatting.FormatError as exc:
                 self.bag.error("format", str(exc), span)
 
