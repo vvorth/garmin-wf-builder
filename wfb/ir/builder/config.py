@@ -389,16 +389,16 @@ class ConfigAxes(TopLevelBlocks):
         edit = raw.get("edit")
         if edit is not None:
             self.settings_edit = tuple(edit)
-            if "phone" in edit:
-                self.bag.error(
+            if "watch" not in edit:
+                self.bag.note(
                     "settings",
-                    "settings.edit: 'phone' is not built yet",
+                    "settings.edit: phone only -- on a sideloaded face nothing can "
+                    "change these settings",
                     self.doc.span(raw, "edit"),
-                    notes=["phone editing needs a generated settings.xml, which is on "
-                           "the not-implemented list (docs/limitations.md §2)",
-                           "Garmin Connect edits settings only for a Connect IQ Store "
-                           "install, never for a sideload "
-                           "(docs/research/17-phone-settings.md §2)"],
+                    notes=["Garmin Connect edits settings only for a Connect IQ Store "
+                           "install, private beta included, never for a sideload "
+                           "(docs/research/17-phone-settings.md §2)",
+                           "add 'watch' for the on-watch settings menu"],
                 )
         if edit is not None and len(raw) == 1:
             self.bag.error(

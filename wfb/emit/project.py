@@ -45,6 +45,9 @@ class GeneratedProject:
     #: `resources/settings/properties.xml`; empty, and not written, for a
     #: design without `settings:`.
     properties_text: str = ""
+    #: `resources/settings/settings.xml`; empty, and not written, unless
+    #: the design has `settings: edit: [phone]`.
+    settings_text: str = ""
     barrel: list[str] = field(default_factory=list)
     resolved: dict[str, ResolvedFace] = field(default_factory=dict)
     #: String literals that would still share a monkeyc `str___<hash>` label
@@ -65,6 +68,8 @@ class GeneratedProject:
         }
         if self.properties_text:
             out["resources/settings/properties.xml"] = self.properties_text
+        if self.settings_text:
+            out["resources/settings/settings.xml"] = self.settings_text
         for source in self.sources:
             out[source.path] = source.text
         return out
@@ -118,6 +123,8 @@ def generate(face: Face, devices: list[Device], root: Path,
     project.strings_text = resources.shared_strings(face)
     if face.settings:
         project.properties_text = resources.properties_resource(face)
+    if face.settings_phone:
+        project.settings_text = resources.settings_resource(face)
 
     for device in devices:
         device_resolved = (resolved or {}).get(device.id)

@@ -300,11 +300,47 @@ def test_the_app_opens_the_menu_through_the_delegate(write_design, db):
     assert "_view.selectSetting(item);" in delegate
 
 
-def test_edit_phone_is_not_built_yet(write_design):
-    for edit in ("[phone]", "[watch, phone]"):
-        text = DESIGN.replace("settings:\n", f"settings:\n  edit: {edit}\n")
-        (error,) = load_errors(text, write_design)
-        assert "settings.edit: 'phone' is not built yet" in error.message
+PHONE = DESIGN.replace("settings:\n", "settings:\n  edit: [watch, phone]\n")
+
+
+def test_edit_phone_describes_every_setting_for_garmin_connect(write_design, db):
+    files = _project(write_design, db, PHONE).files()
+    xml = files["resources/settings/settings.xml"]
+    assert ('<setting propertyKey="@Properties.show_dot" '
+            'title="@Strings.SettingShowDotTitle">\n'
+            '        <settingConfig type="boolean" />') in xml
+    # A choice is a list whose values are the indices properties.xml stores.
+    assert ('        <settingConfig type="list">\n'
+            '            <listEntry value="0">@Strings.SettingSide0</listEntry>\n'
+            '            <listEntry value="1">@Strings.SettingSide1</listEntry>\n'
+            '            <listEntry value="2">@Strings.SettingSide2</listEntry>\n') in xml
+    strings = files["resources/strings/strings.xml"]
+    for string_id, text in [("SettingShowDotTitle", "Show dot"), ("SettingSideTitle", "Dot side"),
+                            ("SettingSide0", "Left"), ("SettingSide2", "Top")]:
+        assert f'<string id="{string_id}">{text}</string>' in strings
+
+
+def test_no_settings_xml_without_edit_phone(write_design, db):
+    files = _project(write_design, db).files()
+    assert "resources/settings/settings.xml" not in files
+    assert "SettingShowDotTitle" not in files["resources/strings/strings.xml"]
+
+
+def test_edit_phone_alone_has_no_menu_and_says_so(write_design, db, bag):
+    text = DESIGN.replace("settings:\n", "settings:\n  edit: [phone]\n")
+    face = load_face(text, write_design, bag)
+    assert face.settings_phone and not face.settings_menu
+    (note,) = [d for d in bag.items if d.code == "settings"]
+    assert note.severity.value == "note"
+    assert "nothing can change these settings" in note.message
+    files = _project(write_design, db, text).files()
+    assert "resources/settings/settings.xml" in files
+    assert "getSettingsView" not in files["source/SettingsApp.mc"]
+
+
+def test_edit_watch_and_phone_gives_no_note(write_design, bag):
+    load_face(PHONE, write_design, bag)
+    assert not [d for d in bag.items if d.code == "settings"]
 
 
 def test_edit_alone_is_an_error(write_design):
@@ -414,12 +450,13 @@ def test_wfb_preview_set_flag(write_design, tmp_path):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("targets, slots", [
-    ("[fenix8solar47mm, fr955]", False),
-    ("[fenix5]", False),
-    ("[fenix8solar47mm, fr955]", True),
+@pytest.mark.parametrize("targets, slots, phone", [
+    ("[fenix8solar47mm, fr955]", False, False),
+    ("[fenix5]", False, True),
+    ("[fenix8solar47mm, fr955]", True, True),
 ])
-def test_settings_compile_warning_free(write_design, db, tmp_path, toolchain, targets, slots):
+def test_settings_compile_warning_free(write_design, db, tmp_path, toolchain, targets, slots,
+                                       phone):
     """The type-checked reads (`instanceof` narrowing inside `&&` and a
     ternary) and the menu's `MenuItem` handling are only proven by `monkeyc`
     itself; `fenix5` is the 3.1.0 floor and has no `getSettingsView`, and a
@@ -429,9 +466,34 @@ def test_settings_compile_warning_free(write_design, db, tmp_path, toolchain, ta
     text = DESIGN.replace("targets: [fenix8solar47mm, fr955]", f"targets: {targets}")
     if slots:
         text = text.replace("settings:\n", SLOT_CONFIG + "settings:\n") + SLOT_ELEMENT
+    if phone:
+        text = text.replace("settings:\n", "settings:\n  edit: [watch, phone]\n")
     bag = Bag()
     result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
     assert result is not None, bag.render()
     assert bag.ok(), bag.render()
     warnings = [d for d in bag.items if d.severity.value == "warning"]
     assert not warnings, "\n".join(d.message for d in warnings)
+
+
+@pytest.mark.slow
+def test_settings_xml_matches_monkeyc_s_own_settings_json(write_design, db, tmp_path, toolchain):
+    """`monkeyc` writes `<prg>-settings.json`, what the Store and Garmin
+    Connect read: the settings must come out as declared."""
+    import json
+
+    bag = Bag()
+    text = PHONE.replace("targets: [fenix8solar47mm, fr955]", "targets: [fr955]")
+    result = real_build(write_design(text), output=tmp_path, bag=bag, db=db, toolchain=toolchain)
+    assert result is not None and bag.ok(), bag.render()
+    prg = result.products["fr955"]
+    data = json.loads(prg.with_name(prg.stem + "-settings.json").read_text())
+    by_key = {entry["key"]: entry for entry in data["settings"]}
+    assert (by_key["show_dot"]["valueType"], by_key["show_dot"]["configType"],
+            by_key["show_dot"]["defaultValue"]) == ("boolean", "boolean", True)
+    side = by_key["side"]
+    assert (side["valueType"], side["configType"], side["defaultValue"]) == ("number", "list", 0)
+    assert [o["value"] for o in side["configOptions"]] == [0, 1, 2]
+    (strings,) = data["languages"].values()
+    assert [strings[o["display"]] for o in side["configOptions"]] == ["Left", "Right", "Top"]
+    assert strings[side["configTitle"]] == "Dot side"

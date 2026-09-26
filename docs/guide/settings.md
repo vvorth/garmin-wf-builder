@@ -38,7 +38,7 @@ simulator here, so this needs a sideload.
 | `type:` | a setting | `boolean` / `choice` | required | what the setting holds |
 | `default:` | a setting | a Boolean; a key of `choices:` | required | the value until the wearer changes it |
 | `choices:` | a `choice` setting | mapping of key → label, at least two | required | the options, in the order shown |
-| `edit:` | `settings:` | list of `watch` | `[watch]` | where the wearer edits them; `phone` is [not built yet](../limitations.md) |
+| `edit:` | `settings:` | list of `watch`, `phone` | `[watch]` | where the wearer edits them: the [menu on the watch](#editing-on-the-watch-and-on-the-phone), Garmin Connect, or both |
 
 ## Example
 
@@ -69,6 +69,27 @@ elements:
     visible: settings.ring == "battery"
 ```
 
+## Editing on the watch and on the phone
+
+`edit:` lists where the wearer edits the settings:
+
+- **`watch`** (the default) generates the settings menu above.
+- **`phone`** also generates `resources/settings/settings.xml`, which
+  Garmin Connect reads to show the settings on the phone: a `boolean` as a
+  switch, a `choice` as a list of its labels. **Garmin Connect edits
+  settings only for a face installed from the Connect IQ Store, private
+  beta included. It never does for a sideload,** so `phone` does nothing on
+  a sideloaded face. This project does not package or upload to the Store.
+  `phone` costs about 80 B, so it can stay on in case you ever do.
+- `edit: [phone]` alone generates no menu, and draws a note: on a sideload,
+  nothing can change these settings then.
+
+```yaml
+settings:
+  edit: [watch, phone]
+  show_seconds: { label: "Show seconds", type: boolean, default: true }
+```
+
 ## Reading a setting
 
 - A `boolean` setting is a Boolean anywhere an expression takes one:
@@ -95,6 +116,10 @@ elements:
   wrong type. A value of the wrong type, or a `choice` index out of range,
   falls back to `default:`.
 - `onSettingsChanged` in the app, which re-reads every setting and redraws.
+- With `edit: phone`, `resources/settings/settings.xml` and a string
+  resource for every title and choice label. `monkeyc` checks it and writes
+  `<face>-<device>-settings.json` beside each `.prg`, the file the Store
+  reads.
 - The menu: `settingsMenu()` and `selectSetting()` on the view, a
   `<Face>SettingsDelegate` class, and `getSettingsView()` on the app. A
   selection writes the property and then runs `applySettings()`, the same

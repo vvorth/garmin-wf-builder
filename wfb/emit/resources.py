@@ -25,6 +25,7 @@ from ..fonts import BakedFont, bake
 from ..fonts.bmfont import write as write_font
 from ..ir import (
     CONFIG_SYMBOL, Face, FontSpec, config_data_ids, config_label_id, config_style_label_id,
+    setting_choice_id, setting_title_id,
 )
 from ..palette import Color
 
@@ -342,12 +343,51 @@ def properties_resource(face: Face) -> str:
     return "\n".join(lines) + "\n"
 
 
+def settings_resource(face: Face) -> str:
+    """`resources/settings/settings.xml` -- how Garmin Connect shows each
+    setting, for `edit: phone`. Shared by every device.
+
+    A `boolean` is a `boolean` setting; a `choice` a `list` whose
+    `<listEntry value>` is the index `properties_resource` stores. Titles
+    and entry labels are string resources (`settings_strings`). Grammar:
+    `$CIQ_SDK/bin/resources.xsd`'s `settingType`/`settingConfigType`.
+    """
+    lines = [f"<settings {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">"]
+    for name, setting in face.settings.items():
+        lines.append(f'    <setting propertyKey="@Properties.{name}" '
+                     f'title="@Strings.{setting_title_id(name)}">')
+        if setting.type == "boolean":
+            lines.append('        <settingConfig type="boolean" />')
+        else:
+            lines.append('        <settingConfig type="list">')
+            for index in range(len(setting.choices)):
+                lines.append(f'            <listEntry value="{index}">'
+                             f"@Strings.{setting_choice_id(name, index)}</listEntry>")
+            lines.append("        </settingConfig>")
+        lines.append("    </setting>")
+    lines.append("</settings>")
+    return "\n".join(lines) + "\n"
+
+
+def settings_strings(face: Face) -> list[tuple[str, str]]:
+    """`(string id, text)` for every title and choice label `settings.xml`
+    names; empty unless the face has `edit: phone`."""
+    if not face.settings_phone:
+        return []
+    out: list[tuple[str, str]] = []
+    for name, setting in face.settings.items():
+        out.append((setting_title_id(name), setting.label))
+        for index, choice in enumerate(setting.choices):
+            out.append((setting_choice_id(name, index), choice.label))
+    return out
+
+
 def shared_strings(face: Face) -> str:
     lines = [
         f"<strings {_XMLNS} xsi:noNamespaceSchemaLocation=\"{_XSD}\">",
         f'    <string id="AppName">{escape(face.name)}</string>',
     ]
-    for string_id, text in config_label_strings(face):
+    for string_id, text in config_label_strings(face) + settings_strings(face):
         lines.append(f'    <string id="{string_id}">{escape(text)}</string>')
     lines.append("</strings>")
     return "\n".join(lines) + "\n"

@@ -1519,6 +1519,13 @@ class Face:
         return bool(self.config) or self.config_style is not None or bool(self.config_data)
 
     @property
+    def settings_phone(self) -> bool:
+        """Whether the build generates `settings.xml`, the phone-side
+        description of the settings: `settings:` exists and `edit:` includes
+        `phone`."""
+        return bool(self.settings) and "phone" in self.settings_edit
+
+    @property
     def settings_menu(self) -> bool:
         """Whether the build generates the on-watch settings menu
         (`AppBase.getSettingsView`): `settings:` exists and `edit:` includes

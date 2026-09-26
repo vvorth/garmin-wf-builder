@@ -48,6 +48,19 @@ def setting_field(name: str) -> str:
     return "_setting" + _pascal(name)
 
 
+def setting_title_id(name: str) -> str:
+    """The `<string>` resource id a setting's `label:` is emitted under for
+    `settings.xml` (``SettingShowSecondsTitle``)."""
+    return f"Setting{_pascal(name)}Title"
+
+
+def setting_choice_id(name: str, index: int) -> str:
+    """The `<string>` resource id of a `choice` setting's `index`-th label in
+    `settings.xml` (``SettingRing0``) -- keyed by position, like
+    `config_label_id`."""
+    return f"Setting{_pascal(name)}{index}"
+
+
 def setting_label_method(name: str) -> str:
     """The view method that turns a `choice` setting's index into its label
     (``settingLabelRing``), for the settings menu's sub-label."""

@@ -1,7 +1,7 @@
 # 21 — `settings:`: wearer settings on the watch, and on the phone
 
-**Status: decided (2026-09-27); slices 1-2 built.** The user took the
-recommendation on D1–D3 (§1). Slice 3 is next, and §6's checks on a watch
+**Status: decided (2026-09-27); slices 1-3 built.** The user took the
+recommendation on D1–D3 (§1). Slice 4 is next, and §6's checks on a watch
 are still open.
 Delete this file once every slice has shipped (`docs/CLAUDE.md`).
 
@@ -102,7 +102,9 @@ sharing the `--set` flag with sample-data overrides if those land first.
    a friendly error until slice 3.
 3. **`edit: phone`**, `settings.xml` and strings. Checked against the
    generated `-settings.json`. The guide says plainly that phone editing
-   needs a Store (beta) install.
+   needs a Store (beta) install. **Built.** +79 B on the example's three
+   settings; `edit: [phone]` alone draws a note, since nothing can then
+   change a setting on a sideload.
 4. **`color_scheme` settings**, sharing `color_scheme:`'s resolution with
    the Styles axis. A lint warns when one scheme set is chosen both by the
    Styles axis and by a setting.
