@@ -68,6 +68,7 @@ ALL_CODES = frozenset({
     "hold-overlap", "hold-unsupported",
     "hold-auto-ambiguous", "hold-auto-unresolved",
     "palette-dither", "partial-update", "partial-update-budget", "pattern",
+    "progress-segments",
     "pattern-step", "permission",
     "on-hold", "overrides", "raw-color", "safe-area", "schema", "shared-source",
     "shared-view", "source-renamed",
@@ -739,6 +740,24 @@ def check_config_support(resolved: ResolvedFace, bag: Bag) -> None:
 
 
 # -- check 4: geometry ------------------------------------------------------
+
+
+def check_progress_segments(resolved: ResolvedFace, bag: Bag) -> None:
+    """A `style: segments` progress whose `gap:` leaves no room for its
+    cells on this device draws nothing at all -- an error, never a silent
+    empty element (the gap is a length, so it depends on the screen)."""
+    for placed in resolved.items:
+        element = placed.element
+        if getattr(element, "style", None) != "segments" or placed.cell * placed.step > 0:
+            continue
+        unit = "degrees of arc" if element.geometry == "arc" else "px"
+        bag.error(
+            "progress-segments",
+            f"{element.id}: on {resolved.device.id}, {element.count} segments with this "
+            f"'gap:' leave {placed.cell:.1f} {unit} per cell -- nothing would be drawn",
+            element.span,
+            notes=["shrink 'gap:', lower 'count:', or lengthen the track"],
+        )
 
 
 def check_geometry(resolved: ResolvedFace, bag: Bag) -> None:
@@ -2305,7 +2324,7 @@ DESIGN_CHECKS = (
 #: derived from definition order.
 DEVICE_CHECKS = (
     check_palette, check_antialias_palette, check_config_palette,
-    check_color_scheme_palette, check_config_support, check_geometry,
+    check_color_scheme_palette, check_config_support, check_geometry, check_progress_segments,
     check_sub_pixel_length, check_text_fit, check_glyphs, check_contrast,
     check_partial_update_budget, check_hold_targets, check_dead_element,
     check_aod_unreachable, check_aod_empty, check_aod_burn_in, check_api_gated,

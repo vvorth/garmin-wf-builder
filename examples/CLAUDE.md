@@ -48,6 +48,11 @@ aligned to grow away from the centre, covering all four
 `align`×`vertical_align` combinations, plus every accepting shape, both
 `progress` styles, a static `icon`, and aligned hand/pattern parts.
 
+`features/progress/` (2026-09-26) is `progress` `style: segments` (ten
+battery cells round the rim with a track; five step cells on a bar with
+none) and `style: scale` (heart-rate zones as `bands:` with a pointer dot on
+an arc; a battery bar with its bottom 20% banded red).
+
 `features/gauge/` (2026-09-26) is `progress` with `style: needle`: a
 battery needle over a radial tick `pattern` sharing its start angle and
 sweep, with a data-driven colour and a hub part, and an off-centre

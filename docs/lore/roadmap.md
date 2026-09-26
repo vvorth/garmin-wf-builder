@@ -93,6 +93,12 @@ listed as shipped.
   (the interior pass paints over what's beneath it, it does not reveal
   it). Out of scope: `hands`/`icon` parts (plan 15 §13 D5) -- text and
   pattern `shape: text` parts only.
+- **`progress` `style: segments` and `style: scale`** (ADR 0004 §1,
+  amendment 2026-09-26): each on an arc or a bar track. `segments` lights
+  `round(fraction x count)` of `count:` cells (`gap:` a length, an angle
+  on an arc via the radius); `scale` draws the track, `bands:` zones and a
+  dot at the value. A `gap:` that leaves no cell on a device is an error
+  (`progress-segments`, `wfb.lint.check_progress_segments`).
 - **Gauge needles: `progress` with `style: needle`** (ADR 0004 amendment
   2026-09-26): the analog hands' rotation, driven by a bound fraction. The
   angle is `start_angle + fraction x sweep`, the mapping `style: arc`
@@ -255,7 +261,8 @@ specifies each item.
 1. `image` elements and the `raw` escape hatch (ADR 0007). Both give a
    friendly error.
 2. Per-device `overrides`: writing one is a build error.
-3. `segments`/`scale` progress styles.
+3. Ticks drawn by a `style: scale` progress itself (a radial `pattern`
+   does them today).
 4. Pace from `units:` (a duration format first), and `units:` on an
    expression or a `complication_slot`.
 5. **Phone-side settings**, the only route to any on-device config on fr955.

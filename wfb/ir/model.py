@@ -1210,6 +1210,23 @@ class Progress(Element):
     #: hand's (pointing at 12, the axis at the origin), each with its
     #: effective colour -- its own, or the element's `color:`.
     needle: tuple["HandPart", ...] = ()
+    #: `style: segments` only: how many cells, and the space between two.
+    count: int | None = None
+    gap: Length | None = None
+    #: `style: scale` only: `(to, colour)` zones along the track, `to` a
+    #: fraction of the full scale, strictly increasing; and the value dot's
+    #: radius (`None` for the track's own thickness or height).
+    bands: tuple[tuple[float, Expression], ...] = ()
+    pointer: Length | None = None
+
+    @property
+    def geometry(self) -> str:
+        """What the track is: ``"arc"``, ``"bar"`` or ``"needle"``.
+        `segments`/`scale` are whichever of an arc or a bar their keys
+        describe (a `radius:` means an arc)."""
+        if self.style in ("arc", "bar", "needle"):
+            return self.style
+        return "arc" if self.radius is not None else "bar"
 
     #: `when_absent:` governs the fraction `value:`/`maximum:` compute
     #: together -- one nullable reading is as absent as the other from the
@@ -1226,14 +1243,18 @@ class Progress(Element):
         # still has to reach permission derivation and the barrel scan.
         out.extend((ROLE_COLOR, part.color) for part in self.needle
                    if part.color is not None and part.color is not self.color)
+        out.extend((ROLE_COLOR, color) for _, color in self.bands)
         return out
 
     def color_roles(self) -> list["ColorRole"]:
-        """Every colour, a needle part's own included (`<id>.needle[<i>]`)."""
+        """Every colour, a needle part's own (`<id>.needle[<i>]`) and a scale
+        band's (`<id>.bands[<i>]`, a track colour) included."""
         out = super().color_roles()
         for index, part in enumerate(self.needle):
             if part.color is not None and part.color is not self.color:
                 out.append(ColorRole(f"{self.id}.needle[{index}]", part.color, "ink", False))
+        for index, (_, color) in enumerate(self.bands):
+            out.append(ColorRole(f"{self.id}.bands[{index}]", color, "track", False))
         return out
 
 

@@ -602,6 +602,18 @@ class PlacedProgress(Placed):
     #: the farthest ink from the axis (`center`).
     needle: tuple["ResolvedHandPart", ...] = ()
     reach: float = 0.0
+    #: `style: segments`: one cell's extent and the distance from one cell's
+    #: start to the next -- author degrees on an arc, pixels on a bar.
+    cell: float = 0.0
+    step: float = 0.0
+    #: `style: scale`: the value dot's radius, and each band's span --
+    #: `(start, sweep)` author degrees on an arc, `(x0, x1)` pixels from the
+    #: bar's left edge on a bar.
+    pointer: int = 0
+    band_spans: tuple[tuple[float, float], ...] = ()
+    #: `style: scale` on a bar: the bar's own rectangle, when `box` has grown
+    #: to hold the pointer dot (`PlacedShape.rect`'s precedent).
+    rect: "IntBox | None" = None
 
 
 @dataclass

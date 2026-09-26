@@ -1,5 +1,5 @@
-"""`type: progress` -- a bound fraction, drawn as an arc, a bar, or a
-gauge needle."""
+"""`type: progress` -- a bound fraction, drawn as an arc, a bar, a gauge
+needle, lit segments, or a scale with a pointer."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING
 from .. import expr
 from ..catalog import Type
 from ..ir.model import Element, Expression, Progress
-from ..layout import Placed, PlacedProgress, arc_box
+from ..layout import Placed, PlacedProgress, arc_box, stroke_pad
 from ..preview import arc_span
-from ..units import Axis, Box
+from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated, shapes
 from ..emit.monkeyc.common import NO_AOD, AodStyle, article, const_prefix, mc_float
@@ -117,6 +117,128 @@ def _build_needle(b, node: dict, element: Progress) -> bool:
     return ok
 
 
+#: Keys only one style reads, and which.
+_STYLE_ONLY_KEYS = {"needle": "needle", "count": "segments", "gap": "segments",
+                    "bands": "scale", "pointer": "scale"}
+
+_ARC_KEYS = ("radius", "thickness", "start_angle", "sweep")
+
+
+def _build_ticked(b, node: dict, element: Progress) -> bool:
+    """`style: segments`/`scale`: which track they draw on (an arc's four
+    keys, or a bar's `size:` -- exactly one), then their own keys.  False
+    when anything was reported."""
+    style = element.style
+    arc_given = [key for key in _ARC_KEYS if key in node]
+    if arc_given and "size" in node:
+        b.bag.error("element", f"{element.id}: 'style: {style}' draws on an arc or a bar, "
+                    "not both -- give an arc's radius/thickness/start_angle/sweep, or a "
+                    "bar's size", b.doc.span(node, "size"))
+        return False
+    if not arc_given and "size" not in node:
+        b.bag.error("element", f"{element.id}: 'style: {style}' needs a track -- an arc's "
+                    "radius, thickness, start_angle and sweep, or a bar's size",
+                    b.doc.span(node, "style"))
+        return False
+    missing = [key for key in _ARC_KEYS if key not in node] if arc_given else []
+    if missing:
+        b.bag.error("element", f"{element.id}: an arc 'style: {style}' also needs "
+                    + ", ".join(repr(k) for k in missing), b.doc.span(node, "style"))
+        return False
+    if style == "segments":
+        element.count = int(node["count"])
+        element.gap = b.length(node, "gap")
+        return True
+    element.pointer = b.length(node, "pointer")
+    bands = []
+    previous = 0.0
+    for index, raw in enumerate(node.get("bands") or []):
+        to = float(raw["to"])
+        if to <= previous:
+            b.bag.error("element", f"{element.id}.bands[{index}]: 'to: {raw['to']}' must be "
+                        f"greater than the previous band's ({previous:g}) -- bands run in "
+                        "order along the track", b.doc.span(raw, "to"))
+            return False
+        color = b.color_expression(raw, "color")
+        if color is None:
+            return False
+        b.check_other_absence(raw, element, "bands.color", color)
+        bands.append((to, color))
+        previous = to
+    element.bands = tuple(bands)
+    return True
+
+
+def _resolve_ticked(r: Resolver, element: Progress, placed: PlacedProgress,
+                    parent: Box) -> None:
+    """`segments`' cell and step, or `scale`'s pointer and band spans, on the
+    track `placed` already has (degrees on an arc, pixels on a bar)."""
+    min_1px = element.resolved_min_1px
+    arc = element.geometry == "arc"
+    length = placed.sweep if arc else float(placed.size[0])
+    if element.style == "segments":
+        gap = r.extent(element.gap, parent, Axis.MINOR, 2, min_1px=min_1px, what="gap")
+        if arc:
+            gap = math.degrees(gap / placed.radius) if placed.radius > 0 else 0.0
+            gap = math.copysign(gap, placed.sweep)
+        count = element.count
+        placed.cell = (length - (count - 1) * gap) / count
+        placed.step = placed.cell + gap
+        return
+    if element.pointer is not None:
+        placed.pointer = round(r.extent(element.pointer, parent, Axis.MINOR, 1,
+                                        min_1px=min_1px, what="pointer"))
+    else:
+        placed.pointer = placed.thickness if arc else placed.size[1]
+    spans = []
+    previous = 0.0
+    for to, _ in element.bands:
+        if arc:
+            spans.append((placed.start_angle + previous * placed.sweep, (to - previous) * placed.sweep))
+        else:
+            spans.append((float(int(length * previous)), float(int(length * to))))
+        previous = to
+    placed.band_spans = tuple(spans)
+    # The dot reaches past the track: grow the box the lints read, keeping
+    # the bar's own rectangle for drawing.
+    cx, cy = placed.center
+    if arc:
+        reach = placed.radius + max(stroke_pad(placed.thickness), placed.pointer)
+        placed.box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach).rounded()
+    else:
+        bar = placed.box
+        placed.rect = bar
+        dy = max(0, placed.pointer - bar.height // 2)
+        placed.box = IntBox(bar.x - placed.pointer, bar.y - dy,
+                            bar.width + 2 * placed.pointer, bar.height + 2 * dy)
+
+
+def _device_arc_span(garmin_start: float, sweep: float) -> tuple[int, int] | None:
+    """The Pillow `(start, end)` `WfbArc.drawSpan` draws from a Garmin start
+    angle -- rounded the way the device rounds it, not from the author's
+    angle, so a fractional cell start agrees to the degree."""
+    whole = max(-360, min(360, _round_away(sweep)))
+    if whole == 0:
+        return None
+    start = -_round_away(garmin_start)
+    end = start + whole
+    return (start, end) if whole > 0 else (end, start)
+
+
+def _round_away(value: float) -> int:
+    return int(value - 0.5) if value < 0 else int(value + 0.5)
+
+
+def _lit(fraction: float, count: int) -> int:
+    """How many segments light: `(fraction * count + 0.5).toNumber()`."""
+    return int(fraction * count + 0.5)
+
+
+def _mc_round(value: float) -> int:
+    """`Math.round(value).toNumber()` -- half up."""
+    return math.floor(value + 0.5)
+
+
 def _needle_angle_rad(placed: PlacedProgress, fraction: float) -> float:
     """The needle's angle, radians clockwise from 12 -- the host twin of the
     `start + fraction * sweep` line `emit_draw` writes."""
@@ -148,6 +270,133 @@ def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
         rotated.emit_transformed_part(
             w, part, part_prefix, radial=True,
             thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
+
+
+def _preview_ticked(renderer, placed: PlacedProgress, fraction: float, color, track_color) -> None:
+    """`segments`/`scale` in the preview, mirroring `_emit_ticked` rounding
+    for rounding: `WfbArc.drawSpan`'s whole degrees from a Garmin start, and
+    `toNumber()`'s truncation on a bar."""
+    element = placed.element
+    s = renderer.scale
+    arc = element.geometry == "arc"
+    if arc:
+        cx, cy, radius = placed.center[0] * s, placed.center[1] * s, placed.radius * s
+        width = max(1, renderer.aod_geometry(placed, "thickness", placed.thickness) * s)
+        box = [cx - radius, cy - radius, cx + radius, cy + radius]
+
+        def arc_cell(garmin_start: float, sweep: float, fill) -> None:
+            span = _device_arc_span(garmin_start, sweep)
+            if span is not None:
+                renderer.draw.arc(box, *span, fill=fill, width=width)
+    rect = placed.rect or placed.box
+    x, y, w, h = rect.x, rect.y, rect.width, rect.height
+
+    def bar_cell(x0: int, x1: int, fill) -> None:
+        if x1 > x0:
+            renderer.draw.rectangle([(x + x0) * s, y * s, (x + x1) * s - 1, (y + h) * s - 1],
+                                    fill=fill)
+
+    if element.style == "segments":
+        lit = _lit(fraction, element.count)
+        for i in range(element.count):
+            fill = color if i < lit else track_color
+            if fill is None:
+                continue
+            if arc:
+                arc_cell(placed.garmin_start - i * placed.step, placed.cell, fill)
+            else:
+                x0 = int(i * placed.step)
+                bar_cell(x0, int(i * placed.step + placed.cell), fill)
+        return
+    if track_color is not None:
+        if arc:
+            arc_cell(placed.garmin_start, placed.sweep, track_color)
+        else:
+            bar_cell(0, w, track_color)
+    for (a, b), (_, band_color) in zip(placed.band_spans, element.bands):
+        fill = renderer.aod_dimmed(element, band_color)
+        if arc:
+            arc_cell(90.0 - a, b, fill)
+        else:
+            bar_cell(int(a), int(b), fill)
+    if arc:
+        angle = math.radians(placed.start_angle) + fraction * math.radians(placed.sweep)
+        px = placed.center[0] + _mc_round(placed.radius * math.sin(angle))
+        py = placed.center[1] - _mc_round(placed.radius * math.cos(angle))
+    else:
+        px = x + int(w * fraction)
+        py = y + h // 2
+    r = placed.pointer * s
+    renderer.draw.ellipse([px * s - r, py * s - r, px * s + r, py * s + r], fill=color)
+
+
+def _emit_ticked(w: Writer, element: Progress, placed: PlacedProgress, prefix: str,
+                 fraction_expr: str, color_code: str, track_color_code: str | None,
+                 aod: AodStyle) -> None:
+    """`style: segments`: `(fraction * COUNT + 0.5).toNumber()` cells lit in
+    `color:`, the rest in `track_color:` (or not drawn). `style: scale`: the
+    track, each band, then a dot at the value. An arc cell or band is one
+    `WfbArc.drawSpan`, so it follows the whole-degree rule every arc here
+    does; a bar's cell edges truncate like `style: bar`'s fill."""
+    arc = element.geometry == "arc"
+    thickness_expr = shapes.thickness_expr(prefix, placed, aod) if arc else None
+    L = f"Layout.{prefix}"
+
+    def arc_span_call(start: str, sweep: str) -> None:
+        w.call("WfbArc.drawSpan", [f"dc, {L}_CX, {L}_CY, {L}_RADIUS",
+                                   f"{thickness_expr}, {start}, {sweep}"])
+
+    def bar_rect(x0: str, x1: str) -> None:
+        w.line(f"var x0 = {x0};")
+        w.line(f"dc.fillRectangle({L}_X + x0, {L}_Y, {x1} - x0, {L}_HEIGHT);")
+
+    if element.style == "segments":
+        count = element.count
+        w.line(f"var lit = (({fraction_expr}) * {count} + 0.5).toNumber();")
+        if track_color_code is None:
+            w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+        bound = "lit" if track_color_code is None else str(count)
+        with w.block(f"for (var i = 0; i < {bound}; i++)"):
+            if track_color_code is not None:
+                w.line(f"dc.setColor((i < lit) ? {color_code} : {track_color_code}, "
+                       "Graphics.COLOR_TRANSPARENT);")
+            if arc:
+                arc_span_call(f"{L}_START - i * {L}_STEP", f"{L}_CELL")
+            else:
+                bar_rect(f"(i * {L}_STEP).toNumber()", f"(i * {L}_STEP + {L}_CELL).toNumber()")
+        return
+
+    if track_color_code is not None:
+        w.comment("the track")
+        w.line(f"dc.setColor({track_color_code}, Graphics.COLOR_TRANSPARENT);")
+        if arc:
+            shapes.emit_arc_span(w, prefix, thickness_expr)
+        else:
+            w.line(f"dc.fillRectangle({L}_X, {L}_Y, {L}_WIDTH, {L}_HEIGHT);")
+    for index, (_, band_color) in enumerate(element.bands):
+        w.comment(f"band {index}")
+        w.line(f"dc.setColor({aod.dimmed(element, band_color)}, Graphics.COLOR_TRANSPARENT);")
+        if arc:
+            arc_span_call(f"{L}_BAND_{index}_START", f"{L}_BAND_{index}_SWEEP")
+        else:
+            w.line(f"dc.fillRectangle({L}_X + {L}_BAND_{index}_X0, {L}_Y, "
+                   f"{L}_BAND_{index}_X1 - {L}_BAND_{index}_X0, {L}_HEIGHT);")
+    w.comment("the pointer")
+    w.line(f"dc.setColor({color_code}, Graphics.COLOR_TRANSPARENT);")
+    if arc:
+        start = math.radians(placed.start_angle)
+        sweep = math.radians(placed.sweep)
+        w.line(f"var angle = {mc_float(start)} + ({fraction_expr}) * {mc_float(sweep)};")
+        w.call("dc.fillCircle", [
+            f"{L}_CX + Math.round({L}_RADIUS * Math.sin(angle)).toNumber()",
+            f"{L}_CY - Math.round({L}_RADIUS * Math.cos(angle)).toNumber()",
+            f"{L}_POINTER",
+        ])
+    else:
+        w.call("dc.fillCircle", [
+            f"{L}_X + ({L}_WIDTH * ({fraction_expr})).toNumber()",
+            f"{L}_Y + {L}_HEIGHT / 2", f"{L}_POINTER",
+        ])
 
 
 class ProgressKind(ElementKind):
@@ -193,13 +442,17 @@ class ProgressKind(ElementKind):
             b.check_absence(node, element, probe, element.when_absent, None, element.fallback,
                             key="value")
             _check_fallback_fraction(b, node, element)
+        for key, owner in _STYLE_ONLY_KEYS.items():
+            if key in node and element.style != owner:
+                b.bag.error("element", f"{element.id}: '{key}:' is read only by 'style: {owner}'",
+                            b.doc.span(node, key))
+                return None
         if element.style == "needle":
             if not _build_needle(b, node, element):
                 return None
-        elif "needle" in node:
-            b.bag.error("element", f"{element.id}: 'needle:' is read only by 'style: needle'",
-                        b.doc.span(node, "needle"))
-            return None
+        elif element.style in ("segments", "scale"):
+            if not _build_ticked(b, node, element):
+                return None
         b.check_other_absence(node, element, "color", element.color)
         b.check_other_absence(node, element, "track_color", element.track_color)
         b.check_reachable_substitute(node, element, "'color'/'track_color'",
@@ -210,7 +463,7 @@ class ProgressKind(ElementKind):
     def resolve(self, r: Resolver, element: Progress, parent: Box, depth: int) -> Placed:
         cx, cy = r.point(element.at, parent)
         min_1px = element.resolved_min_1px
-        if element.style == "arc":
+        if element.geometry == "arc":
             radius = round(r.extent(element.radius, parent, Axis.MINOR, 0,
                                     min_1px=min_1px, what="radius"))
             thickness = max(1, round(r.extent(element.thickness, parent, Axis.MINOR, 1,
@@ -222,7 +475,7 @@ class ProgressKind(ElementKind):
                 radius, thickness, cx, cy, element.align, element.vertical_align,
                 element.start_angle, element.sweep)
             aod_thickness = r.aod_extent(element, "thickness", parent, 1)
-            return PlacedProgress(
+            placed = PlacedProgress(
                 element, box, (round(cx), round(cy)), depth,
                 radius=radius, thickness=thickness,
                 start_angle=start, sweep=sweep,
@@ -230,6 +483,9 @@ class ProgressKind(ElementKind):
                 garmin_direction=direction,
                 aod_thickness=aod_thickness,
             )
+            if element.style in ("segments", "scale"):
+                _resolve_ticked(r, element, placed, parent)
+            return placed
         if element.style == "needle":
             parts, reach = r.resolve_parts(list(element.needle), f"{element.id}.needle",
                                            min_1px=min_1px)
@@ -241,12 +497,16 @@ class ProgressKind(ElementKind):
                 aod_thickness=r.aod_extent(element, "thickness", parent, 1),
             )
         box, cx, cy = r.sized_box(element, parent, cx, cy)
-        return PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)), depth,
-                              size=(round(box.width), round(box.height)))
+        placed = PlacedProgress(element, box.rounded(min_1px=min_1px), (round(cx), round(cy)),
+                                depth, size=(round(box.width), round(box.height)))
+        if element.style in ("segments", "scale"):
+            _resolve_ticked(r, element, placed, parent)
+        return placed
 
     def circular_extent(self, placed: PlacedProgress):
-        if placed.element.style == "arc":
-            return (placed.center[0], placed.center[1], placed.radius + placed.thickness / 2.0)
+        if placed.element.geometry == "arc":
+            reach = placed.radius + max(placed.thickness / 2.0, float(placed.pointer))
+            return (placed.center[0], placed.center[1], reach)
         if placed.element.style == "needle":
             return (placed.center[0], placed.center[1], placed.reach)
         return None
@@ -281,6 +541,11 @@ class ProgressKind(ElementKind):
                                    sin_t, cos_t)
             return
         color = renderer.aod_color(element, "color", element.color)
+        track_color = (renderer.aod_color(element, "track_color", element.track_color)
+                       if element.track_color is not None else None)
+        if element.style in ("segments", "scale"):
+            _preview_ticked(renderer, placed, fraction, color, track_color)
+            return
 
         if element.style == "arc":
             cx, cy, r = placed.center[0] * s, placed.center[1] * s, placed.radius * s
@@ -333,6 +598,10 @@ class ProgressKind(ElementKind):
         if element.style == "needle":
             _emit_needle(w, element, placed, prefix, fraction_expr, aod)
             return
+        if element.style in ("segments", "scale"):
+            _emit_ticked(w, element, placed, prefix, fraction_expr, color_code,
+                         track_color_code, aod)
+            return
         if element.style == "arc":
             thickness_expr = shapes.thickness_expr(prefix, placed, aod)
             if element.track_color is not None:
@@ -371,17 +640,33 @@ class ProgressKind(ElementKind):
             (f"{prefix}_CX", placed.center[0], ""),
             (f"{prefix}_CY", placed.center[1], ""),
         ]
-        if placed.element.style == "arc":
+        element = placed.element
+        if element.geometry == "arc":
             out.extend(layout_constants_mod.arc_constants(prefix, placed))
             out.extend(layout_constants_mod.aod_thickness_constant(prefix, placed))
-        elif placed.element.style == "needle":
+        elif element.style == "needle":
             out.extend(layout_constants_mod.aod_thickness_constant(
                 prefix, placed, layout_constants_mod.EVERY_PART_NOTE))
             for index, part in enumerate(placed.needle):
                 out.extend(layout_constants_mod.hand_part_constants(
                     f"{prefix}_NEEDLE_{index}", "needle", index, part))
         else:
-            out.extend(layout_constants_mod.box_constants(prefix, placed.box))
+            out.extend(layout_constants_mod.box_constants(prefix, placed.rect or placed.box))
+        if element.style == "segments":
+            unit = "degrees" if element.geometry == "arc" else "px"
+            out.append((f"{prefix}_CELL", float(placed.cell), f"one cell, {unit}"))
+            out.append((f"{prefix}_STEP", float(placed.step), f"cell start to cell start, {unit}"))
+        elif element.style == "scale":
+            out.append((f"{prefix}_POINTER", placed.pointer, "the value dot's radius"))
+            for index, (a, b) in enumerate(placed.band_spans):
+                if element.geometry == "arc":
+                    out.append((f"{prefix}_BAND_{index}_START", float(90.0 - a),
+                                f"{a:g}deg clockwise from 12 o'clock, in Garmin's convention"))
+                    out.append((f"{prefix}_BAND_{index}_SWEEP", float(b),
+                                "clockwise-positive degrees"))
+                else:
+                    out.append((f"{prefix}_BAND_{index}_X0", int(a), "px from the bar's left"))
+                    out.append((f"{prefix}_BAND_{index}_X1", int(b), ""))
         return out
 
     def contrast_subjects(self, placed: PlacedProgress):

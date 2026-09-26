@@ -1,0 +1,103 @@
+# `progress` with `style: segments` and `style: scale`
+# (docs/guide/progress-and-graphs.md "Segments and scales"), each on both
+# tracks a progress can draw on: an arc (radius, thickness, start_angle,
+# sweep) or a bar (size).
+#
+# * **Segments on an arc** (`battery_segments`): the battery as ten cells
+#   round the rim, round(fraction x count) of them lit in `color:`, the rest
+#   in `track_color:`, separated by a 3 px `gap:`.
+# * **Segments on a bar** (`steps_segments`): five cells, no track -- only
+#   the lit cells draw.
+# * **A scale on an arc** (`hr_scale`): heart rate over three coloured
+#   `bands:` (zones, as fractions of the full 200 bpm scale), with a dot at
+#   the reading. The bands cover the whole track, so no `track_color:`.
+# * **A scale on a bar** (`battery_scale`): the battery with its bottom 20%
+#   banded red, a grey track above it, and the dot at the reading.
+#
+# Ticks round a scale are a radial `pattern` (docs/guide/patterns.md),
+# sharing its start angle and sweep -- a scale draws no ticks of its own.
+#
+# Build it with:     ./wfb.py build examples/features/progress/face.yaml
+# Preview it with:   ./wfb.py preview examples/features/progress/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-1.schema.json
+
+format: 1
+face:
+  id: 7ba9e8b9-02f3-4fa6-9af0-cbc1b842e25f
+  name: Feature progress
+  version: 1.0.0
+targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+palette:
+  bg: "#000000"
+  fg: "#FFFFFF"
+  track: "#555555"
+  accent: "#00AAFF"
+  ok: "#00AA00"
+  warn: "#FFAA00"
+  bad: "#FF0000"
+
+static:
+  - id: background
+    type: shape
+    shape: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: palette.bg
+
+elements:
+  - id: battery_segments
+    type: progress
+    style: segments
+    value: system.battery
+    max: 100
+    at: { anchor: center }
+    radius: 84%r
+    thickness: 6%r
+    start_angle: 210deg
+    sweep: 300deg
+    count: 10
+    gap: 3px
+    color: palette.accent
+    track_color: palette.track
+
+  - id: steps_segments
+    type: progress
+    style: segments
+    value: activity.steps
+    max: activity.step_goal
+    at: { anchor: center, dy: -22%r }
+    size: { width: 60%, height: 5% }
+    count: 5
+    color: palette.fg
+    when_absent: hide
+
+  - id: hr_scale
+    type: progress
+    style: scale
+    value: heart_rate.current
+    max: 200
+    at: { anchor: center }
+    radius: 58%r
+    thickness: 3px
+    start_angle: 240deg
+    sweep: 240deg
+    color: palette.fg
+    bands:
+      - { to: 0.6, color: palette.ok }
+      - { to: 0.8, color: palette.warn }
+      - { to: 1.0, color: palette.bad }
+    when_absent: hide
+
+  - id: battery_scale
+    type: progress
+    style: scale
+    value: system.battery
+    max: 100
+    at: { anchor: center, dy: 30%r }
+    size: { width: 50%, height: 2% }
+    color: palette.fg
+    track_color: palette.track
+    bands:
+      - { to: 0.2, color: palette.bad }

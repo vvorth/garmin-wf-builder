@@ -273,7 +273,6 @@ is `docs/lore/roadmap.md`. Turn-one summary:
 - **Not implemented:**
   - `image` and `raw` elements (friendly error);
   - per-device `overrides` (writing one is a build error);
-  - `segments`/`scale` progress styles;
   - pace from `units:` (distance, elevation, temperature and speed convert);
   - a `pattern`'s/`complication_slot`'s own `aod: {font: ...}` override;
     any `aod: {font: ...}` naming a `face:` (vector) font (plan 14 §4.3);
@@ -306,7 +305,9 @@ is `docs/lore/roadmap.md`. Turn-one summary:
     those elements can take and checked by a new suppressible lint,
     `text-outline-interior`;
   - gauge needles: `progress` with `style: needle`, a hand's parts turned
-    to `start_angle + fraction x sweep` (`docs/guide/progress-and-graphs.md`);
+    to `start_angle + fraction x sweep`, and `style: segments`/`scale`
+    (lit cells; bands and a pointer dot) on an arc or a bar
+    (`docs/guide/progress-and-graphs.md`);
   - `units: auto|metric|statute` on a `text` element (ADR 0005 §4):
     distance, elevation, temperature and speed in the wearer's own units,
     compiled as an expression over the source and `device.<x>_units`, with

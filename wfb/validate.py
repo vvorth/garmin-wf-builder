@@ -239,6 +239,9 @@ def _check_progress_style_keys(doc: YamlDocument, bag: Bag, element: dict) -> bo
     if element.get("type") != "progress":
         return False
     style = element.get("style")
+    # `segments`/`scale` take either an arc's keys or a bar's, so no key of
+    # the three fixed-geometry styles is "the wrong style's" there; the
+    # builder checks which geometry they chose (`wfb.kinds.progress`).
     if style not in _PROGRESS_STYLE_KEYS:
         return False
     own = set(_PROGRESS_STYLE_KEYS[style])

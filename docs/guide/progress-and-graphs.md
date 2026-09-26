@@ -14,15 +14,19 @@ the same placement rule as every other element with a box.
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `style` | `arc`\|`bar`\|`needle` | required | ring, bar, or [gauge needle](#gauge-needles) |
+| `style` | `arc`\|`bar`\|`needle`\|`segments`\|`scale` | required | ring, bar, [gauge needle](#gauge-needles), or [segments or a scale](#segments-and-scales) |
 | `value` | expression | required | the fill amount |
 | `max` | expression | required | the full-scale amount |
-| `radius` | length | required (`arc`) | ring radius |
-| `thickness` | length | required (`arc`) | pen width |
+| `radius` | length | required (`arc`; `segments`/`scale` on an arc) | ring radius |
+| `thickness` | length | required (`arc`; `segments`/`scale` on an arc) | pen width |
 | `start_angle` | angle | required (`arc`, `needle`) | where the ring starts, or where the needle points at 0 |
 | `sweep` | angle | required (`arc`, `needle`) | how far the ring sweeps, or the needle turns at full scale |
 | `needle` | 1–16 [hand parts](analog-hands.md#analog-hands) | required (`needle`) | the needle, pointing at 12, axis at `at:` |
-| `size` | size | required (`bar`) | the bar's box |
+| `size` | size | required (`bar`; `segments`/`scale` on a bar) | the bar's box |
+| `count` | 2–60 | required (`segments`) | how many cells |
+| `gap` | length | `2px` (`segments`) | space between two cells |
+| `bands` | 1–8 `{to, color}` | — (`scale`) | coloured zones along the track, `to` a fraction 0–1 |
+| `pointer` | length | the track's thickness or height (`scale`) | radius of the dot at the value |
 | `color` | color expression | — | fill colour |
 | `track_color` | color expression | — | the unfilled track |
 | `align` / `vertical_align` | `left`\|`center`\|`right` / `top`\|`center`\|`bottom` | `center` | box edge at `at:`, both styles ([details](placement.md#placement-at-and-align)) |
@@ -141,6 +145,66 @@ are not read by a needle, and each is an error saying so: its length is
 its parts, and `at:` is the axis, not a box. Draw the dial itself with a
 separate `style: arc` progress or a radial `pattern` of ticks, sharing the
 needle's `start_angle` and `sweep` (`examples/features/gauge/face.yaml`).
+
+#### Segments and scales
+
+Both draw on a track: an **arc** (`radius`, `thickness`, `start_angle`,
+`sweep`, exactly as `style: arc`) or a **bar** (`size`, as `style: bar`).
+Give one or the other; both, neither, or half an arc is an error.
+
+```yaml
+- id: battery_segments
+  type: progress
+  style: segments
+  value: system.battery
+  max: 100
+  at: { anchor: center }
+  radius: 84%r
+  thickness: 6%r
+  start_angle: 210deg
+  sweep: 300deg
+  count: 10                   # ten cells...
+  gap: 3px                    # ...3 px apart, measured along the arc
+  color: palette.accent       # lit cells
+  track_color: palette.track  # the rest (omit to draw only the lit ones)
+
+- id: hr_scale
+  type: progress
+  style: scale
+  value: heart_rate.current
+  max: 200
+  at: { anchor: center }
+  radius: 58%r
+  thickness: 3px
+  start_angle: 240deg
+  sweep: 240deg
+  color: palette.fg           # the pointer dot
+  bands:                      # zones, as fractions of the full scale
+    - { to: 0.6, color: palette.ok }
+    - { to: 0.8, color: palette.warn }
+    - { to: 1.0, color: palette.bad }
+  when_absent: hide
+```
+
+**`segments`** divides the track into `count:` equal cells with `gap:`
+between them (a length; on an arc it is measured along the arc at
+`radius:`), and lights `round(fraction × count)` of them in `color:` — so
+34% of 10 cells lights 3, and 36% lights 4. The rest draw in
+`track_color:`, or not at all without one. On an arc each cell is one
+`drawArc`, so it follows the whole-degree rule every arc here does; on a
+bar, cell edges land on whole pixels the way `style: bar`'s fill does. A
+`gap:` so wide that no cell is left on some device is an error
+(`progress-segments`), not an empty element.
+
+**`scale`** draws the track in `track_color:`, then each of `bands:` over
+it — each band runs from the previous band's `to:` (the first from 0) to
+its own, `to:` strictly increasing — then a dot of radius `pointer:` at the
+value, in `color:`. The dot defaults to the track's own thickness (arc) or
+height (bar), twice as thick as the track, and the element's extent grows
+to hold it. A scale draws no ticks of its own: ticks are a radial
+`pattern` sharing its `start_angle` and `sweep`, as in the gauge example.
+
+`examples/features/progress/face.yaml` shows both styles on both tracks.
 
 ### `graph`
 
@@ -264,4 +328,6 @@ is unmeasured** — see `docs/limitations.md`.
 - [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — two `style: arc` battery progress rings.
 - [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — the shared alignment rule.
 - [Elements](elements.md) — the common keys every element shares (`modes`, `visible`, `static`, `antialias`, `min_1px`, `lint`, `on_hold`).
-- [`docs/limitations.md`](../limitations.md) — `SensorHistory`/solar series and `segments`/`scale` progress styles are not implemented.
+- [`docs/limitations.md`](../limitations.md) — `SensorHistory`/solar series are not implemented.
+- [`examples/features/progress/face.yaml`](../../examples/features/progress/face.yaml) — `segments` and `scale` on an arc and on a bar.
+- [`examples/features/gauge/face.yaml`](../../examples/features/gauge/face.yaml) — gauge needles.

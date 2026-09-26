@@ -1496,12 +1496,52 @@
           "const": "progress"
         },
         "style": {
-          "description": "arc is setPenWidth + drawArc. Garmin has no filled-sector primitive anywhere in the API, so thickness is a pen width and inner/outer radii are deliberately not offered. needle is a gauge: 'needle:' parts turned about 'at:' to start_angle + fraction x sweep, with the analog hands' rotation machinery.",
+          "description": "arc is setPenWidth + drawArc. Garmin has no filled-sector primitive anywhere in the API, so thickness is a pen width and inner/outer radii are deliberately not offered. needle is a gauge: 'needle:' parts turned about 'at:' to start_angle + fraction x sweep, with the analog hands' rotation machinery. segments is 'count:' cells lit one by one; scale is a track with coloured 'bands:' and a pointer dot at the value. segments and scale take an arc's keys (radius, thickness, start_angle, sweep) or a bar's (size).",
           "enum": [
             "arc",
             "bar",
-            "needle"
+            "needle",
+            "segments",
+            "scale"
           ]
+        },
+        "count": {
+          "description": "style: segments only -- how many cells; round(fraction x count) of them light in 'color:', the rest draw in 'track_color:'.",
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 60
+        },
+        "gap": {
+          "description": "style: segments only -- the space between two cells, a length (default 2px). On an arc it is measured along the arc at 'radius:'.",
+          "$ref": "#/$defs/length"
+        },
+        "bands": {
+          "description": "style: scale only -- coloured zones along the track, each running from the previous band's 'to:' (the first from 0) to its own. 'to:' is a fraction of the full scale, 0-1 exclusive of 0, strictly increasing. The rest of the track draws in 'track_color:'.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": [
+              "to",
+              "color"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "to": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1
+              },
+              "color": {
+                "$ref": "#/$defs/colorExpression"
+              }
+            }
+          }
+        },
+        "pointer": {
+          "description": "style: scale only -- the radius of the dot drawn at the value, in 'color:'. Default: the track's thickness (arc) or height (bar), so the dot is twice as thick as the track.",
+          "$ref": "#/$defs/length"
         },
         "needle": {
           "description": "style: needle only -- the needle's parts, authored exactly like an analog hand's (docs/guide/analog-hands.md): pointing at 12 o'clock, in a frame whose origin is the axis ('at:'), drawn in this order. A part with no 'color:' takes the element's own 'color:'.",
@@ -1645,6 +1685,23 @@
               "start_angle",
               "sweep",
               "needle"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "style": {
+                "const": "segments"
+              }
+            },
+            "required": [
+              "style"
+            ]
+          },
+          "then": {
+            "required": [
+              "count"
             ]
           }
         }

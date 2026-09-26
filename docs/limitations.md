@@ -660,7 +660,7 @@ user's own playground" in CLAUDE.md), not a platform gap.
 | Per-layout fonts, or a per-layout `onPartialUpdate` clip | plan 02 §6.8, §5.6. Every layout's fonts load in `onLayout` regardless of which is active (measured, not assumed to be a problem); `resolved.clip_for("low_power")` unions low-power elements across *every* layout, conservatively -- see that method's own docstring in `wfb/layout.py` |
 | Moving a per-frame data-source read inside its own layout's guard (only the draw calls are guarded; every read still runs every frame) | plan 02 §6.4 -- a later optimisation, only worth doing if measured |
 | The fr955 `excludeAnnotations` strip for an unreachable layout's compiled-in code | plan 02 §6.8 -- needs a probe, only worth doing if fr955 runs short of memory |
-| `segments` and `scale` progress styles | ADR 0004 §1 |
+| Ticks drawn by a `style: scale` progress itself | ADR 0004 §1 lists "ticks + coloured range band + pointer"; the band and the pointer are built, and ticks are a radial `pattern` sharing the scale's `start_angle`/`sweep` rather than a second tick mechanism |
 | Pace from `units:` (m/s to min/km or min/mi) | ADR 0005 §4 -- `units:` converts distance, elevation, temperature and speed (`docs/guide/data.md` "Units"); pace is a duration, and `format:` has no duration spec (`4:30`) to show one |
 | `units:` on an expression, or on a `complication_slot` | a conversion needs the unit its value is in, which only a bare source states; a slot's value is whatever the wearer picked, so there is no one unit to convert from |
 | `wfb install`, `package`, `migrate`; the GUI | brief, Phase 3 |

@@ -471,5 +471,17 @@ expression and not the clock's formulas. The parts are an analog hand's
 (§1's rotatable primitives), rotated on the device by the same
 `WfbGeom` helpers, so §3's "the device does no layout arithmetic" keeps
 the one exception it already made for hands and nothing more.
-`segments` and `scale` remain unbuilt.
+
+
+**Amendment 2026-09-26: `style: segments` and `style: scale` are built.**
+Both draw on either track the other styles use: an arc (`radius`,
+`thickness`, `start_angle`, `sweep`) or a bar (`size`), whichever keys are
+given (`Progress.geometry`). `segments` is §1's "a repeated shape filling
+one by one": `count:` equal cells separated by a `gap:` length, of which
+`round(fraction × count)` light. `scale` is §1's "coloured range band +
+pointer": the track, `bands:` zones given as fractions of the full scale,
+and a dot at the value. §1's "ticks" are not part of `scale`: a radial
+`pattern` sharing the scale's `start_angle`/`sweep` already draws ticks
+exactly, so a second tick mechanism inside `progress` would only duplicate
+it (`docs/limitations.md` §2).
 
