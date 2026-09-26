@@ -25,7 +25,7 @@ styles the wearer switches between on the watch.*
 ## Quick start
 
 ```sh
-./tools/setup-env.sh              # SDK, signing key, fonts, .venv (Linux; macOS uses Docker)
+./tools/setup-env.sh              # SDK, signing key, fonts, .venv (Linux or macOS)
 alias wfb="$PWD/wfb.py"
 wfb new "My Face"                 # a working face from a template
 wfb preview my-face.yaml --watch  # a PNG that redraws every time you save

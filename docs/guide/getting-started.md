@@ -21,8 +21,8 @@ on the file `wfb new` writes for you here.
 
 | | |
 |---|---|
-| **Linux** | Tested. `tools/setup-env.sh` installs everything else. You need `bash`, `curl`, `unzip`, `openssl`, Python 3 with `venv` (or `uv`), and Java 21 or newer (Garmin's compiler is a Java program). The script checks for all of these first. |
-| **macOS** | Use the Docker image. It is tested with [OrbStack](https://orbstack.dev). `setup-env.sh` fetches the Linux SDK, so it doesn't work on a Mac itself. |
+| **Linux** | Tested. `tools/setup-env.sh` installs everything else. You need `bash`, `curl`, `unzip`, `openssl`, Python 3.11 or newer with `venv` (or `uv`), and Java 21 or newer (Garmin's compiler is a Java program). The script checks for all of these first. |
+| **macOS** | `tools/setup-env.sh` runs natively. Install SDK 9.2.0 and your devices with Garmin's SDK Manager first (step 1): the script uses both where the SDK Manager put them. You need Python 3.11 or newer (the one macOS ships is too old: `brew install python@3.13`) and Java 21 or newer (`brew install --cask temurin@21`). The Docker image works too, tested with [OrbStack](https://orbstack.dev). |
 | **Windows** | Not tested. |
 | **A Garmin account** | Needed once, to download the device definitions (step 1). |
 | **A watch** | any Connect IQ watch that can run a watch face ([which watches](#which-watches)), and its USB cable. |
@@ -35,12 +35,16 @@ hand:
 
 1. Install Garmin's
    [Connect IQ SDK Manager](https://developer.garmin.com/connect-iq/sdk/), sign
-   in, and download the devices you build for.
+   in, and download the devices you build for. On macOS, download SDK 9.2.0
+   there too.
 2. The SDK Manager saves them here:
    - macOS: `~/Library/Application Support/Garmin/ConnectIQ/Devices`
    - Linux: `~/.Garmin/ConnectIQ/Devices`
    - Windows: `%APPDATA%\Garmin\ConnectIQ\Devices`
 3. Where to put them depends on how you run `wfb`:
+   - **macOS:** nothing to do. `setup-env.sh`, `wfb` and Garmin's compiler
+     all read `~/Library/Application Support/Garmin/ConnectIQ/Devices` in
+     place.
    - **Linux, downloaded on this machine:** nothing to do. `setup-env.sh` finds
      them in `~/.Garmin/ConnectIQ/Devices`.
    - **Linux, downloaded on another machine:** copy that folder's contents
@@ -50,25 +54,26 @@ hand:
 
 **Optional:** the same SDK Manager install also has Garmin's own font files
 (next to `Devices`, in a `Fonts` directory). Free stand-ins work without
-them, but if you have them, put them at `vendor/fonts/` the same way (or
-mount `Fonts` at `/fonts` for Docker) — `wfb doctor` says which one a build
-would use.
+them. On macOS `wfb` reads that `Fonts` directory in place; on Linux, put
+them at `vendor/fonts/` the same way (or mount `Fonts` at `/fonts` for
+Docker) — `wfb doctor` says which one a build would use.
 
 ### Step 2: install
 
-**Linux:**
+**Linux or macOS:**
 
 ```sh
 ./tools/setup-env.sh                # SDK, signing key, device files, icon + system fonts, .venv
 alias wfb="$PWD/wfb.py"             # put this in your shell profile
 ```
 
-The script is safe to re-run. It also prints two `export` lines (`CIQ_SDK`
-and `PATH`); add them to your shell profile too. `wfb.py` runs
+The script is safe to re-run. On Linux it downloads the SDK; on macOS it
+finds the one the SDK Manager installed. It also prints two `export` lines
+(`CIQ_SDK` and `PATH`); add them to your shell profile too. `wfb.py` runs
 under the project's `.venv` on its own, so you don't need to activate it. Run
 `wfb doctor` to check that everything is in place.
 
-**macOS (Docker):**
+**Docker (macOS shown):**
 
 ```sh
 docker build -t garmin-wf-builder .

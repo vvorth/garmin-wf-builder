@@ -44,9 +44,10 @@ docker run --rm -v "$PWD:/work" \
 
 See [`docs/container.md`](container.md). The local install:
 
-Installs the Connect IQ SDK 9.2.0, generates a developer key, installs the device
-definitions, copies Garmin's own font files in from `vendor/fonts/` if present
-(optional — see below), downloads the Nerd Fonts icon font
+Installs the Connect IQ SDK 9.2.0 (on macOS: finds the SDK Manager's own
+install), generates a developer key, installs the device definitions (on macOS:
+reads the SDK Manager's in place), copies Garmin's own font files in from
+`vendor/fonts/` if present (Linux only, optional — see below), downloads the Nerd Fonts icon font
 (`tools/fetch-icon-font.py`, pinned and hash-checked; the font is not committed)
 and prefetches the registry's system-font stand-ins the same way
 (`tools/fetch-system-fonts.py`; see `docs/lore/toolchain.md`), and creates
@@ -81,12 +82,25 @@ and every lint that depends on it too, not only the pixels drawn (`Device.
 fonts_root`, owned by the `DeviceDatabase` the command builds -- plan 18
 item 8): a box is always sized from the same file it is then drawn with.
 
-**Platforms.** `setup-env.sh` is tested on Linux only. It downloads the Linux
-SDK, and it appends `CIQ_SDK`/`PATH` to `/etc/sandbox-persistent.sh` when that
-file exists and is writable (the development sandbox). Otherwise it prints the
-two exports for you to add to your shell profile. It checks for `curl`,
-`unzip`, `openssl`, `python3` and `java` before doing anything, and a missing
-device folder produces step-by-step instructions rather than a bare error. On macOS, use the Docker image; it is
+**Platforms.** `setup-env.sh` runs on Linux and macOS (`uname -s`). On Linux
+it downloads the Linux SDK and copies devices and fonts into
+`~/.Garmin/ConnectIQ`. On macOS it never downloads or copies either: the SDK
+is the SDK Manager's own
+`~/Library/Application Support/Garmin/ConnectIQ/Sdks/connectiq-sdk-mac-9.2.0-*`,
+and devices and fonts are read in place from that tree, which `monkeyc` and
+`wfb` both look in already; a device in `vendor/devices/` that the SDK Manager
+lacks is reported, not copied. It appends `CIQ_SDK`/`PATH` to
+`/etc/sandbox-persistent.sh` on Linux when that file exists and is writable
+(the development sandbox); otherwise it prints the two exports, quoted since
+the macOS path holds a space, for your shell profile. It checks for `openssl`,
+a working `java` (macOS has a `java` stub with no runtime behind it), Python
+3.11 or newer (trying `python3`, then `python3.14` down to `python3.11`,
+since macOS's own `python3` is older), and on Linux `curl` and `unzip`,
+before doing anything; a missing SDK or device folder produces step-by-step
+instructions rather than a bare error. The macOS branch was checked in the
+Linux sandbox with a faked `uname` and a fake `Library` tree, under bash 5.
+It is written for macOS's bash 3.2 (no empty-array expansion under `set -u`)
+but has not run under 3.2 there yet. The Docker image works on macOS too,
 tested with OrbStack. Windows is untested.
 
 Running `wfb` and the full command list moved to

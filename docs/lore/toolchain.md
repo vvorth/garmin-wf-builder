@@ -169,7 +169,10 @@ The environment is **not** in the repo. Rebuild it with:
 ```
 
 That script downloads the SDK, generates a developer key, and installs the
-device definitions. What it sets up, and why each part matters:
+device definitions. On macOS it instead uses the SDK Manager's own SDK and
+device/font folders under `~/Library/Application Support/Garmin/ConnectIQ/`
+in place (`docs/development.md`, "Platforms"). What it sets up on Linux, and
+why each part matters:
 
 | Piece | Location | Notes |
 |---|---|---|
