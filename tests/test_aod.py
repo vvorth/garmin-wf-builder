@@ -1892,7 +1892,7 @@ elements:
     resolved = _resolved(text, write_design, bag, db)
     heat, peak = render_aod_heatmap(resolved, PreviewOptions(scale=1),
                                     minutes=range(600, 604))
-    values = set(heat.convert("L").getdata())
+    values = {v for _, v in heat.convert("L").getcolors(256)}
     assert peak == 1.0
     assert 255 in values
     assert values & {64, 127, 191}, sorted(values)
