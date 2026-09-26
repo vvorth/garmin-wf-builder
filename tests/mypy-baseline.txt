@@ -5,41 +5,6 @@
 # using pillow 12.3.0
 # using ruamel.yaml 0.19.1
 # using jsonschema 4.26.0
-wfb/emit/monkeyc/readplan.py: [assignment] Incompatible types in assignment (expression has type "Expression | Any | None", variable has type "str")
-wfb/emit/monkeyc/readplan.py: [attr-defined] "str" has no attribute "sources"
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/readplan.py: [type-var] Value of type variable "SupportsRichComparisonT" of "sorted" cannot be "str | None"
-wfb/emit/monkeyc/readplan.py: [union-attr] Item "None" of "AodOverride | None" has no attribute "visible_override"
-wfb/emit/monkeyc/view.py: [arg-type] Argument 1 to "_mc_bool" has incompatible type "bool | None"; expected "bool"
-wfb/emit/monkeyc/view.py: [arg-type] Argument 1 to "get" of "dict" has incompatible type "str | None"; expected "str"
-wfb/emit/monkeyc/view.py: [arg-type] Argument 2 to "_emit_static_blit" has incompatible type "StaticPlan | None"; expected "StaticPlan"
-wfb/emit/monkeyc/view.py: [arg-type] Argument 4 to "_emit_layout_guarded" has incompatible type "Callable[[object], Writer]"; expected "Callable[[object], None]"
-wfb/emit/monkeyc/view.py: [arg-type] Argument 4 to "_emit_layout_guarded" has incompatible type "Callable[[object], Writer]"; expected "Callable[[object], None]"
-wfb/emit/monkeyc/view.py: [arg-type] Argument 4 to "_emit_layout_guarded" has incompatible type "Callable[[object], Writer]"; expected "Callable[[object], None]"
-wfb/emit/monkeyc/view.py: [assignment] Incompatible types in assignment (expression has type "Placed", variable has type "PlacedGraph")
-wfb/emit/monkeyc/view.py: [assignment] Incompatible types in assignment (expression has type "Placed", variable has type "PlacedGraph")
-wfb/emit/monkeyc/view.py: [no-any-return] Returning Any from function declared to return "str"
-wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/view.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/view.py: [union-attr] Item "None" of "ConfigStyle | None" has no attribute "default_entry"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object | Any"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"

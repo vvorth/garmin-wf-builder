@@ -12,7 +12,7 @@ from ...availability import Guards
 from ...catalog import READERS
 from ...devices import Device
 from ...ir import (
-    HOLD_AUTO, Face, config_data_ids, config_field, font_resource_id, local_name,
+    HOLD_AUTO, Expression, Face, config_data_ids, config_field, font_resource_id, local_name,
     static_group_method,
 )
 from ...layout import Placed, PlacedComplicationSlot, PlacedGraph, PlacedHands, ResolvedFace
@@ -82,7 +82,7 @@ class StaticPlan:
     def ids(self) -> set[str]:
         return {placed.id for placed in self.members}
 
-    def method(self, placed) -> str:
+    def method(self, placed: Placed) -> str:
         """The method that paints one root: its own for a leaf, a wrapper else."""
         return (static_group_method(placed.id) if placed.kind == "group"
                 else _method(placed.id))
@@ -97,7 +97,8 @@ def static_plan(resolved: ResolvedFace) -> StaticPlan | None:
     roots = {p.id: p for p in resolved.items if p.element.static}
     groups: list[tuple[Placed, list[Placed]]] = []
     for placed in members:
-        root = roots.get(placed.element.static_root)
+        root_id = placed.element.static_root
+        root = roots.get(root_id) if root_id is not None else None
         if root is None:  # unreachable: `_apply_static` sets both together
             continue
         if not groups or groups[-1][0] is not root:
@@ -246,8 +247,8 @@ def emit_view(resolved: ResolvedFace, guards: "Guards | None" = None) -> SourceF
         _emit_sleep_hooks(w, resolved, needs_sleeping_field, aod.on, guards, aod_only_fonts)
         if plan.complication_readers():
             _emit_complication_callback(w, plan)
-        for placed in graphs:
-            _emit_graph_rebuild(w, placed, guards)
+        for graph in graphs:
+            _emit_graph_rebuild(w, graph, guards)
         for placed in resolved.items:
             if isinstance(placed, PlacedComplicationSlot) and placed.icon_font_key is not None:
                 _emit_complication_slot_icon_method(w, resolved, placed)
@@ -497,6 +498,7 @@ def _emit_config_fields(w: Writer, face: Face, guards: "Guards" = _NO_GUARDS) ->
         # declared.  Not a fallback path: fr955 has no native editor and
         # never calls `applyConfig` at all, so this is the only layout it
         # ever shows.
+        assert face.config_style is not None, "layouts: is declared under config: style:"
         default_layout = face.config_style.default_entry.layout
         default_index = face.layouts.index(default_layout)
         w.line(f"private var {CONFIG_LAYOUT_FIELD} as Number = {default_index};")
@@ -858,7 +860,7 @@ def _emit_on_update(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", aod: bo
 
 
 def _emit_layout_guarded(w: Writer, face: Face, items: list[Placed],
-                         emit_one: Callable[[object], None]) -> None:
+                         emit_one: Callable[[Placed], object]) -> None:
     """Emit ``items`` (`Placed`s, in draw order) through ``emit_one``,
     grouping *consecutive* items whose ``element.layout`` agrees into one
     ``if (_configLayout == N) { ... }`` block; ``layout is None`` (shared
@@ -887,7 +889,7 @@ def _drawn_in(resolved: ResolvedFace, mode: str, skip: frozenset[str] | set[str]
             if placed.kind != "group" and mode in placed.element.modes and placed.id not in skip]
 
 
-def _draw_call(plan: "ReadPlan", placed) -> str:
+def _draw_call(plan: "ReadPlan", placed: Placed) -> str:
     """The one call statement that draws ``placed`` from a frame method."""
     return f"{_method(placed.id)}(dc{plan.arguments(placed)});"
 
@@ -895,8 +897,7 @@ def _draw_call(plan: "ReadPlan", placed) -> str:
 def _emit_mode_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan", mode: str,
                     static: "StaticPlan | None") -> None:
     """One mode's draw sequence: the static blit, then everything dynamic."""
-    buffered = static is not None and mode in static.modes
-    if buffered:
+    if static is not None and mode in static.modes:
         _emit_static_blit(w, static)
         w.blank()
     # Reads everything unconditionally, layout guards included below -- a
@@ -965,14 +966,15 @@ def _emit_aod_body(w: Writer, resolved: ResolvedFace, plan: "ReadPlan",
         w.line("WfbAodMask.apply(dc, System.getClockTime().min);")
 
 
-def _emit_one_aod_call(w: Writer, plan: "ReadPlan", placed) -> None:
+def _emit_one_aod_call(w: Writer, plan: "ReadPlan", placed: Placed) -> None:
     """One element's call in the AOD frame, behind its `aod: {visible: ...}`
     extra condition when it has one (`ReadPlan.aod_guard_condition`)."""
+    extra = plan.aod_visible_override(placed)
     condition = plan.aod_guard_condition(placed)
-    if condition is not None:
+    if extra is not None:
         for name, read in plan.aod_guard_declarations(placed):
             w.line(f"var {name} = {read};")
-        w.comment(f"aod: visible: {placed.element.aod.visible_override.text}")
+        w.comment(f"aod: visible: {extra.text}")
     with w.block_if(f"if ({condition})" if condition is not None else None):
         w.line(_draw_call(plan, placed))
 
@@ -1103,7 +1105,7 @@ def _emit_complication_callback(w: Writer, plan: "ReadPlan") -> None:
 # one method per element
 
 
-def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadPlan",
+def _emit_element_method(w: Writer, resolved: ResolvedFace, placed: Placed, plan: "ReadPlan",
                          antialias_default: bool | None = None,
                          aod: AodStyle = NO_AOD) -> None:
     element = placed.element
@@ -1169,11 +1171,11 @@ def _emit_element_method(w: Writer, resolved: ResolvedFace, placed, plan: "ReadP
             w.comment(f"antialias: {_mc_bool(element.resolved_antialias)}")
             w.line(f"applyAntiAlias(dc, {_mc_bool(element.resolved_antialias)});")
         kind.emit_draw(w, resolved, placed, value_guards, plan, aod)
-        if overrides_antialias:
+        if overrides_antialias and antialias_default is not None:
             w.line(f"applyAntiAlias(dc, {_mc_bool(antialias_default)});")
 
 
-def _method_doc(placed) -> str:
+def _method_doc(placed: Placed) -> str:
     element = placed.element
     lines = [f"`{element.id}` -- {_describe(placed)}."]
     # `visible:` gets its own line below rather than being listed as a
@@ -1194,7 +1196,7 @@ def _method_doc(placed) -> str:
     return "\n".join(lines)
 
 
-def _negated(expression) -> str:
+def _negated(expression: Expression) -> str:
     """The Monkey C for "this condition does **not** hold".
 
     A condition that is itself a `not` is un-negated rather than wrapped: the
@@ -1232,7 +1234,7 @@ def _negatable(code: str) -> str:
     return code
 
 
-def _emit_visible_guard(w: Writer, placed, plan: "ReadPlan") -> None:
+def _emit_visible_guard(w: Writer, placed: Placed, plan: "ReadPlan") -> None:
     """`visible:` -- one guard covering both absence and the condition.
 
     Emitted before every other guard, and before a complication_slot's own
@@ -1270,7 +1272,7 @@ def _emit_visible_guard(w: Writer, placed, plan: "ReadPlan") -> None:
     w.blank()
 
 
-def _emit_guard(w: Writer, placed, guards: list[str], note: str | None = None) -> None:
+def _emit_guard(w: Writer, placed: Placed, guards: list[str], note: str | None = None) -> None:
     """Emit the null check, and say which `when_absent:` produced it.
 
     ``note`` overrides the default "when_absent: <policy>" comment for the

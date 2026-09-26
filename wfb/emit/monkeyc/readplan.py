@@ -5,8 +5,8 @@ from __future__ import annotations
 from ... import catalog, formatting
 from ...availability import Guards
 from ...catalog import READERS, Type
-from ...ir import Expression, HandsElement, Text, local_name
-from ...layout import ResolvedFace
+from ...ir import Element, Expression, HandsElement, Text, local_name
+from ...layout import Placed, ResolvedFace
 from .common import _NO_GUARDS
 from ..writer import Writer
 
@@ -156,12 +156,13 @@ class ReadPlan:
         ]
         aod_readers: list[str] = []
         for placed in self.resolved.items:
-            if placed.id not in self._aod_ids:
+            aod = placed.element.aod
+            if placed.id not in self._aod_ids or aod is None:
                 continue
             aod_readers = self._dedupe_readers(self._per_element[placed.id], aod_readers)
-            extra = placed.element.aod.visible_override
-            if extra is not None:
-                aod_readers = self._dedupe_readers(list(extra.sources), aod_readers)
+            if aod.visible_override is not None:
+                aod_readers = self._dedupe_readers(list(aod.visible_override.sources),
+                                                   aod_readers)
         self._readers_for_mode["aod"] = aod_readers
 
     # -- emission ---------------------------------------------------------
@@ -203,7 +204,8 @@ class ReadPlan:
         # barrel alone would not stop it.  One `has<Module>` local per frame
         # (not per reader) is enough: every pull this mode makes from that
         # module reads through it.
-        guarded = sorted({READERS[name].requires_module for name in readers}
+        guarded = sorted({module for name in readers
+                          if (module := READERS[name].requires_module) is not None}
                          & self.device_guards.modules)
         for module in guarded:
             w.line(f"var has{module} = Toybox has :{module};")
@@ -224,17 +226,17 @@ class ReadPlan:
             else:
                 w.line(f"var {reader.name} = {reader.call};")
 
-    def parameters(self, placed) -> str:
+    def parameters(self, placed: Placed) -> str:
         params = []
         for name in self._readers_used_by(placed):
             reader = READERS[name]
             params.append(f", {reader.name} as {reader.monkeyc_type}")
         return "".join(params)
 
-    def arguments(self, placed) -> str:
+    def arguments(self, placed: Placed) -> str:
         return "".join(f", {READERS[name].name}" for name in self._readers_used_by(placed))
 
-    def _guard_needed(self, source) -> bool:
+    def _guard_needed(self, source: catalog.Source) -> bool:
         """Whether `declarations()` gave this source's local a nullable type.
 
         `Source.guard_needed` alone (nullable itself, or its reader is) is
@@ -257,7 +259,7 @@ class ReadPlan:
         root = source.field_name.split(".", 1)[0] if source.field_name else None
         return root is not None and root in self.device_guards.fields
 
-    def guards(self, placed) -> list[str]:
+    def guards(self, placed: Placed) -> list[str]:
         """Every local the element must null-check, declared in dependency order.
 
         Used as-is for an element with no placeholder/fallback policy (the
@@ -278,12 +280,12 @@ class ReadPlan:
         """
         return [local_name(path) for path in paths if self._guard_needed(catalog.CATALOG[path])]
 
-    def value_guards(self, placed) -> list[str]:
+    def value_guards(self, placed: Placed) -> list[str]:
         """Locals reached through the element's own *value* expression(s)."""
 
         return self._guarded_locals(self._value_bound[placed.id])
 
-    def visible_guards(self, placed) -> list[str]:
+    def visible_guards(self, placed: Placed) -> list[str]:
         """Locals `visible:` dereferences, in declaration order.
 
         These become the `x == null` halves of the visibility guard
@@ -294,7 +296,7 @@ class ReadPlan:
 
         return self._guarded_locals(self._visible_bound[placed.id])
 
-    def other_guards(self, placed) -> list[str]:
+    def other_guards(self, placed: Placed) -> list[str]:
         """Locals dereferenced by a *different* expression (colour, track
         colour, max) -- there is no placeholder for a colour, so every one of
         these needs a real guard, even a source that is *also* the
@@ -306,7 +308,7 @@ class ReadPlan:
         return self._guarded_locals(self._other_bound[placed.id])
 
     @staticmethod
-    def _value_expressions(element) -> tuple[Expression, ...]:
+    def _value_expressions(element: Element) -> tuple[Expression, ...]:
         """Which of an element's bound expressions its `when_absent:`
         policy governs -- `element.VALUE_ROLES` (plan 19 A2): `{value}` for
         a `Text`, `{value, max}` for a `Progress` (its fill fraction depends
@@ -325,10 +327,17 @@ class ReadPlan:
         """
         return tuple(e for role, e in element.bound_expressions() if role in element.VALUE_ROLES)
 
-    def declarations(self, placed) -> list[tuple[str, str]]:
+    def declarations(self, placed: Placed) -> list[tuple[str, str]]:
         return self._declare_paths(self._bound[placed.id])
 
-    def aod_guard_declarations(self, placed) -> list[tuple[str, str]]:
+    @staticmethod
+    def aod_visible_override(placed: Placed) -> Expression | None:
+        """The extra condition `aod: {visible: ...}` adds for this element,
+        or `None` when its resolved `aod:` added none (or it has no `aod:`)."""
+        aod = placed.element.aod
+        return aod.visible_override if aod is not None else None
+
+    def aod_guard_declarations(self, placed: Placed) -> list[tuple[str, str]]:
         """Locals `aod: {visible: ...}`'s own *extra* condition needs,
         declared fresh at the AOD call site (`_emit_mode_body`'s aod
         branch): the element's own generated method already declares
@@ -338,20 +347,18 @@ class ReadPlan:
         ordinary case) when this element's `aod:` added no visible condition
         of its own.
         """
-        element = placed.element
-        extra = element.aod.visible_override if element.aod is not None else None
+        extra = self.aod_visible_override(placed)
         if extra is None:
             return []
         return self._declare_paths(list(extra.sources))
 
-    def aod_guard_condition(self, placed) -> str | None:
+    def aod_guard_condition(self, placed: Placed) -> str | None:
         """The Monkey C boolean for `aod: {visible: ...}`'s own extra
         condition, fully null-guarded against the locals `aod_guard_
         declarations` just declared -- `None` when this element's `aod:`
         added no condition beyond its plain `visible:` (the ordinary case),
         which the caller takes as "always draw once `_aod`"."""
-        element = placed.element
-        extra = element.aod.visible_override if element.aod is not None else None
+        extra = self.aod_visible_override(placed)
         if extra is None:
             return None
         parts = [f"{name} != null" for name in self._guarded_locals(list(extra.sources))]
@@ -451,7 +458,7 @@ class ReadPlan:
             out.append((local_name(path), read))
         return out
 
-    def _readers_used_by(self, placed) -> list[str]:
+    def _readers_used_by(self, placed: Placed) -> list[str]:
         return self._dedupe_readers(self._per_element[placed.id])
 
     @staticmethod
@@ -468,5 +475,5 @@ class ReadPlan:
                 readers.append(reader)
         return readers
 
-    def sources_for(self, placed) -> list[str]:
+    def sources_for(self, placed: Placed) -> list[str]:
         return self._per_element[placed.id]
