@@ -13,7 +13,7 @@ import textwrap
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Any, Generic, TextIO, TypeVar
 
 from . import term
 from .term import SEVERITY_STYLE
@@ -144,13 +144,13 @@ class Bag:
         self.items.append(diag)
         return diag
 
-    def error(self, code: str, message: str, span: Span | None = None, **kw) -> Diagnostic:
+    def error(self, code: str, message: str, span: Span | None = None, **kw: Any) -> Diagnostic:
         return self.add(Diagnostic(Severity.ERROR, code, message, span, **kw))
 
-    def warning(self, code: str, message: str, span: Span | None = None, **kw) -> Diagnostic:
+    def warning(self, code: str, message: str, span: Span | None = None, **kw: Any) -> Diagnostic:
         return self.add(Diagnostic(Severity.WARNING, code, message, span, **kw))
 
-    def note(self, code: str, message: str, span: Span | None = None, **kw) -> Diagnostic:
+    def note(self, code: str, message: str, span: Span | None = None, **kw: Any) -> Diagnostic:
         return self.add(Diagnostic(Severity.NOTE, code, message, span, **kw))
 
     @property
@@ -185,7 +185,7 @@ class Bag:
             pieces.append(d.render(self._sources, color=color, width=width, notes_as=notes_as))
         return "\n\n".join(pieces)
 
-    def print(self, stream=None) -> None:
+    def print(self, stream: TextIO | None = None) -> None:
         # `sys.stderr` read at call time, not bound as a default at import,
         # so a caller that redirects it (an in-process test) sees the output.
         stream = sys.stderr if stream is None else stream

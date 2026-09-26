@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from . import kinds, units
 from .devices import Device, FontMetric
@@ -603,7 +603,7 @@ class PlacedProgress(Placed):
     aod_thickness: int | None = None
     #: `style: needle`: the resolved parts, in the needle's own frame, and
     #: the farthest ink from the axis (`center`).
-    needle: tuple["ResolvedHandPart", ...] = ()
+    needle: tuple["RotatablePart", ...] = ()
     reach: float = 0.0
     #: `style: segments`: one cell's extent and the distance from one cell's
     #: start to the next -- author degrees on an arc, pixels on a bar.
@@ -677,7 +677,7 @@ class _ResolvedPart:
 
 @dataclass(frozen=True)
 class ResolvedPolygonPart(_ResolvedPart):
-    shape: ClassVar[str] = "polygon"
+    shape: ClassVar[Literal["polygon"]] = "polygon"
     #: Vertices in author order (a rectangle's: top-left, clockwise).
     points: tuple[tuple[int, int], ...] = ()
 
@@ -693,7 +693,7 @@ class ResolvedPolygonPart(_ResolvedPart):
 
 @dataclass(frozen=True)
 class ResolvedLinePart(_ResolvedPart):
-    shape: ClassVar[str] = "line"
+    shape: ClassVar[Literal["line"]] = "line"
     x1: int = 0
     y1: int = 0
     x2: int = 0
@@ -712,7 +712,7 @@ class ResolvedLinePart(_ResolvedPart):
 
 @dataclass(frozen=True)
 class ResolvedCirclePart(_ResolvedPart):
-    shape: ClassVar[str] = "circle"
+    shape: ClassVar[Literal["circle"]] = "circle"
     #: Centre.
     x: int = 0
     y: int = 0
@@ -732,7 +732,7 @@ class ResolvedCirclePart(_ResolvedPart):
 
 @dataclass(frozen=True)
 class ResolvedArcPart(_ResolvedPart):
-    shape: ClassVar[str] = "arc"
+    shape: ClassVar[Literal["arc"]] = "arc"
     #: Always the origin: an arc part has no `at:`.
     x: int = 0
     y: int = 0
@@ -757,7 +757,7 @@ class ResolvedArcPart(_ResolvedPart):
 class ResolvedTextPart(_ResolvedPart):
     """A pattern's `shape: text` part. The fields match `PlacedText`'s."""
 
-    shape: ClassVar[str] = "text"
+    shape: ClassVar[Literal["text"]] = "text"
     #: The anchor.
     x: int = 0
     y: int = 0
@@ -785,6 +785,21 @@ class ResolvedTextPart(_ResolvedPart):
 ResolvedHandPart = (ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart
                     | ResolvedArcPart | ResolvedTextPart)
 
+#: The parts a hand or a gauge needle can hold: a pattern's `arc` and `text`
+#: parts are refused on those at build time.
+RotatablePart = ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart
+
+
+def rotatable_parts(parts: tuple[ResolvedHandPart, ...], owner: str) -> tuple[RotatablePart, ...]:
+    """``parts`` as a hand's or needle's own, which the builder already
+    guarantees; a part of any other shape here is a compiler bug."""
+    out: list[RotatablePart] = []
+    for part in parts:
+        if isinstance(part, (ResolvedArcPart, ResolvedTextPart)):
+            raise AssertionError(f"{owner}: a {part.shape} part cannot turn with a hand")
+        out.append(part)
+    return tuple(out)
+
 
 def _transformed(x: float, y: float, ox: float, oy: float, sin_t: float, cos_t: float
                  ) -> tuple[float, float]:
@@ -794,7 +809,7 @@ def _transformed(x: float, y: float, ox: float, oy: float, sin_t: float, cos_t: 
 
 @dataclass(frozen=True)
 class ResolvedHand:
-    parts: tuple[ResolvedHandPart, ...] = ()
+    parts: tuple[RotatablePart, ...] = ()
 
 
 @dataclass

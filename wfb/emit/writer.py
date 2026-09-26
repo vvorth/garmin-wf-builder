@@ -48,7 +48,7 @@ class Writer:
             self.writer._level += 1
             return self.writer
 
-        def __exit__(self, *exc) -> None:
+        def __exit__(self, *exc: object) -> None:
             self.writer._level -= 1
             self.writer.line(self.closing)
 
@@ -56,7 +56,8 @@ class Writer:
         self.line(f"{header} {{" if not header.endswith("{") else header)
         return Writer._Block(self, closing)
 
-    def block_if(self, header: str | None, closing: str = "}"):
+    def block_if(self, header: str | None,
+                 closing: str = "}") -> "contextlib.AbstractContextManager[Writer]":
         """`block(header)` when ``header`` is given, else a no-op context whose
         body stays at the current level -- for a guard only some builds need,
         so the guarded and unguarded forms share one body."""

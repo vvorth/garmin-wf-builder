@@ -25,7 +25,7 @@ import os
 import sys
 import textwrap
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TextIO
 
 from . import __version__, catalog, complications, fonts, icons, series as series_catalog, term
 from .build import Toolchain, build as run_build, load, resolve_all, select_devices, slug
@@ -37,7 +37,7 @@ from .lint import MemoryStats
 DEFAULT_OUTPUT = Path("build")
 
 
-def _error(message: str, *, file=None) -> None:
+def _error(message: str, *, file: TextIO | None = None) -> None:
     """Print ``error: <message>``, with the label bold red when ``file`` is
     coloured -- centralised so every failure path styles the same way
     instead of re-deriving ``term.should_color(file)`` at each call site.
@@ -66,7 +66,7 @@ def _memory_share(share: float, *, color: bool) -> str:
     return term.style(text, name, enabled=color)
 
 
-def _verdict(bag: Bag, stream, word: str, *styles: str, before: str = "",
+def _verdict(bag: Bag, stream: TextIO, word: str, *styles: str, before: str = "",
              after: str = "") -> None:
     """Print a command's closing ``<before><word> -- <diagnostic counts><after>``
     line to ``stream``, coloured only when ``stream`` is."""
@@ -129,6 +129,8 @@ def _subparsers(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentP
     its ``choices`` is the standard, stable way to get it. Shared by
     `_rewrite_trailing_help` and `_help`, which both need the same dict.
     """
+    if parser._subparsers is None:
+        return {}
     for action in parser._subparsers._group_actions:
         if isinstance(action, argparse._SubParsersAction):
             return dict(action.choices)
@@ -212,7 +214,7 @@ def _command(sub: "argparse._SubParsersAction[argparse.ArgumentParser]", name: s
     return parser
 
 
-def _help(args) -> int:
+def _help(args: argparse.Namespace) -> int:
     """show help for wfb, or for one command
 
     ``wfb help`` alone is the same as ``wfb --help``. ``wfb help <command>``
@@ -371,7 +373,7 @@ def _parser() -> argparse.ArgumentParser:
 # --------------------------------------------------------------------------
 
 
-def _build(args) -> int:
+def _build(args: argparse.Namespace) -> int:
     """validate, generate and compile a design into a sideloadable .prg
 
     Runs the full pipeline: YAML load -> schema validation -> semantic
@@ -413,7 +415,7 @@ def _build(args) -> int:
     return 0
 
 
-def _validate(args) -> int:
+def _validate(args: argparse.Namespace) -> int:
     """validate a design without generating or compiling anything
 
     The cheapest, fastest feedback loop: schema and semantic checks plus a
@@ -454,7 +456,7 @@ def _parse_preview_time(text: str) -> tuple[int, int, int] | None:
     return (hour, minute, second)
 
 
-def _preview_time(args, minutes_per_day: int) -> tuple[int, int, int] | None:
+def _preview_time(args: argparse.Namespace, minutes_per_day: int) -> tuple[int, int, int] | None:
     """Check `wfb preview`'s flag combinations and return the moment to
     render (``None``: the sample time).  Raises `ValueError` with the message
     to print for a conflicting or malformed flag."""
@@ -483,7 +485,7 @@ def _preview_time(args, minutes_per_day: int) -> tuple[int, int, int] | None:
     return None
 
 
-def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
+def _render_preview(args: argparse.Namespace, db: DeviceDatabase, *, blurb: bool = True) -> tuple[int, list[Path]]:
     """Render once.  Returns the exit code and the design's dependencies.
 
     ``blurb`` is watch mode's suppression of the closing note alone -- it
@@ -528,7 +530,7 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     if not bag.ok():
         return 1, watched
 
-    sample = None
+    sample: dict[str, object] | None = None
     if args.units is not None:
         setting = 1 if args.units == "statute" else 0
         sample = {f"device.{name}_units": setting
@@ -589,7 +591,7 @@ def _render_preview(args, db, *, blurb: bool = True) -> tuple[int, list[Path]]:
     return 0, watched
 
 
-def _preview(args) -> int:
+def _preview(args: argparse.Namespace) -> int:
     """render the design to a PNG on the host, with no simulator
 
     Resolves the same per-device geometry `wfb build` would generate code
@@ -695,7 +697,7 @@ def _preview(args) -> int:
     return code
 
 
-def _simulate(args) -> int:
+def _simulate(args: argparse.Namespace) -> int:
     """launch the Connect IQ simulator and push a built face to it
 
     Builds the design (like `wfb build`) and pushes the result to a
@@ -717,7 +719,7 @@ def _simulate(args) -> int:
         compile_prg=True,
     )
     bag.print()
-    if result is None or not result.products:
+    if toolchain is None or result is None or not result.products:
         print("\nnothing to run -- the build produced no .prg", file=sys.stderr)
         return 1
 
@@ -756,7 +758,7 @@ TEMPLATE_BLURB = {
 }
 
 
-def _new(args) -> int:
+def _new(args: argparse.Namespace) -> int:
     """start a design from a known-good template
 
     Copies one of the bundled templates (`--list` shows them, with a
@@ -814,7 +816,7 @@ def _new(args) -> int:
 _DOCTOR_INDENT = " " * 19
 
 
-def _doctor(args) -> int:
+def _doctor(args: argparse.Namespace) -> int:
     """check the environment and say what is missing
 
     Written for someone -- or something -- arriving with no context: each failure
@@ -978,7 +980,7 @@ def _doctor(args) -> int:
     return 1
 
 
-def _schema(args) -> int:
+def _schema(args: argparse.Namespace) -> int:
     """print the JSON Schema, or where it lives, for editor setup
 
     With no flags, prints the schema itself -- for piping into a validator,
@@ -994,7 +996,7 @@ def _schema(args) -> int:
     return 0
 
 
-def _devices(args) -> int:
+def _devices(args: argparse.Namespace) -> int:
     """list installed device definitions
 
     Reads the device files (`~/.Garmin/ConnectIQ/Devices` by default; see
@@ -1190,7 +1192,7 @@ def _print_device_fonts_detailed(device: Device) -> None:
         print(f"  {_dim('none recorded in reference database', color=color_out)}")
 
 
-def _fonts(args) -> int:
+def _fonts(args: argparse.Namespace) -> int:
     """list fonts available per device, or a detailed font breakdown for one or more
 
     With no device named, lists every installed device definition alongside
@@ -1254,7 +1256,7 @@ _CONFIG_SOURCES = (
 )
 
 
-def _sources(args) -> int:
+def _sources(args: argparse.Namespace) -> int:
     """list the data-source catalogue: every value a design may bind
 
     For each source: its type, whether it is nullable, any permission
@@ -1295,7 +1297,7 @@ def _sources(args) -> int:
     return 0
 
 
-def _complications(args) -> int:
+def _complications(args: argparse.Namespace) -> int:
     """list the complication type table: what `on_hold:` may launch, what
     `complication.*` may read, and what `config: data:` may offer a slot
 
@@ -1345,7 +1347,7 @@ def _complications(args) -> int:
     return 0
 
 
-def _series(args) -> int:
+def _series(args: argparse.Namespace) -> int:
     """list the time-series catalogue: every `series:` a `graph` element may plot
 
     A `graph` plots a series, not a scalar -- a different kind of binding

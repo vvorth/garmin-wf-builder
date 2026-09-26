@@ -2,17 +2,27 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ..writer import Writer
 
+if TYPE_CHECKING:
+    from ...layout import (
+        PlacedHands, PlacedPattern, PlacedProgress, ResolvedCirclePart, ResolvedLinePart,
+        ResolvedPolygonPart,
+    )
 
-def aod_thickness_override(placed, prefix: str) -> str | None:
+
+def aod_thickness_override(placed: PlacedHands | PlacedPattern | PlacedProgress,
+                           prefix: str) -> str | None:
     """The element-level `aod: {thickness: ...}` constant a hands/pattern
     element applies uniformly to every part's pen width (plan 14 §5.1), or
     `None` when it has none."""
     return f"Layout.{prefix}_AOD_THICKNESS" if placed.aod_thickness is not None else None
 
 
-def emit_transformed_part(w: Writer, part, part_prefix: str, *, radial: bool,
+def emit_transformed_part(w: Writer, part: ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart,
+                          part_prefix: str, *, radial: bool,
                           thickness_expr: str, set_pen: bool = True) -> None:
     """One polygon/line/circle part at the current copy's origin: rotated
     about `(cx, cy)` through `WfbGeom.*Rotated` (a hand, or a radial

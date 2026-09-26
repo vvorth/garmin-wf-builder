@@ -15,6 +15,10 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .build import Toolchain
 
 
 class SimulatorError(RuntimeError):
@@ -27,7 +31,7 @@ def is_running() -> bool:
     return subprocess.run(["pgrep", "-x", "simulator"], capture_output=True).returncode == 0
 
 
-def launch(toolchain, *, wait: float = 8.0) -> None:
+def launch(toolchain: Toolchain, *, wait: float = 8.0) -> None:
     """Start the simulator if it is not already up."""
     if is_running():
         return
@@ -50,7 +54,7 @@ def launch(toolchain, *, wait: float = 8.0) -> None:
     raise SimulatorError("the simulator did not start", hints=_missing_library_hints(toolchain))
 
 
-def push(toolchain, prg: Path, device_id: str, *, timeout: float = 120.0) -> None:
+def push(toolchain: Toolchain, prg: Path, device_id: str, *, timeout: float = 120.0) -> None:
     """Send a built ``.prg`` to a running simulator."""
     if toolchain is None:
         raise SimulatorError("no Connect IQ SDK found; set CIQ_SDK")
@@ -91,7 +95,7 @@ def screenshot(path: Path) -> Path:
     return path
 
 
-def _missing_library_hints(toolchain) -> list[str]:
+def _missing_library_hints(toolchain: Toolchain) -> list[str]:
     """Report shared libraries the simulator binary cannot resolve."""
     binary = toolchain.sdk / "bin" / "simulator"
     if not binary.exists() or not shutil.which("ldd"):

@@ -9,7 +9,7 @@ from typing import Any, TYPE_CHECKING
 from .. import expr
 from ..catalog import Type
 from ..ir.model import Element, Expression, Progress
-from ..layout import Placed, PlacedProgress, arc_box, stroke_pad
+from ..layout import Placed, PlacedProgress, arc_box, rotatable_parts, stroke_pad
 from ..preview import arc_span
 from ..units import Axis, Box, IntBox
 from ..emit.monkeyc import layout_constants as layout_constants_mod
@@ -494,7 +494,7 @@ class ProgressKind(ElementKind):
             return PlacedProgress(
                 element, box.rounded(), (round(cx), round(cy)), depth,
                 start_angle=element.start_angle.degrees, sweep=element.sweep.degrees,
-                needle=parts, reach=reach,
+                needle=rotatable_parts(parts, f"{element.id}.needle"), reach=reach,
                 aod_thickness=r.aod_extent(element, "thickness", parent, 1),
             )
         box, cx, cy = r.sized_box(element, parent, cx, cy)

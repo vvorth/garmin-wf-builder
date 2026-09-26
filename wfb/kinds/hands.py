@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from ..ir.builder import dedup_append
 from ..ir.model import Element, Expression, HandsElement
-from ..layout import Placed, PlacedHands, ResolvedHand
+from ..layout import Placed, PlacedHands, ResolvedHand, rotatable_parts
 from ..units import Box
 from ..emit.monkeyc import layout_constants as layout_constants_mod
 from ..emit.monkeyc import rotated
@@ -195,7 +195,7 @@ class HandsKind(ElementKind):
             # id would not say which hand a `sub-pixel-length` finding means.
             parts, hand_reach = r.resolve_parts(
                 hand.parts, f"{element.id}.{name}", min_1px=element.resolved_min_1px)
-            resolved[name] = ResolvedHand(parts=parts)
+            resolved[name] = ResolvedHand(parts=rotatable_parts(parts, f"{element.id}.{name}"))
             reach = max(reach, hand_reach)
         axis = (round(cx), round(cy))
         box = Box(cx - reach, cy - reach, 2 * reach, 2 * reach)

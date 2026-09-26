@@ -8,32 +8,8 @@
 wfb/availability.py: [arg-type] Argument 1 to "frozenset" has incompatible type "set[str | None]"; expected "Iterable[str]"
 wfb/availability.py: [union-attr] Item "None" of "tuple[str, ...] | None" has no attribute "__iter__" (not iterable)
 wfb/build.py: [arg-type] Argument 1 to "Path" has incompatible type "str | PathLike[str] | None"; expected "str | PathLike[str]"
-wfb/cli.py: [arg-type] Argument "sample" to "PreviewOptions" has incompatible type "dict[str, int] | None"; expected "dict[str, object] | None"
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/cli.py: [union-attr] Item "None" of "_ArgumentGroup | None" has no attribute "_group_actions"
-wfb/conversion.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/devices.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/devices.py: [operator] Unsupported operand types for * ("None" and "int")
-wfb/diagnostics.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/diagnostics.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/diagnostics.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/diagnostics.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/common.py: [misc] "None" object is not iterable
 wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/common.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
@@ -68,8 +44,6 @@ wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annota
 wfb/emit/monkeyc/readplan.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/readplan.py: [type-var] Value of type variable "SupportsRichComparisonT" of "sorted" cannot be "str | None"
 wfb/emit/monkeyc/readplan.py: [union-attr] Item "None" of "AodOverride | None" has no attribute "visible_override"
-wfb/emit/monkeyc/rotated.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/monkeyc/rotated.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/shapes.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/emit/monkeyc/view.py: [arg-type] Argument 1 to "_mc_bool" has incompatible type "bool | None"; expected "bool"
 wfb/emit/monkeyc/view.py: [arg-type] Argument 1 to "get" of "dict" has incompatible type "str | None"; expected "str"
@@ -104,9 +78,6 @@ wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "choices"
 wfb/emit/resources.py: [attr-defined] "StyleEntry" has no attribute "default"
 wfb/emit/resources.py: [call-overload] No overload variant of "round" matches argument type "Length"
 wfb/emit/resources.py: [union-attr] Item "None" of "Path | None" has no attribute "name"
-wfb/emit/usage.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/emit/writer.py: [no-untyped-def] Function is missing a return type annotation
-wfb/emit/writer.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/expr.py: [arg-type] Argument 1 to "Token" has incompatible type "str | None"; expected "str"
 wfb/expr.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/expr.py: [call-overload] No overload variant of "int" matches argument type "object"
@@ -318,15 +289,8 @@ wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPar
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "filled"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "line_height"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_color"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_width"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "vertical_align"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "widths"
@@ -335,13 +299,7 @@ wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygon
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "line_height"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_color"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_width"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "vertical_align"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedCirclePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "widths"
@@ -349,15 +307,8 @@ wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPa
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "filled"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "line_height"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_color"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_width"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "vertical_align"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedLinePart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "widths"
@@ -369,26 +320,15 @@ wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygo
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "filled"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "font"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "line_height"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_color"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "outline_width"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "thickness"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "vertical_align"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "widths"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "x"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "x"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "y"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedPolygonPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "y"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedTextPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "filled"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedTextPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "ink"
-wfb/kinds/pattern.py: [union-attr] Item "ResolvedTextPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "thickness"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object | Any"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
 wfb/kinds/progress.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
@@ -570,9 +510,6 @@ wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one o
 wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/preview.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/preview.py: [operator] Unsupported operand types for / ("tuple[int, int]" and "int")
-wfb/simulate.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/simulate.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/simulate.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/validate.py: [arg-type] Argument 1 to "get" of "dict" has incompatible type "Any | None"; expected "str"
 wfb/validate.py: [assignment] Incompatible types in assignment (expression has type "ValidationError | None", variable has type "ValidationError")
 wfb/validate.py: [union-attr] Item "Unset" of "Any | Unset | list[Any | Unset]" has no attribute "__iter__" (not iterable)

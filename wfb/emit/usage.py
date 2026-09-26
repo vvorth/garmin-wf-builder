@@ -20,6 +20,7 @@ every `Toybox` import.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 RUNTIME_LIB = Path(__file__).resolve().parent.parent.parent / "runtime-lib"
@@ -76,7 +77,7 @@ def _direct_barrel_files(text: str) -> set[str]:
     return files
 
 
-def barrel_modules(texts) -> set[str]:
+def barrel_modules(texts: str | Iterable[str]) -> set[str]:
     """The `runtime-lib/*.mc` files generated code actually calls into,
     closed over the barrel files themselves.
 

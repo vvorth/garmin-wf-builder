@@ -24,6 +24,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .catalog import Source
 
 #: `units:`'s values.
 SYSTEMS = ("auto", "metric", "statute")
@@ -74,7 +78,7 @@ CONVERSIONS: dict[tuple[str, str], Conversion] = {
 }
 
 
-def conversion_for(source) -> Conversion | None:
+def conversion_for(source: "Source | None") -> Conversion | None:
     """The conversion a `wfb.catalog.Source` takes, or `None` when it has no
     quantity `units:` knows."""
     if source is None or source.quantity is None or source.unit is None:
