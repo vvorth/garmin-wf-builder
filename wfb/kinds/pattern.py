@@ -31,7 +31,9 @@ from . import ElementKind, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..layout import Resolver
+    from ..ir.model import Face
+    from ..emit.monkeyc.readplan import ReadPlan
+    from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
 
@@ -215,7 +217,7 @@ def _pattern_steps(
     return step_degrees, start_degrees, None
 
 
-def _render_pattern_texts(b, element_id: str, parts: list[HandPart], count: int) -> bool:
+def _render_pattern_texts(b: Builder, element_id: str, parts: list[HandPart], count: int) -> bool:
     """Fill each `shape: text` part's per-copy strings (`TextPart.texts`),
     device-independently -- the same evaluation the host preview does
     for an ordinary `text` element, which is what makes a text part's
@@ -249,7 +251,7 @@ def _render_pattern_texts(b, element_id: str, parts: list[HandPart], count: int)
     return ok
 
 
-def _check_pattern_absence(b, node: dict[str, Any], element: PatternElement) -> None:
+def _check_pattern_absence(b: Builder, node: dict[str, Any], element: PatternElement) -> None:
     """One element-level `when_absent:` check for a pattern, in place of
     a per-colour refusal: a pattern colour may read a source that can be
     absent, so the compiler needs a policy from the author instead of a
@@ -313,7 +315,7 @@ def _check_pattern_absence(b, node: dict[str, Any], element: PatternElement) -> 
         )
 
 
-def _pattern_absent(renderer, element) -> bool:
+def _pattern_absent(renderer: Renderer, element) -> bool:
     """Whether any nullable source this pattern's colours
     (`element.colors`: the default plus every part's own) or any part's
     own `visible:` reads is absent in the sample -- the host mirror of
@@ -334,7 +336,7 @@ def _pattern_absent(renderer, element) -> bool:
     )
 
 
-def _pattern_arc(renderer, placed: PlacedPattern, part, ox: float, oy: float, index: int,
+def _pattern_arc(renderer: Renderer, placed: PlacedPattern, part, ox: float, oy: float, index: int,
                  values: dict[str, object]) -> None:
     """An `arc` template part -- always centred on the copy's own origin
     (`at:` is rejected on it), so only its *start angle* turns with the
@@ -353,7 +355,7 @@ def _pattern_arc(renderer, placed: PlacedPattern, part, ox: float, oy: float, in
                           fill=fill, width=max(1, thickness * s))
 
 
-def _pattern_text(renderer, placed: PlacedPattern, part, ox: float, oy: float,
+def _pattern_text(renderer: Renderer, placed: PlacedPattern, part, ox: float, oy: float,
                   sin_t: float, cos_t: float, index: int, values: dict[str, object]) -> None:
     """A `shape: text` template part, drawn at this copy's own anchor,
     rounded half-up the way `runtime-lib/WfbGeom.mc`'s `rotatedX`/
@@ -653,7 +655,7 @@ def _emit_pattern_part(w: Writer, element: PatternElement, prefix: str, index: i
     ])
 
 
-class PatternKind(ElementKind):
+class PatternKind(ElementKind[PatternElement, PlacedPattern]):
     name = "pattern"
     ir_class = PatternElement
     placed_class = PlacedPattern
@@ -865,7 +867,7 @@ class PatternKind(ElementKind):
             return (placed.center[0], placed.center[1], placed.reach)
         return None
 
-    def text_runs(self, element: PatternElement, face) -> list[TextRun]:
+    def text_runs(self, element: PatternElement, face: Face) -> list[TextRun]:
         # Every drawn copy's string is known at build time (`TextPart.texts`),
         # so a text part's font needs exactly those, and is checked on each.
         drawn = element.drawn_indices()
@@ -914,7 +916,8 @@ class PatternKind(ElementKind):
                 else:
                     renderer.hand_part(placed, part, ox * s, oy * s, sin_t, cos_t, values)
 
-    def emit_draw(self, w: Writer, resolved, placed: PlacedPattern, value_guards, plan,
+    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedPattern,
+                  value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD) -> None:
         """`type: pattern` -- loop over the drawn copies, turning (radial) or
         translating (linear) the template resolved once at build time.  The

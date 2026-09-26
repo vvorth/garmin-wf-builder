@@ -22,11 +22,13 @@ from . import ElementKind, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..layout import Resolver
+    from ..ir.model import Face
+    from ..emit.monkeyc.readplan import ReadPlan
+    from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
 
-def _reject_text_antialias(b, node: dict[str, Any], element: Text) -> None:
+def _reject_text_antialias(b: Builder, node: dict[str, Any], element: Text) -> None:
     """`antialias:` on a `text` element -- a per-element key on a shared resource.
 
     A text element draws through a font declared in `fonts:`, and that
@@ -141,7 +143,7 @@ def _widest_label(element: Text) -> str:
     return max(element.unit_labels, key=len, default="")
 
 
-def _text_font(renderer, placed: PlacedText) -> tuple[BakedFont | None, FontMetric | None]:
+def _text_font(renderer: Renderer, placed: PlacedText) -> tuple[BakedFont | None, FontMetric | None]:
     """The baked font (or `None` for a system one) and metric a non-vector
     `text` element draws with, after its `aod: {font: ...}` override --
     the same scope as codegen's `wfb.kinds.text._emit_text_draw`:
@@ -170,7 +172,7 @@ def _text_font(renderer, placed: PlacedText) -> tuple[BakedFont | None, FontMetr
     return font, metric
 
 
-def _text_value(renderer, placed: PlacedText) -> str | None:
+def _text_value(renderer: Renderer, placed: PlacedText) -> str | None:
     element = placed.element
     if element.literal is not None:
         return element.literal
@@ -418,7 +420,7 @@ def _check_unit_field(b: Builder, node: dict[str, Any], element: Text) -> None:
                         span, notes=["add 'units: auto' to show the wearer's own units"])
 
 
-class TextKind(ElementKind):
+class TextKind(ElementKind[Text, PlacedText]):
     name = "text"
     ir_class = Text
     placed_class = PlacedText
@@ -527,7 +529,7 @@ class TextKind(ElementKind):
             return ("format", "'aod: {format: ...}' applies only to 'value:', not a fixed 'text:'", [])
         return None
 
-    def text_runs(self, element: Text, face) -> list[TextRun]:
+    def text_runs(self, element: Text, face: Face) -> list[TextRun]:
         aod = element.aod
         aod_font = aod.font if aod is not None and aod.font_is_custom else None
         if not element.font_is_custom and aod_font is None:
@@ -582,8 +584,9 @@ class TextKind(ElementKind):
         renderer.draw_outlined(draw, placed.anchor_point, color, ring_color,
                                outline.width if outline is not None else 0, box=placed.box)
 
-    def emit_draw(self, w: Writer, resolved, placed: PlacedText, guards: list[str],
-                  plan, aod: AodStyle = NO_AOD) -> None:
+    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedText,
+                  value_guards: list[str] | None, plan: ReadPlan,
+                  aod: AodStyle = NO_AOD) -> None:
         element = placed.element
         if element.literal is not None:
             _emit_text_draw(w, resolved, placed, f'"{element.literal}"', aod)
@@ -609,7 +612,7 @@ class TextKind(ElementKind):
                 element.aod.format, value.code, value.value.type,
                 unit_code=unit_code)
             value_code = aod.value(aod_value_code, value_code)
-        if element.when_absent in ("placeholder", "fallback") and guards:
+        if element.when_absent in ("placeholder", "fallback") and value_guards:
             # Build the string once rather than duplicating the draw call in both
             # branches: a placeholder is a different *value*, not a different
             # draw; a fallback is the same, except its substitute is itself a
@@ -627,7 +630,7 @@ class TextKind(ElementKind):
                     unit_code=unit_code,
                 )
                 w.comment("when_absent: fallback")
-            available = " && ".join(f"{name} != null" for name in guards)
+            available = " && ".join(f"{name} != null" for name in value_guards)
             w.line(f"var text = {initial};")
             with w.block(f"if ({available})"):
                 w.line(f"text = {value_code};")

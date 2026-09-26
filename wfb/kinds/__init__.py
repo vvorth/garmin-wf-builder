@@ -22,7 +22,7 @@ from __future__ import annotations
 import importlib
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, ClassVar, TYPE_CHECKING
+from typing import Any, Callable, ClassVar, Generic, TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from typing import TypeAlias
@@ -162,7 +162,12 @@ def placed_font(placed: "Placed", run: TextRun):
 # -- the kind interface -------------------------------------------------------
 
 
-class ElementKind:
+#: The IR element class and the placed class one kind handles.
+E = TypeVar("E", bound="Element")
+P = TypeVar("P", bound="Placed")
+
+
+class ElementKind(Generic[E, P]):
     """One element kind's behaviour.  A kind module subclasses this, sets the
     three class attributes that name it, overrides `build`/`resolve`/
     `draw_preview`/`emit_draw`, and assigns an instance to its module-level
@@ -216,19 +221,19 @@ class ElementKind:
 
     # -- layout (wfb.layout) --
 
-    def resolve(self, r: "Resolver", element: "Element", parent: "Box",
+    def resolve(self, r: "Resolver", element: E, parent: "Box",
                 depth: int) -> "Placed":
         """Resolve one element for one device, inside its parent's box."""
         raise NotImplementedError(f"{self.name}: resolve")
 
-    def circular_extent(self, placed: "Placed") -> tuple[float, float, float] | None:
+    def circular_extent(self, placed: P) -> tuple[float, float, float] | None:
         """`(cx, cy, radius)` for a genuinely round element
         (`layout.circular_extent`), else `None`."""
         return None
 
     # -- fonts (resources, emit, lint) --
 
-    def text_runs(self, element: "Element", face: "Face") -> list[TextRun]:
+    def text_runs(self, element: E, face: "Face") -> list[TextRun]:
         """Everything this element draws in a font it names -- see
         :class:`TextRun`.  A pure function of the design, so it answers
         before any device is resolved (glyph baking, vector-font guards) as
@@ -237,14 +242,14 @@ class ElementKind:
 
     # -- preview (wfb.preview) --
 
-    def draw_preview(self, renderer: "Renderer", placed: "Placed") -> None:
+    def draw_preview(self, renderer: "Renderer", placed: P) -> None:
         """Draw one placed element in `wfb preview`, the way the generated
         code draws it on the watch."""
         raise NotImplementedError(f"{self.name}: draw_preview")
 
     # -- codegen (wfb.emit) --
 
-    def emit_draw(self, w: "Writer", resolved: "ResolvedFace", placed: "Placed",
+    def emit_draw(self, w: "Writer", resolved: "ResolvedFace", placed: P,
                   value_guards: list[str] | None, plan: "ReadPlan",
                   aod: "AodStyle") -> None:
         """Emit the Monkey C drawing body of `draw<Id>`
@@ -255,17 +260,17 @@ class ElementKind:
         always-on frame."""
         raise NotImplementedError(f"{self.name}: emit_draw")
 
-    def describe(self, placed: "Placed") -> str:
+    def describe(self, placed: P) -> str:
         """A short phrase for generated doc comments (`common._describe`)."""
         return placed.element.kind
 
-    def layout_constants(self, prefix: str, placed: "Placed") -> "Constants":
+    def layout_constants(self, prefix: str, placed: P) -> "Constants":
         """This element's per-device `Layout` constants."""
         return []
 
     # -- lint (wfb.lint) --
 
-    def contrast_subjects(self, placed: "Placed") -> Iterator[ContrastSubject]:
+    def contrast_subjects(self, placed: P) -> Iterator[ContrastSubject]:
         """Every `(label, colour, ring, allow_backdrop_match)` this element
         draws, for `lint.check_contrast`.
 
@@ -290,37 +295,40 @@ class ElementKind:
 # -- the registry -------------------------------------------------------------
 
 
-_by_name: dict[str, ElementKind] = {}
-_by_ir_class: dict[type, ElementKind] = {}
-_by_placed_class: dict[type, ElementKind] = {}
+#: A kind of any element; the registry hands these out by name or class.
+AnyKind = ElementKind[Any, Any]
+
+_by_name: dict[str, AnyKind] = {}
+_by_ir_class: dict[type, AnyKind] = {}
+_by_placed_class: dict[type, AnyKind] = {}
 
 
 def _load() -> None:
     if _by_name:
         return
     for name in _NAMES:
-        kind: ElementKind = importlib.import_module(f"{__name__}.{name}").KIND
+        kind: AnyKind = importlib.import_module(f"{__name__}.{name}").KIND
         _by_name[kind.name] = kind
         _by_ir_class[kind.ir_class] = kind
         _by_placed_class[kind.placed_class] = kind
 
 
-def get(name: str) -> ElementKind:
+def get(name: str) -> AnyKind:
     _load()
     return _by_name[name]
 
 
-def for_element(element: "Element") -> ElementKind:
+def for_element(element: "Element") -> AnyKind:
     _load()
     return _by_ir_class[type(element)]
 
 
-def for_placed(placed: "Placed") -> ElementKind:
+def for_placed(placed: "Placed") -> AnyKind:
     _load()
     return _by_placed_class[type(placed)]
 
 
-def all() -> tuple[ElementKind, ...]:
+def all() -> tuple[AnyKind, ...]:
     _load()
     return tuple(_by_name[name] for name in _NAMES)
 

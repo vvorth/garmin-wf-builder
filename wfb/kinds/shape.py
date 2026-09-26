@@ -17,7 +17,8 @@ from . import ElementKind
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..layout import Resolver
+    from ..emit.monkeyc.readplan import ReadPlan
+    from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
 #: Which geometry keys each `shape:` reads.  A key outside its own row
@@ -48,7 +49,7 @@ _SHAPE_NO_ALIGNMENT_REASON = {
 _ALL_SHAPE_GEOMETRY_KEYS = frozenset().union(*SHAPE_GEOMETRY_KEYS.values())
 
 
-def _check_shape_keys(b, node: dict[str, Any], shape: str) -> None:
+def _check_shape_keys(b: Builder, node: dict[str, Any], shape: str) -> None:
     """Reject a geometry key the chosen `shape:` does not read.
 
     Without this check, an unread key would be parsed by the schema,
@@ -140,7 +141,7 @@ def _needs_thickness_constant(element) -> bool:
     return aod is not None and aod.filled is False
 
 
-class ShapeKind(ElementKind):
+class ShapeKind(ElementKind[Shape, PlacedShape]):
     name = "shape"
     ir_class = Shape
     placed_class = PlacedShape
@@ -370,7 +371,8 @@ class ShapeKind(ElementKind):
                 fill=fill, width=max(1, thickness * s),
             )
 
-    def emit_draw(self, w: Writer, resolved, placed: PlacedShape, value_guards, plan,
+    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedShape,
+                  value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD) -> None:
         element = placed.element
         prefix = const_prefix(placed.id)

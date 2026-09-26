@@ -21,7 +21,8 @@ from . import ElementKind
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..layout import Resolver
+    from ..emit.monkeyc.readplan import ReadPlan
+    from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
 
@@ -99,7 +100,7 @@ def _emit_one_hand(w: Writer, element, prefix: str, hand_name: str, angle_fn: st
             thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
 
 
-class HandsKind(ElementKind):
+class HandsKind(ElementKind[HandsElement, PlacedHands]):
     name = "hands"
     ir_class = HandsElement
     placed_class = PlacedHands
@@ -242,7 +243,8 @@ class HandsKind(ElementKind):
             for part in hand.parts:
                 renderer.hand_part(placed, part, cx, cy, sin_t, cos_t)
 
-    def emit_draw(self, w: Writer, resolved, placed: PlacedHands, value_guards, plan,
+    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedHands,
+                  value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD) -> None:
         """`type: hands` -- one `sin`/`cos` pair per drawn hand, then rotate and
         draw each of its parts, shaped exactly like the analog-hands probe's

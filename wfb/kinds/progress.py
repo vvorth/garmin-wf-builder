@@ -20,10 +20,11 @@ from . import ElementKind
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..layout import Resolver
+    from ..emit.monkeyc.readplan import ReadPlan
+    from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
-def _check_fallback_fraction(b, node: dict[str, Any], element: Progress) -> None:
+def _check_fallback_fraction(b: Builder, node: dict[str, Any], element: Progress) -> None:
     """A `progress` fallback is a **fill fraction**, so it must be 0.0-1.0.
 
     This is the one place `fallback:` means something other than "the
@@ -95,7 +96,7 @@ _NEEDLE_UNREAD = {
 }
 
 
-def _build_needle(b, node: dict[str, Any], element: Progress) -> bool:
+def _build_needle(b: Builder, node: dict[str, Any], element: Progress) -> bool:
     """`style: needle`'s parts, built exactly like an analog hand's
     (`Builder.build_hand_part`), with the element's own `color:` as every
     part's default.  False when anything was reported."""
@@ -124,7 +125,7 @@ _STYLE_ONLY_KEYS = {"needle": "needle", "count": "segments", "gap": "segments",
 _ARC_KEYS = ("radius", "thickness", "start_angle", "sweep")
 
 
-def _build_ticked(b, node: dict[str, Any], element: Progress) -> bool:
+def _build_ticked(b: Builder, node: dict[str, Any], element: Progress) -> bool:
     """`style: segments`/`scale`: which track they draw on (an arc's four
     keys, or a bar's `size:` -- exactly one), then their own keys.  False
     when anything was reported."""
@@ -272,7 +273,7 @@ def _emit_needle(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
             thickness_expr=aod.value(thickness_override, f"Layout.{part_prefix}_THICKNESS"))
 
 
-def _preview_ticked(renderer, placed: PlacedProgress, fraction: float, color, track_color) -> None:
+def _preview_ticked(renderer: Renderer, placed: PlacedProgress, fraction: float, color, track_color) -> None:
     """`segments`/`scale` in the preview, mirroring `_emit_ticked` rounding
     for rounding: `WfbArc.drawSpan`'s whole degrees from a Garmin start, and
     `toNumber()`'s truncation on a bar."""
@@ -400,7 +401,7 @@ def _emit_ticked(w: Writer, element: Progress, placed: PlacedProgress, prefix: s
         ])
 
 
-class ProgressKind(ElementKind):
+class ProgressKind(ElementKind[Progress, PlacedProgress]):
     name = "progress"
     ir_class = Progress
     placed_class = PlacedProgress
@@ -572,7 +573,8 @@ class ProgressKind(ElementKind):
         if filled > 0:
             renderer.draw.rectangle([box[0], box[1], box[0] + filled, box[3]], fill=color)
 
-    def emit_draw(self, w: Writer, resolved, placed: PlacedProgress, guards: list[str], plan,
+    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedProgress,
+                  value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD) -> None:
         element = placed.element
         prefix = const_prefix(placed.id)
@@ -580,7 +582,7 @@ class ProgressKind(ElementKind):
         color_code = aod.color(element, "color")
         track_color_code = (aod.color(element, "track_color")
                             if element.track_color is not None else None)
-        if element.when_absent == "fallback" and guards:
+        if element.when_absent == "fallback" and value_guards:
             # The fill fraction falls back, not the raw value/max -- 'fallback:'
             # supplies a number in the same 0.0-1.0 range _fraction() computes, so
             # it slots into exactly the same drawProgress/fillRectangle call the
@@ -591,7 +593,7 @@ class ProgressKind(ElementKind):
             # thing to substitute.  `_check_fallback_fraction` checks it is
             # in range and `draw_preview` renders the same substitution.)
             w.comment("when_absent: fallback")
-            available = " && ".join(f"{name} != null" for name in guards)
+            available = " && ".join(f"{name} != null" for name in value_guards)
             w.line(f"var fraction = {_fallback_fraction(element)};")
             with w.block(f"if ({available})"):
                 w.line(f"fraction = {fraction_expr};")

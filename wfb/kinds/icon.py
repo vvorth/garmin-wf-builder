@@ -20,11 +20,13 @@ from . import ElementKind, IconFont, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..layout import Resolver
+    from ..ir.model import Face
+    from ..emit.monkeyc.readplan import ReadPlan
+    from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
 
-def _build_glyph_icon(b, node: dict[str, Any], common: dict[str, Any], placement: dict[str, Any]) -> Element:
+def _build_glyph_icon(b: Builder, node: dict[str, Any], common: dict[str, Any], placement: dict[str, Any]) -> Element:
     """`glyph: "U+F0BC"` -- a codepoint the catalogue does not name.
 
     The only way to reach a glyph the catalogue does not name, and spelled
@@ -44,7 +46,7 @@ def _build_glyph_icon(b, node: dict[str, Any], common: dict[str, Any], placement
     return IconElement(**common, icon=raw.upper(), codepoint=character, **placement)
 
 
-class IconKind(ElementKind):
+class IconKind(ElementKind[IconElement, PlacedIcon]):
     name = "icon"
     ir_class = IconElement
     placed_class = PlacedIcon
@@ -148,7 +150,7 @@ class IconKind(ElementKind):
             justify=justify,
         )
 
-    def text_runs(self, element: IconElement, face) -> list[TextRun]:
+    def text_runs(self, element: IconElement, face: Face) -> list[TextRun]:
         if element.is_dynamic:
             # The glyph is chosen on-device (`WfbWeather.chooseIcon`, then
             # `IconGlyphs.glyph`), so the font holds every one it could be.
@@ -181,7 +183,8 @@ class IconKind(ElementKind):
         color = renderer.aod_color(placed.element, "color", placed.element.color)
         renderer.paste_glyph(font.sheet, glyph, placed.box.x * s, placed.box.y * s, color)
 
-    def emit_draw(self, w: Writer, resolved, placed: PlacedIcon, value_guards, plan,
+    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedIcon,
+                  value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD) -> None:
         """A `drawText` call against the icon's baked glyph -- see `wfb.icons`:
         an icon is a one-character string drawn with a bitmap font, the same

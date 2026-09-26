@@ -28,7 +28,9 @@ from . import ElementKind, IconFont, TextRun
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..layout import Resolver
+    from ..ir.model import Face
+    from ..emit.monkeyc.readplan import ReadPlan
+    from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
 #: Illustrative sample values for a `complication_slot` preview, keyed by
@@ -52,7 +54,7 @@ _COMPLICATION_SLOT_SAMPLE: dict[str, object] = {
 }
 
 
-def _resolve_slot_reference(b, raw: str, span: Span | None) -> ConfigDataSlot | None:
+def _resolve_slot_reference(b: Builder, raw: str, span: Span | None) -> ConfigDataSlot | None:
     """Resolve a `complication_slot`'s `slot: config.data.<name>` reference.
 
     The same declared/rejected cascade every other `config:` sub-block
@@ -102,7 +104,7 @@ def _check_slot_color_absence(
     )
 
 
-def _complication_slot_widest(r, element: ComplicationSlot) -> str:
+def _complication_slot_widest(r: Resolver, element: ComplicationSlot) -> str:
     """The widest plausible reading a `complication_slot` can draw: the
     digit-count estimate `formatting.widest` gives an unranged source,
     across every declared choice (there is no per-choice `format:`),
@@ -116,7 +118,8 @@ def _complication_slot_widest(r, element: ComplicationSlot) -> str:
     slot = r.face.config_data.get(element.slot)
     choices: tuple[str, ...] = ()
     if slot is not None:
-        choices = (slot.default,) if slot.allow_any else slot.choices
+        # `choices: any` is the one string form; its only known reading is the default.
+        choices = slot.choices if isinstance(slot.choices, tuple) else (slot.default,)
     widest = ""
     for name in choices:
         ctype = complications.TYPES.get(name)
@@ -207,7 +210,7 @@ def _icon_run(element: ComplicationSlot, face) -> TextRun | None:
                       element.resolved_antialias),
         glyph_table={slot_icon.key: slot_icon.codepoint for slot_icon in mapped.values()})
 
-class ComplicationSlotKind(ElementKind):
+class ComplicationSlotKind(ElementKind[ComplicationSlot, PlacedComplicationSlot]):
     name = "complication_slot"
     ir_class = ComplicationSlot
     placed_class = PlacedComplicationSlot
@@ -445,7 +448,7 @@ class ComplicationSlotKind(ElementKind):
             )
         return None
 
-    def text_runs(self, element: ComplicationSlot, face) -> list[TextRun]:
+    def text_runs(self, element: ComplicationSlot, face: Face) -> list[TextRun]:
         runs = []
         if element.font_is_custom:
             runs.append(TextRun(element.id, element.font,
@@ -548,7 +551,8 @@ class ComplicationSlotKind(ElementKind):
             source.draw(renderer, (origin_x + geometry.text_x) * s,
                         (origin_y + geometry.text_y) * s, text, color)
 
-    def emit_draw(self, w: Writer, resolved, placed: PlacedComplicationSlot, value_guards, plan,
+    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedComplicationSlot,
+                  value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD) -> None:
         complication_slot_mod.emit_complication_slot(w, resolved, placed, plan.device_guards, aod)
 

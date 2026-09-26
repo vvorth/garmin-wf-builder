@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from ..ir.builder import Builder
 
 
-class GroupKind(ElementKind):
+class GroupKind(ElementKind[Group, Placed]):
     name = "group"
     ir_class = Group
     placed_class = Placed

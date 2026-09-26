@@ -154,22 +154,11 @@ wfb/ir/model.py: [attr-defined] "HandPart" has no attribute "text_value"
 wfb/kinds/__init__.py: [attr-defined] "Placed" has no attribute "font"
 wfb/kinds/__init__.py: [attr-defined] "Placed" has no attribute "parts"
 wfb/kinds/__init__.py: [no-untyped-def] Function is missing a return type annotation
-wfb/kinds/complication_slot.py: [no-any-return] Returning Any from function declared to return "ConfigDataSlot | None"
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/complication_slot.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/complication_slot.py: [override] Argument 1 of "text_runs" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/complication_slot.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/complication_slot.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/complication_slot.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/complication_slot.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
 wfb/kinds/complication_slot.py: [union-attr] Item "None" of "Any | None" has no attribute "measure"
 wfb/kinds/complication_slot.py: [union-attr] Item "None" of "Any | None" has no attribute "sheet"
 wfb/kinds/graph.py: [arg-type] Argument 1 to "float" has incompatible type "object"; expected "str | Buffer | SupportsFloat | SupportsIndex"
@@ -180,29 +169,10 @@ wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for o
 wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/graph.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/graph.py: [operator] Unsupported operand types for >= ("float" and "None")
-wfb/kinds/graph.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/graph.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/graph.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/graph.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/graph.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
 wfb/kinds/hands.py: [no-untyped-def] Function is missing a return type annotation
 wfb/kinds/hands.py: [no-untyped-def] Function is missing a return type annotation
 wfb/kinds/hands.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/hands.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/hands.py: [override] Argument 1 of "circular_extent" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/hands.py: [override] Argument 1 of "contrast_subjects" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/hands.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/hands.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/hands.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/hands.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/hands.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
 wfb/kinds/icon.py: [arg-type] Argument 1 to "IconFont" has incompatible type "Length | None"; expected "Length"
 wfb/kinds/icon.py: [arg-type] Argument 1 to "resolve_icon_name" of "Builder" has incompatible type "Any | None"; expected "str"
 wfb/kinds/icon.py: [arg-type] Argument 4 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "AodOverride | None"
@@ -231,15 +201,6 @@ wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type 
 wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str | None"
 wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "str"
 wfb/kinds/icon.py: [arg-type] Argument 5 to "IconElement" has incompatible type "**dict[str, str | Length | Expression | None]"; expected "tuple[str, ...]"
-wfb/kinds/icon.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/icon.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/icon.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/icon.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/icon.py: [override] Argument 1 of "text_runs" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/icon.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/icon.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/icon.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/icon.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
 wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "curve"
 wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "font"
 wfb/kinds/pattern.py: [attr-defined] "HandPart" has no attribute "font_is_custom"
@@ -273,18 +234,6 @@ wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for
 wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/pattern.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/pattern.py: [override] Argument 1 of "circular_extent" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/pattern.py: [override] Argument 1 of "contrast_subjects" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/pattern.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/pattern.py: [override] Argument 1 of "text_runs" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/pattern.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/pattern.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/pattern.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/pattern.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "align"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
 wfb/kinds/pattern.py: [union-attr] Item "ResolvedArcPart" of "ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart" has no attribute "curve"
@@ -342,21 +291,10 @@ wfb/kinds/progress.py: [no-untyped-def] Function is missing a return type annota
 wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/progress.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/progress.py: [operator] Unsupported left operand type for / ("object")
 wfb/kinds/progress.py: [operator] Unsupported operand types for - ("None" and "int")
 wfb/kinds/progress.py: [operator] Unsupported operand types for / ("float" and "None")
 wfb/kinds/progress.py: [operator] Unsupported operand types for >= ("int" and "object")
-wfb/kinds/progress.py: [override] Argument 1 of "circular_extent" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/progress.py: [override] Argument 1 of "contrast_subjects" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/progress.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/progress.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/progress.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/progress.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/progress.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
 wfb/kinds/progress.py: [union-attr] Item "None" of "Angle | None" has no attribute "degrees"
 wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
 wfb/kinds/progress.py: [union-attr] Item "None" of "Expression | None" has no attribute "code"
@@ -372,14 +310,6 @@ wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for o
 wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/shape.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/shape.py: [override] Argument 1 of "circular_extent" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/shape.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/shape.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/shape.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/shape.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/shape.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
 wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "int | None"
 wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "int | None"
 wfb/kinds/text.py: [arg-type] Argument 5 to "glyphs" has incompatible type "**dict[str, tuple[str, ...] | int | None]"; expected "tuple[str, ...]"
@@ -392,17 +322,6 @@ wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation
 wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation
 wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
 wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [no-untyped-def] Function is missing a type annotation for one or more parameters
-wfb/kinds/text.py: [override] Argument 1 of "describe" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/text.py: [override] Argument 1 of "text_runs" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/text.py: [override] Argument 2 of "draw_preview" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/text.py: [override] Argument 2 of "layout_constants" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Placed"
-wfb/kinds/text.py: [override] Argument 2 of "resolve" is incompatible with supertype "wfb.kinds.ElementKind"; supertype defines the argument type as "Element"
-wfb/kinds/text.py: [override] Signature of "emit_draw" incompatible with supertype "wfb.kinds.ElementKind"
 wfb/kinds/text.py: [union-attr] Item "None" of "AodOverride | None" has no attribute "font_is_custom"
 wfb/kinds/text.py: [union-attr] Item "None" of "Curve | None" has no attribute "radius"
 wfb/kinds/text.py: [union-attr] Item "None" of "Curve | None" has no attribute "radius"

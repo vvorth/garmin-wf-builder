@@ -19,7 +19,8 @@ from . import ElementKind
 
 if TYPE_CHECKING:
     from ..ir.builder import Builder
-    from ..layout import Resolver
+    from ..emit.monkeyc.readplan import ReadPlan
+    from ..layout import ResolvedFace, Resolver
     from ..preview import Renderer
 
 #: Which key each `graph` `style:` reads (a `bar_width:` on a `style: line`
@@ -32,7 +33,7 @@ GRAPH_STYLE_KEYS = {
 _ALL_GRAPH_STYLE_KEYS = frozenset().union(*GRAPH_STYLE_KEYS.values())
 
 
-def _graph_range(b, node: dict[str, Any], src: SeriesDef | None) -> tuple[str, int]:
+def _graph_range(b: Builder, node: dict[str, Any], src: SeriesDef | None) -> tuple[str, int]:
     """Parse `range:` -- a duration string or a bare integer sample count."""
     raw = node.get("range")
     if isinstance(raw, bool):
@@ -61,7 +62,7 @@ def _graph_range(b, node: dict[str, Any], src: SeriesDef | None) -> tuple[str, i
     return "count", 0
 
 
-def _graph_sample_count(b, node: dict[str, Any], src: SeriesDef | None, range_kind: str,
+def _graph_sample_count(b: Builder, node: dict[str, Any], src: SeriesDef | None, range_kind: str,
                         range_value: int, buckets: int) -> int:
     """The build-time-known upper bound on this graph's sample count.
 
@@ -94,7 +95,7 @@ def _graph_sample_count(b, node: dict[str, Any], src: SeriesDef | None, range_ki
     return count
 
 
-def _check_graph_style_keys(b, node: dict[str, Any], style: str) -> None:
+def _check_graph_style_keys(b: Builder, node: dict[str, Any], style: str) -> None:
     if style not in GRAPH_STYLE_KEYS:
         return  # the schema has already rejected an unknown style
     b.check_foreign_keys(
@@ -103,7 +104,7 @@ def _check_graph_style_keys(b, node: dict[str, Any], style: str) -> None:
     )
 
 
-def _graph_bound(b, node: dict[str, Any], key: str) -> tuple[Expression | None, bool]:
+def _graph_bound(b: Builder, node: dict[str, Any], key: str) -> tuple[Expression | None, bool]:
     """`min:`/`max:` -- `auto` (the default) or a compiled numeric expression."""
     raw = node.get(key)
     if raw is None or (isinstance(raw, str) and raw.strip() == "auto"):
@@ -118,7 +119,7 @@ def _graph_bound(b, node: dict[str, Any], key: str) -> tuple[Expression | None, 
     return expression, False
 
 
-def _preview_graph_bound(renderer, expression, default: float) -> float:
+def _preview_graph_bound(renderer: Renderer, expression, default: float) -> float:
     """A fixed `min:`/`max:` expression, evaluated against the same
     sample readings every other bound value previews against."""
     if expression is None or expression.ast is None:
@@ -127,7 +128,7 @@ def _preview_graph_bound(renderer, expression, default: float) -> float:
     return default if value is None else float(value)
 
 
-def _graph_point(renderer, placed: PlacedGraph, i: int, n: int, value: float,
+def _graph_point(renderer: Renderer, placed: PlacedGraph, i: int, n: int, value: float,
                  lo: float, span: float) -> tuple[float, float]:
     s = renderer.scale
     x, y = placed.box.x, placed.box.y
@@ -137,7 +138,7 @@ def _graph_point(renderer, placed: PlacedGraph, i: int, n: int, value: float,
     return cx * s, cy * s
 
 
-def _graph_line(renderer, placed: PlacedGraph, values: list[float | None],
+def _graph_line(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
                 lo: float, span: float, color) -> None:
     n = len(values)
     if n < 2:
@@ -155,7 +156,7 @@ def _graph_line(renderer, placed: PlacedGraph, values: list[float | None],
         previous = point
 
 
-def _graph_area(renderer, placed: PlacedGraph, values: list[float | None],
+def _graph_area(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
                 lo: float, span: float, color) -> None:
     """One filled run per contiguous stretch of present samples -- the
     same "a gap must not draw" rule `WfbSeries.drawArea` follows, so a
@@ -182,7 +183,7 @@ def _graph_area(renderer, placed: PlacedGraph, values: list[float | None],
             renderer.draw.polygon(polygon, fill=color)
 
 
-def _graph_bars(renderer, placed: PlacedGraph, values: list[float | None],
+def _graph_bars(renderer: Renderer, placed: PlacedGraph, values: list[float | None],
                 lo: float, span: float, color) -> None:
     n = len(values)
     if n < 1:
@@ -222,7 +223,7 @@ def _synthetic_series(n: int) -> list[float | None]:
     return [None if i == gap else 50.0 + 40.0 * math.sin(i * 0.6) for i in range(n)]
 
 
-class GraphKind(ElementKind):
+class GraphKind(ElementKind[Graph, PlacedGraph]):
     name = "graph"
     ir_class = Graph
     placed_class = PlacedGraph
@@ -404,7 +405,8 @@ class GraphKind(ElementKind):
         else:
             _graph_bars(renderer, placed, values, lo, span, color)
 
-    def emit_draw(self, w: Writer, resolved, placed: PlacedGraph, value_guards, plan,
+    def emit_draw(self, w: Writer, resolved: ResolvedFace, placed: PlacedGraph,
+                  value_guards: list[str] | None, plan: ReadPlan,
                   aod: AodStyle = NO_AOD) -> None:
         graph_mod.emit_graph(w, placed, aod)
 
